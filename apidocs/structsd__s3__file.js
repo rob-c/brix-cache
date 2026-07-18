@@ -7,6 +7,7 @@ var structsd__s3__file =
     [ "is_mpu", "structsd__s3__file.html#a54318edeff603d6a3144ec775460648b", null ],
     [ "is_write", "structsd__s3__file.html#a012a28996d001eb7fe9ddaf4196a0ecd", null ],
     [ "key", "structsd__s3__file.html#a131e4121ea4582eb4e1e77169bbf5dd7", null ],
+    [ "lazy_mpu", "structsd__s3__file.html#a7fa13db60b38108a7b451d3dcb9b1201", null ],
     [ "mpu_write_off", "structsd__s3__file.html#ac1d7fa2d22bb0f575803267554a128cd", null ],
     [ "obj_size", "structsd__s3__file.html#a0167563433748db524da3d487b04e96a", null ],
     [ "part_buf", "structsd__s3__file.html#a366fb5681bdc08edc1c8681f24ec4f0f", null ],

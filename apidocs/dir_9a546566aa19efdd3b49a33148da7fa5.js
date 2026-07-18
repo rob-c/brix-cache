@@ -1,5 +1,8 @@
 var dir_9a546566aa19efdd3b49a33148da7fa5 =
 [
+    [ "brixautofs.c", "brixautofs_8c.html", "brixautofs_8c" ],
+    [ "brixautofs.h", "brixautofs_8h.html", "brixautofs_8h" ],
+    [ "brixautofs_unittest.c", "brixautofs__unittest_8c.html", "brixautofs__unittest_8c" ],
     [ "brixcvmfs.c", "brixcvmfs_8c.html", "brixcvmfs_8c" ],
     [ "brixcvmfs_internal.h", "brixcvmfs__internal_8h.html", "brixcvmfs__internal_8h" ],
     [ "brixcvmfs_rw.c", "brixcvmfs__rw_8c.html", "brixcvmfs__rw_8c" ],

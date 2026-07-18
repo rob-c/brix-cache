@@ -3,7 +3,7 @@ var protocols_2root_2connection_2handler_8c =
     [ "conn_apply_srv_conf", "protocols_2root_2connection_2handler_8c.html#a86434bbe3f15ee4860b9c1b60c919f90", null ],
     [ "conn_begin_session", "protocols_2root_2connection_2handler_8c.html#a36505c79acf05f296fab136d5af31450", null ],
     [ "conn_init_ctx", "protocols_2root_2connection_2handler_8c.html#a316a92b7b8cd0bb5b426c1c7269bbe91", null ],
-    [ "conn_init_slots_and_sessid", "protocols_2root_2connection_2handler_8c.html#a8e2e38fe17352f3a632ab1a6272a3a09", null ],
+    [ "conn_init_slots_and_sessid", "protocols_2root_2connection_2handler_8c.html#af76a39a416070ff20eeaec192a693811", null ],
     [ "conn_metrics_auth_label", "protocols_2root_2connection_2handler_8c.html#a3c6bb76632bebad7901e95103ca96534", null ],
     [ "conn_metrics_init_labels", "protocols_2root_2connection_2handler_8c.html#a9d74b3f046b3b92a860ee17eb2d6c439", null ],
     [ "conn_metrics_row", "protocols_2root_2connection_2handler_8c.html#aac7713bdcd3188c853e5aa4155940b4e", null ],

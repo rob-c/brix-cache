@@ -10,6 +10,6 @@ var macaroon__endpoint__oauth2_8c =
     [ "urlencode_decode_inplace", "macaroon__endpoint__oauth2_8c.html#aba6e6e52fd0e36ebf59a924ec2081f97", null ],
     [ "webdav_handle_macaroon_token", "macaroon__endpoint__oauth2_8c.html#a5498f7be17d6115338520b1a7fd69963", null ],
     [ "activity", "macaroon__endpoint__oauth2_8c.html#aa4dd9aef9fc673a6de6bac9147f6f39b", null ],
-    [ "mac_scope_activity_map", "macaroon__endpoint__oauth2_8c.html#a83b71a103f2e617e5ddf90668dc1280f", null ],
+    [ "mac_scope_activity_map", "macaroon__endpoint__oauth2_8c.html#a471fca29ec658d224e1b59151f19de3b", null ],
     [ "scope", "macaroon__endpoint__oauth2_8c.html#aaa3f7f51e16b6fa08e2bc1e0d7eb6bab", null ]
 ];

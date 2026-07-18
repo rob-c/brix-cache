@@ -19,6 +19,8 @@ var tier_8h =
     [ "brix_tier_build_stack", "tier_8h.html#a640e93ed143ba688fbc700266e3ad22c", null ],
     [ "brix_tier_parse_store", "tier_8h.html#acfbcb18e1fa04691ddc5dc7902a1d7d8", null ],
     [ "brix_tier_status", "tier_8h.html#a2ab228e86cde616b0b3685ca42298687", null ],
+    [ "brix_vfs_backend_config_cache_cold_store", "tier_8h.html#a6b57a40436d337bda76b3dd800a97001", null ],
+    [ "brix_vfs_backend_config_cache_peers", "tier_8h.html#acde85c244fc782a306d644a51097992b", null ],
     [ "brix_vfs_backend_config_cache_store", "tier_8h.html#aaf91c775a842326feecf6dbd558f1183", null ],
     [ "brix_vfs_backend_config_stage_store", "tier_8h.html#abd37cf4899c80899ab18d4a2cef076d8", null ]
 ];

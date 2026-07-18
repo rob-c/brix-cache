@@ -25,5 +25,10 @@ var searchData=
   ['fattr_5frecurse_5fxlist_5fbuf_22',['FATTR_RECURSE_XLIST_BUF',['../list_8c.html#a0ce0cf6c0c6b52bbd26a665be2cf15f8',1,'list.c']]],
   ['fill_5fbackoff_5fcap_5fms_23',['FILL_BACKOFF_CAP_MS',['../fill__retry_8c.html#ab12d4ccdf2cc73d94f5583525c8866fd',1,'fill_retry.c']]],
   ['fill_5fbackoff_5fstart_5fms_24',['FILL_BACKOFF_START_MS',['../fill__retry_8c.html#a6dd57994d7c1b3592d8943dd6462817f',1,'fill_retry.c']]],
-  ['fuse_5fuse_5fversion_25',['fuse_use_version',['../brixcvmfs_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixcvmfs.c'],['../brixcvmfs__internal_8h.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixcvmfs_internal.h'],['../xrootdfs__internal_8h.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;xrootdfs_internal.h'],['../xrootdfs__legacy_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;xrootdfs_legacy.c']]]
+  ['ftp_5feb_5feod_25',['FTP_EB_EOD',['../ftp__eblock_8h.html#a4abbbda2100336716a2bf270c40a4103',1,'ftp_eblock.h']]],
+  ['ftp_5feb_5feof_26',['FTP_EB_EOF',['../ftp__eblock_8h.html#aacabf8db82148102339eb4f798ea7615',1,'ftp_eblock.h']]],
+  ['ftp_5feb_5fhdr_27',['FTP_EB_HDR',['../ftp__eblock_8h.html#abd3b15787e743c9ab65f4d88036e7409',1,'ftp_eblock.h']]],
+  ['ftp_5fev_5feb_5fmarker_5fbytes_28',['FTP_EV_EB_MARKER_BYTES',['../ftp__ev__mode__e_8c.html#a50b55ec5d00975aec17b059238b61438',1,'ftp_ev_mode_e.c']]],
+  ['ftp_5fev_5feb_5fmarker_5fmax_5franges_29',['FTP_EV_EB_MARKER_MAX_RANGES',['../ftp__ev__mode__e_8c.html#ac8ccc6c7ba6df52fa66ce933a3e2dd81',1,'ftp_ev_mode_e.c']]],
+  ['fuse_5fuse_5fversion_30',['fuse_use_version',['../brixautofs_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixautofs.c'],['../brixcvmfs_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixcvmfs.c'],['../brixcvmfs__internal_8h.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixcvmfs_internal.h'],['../xrootdfs__internal_8h.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;xrootdfs_internal.h'],['../xrootdfs__legacy_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;xrootdfs_legacy.c']]]
 ];

@@ -21,6 +21,6 @@ var tier__config_8c =
     [ "driver", "tier__config_8c.html#a00b0aa4c95ef3b76f4bf977eb7a1a496", null ],
     [ "nearline", "tier__config_8c.html#a3a8ded7d9600d46df808dcd799e749cb", null ],
     [ "scheme", "tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343", null ],
-    [ "tier_schemes", "tier__config_8c.html#a2a85425b74f6c79034786e5c0f3b2c5e", null ],
+    [ "tier_schemes", "tier__config_8c.html#ad01ce871d34fbe76d42298944a9a47b0", null ],
     [ "tls", "tier__config_8c.html#a39888985bf98dd26251c28fbf14cb82f", null ]
 ];

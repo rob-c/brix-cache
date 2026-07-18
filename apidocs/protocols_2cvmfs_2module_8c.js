@@ -10,6 +10,7 @@ var protocols_2cvmfs_2module_8c =
     [ "ngx_http_brix_cvmfs_preconfiguration", "protocols_2cvmfs_2module_8c.html#acc7d3293f176625cda35aa8bc6f7dcfe", null ],
     [ "ngx_http_brix_cvmfs_set", "protocols_2cvmfs_2module_8c.html#abf413e48faeae1f8458409e592561225", null ],
     [ "brix_cvmfs_geo_answer_enum", "protocols_2cvmfs_2module_8c.html#a05641a235ddc6511f7b887eeef991ac3", null ],
+    [ "brix_cvmfs_origin_httpv_enum", "protocols_2cvmfs_2module_8c.html#a70831c7d28463b79b03605c5ceb9bac8", null ],
     [ "brix_cvmfs_retry_policy_enum", "protocols_2cvmfs_2module_8c.html#a67052328055e46d3dc4348aa9281ab12", null ],
     [ "brix_cvmfs_select_enum", "protocols_2cvmfs_2module_8c.html#a460cda0272e466184aeb670b3726614b", null ],
     [ "brix_scvmfs_authz_enum", "protocols_2cvmfs_2module_8c.html#a084c0ce60b79bd5883b1a5a5a4c2d848", null ],

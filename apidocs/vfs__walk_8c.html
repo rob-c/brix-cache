@@ -152,10 +152,12 @@ Functions</h2></td></tr>
 <tr class="separator:ac0837436f152198494f372967baa05e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af06f3160620a1babac79fe8c1195fa69" id="r_af06f3160620a1babac79fe8c1195fa69"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__walk_8c.html#af06f3160620a1babac79fe8c1195fa69">brix_vfs_copyfile</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *src, const char *dst, int preserve_xattrs, <a class="el" href="vfs__ops_8h.html#a32e419ed64ddb082fdf62652f5ffe7a1">brix_vfs_copy_meta_cb</a> meta_cb, void *cookie)</td></tr>
 <tr class="separator:af06f3160620a1babac79fe8c1195fa69"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aaf70f4a19d8610f9a46651b3324d79a0" id="r_aaf70f4a19d8610f9a46651b3324d79a0"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__walk_8c.html#aaf70f4a19d8610f9a46651b3324d79a0">vfs_copytree_subdir</a> (const <a class="el" href="structvfs__copy__ctx__t.html">vfs_copy_ctx_t</a> *ctx, const char *src_child, const char *dst_child, mode_t mode)</td></tr>
-<tr class="separator:aaf70f4a19d8610f9a46651b3324d79a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab218f770d657089e502595e0f6b9b998" id="r_ab218f770d657089e502595e0f6b9b998"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__walk_8c.html#ab218f770d657089e502595e0f6b9b998">vfs_copytree_entry</a> (const <a class="el" href="structvfs__copy__ctx__t.html">vfs_copy_ctx_t</a> *ctx, const char *src, const char *dst, const struct dirent *de)</td></tr>
-<tr class="separator:ab218f770d657089e502595e0f6b9b998"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a84ff02926034ab6932dbb38cc76a0b58" id="r_a84ff02926034ab6932dbb38cc76a0b58"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__walk_8c.html#a84ff02926034ab6932dbb38cc76a0b58">vfs_copytree_run</a> (const <a class="el" href="structvfs__copy__ctx__t.html">vfs_copy_ctx_t</a> *ctx, const char *src, const char *dst, ngx_uint_t depth)</td></tr>
+<tr class="separator:a84ff02926034ab6932dbb38cc76a0b58"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae947e13f6f213fe2e566bdae3797adda" id="r_ae947e13f6f213fe2e566bdae3797adda"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__walk_8c.html#ae947e13f6f213fe2e566bdae3797adda">vfs_copytree_subdir</a> (const <a class="el" href="structvfs__copy__ctx__t.html">vfs_copy_ctx_t</a> *ctx, const char *src_child, const char *dst_child, mode_t mode, ngx_uint_t depth)</td></tr>
+<tr class="separator:ae947e13f6f213fe2e566bdae3797adda"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a67f805e7d53d645c786427f6c33acd45" id="r_a67f805e7d53d645c786427f6c33acd45"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__walk_8c.html#a67f805e7d53d645c786427f6c33acd45">vfs_copytree_entry</a> (const <a class="el" href="structvfs__copy__ctx__t.html">vfs_copy_ctx_t</a> *ctx, const char *src, const char *dst, const struct dirent *de, ngx_uint_t depth)</td></tr>
+<tr class="separator:a67f805e7d53d645c786427f6c33acd45"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2f5aba8e586f9329840a080e48023449" id="r_a2f5aba8e586f9329840a080e48023449"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__walk_8c.html#a2f5aba8e586f9329840a080e48023449">brix_vfs_copytree</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *src, const char *dst, int preserve_xattrs, <a class="el" href="vfs__ops_8h.html#a32e419ed64ddb082fdf62652f5ffe7a1">brix_vfs_copy_meta_cb</a> meta_cb, void *cookie)</td></tr>
 <tr class="separator:a2f5aba8e586f9329840a080e48023449"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -200,7 +202,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00353">353</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00248">brix_vfs_backend_resolve()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00304">brix_vfs_backend_resolve()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00088">brix_vfs_mkdir_parent_path()</a>, <a class="el" href="recv__forward_8c_source.html#l00103">cms_node_exec_driver()</a>, <a class="el" href="mv_8c_source.html#l00224">mv_make_dst_parents()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00116">vfs_backend_mkdir_dispatch()</a>.</p>
 
@@ -266,7 +268,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="copy__range_8c_source.html#l00188">brix_copy_range()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00104">brix_ns_copy_fattrs()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00505">vfs_copytree_entry()</a>, and <a class="el" href="copy__engine_8c_source.html#l00044">webdav_copy_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00511">vfs_copytree_entry()</a>, and <a class="el" href="copy__engine_8c_source.html#l00044">webdav_copy_file()</a>.</p>
 
 </div>
 </div>
@@ -326,11 +328,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00542">542</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00585">585</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="vfs__walk_8c_source.html#l00505">vfs_copytree_entry()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="vfs__walk_8c_source.html#l00548">vfs_copytree_run()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00477">vfs_copytree_subdir()</a>, and <a class="el" href="copy__engine_8c_source.html#l00052">webdav_copy_dir_recursive()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="copy__engine_8c_source.html#l00052">webdav_copy_dir_recursive()</a>.</p>
 
 </div>
 </div>
@@ -376,7 +378,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00158">webdav_copy_collection_stage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00161">webdav_copy_collection_stage()</a>.</p>
 
 </div>
 </div>
@@ -428,7 +430,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="chkpoint__recover_8c_source.html#l00035">ckp_recover_one()</a>, <a class="el" href="chkpoint__recover_8c_source.html#l00145">ckp_recover_open_dir()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00079">s3_mpu_assemble()</a>, <a class="el" href="put__inner_8c_source.html#l00012">s3_put_try_sentinel()</a>, <a class="el" href="tpc__curl_8c_source.html#l00143">tpc_core_open_local()</a>, and <a class="el" href="put__body_8c_source.html#l00050">webdav_put_persist_checksums()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="chkpoint__recover_8c_source.html#l00035">ckp_recover_one()</a>, <a class="el" href="chkpoint__recover_8c_source.html#l00145">ckp_recover_open_dir()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00079">s3_mpu_assemble()</a>, <a class="el" href="put__inner_8c_source.html#l00015">s3_put_try_sentinel()</a>, <a class="el" href="tpc__curl_8c_source.html#l00143">tpc_core_open_local()</a>, and <a class="el" href="put__body_8c_source.html#l00050">webdav_put_persist_checksums()</a>.</p>
 
 </div>
 </div>
@@ -474,7 +476,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__resolved__file__open_8c_source.html#l00271">brix_open_posix_dispatch()</a>, <a class="el" href="fd__table_8c_source.html#l00113">brix_reopen_bound_read_handle()</a>, <a class="el" href="recv__forward_8c_source.html#l00180">cms_posix_apply()</a>, <a class="el" href="launch__prepare_8c_source.html#l00242">tpc_open_dst_logical()</a>, and <a class="el" href="zip__member_8c_source.html#l00255">zip_open_archive_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__resolved__file__open_8c_source.html#l00283">brix_open_posix_dispatch()</a>, <a class="el" href="fd__table_8c_source.html#l00113">brix_reopen_bound_read_handle()</a>, <a class="el" href="recv__forward_8c_source.html#l00180">cms_posix_apply()</a>, <a class="el" href="launch__prepare_8c_source.html#l00242">tpc_open_dst_logical()</a>, and <a class="el" href="zip__member_8c_source.html#l00255">zip_open_archive_fd()</a>.</p>
 
 </div>
 </div>
@@ -634,8 +636,8 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ab218f770d657089e502595e0f6b9b998" name="ab218f770d657089e502595e0f6b9b998"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab218f770d657089e502595e0f6b9b998">&#9670;&#160;</a></span>vfs_copytree_entry()</h2>
+<a id="a67f805e7d53d645c786427f6c33acd45" name="a67f805e7d53d645c786427f6c33acd45"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a67f805e7d53d645c786427f6c33acd45">&#9670;&#160;</a></span>vfs_copytree_entry()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -665,7 +667,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const struct dirent *&#160;</td>
-          <td class="paramname"><em>de</em>&#160;</td>
+          <td class="paramname"><em>de</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -680,16 +688,70 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00505">505</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00511">511</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="vfs__walk_8c_source.html#l00400">brix_vfs_copyfile()</a>, <a class="el" href="vfs__walk_8c_source.html#l00469">vfs_copy_ctx_t::cookie</a>, <a class="el" href="vfs__walk_8c_source.html#l00465">vfs_copy_ctx_t::log</a>, <a class="el" href="vfs__walk_8c_source.html#l00468">vfs_copy_ctx_t::meta_cb</a>, <a class="el" href="vfs__walk_8c_source.html#l00467">vfs_copy_ctx_t::preserve_xattrs</a>, <a class="el" href="vfs__walk_8c_source.html#l00466">vfs_copy_ctx_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00477">vfs_copytree_subdir()</a>.</p>
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="tunables_8h_source.html#l00187">BRIX_MAX_PATH</a>, <a class="el" href="vfs__walk_8c_source.html#l00400">brix_vfs_copyfile()</a>, <a class="el" href="vfs__walk_8c_source.html#l00469">vfs_copy_ctx_t::cookie</a>, <a class="el" href="vfs__walk_8c_source.html#l00465">vfs_copy_ctx_t::log</a>, <a class="el" href="vfs__walk_8c_source.html#l00468">vfs_copy_ctx_t::meta_cb</a>, <a class="el" href="vfs__walk_8c_source.html#l00467">vfs_copy_ctx_t::preserve_xattrs</a>, <a class="el" href="vfs__walk_8c_source.html#l00466">vfs_copy_ctx_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00484">vfs_copytree_subdir()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00542">brix_vfs_copytree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00548">vfs_copytree_run()</a>.</p>
 
 </div>
 </div>
-<a id="aaf70f4a19d8610f9a46651b3324d79a0" name="aaf70f4a19d8610f9a46651b3324d79a0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aaf70f4a19d8610f9a46651b3324d79a0">&#9670;&#160;</a></span>vfs_copytree_subdir()</h2>
+<a id="a84ff02926034ab6932dbb38cc76a0b58" name="a84ff02926034ab6932dbb38cc76a0b58"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a84ff02926034ab6932dbb38cc76a0b58">&#9670;&#160;</a></span>vfs_copytree_run()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t vfs_copytree_run </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structvfs__copy__ctx__t.html">vfs_copy_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00548">548</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fs__walk_8h_source.html#l00023">BRIX_FS_TREE_MAX_DEPTH</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="vfs__walk_8c_source.html#l00465">vfs_copy_ctx_t::log</a>, <a class="el" href="vfs__walk_8c_source.html#l00466">vfs_copy_ctx_t::root_canon</a>, and <a class="el" href="vfs__walk_8c_source.html#l00511">vfs_copytree_entry()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00585">brix_vfs_copytree()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00484">vfs_copytree_subdir()</a>.</p>
+
+</div>
+</div>
+<a id="ae947e13f6f213fe2e566bdae3797adda" name="ae947e13f6f213fe2e566bdae3797adda"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae947e13f6f213fe2e566bdae3797adda">&#9670;&#160;</a></span>vfs_copytree_subdir()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -719,7 +781,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -734,11 +802,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00477">477</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00484">484</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00104">brix_ns_copy_fattrs()</a>, <a class="el" href="vfs__walk_8c_source.html#l00542">brix_vfs_copytree()</a>, <a class="el" href="vfs__walk_8c_source.html#l00469">vfs_copy_ctx_t::cookie</a>, <a class="el" href="vfs__walk_8c_source.html#l00465">vfs_copy_ctx_t::log</a>, <a class="el" href="vfs__walk_8c_source.html#l00468">vfs_copy_ctx_t::meta_cb</a>, <a class="el" href="vfs__walk_8c_source.html#l00467">vfs_copy_ctx_t::preserve_xattrs</a>, and <a class="el" href="vfs__walk_8c_source.html#l00466">vfs_copy_ctx_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="namespace__ops__copy_8c_source.html#l00104">brix_ns_copy_fattrs()</a>, <a class="el" href="vfs__walk_8c_source.html#l00469">vfs_copy_ctx_t::cookie</a>, <a class="el" href="vfs__walk_8c_source.html#l00465">vfs_copy_ctx_t::log</a>, <a class="el" href="vfs__walk_8c_source.html#l00468">vfs_copy_ctx_t::meta_cb</a>, <a class="el" href="vfs__walk_8c_source.html#l00467">vfs_copy_ctx_t::preserve_xattrs</a>, <a class="el" href="vfs__walk_8c_source.html#l00466">vfs_copy_ctx_t::root_canon</a>, and <a class="el" href="vfs__walk_8c_source.html#l00548">vfs_copytree_run()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00505">vfs_copytree_entry()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00511">vfs_copytree_entry()</a>.</p>
 
 </div>
 </div>
@@ -898,7 +966,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__walk_8c_source.html#l00166">166</a> of file <a class="el" href="vfs__walk_8c_source.html">vfs_walk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="vfs__walk_8c_source.html#l00158">vfs_walk_step_t::code</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="vfs__ops_8h_source.html#l00022">brix_vfs_walk_opts_t::max_files</a>, <a class="el" href="vfs__walk_8c_source.html#l00070">vfs_walk_ctx_t::nfiles</a>, <a class="el" href="vfs__walk_8c_source.html#l00067">vfs_walk_ctx_t::opts</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="vfs__walk_8c_source.html#l00157">vfs_walk_step_t::stop</a>, <a class="el" href="vfs__walk_8c_source.html#l00224">vfs_walk_dir()</a>, <a class="el" href="vfs__walk_8c_source.html#l00095">vfs_walk_emit_file()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00079">vfs_walk_join()</a>.</p>
+<p class="reference">References <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>, <a class="el" href="tunables_8h_source.html#l00187">BRIX_MAX_PATH</a>, <a class="el" href="vfs__walk_8c_source.html#l00158">vfs_walk_step_t::code</a>, <a class="el" href="brixposix__preload_8c_source.html#l00459">fstatat()</a>, <a class="el" href="vfs__ops_8h_source.html#l00022">brix_vfs_walk_opts_t::max_files</a>, <a class="el" href="vfs__walk_8c_source.html#l00070">vfs_walk_ctx_t::nfiles</a>, <a class="el" href="vfs__walk_8c_source.html#l00067">vfs_walk_ctx_t::opts</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="vfs__walk_8c_source.html#l00157">vfs_walk_step_t::stop</a>, <a class="el" href="vfs__walk_8c_source.html#l00224">vfs_walk_dir()</a>, <a class="el" href="vfs__walk_8c_source.html#l00095">vfs_walk_emit_file()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00079">vfs_walk_join()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__walk_8c_source.html#l00224">vfs_walk_dir()</a>.</p>
 

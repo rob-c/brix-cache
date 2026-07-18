@@ -8,6 +8,7 @@ var vfs__open__handle_8c =
     [ "brix_vfs_file_mtime", "vfs__open__handle_8c.html#aae1bd755f56793476801e35a41914ba9", null ],
     [ "brix_vfs_file_path", "vfs__open__handle_8c.html#a8624f191d8d0d21f18656e685eaaa448", null ],
     [ "brix_vfs_file_pread", "vfs__open__handle_8c.html#a95e843f2c2c963647e3b3079e976964f", null ],
+    [ "brix_vfs_file_pwrite", "vfs__open__handle_8c.html#a5066c677bd22b13c7896ef719b9e75ee", null ],
     [ "brix_vfs_file_sd_obj", "vfs__open__handle_8c.html#a6408ce9c1f39f6d8cdd249050c161ec0", null ],
     [ "brix_vfs_file_sendfile_fd", "vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03", null ],
     [ "brix_vfs_file_size", "vfs__open__handle_8c.html#a8489164ebd9f32bd34231f243777d61c", null ],

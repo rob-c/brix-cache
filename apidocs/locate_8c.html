@@ -99,6 +99,7 @@ $(document).ready(function(){initNavTree('locate_8c.html',''); initResizable(); 
 <div class="textblock"><code>#include &quot;<a class="el" href="ngx__brix__module_8h_source.html">core/ngx_brix_module.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="upstream_8h_source.html">net/upstream/upstream.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="op__path_8h_source.html">protocols/root/path/op_path.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="negcache_8h_source.html">core/negcache/negcache.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="net_2manager_2registry_8h_source.html">net/manager/registry.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="redir__cache_8h_source.html">net/manager/redir_cache.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="pending_8h_source.html">net/manager/pending.h</a>&quot;</code><br />
@@ -169,9 +170,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00370">370</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00387">387</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00162">BRIX_MAX_PATH</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00054">locate_ctx_t::ctx</a>, <a class="el" href="locate_8c_source.html#l00278">locate_check_data_server()</a>, <a class="el" href="locate_8c_source.html#l00334">locate_format_local()</a>, <a class="el" href="locate_8c_source.html#l00077">locate_resolve_reqpath()</a>, <a class="el" href="locate_8c_source.html#l00183">locate_try_manager()</a>, and <a class="el" href="locate_8c_source.html#l00243">locate_try_manager_map()</a>.</p>
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00187">BRIX_MAX_PATH</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::ctx</a>, <a class="el" href="locate_8c_source.html#l00279">locate_check_data_server()</a>, <a class="el" href="locate_8c_source.html#l00351">locate_format_local()</a>, <a class="el" href="locate_8c_source.html#l00078">locate_resolve_reqpath()</a>, <a class="el" href="locate_8c_source.html#l00184">locate_try_manager()</a>, and <a class="el" href="locate_8c_source.html#l00244">locate_try_manager_map()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="dispatch__read_8c_source.html#l00044">brix_dispatch_read_opcode()</a>.</p>
 
@@ -211,11 +212,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00278">278</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00279">279</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__gate_8c_source.html#l00482">brix_auth_gate()</a>, <a class="el" href="types_2config_8h_source.html#l00052">BRIX_AUTH_READ</a>, <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="start_8c_source.html#l00290">brix_upstream_start()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00054">locate_ctx_t::ctx</a>, <a class="el" href="locate_8c_source.html#l00059">locate_ctx_t::is_wildcard</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::reqpath</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="context_8h_source.html#l00304">brix_ctx_t::write_rc</a>.</p>
+<p class="reference">References <a class="el" href="auth__gate_8c_source.html#l00482">brix_auth_gate()</a>, <a class="el" href="types_2config_8h_source.html#l00055">BRIX_AUTH_READ</a>, <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="negcache_8c_source.html#l00166">brix_negcache_note_miss()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="control_8c_source.html#l00096">brix_send_wait()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="start_8c_source.html#l00290">brix_upstream_start()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::ctx</a>, <a class="el" href="locate_8c_source.html#l00060">locate_ctx_t::is_wildcard</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="locate_8c_source.html#l00058">locate_ctx_t::reqpath</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="context_8h_source.html#l00304">brix_ctx_t::write_rc</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00370">brix_handle_locate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00387">brix_handle_locate()</a>.</p>
 
 </div>
 </div>
@@ -265,11 +266,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00334">334</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00351">351</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00370">brix_handle_locate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00387">brix_handle_locate()</a>.</p>
 
 </div>
 </div>
@@ -307,11 +308,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00077">77</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00078">78</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00092">brix_count_path_depth()</a>, <a class="el" href="protocols_2root_2path_2extract_8c_source.html#l00012">brix_extract_path()</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="op__path_8c_source.html#l00317">brix_reject_dotdot_path()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00054">locate_ctx_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="locate_8c_source.html#l00059">locate_ctx_t::is_wildcard</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="wire__codec_8h_source.html#l00133">xrdw_locate_req_t::options</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::reqpath</a>, <a class="el" href="locate_8c_source.html#l00058">locate_ctx_t::reqpath_sz</a>, <a class="el" href="context_8h_source.html#l00304">brix_ctx_t::write_rc</a>, and <a class="el" href="wire__codec__meta_8c_source.html#l00126">xrdw_locate_req_unpack()</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00092">brix_count_path_depth()</a>, <a class="el" href="protocols_2root_2path_2extract_8c_source.html#l00012">brix_extract_path()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="op__path_8c_source.html#l00317">brix_reject_dotdot_path()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00179">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="locate_8c_source.html#l00060">locate_ctx_t::is_wildcard</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00147">kXR_ArgMissing</a>, <a class="el" href="wire__codec_8h_source.html#l00133">xrdw_locate_req_t::options</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="locate_8c_source.html#l00058">locate_ctx_t::reqpath</a>, <a class="el" href="locate_8c_source.html#l00059">locate_ctx_t::reqpath_sz</a>, <a class="el" href="context_8h_source.html#l00304">brix_ctx_t::write_rc</a>, and <a class="el" href="wire__codec__meta_8c_source.html#l00126">xrdw_locate_req_unpack()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00370">brix_handle_locate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00387">brix_handle_locate()</a>.</p>
 
 </div>
 </div>
@@ -349,11 +350,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00139">139</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00140">140</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pending_8c_source.html#l00098">brix_pending_insert()</a>, <a class="el" href="pending_8c_source.html#l00221">brix_pending_remove()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::c</a>, <a class="el" href="context_8h_source.html#l00290">brix_ctx_t::cms_wait_streamid</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00054">locate_ctx_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00336">ngx_brix_cms_next_streamid()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00356">ngx_brix_cms_send_locate()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::reqpath</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>, and <a class="el" href="state_8h_source.html#l00033">XRD_ST_WAITING_CMS</a>.</p>
+<p class="reference">References <a class="el" href="pending_8c_source.html#l00098">brix_pending_insert()</a>, <a class="el" href="pending_8c_source.html#l00221">brix_pending_remove()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::c</a>, <a class="el" href="context_8h_source.html#l00290">brix_ctx_t::cms_wait_streamid</a>, <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00336">ngx_brix_cms_next_streamid()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00356">ngx_brix_cms_send_locate()</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="locate_8c_source.html#l00058">locate_ctx_t::reqpath</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>, and <a class="el" href="state_8h_source.html#l00033">XRD_ST_WAITING_CMS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00183">locate_try_manager()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00184">locate_try_manager()</a>.</p>
 
 </div>
 </div>
@@ -391,11 +392,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00183">183</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00184">184</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="redir__cache_8c_source.html#l00191">brix_redir_cache_insert()</a>, <a class="el" href="redir__cache_8c_source.html#l00151">brix_redir_cache_lookup()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="registry__select_8c_source.html#l00278">brix_srv_select()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00054">locate_ctx_t::ctx</a>, <a class="el" href="locate_8c_source.html#l00059">locate_ctx_t::is_wildcard</a>, <a class="el" href="locate_8c_source.html#l00139">locate_try_cms_parent()</a>, and <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::reqpath</a>.</p>
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="redir__cache_8c_source.html#l00191">brix_redir_cache_insert()</a>, <a class="el" href="redir__cache_8c_source.html#l00151">brix_redir_cache_lookup()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="registry__select_8c_source.html#l00278">brix_srv_select()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::ctx</a>, <a class="el" href="locate_8c_source.html#l00060">locate_ctx_t::is_wildcard</a>, <a class="el" href="locate_8c_source.html#l00140">locate_try_cms_parent()</a>, and <a class="el" href="locate_8c_source.html#l00058">locate_ctx_t::reqpath</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00370">brix_handle_locate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00387">brix_handle_locate()</a>.</p>
 
 </div>
 </div>
@@ -433,11 +434,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00243">243</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="locate_8c_source.html#l00244">244</a> of file <a class="el" href="locate_8c_source.html">locate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00130">brix_find_manager_map()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00054">locate_ctx_t::ctx</a>, <a class="el" href="types_2config_8h_source.html#l00084">brix_manager_map_t::host</a>, <a class="el" href="locate_8c_source.html#l00059">locate_ctx_t::is_wildcard</a>, <a class="el" href="types_2config_8h_source.html#l00085">brix_manager_map_t::port</a>, and <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::reqpath</a>.</p>
+<p class="reference">References <a class="el" href="find__rule_8c_source.html#l00130">brix_find_manager_map()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00053">BRIX_OP_LOCATE</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="locate_8c_source.html#l00056">locate_ctx_t::c</a>, <a class="el" href="locate_8c_source.html#l00057">locate_ctx_t::conf</a>, <a class="el" href="locate_8c_source.html#l00055">locate_ctx_t::ctx</a>, <a class="el" href="types_2config_8h_source.html#l00087">brix_manager_map_t::host</a>, <a class="el" href="locate_8c_source.html#l00060">locate_ctx_t::is_wildcard</a>, <a class="el" href="types_2config_8h_source.html#l00088">brix_manager_map_t::port</a>, and <a class="el" href="locate_8c_source.html#l00058">locate_ctx_t::reqpath</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00370">brix_handle_locate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="locate_8c_source.html#l00387">brix_handle_locate()</a>.</p>
 
 </div>
 </div>

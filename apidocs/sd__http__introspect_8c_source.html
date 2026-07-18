@@ -136,99 +136,128 @@ $(document).ready(function(){initNavTree('sd__http__introspect_8c_source.html','
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>}</div>
 </div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment">/* Endpoint inventory for the RTT prober (copies, no ngx types). */</span></div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00039" data-start="{" data-end="}">
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a7676f5eb142c09ea63f5a744b8893d0f">   39</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a7676f5eb142c09ea63f5a744b8893d0f">sd_http_endpoint_list</a>(brix_sd_instance_t *inst, <span class="keywordtype">char</span> hosts[][256],</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    <span class="keywordtype">int</span> *ports, <span class="keywordtype">int</span> max)</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>{</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    <a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is;</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    <span class="keywordtype">int</span>                 i, n;</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span> </div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)) {</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    }</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    is = inst-&gt;state;</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    n = (is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> &lt; max) ? is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> : max;</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n; i++) {</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        memcpy(hosts[i], is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>, <span class="keyword">sizeof</span>(is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>));</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>        ports[i] = is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#a0d562ffe6ed9f824b0bbfdf2d11eb8b9">port</a>;</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    }</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <span class="keywordflow">return</span> n;</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>}</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment">/* Bench the last-answering endpoint after a verify (cvmfs-cas / manifest)</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="comment"> * failure. A digest mismatch is not a transport error, so the failover scorer</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="comment"> * never touched this endpoint&#39;s health — bump the SAME decaying fail_score a</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="comment"> * transport failure would raise, hard enough to lose the next pick to any</span></div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment"> * clean-scored sibling. Two units (2*256) clears the 128 hysteresis band in</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> * one shot and outlives the half-open probe&#39;s single re-selection; it decays</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> * back on subsequent good fills, so a transient corruption does not</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> * permanently demote a healthy origin (a rank change would). Written from a</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> * fill thread; fail_score is racy-by-design like the rest of the score set. */</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno"><a class="line" href="sd__http__introspect_8c.html#a029151ab158572c4d039bfee09e105da">   46</a></span><span class="preprocessor">#define SD_HTTP_VERIFY_PENALTY 512</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00048" data-start="{" data-end="}">
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a197fd443f56064bc95964c008475ad98">   48</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a197fd443f56064bc95964c008475ad98">sd_http_penalize_last_origin</a>(brix_sd_instance_t *inst)</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>{</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    <a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is;</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span> </div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)) {</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    }</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    is = inst-&gt;state;</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <span class="keywordflow">if</span> (is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#ae6a55d27d795293647f379e2255d1f5c">cur_ep</a> &lt; 0 || is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#ae6a55d27d795293647f379e2255d1f5c">cur_ep</a> &gt;= is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a>) {</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        <span class="keywordflow">return</span>;                         <span class="comment">/* no origin has answered yet */</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    }</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#ae6a55d27d795293647f379e2255d1f5c">cur_ep</a>].<a class="code hl_variable" href="structsd__http__endpoint.html#aa4df049edec8ff2737911baa70bd5425">fail_score</a> += <a class="code hl_define" href="sd__http__introspect_8c.html#a029151ab158572c4d039bfee09e105da">SD_HTTP_VERIFY_PENALTY</a>;</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>}</div>
 </div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment">/* Endpoint count (0 for a non-http instance). */</span></div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00059" data-start="{" data-end="}">
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a183631283f596cdcc922c6327f7eb924">   59</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a183631283f596cdcc922c6327f7eb924">sd_http_n_endpoints</a>(brix_sd_instance_t *inst)</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>{</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>         ? ((<a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *) inst-&gt;state)-&gt;n_eps : 0;</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>}</div>
-</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span> </div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="comment">/* &quot;host:port&quot; of the endpoint that answered the most recent read (display</span></div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="comment"> * only; racy-by-design). 0 with buf filled, or -1 (non-http / none yet). */</span></div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00068" data-start="{" data-end="}">
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a8d9e73c404583b0f74f89d06a7471c90">   68</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a8d9e73c404583b0f74f89d06a7471c90">sd_http_last_origin</a>(brix_sd_instance_t *inst, <span class="keywordtype">char</span> *buf, <span class="keywordtype">size_t</span> cap)</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>{</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is;</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)) {</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    }</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    is = inst-&gt;state;</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    <span class="keywordflow">if</span> (is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a4a140883d3a317269ad10348d1854429">last_origin</a>[0] == <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment">/* Endpoint inventory for the RTT prober (copies, no ngx types). */</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00064" data-start="{" data-end="}">
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a7676f5eb142c09ea63f5a744b8893d0f">   64</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a7676f5eb142c09ea63f5a744b8893d0f">sd_http_endpoint_list</a>(brix_sd_instance_t *inst, <span class="keywordtype">char</span> hosts[][256],</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    <span class="keywordtype">int</span> *ports, <span class="keywordtype">int</span> max)</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>{</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is;</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>    <span class="keywordtype">int</span>                 i, n;</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span> </div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)) {</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    }</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    is = inst-&gt;state;</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    n = (is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> &lt; max) ? is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> : max;</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n; i++) {</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        memcpy(hosts[i], is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>, <span class="keyword">sizeof</span>(is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>));</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        ports[i] = is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#a0d562ffe6ed9f824b0bbfdf2d11eb8b9">port</a>;</div>
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    }</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    snprintf(buf, cap, <span class="stringliteral">&quot;%s&quot;</span>, is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a4a140883d3a317269ad10348d1854429">last_origin</a>);</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>}</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>}</div>
 </div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span> </div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment">/* 1 iff the endpoint that answered the most recent read was a failover (not</span></div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="comment"> * the first-tried). Pairs with sd_http_last_origin; racy-by-design. */</span></div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00086" data-start="{" data-end="}">
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno"><a class="line" href="sd__http_8h.html#aa2403406e548038bf25002c87adc4c8e">   86</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#aa2403406e548038bf25002c87adc4c8e">sd_http_last_was_failover</a>(brix_sd_instance_t *inst)</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>{</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>         ? ((<a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *) inst-&gt;state)-&gt;last_failover : 0;</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>}</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span> </div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment">/* Endpoint count (0 for a non-http instance). */</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00084" data-start="{" data-end="}">
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a183631283f596cdcc922c6327f7eb924">   84</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a183631283f596cdcc922c6327f7eb924">sd_http_n_endpoints</a>(brix_sd_instance_t *inst)</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>{</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>         ? ((<a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *) inst-&gt;state)-&gt;n_eps : 0;</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>}</div>
 </div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span> </div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment">/* Health snapshot for /healthz: copies up to `max` (host, port, fail_score)</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> * triplets. Returns the count (0 for a non-http instance). */</span></div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00095" data-start="{" data-end="}">
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a174e63b04dd4e718bd58916b155e8930">   95</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a174e63b04dd4e718bd58916b155e8930">sd_http_health_snapshot</a>(brix_sd_instance_t *inst, <span class="keywordtype">char</span> hosts[][256],</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    <span class="keywordtype">int</span> *ports, <span class="keywordtype">int</span> *scores, <span class="keywordtype">int</span> max)</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>{</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    <a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is;</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="keywordtype">int</span>                 i, n;</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span> </div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)) {</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span> </div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="comment">/* &quot;host:port&quot; of the endpoint that answered the most recent read (display</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment"> * only; racy-by-design). 0 with buf filled, or -1 (non-http / none yet). */</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00093" data-start="{" data-end="}">
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a8d9e73c404583b0f74f89d06a7471c90">   93</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a8d9e73c404583b0f74f89d06a7471c90">sd_http_last_origin</a>(brix_sd_instance_t *inst, <span class="keywordtype">char</span> *buf, <span class="keywordtype">size_t</span> cap)</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>{</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    <a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is;</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span> </div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)) {</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    }</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    is = inst-&gt;state;</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="keywordflow">if</span> (is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a4a140883d3a317269ad10348d1854429">last_origin</a>[0] == <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>        <span class="keywordflow">return</span> -1;</div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    }</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    is = inst-&gt;state;</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    n = (is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> &lt; max) ? is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> : max;</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n; i++) {</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>        memcpy(hosts[i], is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>, <span class="keyword">sizeof</span>(is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>));</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>        ports[i]  = is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#a0d562ffe6ed9f824b0bbfdf2d11eb8b9">port</a>;</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>        scores[i] = is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#aa4df049edec8ff2737911baa70bd5425">fail_score</a>;</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    }</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordflow">return</span> n;</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>}</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    snprintf(buf, cap, <span class="stringliteral">&quot;%s&quot;</span>, is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a4a140883d3a317269ad10348d1854429">last_origin</a>);</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>}</div>
+</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span> </div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment">/* 1 iff the endpoint that answered the most recent read was a failover (not</span></div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> * the first-tried). Pairs with sd_http_last_origin; racy-by-design. */</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00111" data-start="{" data-end="}">
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno"><a class="line" href="sd__http_8h.html#aa2403406e548038bf25002c87adc4c8e">  111</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#aa2403406e548038bf25002c87adc4c8e">sd_http_last_was_failover</a>(brix_sd_instance_t *inst)</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>{</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>         ? ((<a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *) inst-&gt;state)-&gt;last_failover : 0;</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>}</div>
+</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span> </div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment">/* Health snapshot for /healthz: copies up to `max` (host, port, fail_score)</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment"> * triplets. Returns the count (0 for a non-http instance). */</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00120" data-start="{" data-end="}">
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno"><a class="line" href="sd__http_8h.html#a174e63b04dd4e718bd58916b155e8930">  120</a></span><a class="code hl_function" href="sd__http__introspect_8c.html#a174e63b04dd4e718bd58916b155e8930">sd_http_health_snapshot</a>(brix_sd_instance_t *inst, <span class="keywordtype">char</span> hosts[][256],</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    <span class="keywordtype">int</span> *ports, <span class="keywordtype">int</span> *scores, <span class="keywordtype">int</span> max)</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>{</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <a class="code hl_struct" href="structsd__http__inst__state.html">sd_http_inst_state</a> *is;</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    <span class="keywordtype">int</span>                 i, n;</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span> </div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a>(inst)) {</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    }</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    is = inst-&gt;state;</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    n = (is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> &lt; max) ? is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">n_eps</a> : max;</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n; i++) {</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        memcpy(hosts[i], is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>, <span class="keyword">sizeof</span>(is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#ace543c681254a6c68b4326f79a4189f0">host</a>));</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        ports[i]  = is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#a0d562ffe6ed9f824b0bbfdf2d11eb8b9">port</a>;</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        scores[i] = is-&gt;<a class="code hl_variable" href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">eps</a>[i].<a class="code hl_variable" href="structsd__http__endpoint.html#aa4df049edec8ff2737911baa70bd5425">fail_score</a>;</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    }</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>}</div>
 </div>
 <div class="ttc" id="asd__http_8c_html_acf0e6ca73e19fd1ff8474598833fea3c"><div class="ttname"><a href="sd__http_8c.html#acf0e6ca73e19fd1ff8474598833fea3c">sd_http_instance_is</a></div><div class="ttdeci">int sd_http_instance_is(const brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__http_8c_source.html#l00055">sd_http.c:55</a></div></div>
 <div class="ttc" id="asd__http__internal_8h_html"><div class="ttname"><a href="sd__http__internal_8h.html">sd_http_internal.h</a></div></div>
-<div class="ttc" id="asd__http__introspect_8c_html_a174e63b04dd4e718bd58916b155e8930"><div class="ttname"><a href="sd__http__introspect_8c.html#a174e63b04dd4e718bd58916b155e8930">sd_http_health_snapshot</a></div><div class="ttdeci">int sd_http_health_snapshot(brix_sd_instance_t *inst, char hosts[][256], int *ports, int *scores, int max)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00095">sd_http_introspect.c:95</a></div></div>
-<div class="ttc" id="asd__http__introspect_8c_html_a183631283f596cdcc922c6327f7eb924"><div class="ttname"><a href="sd__http__introspect_8c.html#a183631283f596cdcc922c6327f7eb924">sd_http_n_endpoints</a></div><div class="ttdeci">int sd_http_n_endpoints(brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00059">sd_http_introspect.c:59</a></div></div>
-<div class="ttc" id="asd__http__introspect_8c_html_a7676f5eb142c09ea63f5a744b8893d0f"><div class="ttname"><a href="sd__http__introspect_8c.html#a7676f5eb142c09ea63f5a744b8893d0f">sd_http_endpoint_list</a></div><div class="ttdeci">int sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256], int *ports, int max)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00039">sd_http_introspect.c:39</a></div></div>
-<div class="ttc" id="asd__http__introspect_8c_html_a8d9e73c404583b0f74f89d06a7471c90"><div class="ttname"><a href="sd__http__introspect_8c.html#a8d9e73c404583b0f74f89d06a7471c90">sd_http_last_origin</a></div><div class="ttdeci">int sd_http_last_origin(brix_sd_instance_t *inst, char *buf, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00068">sd_http_introspect.c:68</a></div></div>
-<div class="ttc" id="asd__http__introspect_8c_html_aa2403406e548038bf25002c87adc4c8e"><div class="ttname"><a href="sd__http__introspect_8c.html#aa2403406e548038bf25002c87adc4c8e">sd_http_last_was_failover</a></div><div class="ttdeci">int sd_http_last_was_failover(brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00086">sd_http_introspect.c:86</a></div></div>
+<div class="ttc" id="asd__http__introspect_8c_html_a029151ab158572c4d039bfee09e105da"><div class="ttname"><a href="sd__http__introspect_8c.html#a029151ab158572c4d039bfee09e105da">SD_HTTP_VERIFY_PENALTY</a></div><div class="ttdeci">#define SD_HTTP_VERIFY_PENALTY</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00046">sd_http_introspect.c:46</a></div></div>
+<div class="ttc" id="asd__http__introspect_8c_html_a174e63b04dd4e718bd58916b155e8930"><div class="ttname"><a href="sd__http__introspect_8c.html#a174e63b04dd4e718bd58916b155e8930">sd_http_health_snapshot</a></div><div class="ttdeci">int sd_http_health_snapshot(brix_sd_instance_t *inst, char hosts[][256], int *ports, int *scores, int max)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00120">sd_http_introspect.c:120</a></div></div>
+<div class="ttc" id="asd__http__introspect_8c_html_a183631283f596cdcc922c6327f7eb924"><div class="ttname"><a href="sd__http__introspect_8c.html#a183631283f596cdcc922c6327f7eb924">sd_http_n_endpoints</a></div><div class="ttdeci">int sd_http_n_endpoints(brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00084">sd_http_introspect.c:84</a></div></div>
+<div class="ttc" id="asd__http__introspect_8c_html_a197fd443f56064bc95964c008475ad98"><div class="ttname"><a href="sd__http__introspect_8c.html#a197fd443f56064bc95964c008475ad98">sd_http_penalize_last_origin</a></div><div class="ttdeci">void sd_http_penalize_last_origin(brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00048">sd_http_introspect.c:48</a></div></div>
+<div class="ttc" id="asd__http__introspect_8c_html_a7676f5eb142c09ea63f5a744b8893d0f"><div class="ttname"><a href="sd__http__introspect_8c.html#a7676f5eb142c09ea63f5a744b8893d0f">sd_http_endpoint_list</a></div><div class="ttdeci">int sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256], int *ports, int max)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00064">sd_http_introspect.c:64</a></div></div>
+<div class="ttc" id="asd__http__introspect_8c_html_a8d9e73c404583b0f74f89d06a7471c90"><div class="ttname"><a href="sd__http__introspect_8c.html#a8d9e73c404583b0f74f89d06a7471c90">sd_http_last_origin</a></div><div class="ttdeci">int sd_http_last_origin(brix_sd_instance_t *inst, char *buf, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00093">sd_http_introspect.c:93</a></div></div>
+<div class="ttc" id="asd__http__introspect_8c_html_aa2403406e548038bf25002c87adc4c8e"><div class="ttname"><a href="sd__http__introspect_8c.html#aa2403406e548038bf25002c87adc4c8e">sd_http_last_was_failover</a></div><div class="ttdeci">int sd_http_last_was_failover(brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00111">sd_http_introspect.c:111</a></div></div>
 <div class="ttc" id="asd__http__introspect_8c_html_ab6ad462c690c7cdd54d9ba6fde433a19"><div class="ttname"><a href="sd__http__introspect_8c.html#ab6ad462c690c7cdd54d9ba6fde433a19">sd_http_set_ranks</a></div><div class="ttdeci">void sd_http_set_ranks(brix_sd_instance_t *inst, const int *ranks, int n)</div><div class="ttdef"><b>Definition</b> <a href="sd__http__introspect_8c_source.html#l00022">sd_http_introspect.c:22</a></div></div>
 <div class="ttc" id="astructsd__http__endpoint_html_a055bbba72005daacdb4545624210b892"><div class="ttname"><a href="structsd__http__endpoint.html#a055bbba72005daacdb4545624210b892">sd_http_endpoint::rank</a></div><div class="ttdeci">_Atomic int rank</div><div class="ttdef"><b>Definition</b> <a href="sd__http__internal_8h_source.html#l00030">sd_http_internal.h:30</a></div></div>
 <div class="ttc" id="astructsd__http__endpoint_html_a0d562ffe6ed9f824b0bbfdf2d11eb8b9"><div class="ttname"><a href="structsd__http__endpoint.html#a0d562ffe6ed9f824b0bbfdf2d11eb8b9">sd_http_endpoint::port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="sd__http__internal_8h_source.html#l00026">sd_http_internal.h:26</a></div></div>
@@ -238,6 +267,7 @@ $(document).ready(function(){initNavTree('sd__http__introspect_8c_source.html','
 <div class="ttc" id="astructsd__http__inst__state_html_a0a895811bfd15a664aff9dc25a64e6ba"><div class="ttname"><a href="structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba">sd_http_inst_state::n_eps</a></div><div class="ttdeci">int n_eps</div><div class="ttdef"><b>Definition</b> <a href="sd__http__internal_8h_source.html#l00040">sd_http_internal.h:40</a></div></div>
 <div class="ttc" id="astructsd__http__inst__state_html_a4a140883d3a317269ad10348d1854429"><div class="ttname"><a href="structsd__http__inst__state.html#a4a140883d3a317269ad10348d1854429">sd_http_inst_state::last_origin</a></div><div class="ttdeci">char last_origin[300]</div><div class="ttdef"><b>Definition</b> <a href="sd__http__internal_8h_source.html#l00047">sd_http_internal.h:47</a></div></div>
 <div class="ttc" id="astructsd__http__inst__state_html_a97dc998d4720d97116723c74b8f7816c"><div class="ttname"><a href="structsd__http__inst__state.html#a97dc998d4720d97116723c74b8f7816c">sd_http_inst_state::eps</a></div><div class="ttdeci">sd_http_endpoint eps[8]</div><div class="ttdef"><b>Definition</b> <a href="sd__http__internal_8h_source.html#l00039">sd_http_internal.h:39</a></div></div>
+<div class="ttc" id="astructsd__http__inst__state_html_ae6a55d27d795293647f379e2255d1f5c"><div class="ttname"><a href="structsd__http__inst__state.html#ae6a55d27d795293647f379e2255d1f5c">sd_http_inst_state::cur_ep</a></div><div class="ttdeci">int cur_ep</div><div class="ttdef"><b>Definition</b> <a href="sd__http__internal_8h_source.html#l00064">sd_http_internal.h:64</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

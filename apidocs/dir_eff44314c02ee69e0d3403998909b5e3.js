@@ -24,6 +24,8 @@ var dir_eff44314c02ee69e0d3403998909b5e3 =
     [ "crc32c.h", "crc32c_8h.html", "crc32c_8h" ],
     [ "crc64.c", "crc64_8c.html", "crc64_8c" ],
     [ "crc64.h", "crc64_8h.html", "crc64_8h" ],
+    [ "cred_stage.c", "cred__stage_8c.html", "cred__stage_8c" ],
+    [ "cred_stage.h", "cred__stage_8h.html", "cred__stage_8h" ],
     [ "crypto.c", "crypto_8c.html", "crypto_8c" ],
     [ "crypto.h", "crypto_8h.html", "crypto_8h" ],
     [ "cstr.h", "cstr_8h.html", "cstr_8h" ],
@@ -101,6 +103,8 @@ var dir_eff44314c02ee69e0d3403998909b5e3 =
     [ "uri.h", "core_2compat_2uri_8h.html", "core_2compat_2uri_8h" ],
     [ "vendor_ext.c", "vendor__ext_8c.html", "vendor__ext_8c" ],
     [ "vendor_ext.h", "vendor__ext_8h.html", "vendor__ext_8h" ],
+    [ "wverify.c", "wverify_8c.html", "wverify_8c" ],
+    [ "wverify.h", "wverify_8h.html", "wverify_8h" ],
     [ "xml.c", "core_2compat_2xml_8c.html", "core_2compat_2xml_8c" ],
     [ "xml.h", "core_2compat_2xml_8h.html", "core_2compat_2xml_8h" ]
 ];

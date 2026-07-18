@@ -1,9 +1,13 @@
 <map id="src/core/compat/checksum_core.h" name="src/core/compat/checksum_core.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="185,5,381,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="411,5,607,45"/>
 <area shape="rect" id="Node000002" href="$client_2lib_2protocols_2shared_2checksum_8c.html" title=" " alt="" coords="5,93,156,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="228,53,126,96,124,91,225,48"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="397,51,168,96,157,98,156,93,167,91,396,45"/>
 <area shape="rect" id="Node000003" href="$src_2core_2compat_2checksum_8c.html" title=" " alt="" coords="180,101,387,126"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="286,59,286,100,281,100,281,59"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="447,53,314,103,312,98,445,48"/>
 <area shape="rect" id="Node000004" href="$checksum__core_8c.html" title=" " alt="" coords="411,93,607,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="347,48,460,91,458,96,345,53"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="511,59,511,93,506,93,506,59"/>
+<area shape="rect" id="Node000005" href="$vfs__wverify_8c.html" title=" " alt="" coords="631,101,800,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="567,48,689,98,687,103,565,53"/>
+<area shape="rect" id="Node000006" href="$ftp__ev__cmd_8c.html" title=" " alt="" coords="824,93,975,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="608,46,824,93,823,98,607,51"/>
 </map>

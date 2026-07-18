@@ -8,6 +8,7 @@ var sd__http__select_8c =
     [ "sd_http_fo_perform", "sd__http__select_8c.html#ae612c17c35a714b0a57b0256dd4d3932", null ],
     [ "sd_http_fo_select", "sd__http__select_8c.html#a48d5770d55667f9eb43efccd8447f0b0", null ],
     [ "sd_http_force_primary_set", "sd__http__select_8c.html#aad3236df6484c671ce61c4168d3f0392", null ],
+    [ "sd_http_live_log", "sd__http__select_8c.html#a4ecf5273ca722f9d9e3a5d28284900cd", null ],
     [ "sd_http_log_key", "sd__http__select_8c.html#a3e0258f913192b0e24b3447741039db3", null ],
     [ "sd_http_log_switch", "sd__http__select_8c.html#a57fcb67faa8b659c574493750c587e78", null ],
     [ "sd_http_pick", "sd__http__select_8c.html#a082f901255dfe4c9f564d81d91ca6ee5", null ],

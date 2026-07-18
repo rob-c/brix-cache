@@ -25,7 +25,7 @@ var searchData=
   ['join_5fdest_22',['join_dest',['../xrdcp_8c.html#a670d99d2c2a1717b80e861e140d587c9',1,'join_dest(const char *dstdir, const char *base, char *out, size_t sz):&#160;xrdcp.c'],['../xrdcp__internal_8h.html#a670d99d2c2a1717b80e861e140d587c9',1,'join_dest(const char *dstdir, const char *base, char *out, size_t sz):&#160;xrdcp.c']]],
   ['join_5fpath_23',['join_path',['../xrdfs__fmt_8c.html#a67a597e4d1ac4d7720134600bf33c00e',1,'join_path(const char *dir, const char *name, char *out, size_t sz):&#160;xrdfs_fmt.c'],['../xrdfs__internal_8h.html#a67a597e4d1ac4d7720134600bf33c00e',1,'join_path(const char *dir, const char *name, char *out, size_t sz):&#160;xrdfs_fmt.c']]],
   ['journal_24',['journal',['../structbrix__cta__queue__t.html#aeefb3ba632676c428bf23c2ba60f0c4d',1,'brix_cta_queue_t']]],
-  ['journal_20restart_20recovery_25',['Journal (restart recovery)',['../md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md467',1,'']]],
+  ['journal_20restart_20recovery_25',['Journal (restart recovery)',['../md_src_2protocols_2ssi_2svc__cta_2README.html#autotoc_md471',1,'']]],
   ['journal_5fappend_26',['journal_append',['../cta__queue_8c.html#acd901e614b3833031a41934fdb77367a',1,'cta_queue.c']]],
   ['journal_5fline_5fmax_27',['JOURNAL_LINE_MAX',['../xferjournal_8c.html#a40552a66d2e559a4bbfe21320888c6e4',1,'xferjournal.c']]],
   ['journal_5fload_28',['journal_load',['../xferjournal_8c.html#acbbcbc2b299be09690a1b385a9664cf7',1,'xferjournal.c']]],

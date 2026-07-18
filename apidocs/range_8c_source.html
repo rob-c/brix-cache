@@ -144,238 +144,247 @@ $(document).ready(function(){initNavTree('range_8c_source.html',''); initResizab
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    <a class="code hl_struct" href="structbrix__byte__range__t.html">brix_byte_range_t</a>       range;</div>
 <div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    <a class="code hl_struct" href="structbrix__range__vector__opts__t.html">brix_range_vector_opts_t</a> opts;</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    ngx_uint_t                nranges;</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span> </div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="comment">/* Defaults: full file, no range. */</span></div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#ac4cc4a9518cbc7cb435a6043bf2b8e48">start</a>       = 0;</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a2d0df65d12ad891ebc8b1e895dc72516">end</a>         = (file_size &gt; 0) ? file_size - 1 : 0;</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a9ca7cd4765c7d1235afb78964558f596">present</a>     = 0;</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a49778213a43d514d7905877281de8f58">satisfiable</a> = 1;</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <span class="keywordflow">if</span> (hdr_val == NULL || hdr_len &lt; 7 || memcmp(hdr_val, <span class="stringliteral">&quot;bytes=&quot;</span>, 6) != 0) {</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    }</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    ngx_memzero(&amp;opts, <span class="keyword">sizeof</span>(opts));</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#ac47bf39ca1070f030e89c14266318ad7">max_ranges</a>         = 1;</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#ad64c69ebedf1d1714b167c85f4bf9231">allow_suffix</a>       = 1;</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#abb09bd07dbe1cbbddd248caab1cda53a">allow_open_ended</a>   = 1;</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#ac0b51ae4132a79c27b10e5f85421b4b1">drop_unsatisfiable</a> = 0;</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="range__vector_8c.html#adcab9fc0d17fb62edc5f7ddaa83095bb">brix_http_parse_range_vector</a>(hdr_val + 6, hdr_len - 6,</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>                                       file_size, &amp;opts,</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>                                       &amp;range, &amp;nranges) != NGX_OK)</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    {</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a9ca7cd4765c7d1235afb78964558f596">present</a>     = 1;</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a49778213a43d514d7905877281de8f58">satisfiable</a> = 0;</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    }</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    <span class="keywordflow">if</span> (nranges == 1) {</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a9ca7cd4765c7d1235afb78964558f596">present</a> = 1;</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#ac4cc4a9518cbc7cb435a6043bf2b8e48">start</a>   = range.<a class="code hl_variable" href="structbrix__byte__range__t.html#ab21cfea1e07203682ec7bd168bd3101a">start</a>;</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a2d0df65d12ad891ebc8b1e895dc72516">end</a>     = range.<a class="code hl_variable" href="structbrix__byte__range__t.html#a5b4152f30d287e4884b4be8efd6faa01">end</a>;</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    <a class="code hl_enumeration" href="range__vector_8h.html#ad6a56cd67ffef0837042c771549377a1">brix_range_fail_e</a>         fail = <a class="code hl_enumvalue" href="range__vector_8h.html#ad6a56cd67ffef0837042c771549377a1ab16e1a23e2a0c924ccc5ad6827298800">BRIX_RANGE_FAIL_NONE</a>;</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="comment">/* Defaults: full file, no range. */</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#ac4cc4a9518cbc7cb435a6043bf2b8e48">start</a>       = 0;</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a2d0df65d12ad891ebc8b1e895dc72516">end</a>         = (file_size &gt; 0) ? file_size - 1 : 0;</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a9ca7cd4765c7d1235afb78964558f596">present</a>     = 0;</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a49778213a43d514d7905877281de8f58">satisfiable</a> = 1;</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span> </div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <span class="keywordflow">if</span> (hdr_val == NULL || hdr_len &lt; 7 || memcmp(hdr_val, <span class="stringliteral">&quot;bytes=&quot;</span>, 6) != 0) {</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    }</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    ngx_memzero(&amp;opts, <span class="keyword">sizeof</span>(opts));</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#ac47bf39ca1070f030e89c14266318ad7">max_ranges</a>         = 1;</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#ad64c69ebedf1d1714b167c85f4bf9231">allow_suffix</a>       = 1;</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#abb09bd07dbe1cbbddd248caab1cda53a">allow_open_ended</a>   = 1;</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    opts.<a class="code hl_variable" href="structbrix__range__vector__opts__t.html#ac0b51ae4132a79c27b10e5f85421b4b1">drop_unsatisfiable</a> = 0;</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="range__vector_8c.html#adf4d1ef4c369da93e1c4b2ac8e19763f">brix_http_parse_range_vector</a>(hdr_val + 6, hdr_len - 6,</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>                                       file_size, &amp;opts,</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>                                       &amp;range, &amp;nranges, &amp;fail) != NGX_OK)</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    {</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>        <span class="comment">/* RFC 9110 §14.2: a MALFORMED ranges-specifier is ignored (serve the</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment">         * full 200 body, as official Stratum-1/Apache does) — leave present=0.</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment">         * Only a well-formed but UNSATISFIABLE range yields a 416. */</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        <span class="keywordflow">if</span> (fail == <a class="code hl_enumvalue" href="range__vector_8h.html#ad6a56cd67ffef0837042c771549377a1ad10c1123d10691bf159d8532f2f0c2cf">BRIX_RANGE_FAIL_UNSATISFIABLE</a>) {</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>            out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a9ca7cd4765c7d1235afb78964558f596">present</a>     = 1;</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a49778213a43d514d7905877281de8f58">satisfiable</a> = 0;</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        }</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    }</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>}</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span> </div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    <span class="keywordflow">if</span> (nranges == 1) {</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a9ca7cd4765c7d1235afb78964558f596">present</a> = 1;</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#ac4cc4a9518cbc7cb435a6043bf2b8e48">start</a>   = range.<a class="code hl_variable" href="structbrix__byte__range__t.html#ab21cfea1e07203682ec7bd168bd3101a">start</a>;</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__range__t.html#a2d0df65d12ad891ebc8b1e895dc72516">end</a>     = range.<a class="code hl_variable" href="structbrix__byte__range__t.html#a5b4152f30d287e4884b4be8efd6faa01">end</a>;</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    }</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>}</div>
 </div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="comment">/* Parse one run of decimal digits at *p (bounded by end) into *val; advance *p.</span></div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="comment"> * Returns 1 if at least one digit was consumed (no overflow), else 0. */</span></div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00082" data-start="{" data-end="}">
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno"><a class="line" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">   82</a></span><a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **p, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end, off_t *val)</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>{</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = *p;</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> <span class="keywordtype">long</span>   v = 0;</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span> </div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt;= end || *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt; <span class="charliteral">&#39;0&#39;</span> || *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt; <span class="charliteral">&#39;9&#39;</span>) {</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    }</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="keywordflow">for</span> (; s &lt; end &amp;&amp; *s &gt;= <span class="charliteral">&#39;0&#39;</span> &amp;&amp; *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;= <span class="charliteral">&#39;9&#39;</span>; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>++) {</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        <span class="keywordflow">if</span> (v &gt; (0x7fffffffffffffffULL - 9) / 10) {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>            <span class="keywordflow">return</span> 0;   <span class="comment">/* overflow guard */</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        }</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        v = v * 10 + (<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> long) (*<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> - <span class="charliteral">&#39;0&#39;</span>);</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="comment">/* Parse one run of decimal digits at *p (bounded by end) into *val; advance *p.</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment"> * Returns 1 if at least one digit was consumed (no overflow), else 0. */</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00088" data-start="{" data-end="}">
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno"><a class="line" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">   88</a></span><a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **p, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end, off_t *val)</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>{</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = *p;</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> <span class="keywordtype">long</span>   v = 0;</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span> </div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt;= end || *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt; <span class="charliteral">&#39;0&#39;</span> || *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt; <span class="charliteral">&#39;9&#39;</span>) {</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    }</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    *val = (off_t) v;</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    *p = <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    <span class="keywordflow">return</span> 1;</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>}</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    <span class="keywordflow">for</span> (; s &lt; end &amp;&amp; *s &gt;= <span class="charliteral">&#39;0&#39;</span> &amp;&amp; *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;= <span class="charliteral">&#39;9&#39;</span>; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>++) {</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        <span class="keywordflow">if</span> (v &gt; (0x7fffffffffffffffULL - 9) / 10) {</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>            <span class="keywordflow">return</span> 0;   <span class="comment">/* overflow guard */</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        }</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        v = v * 10 + (<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> long) (*<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> - <span class="charliteral">&#39;0&#39;</span>);</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    }</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    *val = (off_t) v;</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    *p = <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>}</div>
 </div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span> </div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment">/* ---- Skip the optional &quot;bytes &quot; unit token and leading spaces ----</span></div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> * WHAT: Advances *cursor past an optional &quot;bytes &quot; unit prefix (RFC 7233</span></div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> *       Content-Range grammar) followed by any run of single spaces, up to end.</span></div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> * WHY: The unit token is optional in the values we accept, and callers must land</span></div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> *      on the first digit of the range regardless of whether it was present; this</span></div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> *      keeps that positioning quirk in one named step instead of inline in the</span></div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> *      orchestrator.</span></div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> * HOW: 1. If at least 6 bytes remain and they equal &quot;bytes &quot;, advance 6.</span></div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="comment"> *      2. Skip any following spaces one at a time until end or a non-space byte.</span></div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00115" data-start="{" data-end="}">
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno"><a class="line" href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">  115</a></span><a class="code hl_function" href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">cr_skip_unit_prefix</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end)</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>{</div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) (end - *cursor) &gt;= 6 &amp;&amp; memcmp(*cursor, <span class="stringliteral">&quot;bytes &quot;</span>, 6) == 0) {</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>        *cursor += 6;</div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    }</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <span class="keywordflow">while</span> (*cursor &lt; end &amp;&amp; **cursor == <span class="charliteral">&#39; &#39;</span>) {</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>        (*cursor)++;</div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    }</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>}</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span> </div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment">/* ---- Skip the optional &quot;bytes &quot; unit token and leading spaces ----</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> * WHAT: Advances *cursor past an optional &quot;bytes &quot; unit prefix (RFC 7233</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> *       Content-Range grammar) followed by any run of single spaces, up to end.</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="comment"> * WHY: The unit token is optional in the values we accept, and callers must land</span></div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="comment"> *      on the first digit of the range regardless of whether it was present; this</span></div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="comment"> *      keeps that positioning quirk in one named step instead of inline in the</span></div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment"> *      orchestrator.</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment"> * HOW: 1. If at least 6 bytes remain and they equal &quot;bytes &quot;, advance 6.</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment"> *      2. Skip any following spaces one at a time until end or a non-space byte.</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00121" data-start="{" data-end="}">
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno"><a class="line" href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">  121</a></span><a class="code hl_function" href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">cr_skip_unit_prefix</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end)</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>{</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) (end - *cursor) &gt;= 6 &amp;&amp; memcmp(*cursor, <span class="stringliteral">&quot;bytes &quot;</span>, 6) == 0) {</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        *cursor += 6;</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    }</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    <span class="keywordflow">while</span> (*cursor &lt; end &amp;&amp; **cursor == <span class="charliteral">&#39; &#39;</span>) {</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        (*cursor)++;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    }</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>}</div>
 </div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span> </div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment">/* ---- Parse the &quot;start-end&quot; byte span into out-&gt;start / out-&gt;end ----</span></div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="comment"> * WHAT: Parses &quot;&lt;start&gt;-&lt;end&gt;&quot; at *cursor, writing out-&gt;start and out-&gt;end and</span></div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="comment"> *       advancing *cursor. Returns 1 on a well-formed span, 0 otherwise.</span></div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="comment"> * WHY: The start/end pair is the core of a Content-Range value; isolating its</span></div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment"> *      three-token grammar (number, literal &#39;-&#39;, number) keeps the total-length</span></div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="comment"> *      and validation steps independent and separately testable.</span></div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment"> * HOW: 1. Parse the start decimal; fail if absent.</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> *      2. Require a literal &#39;-&#39; separator; fail otherwise, then consume it.</span></div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> *      3. Parse the end decimal; fail if absent.</span></div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00139" data-start="{" data-end="}">
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno"><a class="line" href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">  139</a></span><a class="code hl_function" href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">cr_parse_span</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end,</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    <a class="code hl_struct" href="structbrix__http__content__range__t.html">brix_http_content_range_t</a> *out)</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>{</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(cursor, end, &amp;out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a76020ae5b3c0e1e6ac6ce149468fde2c">start</a>)) {</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    }</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="keywordflow">if</span> (*cursor &gt;= end || **cursor != <span class="charliteral">&#39;-&#39;</span>) {</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    }</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    (*cursor)++;</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(cursor, end, &amp;out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#afc897e91d00292d36f8b05aca53be08c">end</a>)) {</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    }</div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    <span class="keywordflow">return</span> 1;</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>}</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment">/* ---- Parse the &quot;start-end&quot; byte span into out-&gt;start / out-&gt;end ----</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="comment"> * WHAT: Parses &quot;&lt;start&gt;-&lt;end&gt;&quot; at *cursor, writing out-&gt;start and out-&gt;end and</span></div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment"> *       advancing *cursor. Returns 1 on a well-formed span, 0 otherwise.</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> * WHY: The start/end pair is the core of a Content-Range value; isolating its</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment"> *      three-token grammar (number, literal &#39;-&#39;, number) keeps the total-length</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment"> *      and validation steps independent and separately testable.</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment"> * HOW: 1. Parse the start decimal; fail if absent.</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> *      2. Require a literal &#39;-&#39; separator; fail otherwise, then consume it.</span></div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment"> *      3. Parse the end decimal; fail if absent.</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00145" data-start="{" data-end="}">
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno"><a class="line" href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">  145</a></span><a class="code hl_function" href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">cr_parse_span</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end,</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    <a class="code hl_struct" href="structbrix__http__content__range__t.html">brix_http_content_range_t</a> *out)</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>{</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(cursor, end, &amp;out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a76020ae5b3c0e1e6ac6ce149468fde2c">start</a>)) {</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    }</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    <span class="keywordflow">if</span> (*cursor &gt;= end || **cursor != <span class="charliteral">&#39;-&#39;</span>) {</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    }</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>    (*cursor)++;</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(cursor, end, &amp;out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#afc897e91d00292d36f8b05aca53be08c">end</a>)) {</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    }</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>    <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>}</div>
 </div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span> </div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment">/* ---- Parse the &quot;/total&quot; length component into out-&gt;total ----</span></div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="comment"> * WHAT: Parses the &quot;/&lt;total&gt;&quot; or &quot;/&quot; + &quot;*&quot; form at *cursor, writing out-&gt;total</span></div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="comment"> *       (-1 for the &quot;*&quot; unknown-length form) and advancing *cursor. Returns 1 on success,</span></div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment"> *       0 on a missing &#39;/&#39; or malformed total.</span></div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> * WHY: RFC 7233 allows the instance length to be an explicit number or &quot;*&quot;</span></div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> *      (unknown); expressing that choice as a single helper keeps the &quot;*&quot; → -1</span></div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> *      sentinel convention in one place shared with the default init value.</span></div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="comment"> * HOW: 1. Require a literal &#39;/&#39; separator; fail otherwise, then consume it.</span></div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="comment"> *      2. If the next byte is &#39;*&#39;, record total = -1, consume it, succeed.</span></div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="comment"> *      3. Otherwise parse a decimal total into out-&gt;total.</span></div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00170" data-start="{" data-end="}">
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno"><a class="line" href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">  170</a></span><a class="code hl_function" href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">cr_parse_total</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end,</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <a class="code hl_struct" href="structbrix__http__content__range__t.html">brix_http_content_range_t</a> *out)</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>{</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    <span class="keywordflow">if</span> (*cursor &gt;= end || **cursor != <span class="charliteral">&#39;/&#39;</span>) {</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    (*cursor)++;</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordflow">if</span> (*cursor &lt; end &amp;&amp; **cursor == <span class="charliteral">&#39;*&#39;</span>) {</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#ad51f39f39665b28b282eadaa996e8367">total</a> = -1;</div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>        (*cursor)++;</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span> </div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment">/* ---- Parse the &quot;/total&quot; length component into out-&gt;total ----</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> * WHAT: Parses the &quot;/&lt;total&gt;&quot; or &quot;/&quot; + &quot;*&quot; form at *cursor, writing out-&gt;total</span></div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="comment"> *       (-1 for the &quot;*&quot; unknown-length form) and advancing *cursor. Returns 1 on success,</span></div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="comment"> *       0 on a missing &#39;/&#39; or malformed total.</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="comment"> * WHY: RFC 7233 allows the instance length to be an explicit number or &quot;*&quot;</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="comment"> *      (unknown); expressing that choice as a single helper keeps the &quot;*&quot; → -1</span></div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="comment"> *      sentinel convention in one place shared with the default init value.</span></div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="comment"> * HOW: 1. Require a literal &#39;/&#39; separator; fail otherwise, then consume it.</span></div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="comment"> *      2. If the next byte is &#39;*&#39;, record total = -1, consume it, succeed.</span></div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span><span class="comment"> *      3. Otherwise parse a decimal total into out-&gt;total.</span></div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00176" data-start="{" data-end="}">
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno"><a class="line" href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">  176</a></span><a class="code hl_function" href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">cr_parse_total</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> **cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end,</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <a class="code hl_struct" href="structbrix__http__content__range__t.html">brix_http_content_range_t</a> *out)</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>{</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keywordflow">if</span> (*cursor &gt;= end || **cursor != <span class="charliteral">&#39;/&#39;</span>) {</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    }</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(cursor, end, &amp;out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#ad51f39f39665b28b282eadaa996e8367">total</a>);</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>}</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    (*cursor)++;</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <span class="keywordflow">if</span> (*cursor &lt; end &amp;&amp; **cursor == <span class="charliteral">&#39;*&#39;</span>) {</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#ad51f39f39665b28b282eadaa996e8367">total</a> = -1;</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        (*cursor)++;</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a>(cursor, end, &amp;out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#ad51f39f39665b28b282eadaa996e8367">total</a>);</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>}</div>
 </div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span> </div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="comment">/* ---- Confirm only tolerated trailing whitespace remains ----</span></div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span><span class="comment"> * WHAT: Returns 1 if the bytes from cursor to end are entirely spaces/tabs (or</span></div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span><span class="comment"> *       empty), 0 if any other byte is present.</span></div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="comment"> * WHY: A Content-Range value may carry trailing whitespace, but any other stray</span></div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span><span class="comment"> *      byte means the header is malformed and must be rejected; this makes the</span></div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span><span class="comment"> *      &quot;consumed everything meaningful&quot; check explicit at the end of the parse.</span></div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span><span class="comment"> * HOW: 1. Skip a run of &#39; &#39; or &#39;\t&#39; bytes.</span></div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="comment"> *      2. Report whether the cursor reached end.</span></div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00198" data-start="{" data-end="}">
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno"><a class="line" href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">  198</a></span><a class="code hl_function" href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">cr_only_trailing_ws</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end)</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>{</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    <span class="keywordflow">while</span> (cursor &lt; end &amp;&amp; (*cursor == <span class="charliteral">&#39; &#39;</span> || *cursor == <span class="charliteral">&#39;\t&#39;</span>)) {</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        cursor++;</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    }</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    <span class="keywordflow">return</span> cursor == end;</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>}</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span> </div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span><span class="comment">/* ---- Confirm only tolerated trailing whitespace remains ----</span></div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span><span class="comment"> * WHAT: Returns 1 if the bytes from cursor to end are entirely spaces/tabs (or</span></div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span><span class="comment"> *       empty), 0 if any other byte is present.</span></div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="comment"> * WHY: A Content-Range value may carry trailing whitespace, but any other stray</span></div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="comment"> *      byte means the header is malformed and must be rejected; this makes the</span></div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="comment"> *      &quot;consumed everything meaningful&quot; check explicit at the end of the parse.</span></div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment"> * HOW: 1. Skip a run of &#39; &#39; or &#39;\t&#39; bytes.</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment"> *      2. Report whether the cursor reached end.</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00204" data-start="{" data-end="}">
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno"><a class="line" href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">  204</a></span><a class="code hl_function" href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">cr_only_trailing_ws</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *cursor, <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *end)</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>{</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    <span class="keywordflow">while</span> (cursor &lt; end &amp;&amp; (*cursor == <span class="charliteral">&#39; &#39;</span> || *cursor == <span class="charliteral">&#39;\t&#39;</span>)) {</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>        cursor++;</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    }</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    <span class="keywordflow">return</span> cursor == end;</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>}</div>
 </div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span> </div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span><span class="comment">/* ---- Parse an RFC 7233 Content-Range header into a byte span + total ----</span></div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="comment"> * WHAT: Parses &quot;[bytes ]start-end/total&quot; (total may be &quot;*&quot;) from hdr_val,</span></div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span><span class="comment"> *       populating out. Sets out-&gt;present=1 only on a fully well-formed value;</span></div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span><span class="comment"> *       leaves present=0 (and out unusable) on any malformation. No return value.</span></div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span><span class="comment"> * WHY: WebDAV/S3 upload and TPC paths need the server-reported byte span and</span></div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span><span class="comment"> *      instance length; a single tolerant-but-strict parser keeps acceptance and</span></div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span><span class="comment"> *      rejection identical across those callers.</span></div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="comment"> * HOW: 1. Initialise defaults (empty span, total=-1, present=0); bail on empty input.</span></div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span><span class="comment"> *      2. Skip the optional unit prefix and leading spaces.</span></div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span><span class="comment"> *      3. Parse the start-end span, then the /total component.</span></div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="comment"> *      4. Reject an end-before-start span (malformed ordering).</span></div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment"> *      5. Require nothing but tolerated trailing whitespace, then mark present.</span></div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00223" data-start="{" data-end="}">
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno"><a class="line" href="range_8c.html#aba940036f9e5eb35b24eb8029f51a8d7">  223</a></span><a class="code hl_function" href="range_8c.html#aba940036f9e5eb35b24eb8029f51a8d7">brix_http_parse_content_range</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *hdr_val, <span class="keywordtype">size_t</span> hdr_len,</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <a class="code hl_struct" href="structbrix__http__content__range__t.html">brix_http_content_range_t</a> *out)</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>{</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *cursor, *end;</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span> </div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a76020ae5b3c0e1e6ac6ce149468fde2c">start</a> = out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#afc897e91d00292d36f8b05aca53be08c">end</a> = 0;</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#ad51f39f39665b28b282eadaa996e8367">total</a> = -1;</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a4934778a47359402a3a777c35c551a55">present</a> = 0;</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span> </div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    <span class="keywordflow">if</span> (hdr_val == NULL || hdr_len == 0) {</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    }</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    cursor = hdr_val;</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    end = hdr_val + hdr_len;</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span><span class="comment">/* ---- Parse an RFC 7233 Content-Range header into a byte span + total ----</span></div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span><span class="comment"> * WHAT: Parses &quot;[bytes ]start-end/total&quot; (total may be &quot;*&quot;) from hdr_val,</span></div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="comment"> *       populating out. Sets out-&gt;present=1 only on a fully well-formed value;</span></div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="comment"> *       leaves present=0 (and out unusable) on any malformation. No return value.</span></div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span><span class="comment"> * WHY: WebDAV/S3 upload and TPC paths need the server-reported byte span and</span></div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="comment"> *      instance length; a single tolerant-but-strict parser keeps acceptance and</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment"> *      rejection identical across those callers.</span></div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="comment"> * HOW: 1. Initialise defaults (empty span, total=-1, present=0); bail on empty input.</span></div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span><span class="comment"> *      2. Skip the optional unit prefix and leading spaces.</span></div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span><span class="comment"> *      3. Parse the start-end span, then the /total component.</span></div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment"> *      4. Reject an end-before-start span (malformed ordering).</span></div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment"> *      5. Require nothing but tolerated trailing whitespace, then mark present.</span></div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00229" data-start="{" data-end="}">
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno"><a class="line" href="range_8c.html#aba940036f9e5eb35b24eb8029f51a8d7">  229</a></span><a class="code hl_function" href="range_8c.html#aba940036f9e5eb35b24eb8029f51a8d7">brix_http_parse_content_range</a>(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *hdr_val, <span class="keywordtype">size_t</span> hdr_len,</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    <a class="code hl_struct" href="structbrix__http__content__range__t.html">brix_http_content_range_t</a> *out)</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>{</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    <span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *cursor, *end;</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span> </div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a76020ae5b3c0e1e6ac6ce149468fde2c">start</a> = out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#afc897e91d00292d36f8b05aca53be08c">end</a> = 0;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#ad51f39f39665b28b282eadaa996e8367">total</a> = -1;</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a4934778a47359402a3a777c35c551a55">present</a> = 0;</div>
 <div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span> </div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <a class="code hl_function" href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">cr_skip_unit_prefix</a>(&amp;cursor, end);</div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span> </div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">cr_parse_span</a>(&amp;cursor, end, out)) {</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    }</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">cr_parse_total</a>(&amp;cursor, end, out)) {</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    }</div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#afc897e91d00292d36f8b05aca53be08c">end</a> &lt; out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a76020ae5b3c0e1e6ac6ce149468fde2c">start</a>) {</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>        <span class="keywordflow">return</span>;   <span class="comment">/* malformed: end before start */</span></div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <span class="keywordflow">if</span> (hdr_val == NULL || hdr_len == 0) {</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    }</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    cursor = hdr_val;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    end = hdr_val + hdr_len;</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span> </div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    <a class="code hl_function" href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">cr_skip_unit_prefix</a>(&amp;cursor, end);</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span> </div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">cr_parse_span</a>(&amp;cursor, end, out)) {</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    }</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">cr_only_trailing_ws</a>(cursor, end)) {</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">cr_parse_total</a>(&amp;cursor, end, out)) {</div>
 <div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>        <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    }</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a4934778a47359402a3a777c35c551a55">present</a> = 1;</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>}</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#afc897e91d00292d36f8b05aca53be08c">end</a> &lt; out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a76020ae5b3c0e1e6ac6ce149468fde2c">start</a>) {</div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>        <span class="keywordflow">return</span>;   <span class="comment">/* malformed: end before start */</span></div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    }</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">cr_only_trailing_ws</a>(cursor, end)) {</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    }</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    out-&gt;<a class="code hl_variable" href="structbrix__http__content__range__t.html#a4934778a47359402a3a777c35c551a55">present</a> = 1;</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>}</div>
 </div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>
-<div class="ttc" id="arange_8c_html_a733e8456949589df60f86e4fc7837e3a"><div class="ttname"><a href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">cr_only_trailing_ws</a></div><div class="ttdeci">static int cr_only_trailing_ws(const unsigned char *cursor, const unsigned char *end)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00198">range.c:198</a></div></div>
-<div class="ttc" id="arange_8c_html_a7c2375012c724e9777b1a246bc68fa63"><div class="ttname"><a href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">cr_parse_span</a></div><div class="ttdeci">static int cr_parse_span(const unsigned char **cursor, const unsigned char *end, brix_http_content_range_t *out)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00139">range.c:139</a></div></div>
-<div class="ttc" id="arange_8c_html_a86d7c6a223b3b2b92bc3d4cf3c3ebd58"><div class="ttname"><a href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">cr_parse_total</a></div><div class="ttdeci">static int cr_parse_total(const unsigned char **cursor, const unsigned char *end, brix_http_content_range_t *out)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00170">range.c:170</a></div></div>
-<div class="ttc" id="arange_8c_html_aae03abb8bc6d8c2c060ee5ddc85e8cfa"><div class="ttname"><a href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">cr_skip_unit_prefix</a></div><div class="ttdeci">static void cr_skip_unit_prefix(const unsigned char **cursor, const unsigned char *end)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00115">range.c:115</a></div></div>
-<div class="ttc" id="arange_8c_html_aba940036f9e5eb35b24eb8029f51a8d7"><div class="ttname"><a href="range_8c.html#aba940036f9e5eb35b24eb8029f51a8d7">brix_http_parse_content_range</a></div><div class="ttdeci">void brix_http_parse_content_range(const unsigned char *hdr_val, size_t hdr_len, brix_http_content_range_t *out)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00223">range.c:223</a></div></div>
+<div class="ttc" id="arange_8c_html_a733e8456949589df60f86e4fc7837e3a"><div class="ttname"><a href="range_8c.html#a733e8456949589df60f86e4fc7837e3a">cr_only_trailing_ws</a></div><div class="ttdeci">static int cr_only_trailing_ws(const unsigned char *cursor, const unsigned char *end)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00204">range.c:204</a></div></div>
+<div class="ttc" id="arange_8c_html_a7c2375012c724e9777b1a246bc68fa63"><div class="ttname"><a href="range_8c.html#a7c2375012c724e9777b1a246bc68fa63">cr_parse_span</a></div><div class="ttdeci">static int cr_parse_span(const unsigned char **cursor, const unsigned char *end, brix_http_content_range_t *out)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00145">range.c:145</a></div></div>
+<div class="ttc" id="arange_8c_html_a86d7c6a223b3b2b92bc3d4cf3c3ebd58"><div class="ttname"><a href="range_8c.html#a86d7c6a223b3b2b92bc3d4cf3c3ebd58">cr_parse_total</a></div><div class="ttdeci">static int cr_parse_total(const unsigned char **cursor, const unsigned char *end, brix_http_content_range_t *out)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00176">range.c:176</a></div></div>
+<div class="ttc" id="arange_8c_html_aae03abb8bc6d8c2c060ee5ddc85e8cfa"><div class="ttname"><a href="range_8c.html#aae03abb8bc6d8c2c060ee5ddc85e8cfa">cr_skip_unit_prefix</a></div><div class="ttdeci">static void cr_skip_unit_prefix(const unsigned char **cursor, const unsigned char *end)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00121">range.c:121</a></div></div>
+<div class="ttc" id="arange_8c_html_aba940036f9e5eb35b24eb8029f51a8d7"><div class="ttname"><a href="range_8c.html#aba940036f9e5eb35b24eb8029f51a8d7">brix_http_parse_content_range</a></div><div class="ttdeci">void brix_http_parse_content_range(const unsigned char *hdr_val, size_t hdr_len, brix_http_content_range_t *out)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00229">range.c:229</a></div></div>
 <div class="ttc" id="arange_8c_html_aefb61e0074aa55afcdc5f2acb5b46b86"><div class="ttname"><a href="range_8c.html#aefb61e0074aa55afcdc5f2acb5b46b86">brix_http_parse_range</a></div><div class="ttdeci">void brix_http_parse_range(const unsigned char *hdr_val, size_t hdr_len, off_t file_size, brix_http_range_t *out)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00040">range.c:40</a></div></div>
-<div class="ttc" id="arange_8c_html_af9a876fa032efe723e3b7bb2a1d1da88"><div class="ttname"><a href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a></div><div class="ttdeci">static int cr_parse_u64(const unsigned char **p, const unsigned char *end, off_t *val)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00082">range.c:82</a></div></div>
+<div class="ttc" id="arange_8c_html_af9a876fa032efe723e3b7bb2a1d1da88"><div class="ttname"><a href="range_8c.html#af9a876fa032efe723e3b7bb2a1d1da88">cr_parse_u64</a></div><div class="ttdeci">static int cr_parse_u64(const unsigned char **p, const unsigned char *end, off_t *val)</div><div class="ttdef"><b>Definition</b> <a href="range_8c_source.html#l00088">range.c:88</a></div></div>
 <div class="ttc" id="arange_8h_html"><div class="ttname"><a href="range_8h.html">range.h</a></div></div>
-<div class="ttc" id="arange__vector_8c_html_adcab9fc0d17fb62edc5f7ddaa83095bb"><div class="ttname"><a href="range__vector_8c.html#adcab9fc0d17fb62edc5f7ddaa83095bb">brix_http_parse_range_vector</a></div><div class="ttdeci">ngx_int_t brix_http_parse_range_vector(const u_char *data, size_t len, off_t file_size, const brix_range_vector_opts_t *opts, brix_byte_range_t *ranges, ngx_uint_t *nranges)</div><div class="ttdef"><b>Definition</b> <a href="range__vector_8c_source.html#l00203">range_vector.c:203</a></div></div>
+<div class="ttc" id="arange__vector_8c_html_adf4d1ef4c369da93e1c4b2ac8e19763f"><div class="ttname"><a href="range__vector_8c.html#adf4d1ef4c369da93e1c4b2ac8e19763f">brix_http_parse_range_vector</a></div><div class="ttdeci">ngx_int_t brix_http_parse_range_vector(const u_char *data, size_t len, off_t file_size, const brix_range_vector_opts_t *opts, brix_byte_range_t *ranges, ngx_uint_t *nranges, brix_range_fail_e *fail)</div><div class="ttdef"><b>Definition</b> <a href="range__vector_8c_source.html#l00218">range_vector.c:218</a></div></div>
 <div class="ttc" id="arange__vector_8h_html"><div class="ttname"><a href="range__vector_8h.html">range_vector.h</a></div></div>
+<div class="ttc" id="arange__vector_8h_html_ad6a56cd67ffef0837042c771549377a1"><div class="ttname"><a href="range__vector_8h.html#ad6a56cd67ffef0837042c771549377a1">brix_range_fail_e</a></div><div class="ttdeci">brix_range_fail_e</div><div class="ttdef"><b>Definition</b> <a href="range__vector_8h_source.html#l00063">range_vector.h:63</a></div></div>
+<div class="ttc" id="arange__vector_8h_html_ad6a56cd67ffef0837042c771549377a1ab16e1a23e2a0c924ccc5ad6827298800"><div class="ttname"><a href="range__vector_8h.html#ad6a56cd67ffef0837042c771549377a1ab16e1a23e2a0c924ccc5ad6827298800">BRIX_RANGE_FAIL_NONE</a></div><div class="ttdeci">@ BRIX_RANGE_FAIL_NONE</div><div class="ttdef"><b>Definition</b> <a href="range__vector_8h_source.html#l00064">range_vector.h:64</a></div></div>
+<div class="ttc" id="arange__vector_8h_html_ad6a56cd67ffef0837042c771549377a1ad10c1123d10691bf159d8532f2f0c2cf"><div class="ttname"><a href="range__vector_8h.html#ad6a56cd67ffef0837042c771549377a1ad10c1123d10691bf159d8532f2f0c2cf">BRIX_RANGE_FAIL_UNSATISFIABLE</a></div><div class="ttdeci">@ BRIX_RANGE_FAIL_UNSATISFIABLE</div><div class="ttdef"><b>Definition</b> <a href="range__vector_8h_source.html#l00067">range_vector.h:66</a></div></div>
 <div class="ttc" id="astructbrix__byte__range__t_html"><div class="ttname"><a href="structbrix__byte__range__t.html">brix_byte_range_t</a></div><div class="ttdef"><b>Definition</b> <a href="range__vector_8h_source.html#l00029">range_vector.h:29</a></div></div>
 <div class="ttc" id="astructbrix__byte__range__t_html_a5b4152f30d287e4884b4be8efd6faa01"><div class="ttname"><a href="structbrix__byte__range__t.html#a5b4152f30d287e4884b4be8efd6faa01">brix_byte_range_t::end</a></div><div class="ttdeci">off_t end</div><div class="ttdef"><b>Definition</b> <a href="range__vector_8h_source.html#l00031">range_vector.h:31</a></div></div>
 <div class="ttc" id="astructbrix__byte__range__t_html_ab21cfea1e07203682ec7bd168bd3101a"><div class="ttname"><a href="structbrix__byte__range__t.html#ab21cfea1e07203682ec7bd168bd3101a">brix_byte_range_t::start</a></div><div class="ttdeci">off_t start</div><div class="ttdef"><b>Definition</b> <a href="range__vector_8h_source.html#l00030">range_vector.h:30</a></div></div>

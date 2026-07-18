@@ -91,13 +91,16 @@ $(document).ready(function(){initNavTree('module__directives_8c.html',''); initR
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">module_directives.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="webdav__module__internal_8h_source.html">webdav_module_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="config_2config_8h_source.html">core/config/config.h</a>&quot;</code><br />
+<code>#include &lt;openssl/pem.h&gt;</code><br />
+<code>#include &lt;openssl/x509.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for module_directives.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -126,6 +129,21 @@ Functions</h2></td></tr>
 <tr class="separator:a01dac593cf0ebac0cb229829265a3c99"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a825b1cddddc8faf0ae70c882ea76e964" id="r_a825b1cddddc8faf0ae70c882ea76e964"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="module__directives_8c.html#a825b1cddddc8faf0ae70c882ea76e964">webdav_conf_open_file_cache</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:a825b1cddddc8faf0ae70c882ea76e964"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abb2fb11c718f00c509aa2e54349f10d6" id="r_abb2fb11c718f00c509aa2e54349f10d6"><td class="memItemLeft" align="right" valign="top">static X509 *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="module__directives_8c.html#abb2fb11c718f00c509aa2e54349f10d6">webdav_conf_load_leaf_cert</a> (ngx_conf_t *cf, ngx_str_t *path)</td></tr>
+<tr class="separator:abb2fb11c718f00c509aa2e54349f10d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1f8ce33b044fcf65773e41ce4dac4fc2" id="r_a1f8ce33b044fcf65773e41ce4dac4fc2"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="module__directives_8c.html#a1f8ce33b044fcf65773e41ce4dac4fc2">webdav_conf_probe_issuer_file</a> (ngx_conf_t *cf, ngx_str_t *folder, X509_NAME *issuer, ngx_str_t *found)</td></tr>
+<tr class="separator:a1f8ce33b044fcf65773e41ce4dac4fc2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5670e412ddd861d8bd7d0af826a9e811" id="r_a5670e412ddd861d8bd7d0af826a9e811"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="module__directives_8c.html#a5670e412ddd861d8bd7d0af826a9e811">webdav_conf_client_cert_folder</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a5670e412ddd861d8bd7d0af826a9e811"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afba502e0a203f24f9169107f71c8aeee" id="r_afba502e0a203f24f9169107f71c8aeee"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="module__directives_8c.html#afba502e0a203f24f9169107f71c8aeee">webdav_conf_pick_ca_file</a> (ngx_conf_t *cf, ngx_str_t *folder, ngx_str_t *picked)</td></tr>
+<tr class="separator:afba502e0a203f24f9169107f71c8aeee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4aee37de6bb2797f3bfd75bc6b39f68e" id="r_a4aee37de6bb2797f3bfd75bc6b39f68e"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="module__directives_8c.html#a4aee37de6bb2797f3bfd75bc6b39f68e">webdav_conf_proxy_ssl_capath</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a4aee37de6bb2797f3bfd75bc6b39f68e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a36cf83a4bf73b9e4683f0615543ad30d" id="r_a36cf83a4bf73b9e4683f0615543ad30d"><td class="memItemLeft" align="right" valign="top">ngx_module_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="module__directives_8c.html#a36cf83a4bf73b9e4683f0615543ad30d">ngx_http_proxy_module</a></td></tr>
+<tr class="separator:a36cf83a4bf73b9e4683f0615543ad30d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a0df1025a3ef87f9349e0b242d0e5ea6c" name="a0df1025a3ef87f9349e0b242d0e5ea6c"></a>
@@ -160,9 +178,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00083">83</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00086">86</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00123">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00146">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>.</p>
 
 </div>
 </div>
@@ -198,9 +216,47 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00016">16</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00019">19</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00209">ngx_http_brix_webdav_loc_conf_t::authdb_rules</a>, and <a class="el" href="authdb__parse_8c_source.html#l00266">brix_parse_authdb()</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00232">ngx_http_brix_webdav_loc_conf_t::authdb_rules</a>, and <a class="el" href="authdb__parse_8c_source.html#l00266">brix_parse_authdb()</a>.</p>
+
+</div>
+</div>
+<a id="a5670e412ddd861d8bd7d0af826a9e811" name="a5670e412ddd861d8bd7d0af826a9e811"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5670e412ddd861d8bd7d0af826a9e811">&#9670;&#160;</a></span>webdav_conf_client_cert_folder()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char * webdav_conf_client_cert_folder </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00452">452</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+
+<p class="reference">References <a class="el" href="module__directives_8c_source.html#l00342">webdav_conf_load_leaf_cert()</a>, and <a class="el" href="module__directives_8c_source.html#l00378">webdav_conf_probe_issuer_file()</a>.</p>
 
 </div>
 </div>
@@ -236,9 +292,49 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00118">118</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00121">121</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00131">brix_dig_export_t::canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00112">ngx_http_brix_webdav_loc_conf_t::dig_exports</a>, <a class="el" href="webdav_8h_source.html#l00130">brix_dig_export_t::dir</a>, <a class="el" href="webdav_8h_source.html#l00129">brix_dig_export_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="webdav_8h_source.html#l00131">brix_dig_export_t::canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::dig_exports</a>, <a class="el" href="webdav_8h_source.html#l00130">brix_dig_export_t::dir</a>, <a class="el" href="webdav_8h_source.html#l00129">brix_dig_export_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+</div>
+</div>
+<a id="abb2fb11c718f00c509aa2e54349f10d6" name="abb2fb11c718f00c509aa2e54349f10d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abb2fb11c718f00c509aa2e54349f10d6">&#9670;&#160;</a></span>webdav_conf_load_leaf_cert()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static X509 * webdav_conf_load_leaf_cert </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>path</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00342">342</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00452">webdav_conf_client_cert_folder()</a>.</p>
 
 </div>
 </div>
@@ -274,9 +370,111 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00277">277</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00280">280</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00145">ngx_http_brix_webdav_loc_conf_t::open_file_cache</a>, and <a class="el" href="module__directives_8c_source.html#l00250">webdav_open_file_cache_arg()</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00168">ngx_http_brix_webdav_loc_conf_t::open_file_cache</a>, and <a class="el" href="module__directives_8c_source.html#l00253">webdav_open_file_cache_arg()</a>.</p>
+
+</div>
+</div>
+<a id="afba502e0a203f24f9169107f71c8aeee" name="afba502e0a203f24f9169107f71c8aeee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afba502e0a203f24f9169107f71c8aeee">&#9670;&#160;</a></span>webdav_conf_pick_ca_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_conf_pick_ca_file </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>folder</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>picked</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00565">565</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00669">webdav_conf_proxy_ssl_capath()</a>.</p>
+
+</div>
+</div>
+<a id="a1f8ce33b044fcf65773e41ce4dac4fc2" name="a1f8ce33b044fcf65773e41ce4dac4fc2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1f8ce33b044fcf65773e41ce4dac4fc2">&#9670;&#160;</a></span>webdav_conf_probe_issuer_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t webdav_conf_probe_issuer_file </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>folder</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">X509_NAME *&#160;</td>
+          <td class="paramname"><em>issuer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>found</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00378">378</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+
+<p class="reference">References <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00452">webdav_conf_client_cert_folder()</a>.</p>
 
 </div>
 </div>
@@ -312,9 +510,47 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00167">167</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00170">170</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00156">ngx_http_brix_webdav_loc_conf_t::upstream_auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00157">ngx_http_brix_webdav_loc_conf_t::upstream_auth_token</a>, <a class="el" href="webdav_8h_source.html#l00096">WEBDAV_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="webdav_8h_source.html#l00097">WEBDAV_PROXY_AUTH_FORWARD</a>, and <a class="el" href="webdav_8h_source.html#l00098">WEBDAV_PROXY_AUTH_TOKEN</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00179">ngx_http_brix_webdav_loc_conf_t::upstream_auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00180">ngx_http_brix_webdav_loc_conf_t::upstream_auth_token</a>, <a class="el" href="webdav_8h_source.html#l00096">WEBDAV_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="webdav_8h_source.html#l00097">WEBDAV_PROXY_AUTH_FORWARD</a>, and <a class="el" href="webdav_8h_source.html#l00098">WEBDAV_PROXY_AUTH_TOKEN</a>.</p>
+
+</div>
+</div>
+<a id="a4aee37de6bb2797f3bfd75bc6b39f68e" name="a4aee37de6bb2797f3bfd75bc6b39f68e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4aee37de6bb2797f3bfd75bc6b39f68e">&#9670;&#160;</a></span>webdav_conf_proxy_ssl_capath()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char * webdav_conf_proxy_ssl_capath </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00669">669</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+
+<p class="reference">References <a class="el" href="module__directives_8c.html#a36cf83a4bf73b9e4683f0615543ad30d">ngx_http_proxy_module</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00044">ngx_http_brix_webdav_loc_conf_t::proxy_ssl_capath</a>, and <a class="el" href="module__directives_8c_source.html#l00565">webdav_conf_pick_ca_file()</a>.</p>
 
 </div>
 </div>
@@ -350,9 +586,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00206">206</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00209">209</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00153">ngx_http_brix_webdav_loc_conf_t::upstream_url</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00166">ngx_http_brix_webdav_loc_conf_t::upstream_urls</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00176">ngx_http_brix_webdav_loc_conf_t::upstream_url</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00189">ngx_http_brix_webdav_loc_conf_t::upstream_urls</a>.</p>
 
 </div>
 </div>
@@ -388,9 +624,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00046">46</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00049">49</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2config_2helpers_8c_source.html#l00072">brix_copy_conf_string()</a>, <a class="el" href="normalize_8c_source.html#l00019">brix_normalize_policy_path()</a>, <a class="el" href="types_2config_8h_source.html#l00072">brix_vo_rule_t::path</a>, <a class="el" href="types_2config_8h_source.html#l00073">brix_vo_rule_t::vo</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00210">ngx_http_brix_webdav_loc_conf_t::vo_rules</a>.</p>
+<p class="reference">References <a class="el" href="core_2config_2helpers_8c_source.html#l00072">brix_copy_conf_string()</a>, <a class="el" href="normalize_8c_source.html#l00019">brix_normalize_policy_path()</a>, <a class="el" href="types_2config_8h_source.html#l00075">brix_vo_rule_t::path</a>, <a class="el" href="types_2config_8h_source.html#l00076">brix_vo_rule_t::vo</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00233">ngx_http_brix_webdav_loc_conf_t::vo_rules</a>.</p>
 
 </div>
 </div>
@@ -432,11 +668,36 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00250">250</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00253">253</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00277">webdav_conf_open_file_cache()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00280">webdav_conf_open_file_cache()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a36cf83a4bf73b9e4683f0615543ad30d" name="a36cf83a4bf73b9e4683f0615543ad30d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a36cf83a4bf73b9e4683f0615543ad30d">&#9670;&#160;</a></span>ngx_http_proxy_module</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_module_t ngx_http_proxy_module</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">extern</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00669">webdav_conf_proxy_ssl_capath()</a>.</p>
 
 </div>
 </div>

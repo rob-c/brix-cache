@@ -111,8 +111,6 @@ $(document).ready(function(){initNavTree('vfs__staged_8c.html',''); initResizabl
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a983138453a0a14e2c0652f0dd3c08c1f" id="r_a983138453a0a14e2c0652f0dd3c08c1f"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__staged_8c.html#a983138453a0a14e2c0652f0dd3c08c1f">staged_pool_strdup</a> (ngx_pool_t *pool, const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, size_t *lenp)</td></tr>
-<tr class="separator:a983138453a0a14e2c0652f0dd3c08c1f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4637753752199c4991c2b00f8d7a4c09" id="r_a4637753752199c4991c2b00f8d7a4c09"><td class="memItemLeft" align="right" valign="top">static brix_vfs_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__staged_8c.html#a4637753752199c4991c2b00f8d7a4c09">staged_open_fail</a> (int *err_out)</td></tr>
 <tr class="separator:a4637753752199c4991c2b00f8d7a4c09"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a36db6007d8cbc8ea8e5395e3ddfaab70" id="r_a36db6007d8cbc8ea8e5395e3ddfaab70"><td class="memItemLeft" align="right" valign="top">static brix_vfs_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__staged_8c.html#a36db6007d8cbc8ea8e5395e3ddfaab70">staged_alloc_handle</a> (<a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, int *err_out)</td></tr>
@@ -163,11 +161,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00397">397</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00350">350</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
 <p class="reference">References <a class="el" href="staged__file_8c_source.html#l00350">brix_staged_abort()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fd__table__teardown_8c_source.html#l00058">fhandle_release_descriptors()</a>, <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="post__object_8c_source.html#l00115">s3_post_write_object()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>, <a class="el" href="put__body_8c_source.html#l00120">webdav_put_aio_done()</a>, <a class="el" href="put__body_8c_source.html#l00273">webdav_put_select_codec()</a>, <a class="el" href="put__body_8c_source.html#l00416">webdav_put_stream_body()</a>, <a class="el" href="put__body_8c_source.html#l00204">webdav_put_try_threaded()</a>, and <a class="el" href="put__body_8c_source.html#l00340">webdav_put_write_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__writer_8c_source.html#l00310">brix_vfs_writer_commit_ex()</a>, and <a class="el" href="vfs__writer_8c_source.html#l00058">writer_release()</a>.</p>
 
 </div>
 </div>
@@ -197,11 +195,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00322">322</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00275">275</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00041">BRIX_METRIC_OP_WRITE</a>, <a class="el" href="staged__file_8c_source.html#l00319">brix_staged_commit()</a>, <a class="el" href="staged__file_8c_source.html#l00326">brix_staged_commit_excl()</a>, <a class="el" href="vfs__internal_8h_source.html#l00248">brix_vfs_ctx_path()</a>, <a class="el" href="vfs__internal_8h_source.html#l00337">brix_vfs_now_ns()</a>, <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="resolve__confined__ops_8c_source.html#l00708">brix_lstat_confined_canon()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00041">BRIX_METRIC_OP_WRITE</a>, <a class="el" href="staged__file_8c_source.html#l00319">brix_staged_commit()</a>, <a class="el" href="staged__file_8c_source.html#l00326">brix_staged_commit_excl()</a>, <a class="el" href="vfs__internal_8h_source.html#l00252">brix_vfs_ctx_path()</a>, <a class="el" href="vfs__internal_8h_source.html#l00387">brix_vfs_now_ns()</a>, <a class="el" href="vfs__internal_8h_source.html#l00415">brix_vfs_observe_ctx_op()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="write__staged_8c_source.html#l00132">brix_staged_commit_handle()</a>, <a class="el" href="put__finalize_8c_source.html#l00021">s3_commit_put()</a>, <a class="el" href="post__object_8c_source.html#l00115">s3_post_write_object()</a>, <a class="el" href="put__body_8c_source.html#l00120">webdav_put_aio_done()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00099">webdav_put_commit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__writer_8c_source.html#l00310">brix_vfs_writer_commit_ex()</a>.</p>
 
 </div>
 </div>
@@ -221,9 +219,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00265">265</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00218">218</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00113">s3_chunk_aio_thread()</a>, <a class="el" href="post__object_8c_source.html#l00115">s3_post_write_object()</a>, <a class="el" href="put__aio_8c_source.html#l00042">s3_put_aio_thread()</a>, <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>, <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>, <a class="el" href="put__body_8c_source.html#l00087">webdav_put_aio_thread()</a>, and <a class="el" href="put__body_8c_source.html#l00340">webdav_put_write_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__writer_8c_source.html#l00374">brix_vfs_writer_fd()</a>.</p>
 
 </div>
 </div>
@@ -243,9 +241,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00274">274</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__aio_8c_source.html#l00042">s3_put_aio_thread()</a>, <a class="el" href="put__body_8c_source.html#l00087">webdav_put_aio_thread()</a>, and <a class="el" href="put__body_8c_source.html#l00340">webdav_put_write_sync()</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00227">227</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
 </div>
 </div>
@@ -287,11 +283,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00225">225</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00178">178</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="vfs__internal_8h_source.html#l00248">brix_vfs_ctx_path()</a>, <a class="el" href="staged__file_8h_source.html#l00065">brix_staged_open_req_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00098">brix_vfs_ctx_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>, <a class="el" href="vfs__staged_8c_source.html#l00095">staged_alloc_handle()</a>, <a class="el" href="vfs__staged_8c_source.html#l00168">staged_open_driver()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00208">staged_open_posix()</a>.</p>
+<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="vfs__internal_8h_source.html#l00252">brix_vfs_ctx_path()</a>, <a class="el" href="staged__file_8h_source.html#l00065">brix_staged_open_req_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00103">brix_vfs_ctx_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>, <a class="el" href="vfs__staged_8c_source.html#l00067">staged_alloc_handle()</a>, <a class="el" href="vfs__staged_8c_source.html#l00118">staged_open_driver()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00161">staged_open_posix()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00061">brix_open_dispatch_staged()</a>, <a class="el" href="post__object_8c_source.html#l00115">s3_post_write_object()</a>, <a class="el" href="put__inner_8c_source.html#l00193">s3put_open_target()</a>, and <a class="el" href="put__setup_8c_source.html#l00320">webdav_put_open_target()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__writer_8c_source.html#l00075">brix_vfs_writer_open()</a>.</p>
 
 </div>
 </div>
@@ -311,7 +307,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00311">311</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00264">264</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
 </div>
 </div>
@@ -353,11 +349,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00282">282</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00235">235</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
 <p class="reference">References <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00263">brix_http_body_staged_spooled_buf()</a>, <a class="el" href="http__body_8c_source.html#l00312">brix_http_body_write_to_staged()</a>, and <a class="el" href="write__staged_8c_source.html#l00046">brix_staged_append()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__body_8c_source.html#l00263">brix_http_body_staged_spooled_buf()</a>, <a class="el" href="http__body_8c_source.html#l00312">brix_http_body_write_to_staged()</a>, and <a class="el" href="vfs__writer_8c_source.html#l00153">writer_put()</a>.</p>
 
 </div>
 </div>
@@ -395,11 +391,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00095">95</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00067">67</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00248">brix_vfs_ctx_path()</a>, <a class="el" href="vfs__internal_8h_source.html#l00279">brix_vfs_require_write()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00098">brix_vfs_ctx_t::root_canon</a>, <a class="el" href="vfs__staged_8c_source.html#l00070">staged_open_fail()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00036">staged_pool_strdup()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00271">brix_vfs_ctx_pool_clone()</a>, <a class="el" href="vfs__internal_8h_source.html#l00329">brix_vfs_require_write()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00100">brix_vfs_ctx_t::log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00103">brix_vfs_ctx_t::root_canon</a>, and <a class="el" href="vfs__staged_8c_source.html#l00042">staged_open_fail()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00225">brix_vfs_staged_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00178">brix_vfs_staged_open()</a>.</p>
 
 </div>
 </div>
@@ -455,11 +451,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00168">168</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00118">118</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00594">brix_sd_staged_open_maybe_cred()</a>, <a class="el" href="vfs__cred_8c_source.html#l00410">brix_vfs_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00626">brix_sd_staged_open_maybe_cred()</a>, <a class="el" href="ucred_8c_source.html#l00682">brix_sd_ucred_wipe()</a>, <a class="el" href="vfs__cred_8c_source.html#l00430">brix_vfs_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00225">brix_vfs_staged_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00178">brix_vfs_staged_open()</a>.</p>
 
 </div>
 </div>
@@ -487,9 +483,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00070">70</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00042">42</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00095">staged_alloc_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00067">staged_alloc_handle()</a>.</p>
 
 </div>
 </div>
@@ -539,59 +535,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00208">208</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00161">161</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
 
-<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00051">brix_staged_open()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::log</a>.</p>
+<p class="reference">References <a class="el" href="staged__file_8c_source.html#l00051">brix_staged_open()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00100">brix_vfs_ctx_t::log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00225">brix_vfs_staged_open()</a>.</p>
-
-</div>
-</div>
-<a id="a983138453a0a14e2c0652f0dd3c08c1f" name="a983138453a0a14e2c0652f0dd3c08c1f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a983138453a0a14e2c0652f0dd3c08c1f">&#9670;&#160;</a></span>staged_pool_strdup()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static char * staged_pool_strdup </td>
-          <td>(</td>
-          <td class="paramtype">ngx_pool_t *&#160;</td>
-          <td class="paramname"><em>pool</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>s</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>lenp</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="vfs__staged_8c_source.html#l00036">36</a> of file <a class="el" href="vfs__staged_8c_source.html">vfs_staged.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00095">staged_alloc_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__staged_8c_source.html#l00178">brix_vfs_staged_open()</a>.</p>
 
 </div>
 </div>

@@ -114,8 +114,8 @@ $(document).ready(function(){initNavTree('src_2protocols_2webdav_2path_8c.html',
 Functions</h2></td></tr>
 <tr class="memitem:a62a66e66a3682058d411074861d27047" id="r_a62a66e66a3682058d411074861d27047"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2path_8c.html#a62a66e66a3682058d411074861d27047">map_resolve_rc</a> (int rc)</td></tr>
 <tr class="separator:a62a66e66a3682058d411074861d27047"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2143f0391a43616d7727898712bba524" id="r_a2143f0391a43616d7727898712bba524"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2path_8c.html#a2143f0391a43616d7727898712bba524">webdav_resolve_destination_path</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *op_label, const char *root_canon, const char *decoded_path, char *out, size_t outsz)</td></tr>
-<tr class="separator:a2143f0391a43616d7727898712bba524"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3de1e135af02ef33bfa8a519111cdffb" id="r_a3de1e135af02ef33bfa8a519111cdffb"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2path_8c.html#a3de1e135af02ef33bfa8a519111cdffb">webdav_resolve_destination_path</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *op_label, const char *root_canon, const char *decoded_path, char *out, size_t outsz, ngx_flag_t allow_internal)</td></tr>
+<tr class="separator:a3de1e135af02ef33bfa8a519111cdffb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aefa3059bf728f3c83c21e2e9547b15c0" id="r_aefa3059bf728f3c83c21e2e9547b15c0"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2protocols_2webdav_2path_8c.html#aefa3059bf728f3c83c21e2e9547b15c0">ngx_http_brix_webdav_resolve_path</a> (ngx_http_request_t *r, const char *root_canon, char *out, size_t outsz)</td></tr>
 <tr class="separator:aefa3059bf728f3c83c21e2e9547b15c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -188,16 +188,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00058">58</a> of file <a class="el" href="src_2protocols_2webdav_2path_8c_source.html">path.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00059">59</a> of file <a class="el" href="src_2protocols_2webdav_2path_8c_source.html">path.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2core_2compat_2path_8c_source.html#l00022">brix_http_resolve_path()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, and <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00044">webdav_urldecode()</a>.</p>
+<p class="reference">References <a class="el" href="src_2core_2compat_2path_8c_source.html#l00032">brix_http_resolve_path_ex()</a>, <a class="el" href="shared__conf_8h_source.html#l00242">ngx_http_brix_shared_conf_t::cache_store_endpoint</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, and <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00044">webdav_urldecode()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00390">access_apply_authdb()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00079">rl_resolve_volume_path()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00487">webdav_copy_resolve_pair()</a>, <a class="el" href="webdav_2get_8c_source.html#l00498">webdav_handle_get()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00414">webdav_handle_lock_inner()</a>, <a class="el" href="namespace_8c_source.html#l00124">webdav_handle_mkcol()</a>, <a class="el" href="move_8c_source.html#l00460">webdav_handle_move()</a>, <a class="el" href="lock__discovery_8c_source.html#l00110">webdav_handle_unlock()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00191">webdav_lock_check_request_path()</a>, <a class="el" href="put__setup_8c_source.html#l00219">webdav_put_precheck()</a>, <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>, and <a class="el" href="tpc__pull_8c_source.html#l00106">webdav_tpc_prepare_pull_target()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00455">access_apply_authdb()</a>, <a class="el" href="ratelimit__http_8c_source.html#l00079">rl_resolve_volume_path()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00490">webdav_copy_resolve_pair()</a>, <a class="el" href="webdav_2get_8c_source.html#l00498">webdav_handle_get()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00414">webdav_handle_lock_inner()</a>, <a class="el" href="namespace_8c_source.html#l00124">webdav_handle_mkcol()</a>, <a class="el" href="move_8c_source.html#l00461">webdav_handle_move()</a>, <a class="el" href="lock__discovery_8c_source.html#l00110">webdav_handle_unlock()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00191">webdav_lock_check_request_path()</a>, <a class="el" href="put__setup_8c_source.html#l00219">webdav_put_precheck()</a>, <a class="el" href="resource_8c_source.html#l00041">webdav_resolve_stat()</a>, and <a class="el" href="tpc__pull_8c_source.html#l00106">webdav_tpc_prepare_pull_target()</a>.</p>
 
 </div>
 </div>
-<a id="a2143f0391a43616d7727898712bba524" name="a2143f0391a43616d7727898712bba524"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2143f0391a43616d7727898712bba524">&#9670;&#160;</a></span>webdav_resolve_destination_path()</h2>
+<a id="a3de1e135af02ef33bfa8a519111cdffb" name="a3de1e135af02ef33bfa8a519111cdffb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3de1e135af02ef33bfa8a519111cdffb">&#9670;&#160;</a></span>webdav_resolve_destination_path()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -236,7 +236,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>outsz</em>&#160;</td>
+          <td class="paramname"><em>outsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>allow_internal</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -248,9 +254,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00028">28</a> of file <a class="el" href="src_2protocols_2webdav_2path_8c_source.html">path.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2core_2compat_2path_8c_source.html#l00022">brix_http_resolve_path()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00016">map_resolve_rc()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="src_2core_2compat_2path_8c_source.html#l00032">brix_http_resolve_path_ex()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00016">map_resolve_rc()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tape__rest_8c_source.html#l00234">tape_authz_path()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00487">webdav_copy_resolve_pair()</a>, and <a class="el" href="move_8c_source.html#l00321">webdav_move_resolve_dest()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tape__rest_8c_source.html#l00234">tape_authz_path()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00490">webdav_copy_resolve_pair()</a>, and <a class="el" href="move_8c_source.html#l00321">webdav_move_resolve_dest()</a>.</p>
 
 </div>
 </div>

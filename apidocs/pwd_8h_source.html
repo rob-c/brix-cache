@@ -148,26 +148,31 @@ $(document).ready(function(){initNavTree('pwd_8h_source.html',''); initResizable
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment">/*</span></div>
 <div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment"> * Look up `user` in the brix_pwd_file at `path` and, on a match, return the</span></div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> * stored salt and PBKDF2 hash.  Lines are &quot;user:salthex:hashhex&quot; (see</span></div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> * docs/refactor/phase-52-pwd-wire-spec.md); &#39;#&#39;/blank lines are ignored.</span></div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment"> * Returns NGX_OK (salt+hash filled) or NGX_DECLINED (no such user, parse error,</span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment"> * or unreadable file).  All buffers caller-provided; saltlen,hashlen are set out.</span></div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>ngx_int_t <a class="code hl_function" href="pwd_8h.html#a29b3d3b7fff2475d7eedab942af0a975">brix_pwd_file_lookup</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keyword">const</span> <span class="keywordtype">char</span> *user,</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    uint8_t *salt, <span class="keywordtype">size_t</span> *saltlen, uint8_t *hash, <span class="keywordtype">size_t</span> *hashlen);</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="comment"> * Verify a plaintext password against a stored (salt, hash) pair using</span></div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment"> * PBKDF2-HMAC-SHA1 with BRIX_PWD_KDF_ITERS iterations.  Constant-time compare.</span></div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment"> * Returns 1 on match, 0 otherwise.</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="keywordtype">int</span> <a class="code hl_function" href="pwd_8h.html#aad23efd270bfe6d441373d7c959e2842">brix_pwd_verify</a>(<span class="keyword">const</span> uint8_t *password, <span class="keywordtype">size_t</span> plen,</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    <span class="keyword">const</span> uint8_t *salt, <span class="keywordtype">size_t</span> saltlen,</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="keyword">const</span> uint8_t *hash, <span class="keywordtype">size_t</span> hashlen);</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_PWD_H */</span><span class="preprocessor"></span></div>
-<div class="ttc" id="apwd_8h_html_a29b3d3b7fff2475d7eedab942af0a975"><div class="ttname"><a href="pwd_8h.html#a29b3d3b7fff2475d7eedab942af0a975">brix_pwd_file_lookup</a></div><div class="ttdeci">ngx_int_t brix_pwd_file_lookup(const char *path, const char *user, uint8_t *salt, size_t *saltlen, uint8_t *hash, size_t *hashlen)</div><div class="ttdef"><b>Definition</b> <a href="pwdfile_8c_source.html#l00133">pwdfile.c:133</a></div></div>
-<div class="ttc" id="apwd_8h_html_aad23efd270bfe6d441373d7c959e2842"><div class="ttname"><a href="pwd_8h.html#aad23efd270bfe6d441373d7c959e2842">brix_pwd_verify</a></div><div class="ttdeci">int brix_pwd_verify(const uint8_t *password, size_t plen, const uint8_t *salt, size_t saltlen, const uint8_t *hash, size_t hashlen)</div><div class="ttdef"><b>Definition</b> <a href="pwdfile_8c_source.html#l00158">pwdfile.c:158</a></div></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> * stored salt and PBKDF2 hash.  Lines are &quot;user:salthex:hashhex[:vo1,vo2]&quot;</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> * (see docs/refactor/phase-52-pwd-wire-spec.md); &#39;#&#39;/blank lines are ignored.</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment"> * The optional 4th field is a comma-separated VO/group list copied into `vos`</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment"> * (set to &quot;&quot; for the legacy 3-field form; pass NULL/0 to skip).  An entry whose</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment"> * VO list does not fit `voscap` is rejected — group membership must never be</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment"> * silently truncated.  Returns NGX_OK (salt+hash+vos filled) or NGX_DECLINED</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment"> * (no such user, parse error, or unreadable file).  All buffers caller-provided;</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment"> * saltlen,hashlen are set out.</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>ngx_int_t <a class="code hl_function" href="pwd_8h.html#a4b35443c492b3a188cf4b33b39b6cee2">brix_pwd_file_lookup</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keyword">const</span> <span class="keywordtype">char</span> *user,</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    uint8_t *salt, <span class="keywordtype">size_t</span> *saltlen, uint8_t *hash, <span class="keywordtype">size_t</span> *hashlen,</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordtype">char</span> *vos, <span class="keywordtype">size_t</span> voscap);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="comment"> * Verify a plaintext password against a stored (salt, hash) pair using</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="comment"> * PBKDF2-HMAC-SHA1 with BRIX_PWD_KDF_ITERS iterations.  Constant-time compare.</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment"> * Returns 1 on match, 0 otherwise.</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="keywordtype">int</span> <a class="code hl_function" href="pwd_8h.html#aad23efd270bfe6d441373d7c959e2842">brix_pwd_verify</a>(<span class="keyword">const</span> uint8_t *password, <span class="keywordtype">size_t</span> plen,</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <span class="keyword">const</span> uint8_t *salt, <span class="keywordtype">size_t</span> saltlen,</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    <span class="keyword">const</span> uint8_t *hash, <span class="keywordtype">size_t</span> hashlen);</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_PWD_H */</span><span class="preprocessor"></span></div>
+<div class="ttc" id="apwd_8h_html_a4b35443c492b3a188cf4b33b39b6cee2"><div class="ttname"><a href="pwd_8h.html#a4b35443c492b3a188cf4b33b39b6cee2">brix_pwd_file_lookup</a></div><div class="ttdeci">ngx_int_t brix_pwd_file_lookup(const char *path, const char *user, uint8_t *salt, size_t *saltlen, uint8_t *hash, size_t *hashlen, char *vos, size_t voscap)</div><div class="ttdef"><b>Definition</b> <a href="pwdfile_8c_source.html#l00150">pwdfile.c:150</a></div></div>
+<div class="ttc" id="apwd_8h_html_aad23efd270bfe6d441373d7c959e2842"><div class="ttname"><a href="pwd_8h.html#aad23efd270bfe6d441373d7c959e2842">brix_pwd_verify</a></div><div class="ttdeci">int brix_pwd_verify(const uint8_t *password, size_t plen, const uint8_t *salt, size_t saltlen, const uint8_t *hash, size_t hashlen)</div><div class="ttdef"><b>Definition</b> <a href="pwdfile_8c_source.html#l00177">pwdfile.c:177</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

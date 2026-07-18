@@ -12,5 +12,6 @@ var sd__http_8h =
     [ "sd_http_last_origin", "sd__http_8h.html#a8d9e73c404583b0f74f89d06a7471c90", null ],
     [ "sd_http_last_was_failover", "sd__http_8h.html#aa2403406e548038bf25002c87adc4c8e", null ],
     [ "sd_http_n_endpoints", "sd__http_8h.html#a183631283f596cdcc922c6327f7eb924", null ],
+    [ "sd_http_penalize_last_origin", "sd__http_8h.html#a197fd443f56064bc95964c008475ad98", null ],
     [ "sd_http_set_ranks", "sd__http_8h.html#ab6ad462c690c7cdd54d9ba6fde433a19", null ]
 ];

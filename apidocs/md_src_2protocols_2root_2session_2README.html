@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2session_2READ
   <div class="headertitle"><div class="title">session — XRootD session lifecycle, identity binding &amp; cross-worker registry</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md397"></a> </p>
-<h1><a class="anchor" id="autotoc_md398"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md401"></a> </p>
+<h1><a class="anchor" id="autotoc_md402"></a>
 Overview</h1>
 <p>This subsystem owns the <b>XRootD session layer</b> for <code>root://</code>/<code>roots://</code> stream connections: the opcodes a client must complete <em>before</em> any file I/O, and the shared-memory bookkeeping that keeps a session coherent across nginx worker processes. It sits immediately after the raw TCP handshake/recv state machine (<code>../connection/</code>) and just before the read/write/namespace handlers take over. Every stream connection passes through here to establish protocol capabilities, log in, optionally authenticate, and (for parallel transfers) bind secondary data channels. None of this applies to the HTTP-side protocols (WebDAV/S3) — they carry their own per-request auth and never enter this layer.</p>
 <p>The canonical XRootD login sequence implemented here is: <code>kXR_protocol</code> (capability negotiation) → <code>kXR_login</code> (username + session id) → <code>kXR_auth</code> (credential exchange, GSI/token/SSS/krb5/unix — handled in <code>../gsi/</code>, <code>../token/</code>, etc.) → file ops → <code>kXR_endsess</code> (graceful teardown). <code>kXR_protocol</code> must be the first request; <code>kXR_ping</code> is allowed at any time. All other opcodes require both <code>ctx-&gt;logged_in</code> <b>and</b> <code>ctx-&gt;auth_done</code> set on <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code>. When <code>brix_auth=none</code>, <code>auth_done</code> is set immediately at login; otherwise it is deferred until <code>kXR_auth</code> succeeds.</p>
 <p>Two cross-cutting concerns live here because they are session-scoped but must survive across worker boundaries. First, the <b>session registry</b> maps <code>sessid → {dn, vo_list, token_auth}</code> in shared memory so a <code>kXR_bind</code> secondary connection (or proxy-mode forwarding) can inherit a primary's authenticated identity without re-authenticating. Second, the <b>published-handle table</b> lets a secondary stream reopen and re-validate a primary's readable file handles even when the primary was served by a <em>different</em> worker — nginx workers do not share descriptors opened after fork, so the secondary reopens the canonical confined path and verifies <code>device</code>/<code>inode</code> against the published entry.</p>
 <p>This layer also configures <b>in-protocol TLS</b> (<code>kXR_ableTLS</code>/<code>kXR_wantTLS</code>), arming a per-server <code>SSL_CTX</code> so a single listener can serve both cleartext <code>root://</code> and TLS-upgraded <code>roots://</code> without a dedicated port, and implements <b>request signing</b> (<code>kXR_sigver</code>), the HMAC-SHA256 anti-forgery/anti-replay envelope used on GSI sessions.</p>
-<h1><a class="anchor" id="autotoc_md399"></a>
+<h1><a class="anchor" id="autotoc_md403"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -126,7 +126,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>session.h</code>   </td><td class="markdownTableBodyNone">Documents the login state machine and declares the session opcode handlers + the GSI bucket/x509 helpers (<code>gsi_find_bucket</code>, <code>brix_gsi_parse_x509</code>, <code>brix_handle_auth</code> — <b>implemented in <code>../gsi/</code></b>, declared here for the dispatcher).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md400"></a>
+<h1><a class="anchor" id="autotoc_md404"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__session__entry__t.html">brix_session_entry_t</a></code>** (<code>registry.h</code>) — one registry slot: <code>sessid[16]</code>, <code>dn[512]</code>, <code>vo_list[512]</code>, <code>token_auth</code>, <code>in_use</code>, and <code>last_seen</code> (the LRU key for reap-on-full). Models the <em>identity</em> a bound secondary or proxy inherits.</li>
@@ -135,7 +135,7 @@ Key types &amp; data structures</h1>
 <li><b>Session state on <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code></b> (<code>../types/context.h</code>) — set here and read everywhere downstream: <code>logged_in</code>, <code>auth_done</code>, <code>sessid</code>, <code>login_user</code>, <code>login_pid</code>, <code>is_bound</code>, <code>bound_sessid</code>, <code>pathid</code>, <code>token_auth</code>, <code>tls_pending</code>, plus the sigver pending block (<code>sigver_pending</code>, <code>sigver_hmac[32]</code>, <code>sigver_expectrid</code>, <code>sigver_seqno</code>, <code>sigver_nodata</code>, <code>last_seqno</code>, <code>signing_active</code>).</li>
 <li>**<code><a class="el" href="structServerProtocolBody.html">ServerProtocolBody</a></code> / <code>SecurityInfo</code> / <code>ServerResponseReqs_Protocol</code>** — the on-wire structs assembled in <code>protocol.c</code>; the 8-byte body always precedes the optional security trailer.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md401"></a>
+<h1><a class="anchor" id="autotoc_md405"></a>
 Control &amp; data flow</h1>
 <p><b>Entry.</b> The stream dispatcher (<code>../handshake/dispatch.c</code> → <code>../handshake/dispatch_session.c</code>) routes opcodes here: <code>kXR_protocol → brix_handle_protocol</code>, <code>kXR_login → brix_handle_login</code>, <code>kXR_auth → brix_handle_auth</code> (in <code>../gsi/</code>), <code>kXR_ping → brix_handle_ping</code>, <code>kXR_endsess → brix_handle_endsess</code>, <code>kXR_bind → brix_handle_bind</code>. <code>kXR_sigver</code> is gated/routed by the signing dispatcher in <code>../handshake/</code>, which also consumes the pending HMAC stored by <code><a class="el" href="signing_8c.html">signing.c</a></code> <em>before</em> the next opcode runs.</p>
 <p><b>Calls out to.</b></p><ul>
@@ -150,7 +150,7 @@ Control &amp; data flow</h1>
 <li>Secondaries revalidate via <code>../connection/fd_table.c</code> (<code>brix_session_handle_lookup_hint</code>) and the proxy forwarding helpers in <code>../proxy/</code>.</li>
 <li><code><a class="el" href="protocols_2root_2session_2registry_8c.html#ab8d523d6ae21fce531d9eb7c14ff2183">brix_session_unregister()</a></code> is driven by <code>kXR_endsess</code> and the disconnect path, and transitively unpublishes all of that session's handles.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md402"></a>
+<h1><a class="anchor" id="autotoc_md406"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Fail-closed auth boundary.</b> Downstream handlers require <code>logged_in &amp;&amp; auth_done</code>. <code>kXR_endsess</code> resets both to 0 <b>only when it names this connection's own session</b> (<code>req-&gt;sessid == ctx-&gt;sessid</code>) so a client cannot keep operating after its own session end or GSI proxy expiry; an endsess naming a <em>different</em> session unregisters that session but leaves this connection authenticated (required for official-client reconnect recovery). <code>kXR_bind</code> only sets them after a successful registry lookup (<code><a class="el" href="bind_8c.html">bind.c</a>:78</code>).</li>
@@ -163,7 +163,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>TLS vs cleartext.</b> <code><a class="el" href="tls__config_8c.html">tls_config.c</a></code> only <em>builds</em> the context and <code>protocol.c</code> arms <code>tls_pending</code>; the actual upgrade and the memory-buffer-vs-sendfile decision live in <code>../connection/</code> and <code>../read/</code>. kTLS is opt-in (<code>SSL_OP_ENABLE_KTLS</code>), only helps with HW-offload NICs, and OpenSSL silently falls back to userspace TLS when the cipher/kernel can't offload — the read path re-checks <code>BIO_get_ktls_send()</code> per connection.</li>
 <li>**<code>kXR_protocol</code> must be first; capability flags are computed from live <code>conf</code>** (manager/supervisor/virtual-redirector/cache/proxy/meta/collapse/ recover), so changing server mode changes what clients are told without touching this file's logic.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md403"></a>
+<h1><a class="anchor" id="autotoc_md407"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>New session opcode:</b> add <code>brix_handle_&lt;op&gt;()</code> here, declare it in <code>session.h</code> (and <code>../ngx_brix_module.h</code> if the dispatcher needs it), then register the case in <code>../handshake/dispatch_session.c</code>. Add the 3 required tests (success + error + security-negative).</li>
@@ -171,7 +171,7 @@ Entry points / extending</h1>
 <li><b>New session/handle registry field:</b> extend the struct in <code>registry.h</code>, populate it in <code>register</code>/<code>publish</code>, and bump the consumers (<code>../connection/fd_table.c</code>, <code>../proxy/</code>). Mind the fixed handle-table sizing factors in <code>registry.h</code> if you grow the entry.</li>
 <li><b>New TLS knob:</b> add the directive/field in <code>../config/</code>, then apply it inside <code><a class="el" href="config_2config_8h.html#a8edab32a6f84bf578948a5b0ae577301">brix_configure_tls()</a></code> (guard new OpenSSL options with <code>#ifdef</code>).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md404"></a>
+<h1><a class="anchor" id="autotoc_md408"></a>
 See also</h1>
 <ul>
 <li><code>../handshake/README.md</code> — opcode dispatcher; sigver phase-2 verification.</li>

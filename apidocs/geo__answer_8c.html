@@ -130,7 +130,7 @@ Macros</h2></td></tr>
 <tr class="separator:a5b7a19b7393cd9a2d4e9902e47bc92f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab2df42ebcb04b0e51a95534aa006cb07" id="r_ab2df42ebcb04b0e51a95534aa006cb07"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="geo__answer_8c.html#ab2df42ebcb04b0e51a95534aa006cb07">CVMFS_GEO_PROBE_TIMEOUT_MS</a>&#160;&#160;&#160;1000   /* per-server connect <a class="el" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a> budget  */</td></tr>
 <tr class="separator:ab2df42ebcb04b0e51a95534aa006cb07"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a833cfd690ab0190fe8bba4873a7eb517" id="r_a833cfd690ab0190fe8bba4873a7eb517"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="geo__answer_8c.html#a833cfd690ab0190fe8bba4873a7eb517">CVMFS_GEO_CACHE_SLOTS</a>&#160;&#160;&#160;256u    /* per-worker EWMA cache (pow2 mask) */</td></tr>
+<tr class="memitem:a833cfd690ab0190fe8bba4873a7eb517" id="r_a833cfd690ab0190fe8bba4873a7eb517"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="geo__answer_8c.html#a833cfd690ab0190fe8bba4873a7eb517">CVMFS_GEO_CACHE_SLOTS</a>&#160;&#160;&#160;256u    /* per-<a class="el" href="cpool__unittest_8c.html#a6f8707552918a45117066fc3b7a0a06f">worker</a> EWMA cache (pow2 mask) */</td></tr>
 <tr class="separator:a833cfd690ab0190fe8bba4873a7eb517"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9820608ffc70838c85dc16b81115248e" id="r_a9820608ffc70838c85dc16b81115248e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="geo__answer_8c.html#a9820608ffc70838c85dc16b81115248e">CVMFS_GEO_M_UNREACHABLE</a>&#160;&#160;&#160;1.0e12</td></tr>
 <tr class="separator:a9820608ffc70838c85dc16b81115248e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -177,7 +177,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define CVMFS_GEO_CACHE_SLOTS&#160;&#160;&#160;256u    /* per-worker EWMA cache (pow2 mask) */</td>
+          <td class="memname">#define CVMFS_GEO_CACHE_SLOTS&#160;&#160;&#160;256u    /* per-<a class="el" href="cpool__unittest_8c.html#a6f8707552918a45117066fc3b7a0a06f">worker</a> EWMA cache (pow2 mask) */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -279,9 +279,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00414">414</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00058">cvmfs_geo_task_t::body</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="cvmfs_8h_source.html#l00104">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00106">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="geo__answer_8c_source.html#l00272">cvmfs_geo_cache_read()</a>, <a class="el" href="geo__answer_8c_source.html#l00377">cvmfs_geo_done()</a>, <a class="el" href="geo__answer_8c_source.html#l00236">cvmfs_geo_parse()</a>, <a class="el" href="geo__answer_8c_source.html#l00316">cvmfs_geo_thread()</a>, <a class="el" href="cvmfs_8h_source.html#l00095">brix_cvmfs_conf_t::geo_cache_ttl</a>, <a class="el" href="cvmfs_8h_source.html#l00096">brix_cvmfs_conf_t::geo_max_servers</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00055">cvmfs_geo_task_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00183">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf_8h_source.html#l00182">ngx_http_brix_shared_conf_t::thread_pool_name</a>, and <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::ttl</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00058">cvmfs_geo_task_t::body</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="cvmfs_8h_source.html#l00157">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="geo__answer_8c_source.html#l00272">cvmfs_geo_cache_read()</a>, <a class="el" href="geo__answer_8c_source.html#l00377">cvmfs_geo_done()</a>, <a class="el" href="geo__answer_8c_source.html#l00236">cvmfs_geo_parse()</a>, <a class="el" href="geo__answer_8c_source.html#l00316">cvmfs_geo_thread()</a>, <a class="el" href="cvmfs_8h_source.html#l00125">brix_cvmfs_conf_t::geo_cache_ttl</a>, <a class="el" href="cvmfs_8h_source.html#l00126">brix_cvmfs_conf_t::geo_max_servers</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00055">cvmfs_geo_task_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00256">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf_8h_source.html#l00255">ngx_http_brix_shared_conf_t::thread_pool_name</a>, and <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::ttl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00169">brix_cvmfs_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00263">brix_cvmfs_gate()</a>.</p>
 
 </div>
 </div>

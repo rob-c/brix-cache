@@ -116,149 +116,464 @@ $(document).ready(function(){initNavTree('secure_8c_source.html',''); initResiza
 <div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="comment"> *       accepts none|bearer today.</span></div>
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="preprocessor">#include &quot;<a class="code" href="cvmfs_8h.html">cvmfs.h</a>&quot;</span></div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#include &quot;<a class="code" href="issuer__registry_8h.html">auth/token/issuer_registry.h</a>&quot;</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#include &quot;<a class="code" href="cstr_8h.html">core/compat/cstr.h</a>&quot;</span></div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#include &quot;<a class="code" href="tunables_8h.html">core/types/tunables.h</a>&quot;</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span> </div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#include &lt;limits.h&gt;</span></div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="comment">/* Extract &quot;Authorization: Bearer &lt;token&gt;&quot; into a NUL-terminated pool copy. */</span></div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00027" data-start="{" data-end="}">
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno"><a class="line" href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">   27</a></span><a class="code hl_function" href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">scvmfs_bearer_token</a>(ngx_http_request_t *r, <span class="keyword">const</span> <span class="keywordtype">char</span> **token, <span class="keywordtype">size_t</span> *len)</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>{</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>    ngx_str_t  *v;</div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    u_char     *p;</div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    <span class="keywordtype">size_t</span>      n;</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span> </div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    <span class="keywordflow">if</span> (r-&gt;headers_in.authorization == NULL) {</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    }</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    v = &amp;r-&gt;headers_in.authorization-&gt;value;</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="keywordflow">if</span> (v-&gt;len &lt;= <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>        || ngx_strncasecmp(v-&gt;data, (u_char *) <span class="stringliteral">&quot;Bearer &quot;</span>,</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>                           <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1) != 0)</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    {</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    }</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    n = v-&gt;len - (<span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1);</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    p = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, n + 1);</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <span class="keywordflow">if</span> (p == NULL) {</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    }</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, v-&gt;data + <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1, n);</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    p[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    *token = (<span class="keyword">const</span> <span class="keywordtype">char</span> *) p;</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    *len = n;</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>}</div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#include &quot;<a class="code" href="cvmfs__module__internal_8h.html">cvmfs_module_internal.h</a>&quot;</span></div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#include &quot;<a class="code" href="issuer__registry_8h.html">auth/token/issuer_registry.h</a>&quot;</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#include &quot;<a class="code" href="cstr_8h.html">core/compat/cstr.h</a>&quot;</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#include &quot;<a class="code" href="tunables_8h.html">core/types/tunables.h</a>&quot;</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">#include &lt;limits.h&gt;</span></div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span> </div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="comment">/* Extract &quot;Authorization: Bearer &lt;token&gt;&quot; into a NUL-terminated pool copy. */</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00028" data-start="{" data-end="}">
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno"><a class="line" href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">   28</a></span><a class="code hl_function" href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">scvmfs_bearer_token</a>(ngx_http_request_t *r, <span class="keyword">const</span> <span class="keywordtype">char</span> **token, <span class="keywordtype">size_t</span> *len)</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>{</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    ngx_str_t  *v;</div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    u_char     *p;</div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    <span class="keywordtype">size_t</span>      n;</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span> </div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="keywordflow">if</span> (r-&gt;headers_in.authorization == NULL) {</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    }</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    v = &amp;r-&gt;headers_in.authorization-&gt;value;</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <span class="keywordflow">if</span> (v-&gt;len &lt;= <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>        || ngx_strncasecmp(v-&gt;data, (u_char *) <span class="stringliteral">&quot;Bearer &quot;</span>,</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>                           <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1) != 0)</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    {</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    }</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    n = v-&gt;len - (<span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1);</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    p = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, n + 1);</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    <span class="keywordflow">if</span> (p == NULL) {</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    }</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, v-&gt;data + <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Bearer &quot;</span>) - 1, n);</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    p[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    *token = (<span class="keyword">const</span> <span class="keywordtype">char</span> *) p;</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    *len = n;</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>}</div>
 </div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span> </div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00056" data-start="{" data-end="}">
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno"><a class="line" href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">   56</a></span><a class="code hl_function" href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">scvmfs_check_bearer</a>(ngx_http_request_t *r,</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>{</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>            *token;</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <span class="keywordtype">size_t</span>                 token_len;</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    <span class="keywordtype">char</span>                   uri_path[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <a class="code hl_struct" href="structbrix__token__claims__t.html">brix_token_claims_t</a>  claims;</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <span class="keywordtype">int</span>                    bucket = 0;</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    ngx_int_t              rc;</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="keywordflow">if</span> (lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a2c5afccbadbf89db94cd6ec9bffd416d">scvmfs_registry</a> == NULL) {</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        <span class="comment">/* bearer mode without a loaded issuer registry fails CLOSED —</span></div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment">         * merge-time validation makes this unreachable, but never open up */</span></div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    }</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    rc = <a class="code hl_function" href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">scvmfs_bearer_token</a>(r, &amp;token, &amp;token_len);</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    <span class="keywordflow">if</span> (rc == NGX_DECLINED) {</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;              <span class="comment">/* no Bearer credential */</span></div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    }</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    }</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a>(uri_path, <span class="keyword">sizeof</span>(uri_path), &amp;r-&gt;uri) == NULL) {</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        <span class="keywordflow">return</span> NGX_HTTP_REQUEST_URI_TOO_LARGE;</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    }</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span> </div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="comment">/* read scope suffices for a read-only protocol */</span></div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    {</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>        <a class="code hl_struct" href="structbrix__token__registry__args__t.html">brix_token_registry_args_t</a>  ra;</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span> </div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#aa55a5a5f395e9ce0b8bde6fda936bd12">log</a>             = r-&gt;connection-&gt;log;</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a4e1819aff7dcb0658267dd40946d8c6c">token</a>           = token;</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a7cb0f1e3ef4e58dae1a1b8310e7f64c4">token_len</a>       = token_len;</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a51a5245d2c54d74a57849571cf983420">reg</a>             = (<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *) lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a2c5afccbadbf89db94cd6ec9bffd416d">scvmfs_registry</a>;</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#af56a5b5e3361bd41b2c49455c26b0343">macaroon_secret</a> = NULL;</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a6d79eb72031796f9ef6a3a4e77323418">secret_len</a>      = 0;</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#ac60533d058fe060c33f4b1c28c73cd3a">clock_skew</a>      = <a class="code hl_define" href="tunables_8h.html#a5b48e5cdbb6e70e49d2fdb4e2d743433">BRIX_TOKEN_CLOCK_SKEW_SECS</a>;</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#aaeff7aa011dbc70d407cad2e99a8ecb6">claims</a>          = &amp;claims;</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span> </div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="issuer__registry_8h.html#a468c7f1b8f81ea9462e79ce135e2b311">brix_token_validate_registry</a>(&amp;ra, uri_path, <a class="code hl_enumvalue" href="token_8h.html#a17163e9e5755575b252e26a5a870667eaf76c6c96d9bbbbf4565a73c961e496fa">BRIX_TOKEN_OP_READ</a>,</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>                                         &amp;bucket) != 0)</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        {</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>            <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;  <span class="comment">/* invalid/expired/out-of-scope */</span></div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        }</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    }</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    <span class="keywordflow">return</span> NGX_DECLINED;                   <span class="comment">/* authenticated: proceed        */</span></div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>}</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span> </div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00057" data-start="{" data-end="}">
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno"><a class="line" href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">   57</a></span><a class="code hl_function" href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">scvmfs_check_bearer</a>(ngx_http_request_t *r,</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>{</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>            *token;</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    <span class="keywordtype">size_t</span>                 token_len;</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordtype">char</span>                   uri_path[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <a class="code hl_struct" href="structbrix__token__claims__t.html">brix_token_claims_t</a>  claims;</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <span class="keywordtype">int</span>                    bucket = 0;</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    ngx_int_t              rc;</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <span class="keywordflow">if</span> (lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a2c5afccbadbf89db94cd6ec9bffd416d">scvmfs_registry</a> == NULL) {</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>        <span class="comment">/* bearer mode without a loaded issuer registry fails CLOSED —</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment">         * merge-time validation makes this unreachable, but never open up */</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    }</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    rc = <a class="code hl_function" href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">scvmfs_bearer_token</a>(r, &amp;token, &amp;token_len);</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    <span class="keywordflow">if</span> (rc == NGX_DECLINED) {</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;              <span class="comment">/* no Bearer credential */</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    }</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    }</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span> </div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a>(uri_path, <span class="keyword">sizeof</span>(uri_path), &amp;r-&gt;uri) == NULL) {</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>        <span class="keywordflow">return</span> NGX_HTTP_REQUEST_URI_TOO_LARGE;</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    }</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    <span class="comment">/* read scope suffices for a read-only protocol */</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    {</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        <a class="code hl_struct" href="structbrix__token__registry__args__t.html">brix_token_registry_args_t</a>  ra;</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span> </div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#aa55a5a5f395e9ce0b8bde6fda936bd12">log</a>             = r-&gt;connection-&gt;log;</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a4e1819aff7dcb0658267dd40946d8c6c">token</a>           = token;</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a7cb0f1e3ef4e58dae1a1b8310e7f64c4">token_len</a>       = token_len;</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a51a5245d2c54d74a57849571cf983420">reg</a>             = (<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *) lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a2c5afccbadbf89db94cd6ec9bffd416d">scvmfs_registry</a>;</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#af56a5b5e3361bd41b2c49455c26b0343">macaroon_secret</a> = NULL;</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a6d79eb72031796f9ef6a3a4e77323418">secret_len</a>      = 0;</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#ac60533d058fe060c33f4b1c28c73cd3a">clock_skew</a>      = <a class="code hl_define" href="tunables_8h.html#a5b48e5cdbb6e70e49d2fdb4e2d743433">BRIX_TOKEN_CLOCK_SKEW_SECS</a>;</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#aaeff7aa011dbc70d407cad2e99a8ecb6">claims</a>          = &amp;claims;</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span> </div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="issuer__registry_8h.html#a468c7f1b8f81ea9462e79ce135e2b311">brix_token_validate_registry</a>(&amp;ra, uri_path, <a class="code hl_enumvalue" href="token_8h.html#a17163e9e5755575b252e26a5a870667eaf76c6c96d9bbbbf4565a73c961e496fa">BRIX_TOKEN_OP_READ</a>,</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>                                         &amp;bucket) != 0)</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        {</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>            <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;  <span class="comment">/* invalid/expired/out-of-scope */</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>        }</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    }</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    <span class="comment">/* the VALIDATED subject is the F9 QoS classification key */</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    {</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>        <a class="code hl_struct" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx =</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>            ngx_http_get_module_ctx(r, <a class="code hl_variable" href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a>);</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span> </div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>        <span class="keywordflow">if</span> (ctx != NULL) {</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>            ngx_cpystrn((u_char *) ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">token_sub</a>, (u_char *) claims.<a class="code hl_variable" href="structbrix__token__claims__t.html#a349f2057c6ad8ebd42f9b97e12e65dc8">sub</a>,</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>                        <span class="keyword">sizeof</span>(ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">token_sub</a>));</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>        }</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    }</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <span class="keywordflow">return</span> NGX_DECLINED;                   <span class="comment">/* authenticated: proceed        */</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>}</div>
 </div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span> </div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00107" data-start="{" data-end="}">
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno"><a class="line" href="cvmfs_8h.html#aec685fda22d95313c9ad637be6e6cf83">  107</a></span><a class="code hl_function" href="secure_8c.html#aec685fda22d95313c9ad637be6e6cf83">brix_scvmfs_preamble</a>(ngx_http_request_t *r,</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>{</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx =</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>        ngx_http_get_module_ctx(r, <a class="code hl_variable" href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a>);</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    ngx_int_t                    rc;</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span> </div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="preprocessor">#if (NGX_HTTP_SSL)</span></div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <span class="keywordflow">if</span> (r-&gt;connection-&gt;ssl == NULL)</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    {</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>        <span class="comment">/* nginx core already 400s plain-HTTP-on-ssl-port before we run;</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment">         * this guards mixed listeners and future non-TLS plumbing. */</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        <span class="keywordflow">return</span> NGX_HTTP_BAD_REQUEST;</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    }</div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span> </div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <span class="keywordflow">switch</span> (lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a41f7cbd68f49fcf63e27e6badc5cab95">scvmfs_authz</a>) {</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    <span class="keywordflow">case</span> <a class="code hl_enumvalue" href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042a58d19f72ef75aefd3126e96f817a26ba">BRIX_SCVMFS_AUTHZ_BEARER</a>:</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        rc = <a class="code hl_function" href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">scvmfs_check_bearer</a>(r, lcf);</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    <span class="keywordflow">case</span> <a class="code hl_enumvalue" href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042abcbd4da3df22bc949f1d168b04628e9c">BRIX_SCVMFS_AUTHZ_NONE</a>:</div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    <span class="keywordflow">default</span>:</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        rc = NGX_DECLINED;</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    }</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    <span class="keywordflow">if</span> (rc != NGX_DECLINED) {</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <a class="code hl_define" href="metrics__macros_8h.html#a2ddac5fe4f6b55cc175ae9560191d3c6">BRIX_CVMFS_METRIC_INC</a>(requests_total[<a class="code hl_enumvalue" href="metrics__cvmfs_8h.html#ae01ce49ea0745d237b56228de508058daa77bea5de1f3d5fb6eee81af81b18ff0">BRIX_CVMFS_CLASS_REJECT</a>]);</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <span class="keywordflow">return</span> rc;</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    }</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#ab8901bdb9489aaba6e783e401514fb3e">secure</a> = 1;                               <span class="comment">/* unlocks https upstream */</span></div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    <a class="code hl_define" href="metrics__macros_8h.html#a2ddac5fe4f6b55cc175ae9560191d3c6">BRIX_CVMFS_METRIC_INC</a>(secure_requests_total);</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    <span class="keywordflow">return</span> NGX_DECLINED;</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>}</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span> </div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment">/* ---- token-gated repos (phase-85 F3) --------------------------------------</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment"> * brix_cvmfs_repo_authz &lt;repo|*&gt; &lt;scitokens.cfg&gt; — multi-occurrence; each</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> * entry gates ONE repo (or &quot;*&quot; = all) behind the named issuer registry.</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment"> * Policy glue only: token validation is the same shared registry engine the</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment"> * scvmfs bearer path above uses (READ scope for a read-only protocol). */</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span> </div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00125" data-start="{" data-end="}">
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno"><a class="line" href="cvmfs__module__internal_8h.html#a2d473889a3453c638be0fce72605949f">  125</a></span><a class="code hl_function" href="secure_8c.html#a2d473889a3453c638be0fce72605949f">cvmfs_conf_repo_authz</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>, <span class="keywordtype">void</span> *conf)</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>{</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a> = conf;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    ngx_str_t                      *value = cf-&gt;args-&gt;elts;</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    <a class="code hl_struct" href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a>        *entry;</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span> </div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="keywordflow">if</span> (value[1].len == 0 || value[2].len == 0) {</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>            <span class="stringliteral">&quot;brix_cvmfs_repo_authz needs &lt;repo-fqrn|*&gt; &lt;scitokens.cfg&gt;&quot;</span>);</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    }</div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span> </div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;repo_authz == NGX_CONF_UNSET_PTR) {</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;repo_authz = ngx_array_create(cf-&gt;pool, 2,</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>                                         <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a>));</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <span class="keywordflow">if</span> (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;repo_authz == NULL) {</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        }</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    }</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span> </div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    entry = ngx_array_push(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;repo_authz);</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    <span class="keywordflow">if</span> (entry == NULL) {</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    }</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    entry-&gt;<a class="code hl_variable" href="structbrix__cvmfs__repo__authz__t.html#a4c39cf32c40d6aeeea547f3efca5fe16">repo</a>     = value[1];</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    entry-&gt;<a class="code hl_variable" href="structbrix__cvmfs__repo__authz__t.html#a6a4f5e1d63cd3b73d05dba21e72774db">issuers</a>  = value[2];</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    entry-&gt;<a class="code hl_variable" href="structbrix__cvmfs__repo__authz__t.html#a55e6238ff93d91a64b0df674b5fae0c5">registry</a> = NULL;               <span class="comment">/* built once at merge time */</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>}</div>
+</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span> </div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="comment">/* The gate entry matching this repo, or NULL = repo not gated. First match</span></div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="comment"> * wins; &quot;*&quot; is a catch-all so an exact entry listed before it can pin a</span></div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment"> * specific registry while &quot;*&quot; sweeps the rest. */</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="keyword">static</span> <a class="code hl_struct" href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a> *</div>
+<div class="foldopen" id="foldopen00161" data-start="{" data-end="}">
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno"><a class="line" href="secure_8c.html#a1c163a80b2f5a3d957c31f90a599eafd">  161</a></span><a class="code hl_function" href="secure_8c.html#a1c163a80b2f5a3d957c31f90a599eafd">cvmfs_repo_authz_match</a>(<a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf,</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *repo, <span class="keywordtype">size_t</span> repo_len)</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>{</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    <a class="code hl_struct" href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a> *e = lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a90e9e49526ce08ae67387b51e365593f">repo_authz</a>-&gt;elts;</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    ngx_uint_t               i;</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span> </div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keywordflow">for</span> (i = 0; i &lt; lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a90e9e49526ce08ae67387b51e365593f">repo_authz</a>-&gt;nelts; i++) {</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>        <span class="keywordflow">if</span> (e[i].repo.len == 1 &amp;&amp; e[i].<a class="code hl_variable" href="structbrix__cvmfs__repo__authz__t.html#a4c39cf32c40d6aeeea547f3efca5fe16">repo</a>.data[0] == <span class="charliteral">&#39;*&#39;</span>) {</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>            <span class="keywordflow">return</span> &amp;e[i];</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>        }</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>        <span class="keywordflow">if</span> (e[i].repo.len == repo_len</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>            &amp;&amp; ngx_strncmp(e[i].repo.data, repo, repo_len) == 0)</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        {</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>            <span class="keywordflow">return</span> &amp;e[i];</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        }</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    }</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>}</div>
+</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span> </div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00181" data-start="{" data-end="}">
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno"><a class="line" href="cvmfs_8h.html#ac12cc5eb19e65ab2aba3878293a98a3b">  181</a></span><a class="code hl_function" href="secure_8c.html#ac12cc5eb19e65ab2aba3878293a98a3b">brix_cvmfs_repo_authz_eval</a>(ngx_http_request_t *r,</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>{</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx =</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        ngx_http_get_module_ctx(r, <a class="code hl_variable" href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a>);</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    <a class="code hl_struct" href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a>     *gate;</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>                  *token;</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordtype">size_t</span>                       token_len;</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    <span class="keywordtype">char</span>                         uri_path[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <a class="code hl_struct" href="structbrix__token__claims__t.html">brix_token_claims_t</a>          claims;</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordtype">int</span>                          bucket = 0;</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    ngx_int_t                    rc;</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span> </div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <span class="keywordflow">if</span> (lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a90e9e49526ce08ae67387b51e365593f">repo_authz</a> == NULL || ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aebcd5895c126ed823d87e1ea4c19a11b">url</a>.repo == NULL) {</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    }</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span> </div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    gate = <a class="code hl_function" href="secure_8c.html#a1c163a80b2f5a3d957c31f90a599eafd">cvmfs_repo_authz_match</a>(lcf, ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aebcd5895c126ed823d87e1ea4c19a11b">url</a>.repo, ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aebcd5895c126ed823d87e1ea4c19a11b">url</a>.repo_len);</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <span class="keywordflow">if</span> (gate == NULL) {</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        <span class="keywordflow">return</span> NGX_DECLINED;           <span class="comment">/* unmatched repo stays world-readable */</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    }</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span> </div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="preprocessor">#if (NGX_HTTP_SSL)</span></div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    <span class="keywordflow">if</span> (r-&gt;connection-&gt;ssl == NULL)</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    {</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>        <span class="comment">/* a gated repo must never accept (or solicit) a bearer over</span></div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="comment">         * cleartext — refuse the transport before any token is examined</span></div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span><span class="comment">         * (mirrors the scvmfs transport gate). */</span></div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>        <span class="keywordflow">return</span> NGX_HTTP_BAD_REQUEST;</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    }</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span> </div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    <span class="keywordflow">if</span> (gate-&gt;<a class="code hl_variable" href="structbrix__cvmfs__repo__authz__t.html#a55e6238ff93d91a64b0df674b5fae0c5">registry</a> == NULL) {</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>        <span class="comment">/* merge-time build makes this unreachable — never fail open */</span></div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    }</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span> </div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    rc = <a class="code hl_function" href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">scvmfs_bearer_token</a>(r, &amp;token, &amp;token_len);</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    <span class="keywordflow">if</span> (rc == NGX_DECLINED) {</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;              <span class="comment">/* no Bearer credential */</span></div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    }</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    }</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span> </div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a>(uri_path, <span class="keyword">sizeof</span>(uri_path), &amp;r-&gt;uri) == NULL) {</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>        <span class="keywordflow">return</span> NGX_HTTP_REQUEST_URI_TOO_LARGE;</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    }</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span> </div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    {</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>        <a class="code hl_struct" href="structbrix__token__registry__args__t.html">brix_token_registry_args_t</a>  ra;</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span> </div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#aa55a5a5f395e9ce0b8bde6fda936bd12">log</a>             = r-&gt;connection-&gt;log;</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a4e1819aff7dcb0658267dd40946d8c6c">token</a>           = token;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a7cb0f1e3ef4e58dae1a1b8310e7f64c4">token_len</a>       = token_len;</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a51a5245d2c54d74a57849571cf983420">reg</a>             = (<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__token__registry__t.html">brix_token_registry_t</a> *) gate-&gt;<a class="code hl_variable" href="structbrix__cvmfs__repo__authz__t.html#a55e6238ff93d91a64b0df674b5fae0c5">registry</a>;</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#af56a5b5e3361bd41b2c49455c26b0343">macaroon_secret</a> = NULL;</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#a6d79eb72031796f9ef6a3a4e77323418">secret_len</a>      = 0;</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#ac60533d058fe060c33f4b1c28c73cd3a">clock_skew</a>      = <a class="code hl_define" href="tunables_8h.html#a5b48e5cdbb6e70e49d2fdb4e2d743433">BRIX_TOKEN_CLOCK_SKEW_SECS</a>;</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        ra.<a class="code hl_variable" href="structbrix__token__registry__args__t.html#aaeff7aa011dbc70d407cad2e99a8ecb6">claims</a>          = &amp;claims;</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span> </div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="issuer__registry_8h.html#a468c7f1b8f81ea9462e79ce135e2b311">brix_token_validate_registry</a>(&amp;ra, uri_path, <a class="code hl_enumvalue" href="token_8h.html#a17163e9e5755575b252e26a5a870667eaf76c6c96d9bbbbf4565a73c961e496fa">BRIX_TOKEN_OP_READ</a>,</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>                                         &amp;bucket) != 0)</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        {</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>            <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;  <span class="comment">/* invalid/expired/out-of-scope */</span></div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        }</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    }</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span> </div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="comment">/* the VALIDATED subject is the F9 QoS classification key */</span></div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    ngx_cpystrn((u_char *) ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">token_sub</a>, (u_char *) claims.<a class="code hl_variable" href="structbrix__token__claims__t.html#a349f2057c6ad8ebd42f9b97e12e65dc8">sub</a>,</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>                <span class="keyword">sizeof</span>(ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">token_sub</a>));</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    <span class="keywordflow">return</span> NGX_DECLINED;                   <span class="comment">/* authenticated: proceed        */</span></div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>}</div>
+</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span> </div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00256" data-start="{" data-end="}">
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno"><a class="line" href="cvmfs_8h.html#aec685fda22d95313c9ad637be6e6cf83">  256</a></span><a class="code hl_function" href="secure_8c.html#aec685fda22d95313c9ad637be6e6cf83">brix_scvmfs_preamble</a>(ngx_http_request_t *r,</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>{</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx =</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>        ngx_http_get_module_ctx(r, <a class="code hl_variable" href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a>);</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    ngx_int_t                    rc;</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span><span class="preprocessor">#if (NGX_HTTP_SSL)</span></div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>    <span class="keywordflow">if</span> (r-&gt;connection-&gt;ssl == NULL)</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    {</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>        <span class="comment">/* nginx core already 400s plain-HTTP-on-ssl-port before we run;</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span><span class="comment">         * this guards mixed listeners and future non-TLS plumbing. */</span></div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>        <span class="keywordflow">return</span> NGX_HTTP_BAD_REQUEST;</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    }</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span> </div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <span class="keywordflow">switch</span> (lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a41f7cbd68f49fcf63e27e6badc5cab95">scvmfs_authz</a>) {</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    <span class="keywordflow">case</span> <a class="code hl_enumvalue" href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042a58d19f72ef75aefd3126e96f817a26ba">BRIX_SCVMFS_AUTHZ_BEARER</a>:</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>        rc = <a class="code hl_function" href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">scvmfs_check_bearer</a>(r, lcf);</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>        <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <span class="keywordflow">case</span> <a class="code hl_enumvalue" href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042abcbd4da3df22bc949f1d168b04628e9c">BRIX_SCVMFS_AUTHZ_NONE</a>:</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    <span class="keywordflow">default</span>:</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>        rc = NGX_DECLINED;</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>        <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    }</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    <span class="keywordflow">if</span> (rc != NGX_DECLINED) {</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>        <a class="code hl_define" href="metrics__macros_8h.html#a2ddac5fe4f6b55cc175ae9560191d3c6">BRIX_CVMFS_METRIC_INC</a>(requests_total[<a class="code hl_enumvalue" href="metrics__cvmfs_8h.html#ae01ce49ea0745d237b56228de508058daa77bea5de1f3d5fb6eee81af81b18ff0">BRIX_CVMFS_CLASS_REJECT</a>]);</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>        <span class="keywordflow">return</span> rc;</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    }</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#ab8901bdb9489aaba6e783e401514fb3e">secure</a> = 1;                               <span class="comment">/* unlocks https upstream */</span></div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    <a class="code hl_define" href="metrics__macros_8h.html#a2ddac5fe4f6b55cc175ae9560191d3c6">BRIX_CVMFS_METRIC_INC</a>(secure_requests_total);</div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>}</div>
+</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span> </div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span><span class="comment">/* ---- per-VO/per-job QoS fill throttling (phase-85 F9) ---------------------</span></div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span><span class="comment"> * brix_cvmfs_qos &lt;class&gt; sub=&lt;subject&gt;|default fills=&lt;n&gt; — multi-occurrence;</span></div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="comment"> * each entry maps ONE validated token subject (or `default` = everything</span></div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span><span class="comment"> * unclassified) to a fills-per-second budget. Only ORIGIN FILLS are charged</span></div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span><span class="comment"> * (the caller gates on the remote-miss predicate) — cache hits always flow,</span></div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span><span class="comment"> * so a throttled class is bounded at the shared WAN/origin resource, which</span></div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span><span class="comment"> * is exactly the noisy-neighbor surface. fills=0 = unlimited (parity). */</span></div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span> </div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span><span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00299" data-start="{" data-end="}">
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno"><a class="line" href="cvmfs__module__internal_8h.html#a2749650a25a3de09300cd17ebc40eb98">  299</a></span><a class="code hl_function" href="secure_8c.html#a2749650a25a3de09300cd17ebc40eb98">cvmfs_conf_qos</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>, <span class="keywordtype">void</span> *conf)</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>{</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a> = conf;</div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>    ngx_str_t                      *value = cf-&gt;args-&gt;elts;</div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>    <a class="code hl_struct" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a>               *entry;</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    ngx_int_t                       fills;</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span> </div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span> </div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>    <span class="keywordflow">if</span> (value[3].len &lt;= <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;fills=&quot;</span>) - 1</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>        || ngx_strncmp(value[3].data, <span class="stringliteral">&quot;fills=&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;fills=&quot;</span>) - 1) != 0)</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>    {</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>            <span class="stringliteral">&quot;brix_cvmfs_qos needs &lt;class&gt; sub=&lt;subject&gt;|default fills=&lt;n&gt;&quot;</span>);</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>    }</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>    fills = ngx_atoi(value[3].data + <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;fills=&quot;</span>) - 1,</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>                     value[3].len - (<span class="keyword">sizeof</span>(<span class="stringliteral">&quot;fills=&quot;</span>) - 1));</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    <span class="keywordflow">if</span> (fills == NGX_ERROR) {</div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>            <span class="stringliteral">&quot;brix_cvmfs_qos: \&quot;%V\&quot; is not a fill rate&quot;</span>, &amp;value[3]);</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>    }</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span> </div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;qos == NGX_CONF_UNSET_PTR) {</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>        <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;qos = ngx_array_create(cf-&gt;pool, 4, <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a>));</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>        <span class="keywordflow">if</span> (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;qos == NULL) {</div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>        }</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>    }</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>    entry = ngx_array_push(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;qos);</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>    <span class="keywordflow">if</span> (entry == NULL) {</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>    }</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>    ngx_memzero(entry, <span class="keyword">sizeof</span>(*entry));</div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>    entry-&gt;<a class="code hl_variable" href="structbrix__cvmfs__qos__t.html#a4f08fa118bdbdec4a78a91f639d0a9da">name</a>  = value[1];</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>    entry-&gt;<a class="code hl_variable" href="structbrix__cvmfs__qos__t.html#afa92a0ab33231ab0165b1e2d230543d9">fills</a> = (ngx_uint_t) fills;</div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span> </div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>    <span class="keywordflow">if</span> (value[2].len == <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;default&quot;</span>) - 1</div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>        &amp;&amp; ngx_strncmp(value[2].data, <span class="stringliteral">&quot;default&quot;</span>, value[2].len) == 0)</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>    {</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>        <span class="comment">/* sub stays empty = the unclassified catch-all */</span></div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>        <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>    }</div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>    <span class="keywordflow">if</span> (value[2].len &lt;= <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;sub=&quot;</span>) - 1</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>        || ngx_strncmp(value[2].data, <span class="stringliteral">&quot;sub=&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;sub=&quot;</span>) - 1) != 0)</div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>    {</div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>            <span class="stringliteral">&quot;brix_cvmfs_qos: match must be sub=&lt;subject&gt; or default&quot;</span>);</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>    }</div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>    entry-&gt;<a class="code hl_variable" href="structbrix__cvmfs__qos__t.html#ae4024e2ec51b0338272ad139e56e335f">sub</a>.data = value[2].data + (<span class="keyword">sizeof</span>(<span class="stringliteral">&quot;sub=&quot;</span>) - 1);</div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    entry-&gt;<a class="code hl_variable" href="structbrix__cvmfs__qos__t.html#ae4024e2ec51b0338272ad139e56e335f">sub</a>.len  = value[2].len - (<span class="keyword">sizeof</span>(<span class="stringliteral">&quot;sub=&quot;</span>) - 1);</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>}</div>
+</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span> </div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span><span class="comment">/* The class for `sub` (&quot;&quot; = anonymous): first sub= match wins, else the</span></div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span><span class="comment"> * first `default` entry, else NULL (identity unthrottled). */</span></div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span><span class="keyword">static</span> <a class="code hl_struct" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a> *</div>
+<div class="foldopen" id="foldopen00358" data-start="{" data-end="}">
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno"><a class="line" href="secure_8c.html#abf269a75b5d069493008c251c4c99ab8">  358</a></span><a class="code hl_function" href="secure_8c.html#abf269a75b5d069493008c251c4c99ab8">cvmfs_qos_class</a>(<a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf, <span class="keyword">const</span> <span class="keywordtype">char</span> *sub)</div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>{</div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    <a class="code hl_struct" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a> *e = lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a96ad70bdc71745cf9da0b539b42640e1">qos</a>-&gt;elts;</div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>    <a class="code hl_struct" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a> *def = NULL;</div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>    <span class="keywordtype">size_t</span>             sub_len = ngx_strlen(sub);</div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    ngx_uint_t         i;</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span> </div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    <span class="keywordflow">for</span> (i = 0; i &lt; lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a96ad70bdc71745cf9da0b539b42640e1">qos</a>-&gt;nelts; i++) {</div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>        <span class="keywordflow">if</span> (e[i].sub.len == 0) {</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>            <span class="keywordflow">if</span> (def == NULL) {</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>                def = &amp;e[i];</div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>            }</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>        }</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>        <span class="keywordflow">if</span> (e[i].sub.len == sub_len</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>            &amp;&amp; ngx_strncmp(e[i].sub.data, sub, sub_len) == 0)</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>        {</div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>            <span class="keywordflow">return</span> &amp;e[i];</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>        }</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>    }</div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>    <span class="keywordflow">return</span> def;</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>}</div>
+</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span> </div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00382" data-start="{" data-end="}">
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno"><a class="line" href="cvmfs_8h.html#a65dc021ef8181dc3def8f170c7de6312">  382</a></span><a class="code hl_function" href="secure_8c.html#a65dc021ef8181dc3def8f170c7de6312">brix_cvmfs_qos_check</a>(ngx_http_request_t *r,</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>{</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a> *ctx =</div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>        ngx_http_get_module_ctx(r, <a class="code hl_variable" href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a>);</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    <a class="code hl_struct" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a>           *<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>;</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    ngx_msec_t                  now;</div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span> </div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>    <span class="keywordflow">if</span> (lcf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#a96ad70bdc71745cf9da0b539b42640e1">qos</a> == NULL || ctx == NULL) {</div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    }</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a> = <a class="code hl_function" href="secure_8c.html#abf269a75b5d069493008c251c4c99ab8">cvmfs_qos_class</a>(lcf, ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">token_sub</a>);</div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a> == NULL || <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;fills == 0) {</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>        <span class="keywordflow">return</span> NGX_DECLINED;               <span class="comment">/* unthrottled / 0 = parity */</span></div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    }</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span> </div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    <span class="comment">/* Token bucket in milli-fills: capacity fills*1000, refill fills/ms-</span></div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span><span class="comment">     * scaled, one fill costs 1000. Worker-local (COW conf memory), event-</span></div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span><span class="comment">     * loop only — each worker bounds its own share. */</span></div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>    now = ngx_current_msec;</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;last == 0) {</div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>        <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;tokens = (ngx_int_t) (<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;fills * 1000);   <span class="comment">/* first sight: full */</span></div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (now != <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;last) {</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>        ngx_int_t cap = (ngx_int_t) (<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;fills * 1000);</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span> </div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>        <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;tokens += (ngx_int_t) ((now - <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;last) * <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;fills);</div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;tokens &gt; cap) {</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>            <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;tokens = cap;</div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>        }</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    }</div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;last = now;</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span> </div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;tokens &lt; 1000) {</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>        ngx_log_error(NGX_LOG_NOTICE, r-&gt;connection-&gt;log, 0,</div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>            <span class="stringliteral">&quot;cvmfs: qos class \&quot;%V\&quot; fill budget exhausted &quot;</span></div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>            <span class="stringliteral">&quot;(sub \&quot;%s\&quot;, %ui fills/s) - 429&quot;</span>, &amp;<a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;name,</div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>            ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">token_sub</a>[0] != <span class="charliteral">&#39;\0&#39;</span> ? ctx-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">token_sub</a> : <span class="stringliteral">&quot;anonymous&quot;</span>,</div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>            <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;fills);</div>
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>        <span class="keywordflow">return</span> NGX_HTTP_TOO_MANY_REQUESTS;</div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>    }</div>
+<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>    <a class="code hl_function" href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a>-&gt;tokens -= 1000;</div>
+<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span>    <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>}</div>
 </div>
 <div class="ttc" id="acstr_8h_html"><div class="ttname"><a href="cstr_8h.html">cstr.h</a></div></div>
 <div class="ttc" id="acstr_8h_html_a9bb0256bbf38e5c7dfe426ed3a218409"><div class="ttname"><a href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a></div><div class="ttdeci">static const char * brix_str_cbuf(char *buf, size_t bufsize, const ngx_str_t *s)</div><div class="ttdef"><b>Definition</b> <a href="cstr_8h_source.html#l00043">cstr.h:43</a></div></div>
 <div class="ttc" id="acvmfs_8h_html"><div class="ttname"><a href="cvmfs_8h.html">cvmfs.h</a></div></div>
-<div class="ttc" id="acvmfs_8h_html_a367344710f67ad83783984b6e05dff77"><div class="ttname"><a href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_cvmfs_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2cvmfs_2module_8c_source.html#l00339">module.c:339</a></div></div>
-<div class="ttc" id="acvmfs_8h_html_ae5e327d164061bf35863353ea6f63042a58d19f72ef75aefd3126e96f817a26ba"><div class="ttname"><a href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042a58d19f72ef75aefd3126e96f817a26ba">BRIX_SCVMFS_AUTHZ_BEARER</a></div><div class="ttdeci">@ BRIX_SCVMFS_AUTHZ_BEARER</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00121">cvmfs.h:120</a></div></div>
-<div class="ttc" id="acvmfs_8h_html_ae5e327d164061bf35863353ea6f63042abcbd4da3df22bc949f1d168b04628e9c"><div class="ttname"><a href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042abcbd4da3df22bc949f1d168b04628e9c">BRIX_SCVMFS_AUTHZ_NONE</a></div><div class="ttdeci">@ BRIX_SCVMFS_AUTHZ_NONE</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00119">cvmfs.h:119</a></div></div>
+<div class="ttc" id="acvmfs_8h_html_a367344710f67ad83783984b6e05dff77"><div class="ttname"><a href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_cvmfs_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2cvmfs_2module_8c_source.html#l00351">module.c:351</a></div></div>
+<div class="ttc" id="acvmfs_8h_html_ae5e327d164061bf35863353ea6f63042a58d19f72ef75aefd3126e96f817a26ba"><div class="ttname"><a href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042a58d19f72ef75aefd3126e96f817a26ba">BRIX_SCVMFS_AUTHZ_BEARER</a></div><div class="ttdeci">@ BRIX_SCVMFS_AUTHZ_BEARER</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00182">cvmfs.h:181</a></div></div>
+<div class="ttc" id="acvmfs_8h_html_ae5e327d164061bf35863353ea6f63042abcbd4da3df22bc949f1d168b04628e9c"><div class="ttname"><a href="cvmfs_8h.html#ae5e327d164061bf35863353ea6f63042abcbd4da3df22bc949f1d168b04628e9c">BRIX_SCVMFS_AUTHZ_NONE</a></div><div class="ttdeci">@ BRIX_SCVMFS_AUTHZ_NONE</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00180">cvmfs.h:180</a></div></div>
+<div class="ttc" id="acvmfs__module__internal_8h_html"><div class="ttname"><a href="cvmfs__module__internal_8h.html">cvmfs_module_internal.h</a></div></div>
 <div class="ttc" id="aissuer__registry_8h_html"><div class="ttname"><a href="issuer__registry_8h.html">issuer_registry.h</a></div></div>
 <div class="ttc" id="aissuer__registry_8h_html_a468c7f1b8f81ea9462e79ce135e2b311"><div class="ttname"><a href="issuer__registry_8h.html#a468c7f1b8f81ea9462e79ce135e2b311">brix_token_validate_registry</a></div><div class="ttdeci">int brix_token_validate_registry(const brix_token_registry_args_t *a, const char *req_path, brix_token_op_e op, int *out_issuer_bucket)</div><div class="ttdef"><b>Definition</b> <a href="validate__registry_8c_source.html#l00207">validate_registry.c:207</a></div></div>
 <div class="ttc" id="ametrics__cvmfs_8h_html_ae01ce49ea0745d237b56228de508058daa77bea5de1f3d5fb6eee81af81b18ff0"><div class="ttname"><a href="metrics__cvmfs_8h.html#ae01ce49ea0745d237b56228de508058daa77bea5de1f3d5fb6eee81af81b18ff0">BRIX_CVMFS_CLASS_REJECT</a></div><div class="ttdeci">@ BRIX_CVMFS_CLASS_REJECT</div><div class="ttdef"><b>Definition</b> <a href="metrics__cvmfs_8h_source.html#l00026">metrics_cvmfs.h:26</a></div></div>
 <div class="ttc" id="ametrics__macros_8h_html_a2ddac5fe4f6b55cc175ae9560191d3c6"><div class="ttname"><a href="metrics__macros_8h.html#a2ddac5fe4f6b55cc175ae9560191d3c6">BRIX_CVMFS_METRIC_INC</a></div><div class="ttdeci">#define BRIX_CVMFS_METRIC_INC(field)</div><div class="ttdef"><b>Definition</b> <a href="metrics__macros_8h_source.html#l00096">metrics_macros.h:96</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
-<div class="ttc" id="asecure_8c_html_a0d3357c686df1060d00edd80f82e1986"><div class="ttname"><a href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">scvmfs_bearer_token</a></div><div class="ttdeci">static ngx_int_t scvmfs_bearer_token(ngx_http_request_t *r, const char **token, size_t *len)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00027">secure.c:27</a></div></div>
-<div class="ttc" id="asecure_8c_html_a3cb05a4fbb6427e2a2c32fcf2870e7fa"><div class="ttname"><a href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">scvmfs_check_bearer</a></div><div class="ttdeci">static ngx_int_t scvmfs_check_bearer(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00056">secure.c:56</a></div></div>
-<div class="ttc" id="asecure_8c_html_aec685fda22d95313c9ad637be6e6cf83"><div class="ttname"><a href="secure_8c.html#aec685fda22d95313c9ad637be6e6cf83">brix_scvmfs_preamble</a></div><div class="ttdeci">ngx_int_t brix_scvmfs_preamble(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00107">secure.c:107</a></div></div>
+<div class="ttc" id="aoverlay__unittest_8c_html_aaef19b621a05e4e0bc1960d972bc1142"><div class="ttname"><a href="overlay__unittest_8c.html#aaef19b621a05e4e0bc1960d972bc1142">cls</a></div><div class="ttdeci">static brix_ov_state cls(const fix_t *f, const char *rel, struct stat *st)</div><div class="ttdef"><b>Definition</b> <a href="overlay__unittest_8c_source.html#l00071">overlay_unittest.c:71</a></div></div>
+<div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
+<div class="ttc" id="asecure_8c_html_a0d3357c686df1060d00edd80f82e1986"><div class="ttname"><a href="secure_8c.html#a0d3357c686df1060d00edd80f82e1986">scvmfs_bearer_token</a></div><div class="ttdeci">static ngx_int_t scvmfs_bearer_token(ngx_http_request_t *r, const char **token, size_t *len)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00028">secure.c:28</a></div></div>
+<div class="ttc" id="asecure_8c_html_a1c163a80b2f5a3d957c31f90a599eafd"><div class="ttname"><a href="secure_8c.html#a1c163a80b2f5a3d957c31f90a599eafd">cvmfs_repo_authz_match</a></div><div class="ttdeci">static brix_cvmfs_repo_authz_t * cvmfs_repo_authz_match(ngx_http_brix_cvmfs_loc_conf_t *lcf, const char *repo, size_t repo_len)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00161">secure.c:161</a></div></div>
+<div class="ttc" id="asecure_8c_html_a2749650a25a3de09300cd17ebc40eb98"><div class="ttname"><a href="secure_8c.html#a2749650a25a3de09300cd17ebc40eb98">cvmfs_conf_qos</a></div><div class="ttdeci">char * cvmfs_conf_qos(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00299">secure.c:299</a></div></div>
+<div class="ttc" id="asecure_8c_html_a2d473889a3453c638be0fce72605949f"><div class="ttname"><a href="secure_8c.html#a2d473889a3453c638be0fce72605949f">cvmfs_conf_repo_authz</a></div><div class="ttdeci">char * cvmfs_conf_repo_authz(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00125">secure.c:125</a></div></div>
+<div class="ttc" id="asecure_8c_html_a3cb05a4fbb6427e2a2c32fcf2870e7fa"><div class="ttname"><a href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">scvmfs_check_bearer</a></div><div class="ttdeci">static ngx_int_t scvmfs_check_bearer(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00057">secure.c:57</a></div></div>
+<div class="ttc" id="asecure_8c_html_a65dc021ef8181dc3def8f170c7de6312"><div class="ttname"><a href="secure_8c.html#a65dc021ef8181dc3def8f170c7de6312">brix_cvmfs_qos_check</a></div><div class="ttdeci">ngx_int_t brix_cvmfs_qos_check(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00382">secure.c:382</a></div></div>
+<div class="ttc" id="asecure_8c_html_abf269a75b5d069493008c251c4c99ab8"><div class="ttname"><a href="secure_8c.html#abf269a75b5d069493008c251c4c99ab8">cvmfs_qos_class</a></div><div class="ttdeci">static brix_cvmfs_qos_t * cvmfs_qos_class(ngx_http_brix_cvmfs_loc_conf_t *lcf, const char *sub)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00358">secure.c:358</a></div></div>
+<div class="ttc" id="asecure_8c_html_ac12cc5eb19e65ab2aba3878293a98a3b"><div class="ttname"><a href="secure_8c.html#ac12cc5eb19e65ab2aba3878293a98a3b">brix_cvmfs_repo_authz_eval</a></div><div class="ttdeci">ngx_int_t brix_cvmfs_repo_authz_eval(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00181">secure.c:181</a></div></div>
+<div class="ttc" id="asecure_8c_html_aec685fda22d95313c9ad637be6e6cf83"><div class="ttname"><a href="secure_8c.html#aec685fda22d95313c9ad637be6e6cf83">brix_scvmfs_preamble</a></div><div class="ttdeci">ngx_int_t brix_scvmfs_preamble(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)</div><div class="ttdef"><b>Definition</b> <a href="secure_8c_source.html#l00256">secure.c:256</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__qos__t_html"><div class="ttname"><a href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a></div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00144">cvmfs.h:144</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__qos__t_html_a4f08fa118bdbdec4a78a91f639d0a9da"><div class="ttname"><a href="structbrix__cvmfs__qos__t.html#a4f08fa118bdbdec4a78a91f639d0a9da">brix_cvmfs_qos_t::name</a></div><div class="ttdeci">ngx_str_t name</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00145">cvmfs.h:145</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__qos__t_html_ae4024e2ec51b0338272ad139e56e335f"><div class="ttname"><a href="structbrix__cvmfs__qos__t.html#ae4024e2ec51b0338272ad139e56e335f">brix_cvmfs_qos_t::sub</a></div><div class="ttdeci">ngx_str_t sub</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00146">cvmfs.h:146</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__qos__t_html_afa92a0ab33231ab0165b1e2d230543d9"><div class="ttname"><a href="structbrix__cvmfs__qos__t.html#afa92a0ab33231ab0165b1e2d230543d9">brix_cvmfs_qos_t::fills</a></div><div class="ttdeci">ngx_uint_t fills</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00147">cvmfs.h:147</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__repo__authz__t_html"><div class="ttname"><a href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a></div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00131">cvmfs.h:131</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__repo__authz__t_html_a4c39cf32c40d6aeeea547f3efca5fe16"><div class="ttname"><a href="structbrix__cvmfs__repo__authz__t.html#a4c39cf32c40d6aeeea547f3efca5fe16">brix_cvmfs_repo_authz_t::repo</a></div><div class="ttdeci">ngx_str_t repo</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00132">cvmfs.h:132</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__repo__authz__t_html_a55e6238ff93d91a64b0df674b5fae0c5"><div class="ttname"><a href="structbrix__cvmfs__repo__authz__t.html#a55e6238ff93d91a64b0df674b5fae0c5">brix_cvmfs_repo_authz_t::registry</a></div><div class="ttdeci">void * registry</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00134">cvmfs.h:134</a></div></div>
+<div class="ttc" id="astructbrix__cvmfs__repo__authz__t_html_a6a4f5e1d63cd3b73d05dba21e72774db"><div class="ttname"><a href="structbrix__cvmfs__repo__authz__t.html#a6a4f5e1d63cd3b73d05dba21e72774db">brix_cvmfs_repo_authz_t::issuers</a></div><div class="ttdeci">ngx_str_t issuers</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00133">cvmfs.h:133</a></div></div>
 <div class="ttc" id="astructbrix__token__claims__t_html"><div class="ttname"><a href="structbrix__token__claims__t.html">brix_token_claims_t</a></div><div class="ttdef"><b>Definition</b> <a href="token_8h_source.html#l00062">token.h:62</a></div></div>
+<div class="ttc" id="astructbrix__token__claims__t_html_a349f2057c6ad8ebd42f9b97e12e65dc8"><div class="ttname"><a href="structbrix__token__claims__t.html#a349f2057c6ad8ebd42f9b97e12e65dc8">brix_token_claims_t::sub</a></div><div class="ttdeci">char sub[256]</div><div class="ttdef"><b>Definition</b> <a href="token_8h_source.html#l00063">token.h:63</a></div></div>
 <div class="ttc" id="astructbrix__token__registry__args__t_html"><div class="ttname"><a href="structbrix__token__registry__args__t.html">brix_token_registry_args_t</a></div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00112">issuer_registry.h:112</a></div></div>
 <div class="ttc" id="astructbrix__token__registry__args__t_html_a4e1819aff7dcb0658267dd40946d8c6c"><div class="ttname"><a href="structbrix__token__registry__args__t.html#a4e1819aff7dcb0658267dd40946d8c6c">brix_token_registry_args_t::token</a></div><div class="ttdeci">const char * token</div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00114">issuer_registry.h:114</a></div></div>
 <div class="ttc" id="astructbrix__token__registry__args__t_html_a51a5245d2c54d74a57849571cf983420"><div class="ttname"><a href="structbrix__token__registry__args__t.html#a51a5245d2c54d74a57849571cf983420">brix_token_registry_args_t::reg</a></div><div class="ttdeci">const brix_token_registry_t * reg</div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00116">issuer_registry.h:116</a></div></div>
@@ -269,14 +584,19 @@ $(document).ready(function(){initNavTree('secure_8c_source.html',''); initResiza
 <div class="ttc" id="astructbrix__token__registry__args__t_html_ac60533d058fe060c33f4b1c28c73cd3a"><div class="ttname"><a href="structbrix__token__registry__args__t.html#ac60533d058fe060c33f4b1c28c73cd3a">brix_token_registry_args_t::clock_skew</a></div><div class="ttdeci">int clock_skew</div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00119">issuer_registry.h:119</a></div></div>
 <div class="ttc" id="astructbrix__token__registry__args__t_html_af56a5b5e3361bd41b2c49455c26b0343"><div class="ttname"><a href="structbrix__token__registry__args__t.html#af56a5b5e3361bd41b2c49455c26b0343">brix_token_registry_args_t::macaroon_secret</a></div><div class="ttdeci">const u_char * macaroon_secret</div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00117">issuer_registry.h:117</a></div></div>
 <div class="ttc" id="astructbrix__token__registry__t_html"><div class="ttname"><a href="structbrix__token__registry__t.html">brix_token_registry_t</a></div><div class="ttdef"><b>Definition</b> <a href="issuer__registry_8h_source.html#l00053">issuer_registry.h:53</a></div></div>
-<div class="ttc" id="astructngx__http__brix__cvmfs__ctx__t_html"><div class="ttname"><a href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a></div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00126">cvmfs.h:126</a></div></div>
-<div class="ttc" id="astructngx__http__brix__cvmfs__ctx__t_html_ab8901bdb9489aaba6e783e401514fb3e"><div class="ttname"><a href="structngx__http__brix__cvmfs__ctx__t.html#ab8901bdb9489aaba6e783e401514fb3e">ngx_http_brix_cvmfs_ctx_t::secure</a></div><div class="ttdeci">unsigned secure</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00139">cvmfs.h:139</a></div></div>
-<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00099">cvmfs.h:99</a></div></div>
-<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html_a2c5afccbadbf89db94cd6ec9bffd416d"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html#a2c5afccbadbf89db94cd6ec9bffd416d">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_registry</a></div><div class="ttdeci">void * scvmfs_registry</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00112">cvmfs.h:112</a></div></div>
-<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html_a41f7cbd68f49fcf63e27e6badc5cab95"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html#a41f7cbd68f49fcf63e27e6badc5cab95">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_authz</a></div><div class="ttdeci">ngx_uint_t scvmfs_authz</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00110">cvmfs.h:110</a></div></div>
+<div class="ttc" id="astructcmd_html"><div class="ttname"><a href="structcmd.html">cmd</a></div><div class="ttdef"><b>Definition</b> <a href="aio__internal_8h_source.html#l00125">aio_internal.h:125</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__ctx__t_html"><div class="ttname"><a href="structngx__http__brix__cvmfs__ctx__t.html">ngx_http_brix_cvmfs_ctx_t</a></div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00187">cvmfs.h:187</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__ctx__t_html_ab8901bdb9489aaba6e783e401514fb3e"><div class="ttname"><a href="structngx__http__brix__cvmfs__ctx__t.html#ab8901bdb9489aaba6e783e401514fb3e">ngx_http_brix_cvmfs_ctx_t::secure</a></div><div class="ttdeci">unsigned secure</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00203">cvmfs.h:203</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__ctx__t_html_aebcd5895c126ed823d87e1ea4c19a11b"><div class="ttname"><a href="structngx__http__brix__cvmfs__ctx__t.html#aebcd5895c126ed823d87e1ea4c19a11b">ngx_http_brix_cvmfs_ctx_t::url</a></div><div class="ttdeci">cvmfs_url_info_t url</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00190">cvmfs.h:190</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__ctx__t_html_aee2a9f7bcdcf5c8adc6ffdd945da417f"><div class="ttname"><a href="structngx__http__brix__cvmfs__ctx__t.html#aee2a9f7bcdcf5c8adc6ffdd945da417f">ngx_http_brix_cvmfs_ctx_t::token_sub</a></div><div class="ttdeci">char token_sub[256]</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00198">cvmfs.h:198</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00152">cvmfs.h:152</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html_a2c5afccbadbf89db94cd6ec9bffd416d"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html#a2c5afccbadbf89db94cd6ec9bffd416d">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_registry</a></div><div class="ttdeci">void * scvmfs_registry</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00165">cvmfs.h:165</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html_a41f7cbd68f49fcf63e27e6badc5cab95"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html#a41f7cbd68f49fcf63e27e6badc5cab95">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_authz</a></div><div class="ttdeci">ngx_uint_t scvmfs_authz</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00163">cvmfs.h:163</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html_a90e9e49526ce08ae67387b51e365593f"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html#a90e9e49526ce08ae67387b51e365593f">ngx_http_brix_cvmfs_loc_conf_t::repo_authz</a></div><div class="ttdeci">ngx_array_t * repo_authz</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00169">cvmfs.h:169</a></div></div>
+<div class="ttc" id="astructngx__http__brix__cvmfs__loc__conf__t_html_a96ad70bdc71745cf9da0b539b42640e1"><div class="ttname"><a href="structngx__http__brix__cvmfs__loc__conf__t.html#a96ad70bdc71745cf9da0b539b42640e1">ngx_http_brix_cvmfs_loc_conf_t::qos</a></div><div class="ttdeci">ngx_array_t * qos</div><div class="ttdef"><b>Definition</b> <a href="cvmfs_8h_source.html#l00173">cvmfs.h:173</a></div></div>
 <div class="ttc" id="atoken_8h_html_a17163e9e5755575b252e26a5a870667eaf76c6c96d9bbbbf4565a73c961e496fa"><div class="ttname"><a href="token_8h.html#a17163e9e5755575b252e26a5a870667eaf76c6c96d9bbbbf4565a73c961e496fa">BRIX_TOKEN_OP_READ</a></div><div class="ttdeci">@ BRIX_TOKEN_OP_READ</div><div class="ttdef"><b>Definition</b> <a href="token_8h_source.html#l00106">token.h:106</a></div></div>
 <div class="ttc" id="atunables_8h_html"><div class="ttname"><a href="tunables_8h.html">tunables.h</a></div></div>
-<div class="ttc" id="atunables_8h_html_a5b48e5cdbb6e70e49d2fdb4e2d743433"><div class="ttname"><a href="tunables_8h.html#a5b48e5cdbb6e70e49d2fdb4e2d743433">BRIX_TOKEN_CLOCK_SKEW_SECS</a></div><div class="ttdeci">#define BRIX_TOKEN_CLOCK_SKEW_SECS</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00226">tunables.h:226</a></div></div>
+<div class="ttc" id="atunables_8h_html_a5b48e5cdbb6e70e49d2fdb4e2d743433"><div class="ttname"><a href="tunables_8h.html#a5b48e5cdbb6e70e49d2fdb4e2d743433">BRIX_TOKEN_CLOCK_SKEW_SECS</a></div><div class="ttdeci">#define BRIX_TOKEN_CLOCK_SKEW_SECS</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00251">tunables.h:251</a></div></div>
 <div class="ttc" id="azip__dir_8h_html_ae688d728e1acdfe5988c7db45d6f0166"><div class="ttname"><a href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a></div><div class="ttdeci">#define PATH_MAX</div><div class="ttdef"><b>Definition</b> <a href="zip__dir_8h_source.html#l00027">zip_dir.h:27</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

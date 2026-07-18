@@ -93,8 +93,8 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2ssi_2svc__cta_2READ
   <div class="headertitle"><div class="title">&lt;tt&gt;src/protocols/ssi/svc_cta/&lt;/tt&gt; — flagship CTA tape service</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md461"></a> The <code>/.ssi/cta</code> service: a byte-compatible CERN Tape Archive (CTA) frontend over the SSI framework. A client submits a <code>cta.xrd.Request</code> (archive / retrieve / cancel / query); the service queues it, runs an executor that drives the lifecycle (pushing progress alerts), and answers with a <code>cta.xrd.Response</code>. Pure C — no <code>protobuf-c</code>, no generated code, no nginx coupling (it uses only the responder ABI).</p>
-<h1><a class="anchor" id="autotoc_md462"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md465"></a> The <code>/.ssi/cta</code> service: a byte-compatible CERN Tape Archive (CTA) frontend over the SSI framework. A client submits a <code>cta.xrd.Request</code> (archive / retrieve / cancel / query); the service queues it, runs an executor that drives the lifecycle (pushing progress alerts), and answers with a <code>cta.xrd.Response</code>. Pure C — no <code>protobuf-c</code>, no generated code, no nginx coupling (it uses only the responder ABI).</p>
+<h1><a class="anchor" id="autotoc_md466"></a>
 Layers</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -110,7 +110,7 @@ Layers</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>cta_service.{c,h}</code>   </td><td class="markdownTableBodyNone">The <code>brix_ssi_process_fn</code> glue (registered as <code>cta</code> in <code><a class="el" href="provider_8c.html">provider.c</a></code>).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md463"></a>
+<h1><a class="anchor" id="autotoc_md467"></a>
 Request lifecycle</h1>
 <div class="fragment"><div class="line"> submit (decode + queue)          completion (executor + respond)</div>
 <div class="line">┌───────────────────────┐        ┌──────────────────────────────────┐</div>
@@ -127,21 +127,21 @@ Request lifecycle</h1>
 <li>A malformed or unsupported request answers with an error <code>ResponseType</code> (<code>RSP_ERR_PROTOBUF</code> / <code>RSP_ERR_USER</code>) — CTA reports errors in the Response, not as a transport error.</li>
 </ul>
 <p>Submit and completion are correlated by the responder's <code>svc_slot</code> cookie (the queue entry), so the completion advances the <em>same</em> entry the submit created.</p>
-<h2><a class="anchor" id="autotoc_md464"></a>
+<h2><a class="anchor" id="autotoc_md468"></a>
 State machine</h2>
 <p><code>SUBMITTED → QUEUED → ACTIVE → {COMPLETE | FAILED | CANCELED}</code>, with cancel allowed from any non-terminal state. Transitions are validated by a table in <code><a class="el" href="cta__queue_8c.html">cta_queue.c</a></code>.</p>
-<h2><a class="anchor" id="autotoc_md465"></a>
+<h2><a class="anchor" id="autotoc_md469"></a>
 Executor</h2>
 <p><code><a class="el" href="cta__exec_8c.html#a7b6da443b54b9f017e9d2d1e31e01af9">cta_exec_test_vtbl()</a></code> simulates tape transitions deterministically (used in CI and where no nearline backend exists). <code><a class="el" href="cta__exec_8c.html#afe70c5f1e6b65ccf11ac93a4fbd41396">cta_exec_prod_vtbl()</a></code> is the documented seam: <code>retrieve</code> should drive <code>fs/tier</code> + <code>fs/xfer/stage_engine</code> + <code>frm</code> to recall an object online and <code>archive</code> the tape-write hook, driving the same queue transitions</p><ul>
 <li>alerts. Without a configured nearline backend the prod executor fails cleanly. The executor is selected in <code><a class="el" href="cta__service_8c.html">cta_service.c</a></code> (test by default; Phase-6 config switches).</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md466"></a>
+<h2><a class="anchor" id="autotoc_md470"></a>
 Security</h2>
 <p>The queue records each request's owner; <code>cta_queue_cancel</code> permits cancel only by the owner or an admin (<code>CTA_QUEUE_EACCES</code> otherwise). The owner identity comes from the request's <code>Client.user.username</code>.</p>
-<h2><a class="anchor" id="autotoc_md467"></a>
+<h2><a class="anchor" id="autotoc_md471"></a>
 Journal (restart recovery)</h2>
 <p><code>cta_queue_open_journal(q, path)</code> replays a tab-delimited journal of <code>id\top\tstate\towner\tpath</code> records (latest state per id wins) and keeps the file open so submit/transition calls append. Per-worker only; the config directive that supplies the path lands in Phase 6. ADR: cross-worker SHM queue is deferred.</p>
-<h1><a class="anchor" id="autotoc_md468"></a>
+<h1><a class="anchor" id="autotoc_md472"></a>
 External contract — the pinned field table</h1>
 <p>CTA byte-compat depends entirely on the <b>field numbers</b>, which are pinned in one table at the top of <code><a class="el" href="cta__pb_8c.html">cta_pb.c</a></code> (<code>F_*</code> macros). That table is the whole external surface; nothing else in the codec is CTA-specific.</p>
 <p>The numbers are taken verbatim from CTA's real <code>.proto</code>:</p>
@@ -159,11 +159,11 @@ External contract — the pinned field table</h1>
 <li><code>StreamResponse.header</code>=1</li>
 </ul>
 <p><b>When CTA's schema bumps:</b> re-fetch the three <code>.proto</code> files, reconcile the <code>F_*</code> table, and re-run the unit test (the golden vectors are regenerated from the field numbers, so they track the table).</p>
-<h1><a class="anchor" id="autotoc_md469"></a>
+<h1><a class="anchor" id="autotoc_md473"></a>
 Golden-vector provenance</h1>
 <p>The unit test (<code><a class="el" href="cta__pb__unittest_8c.html">cta_pb_unittest.c</a></code>) builds golden <code>cta.xrd.Request</code> messages <b>bottom-up with the <code>pb_wire</code> writers</b>, using the pinned real field numbers, then decodes them — a build→decode round-trip that proves the decoder against byte-compatible CTA wire bytes. <code>pb_wire</code> itself is independently golden-tested (<code><a class="el" href="pb__wire__unittest_8c.html">pb_wire_unittest.c</a></code>: e.g. varint <code>300</code> = <code>ac02</code>, tag <code>field 11/LEN</code> = <code>0x5A</code>).</p>
 <p>Because <code>protoc</code> is not available in this environment, the vectors are not produced by <code>protoc --encode</code>; the field numbers (from the real <code>.proto</code>) are the correctness anchor. A <code>protoc</code>-based cross-check against the real frontend is the recommended additional verification where CTA tooling is available.</p>
-<h1><a class="anchor" id="autotoc_md470"></a>
+<h1><a class="anchor" id="autotoc_md474"></a>
 Scope notes</h1>
 <ul>
 <li>The full <code>cta.admin.AdminCmd</code> parse is deferred: a <code>Request.admincmd</code> is detected (→ <code>CTA_OP_QUERY</code>) for routing, but its sub-fields are not yet decoded.</li>

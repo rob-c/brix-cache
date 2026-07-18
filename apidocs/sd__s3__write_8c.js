@@ -10,6 +10,7 @@ var sd__s3__write_8c =
     [ "sd_s3_mpu_flush", "sd__s3__write_8c.html#a6c3312b9014eddf9ca9c9b4f5e14b88a", null ],
     [ "sd_s3_mpu_upload_part", "sd__s3__write_8c.html#ab10526c93a94f041772d7e221e891030", null ],
     [ "sd_s3_open_write", "sd__s3__write_8c.html#ae7a8357c3141c1e3764c310cd81c153c", null ],
+    [ "sd_s3_put_upgrade_mpu", "sd__s3__write_8c.html#af2683a3fda469bbcffbde55a4e3e16a5", null ],
     [ "sd_s3_pwrite", "sd__s3__write_8c.html#a1c2f9ec7a028f0549dbbdcf262d7beb7", null ],
     [ "sd_s3_write_size", "sd__s3__write_8c.html#a3605c6e3235c7c1f48e94a94ddb55742", null ],
     [ "sd_s3_xml_tag", "sd__s3__write_8c.html#abe8b31cf7f7cacf032085e632b7ab314", null ]

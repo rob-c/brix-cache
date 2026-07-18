@@ -108,6 +108,12 @@ Data Fields</h2></td></tr>
 <tr class="separator:a58c7c1c1afe95208a9e7cb0bd539b2a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a83a81e037b140d1eb02379226fbc7495" id="r_a83a81e037b140d1eb02379226fbc7495"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__opts__t.html#a83a81e037b140d1eb02379226fbc7495">retries</a></td></tr>
 <tr class="separator:a83a81e037b140d1eb02379226fbc7495"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae28c1c220c0fae446057bc7844c18cf9" id="r_ae28c1c220c0fae446057bc7844c18cf9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__opts__t.html#ae28c1c220c0fae446057bc7844c18cf9">prefetch</a></td></tr>
+<tr class="separator:ae28c1c220c0fae446057bc7844c18cf9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a658792fb6fc26ba7cc7754ee6c99bf22" id="r_a658792fb6fc26ba7cc7754ee6c99bf22"><td class="memItemLeft" align="right" valign="top">long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__opts__t.html#a658792fb6fc26ba7cc7754ee6c99bf22">prefetch_budget</a></td></tr>
+<tr class="separator:a658792fb6fc26ba7cc7754ee6c99bf22"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a40576875030a2d097c2d55a4e2120fad" id="r_a40576875030a2d097c2d55a4e2120fad"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__opts__t.html#a40576875030a2d097c2d55a4e2120fad">pin</a> [128]</td></tr>
+<tr class="separator:a40576875030a2d097c2d55a4e2120fad"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af1a73d5f6cee4faa133a5c985c486e7a" id="r_af1a73d5f6cee4faa133a5c985c486e7a"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__opts__t.html#af1a73d5f6cee4faa133a5c985c486e7a">cache_dir</a> [512]</td></tr>
 <tr class="separator:af1a73d5f6cee4faa133a5c985c486e7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8f6b42e0b9b75a8932ae02bb145f2c89" id="r_a8f6b42e0b9b75a8932ae02bb145f2c89"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__opts__t.html#a8f6b42e0b9b75a8932ae02bb145f2c89">writes_dir</a> [512]</td></tr>
@@ -121,7 +127,7 @@ Data Fields</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00356">356</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00621">621</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
 <a id="af1a73d5f6cee4faa133a5c985c486e7a" name="af1a73d5f6cee4faa133a5c985c486e7a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#af1a73d5f6cee4faa133a5c985c486e7a">&#9670;&#160;</a></span>cache_dir</h2>
@@ -135,9 +141,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00362">362</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00630">630</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00578">brixcvmfs_open_clever_cache()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00939">brixcvmfs_open_clever_cache()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
 
 </div>
 </div>
@@ -153,9 +159,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00357">357</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00622">622</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00578">brixcvmfs_open_clever_cache()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00389">parse_opts()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00939">brixcvmfs_open_clever_cache()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00661">parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -171,9 +177,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00365">365</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00633">633</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00615">brixcvmfs_run_fuse()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00389">parse_opts()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00976">brixcvmfs_run_fuse()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00661">parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -189,9 +195,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00359">359</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00624">624</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00630">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
 
 </div>
 </div>
@@ -207,9 +213,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00364">364</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00632">632</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00615">brixcvmfs_run_fuse()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00976">brixcvmfs_run_fuse()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
 
 </div>
 </div>
@@ -225,9 +231,63 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00365">365</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00633">633</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00615">brixcvmfs_run_fuse()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00389">parse_opts()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00976">brixcvmfs_run_fuse()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00661">parse_opts()</a>.</p>
+
+</div>
+</div>
+<a id="a40576875030a2d097c2d55a4e2120fad" name="a40576875030a2d097c2d55a4e2120fad"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a40576875030a2d097c2d55a4e2120fad">&#9670;&#160;</a></span>pin</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char brix_opts_t::pin[128]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00629">629</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
+
+</div>
+</div>
+<a id="ae28c1c220c0fae446057bc7844c18cf9" name="ae28c1c220c0fae446057bc7844c18cf9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae28c1c220c0fae446057bc7844c18cf9">&#9670;&#160;</a></span>prefetch</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_opts_t::prefetch</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00627">627</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00661">parse_opts()</a>.</p>
+
+</div>
+</div>
+<a id="a658792fb6fc26ba7cc7754ee6c99bf22" name="a658792fb6fc26ba7cc7754ee6c99bf22"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a658792fb6fc26ba7cc7754ee6c99bf22">&#9670;&#160;</a></span>prefetch_budget</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">long brix_opts_t::prefetch_budget</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00628">628</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
 
 </div>
 </div>
@@ -243,9 +303,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00358">358</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00623">623</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00630">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
 
 </div>
 </div>
@@ -261,9 +321,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00361">361</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00626">626</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00630">brixcvmfs_mount_run()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00389">parse_opts()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00661">parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -279,9 +339,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00360">360</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00625">625</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00630">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
 
 </div>
 </div>
@@ -297,9 +357,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00363">363</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00631">631</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00601">brixcvmfs_setup_rw_overlay()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00368">opts_o_list()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00962">brixcvmfs_setup_rw_overlay()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00636">opts_o_list()</a>.</p>
 
 </div>
 </div>

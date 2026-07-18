@@ -134,6 +134,8 @@ Functions</h2></td></tr>
 <tr class="separator:a351506b05dd4f045fa1240f3ad566d04"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad733bdcb99874ac83001dd3cf0b0e7de" id="r_ad733bdcb99874ac83001dd3cf0b0e7de"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__common_8c.html#ad733bdcb99874ac83001dd3cf0b0e7de">brix_conf_set_mint_ca</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:ad733bdcb99874ac83001dd3cf0b0e7de"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a36425db53ab999b8eb033b66e8a53038" id="r_a36425db53ab999b8eb033b66e8a53038"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__common_8c.html#a36425db53ab999b8eb033b66e8a53038">brix_conf_set_peers</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a36425db53ab999b8eb033b66e8a53038"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7daa847535cd6b7eb6b79844416a35f7" id="r_a7daa847535cd6b7eb6b79844416a35f7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__common_8c.html#a7daa847535cd6b7eb6b79844416a35f7">brix_shared_adopt_unified</a> (<a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *dst, const <a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *src)</td></tr>
 <tr class="separator:a7daa847535cd6b7eb6b79844416a35f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6883f87af73badef48381e618f37ce8b" id="r_a6883f87af73badef48381e618f37ce8b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__common_8c.html#a6883f87af73badef48381e618f37ce8b">brix_http_common_adopt</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *dst)</td></tr>
@@ -171,7 +173,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00332">332</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00397">397</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
 </div>
 </div>
@@ -191,7 +193,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00328">328</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00393">393</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
 </div>
 </div>
@@ -221,7 +223,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00330">330</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00395">395</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
 </div>
 </div>
@@ -237,7 +239,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00099">99</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00138">138</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
 </div>
 </div>
@@ -288,6 +290,52 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a id="a36425db53ab999b8eb033b66e8a53038" name="a36425db53ab999b8eb033b66e8a53038"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a36425db53ab999b8eb033b66e8a53038">&#9670;&#160;</a></span>brix_conf_set_peers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static char * brix_conf_set_peers </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00095">95</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+</div>
+</div>
 <a id="a6883f87af73badef48381e618f37ce8b" name="a6883f87af73badef48381e618f37ce8b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a6883f87af73badef48381e618f37ce8b">&#9670;&#160;</a></span>brix_http_common_adopt()</h2>
 
@@ -314,9 +362,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00377">377</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00446">446</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__common_8c_source.html#l00336">brix_shared_adopt_unified()</a>, <a class="el" href="core_2config_2http__common_8h_source.html#l00025">ngx_http_brix_common_conf_t::common</a>, and <a class="el" href="http__common_8c_source.html#l00283">ngx_http_brix_common_module</a>.</p>
+<p class="reference">References <a class="el" href="http__common_8c_source.html#l00401">brix_shared_adopt_unified()</a>, <a class="el" href="core_2config_2http__common_8h_source.html#l00025">ngx_http_brix_common_conf_t::common</a>, and <a class="el" href="http__common_8c_source.html#l00348">ngx_http_brix_common_module</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cvmfs__module__merge_8c_source.html#l00067">cvmfs_merge_preamble()</a>, <a class="el" href="module__merge_8c_source.html#l00052">s3_merge_preamble()</a>, and <a class="el" href="config__merge_8c_source.html#l00049">webdav_merge_base_conf()</a>.</p>
 
@@ -346,9 +394,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00298">298</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00363">363</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="shared__conf_8h_source.html#l00205">ngx_http_brix_shared_init()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="shared__conf_8h_source.html#l00278">ngx_http_brix_shared_init()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
 </div>
 </div>
@@ -392,9 +440,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00318">318</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00383">383</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__common_8c_source.html#l00336">brix_shared_adopt_unified()</a>, and <a class="el" href="core_2config_2http__common_8h_source.html#l00025">ngx_http_brix_common_conf_t::common</a>.</p>
+<p class="reference">References <a class="el" href="http__common_8c_source.html#l00401">brix_shared_adopt_unified()</a>, and <a class="el" href="core_2config_2http__common_8h_source.html#l00025">ngx_http_brix_common_conf_t::common</a>.</p>
 
 </div>
 </div>
@@ -424,11 +472,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00336">336</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00401">401</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__common_8c_source.html#l00332">BRIX_ADOPT_PTR</a>, <a class="el" href="http__common_8c_source.html#l00328">BRIX_ADOPT_STR</a>, and <a class="el" href="http__common_8c_source.html#l00330">BRIX_ADOPT_VAL</a>.</p>
+<p class="reference">References <a class="el" href="http__common_8c_source.html#l00397">BRIX_ADOPT_PTR</a>, <a class="el" href="http__common_8c_source.html#l00393">BRIX_ADOPT_STR</a>, and <a class="el" href="http__common_8c_source.html#l00395">BRIX_ADOPT_VAL</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__common_8c_source.html#l00377">brix_http_common_adopt()</a>, and <a class="el" href="http__common_8c_source.html#l00318">brix_http_common_merge_loc_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__common_8c_source.html#l00446">brix_http_common_adopt()</a>, and <a class="el" href="http__common_8c_source.html#l00383">brix_http_common_merge_loc_conf()</a>.</p>
 
 </div>
 </div>
@@ -461,12 +509,12 @@ Variables</h2></td></tr>
 <div class="line">    { ngx_string(<span class="stringliteral">&quot;auto&quot;</span>),        <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a> },</div>
 <div class="line">    { ngx_null_string, 0 }</div>
 <div class="line">}</div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03">BRIX_CRED_DELEGATE</a></div><div class="ttdeci">@ BRIX_CRED_DELEGATE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00195">sd.h:195</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214">BRIX_CRED_EXCHANGE</a></div><div class="ttdeci">@ BRIX_CRED_EXCHANGE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00194">sd.h:194</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b">BRIX_CRED_SELECT</a></div><div class="ttdeci">@ BRIX_CRED_SELECT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00192">sd.h:192</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739">BRIX_CRED_MINT</a></div><div class="ttdeci">@ BRIX_CRED_MINT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00196">sd.h:196</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a></div><div class="ttdeci">@ BRIX_CRED_PASSTHROUGH</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00193">sd.h:193</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a></div><div class="ttdeci">@ BRIX_CRED_AUTO</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00198">sd.h:197</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03">BRIX_CRED_DELEGATE</a></div><div class="ttdeci">@ BRIX_CRED_DELEGATE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00200">sd.h:200</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214">BRIX_CRED_EXCHANGE</a></div><div class="ttdeci">@ BRIX_CRED_EXCHANGE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00199">sd.h:199</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b">BRIX_CRED_SELECT</a></div><div class="ttdeci">@ BRIX_CRED_SELECT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00197">sd.h:197</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739">BRIX_CRED_MINT</a></div><div class="ttdeci">@ BRIX_CRED_MINT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00201">sd.h:201</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a></div><div class="ttdeci">@ BRIX_CRED_PASSTHROUGH</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00198">sd.h:198</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a></div><div class="ttdeci">@ BRIX_CRED_AUTO</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00203">sd.h:202</a></div></div>
 </div><!-- fragment -->
 <p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00024">24</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
@@ -499,7 +547,7 @@ Variables</h2></td></tr>
 <div class="ttc" id="averify_8h_html_aec9f0e3e52570b093ffca2eb35acd22da6c5e8aa18c41fccd1b61d5ea43675af5"><div class="ttname"><a href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22da6c5e8aa18c41fccd1b61d5ea43675af5">BRIX_CACHE_VERIFY_CVMFS_CAS</a></div><div class="ttdeci">@ BRIX_CACHE_VERIFY_CVMFS_CAS</div><div class="ttdef"><b>Definition</b> <a href="verify_8h_source.html#l00044">verify.h:41</a></div></div>
 <div class="ttc" id="averify_8h_html_aec9f0e3e52570b093ffca2eb35acd22daf8ec617507f4b6f347c44e48c161b9e6"><div class="ttname"><a href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22daf8ec617507f4b6f347c44e48c161b9e6">BRIX_CACHE_VERIFY_OFF</a></div><div class="ttdeci">@ BRIX_CACHE_VERIFY_OFF</div><div class="ttdef"><b>Definition</b> <a href="verify_8h_source.html#l00038">verify.h:38</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00093">93</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00132">132</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
 </div>
 </div>
@@ -523,7 +571,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00102">102</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00141">141</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
 </div>
 </div>
@@ -553,10 +601,10 @@ Variables</h2></td></tr>
 <div class="line">    <a class="code hl_function" href="http__common_8c.html#a3498182c5f375a5635532adb0f2ddc11">brix_http_common_create_loc_conf</a>,</div>
 <div class="line">    <a class="code hl_function" href="http__common_8c.html#a351506b05dd4f045fa1240f3ad566d04">brix_http_common_merge_loc_conf</a></div>
 <div class="line">}</div>
-<div class="ttc" id="ahttp__common_8c_html_a3498182c5f375a5635532adb0f2ddc11"><div class="ttname"><a href="http__common_8c.html#a3498182c5f375a5635532adb0f2ddc11">brix_http_common_create_loc_conf</a></div><div class="ttdeci">static void * brix_http_common_create_loc_conf(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00298">http_common.c:298</a></div></div>
-<div class="ttc" id="ahttp__common_8c_html_a351506b05dd4f045fa1240f3ad566d04"><div class="ttname"><a href="http__common_8c.html#a351506b05dd4f045fa1240f3ad566d04">brix_http_common_merge_loc_conf</a></div><div class="ttdeci">static char * brix_http_common_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00318">http_common.c:318</a></div></div>
+<div class="ttc" id="ahttp__common_8c_html_a3498182c5f375a5635532adb0f2ddc11"><div class="ttname"><a href="http__common_8c.html#a3498182c5f375a5635532adb0f2ddc11">brix_http_common_create_loc_conf</a></div><div class="ttdeci">static void * brix_http_common_create_loc_conf(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00363">http_common.c:363</a></div></div>
+<div class="ttc" id="ahttp__common_8c_html_a351506b05dd4f045fa1240f3ad566d04"><div class="ttname"><a href="http__common_8c.html#a351506b05dd4f045fa1240f3ad566d04">brix_http_common_merge_loc_conf</a></div><div class="ttdeci">static char * brix_http_common_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00383">http_common.c:383</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00275">275</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00340">340</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
 </div>
 </div>
@@ -608,12 +656,12 @@ Variables</h2></td></tr>
 <div class="line">    NULL, NULL, NULL, NULL, NULL, NULL, NULL,</div>
 <div class="line">    NGX_MODULE_V1_PADDING</div>
 <div class="line">}</div>
-<div class="ttc" id="ahttp__common_8c_html_a751f992e7fd71272d10fe5d977f24c32"><div class="ttname"><a href="http__common_8c.html#a751f992e7fd71272d10fe5d977f24c32">brix_http_common_module_ctx</a></div><div class="ttdeci">static ngx_http_module_t brix_http_common_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00275">http_common.c:275</a></div></div>
-<div class="ttc" id="ahttp__common_8c_html_aee1c3d4833eb903ac9ce44ccb47a1079"><div class="ttname"><a href="http__common_8c.html#aee1c3d4833eb903ac9ce44ccb47a1079">brix_http_common_commands</a></div><div class="ttdeci">static ngx_command_t brix_http_common_commands[]</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00102">http_common.c:102</a></div></div>
+<div class="ttc" id="ahttp__common_8c_html_a751f992e7fd71272d10fe5d977f24c32"><div class="ttname"><a href="http__common_8c.html#a751f992e7fd71272d10fe5d977f24c32">brix_http_common_module_ctx</a></div><div class="ttdeci">static ngx_http_module_t brix_http_common_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00340">http_common.c:340</a></div></div>
+<div class="ttc" id="ahttp__common_8c_html_aee1c3d4833eb903ac9ce44ccb47a1079"><div class="ttname"><a href="http__common_8c.html#aee1c3d4833eb903ac9ce44ccb47a1079">brix_http_common_commands</a></div><div class="ttdeci">static ngx_command_t brix_http_common_commands[]</div><div class="ttdef"><b>Definition</b> <a href="http__common_8c_source.html#l00141">http_common.c:141</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00283">283</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="http__common_8c_source.html#l00348">348</a> of file <a class="el" href="http__common_8c_source.html">http_common.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__common_8c_source.html#l00377">brix_http_common_adopt()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__common_8c_source.html#l00446">brix_http_common_adopt()</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00124">ngx_http_brix_dashboard_merge_loc_conf()</a>.</p>
 
 </div>
 </div>

@@ -8,6 +8,7 @@ var sd__cache__internal_8h =
     [ "sd_cache_fill", "sd__cache__internal_8h.html#a95db7b863f50e5bbbd7a545f621ef342", null ],
     [ "sd_cache_fstat", "sd__cache__internal_8h.html#a5d21061cafcf2ac4e5efc43e7fb3745c", null ],
     [ "sd_cache_getxattr", "sd__cache__internal_8h.html#aef1c3f4098a931f1b4899576d3f98a80", null ],
+    [ "sd_cache_guard_tamper", "sd__cache__internal_8h.html#ad361c4a8fc6e0bdffcec1cad39099863", null ],
     [ "sd_cache_listxattr", "sd__cache__internal_8h.html#a22ba5f8cae0bac5bfd225d4698f5f64a", null ],
     [ "sd_cache_mkdir", "sd__cache__internal_8h.html#a5baf07f412c5350db587a7a71b39fe10", null ],
     [ "sd_cache_opendir", "sd__cache__internal_8h.html#a95a7bc41f95186fbbef0f409021a1cad", null ],
@@ -26,5 +27,6 @@ var sd__cache__internal_8h =
     [ "sd_cache_staged_open_cred", "sd__cache__internal_8h.html#a188aa44c200e2619f034a474fe66af50", null ],
     [ "sd_cache_staged_write", "sd__cache__internal_8h.html#a59e0ea7ca6775e7df2d8206cae1a1576", null ],
     [ "sd_cache_stat", "sd__cache__internal_8h.html#a15a9074c815ed1847d23dd0c9ed3f3b3", null ],
-    [ "sd_cache_unlink", "sd__cache__internal_8h.html#a00adca355b5cfe65a59170f7e8a99741", null ]
+    [ "sd_cache_unlink", "sd__cache__internal_8h.html#a00adca355b5cfe65a59170f7e8a99741", null ],
+    [ "sd_cache_verify_manifest", "sd__cache__internal_8h.html#a86c01f461fc56046db189b245c29ff75", null ]
 ];

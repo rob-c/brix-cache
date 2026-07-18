@@ -117,7 +117,7 @@ $(document).ready(function(){initNavTree('tier_8h.html',''); initResizable(); })
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="tier_8h__dep__incl.svg" width="100%" height="525"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="tier_8h__dep__incl.svg" width="100%" height="591"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="tier_8h_source.html">Go to the source code of this file.</a></p>
@@ -161,6 +161,10 @@ Functions</h2></td></tr>
 <tr class="separator:a640e93ed143ba688fbc700266e3ad22c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaf91c775a842326feecf6dbd558f1183" id="r_aaf91c775a842326feecf6dbd558f1183"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tier_8h.html#aaf91c775a842326feecf6dbd558f1183">brix_vfs_backend_config_cache_store</a> (const char *root_canon, const <a class="el" href="structbrix__tier__cfg__t.html">brix_tier_cfg_t</a> *cfg, const <a class="el" href="structbrix__cache__policy__t.html">brix_cache_policy_t</a> *policy)</td></tr>
 <tr class="separator:aaf91c775a842326feecf6dbd558f1183"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b57a40436d337bda76b3dd800a97001" id="r_a6b57a40436d337bda76b3dd800a97001"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tier_8h.html#a6b57a40436d337bda76b3dd800a97001">brix_vfs_backend_config_cache_cold_store</a> (const char *root_canon, const <a class="el" href="structbrix__tier__cfg__t.html">brix_tier_cfg_t</a> *cfg)</td></tr>
+<tr class="separator:a6b57a40436d337bda76b3dd800a97001"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acde85c244fc782a306d644a51097992b" id="r_acde85c244fc782a306d644a51097992b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tier_8h.html#acde85c244fc782a306d644a51097992b">brix_vfs_backend_config_cache_peers</a> (const char *root_canon, const char(*hosts)[256], const int *ports, int n, int self)</td></tr>
+<tr class="separator:acde85c244fc782a306d644a51097992b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abd37cf4899c80899ab18d4a2cef076d8" id="r_abd37cf4899c80899ab18d4a2cef076d8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tier_8h.html#abd37cf4899c80899ab18d4a2cef076d8">brix_vfs_backend_config_stage_store</a> (const char *root_canon, const <a class="el" href="structbrix__tier__cfg__t.html">brix_tier_cfg_t</a> *cfg, const <a class="el" href="structbrix__stage__policy__t.html">brix_stage_policy_t</a> *policy)</td></tr>
 <tr class="separator:abd37cf4899c80899ab18d4a2cef076d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -202,7 +206,7 @@ Functions</h2></td></tr>
 <tr><td class="fieldname"><a id="ae91c616eaa52d1722aa891a5d82bcc0aabfbc1ac92465b02bf0314ccebffa3706" name="ae91c616eaa52d1722aa891a5d82bcc0aabfbc1ac92465b02bf0314ccebffa3706"></a>BRIX_TIER_NEEDS_DEV&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00126">126</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00136">136</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
 </div>
 </div>
@@ -313,9 +317,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier__config_8c_source.html#l00431">431</a> of file <a class="el" href="tier__config_8c_source.html">tier_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tier_8h_source.html#l00137">brix_tier_parse_t::cf</a>, <a class="el" href="tier_8h_source.html#l00072">brix_tier_cfg_t::configured</a>, <a class="el" href="tier_8h_source.html#l00064">brix_tier_cfg_t::driver</a>, <a class="el" href="tier_8h_source.html#l00139">brix_tier_parse_t::err</a>, <a class="el" href="tier_8h_source.html#l00140">brix_tier_parse_t::errcap</a>, <a class="el" href="tier_8h_source.html#l00138">brix_tier_parse_t::out</a>, <a class="el" href="tier_8h_source.html#l00063">brix_tier_cfg_t::role</a>, <a class="el" href="tier__config_8c_source.html#l00048">tier_fail()</a>, <a class="el" href="tier__config_8c_source.html#l00266">tier_parse_args()</a>, <a class="el" href="tier__config_8c_source.html#l00371">tier_parse_local()</a>, <a class="el" href="tier__config_8c_source.html#l00406">tier_parse_remote()</a>, and <a class="el" href="tier__config_8c_source.html#l00325">tier_split_scheme()</a>.</p>
+<p class="reference">References <a class="el" href="tier_8h_source.html#l00147">brix_tier_parse_t::cf</a>, <a class="el" href="tier_8h_source.html#l00072">brix_tier_cfg_t::configured</a>, <a class="el" href="tier_8h_source.html#l00064">brix_tier_cfg_t::driver</a>, <a class="el" href="tier_8h_source.html#l00149">brix_tier_parse_t::err</a>, <a class="el" href="tier_8h_source.html#l00150">brix_tier_parse_t::errcap</a>, <a class="el" href="tier_8h_source.html#l00148">brix_tier_parse_t::out</a>, <a class="el" href="tier_8h_source.html#l00063">brix_tier_cfg_t::role</a>, <a class="el" href="tier__config_8c_source.html#l00048">tier_fail()</a>, <a class="el" href="tier__config_8c_source.html#l00266">tier_parse_args()</a>, <a class="el" href="tier__config_8c_source.html#l00371">tier_parse_local()</a>, <a class="el" href="tier__config_8c_source.html#l00406">tier_parse_remote()</a>, and <a class="el" href="tier__config_8c_source.html#l00325">tier_split_scheme()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00192">brix_tier_register_stores()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00435">brix_tier_register_stores()</a>.</p>
 
 </div>
 </div>
@@ -353,7 +357,93 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier__config_8c_source.html#l00471">471</a> of file <a class="el" href="tier__config_8c_source.html">tier_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00095">BRIX_SD_CAP_DIRS</a>, <a class="el" href="sd_8h_source.html#l00104">BRIX_SD_CAP_NEARLINE</a>, <a class="el" href="sd_8h_source.html#l00089">BRIX_SD_CAP_RANDOM_WRITE</a>, <a class="el" href="sd_8h_source.html#l00090">BRIX_SD_CAP_RANGE_READ</a>, <a class="el" href="sd_8h_source.html#l00093">BRIX_SD_CAP_XATTR</a>, <a class="el" href="tier_8h_source.html#l00048">BRIX_TIER_BACKEND</a>, <a class="el" href="tier_8h_source.html#l00049">BRIX_TIER_CACHE</a>, <a class="el" href="tier_8h_source.html#l00128">BRIX_TIER_NEEDS_DEV</a>, <a class="el" href="tier_8h_source.html#l00127">BRIX_TIER_READY</a>, <a class="el" href="tier_8h_source.html#l00050">BRIX_TIER_STAGE</a>, <a class="el" href="tier_8h_source.html#l00064">brix_tier_cfg_t::driver</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="tier__config_8c.html#ae825b79dce23a802e8a91f2f47fb7c82">MISS_CAP</a>, <a class="el" href="tier__config_8c.html#af2f3f6f80196421a71367dcfd5ecb446">MISS_SLOT</a>, <a class="el" href="tier_8h_source.html#l00071">brix_tier_cfg_t::nearline</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="tier_8h_source.html#l00063">brix_tier_cfg_t::role</a>, <a class="el" href="tier_8h_source.html#l00121">brix_tier_gap_t::slot</a>, <a class="el" href="tier_8h_source.html#l00123">brix_tier_gap_t::sp_item</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="tier__config_8c_source.html#l00093">tier_sp_for()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00095">BRIX_SD_CAP_DIRS</a>, <a class="el" href="sd_8h_source.html#l00104">BRIX_SD_CAP_NEARLINE</a>, <a class="el" href="sd_8h_source.html#l00089">BRIX_SD_CAP_RANDOM_WRITE</a>, <a class="el" href="sd_8h_source.html#l00090">BRIX_SD_CAP_RANGE_READ</a>, <a class="el" href="sd_8h_source.html#l00093">BRIX_SD_CAP_XATTR</a>, <a class="el" href="tier_8h_source.html#l00048">BRIX_TIER_BACKEND</a>, <a class="el" href="tier_8h_source.html#l00049">BRIX_TIER_CACHE</a>, <a class="el" href="tier_8h_source.html#l00138">BRIX_TIER_NEEDS_DEV</a>, <a class="el" href="tier_8h_source.html#l00137">BRIX_TIER_READY</a>, <a class="el" href="tier_8h_source.html#l00050">BRIX_TIER_STAGE</a>, <a class="el" href="tier_8h_source.html#l00064">brix_tier_cfg_t::driver</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="tier__config_8c.html#ae825b79dce23a802e8a91f2f47fb7c82">MISS_CAP</a>, <a class="el" href="tier__config_8c.html#af2f3f6f80196421a71367dcfd5ecb446">MISS_SLOT</a>, <a class="el" href="tier_8h_source.html#l00071">brix_tier_cfg_t::nearline</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="tier_8h_source.html#l00063">brix_tier_cfg_t::role</a>, <a class="el" href="tier_8h_source.html#l00131">brix_tier_gap_t::slot</a>, <a class="el" href="tier_8h_source.html#l00133">brix_tier_gap_t::sp_item</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="tier__config_8c_source.html#l00093">tier_sp_for()</a>.</p>
+
+</div>
+</div>
+<a id="a6b57a40436d337bda76b3dd800a97001" name="a6b57a40436d337bda76b3dd800a97001"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b57a40436d337bda76b3dd800a97001">&#9670;&#160;</a></span>brix_vfs_backend_config_cache_cold_store()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_vfs_backend_config_cache_cold_store </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__tier__cfg__t.html">brix_tier_cfg_t</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__backend__config_8c_source.html#l00179">179</a> of file <a class="el" href="vfs__backend__config_8c_source.html">vfs_backend_config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00076">brix_vfs_backend_entry_t::cold_tier</a>, <a class="el" href="tier_8h_source.html#l00072">brix_tier_cfg_t::configured</a>, and <a class="el" href="vfs__backend__internal_8h_source.html#l00094">brix_vfs_backend_entry_t::inst</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
+
+</div>
+</div>
+<a id="acde85c244fc782a306d644a51097992b" name="acde85c244fc782a306d644a51097992b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acde85c244fc782a306d644a51097992b">&#9670;&#160;</a></span>brix_vfs_backend_config_cache_peers()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_vfs_backend_config_cache_peers </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char(*)&#160;</td>
+          <td class="paramname"><em>hosts</em>[256], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int *&#160;</td>
+          <td class="paramname"><em>ports</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>self</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__backend__config_8c_source.html#l00196">196</a> of file <a class="el" href="vfs__backend__config_8c_source.html">vfs_backend_config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00039">brix_vfs_backend_entry_t::host</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00094">brix_vfs_backend_entry_t::inst</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00090">brix_vfs_backend_entry_t::n_peer_ring</a>, <a class="el" href="structbrix__vfs__backend__entry__t.html#a8201142df0b19f61449755c83b836540">brix_vfs_backend_entry_t::peer_ring</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00091">brix_vfs_backend_entry_t::peer_self</a>, and <a class="el" href="vfs__backend__internal_8h_source.html#l00040">brix_vfs_backend_entry_t::port</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00252">brix_tier_register_cache_peers()</a>.</p>
 
 </div>
 </div>
@@ -391,9 +481,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__config_8c_source.html#l00159">159</a> of file <a class="el" href="vfs__backend__config_8c_source.html">vfs_backend_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00075">brix_vfs_backend_entry_t::cache_policy</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00074">brix_vfs_backend_entry_t::cache_tier</a>, <a class="el" href="tier_8h_source.html#l00072">brix_tier_cfg_t::configured</a>, and <a class="el" href="vfs__backend__internal_8h_source.html#l00078">brix_vfs_backend_entry_t::inst</a>.</p>
+<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00075">brix_vfs_backend_entry_t::cache_policy</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00074">brix_vfs_backend_entry_t::cache_tier</a>, <a class="el" href="tier_8h_source.html#l00072">brix_tier_cfg_t::configured</a>, and <a class="el" href="vfs__backend__internal_8h_source.html#l00094">brix_vfs_backend_entry_t::inst</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
 
 </div>
 </div>
@@ -429,11 +519,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__config_8c_source.html#l00278">278</a> of file <a class="el" href="vfs__backend__config_8c_source.html">vfs_backend_config.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__config_8c_source.html#l00322">322</a> of file <a class="el" href="vfs__backend__config_8c_source.html">vfs_backend_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="tier_8h_source.html#l00072">brix_tier_cfg_t::configured</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00078">brix_vfs_backend_entry_t::inst</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00077">brix_vfs_backend_entry_t::stage_policy</a>, and <a class="el" href="vfs__backend__internal_8h_source.html#l00076">brix_vfs_backend_entry_t::stage_tier</a>.</p>
+<p class="reference">References <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="tier_8h_source.html#l00072">brix_tier_cfg_t::configured</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00094">brix_vfs_backend_entry_t::inst</a>, <a class="el" href="vfs__backend__internal_8h_source.html#l00093">brix_vfs_backend_entry_t::stage_policy</a>, and <a class="el" href="vfs__backend__internal_8h_source.html#l00092">brix_vfs_backend_entry_t::stage_tier</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00192">brix_tier_register_stores()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00435">brix_tier_register_stores()</a>.</p>
 
 </div>
 </div>

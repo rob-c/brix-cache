@@ -8,5 +8,5 @@ var structs3__put__aio__t =
     [ "nwritten", "structs3__put__aio__t.html#a74b84d833ee1a477d22b81f3195296ed", null ],
     [ "r", "structs3__put__aio__t.html#a36b13b30f4f40c9ff25b72b137b33a60", null ],
     [ "root_canon", "structs3__put__aio__t.html#ab773b01f306b05858f041d1ef92b3c6d", null ],
-    [ "staged", "structs3__put__aio__t.html#ae6b68ea9643a2a407f4380318eb89f17", null ]
+    [ "writer", "structs3__put__aio__t.html#aab930272c29fcf90b9825bdc19113ddf", null ]
 ];

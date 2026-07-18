@@ -141,6 +141,8 @@ Functions</h2></td></tr>
 <tr class="separator:a19a88d0df86e8ecc04d7ec867c60be90"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a402165799cfaa4cb151c466f6705dde1" id="r_a402165799cfaa4cb151c466f6705dde1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixmount_8c.html#a402165799cfaa4cb151c466f6705dde1">brixcvmfs_rw_main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a402165799cfaa4cb151c466f6705dde1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a110d68d44d218aaa086de58286b7b49a" id="r_a110d68d44d218aaa086de58286b7b49a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixmount_8c.html#a110d68d44d218aaa086de58286b7b49a">brixautofs_main</a> (int argc, char **argv)</td></tr>
+<tr class="separator:a110d68d44d218aaa086de58286b7b49a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2e20ed6ac1149c9bf12c785d9275d26f" id="r_a2e20ed6ac1149c9bf12c785d9275d26f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixmount_8c.html#a2e20ed6ac1149c9bf12c785d9275d26f">xrootdfs_aio_main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a2e20ed6ac1149c9bf12c785d9275d26f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a861e1d2f455394a7cf16b131a3d3d664" id="r_a861e1d2f455394a7cf16b131a3d3d664"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixmount_8c.html#a861e1d2f455394a7cf16b131a3d3d664">brix_overlay_cli_list</a> (const char *mountdir, FILE *out)</td></tr>
@@ -215,7 +217,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="overlay_8c_source.html#l00604">ov_cli_guard()</a>, and <a class="el" href="overlay_8c_source.html#l00637">ov_cli_list_dir()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00433">test_cli()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00433">test_cli()</a>.</p>
 
 </div>
 </div>
@@ -239,7 +241,41 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="overlay_8c_source.html#l00604">ov_cli_guard()</a>, and <a class="el" href="overlay_8c_source.html#l00716">ov_cli_reset_contents()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00433">test_cli()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>, and <a class="el" href="overlay__unittest_8c_source.html#l00433">test_cli()</a>.</p>
+
+</div>
+</div>
+<a id="a110d68d44d218aaa086de58286b7b49a" name="a110d68d44d218aaa086de58286b7b49a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a110d68d44d218aaa086de58286b7b49a">&#9670;&#160;</a></span>brixautofs_main()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brixautofs_main </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00643">643</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00528">af_control_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00549">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00198">af_mkdir_p()</a>, <a class="el" href="brixautofs_8c_source.html#l00452">af_ops</a>, <a class="el" href="brixautofs_8c_source.html#l00599">af_parse_opts()</a>, <a class="el" href="brixautofs_8c_source.html#l00624">af_scan_configured()</a>, <a class="el" href="brixautofs_8c_source.html#l00461">af_signal()</a>, <a class="el" href="brixautofs_8c_source.html#l00493">af_teardown_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00139">autofs_opts_t::allow_other</a>, <a class="el" href="brixautofs_8c_source.html#l00074">brixautofs_table_init()</a>, <a class="el" href="brixautofs_8c_source.html#l00142">autofs_opts_t::cache_base</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixautofs_8c_source.html#l00141">autofs_opts_t::debug</a>, <a class="el" href="brixautofs_8c_source.html#l00151">autofs_state_t::etc</a>, <a class="el" href="brixautofs_8c_source.html#l00150">autofs_state_t::farm</a>, <a class="el" href="brixautofs_8c_source.html#l00140">autofs_opts_t::foreground</a>, <a class="el" href="brixautofs_8c_source.html#l00158">autofs_state_t::fuse</a>, <a class="el" href="brixautofs_8c_source.html#l00145">autofs_opts_t::fuse_extra</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00137">autofs_opts_t::idle_s</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, <a class="el" href="brixautofs_8c_source.html#l00143">autofs_opts_t::mnt_base</a>, <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="brixautofs_8c_source.html#l00144">autofs_opts_t::repos</a>, <a class="el" href="brixautofs_8c_source.html#l00154">autofs_state_t::repos</a>, <a class="el" href="brixautofs_8c_source.html#l00159">autofs_state_t::sigpipe</a>, <a class="el" href="brixautofs_8c_source.html#l00153">autofs_state_t::strict</a>, and <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>.</p>
 
 </div>
 </div>
@@ -269,11 +305,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l00659">659</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixcvmfs_8c_source.html#l01038">1038</a> of file <a class="el" href="brixcvmfs_8c_source.html">brixcvmfs.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00536">brixcvmfs_check()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00630">brixcvmfs_mount_run()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00389">parse_opts()</a>.</p>
+<p class="reference">References <a class="el" href="brixcvmfs_8c_source.html#l00837">brixcvmfs_check()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00994">brixcvmfs_mount_run()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00904">brixcvmfs_prewarm()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00661">parse_opts()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l00676">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixcvmfs_8c_source.html#l01058">main()</a>.</p>
 
 </div>
 </div>
@@ -305,7 +341,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixcvmfs__rw_8c_source.html#l00875">875</a> of file <a class="el" href="brixcvmfs__rw_8c_source.html">brixcvmfs_rw.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>.</p>
 
 </div>
 </div>
@@ -347,11 +383,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixmount_8c_source.html#l00073">73</a> of file <a class="el" href="brixmount_8c_source.html">brixmount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixmount_8c_source.html#l00074">74</a> of file <a class="el" href="brixmount_8c_source.html">brixmount.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixmount_8c_source.html#l00030">brix_driver_t::brand</a>, <a class="el" href="cli__hint_8c_source.html#l00074">brix_cli_hint()</a>, <a class="el" href="suggest_8c_source.html#l00078">brix_suggest()</a>, <a class="el" href="brixmount_8c_source.html#l00034">BRIXMOUNT_MAX_ARGS</a>, <a class="el" href="brixmount_8c_source.html#l00036">brixmount_usage()</a>, <a class="el" href="brixmount_8c_source.html#l00031">brix_driver_t::fn</a>, and <a class="el" href="brixmount_8c_source.html#l00029">brix_driver_t::type</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="brixmount__unittest_8c_source.html#l00050">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>, and <a class="el" href="brixmount__unittest_8c_source.html#l00050">main()</a>.</p>
 
 </div>
 </div>
@@ -393,9 +429,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixmount_8c_source.html#l00056">56</a> of file <a class="el" href="brixmount_8c_source.html">brixmount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixmount_8c_source.html#l00057">57</a> of file <a class="el" href="brixmount_8c_source.html">brixmount.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>, and <a class="el" href="brixmount__unittest_8c_source.html#l00050">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>, and <a class="el" href="brixmount__unittest_8c_source.html#l00050">main()</a>.</p>
 
 </div>
 </div>
@@ -443,7 +479,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, and <a class="el" href="broker__ops_8c_source.html#l00393">fn</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00073">brixmount_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00074">brixmount_dispatch()</a>.</p>
 
 </div>
 </div>
@@ -473,9 +509,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixmount_8c_source.html#l00142">142</a> of file <a class="el" href="brixmount_8c_source.html">brixmount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixmount_8c_source.html#l00144">144</a> of file <a class="el" href="brixmount_8c_source.html">brixmount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="overlay_8c_source.html#l00706">brix_overlay_cli_list()</a>, <a class="el" href="overlay_8c_source.html#l00743">brix_overlay_cli_reset()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="brixcvmfs_8c_source.html#l00659">brixcvmfs_main()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00875">brixcvmfs_rw_main()</a>, <a class="el" href="brixmount_8c_source.html#l00073">brixmount_dispatch()</a>, <a class="el" href="brixmount_8c_source.html#l00056">brixmount_overlay_route()</a>, <a class="el" href="brixmount_8c_source.html#l00031">brix_driver_t::fn</a>, <a class="el" href="broker__ops_8c_source.html#l00393">fn</a>, and <a class="el" href="xrootdfs_8c_source.html#l00518">xrootdfs_aio_main()</a>.</p>
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="overlay_8c_source.html#l00706">brix_overlay_cli_list()</a>, <a class="el" href="overlay_8c_source.html#l00743">brix_overlay_cli_reset()</a>, <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>, <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>, <a class="el" href="brixcvmfs_8c_source.html#l01038">brixcvmfs_main()</a>, <a class="el" href="brixcvmfs__rw_8c_source.html#l00875">brixcvmfs_rw_main()</a>, <a class="el" href="brixmount_8c_source.html#l00074">brixmount_dispatch()</a>, <a class="el" href="brixmount_8c_source.html#l00057">brixmount_overlay_route()</a>, <a class="el" href="brixmount_8c_source.html#l00031">brix_driver_t::fn</a>, <a class="el" href="broker__ops_8c_source.html#l00393">fn</a>, and <a class="el" href="xrootdfs_8c_source.html#l00560">xrootdfs_aio_main()</a>.</p>
 
 </div>
 </div>
@@ -513,11 +549,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrootdfs_8c_source.html#l00518">518</a> of file <a class="el" href="xrootdfs_8c_source.html">xrootdfs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrootdfs_8c_source.html#l00560">560</a> of file <a class="el" href="xrootdfs_8c_source.html">xrootdfs.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrootdfs_8c_source.html#l00345">aio_parse_args()</a>, <a class="el" href="xrootdfs_8c_source.html#l00464">aio_root_mount()</a>, <a class="el" href="xrootdfs_8c_source.html#l00398">aio_web_mount()</a>, <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="xrootdfs_8c_source.html#l00012">g_opts</a>, <a class="el" href="xrootdfs_8c_source.html#l00242">usage()</a>, <a class="el" href="xrootdfs_8c_source.html#l00204">usage_fp()</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
+<p class="reference">References <a class="el" href="xrootdfs_8c_source.html#l00373">aio_parse_args()</a>, <a class="el" href="xrootdfs_8c_source.html#l00506">aio_root_mount()</a>, <a class="el" href="xrootdfs_8c_source.html#l00426">aio_web_mount()</a>, <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="xrootdfs_8c_source.html#l00040">g_opts</a>, <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>, <a class="el" href="xrootdfs_8c_source.html#l00232">usage_fp()</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00142">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>.</p>
 
 </div>
 </div>

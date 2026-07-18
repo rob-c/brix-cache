@@ -129,6 +129,10 @@ Functions</h2></td></tr>
 <tr class="separator:adfebd309b5b2907ca4d154c1630e50c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaa4c2c54e9288058d7195c2fac9d7994" id="r_aaa4c2c54e9288058d7195c2fac9d7994"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__engine__internal_8h.html#aaa4c2c54e9288058d7195c2fac9d7994">stage_journal_remove</a> (const char *reqid)</td></tr>
 <tr class="separator:aaa4c2c54e9288058d7195c2fac9d7994"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaca2f8f7ab111e5ff3339ce56ae13658" id="r_aaca2f8f7ab111e5ff3339ce56ae13658"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__engine__internal_8h.html#aaca2f8f7ab111e5ff3339ce56ae13658">stage_journal_mark_failed</a> (const char *journal_dir, const char *reqid, int last_errno)</td></tr>
+<tr class="separator:aaca2f8f7ab111e5ff3339ce56ae13658"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9e7515732688837bf8dc4d5df17420c5" id="r_a9e7515732688837bf8dc4d5df17420c5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__engine__internal_8h.html#a9e7515732688837bf8dc4d5df17420c5">stage_journal_bump_failed</a> (const char *journal_dir, <a class="el" href="structbrix__sreq__t.html">brix_sreq_t</a> *rec, int last_errno)</td></tr>
+<tr class="separator:a9e7515732688837bf8dc4d5df17420c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a96ccfc7af3c11f2584a0e70994dc4d68" id="r_a96ccfc7af3c11f2584a0e70994dc4d68"><td class="memItemLeft" align="right" valign="top"><a class="el" href="xfer_8h.html#aacd4ed7a3b3724e034398e607a16726e">brix_xfer_result_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__engine__internal_8h.html#a96ccfc7af3c11f2584a0e70994dc4d68">stage_engine_run</a> (<a class="el" href="stage__engine_8h.html#a16a79a9999e0e9dc8b16cd8b98347fb7">brix_stage_kind_t</a> kind, brix_sd_instance_t *src, const char *src_key, brix_sd_instance_t *dst, const char *dst_key, const <a class="el" href="structbrix__stage__cred__t.html">brix_stage_cred_t</a> *cred)</td></tr>
 <tr class="separator:a96ccfc7af3c11f2584a0e70994dc4d68"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -190,9 +194,89 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="stage__engine_8c_source.html#l00292">292</a> of file <a class="el" href="stage__engine_8c_source.html">stage_engine.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ucred_8c_source.html#l00501">brix_sd_ucred_resolve()</a>, <a class="el" href="stage__engine_8c_source.html#l00055">brix_stage_kind_str()</a>, <a class="el" href="xfer_8h_source.html#l00063">BRIX_XFER_DENIED</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="stage__engine_8h_source.html#l00069">brix_stage_cred_t::deny</a>, <a class="el" href="stage__engine_8h_source.html#l00068">brix_stage_cred_t::dir</a>, <a class="el" href="ucred_8h_source.html#l00133">brix_sd_ucred_t::expired</a>, <a class="el" href="stage__engine_8h_source.html#l00066">brix_stage_cred_t::key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ucred_8h_source.html#l00120">brix_sd_ucred_t::path</a>, <a class="el" href="sd_8h_source.html#l00211">brix_sd_cred_t::principal</a>, <a class="el" href="stage__engine_8h_source.html#l00067">brix_stage_cred_t::principal</a>, <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>, <a class="el" href="stage__engine_8c_source.html#l00049">stage_kind_dir()</a>, <a class="el" href="stage__engine_8c_source.html#l00036">stage_kind_to_xfer()</a>, and <a class="el" href="sd_8h_source.html#l00201">brix_sd_cred_t::x509_proxy</a>.</p>
+<p class="reference">References <a class="el" href="ucred_8c_source.html#l00511">brix_sd_ucred_resolve()</a>, <a class="el" href="ucred_8c_source.html#l00682">brix_sd_ucred_wipe()</a>, <a class="el" href="stage__engine_8c_source.html#l00055">brix_stage_kind_str()</a>, <a class="el" href="xfer_8h_source.html#l00063">BRIX_XFER_DENIED</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="stage__engine_8h_source.html#l00069">brix_stage_cred_t::deny</a>, <a class="el" href="stage__engine_8h_source.html#l00068">brix_stage_cred_t::dir</a>, <a class="el" href="ucred_8h_source.html#l00133">brix_sd_ucred_t::expired</a>, <a class="el" href="stage__engine_8h_source.html#l00066">brix_stage_cred_t::key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ucred_8h_source.html#l00120">brix_sd_ucred_t::path</a>, <a class="el" href="sd_8h_source.html#l00216">brix_sd_cred_t::principal</a>, <a class="el" href="stage__engine_8h_source.html#l00067">brix_stage_cred_t::principal</a>, <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>, <a class="el" href="stage__engine_8c_source.html#l00049">stage_kind_dir()</a>, <a class="el" href="stage__engine_8c_source.html#l00036">stage_kind_to_xfer()</a>, and <a class="el" href="sd_8h_source.html#l00206">brix_sd_cred_t::x509_proxy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stage__engine_8c_source.html#l00388">brix_stage_run_inline_cred()</a>, <a class="el" href="stage__engine__scheduler_8c_source.html#l00273">brix_stage_scheduler_tick()</a>, and <a class="el" href="stage__engine__scheduler_8c_source.html#l00042">brix_stage_submit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stage__engine_8c_source.html#l00394">brix_stage_run_inline_cred()</a>, <a class="el" href="stage__engine__scheduler_8c_source.html#l00285">brix_stage_scheduler_tick()</a>, and <a class="el" href="stage__engine__scheduler_8c_source.html#l00043">brix_stage_submit()</a>.</p>
+
+</div>
+</div>
+<a id="a9e7515732688837bf8dc4d5df17420c5" name="a9e7515732688837bf8dc4d5df17420c5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9e7515732688837bf8dc4d5df17420c5">&#9670;&#160;</a></span>stage_journal_bump_failed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void stage_journal_bump_failed </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>journal_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sreq__t.html">brix_sreq_t</a> *&#160;</td>
+          <td class="paramname"><em>rec</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>last_errno</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stage__engine__journal_8c_source.html#l00205">205</a> of file <a class="el" href="stage__engine__journal_8c_source.html">stage_engine_journal.c</a>.</p>
+
+<p class="reference">References <a class="el" href="stage__engine_8h_source.html#l00112">brix_sreq_t::attempts</a>, and <a class="el" href="stage__engine__journal_8c_source.html#l00165">stage_journal_persist_failed()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stage__engine__reconcile_8c_source.html#l00061">stage_reconcile_one()</a>.</p>
+
+</div>
+</div>
+<a id="aaca2f8f7ab111e5ff3339ce56ae13658" name="aaca2f8f7ab111e5ff3339ce56ae13658"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaca2f8f7ab111e5ff3339ce56ae13658">&#9670;&#160;</a></span>stage_journal_mark_failed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void stage_journal_mark_failed </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>journal_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>reqid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>last_errno</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="stage__engine__journal_8c_source.html#l00175">175</a> of file <a class="el" href="stage__engine__journal_8c_source.html">stage_engine_journal.c</a>.</p>
+
+<p class="reference">References <a class="el" href="stage__engine_8c_source.html#l00373">brix_sreq_decode()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="stage__engine__journal_8c_source.html#l00165">stage_journal_persist_failed()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="stage__engine__scheduler_8c_source.html#l00121">stage_complete()</a>.</p>
 
 </div>
 </div>
@@ -216,7 +300,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="stage__engine__journal_8c_source.html#l00046">stage_journal_dir</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stage__engine__scheduler_8c_source.html#l00120">stage_complete()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stage__engine__scheduler_8c_source.html#l00121">stage_complete()</a>.</p>
 
 </div>
 </div>
@@ -240,7 +324,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="stage__engine_8h_source.html#l00086">BRIX_SREQ_QUEUED</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="stage__engine_8h_source.html#l00117">brix_sreq_t::cred</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00053">stage_pending_t::cred</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00050">stage_pending_t::dst</a>, <a class="el" href="stage__engine_8h_source.html#l00103">brix_sreq_t::dst_driver</a>, <a class="el" href="stage__engine_8h_source.html#l00104">brix_sreq_t::dst_key</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00051">stage_pending_t::dst_key</a>, <a class="el" href="stage__engine_8h_source.html#l00109">brix_sreq_t::enqueued_at</a>, <a class="el" href="stage__engine_8h_source.html#l00105">brix_sreq_t::export_root</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00052">stage_pending_t::export_root</a>, <a class="el" href="stage__engine_8h_source.html#l00099">brix_sreq_t::kind</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00047">stage_pending_t::kind</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="stage__engine_8h_source.html#l00098">brix_sreq_t::reqid</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00046">stage_pending_t::reqid</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00048">stage_pending_t::src</a>, <a class="el" href="stage__engine_8h_source.html#l00101">brix_sreq_t::src_driver</a>, <a class="el" href="stage__engine_8h_source.html#l00102">brix_sreq_t::src_key</a>, <a class="el" href="stage__engine__internal_8h_source.html#l00049">stage_pending_t::src_key</a>, <a class="el" href="stage__engine__journal_8c_source.html#l00046">stage_journal_dir</a>, and <a class="el" href="stage__engine_8h_source.html#l00100">brix_sreq_t::state</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stage__engine__scheduler_8c_source.html#l00042">brix_stage_submit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stage__engine__scheduler_8c_source.html#l00043">brix_stage_submit()</a>.</p>
 
 </div>
 </div>
@@ -264,7 +348,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="stage__engine__journal_8c_source.html#l00047">stage_reqid_seq</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stage__engine__scheduler_8c_source.html#l00042">brix_stage_submit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stage__engine__scheduler_8c_source.html#l00043">brix_stage_submit()</a>.</p>
 
 </div>
 </div>
@@ -291,7 +375,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="stage__engine__journal_8c_source.html#l00046">46</a> of file <a class="el" href="stage__engine__journal_8c_source.html">stage_engine_journal.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="stage__engine__journal_8c_source.html#l00050">brix_stage_engine_init()</a>, <a class="el" href="stage__engine__reconcile_8c_source.html#l00173">brix_stage_reconcile()</a>, <a class="el" href="stage__engine__scheduler_8c_source.html#l00120">stage_complete()</a>, <a class="el" href="stage__engine__journal_8c_source.html#l00109">stage_journal_remove()</a>, <a class="el" href="stage__engine__journal_8c_source.html#l00070">stage_journal_write()</a>, and <a class="el" href="stage__engine__reconcile_8c_source.html#l00061">stage_reconcile_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="stage__engine__journal_8c_source.html#l00050">brix_stage_engine_init()</a>, <a class="el" href="stage__engine__reconcile_8c_source.html#l00186">brix_stage_reconcile()</a>, <a class="el" href="stage__engine__scheduler_8c_source.html#l00121">stage_complete()</a>, <a class="el" href="stage__engine__journal_8c_source.html#l00109">stage_journal_remove()</a>, <a class="el" href="stage__engine__journal_8c_source.html#l00070">stage_journal_write()</a>, and <a class="el" href="stage__engine__reconcile_8c_source.html#l00061">stage_reconcile_one()</a>.</p>
 
 </div>
 </div>

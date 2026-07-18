@@ -40,5 +40,6 @@ var searchData=
   ['wpr_5fctx_5ft_37',['wpr_ctx_t',['../structwpr__ctx__t.html',1,'']]],
   ['write_5flist_38',['write_list',['../structwrite__list.html',1,'']]],
   ['writev_5frun_5ft_39',['writev_run_t',['../structwritev__run__t.html',1,'']]],
-  ['wt_5fvalidate_5fctx_5ft_40',['wt_validate_ctx_t',['../structwt__validate__ctx__t.html',1,'']]]
+  ['wt_5fvalidate_5fctx_5ft_40',['wt_validate_ctx_t',['../structwt__validate__ctx__t.html',1,'']]],
+  ['wv_5fextent_5ft_41',['wv_extent_t',['../structwv__extent__t.html',1,'']]]
 ];

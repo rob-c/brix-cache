@@ -7,6 +7,7 @@ var postconfiguration_8c =
     [ "postconf_impersonation", "postconfiguration_8c.html#a07faad7ae9c0ff815b0df9ccea41387a", null ],
     [ "postconf_log_summaries", "postconfiguration_8c.html#a9710e2cc7c15af4e1d80d9d43d0e87aa", null ],
     [ "postconf_prepare_servers", "postconfiguration_8c.html#a6373eaab3373a6636009c171b5cee115", null ],
+    [ "postconf_proxy_protocol_host_acl", "postconfiguration_8c.html#a813a40ffc898ea3854a7a4e69bc5b9cc", null ],
     [ "postconf_redir_cache", "postconfiguration_8c.html#a81a5e8a34ee2fbaf7edcee4bc4e0ae4b", null ],
     [ "postconf_server_registry", "postconfiguration_8c.html#a948a21529b3716d679cae654ed1b4641", null ],
     [ "postconf_session_registry", "postconfiguration_8c.html#a0b0781b8d4cff3a501fb96c660fc803a", null ],

@@ -92,18 +92,23 @@ $(document).ready(function(){initNavTree('shared__conf_8h.html',''); initResizab
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">shared_conf.h File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &lt;ngx_thread_pool.h&gt;</code><br />
+<code>#include &lt;regex.h&gt;</code><br />
+<code>#include &lt;sys/stat.h&gt;</code><br />
+<code>#include &lt;sys/types.h&gt;</code><br />
+<code>#include &lt;unistd.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="pmark_8h_source.html">observability/pmark/pmark.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for shared_conf.h:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="shared__conf_8h__incl.svg" width="363" height="212"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="shared__conf_8h__incl.svg" width="100%" height="459"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div><div class="textblock"><div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-1-trigger" src="closed.png" alt="+"/> This graph shows which files directly or indirectly include this file:</div>
@@ -120,12 +125,21 @@ Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:aa33fc3c0845eefa5b7cb850e154a3dcf" id="r_aa33fc3c0845eefa5b7cb850e154a3dcf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#aa33fc3c0845eefa5b7cb850e154a3dcf">BRIX_CREDENTIAL_DIR_DEFAULT</a>&#160;&#160;&#160;&quot;/dev/shm/brix-creds&quot;</td></tr>
+<tr class="separator:aa33fc3c0845eefa5b7cb850e154a3dcf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:af73d294883b111c056260443f163e0db" id="r_af73d294883b111c056260443f163e0db"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#af73d294883b111c056260443f163e0db">ngx_http_brix_shared_init</a> (<a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *conf)</td></tr>
 <tr class="separator:af73d294883b111c056260443f163e0db"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a354a6d7d1fb22917ae9adb880436dd4b" id="r_a354a6d7d1fb22917ae9adb880436dd4b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#a354a6d7d1fb22917ae9adb880436dd4b">brix_shared_apply_read_only</a> (<a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *common, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a354a6d7d1fb22917ae9adb880436dd4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0d67b4d09266d446610b8635b69030d0" id="r_a0d67b4d09266d446610b8635b69030d0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#a0d67b4d09266d446610b8635b69030d0">brix_shared_credential_dir_ensure</a> (ngx_conf_t *cf, const ngx_str_t *dir)</td></tr>
+<tr class="separator:a0d67b4d09266d446610b8635b69030d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae904211581d5169324aa75095f6f8ed1" id="r_ae904211581d5169324aa75095f6f8ed1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#ae904211581d5169324aa75095f6f8ed1">brix_shared_security_gate</a> (ngx_conf_t *cf, ngx_flag_t strict, const char *what, const char *remedy)</td></tr>
+<tr class="separator:ae904211581d5169324aa75095f6f8ed1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad371883748702e08b37931caeb4c2653" id="r_ad371883748702e08b37931caeb4c2653"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#ad371883748702e08b37931caeb4c2653">ngx_http_brix_shared_merge</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *prev, <a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *conf, const char *root_default)</td></tr>
 <tr class="separator:ad371883748702e08b37931caeb4c2653"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a46be0a3cc99e11aa00caaaaeac0d2553" id="r_a46be0a3cc99e11aa00caaaaeac0d2553"><td class="memItemLeft" align="right" valign="top">static ngx_fd_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#a46be0a3cc99e11aa00caaaaeac0d2553">brix_http_shared_access_log_fd</a> (const <a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> *conf)</td></tr>
@@ -139,6 +153,23 @@ Functions</h2></td></tr>
 <tr class="memitem:ad415f9b97dbcfc773e7d2c05005652c7" id="r_ad415f9b97dbcfc773e7d2c05005652c7"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="shared__conf_8h.html#ad415f9b97dbcfc773e7d2c05005652c7">brix_conf_set_store_slot</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:ad415f9b97dbcfc773e7d2c05005652c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="aa33fc3c0845eefa5b7cb850e154a3dcf" name="aa33fc3c0845eefa5b7cb850e154a3dcf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa33fc3c0845eefa5b7cb850e154a3dcf">&#9670;&#160;</a></span>BRIX_CREDENTIAL_DIR_DEFAULT</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define BRIX_CREDENTIAL_DIR_DEFAULT&#160;&#160;&#160;&quot;/dev/shm/brix-creds&quot;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00024">24</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ad415f9b97dbcfc773e7d2c05005652c7" name="ad415f9b97dbcfc773e7d2c05005652c7"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad415f9b97dbcfc773e7d2c05005652c7">&#9670;&#160;</a></span>brix_conf_set_store_slot()</h2>
@@ -172,7 +203,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00023">23</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00047">47</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
 
 </div>
 </div>
@@ -200,9 +231,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00418">418</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00653">653</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00170">ngx_http_brix_shared_conf_t::access_log_file</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00230">ngx_http_brix_shared_conf_t::access_log_file</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>.</p>
 
@@ -242,11 +273,105 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00281">281</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00361">361</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="shared__conf_8h_source.html#l00155">ngx_http_brix_shared_conf_t::read_only</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="shared__conf_8h_source.html#l00208">ngx_http_brix_shared_conf_t::read_only</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00437">brix_config_prepare_server()</a>, and <a class="el" href="shared__conf_8h_source.html#l00312">ngx_http_brix_shared_merge()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00574">brix_config_prepare_server()</a>, and <a class="el" href="shared__conf_8h_source.html#l00528">ngx_http_brix_shared_merge()</a>.</p>
+
+</div>
+</div>
+<a id="a0d67b4d09266d446610b8635b69030d0" name="a0d67b4d09266d446610b8635b69030d0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0d67b4d09266d446610b8635b69030d0">&#9670;&#160;</a></span>brix_shared_credential_dir_ensure()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_shared_credential_dir_ensure </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const ngx_str_t *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00399">399</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
+
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="shared__conf_8h_source.html#l00528">ngx_http_brix_shared_merge()</a>.</p>
+
+</div>
+</div>
+<a id="ae904211581d5169324aa75095f6f8ed1" name="ae904211581d5169324aa75095f6f8ed1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae904211581d5169324aa75095f6f8ed1">&#9670;&#160;</a></span>brix_shared_security_gate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_shared_security_gate </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>strict</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>what</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>remedy</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00499">499</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00124">ngx_http_brix_dashboard_merge_loc_conf()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00102">ngx_http_s3_merge_loc_conf()</a>, and <a class="el" href="config__merge_8c_source.html#l00319">webdav_validate_auth_paths()</a>.</p>
 
 </div>
 </div>
@@ -266,11 +391,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00115">115</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00162">162</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00036">ngx_http_brix_shared_conf_t::storage_backend</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_backend</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00160">brix_server_setup_export()</a>, <a class="el" href="module__merge_8c_source.html#l00245">s3_merge_export()</a>, and <a class="el" href="config__merge_8c_source.html#l00169">webdav_prepare_export_root()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00066">brix_server_guard_remote_authz()</a>, <a class="el" href="runtime__server_8c_source.html#l00185">brix_server_setup_export()</a>, <a class="el" href="module__merge_8c_source.html#l00230">s3_merge_export()</a>, and <a class="el" href="config__merge_8c_source.html#l00166">webdav_prepare_export_root()</a>.</p>
 
 </div>
 </div>
@@ -290,11 +415,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00063">63</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00087">87</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00286">brix_mkdir_recursive()</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, and <a class="el" href="shared__conf_8h_source.html#l00036">ngx_http_brix_shared_conf_t::storage_backend</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2mkdir_8c_source.html#l00286">brix_mkdir_recursive()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00028">brix_pblock_write_opts_sidecar()</a>, <a class="el" href="shared__conf_8h_source.html#l00048">ngx_http_brix_shared_conf_t::root</a>, and <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_backend</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00160">brix_server_setup_export()</a>, <a class="el" href="cvmfs__module__build_8c_source.html#l00124">cvmfs_merge_cache()</a>, <a class="el" href="module__merge_8c_source.html#l00245">s3_merge_export()</a>, and <a class="el" href="config__merge_8c_source.html#l00169">webdav_prepare_export_root()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00185">brix_server_setup_export()</a>, <a class="el" href="cvmfs__module__build_8c_source.html#l00124">cvmfs_merge_cache()</a>, <a class="el" href="module__merge_8c_source.html#l00230">s3_merge_export()</a>, and <a class="el" href="config__merge_8c_source.html#l00166">webdav_prepare_export_root()</a>.</p>
 
 </div>
 </div>
@@ -324,11 +449,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00192">192</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="runtime__server__backend_8c_source.html#l00435">435</a> of file <a class="el" href="runtime__server__backend_8c_source.html">runtime_server_backend.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tier__config_8c_source.html#l00431">brix_tier_parse_store()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>, <a class="el" href="tier_8h_source.html#l00050">BRIX_TIER_STAGE</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00278">brix_vfs_backend_config_stage_store()</a>, <a class="el" href="conf__structs_8h_source.html#l00060">BRIX_WT_MODE_ASYNC</a>, <a class="el" href="conf__structs_8h_source.html#l00059">BRIX_WT_MODE_SYNC</a>, <a class="el" href="shared__conf_8h_source.html#l00125">ngx_http_brix_shared_conf_t::cache_store</a>, <a class="el" href="tier_8h_source.html#l00101">brix_stage_policy_t::enabled</a>, <a class="el" href="tier_8h_source.html#l00098">brix_stage_policy_t::flush_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00127">ngx_http_brix_shared_conf_t::stage_enable</a>, <a class="el" href="shared__conf_8h_source.html#l00130">ngx_http_brix_shared_conf_t::stage_flush_async</a>, <a class="el" href="shared__conf_8h_source.html#l00128">ngx_http_brix_shared_conf_t::stage_store</a>, <a class="el" href="shared__conf_8h_source.html#l00129">ngx_http_brix_shared_conf_t::stage_store_args</a>, and <a class="el" href="shared__conf_8h_source.html#l00036">ngx_http_brix_shared_conf_t::storage_backend</a>.</p>
+<p class="reference">References <a class="el" href="tier__config_8c_source.html#l00431">brix_tier_parse_store()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, <a class="el" href="tier_8h_source.html#l00050">BRIX_TIER_STAGE</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00322">brix_vfs_backend_config_stage_store()</a>, <a class="el" href="conf__structs_8h_source.html#l00065">BRIX_WT_MODE_ASYNC</a>, <a class="el" href="conf__structs_8h_source.html#l00064">BRIX_WT_MODE_SYNC</a>, <a class="el" href="shared__conf_8h_source.html#l00145">ngx_http_brix_shared_conf_t::cache_cold_store</a>, <a class="el" href="shared__conf_8h_source.html#l00150">ngx_http_brix_shared_conf_t::cache_peers</a>, <a class="el" href="shared__conf_8h_source.html#l00143">ngx_http_brix_shared_conf_t::cache_store</a>, <a class="el" href="tier_8h_source.html#l00111">brix_stage_policy_t::enabled</a>, <a class="el" href="tier_8h_source.html#l00108">brix_stage_policy_t::flush_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00156">ngx_http_brix_shared_conf_t::stage_enable</a>, <a class="el" href="shared__conf_8h_source.html#l00159">ngx_http_brix_shared_conf_t::stage_flush_async</a>, <a class="el" href="shared__conf_8h_source.html#l00157">ngx_http_brix_shared_conf_t::stage_store</a>, <a class="el" href="shared__conf_8h_source.html#l00158">ngx_http_brix_shared_conf_t::stage_store_args</a>, and <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_backend</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00160">brix_server_setup_export()</a>, <a class="el" href="cvmfs__module__build_8c_source.html#l00124">cvmfs_merge_cache()</a>, <a class="el" href="module__merge_8c_source.html#l00245">s3_merge_export()</a>, and <a class="el" href="config__merge_8c_source.html#l00434">webdav_validate_webdav_enabled()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server_8c_source.html#l00185">brix_server_setup_export()</a>, <a class="el" href="cvmfs__module__build_8c_source.html#l00124">cvmfs_merge_cache()</a>, <a class="el" href="module__merge_8c_source.html#l00230">s3_merge_export()</a>, and <a class="el" href="config__merge_8c_source.html#l00464">webdav_validate_webdav_enabled()</a>.</p>
 
 </div>
 </div>
@@ -356,11 +481,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00205">205</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00278">278</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00166">ngx_http_brix_shared_conf_t::access_log</a>, <a class="el" href="shared__conf_8h_source.html#l00170">ngx_http_brix_shared_conf_t::access_log_file</a>, <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="shared__conf_8h_source.html#l00077">ngx_http_brix_shared_conf_t::backend_delegation</a>, <a class="el" href="shared__conf_8h_source.html#l00106">ngx_http_brix_shared_conf_t::backend_krb5_forwardable</a>, <a class="el" href="shared__conf_8h_source.html#l00111">ngx_http_brix_shared_conf_t::backend_passthrough_persist</a>, <a class="el" href="shared__conf_8h_source.html#l00099">ngx_http_brix_shared_conf_t::backend_sts_endpoint</a>, <a class="el" href="shared__conf_8h_source.html#l00103">ngx_http_brix_shared_conf_t::backend_sts_role</a>, <a class="el" href="shared__conf_8h_source.html#l00083">ngx_http_brix_shared_conf_t::backend_token_aud</a>, <a class="el" href="shared__conf_8h_source.html#l00093">ngx_http_brix_shared_conf_t::backend_tx_client_id</a>, <a class="el" href="shared__conf_8h_source.html#l00096">ngx_http_brix_shared_conf_t::backend_tx_client_secret</a>, <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::backend_tx_endpoint</a>, <a class="el" href="observability_2pmark_2config_8c_source.html#l00026">brix_pmark_conf_init()</a>, <a class="el" href="shared__conf_8h_source.html#l00151">ngx_http_brix_shared_conf_t::cache_batch_cinfo</a>, <a class="el" href="shared__conf_8h_source.html#l00132">ngx_http_brix_shared_conf_t::cache_evict_at</a>, <a class="el" href="shared__conf_8h_source.html#l00133">ngx_http_brix_shared_conf_t::cache_evict_to</a>, <a class="el" href="shared__conf_8h_source.html#l00152">ngx_http_brix_shared_conf_t::cache_index_cache</a>, <a class="el" href="shared__conf_8h_source.html#l00131">ngx_http_brix_shared_conf_t::cache_max_object</a>, <a class="el" href="shared__conf_8h_source.html#l00134">ngx_http_brix_shared_conf_t::cache_meta_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00153">ngx_http_brix_shared_conf_t::cache_slice_size</a>, <a class="el" href="shared__conf_8h_source.html#l00125">ngx_http_brix_shared_conf_t::cache_store</a>, <a class="el" href="shared__conf_8h_source.html#l00126">ngx_http_brix_shared_conf_t::cache_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00135">ngx_http_brix_shared_conf_t::cache_verify_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00163">ngx_http_brix_shared_conf_t::compress</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="shared__conf_8h_source.html#l00175">ngx_http_brix_shared_conf_t::ktls</a>, <a class="el" href="shared__conf_8h_source.html#l00039">ngx_http_brix_shared_conf_t::pblock_block_size</a>, <a class="el" href="shared__conf_8h_source.html#l00188">ngx_http_brix_shared_conf_t::pmark</a>, <a class="el" href="shared__conf_8h_source.html#l00155">ngx_http_brix_shared_conf_t::read_only</a>, <a class="el" href="shared__conf_8h_source.html#l00184">ngx_http_brix_shared_conf_t::rootfd</a>, <a class="el" href="shared__conf_8h_source.html#l00171">ngx_http_brix_shared_conf_t::session_log</a>, <a class="el" href="shared__conf_8h_source.html#l00127">ngx_http_brix_shared_conf_t::stage_enable</a>, <a class="el" href="shared__conf_8h_source.html#l00130">ngx_http_brix_shared_conf_t::stage_flush_async</a>, <a class="el" href="shared__conf_8h_source.html#l00128">ngx_http_brix_shared_conf_t::stage_store</a>, <a class="el" href="shared__conf_8h_source.html#l00129">ngx_http_brix_shared_conf_t::stage_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00036">ngx_http_brix_shared_conf_t::storage_backend</a>, <a class="el" href="shared__conf_8h_source.html#l00045">ngx_http_brix_shared_conf_t::storage_credential</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, <a class="el" href="shared__conf_8h_source.html#l00060">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_cert</a>, <a class="el" href="shared__conf_8h_source.html#l00068">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_key</a>, <a class="el" href="shared__conf_8h_source.html#l00072">ngx_http_brix_shared_conf_t::storage_credential_mint_ttl</a>, <a class="el" href="shared__conf_8h_source.html#l00116">ngx_http_brix_shared_conf_t::storage_instance</a>, <a class="el" href="shared__conf_8h_source.html#l00041">ngx_http_brix_shared_conf_t::storage_staging</a>, <a class="el" href="shared__conf_8h_source.html#l00183">ngx_http_brix_shared_conf_t::thread_pool</a>, and <a class="el" href="shared__conf_8h_source.html#l00182">ngx_http_brix_shared_conf_t::thread_pool_name</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00226">ngx_http_brix_shared_conf_t::access_log</a>, <a class="el" href="shared__conf_8h_source.html#l00230">ngx_http_brix_shared_conf_t::access_log_file</a>, <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="shared__conf_8h_source.html#l00095">ngx_http_brix_shared_conf_t::backend_delegation</a>, <a class="el" href="shared__conf_8h_source.html#l00124">ngx_http_brix_shared_conf_t::backend_krb5_forwardable</a>, <a class="el" href="shared__conf_8h_source.html#l00129">ngx_http_brix_shared_conf_t::backend_passthrough_persist</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::backend_sts_endpoint</a>, <a class="el" href="shared__conf_8h_source.html#l00121">ngx_http_brix_shared_conf_t::backend_sts_role</a>, <a class="el" href="shared__conf_8h_source.html#l00101">ngx_http_brix_shared_conf_t::backend_token_aud</a>, <a class="el" href="shared__conf_8h_source.html#l00111">ngx_http_brix_shared_conf_t::backend_tx_client_id</a>, <a class="el" href="shared__conf_8h_source.html#l00114">ngx_http_brix_shared_conf_t::backend_tx_client_secret</a>, <a class="el" href="shared__conf_8h_source.html#l00106">ngx_http_brix_shared_conf_t::backend_tx_endpoint</a>, <a class="el" href="observability_2pmark_2config_8c_source.html#l00026">brix_pmark_conf_init()</a>, <a class="el" href="shared__conf_8h_source.html#l00189">ngx_http_brix_shared_conf_t::cache_batch_cinfo</a>, <a class="el" href="shared__conf_8h_source.html#l00145">ngx_http_brix_shared_conf_t::cache_cold_store</a>, <a class="el" href="shared__conf_8h_source.html#l00149">ngx_http_brix_shared_conf_t::cache_cold_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00161">ngx_http_brix_shared_conf_t::cache_evict_at</a>, <a class="el" href="shared__conf_8h_source.html#l00162">ngx_http_brix_shared_conf_t::cache_evict_to</a>, <a class="el" href="shared__conf_8h_source.html#l00190">ngx_http_brix_shared_conf_t::cache_index_cache</a>, <a class="el" href="shared__conf_8h_source.html#l00160">ngx_http_brix_shared_conf_t::cache_max_object</a>, <a class="el" href="shared__conf_8h_source.html#l00163">ngx_http_brix_shared_conf_t::cache_meta_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00150">ngx_http_brix_shared_conf_t::cache_peers</a>, <a class="el" href="shared__conf_8h_source.html#l00191">ngx_http_brix_shared_conf_t::cache_slice_size</a>, <a class="el" href="shared__conf_8h_source.html#l00143">ngx_http_brix_shared_conf_t::cache_store</a>, <a class="el" href="shared__conf_8h_source.html#l00144">ngx_http_brix_shared_conf_t::cache_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00242">ngx_http_brix_shared_conf_t::cache_store_endpoint</a>, <a class="el" href="shared__conf_8h_source.html#l00164">ngx_http_brix_shared_conf_t::cache_verify_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00216">ngx_http_brix_shared_conf_t::compress</a>, <a class="el" href="shared__conf_8h_source.html#l00047">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="shared__conf_8h_source.html#l00235">ngx_http_brix_shared_conf_t::ktls</a>, <a class="el" href="shared__conf_8h_source.html#l00053">ngx_http_brix_shared_conf_t::pblock_block_size</a>, <a class="el" href="shared__conf_8h_source.html#l00261">ngx_http_brix_shared_conf_t::pmark</a>, <a class="el" href="shared__conf_8h_source.html#l00208">ngx_http_brix_shared_conf_t::read_only</a>, <a class="el" href="shared__conf_8h_source.html#l00257">ngx_http_brix_shared_conf_t::rootfd</a>, <a class="el" href="shared__conf_8h_source.html#l00231">ngx_http_brix_shared_conf_t::session_log</a>, <a class="el" href="shared__conf_8h_source.html#l00156">ngx_http_brix_shared_conf_t::stage_enable</a>, <a class="el" href="shared__conf_8h_source.html#l00159">ngx_http_brix_shared_conf_t::stage_flush_async</a>, <a class="el" href="shared__conf_8h_source.html#l00157">ngx_http_brix_shared_conf_t::stage_store</a>, <a class="el" href="shared__conf_8h_source.html#l00158">ngx_http_brix_shared_conf_t::stage_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_backend</a>, <a class="el" href="shared__conf_8h_source.html#l00059">ngx_http_brix_shared_conf_t::storage_credential</a>, <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00073">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, <a class="el" href="shared__conf_8h_source.html#l00078">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_cert</a>, <a class="el" href="shared__conf_8h_source.html#l00086">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_key</a>, <a class="el" href="shared__conf_8h_source.html#l00090">ngx_http_brix_shared_conf_t::storage_credential_mint_ttl</a>, <a class="el" href="shared__conf_8h_source.html#l00134">ngx_http_brix_shared_conf_t::storage_instance</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_staging</a>, <a class="el" href="shared__conf_8h_source.html#l00219">ngx_http_brix_shared_conf_t::strict_security</a>, <a class="el" href="shared__conf_8h_source.html#l00256">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf_8h_source.html#l00255">ngx_http_brix_shared_conf_t::thread_pool_name</a>, and <a class="el" href="shared__conf_8h_source.html#l00202">ngx_http_brix_shared_conf_t::verify_write</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="http__common_8c_source.html#l00298">brix_http_common_create_loc_conf()</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00062">ngx_http_brix_cvmfs_create_loc_conf()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00117">ngx_http_brix_webdav_create_loc_conf()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00059">ngx_http_s3_create_loc_conf()</a>, and <a class="el" href="server__conf_8c_source.html#l00259">ngx_stream_brix_create_srv_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="http__common_8c_source.html#l00363">brix_http_common_create_loc_conf()</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00062">ngx_http_brix_cvmfs_create_loc_conf()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00117">ngx_http_brix_webdav_create_loc_conf()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00059">ngx_http_s3_create_loc_conf()</a>, and <a class="el" href="server__conf_8c_source.html#l00266">ngx_stream_brix_create_srv_conf()</a>.</p>
 
 </div>
 </div>
@@ -410,11 +535,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00312">312</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="shared__conf_8h_source.html#l00528">528</a> of file <a class="el" href="shared__conf_8h_source.html">shared_conf.h</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00166">ngx_http_brix_shared_conf_t::access_log</a>, <a class="el" href="shared__conf_8h_source.html#l00170">ngx_http_brix_shared_conf_t::access_log_file</a>, <a class="el" href="shared__conf_8h_source.html#l00154">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="shared__conf_8h_source.html#l00077">ngx_http_brix_shared_conf_t::backend_delegation</a>, <a class="el" href="shared__conf_8h_source.html#l00106">ngx_http_brix_shared_conf_t::backend_krb5_forwardable</a>, <a class="el" href="shared__conf_8h_source.html#l00111">ngx_http_brix_shared_conf_t::backend_passthrough_persist</a>, <a class="el" href="shared__conf_8h_source.html#l00099">ngx_http_brix_shared_conf_t::backend_sts_endpoint</a>, <a class="el" href="shared__conf_8h_source.html#l00103">ngx_http_brix_shared_conf_t::backend_sts_role</a>, <a class="el" href="shared__conf_8h_source.html#l00083">ngx_http_brix_shared_conf_t::backend_token_aud</a>, <a class="el" href="shared__conf_8h_source.html#l00093">ngx_http_brix_shared_conf_t::backend_tx_client_id</a>, <a class="el" href="shared__conf_8h_source.html#l00096">ngx_http_brix_shared_conf_t::backend_tx_client_secret</a>, <a class="el" href="shared__conf_8h_source.html#l00088">ngx_http_brix_shared_conf_t::backend_tx_endpoint</a>, <a class="el" href="observability_2pmark_2config_8c_source.html#l00040">brix_pmark_conf_merge()</a>, <a class="el" href="shared__conf_8h_source.html#l00281">brix_shared_apply_read_only()</a>, <a class="el" href="shared__conf_8h_source.html#l00151">ngx_http_brix_shared_conf_t::cache_batch_cinfo</a>, <a class="el" href="shared__conf_8h_source.html#l00132">ngx_http_brix_shared_conf_t::cache_evict_at</a>, <a class="el" href="shared__conf_8h_source.html#l00133">ngx_http_brix_shared_conf_t::cache_evict_to</a>, <a class="el" href="shared__conf_8h_source.html#l00152">ngx_http_brix_shared_conf_t::cache_index_cache</a>, <a class="el" href="shared__conf_8h_source.html#l00131">ngx_http_brix_shared_conf_t::cache_max_object</a>, <a class="el" href="shared__conf_8h_source.html#l00134">ngx_http_brix_shared_conf_t::cache_meta_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00153">ngx_http_brix_shared_conf_t::cache_slice_size</a>, <a class="el" href="shared__conf_8h_source.html#l00125">ngx_http_brix_shared_conf_t::cache_store</a>, <a class="el" href="shared__conf_8h_source.html#l00126">ngx_http_brix_shared_conf_t::cache_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00135">ngx_http_brix_shared_conf_t::cache_verify_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00163">ngx_http_brix_shared_conf_t::compress</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="shared__conf_8h_source.html#l00175">ngx_http_brix_shared_conf_t::ktls</a>, <a class="el" href="shared__conf_8h_source.html#l00039">ngx_http_brix_shared_conf_t::pblock_block_size</a>, <a class="el" href="shared__conf_8h_source.html#l00188">ngx_http_brix_shared_conf_t::pmark</a>, <a class="el" href="shared__conf_8h_source.html#l00155">ngx_http_brix_shared_conf_t::read_only</a>, <a class="el" href="shared__conf_8h_source.html#l00034">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="shared__conf_8h_source.html#l00171">ngx_http_brix_shared_conf_t::session_log</a>, <a class="el" href="shared__conf_8h_source.html#l00127">ngx_http_brix_shared_conf_t::stage_enable</a>, <a class="el" href="shared__conf_8h_source.html#l00130">ngx_http_brix_shared_conf_t::stage_flush_async</a>, <a class="el" href="shared__conf_8h_source.html#l00128">ngx_http_brix_shared_conf_t::stage_store</a>, <a class="el" href="shared__conf_8h_source.html#l00129">ngx_http_brix_shared_conf_t::stage_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00036">ngx_http_brix_shared_conf_t::storage_backend</a>, <a class="el" href="shared__conf_8h_source.html#l00045">ngx_http_brix_shared_conf_t::storage_credential</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, <a class="el" href="shared__conf_8h_source.html#l00060">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_cert</a>, <a class="el" href="shared__conf_8h_source.html#l00068">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_key</a>, <a class="el" href="shared__conf_8h_source.html#l00072">ngx_http_brix_shared_conf_t::storage_credential_mint_ttl</a>, <a class="el" href="shared__conf_8h_source.html#l00041">ngx_http_brix_shared_conf_t::storage_staging</a>, and <a class="el" href="shared__conf_8h_source.html#l00182">ngx_http_brix_shared_conf_t::thread_pool_name</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00226">ngx_http_brix_shared_conf_t::access_log</a>, <a class="el" href="shared__conf_8h_source.html#l00230">ngx_http_brix_shared_conf_t::access_log_file</a>, <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="shared__conf_8h_source.html#l00095">ngx_http_brix_shared_conf_t::backend_delegation</a>, <a class="el" href="shared__conf_8h_source.html#l00124">ngx_http_brix_shared_conf_t::backend_krb5_forwardable</a>, <a class="el" href="shared__conf_8h_source.html#l00129">ngx_http_brix_shared_conf_t::backend_passthrough_persist</a>, <a class="el" href="shared__conf_8h_source.html#l00117">ngx_http_brix_shared_conf_t::backend_sts_endpoint</a>, <a class="el" href="shared__conf_8h_source.html#l00121">ngx_http_brix_shared_conf_t::backend_sts_role</a>, <a class="el" href="shared__conf_8h_source.html#l00101">ngx_http_brix_shared_conf_t::backend_token_aud</a>, <a class="el" href="shared__conf_8h_source.html#l00111">ngx_http_brix_shared_conf_t::backend_tx_client_id</a>, <a class="el" href="shared__conf_8h_source.html#l00114">ngx_http_brix_shared_conf_t::backend_tx_client_secret</a>, <a class="el" href="shared__conf_8h_source.html#l00106">ngx_http_brix_shared_conf_t::backend_tx_endpoint</a>, <a class="el" href="shared__conf_8h_source.html#l00024">BRIX_CREDENTIAL_DIR_DEFAULT</a>, <a class="el" href="observability_2pmark_2config_8c_source.html#l00040">brix_pmark_conf_merge()</a>, <a class="el" href="shared__conf_8h_source.html#l00361">brix_shared_apply_read_only()</a>, <a class="el" href="shared__conf_8h_source.html#l00399">brix_shared_credential_dir_ensure()</a>, <a class="el" href="shared__conf_8h_source.html#l00189">ngx_http_brix_shared_conf_t::cache_batch_cinfo</a>, <a class="el" href="shared__conf_8h_source.html#l00145">ngx_http_brix_shared_conf_t::cache_cold_store</a>, <a class="el" href="shared__conf_8h_source.html#l00149">ngx_http_brix_shared_conf_t::cache_cold_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00161">ngx_http_brix_shared_conf_t::cache_evict_at</a>, <a class="el" href="shared__conf_8h_source.html#l00162">ngx_http_brix_shared_conf_t::cache_evict_to</a>, <a class="el" href="shared__conf_8h_source.html#l00190">ngx_http_brix_shared_conf_t::cache_index_cache</a>, <a class="el" href="shared__conf_8h_source.html#l00160">ngx_http_brix_shared_conf_t::cache_max_object</a>, <a class="el" href="shared__conf_8h_source.html#l00163">ngx_http_brix_shared_conf_t::cache_meta_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00150">ngx_http_brix_shared_conf_t::cache_peers</a>, <a class="el" href="shared__conf_8h_source.html#l00191">ngx_http_brix_shared_conf_t::cache_slice_size</a>, <a class="el" href="shared__conf_8h_source.html#l00143">ngx_http_brix_shared_conf_t::cache_store</a>, <a class="el" href="shared__conf_8h_source.html#l00144">ngx_http_brix_shared_conf_t::cache_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00242">ngx_http_brix_shared_conf_t::cache_store_endpoint</a>, <a class="el" href="shared__conf_8h_source.html#l00164">ngx_http_brix_shared_conf_t::cache_verify_mode</a>, <a class="el" href="shared__conf_8h_source.html#l00216">ngx_http_brix_shared_conf_t::compress</a>, <a class="el" href="shared__conf_8h_source.html#l00047">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="shared__conf_8h_source.html#l00235">ngx_http_brix_shared_conf_t::ktls</a>, <a class="el" href="shared__conf_8h_source.html#l00053">ngx_http_brix_shared_conf_t::pblock_block_size</a>, <a class="el" href="shared__conf_8h_source.html#l00261">ngx_http_brix_shared_conf_t::pmark</a>, <a class="el" href="shared__conf_8h_source.html#l00208">ngx_http_brix_shared_conf_t::read_only</a>, <a class="el" href="shared__conf_8h_source.html#l00048">ngx_http_brix_shared_conf_t::root</a>, <a class="el" href="shared__conf_8h_source.html#l00231">ngx_http_brix_shared_conf_t::session_log</a>, <a class="el" href="shared__conf_8h_source.html#l00156">ngx_http_brix_shared_conf_t::stage_enable</a>, <a class="el" href="shared__conf_8h_source.html#l00159">ngx_http_brix_shared_conf_t::stage_flush_async</a>, <a class="el" href="shared__conf_8h_source.html#l00157">ngx_http_brix_shared_conf_t::stage_store</a>, <a class="el" href="shared__conf_8h_source.html#l00158">ngx_http_brix_shared_conf_t::stage_store_args</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_backend</a>, <a class="el" href="shared__conf_8h_source.html#l00059">ngx_http_brix_shared_conf_t::storage_credential</a>, <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00073">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, <a class="el" href="shared__conf_8h_source.html#l00078">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_cert</a>, <a class="el" href="shared__conf_8h_source.html#l00086">ngx_http_brix_shared_conf_t::storage_credential_mint_ca_key</a>, <a class="el" href="shared__conf_8h_source.html#l00090">ngx_http_brix_shared_conf_t::storage_credential_mint_ttl</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_staging</a>, <a class="el" href="shared__conf_8h_source.html#l00219">ngx_http_brix_shared_conf_t::strict_security</a>, <a class="el" href="shared__conf_8h_source.html#l00255">ngx_http_brix_shared_conf_t::thread_pool_name</a>, and <a class="el" href="shared__conf_8h_source.html#l00202">ngx_http_brix_shared_conf_t::verify_write</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__conf__merge__security_8c_source.html#l00219">brix_merge_srv_security()</a>, <a class="el" href="cvmfs__module__merge_8c_source.html#l00067">cvmfs_merge_preamble()</a>, <a class="el" href="module__merge_8c_source.html#l00052">s3_merge_preamble()</a>, and <a class="el" href="config__merge_8c_source.html#l00049">webdav_merge_base_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__conf__merge__security_8c_source.html#l00221">brix_merge_srv_security()</a>, <a class="el" href="cvmfs__module__merge_8c_source.html#l00067">cvmfs_merge_preamble()</a>, <a class="el" href="module__merge_8c_source.html#l00052">s3_merge_preamble()</a>, and <a class="el" href="config__merge_8c_source.html#l00049">webdav_merge_base_conf()</a>.</p>
 
 </div>
 </div>

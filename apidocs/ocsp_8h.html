@@ -116,14 +116,14 @@ $(document).ready(function(){initNavTree('ocsp_8h.html',''); initResizable(); })
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a7afb6a47b246d2bad2005e70d29d2529" id="r_a7afb6a47b246d2bad2005e70d29d2529"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp_8h.html#a7afb6a47b246d2bad2005e70d29d2529">brix_ocsp_check_cert</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, X509 *leaf, X509 *issuer, int soft_fail)</td></tr>
-<tr class="separator:a7afb6a47b246d2bad2005e70d29d2529"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adb727b9697d94bd321797aa5076a33b3" id="r_adb727b9697d94bd321797aa5076a33b3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp_8h.html#adb727b9697d94bd321797aa5076a33b3">brix_ocsp_check_cert</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, X509 *leaf, X509 *issuer, int soft_fail, int require_nonce)</td></tr>
+<tr class="separator:adb727b9697d94bd321797aa5076a33b3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa6cefc9f713a01736427c76e0f95832b" id="r_aa6cefc9f713a01736427c76e0f95832b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp_8h.html#aa6cefc9f713a01736427c76e0f95832b">brix_ocsp_staple_fetch</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</td></tr>
 <tr class="separator:aa6cefc9f713a01736427c76e0f95832b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a7afb6a47b246d2bad2005e70d29d2529" name="a7afb6a47b246d2bad2005e70d29d2529"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7afb6a47b246d2bad2005e70d29d2529">&#9670;&#160;</a></span>brix_ocsp_check_cert()</h2>
+<a id="adb727b9697d94bd321797aa5076a33b3" name="adb727b9697d94bd321797aa5076a33b3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adb727b9697d94bd321797aa5076a33b3">&#9670;&#160;</a></span>brix_ocsp_check_cert()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -150,7 +150,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>soft_fail</em>&#160;</td>
+          <td class="paramname"><em>soft_fail</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>require_nonce</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -162,7 +168,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ocsp_8c_source.html#l00132">132</a> of file <a class="el" href="ocsp_8c_source.html">ocsp.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ocsp_8c_source.html#l00084">ocsp_check_urls()</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ocsp_8c_source.html#l00081">ocsp_check_urls()</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00507">gsi_auth_step_cert()</a>.</p>
 
@@ -194,9 +200,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ocsp_8c_source.html#l00323">323</a> of file <a class="el" href="ocsp_8c_source.html">ocsp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ocsp_8c_source.html#l00329">329</a> of file <a class="el" href="ocsp_8c_source.html">ocsp.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ocsp_8c_source.html#l00281">ocsp_fetch_staple_urls()</a>, <a class="el" href="ocsp_8c_source.html#l00198">ocsp_find_issuer()</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ocsp_8c_source.html#l00282">ocsp_fetch_staple_urls()</a>, <a class="el" href="ocsp_8c_source.html#l00199">ocsp_find_issuer()</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
 
 </div>
 </div>

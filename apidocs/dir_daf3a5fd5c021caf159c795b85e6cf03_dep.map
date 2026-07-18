@@ -1,7 +1,7 @@
 <map id="client/examples" name="client/examples">
 <area shape="rect" id="node1" href="dir_c820a03d7ce2287b7e602f7703757381.html" title="lib" alt="" coords="51,125,90,151"/>
 <area shape="rect" id="node2" href="dir_daf3a5fd5c021caf159c795b85e6cf03.html" title="examples" alt="" coords="27,52,114,77"/>
-<area shape="poly" id="edge1" href="dir_000039_000059.html" alt="" coords="73,78,73,112,68,112,68,78"/>
-<area shape="rect" id="edge1-headlabel" href="dir_000039_000059.html" title="2" alt="" coords="74,100,84,114"/>
+<area shape="poly" id="edge1" href="dir_000040_000062.html" alt="" coords="73,78,73,112,68,112,68,78"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000040_000062.html" title="2" alt="" coords="74,100,84,114"/>
 <area shape="rect" id="clust1" href="dir_db3a54907829b36871118d03417739cd.html" title="client" alt="" coords="16,16,125,161"/>
 </map>

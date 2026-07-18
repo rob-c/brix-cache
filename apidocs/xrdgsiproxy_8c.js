@@ -13,7 +13,7 @@ var xrdgsiproxy_8c =
     [ "parse_valid", "xrdgsiproxy_8c.html#a778c201c7a8ffaf2243712782fcae2f3", null ],
     [ "usage", "xrdgsiproxy_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f", null ],
     [ "usage_fp", "xrdgsiproxy_8c.html#a28999b7bf77e817ab21c70002c3ad233", null ],
-    [ "cmd_table", "xrdgsiproxy_8c.html#a1f081b3f7fce6798f06534f423456fe9", null ],
+    [ "cmd_table", "xrdgsiproxy_8c.html#a33c7fe2a91e1c1405e2bf771d6d1d285", null ],
     [ "fn", "xrdgsiproxy_8c.html#ae504d8e57fbd0d2b4b58f3ee957f0bfd", null ],
     [ "name", "xrdgsiproxy_8c.html#a8f8f80d37794cde9472343e4487ba3eb", null ]
 ];

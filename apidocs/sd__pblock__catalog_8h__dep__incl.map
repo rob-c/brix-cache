@@ -1,16 +1,22 @@
 <map id="src/fs/backend/pblock/sd_pblock_catalog.h" name="src/fs/backend/pblock/sd_pblock_catalog.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="337,5,500,45"/>
-<area shape="rect" id="Node000002" href="$pblock__store_8h.html" title=" " alt="" coords="73,93,236,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="349,52,213,96,212,91,347,47"/>
-<area shape="rect" id="Node000004" href="$sd__pblock__internal_8h.html" title=" " alt="" coords="192,181,355,221"/>
-<area shape="poly" id="edge6_Node000001_Node000004" title=" " alt="" coords="355,54,326,72,302,95,290,116,282,139,276,181,271,181,277,138,285,114,298,92,323,67,352,49"/>
-<area shape="rect" id="Node000005" href="$sd__pblock__catalog__internal_8h.html" title=" " alt="" coords="311,93,526,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="421,59,421,93,416,93,416,59"/>
-<area shape="rect" id="Node000006" href="$sd__pblock__catalog__unittest_8c.html" title=" " alt="" coords="550,93,765,133"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="485,48,606,91,604,96,483,53"/>
-<area shape="rect" id="Node000007" href="$sd__pblock__unittest_8c.html" title=" " alt="" coords="789,93,952,133"/>
-<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="514,41,778,91,790,93,789,98,777,96,513,47"/>
-<area shape="rect" id="Node000003" href="$pblock__store_8c.html" title=" " alt="" coords="5,181,168,221"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="133,146,104,183,100,179,129,143"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="194,139,249,179,246,183,191,144"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="497,5,660,45"/>
+<area shape="rect" id="Node000002" href="$pblock__ctl_8h.html" title=" " alt="" coords="5,93,168,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="484,44,180,96,169,98,168,93,180,91,483,39"/>
+<area shape="rect" id="Node000003" href="$pblock__fault_8h.html" title=" " alt="" coords="192,93,355,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="499,52,341,96,339,91,498,46"/>
+<area shape="rect" id="Node000004" href="$pblock__store_8h.html" title=" " alt="" coords="379,93,541,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="543,56,488,95,485,91,540,51"/>
+<area shape="rect" id="Node000007" href="$sd__pblock__internal_8h.html" title=" " alt="" coords="531,181,693,221"/>
+<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="588,59,611,181,606,182,582,60"/>
+<area shape="rect" id="Node000008" href="$sd__pblock__catalog__internal_8h.html" title=" " alt="" coords="617,93,831,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="624,50,694,91,691,96,621,55"/>
+<area shape="rect" id="Node000009" href="$sd__pblock__catalog__unittest_8c.html" title=" " alt="" coords="855,93,1070,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="674,45,879,91,878,96,673,50"/>
+<area shape="rect" id="Node000010" href="$sd__pblock__unittest_8c.html" title=" " alt="" coords="1095,93,1257,133"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="674,35,863,58,1083,91,1095,93,1094,98,1082,96,862,64,673,40"/>
+<area shape="rect" id="Node000005" href="$pblock__snap_8h.html" title=" " alt="" coords="157,181,320,221"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="400,141,288,184,286,179,398,136"/>
+<area shape="rect" id="Node000006" href="$pblock__store_8c.html" title=" " alt="" coords="344,181,507,221"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="450,147,435,182,431,180,445,145"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="507,138,580,179,577,184,504,142"/>
 </map>

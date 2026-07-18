@@ -5,6 +5,7 @@ var http__common_8c =
     [ "BRIX_ADOPT_VAL", "http__common_8c.html#a08636de90868281b901e5f8683e6cff7", null ],
     [ "BRIX_HTTP_ALL_CONF", "http__common_8c.html#a0b8d54a6e9075d7f4f358c1a80f8e12f", null ],
     [ "brix_conf_set_mint_ca", "http__common_8c.html#ad733bdcb99874ac83001dd3cf0b0e7de", null ],
+    [ "brix_conf_set_peers", "http__common_8c.html#a36425db53ab999b8eb033b66e8a53038", null ],
     [ "brix_http_common_adopt", "http__common_8c.html#a6883f87af73badef48381e618f37ce8b", null ],
     [ "brix_http_common_create_loc_conf", "http__common_8c.html#a3498182c5f375a5635532adb0f2ddc11", null ],
     [ "brix_http_common_merge_loc_conf", "http__common_8c.html#a351506b05dd4f045fa1240f3ad566d04", null ],

@@ -131,6 +131,8 @@ Functions</h2></td></tr>
 <tr class="separator:a41ad5aca5a6ad1dc10b19d34350c9a90"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a49863e87220243a7eab03abf740daf27" id="r_a49863e87220243a7eab03abf740daf27"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a> (const <a class="el" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg, const char *objpath, <a class="el" href="structsd__s3__open__params.html">sd_s3_open_params</a> *p)</td></tr>
 <tr class="separator:a49863e87220243a7eab03abf740daf27"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a505afcb7e8e8e21fae272fbf0ce72436" id="r_a505afcb7e8e8e21fae272fbf0ce72436"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a> (const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a505afcb7e8e8e21fae272fbf0ce72436"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a39a71e0ceb1f257e4c0cf2e2170243c5" id="r_a39a71e0ceb1f257e4c0cf2e2170243c5"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a39a71e0ceb1f257e4c0cf2e2170243c5">sd_remote_open_impl</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, int *err_out)</td></tr>
 <tr class="separator:a39a71e0ceb1f257e4c0cf2e2170243c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a69aa3be1f16aafa37c0ce0fa976355c3" id="r_a69aa3be1f16aafa37c0ce0fa976355c3"><td class="memItemLeft" align="right" valign="top">static brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3">sd_remote_open</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</td></tr>
@@ -141,20 +143,36 @@ Functions</h2></td></tr>
 <tr class="separator:ae2ed22148f461a79d70e69d30471cd26"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af35203665f3a23befa41cb6879fbb8d3" id="r_af35203665f3a23befa41cb6879fbb8d3"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3">sd_remote_pread</a> (brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</td></tr>
 <tr class="separator:af35203665f3a23befa41cb6879fbb8d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0776b7a4568af3590edcbd66d8ea6a89" id="r_a0776b7a4568af3590edcbd66d8ea6a89"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a0776b7a4568af3590edcbd66d8ea6a89">sd_remote_pread_full</a> (brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</td></tr>
+<tr class="separator:a0776b7a4568af3590edcbd66d8ea6a89"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a64f64c236053044e87f2a86d1f099819" id="r_a64f64c236053044e87f2a86d1f099819"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a64f64c236053044e87f2a86d1f099819">sd_remote_preadv</a> (brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt, off_t off)</td></tr>
+<tr class="separator:a64f64c236053044e87f2a86d1f099819"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acd14ce613f7aa364fef4d14520f2b370" id="r_acd14ce613f7aa364fef4d14520f2b370"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370">sd_remote_fstat</a> (brix_sd_obj_t *obj, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
 <tr class="separator:acd14ce613f7aa364fef4d14520f2b370"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab29606cd1af54888d9b51b083d7d84c5" id="r_ab29606cd1af54888d9b51b083d7d84c5"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>)</td></tr>
+<tr class="separator:ab29606cd1af54888d9b51b083d7d84c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a68b6e099b4389634d3505f50c26c08c0" id="r_a68b6e099b4389634d3505f50c26c08c0"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</td></tr>
 <tr class="separator:a68b6e099b4389634d3505f50c26c08c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa2890c44198c2a6e391ef34632cee83d" id="r_aa2890c44198c2a6e391ef34632cee83d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:aa2890c44198c2a6e391ef34632cee83d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7eaf28033a2d5b387b5a6e807982cf02" id="r_a7eaf28033a2d5b387b5a6e807982cf02"><td class="memItemLeft" align="right" valign="top">static brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a> (brix_sd_instance_t *inst, const char *final_path, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, int *err_out)</td></tr>
+<tr class="separator:a7eaf28033a2d5b387b5a6e807982cf02"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abaa723062c7ea6b143d7891093bc1494" id="r_abaa723062c7ea6b143d7891093bc1494"><td class="memItemLeft" align="right" valign="top">static brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a> (brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</td></tr>
 <tr class="separator:abaa723062c7ea6b143d7891093bc1494"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a13115074943afa497bd6974f4ad62c1b" id="r_a13115074943afa497bd6974f4ad62c1b"><td class="memItemLeft" align="right" valign="top">static brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a> (brix_sd_instance_t *inst, const char *final_path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:a13115074943afa497bd6974f4ad62c1b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0e8155922aa205968a6da18111fbd2bd" id="r_a0e8155922aa205968a6da18111fbd2bd"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a> (brix_sd_staged_t *h, const void *buf, size_t len, off_t off)</td></tr>
 <tr class="separator:a0e8155922aa205968a6da18111fbd2bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab6836095d999da52fd302b236f3aab85" id="r_ab6836095d999da52fd302b236f3aab85"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a> (brix_sd_staged_t *h, int noreplace)</td></tr>
 <tr class="separator:ab6836095d999da52fd302b236f3aab85"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9a0cbf39b2068211e8254651d0528a2f" id="r_a9a0cbf39b2068211e8254651d0528a2f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a> (brix_sd_staged_t *h)</td></tr>
 <tr class="separator:a9a0cbf39b2068211e8254651d0528a2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeff69673fa79addbc0cdd3ab3be36a00" id="r_aeff69673fa79addbc0cdd3ab3be36a00"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a> (brix_sd_instance_t *inst, const char *path, const char *ak, const char *sk, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>)</td></tr>
+<tr class="separator:aeff69673fa79addbc0cdd3ab3be36a00"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a05a4969fd4390c2bbc6bda8f39720189" id="r_a05a4969fd4390c2bbc6bda8f39720189"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a> (brix_sd_instance_t *inst, const char *path, int is_dir)</td></tr>
 <tr class="separator:a05a4969fd4390c2bbc6bda8f39720189"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3b6235e077022f9ced23afc5defc455a" id="r_a3b6235e077022f9ced23afc5defc455a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a> (brix_sd_instance_t *inst, const char *path, int is_dir, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a3b6235e077022f9ced23afc5defc455a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acad3cf85f528f904a9591c3d08ec8c79" id="r_acad3cf85f528f904a9591c3d08ec8c79"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#acad3cf85f528f904a9591c3d08ec8c79">brix_sd_remote_create</a> (const <a class="el" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:acad3cf85f528f904a9591c3d08ec8c79"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8fd15643aeef216d03178a39ddc64fe0" id="r_a8fd15643aeef216d03178a39ddc64fe0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__remote_8c.html#a8fd15643aeef216d03178a39ddc64fe0">brix_sd_remote_destroy</a> (brix_sd_instance_t *inst)</td></tr>
@@ -178,7 +196,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00028">28</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00040">40</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
 </div>
 </div>
@@ -209,9 +227,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00390">390</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00664">664</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00370">brix_sd_remote_driver</a>, <a class="el" href="sd__remote_8h_source.html#l00029">BRIX_SD_REMOTE_S3</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="sd__remote_8h_source.html#l00034">brix_sd_remote_cfg_t::scheme</a>, and <a class="el" href="sd__remote_8h_source.html#l00043">brix_sd_remote_cfg_t::transport</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00637">brix_sd_remote_driver</a>, <a class="el" href="sd__remote_8h_source.html#l00034">BRIX_SD_REMOTE_S3</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="sd__remote_8h_source.html#l00039">brix_sd_remote_cfg_t::scheme</a>, and <a class="el" href="sd__remote_8h_source.html#l00048">brix_sd_remote_cfg_t::transport</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, and <a class="el" href="tier__build_8c_source.html#l00179">tier_build_s3()</a>.</p>
 
@@ -233,7 +251,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00419">419</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00693">693</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
 </div>
 </div>
@@ -261,9 +279,41 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00193">193</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00224">224</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00018">sd_remote_obj_state::s3</a>, and <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00021">sd_remote_obj_state::s3</a>, and <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>.</p>
+
+</div>
+</div>
+<a id="a505afcb7e8e8e21fae272fbf0ce72436" name="a505afcb7e8e8e21fae272fbf0ce72436"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a505afcb7e8e8e21fae272fbf0ce72436">&#9670;&#160;</a></span>sd_remote_cred_gate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int sd_remote_cred_gate </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00084">84</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>, <a class="el" href="sd_8h_source.html#l00208">brix_sd_cred_t::s3_ak</a>, and <a class="el" href="sd_8h_source.html#l00209">brix_sd_cred_t::s3_sk</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00203">sd_remote_open_cred()</a>, <a class="el" href="sd__remote_8c_source.html#l00486">sd_remote_staged_open_cred()</a>, <a class="el" href="sd__remote_8c_source.html#l00397">sd_remote_stat_cred()</a>, and <a class="el" href="sd__remote_8c_source.html#l00616">sd_remote_unlink_cred()</a>.</p>
 
 </div>
 </div>
@@ -301,7 +351,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00223">223</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00341">341</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
 </div>
 </div>
@@ -357,9 +407,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00138">138</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00179">179</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00076">sd_remote_open_impl()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00117">sd_remote_open_impl()</a>.</p>
 
 </div>
 </div>
@@ -421,9 +471,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00167">167</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00203">203</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, <a class="el" href="sd_8h_source.html#l00203">brix_sd_cred_t::s3_ak</a>, <a class="el" href="sd_8h_source.html#l00205">brix_sd_cred_t::s3_region</a>, <a class="el" href="sd_8h_source.html#l00204">brix_sd_cred_t::s3_sk</a>, and <a class="el" href="sd__remote_8c_source.html#l00076">sd_remote_open_impl()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00208">brix_sd_cred_t::s3_ak</a>, <a class="el" href="sd_8h_source.html#l00210">brix_sd_cred_t::s3_region</a>, <a class="el" href="sd_8h_source.html#l00209">brix_sd_cred_t::s3_sk</a>, <a class="el" href="sd__remote_8c_source.html#l00084">sd_remote_cred_gate()</a>, and <a class="el" href="sd__remote_8c_source.html#l00117">sd_remote_open_impl()</a>.</p>
 
 </div>
 </div>
@@ -491,11 +541,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00076">76</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00117">117</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_APPEND</a>, <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00129">BRIX_SD_O_TRUNC</a>, <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="sd__remote_8c_source.html#l00018">sd_remote_obj_state::s3</a>, <a class="el" href="sd__remote_8c_source.html#l00033">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00041">sd_remote_s3_params()</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>, and <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd_8h_source.html#l00135">BRIX_SD_O_APPEND</a>, <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00134">BRIX_SD_O_TRUNC</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="sd__remote_8c_source.html#l00021">sd_remote_obj_state::s3</a>, <a class="el" href="sd__remote_8c_source.html#l00045">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00053">sd_remote_s3_params()</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>, and <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00138">sd_remote_open()</a>, and <a class="el" href="sd__remote_8c_source.html#l00167">sd_remote_open_cred()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00179">sd_remote_open()</a>, and <a class="el" href="sd__remote_8c_source.html#l00203">sd_remote_open_cred()</a>.</p>
 
 </div>
 </div>
@@ -545,9 +595,117 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00208">208</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00239">239</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00018">sd_remote_obj_state::s3</a>, and <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00021">sd_remote_obj_state::s3</a>, and <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00275">sd_remote_pread_full()</a>.</p>
+
+</div>
+</div>
+<a id="a0776b7a4568af3590edcbd66d8ea6a89" name="a0776b7a4568af3590edcbd66d8ea6a89"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0776b7a4568af3590edcbd66d8ea6a89">&#9670;&#160;</a></span>sd_remote_pread_full()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t sd_remote_pread_full </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00275">275</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00239">sd_remote_pread()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00294">sd_remote_preadv()</a>.</p>
+
+</div>
+</div>
+<a id="a64f64c236053044e87f2a86d1f099819" name="a64f64c236053044e87f2a86d1f099819"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a64f64c236053044e87f2a86d1f099819">&#9670;&#160;</a></span>sd_remote_preadv()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t sd_remote_preadv </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct iovec *&#160;</td>
+          <td class="paramname"><em>iov</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>iovcnt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00294">294</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00275">sd_remote_pread_full()</a>.</p>
 
 </div>
 </div>
@@ -597,11 +755,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00033">33</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00045">45</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8h_source.html#l00038">brix_sd_remote_cfg_t::bucket</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8h_source.html#l00043">brix_sd_remote_cfg_t::bucket</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00076">sd_remote_open_impl()</a>, <a class="el" href="sd__remote_8c_source.html#l00267">sd_remote_staged_open()</a>, <a class="el" href="sd__remote_8c_source.html#l00230">sd_remote_stat()</a>, and <a class="el" href="sd__remote_8c_source.html#l00349">sd_remote_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00117">sd_remote_open_impl()</a>, <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>, <a class="el" href="sd__remote_8c_source.html#l00350">sd_remote_stat_impl()</a>, and <a class="el" href="sd__remote_8c_source.html#l00585">sd_remote_unlink_impl()</a>.</p>
 
 </div>
 </div>
@@ -645,11 +803,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00041">41</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00053">53</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8h_source.html#l00039">brix_sd_remote_cfg_t::access_key</a>, <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd__remote_8h_source.html#l00035">brix_sd_remote_cfg_t::host</a>, <a class="el" href="sd__s3_8h_source.html#l00029">sd_s3_open_params::host</a>, <a class="el" href="sd__s3_8h_source.html#l00032">sd_s3_open_params::key</a>, <a class="el" href="sd__remote_8h_source.html#l00036">brix_sd_remote_cfg_t::port</a>, <a class="el" href="sd__s3_8h_source.html#l00030">sd_s3_open_params::port</a>, <a class="el" href="sd__remote_8h_source.html#l00041">brix_sd_remote_cfg_t::region</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="sd__remote_8h_source.html#l00040">brix_sd_remote_cfg_t::secret_key</a>, <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>, <a class="el" href="sd__remote_8h_source.html#l00044">brix_sd_remote_cfg_t::tctx</a>, <a class="el" href="sd__s3_8h_source.html#l00037">sd_s3_open_params::tctx</a>, <a class="el" href="sd__remote_8h_source.html#l00042">brix_sd_remote_cfg_t::timeout_ms</a>, <a class="el" href="sd__s3_8h_source.html#l00038">sd_s3_open_params::timeout_ms</a>, <a class="el" href="sd__remote_8h_source.html#l00037">brix_sd_remote_cfg_t::tls</a>, <a class="el" href="sd__s3_8h_source.html#l00031">sd_s3_open_params::tls</a>, <a class="el" href="sd__remote_8h_source.html#l00043">brix_sd_remote_cfg_t::transport</a>, and <a class="el" href="sd__s3_8h_source.html#l00036">sd_s3_open_params::transport</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8h_source.html#l00044">brix_sd_remote_cfg_t::access_key</a>, <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd__remote_8h_source.html#l00040">brix_sd_remote_cfg_t::host</a>, <a class="el" href="sd__s3_8h_source.html#l00029">sd_s3_open_params::host</a>, <a class="el" href="sd__s3_8h_source.html#l00032">sd_s3_open_params::key</a>, <a class="el" href="sd__remote_8h_source.html#l00041">brix_sd_remote_cfg_t::port</a>, <a class="el" href="sd__s3_8h_source.html#l00030">sd_s3_open_params::port</a>, <a class="el" href="sd__remote_8h_source.html#l00046">brix_sd_remote_cfg_t::region</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="sd__remote_8h_source.html#l00045">brix_sd_remote_cfg_t::secret_key</a>, <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>, <a class="el" href="sd__remote_8h_source.html#l00049">brix_sd_remote_cfg_t::tctx</a>, <a class="el" href="sd__s3_8h_source.html#l00037">sd_s3_open_params::tctx</a>, <a class="el" href="sd__remote_8h_source.html#l00047">brix_sd_remote_cfg_t::timeout_ms</a>, <a class="el" href="sd__s3_8h_source.html#l00038">sd_s3_open_params::timeout_ms</a>, <a class="el" href="sd__remote_8h_source.html#l00042">brix_sd_remote_cfg_t::tls</a>, <a class="el" href="sd__s3_8h_source.html#l00031">sd_s3_open_params::tls</a>, <a class="el" href="sd__remote_8h_source.html#l00048">brix_sd_remote_cfg_t::transport</a>, and <a class="el" href="sd__s3_8h_source.html#l00036">sd_s3_open_params::transport</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00076">sd_remote_open_impl()</a>, <a class="el" href="sd__remote_8c_source.html#l00267">sd_remote_staged_open()</a>, <a class="el" href="sd__remote_8c_source.html#l00230">sd_remote_stat()</a>, and <a class="el" href="sd__remote_8c_source.html#l00349">sd_remote_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00117">sd_remote_open_impl()</a>, <a class="el" href="sd__remote_8c_source.html#l00521">sd_remote_staged_commit()</a>, <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>, <a class="el" href="sd__remote_8c_source.html#l00350">sd_remote_stat_impl()</a>, and <a class="el" href="sd__remote_8c_source.html#l00585">sd_remote_unlink_impl()</a>.</p>
 
 </div>
 </div>
@@ -677,9 +835,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00338">338</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00572">572</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00023">sd_remote_staged_state::s3</a>, <a class="el" href="sd__s3__write_8c_source.html#l00423">sd_s3_abort()</a>, and <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00030">sd_remote_staged_state::s3</a>, <a class="el" href="sd__s3__write_8c_source.html#l00467">sd_s3_abort()</a>, and <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>.</p>
 
 </div>
 </div>
@@ -717,9 +875,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00319">319</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00521">521</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00023">sd_remote_staged_state::s3</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00384">sd_s3_commit()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00033">sd_remote_staged_state::ak</a>, <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd__remote_8c_source.html#l00032">sd_remote_staged_state::has_cred</a>, <a class="el" href="sd__remote_8c_source.html#l00031">sd_remote_staged_state::objpath</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="sd__remote_8c_source.html#l00035">sd_remote_staged_state::region</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="sd__remote_8c_source.html#l00030">sd_remote_staged_state::s3</a>, <a class="el" href="sd__remote_8c_source.html#l00053">sd_remote_s3_params()</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>, <a class="el" href="sd__remote_8c_source.html#l00034">sd_remote_staged_state::sk</a>, and <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>.</p>
 
 </div>
 </div>
@@ -769,9 +927,133 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00267">267</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00472">472</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00023">sd_remote_staged_state::s3</a>, <a class="el" href="sd__remote_8c_source.html#l00028">SD_REMOTE_PART_SIZE</a>, <a class="el" href="sd__remote_8c_source.html#l00033">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00041">sd_remote_s3_params()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00423">sd_s3_abort()</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a13115074943afa497bd6974f4ad62c1b" name="a13115074943afa497bd6974f4ad62c1b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a13115074943afa497bd6974f4ad62c1b">&#9670;&#160;</a></span>sd_remote_staged_open_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static brix_sd_staged_t * sd_remote_staged_open_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>final_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00486">486</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00208">brix_sd_cred_t::s3_ak</a>, <a class="el" href="sd_8h_source.html#l00210">brix_sd_cred_t::s3_region</a>, <a class="el" href="sd_8h_source.html#l00209">brix_sd_cred_t::s3_sk</a>, <a class="el" href="sd__remote_8c_source.html#l00084">sd_remote_cred_gate()</a>, and <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a7eaf28033a2d5b387b5a6e807982cf02" name="a7eaf28033a2d5b387b5a6e807982cf02"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7eaf28033a2d5b387b5a6e807982cf02">&#9670;&#160;</a></span>sd_remote_staged_open_impl()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static brix_sd_staged_t * sd_remote_staged_open_impl </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>final_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>ak</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sk</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>region</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00422">422</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00033">sd_remote_staged_state::ak</a>, <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd__remote_8c_source.html#l00032">sd_remote_staged_state::has_cred</a>, <a class="el" href="sd__remote_8c_source.html#l00031">sd_remote_staged_state::objpath</a>, <a class="el" href="sd__remote_8c_source.html#l00035">sd_remote_staged_state::region</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="sd__remote_8c_source.html#l00030">sd_remote_staged_state::s3</a>, <a class="el" href="sd__remote_8c_source.html#l00040">SD_REMOTE_PART_SIZE</a>, <a class="el" href="sd__remote_8c_source.html#l00045">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00053">sd_remote_s3_params()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00467">sd_s3_abort()</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, <a class="el" href="sd__remote_8c_source.html#l00034">sd_remote_staged_state::sk</a>, and <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00472">sd_remote_staged_open()</a>, and <a class="el" href="sd__remote_8c_source.html#l00486">sd_remote_staged_open_cred()</a>.</p>
 
 </div>
 </div>
@@ -821,9 +1103,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00305">305</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00507">507</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00023">sd_remote_staged_state::s3</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00327">sd_s3_pwrite()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00030">sd_remote_staged_state::s3</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -867,9 +1149,127 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00230">230</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00386">386</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00257">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd_8h_source.html#l00254">brix_sd_stat_t::mode</a>, <a class="el" href="sd__remote_8c_source.html#l00033">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00041">sd_remote_s3_params()</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>, and <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00350">sd_remote_stat_impl()</a>.</p>
+
+</div>
+</div>
+<a id="aa2890c44198c2a6e391ef34632cee83d" name="aa2890c44198c2a6e391ef34632cee83d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa2890c44198c2a6e391ef34632cee83d">&#9670;&#160;</a></span>sd_remote_stat_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sd_remote_stat_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00397">397</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00208">brix_sd_cred_t::s3_ak</a>, <a class="el" href="sd_8h_source.html#l00210">brix_sd_cred_t::s3_region</a>, <a class="el" href="sd_8h_source.html#l00209">brix_sd_cred_t::s3_sk</a>, <a class="el" href="sd__remote_8c_source.html#l00084">sd_remote_cred_gate()</a>, and <a class="el" href="sd__remote_8c_source.html#l00350">sd_remote_stat_impl()</a>.</p>
+
+</div>
+</div>
+<a id="ab29606cd1af54888d9b51b083d7d84c5" name="ab29606cd1af54888d9b51b083d7d84c5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab29606cd1af54888d9b51b083d7d84c5">&#9670;&#160;</a></span>sd_remote_stat_impl()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sd_remote_stat_impl </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>ak</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sk</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>region</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00350">350</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd_8h_source.html#l00278">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd_8h_source.html#l00273">brix_sd_stat_t::mode</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="sd__remote_8c_source.html#l00045">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00053">sd_remote_s3_params()</a>, <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, and <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00386">sd_remote_stat()</a>, and <a class="el" href="sd__remote_8c_source.html#l00397">sd_remote_stat_cred()</a>.</p>
 
 </div>
 </div>
@@ -913,9 +1313,121 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00349">349</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00607">607</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00033">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00041">sd_remote_s3_params()</a>, and <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>.</p>
+<p class="reference">References <a class="el" href="sd__remote_8c_source.html#l00585">sd_remote_unlink_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a3b6235e077022f9ced23afc5defc455a" name="a3b6235e077022f9ced23afc5defc455a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3b6235e077022f9ced23afc5defc455a">&#9670;&#160;</a></span>sd_remote_unlink_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sd_remote_unlink_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>is_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00616">616</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00208">brix_sd_cred_t::s3_ak</a>, <a class="el" href="sd_8h_source.html#l00210">brix_sd_cred_t::s3_region</a>, <a class="el" href="sd_8h_source.html#l00209">brix_sd_cred_t::s3_sk</a>, <a class="el" href="sd__remote_8c_source.html#l00084">sd_remote_cred_gate()</a>, and <a class="el" href="sd__remote_8c_source.html#l00585">sd_remote_unlink_impl()</a>.</p>
+
+</div>
+</div>
+<a id="aeff69673fa79addbc0cdd3ab3be36a00" name="aeff69673fa79addbc0cdd3ab3be36a00"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeff69673fa79addbc0cdd3ab3be36a00">&#9670;&#160;</a></span>sd_remote_unlink_impl()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sd_remote_unlink_impl </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>ak</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sk</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>region</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00585">585</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__s3_8h_source.html#l00033">sd_s3_open_params::ak</a>, <a class="el" href="sd__s3_8h_source.html#l00035">sd_s3_open_params::region</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="sd__remote_8c_source.html#l00045">sd_remote_s3_key()</a>, <a class="el" href="sd__remote_8c_source.html#l00053">sd_remote_s3_params()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, and <a class="el" href="sd__s3_8h_source.html#l00034">sd_s3_open_params::sk</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00607">sd_remote_unlink()</a>, and <a class="el" href="sd__remote_8c_source.html#l00616">sd_remote_unlink_cred()</a>.</p>
 
 </div>
 </div>
@@ -947,6 +1459,7 @@ Variables</h2></td></tr>
 <div class="line">    .open  = <a class="code hl_function" href="sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3">sd_remote_open</a>,</div>
 <div class="line">    .close = <a class="code hl_function" href="sd__remote_8c.html#ae2ed22148f461a79d70e69d30471cd26">sd_remote_close</a>,</div>
 <div class="line">    .pread = <a class="code hl_function" href="sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3">sd_remote_pread</a>,</div>
+<div class="line">    .preadv = <a class="code hl_function" href="sd__remote_8c.html#a64f64c236053044e87f2a86d1f099819">sd_remote_preadv</a>,   </div>
 <div class="line">    .fstat = <a class="code hl_function" href="sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370">sd_remote_fstat</a>,</div>
 <div class="line">    .stat  = <a class="code hl_function" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a>,</div>
 <div class="line">    .unlink        = <a class="code hl_function" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a>,</div>
@@ -955,26 +1468,34 @@ Variables</h2></td></tr>
 <div class="line">    .staged_commit = <a class="code hl_function" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a>,</div>
 <div class="line">    .staged_abort  = <a class="code hl_function" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a>,</div>
 <div class="line">    .open_cred     = <a class="code hl_function" href="sd__remote_8c.html#a76f9bec563d322d702a3a3373613f2f5">sd_remote_open_cred</a>,   </div>
+<div class="line">    </div>
+<div class="line">    .staged_open_cred = <a class="code hl_function" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a>,</div>
+<div class="line">    .stat_cred        = <a class="code hl_function" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a>,</div>
+<div class="line">    .unlink_cred      = <a class="code hl_function" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a>,</div>
 <div class="line">}</div>
 <div class="ttc" id="asd_8h_html_a014489da062b3e2b72231889903fa3cda2ba74f3fdd30ab40b38db1792f4552db"><div class="ttname"><a href="sd_8h.html#a014489da062b3e2b72231889903fa3cda2ba74f3fdd30ab40b38db1792f4552db">BRIX_SD_CAP_RANGE_READ</a></div><div class="ttdeci">@ BRIX_SD_CAP_RANGE_READ</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00090">sd.h:90</a></div></div>
 <div class="ttc" id="asd_8h_html_a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c"><div class="ttname"><a href="sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c">BRIX_SD_CAP_MEMFILE</a></div><div class="ttdeci">@ BRIX_SD_CAP_MEMFILE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00111">sd.h:110</a></div></div>
 <div class="ttc" id="asd_8h_html_a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b"><div class="ttname"><a href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b">BRIX_SD_CRED_BEARER</a></div><div class="ttdeci">@ BRIX_SD_CRED_BEARER</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00118">sd.h:118</a></div></div>
-<div class="ttc" id="asd_8h_html_a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630"><div class="ttname"><a href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630">BRIX_SD_CRED_PROXY_PEM</a></div><div class="ttdeci">@ BRIX_SD_CRED_PROXY_PEM</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00120">sd.h:119</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a05a4969fd4390c2bbc6bda8f39720189"><div class="ttname"><a href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00349">sd_remote.c:349</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a0e8155922aa205968a6da18111fbd2bd"><div class="ttname"><a href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a></div><div class="ttdeci">static ssize_t sd_remote_staged_write(brix_sd_staged_t *h, const void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00305">sd_remote.c:305</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a68b6e099b4389634d3505f50c26c08c0"><div class="ttname"><a href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00230">sd_remote.c:230</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a69aa3be1f16aafa37c0ce0fa976355c3"><div class="ttname"><a href="sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3">sd_remote_open</a></div><div class="ttdeci">static brix_sd_obj_t * sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00138">sd_remote.c:138</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a76f9bec563d322d702a3a3373613f2f5"><div class="ttname"><a href="sd__remote_8c.html#a76f9bec563d322d702a3a3373613f2f5">sd_remote_open_cred</a></div><div class="ttdeci">static brix_sd_obj_t * sd_remote_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00167">sd_remote.c:167</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a9a0cbf39b2068211e8254651d0528a2f"><div class="ttname"><a href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a></div><div class="ttdeci">static void sd_remote_staged_abort(brix_sd_staged_t *h)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00338">sd_remote.c:338</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_ab6836095d999da52fd302b236f3aab85"><div class="ttname"><a href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a></div><div class="ttdeci">static ngx_int_t sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00319">sd_remote.c:319</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_abaa723062c7ea6b143d7891093bc1494"><div class="ttname"><a href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00267">sd_remote.c:267</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_acd14ce613f7aa364fef4d14520f2b370"><div class="ttname"><a href="sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370">sd_remote_fstat</a></div><div class="ttdeci">static ngx_int_t sd_remote_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00223">sd_remote.c:223</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_ae2ed22148f461a79d70e69d30471cd26"><div class="ttname"><a href="sd__remote_8c.html#ae2ed22148f461a79d70e69d30471cd26">sd_remote_close</a></div><div class="ttdeci">static ngx_int_t sd_remote_close(brix_sd_obj_t *obj)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00193">sd_remote.c:193</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_af35203665f3a23befa41cb6879fbb8d3"><div class="ttname"><a href="sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3">sd_remote_pread</a></div><div class="ttdeci">static ssize_t sd_remote_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00208">sd_remote.c:208</a></div></div>
+<div class="ttc" id="asd_8h_html_a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630"><div class="ttname"><a href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630">BRIX_SD_CRED_PROXY_PEM</a></div><div class="ttdeci">@ BRIX_SD_CRED_PROXY_PEM</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00119">sd.h:119</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a05a4969fd4390c2bbc6bda8f39720189"><div class="ttname"><a href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00607">sd_remote.c:607</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a0e8155922aa205968a6da18111fbd2bd"><div class="ttname"><a href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a></div><div class="ttdeci">static ssize_t sd_remote_staged_write(brix_sd_staged_t *h, const void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00507">sd_remote.c:507</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a13115074943afa497bd6974f4ad62c1b"><div class="ttname"><a href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open_cred(brix_sd_instance_t *inst, const char *final_path, mode_t mode, const brix_sd_cred_t *cred, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00486">sd_remote.c:486</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a3b6235e077022f9ced23afc5defc455a"><div class="ttname"><a href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir, const brix_sd_cred_t *cred)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00616">sd_remote.c:616</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a64f64c236053044e87f2a86d1f099819"><div class="ttname"><a href="sd__remote_8c.html#a64f64c236053044e87f2a86d1f099819">sd_remote_preadv</a></div><div class="ttdeci">static ssize_t sd_remote_preadv(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00294">sd_remote.c:294</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a68b6e099b4389634d3505f50c26c08c0"><div class="ttname"><a href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00386">sd_remote.c:386</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a69aa3be1f16aafa37c0ce0fa976355c3"><div class="ttname"><a href="sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3">sd_remote_open</a></div><div class="ttdeci">static brix_sd_obj_t * sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00179">sd_remote.c:179</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a76f9bec563d322d702a3a3373613f2f5"><div class="ttname"><a href="sd__remote_8c.html#a76f9bec563d322d702a3a3373613f2f5">sd_remote_open_cred</a></div><div class="ttdeci">static brix_sd_obj_t * sd_remote_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00203">sd_remote.c:203</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a9a0cbf39b2068211e8254651d0528a2f"><div class="ttname"><a href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a></div><div class="ttdeci">static void sd_remote_staged_abort(brix_sd_staged_t *h)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00572">sd_remote.c:572</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_aa2890c44198c2a6e391ef34632cee83d"><div class="ttname"><a href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat_cred(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out, const brix_sd_cred_t *cred)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00397">sd_remote.c:397</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_ab6836095d999da52fd302b236f3aab85"><div class="ttname"><a href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a></div><div class="ttdeci">static ngx_int_t sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00521">sd_remote.c:521</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_abaa723062c7ea6b143d7891093bc1494"><div class="ttname"><a href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00472">sd_remote.c:472</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_acd14ce613f7aa364fef4d14520f2b370"><div class="ttname"><a href="sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370">sd_remote_fstat</a></div><div class="ttdeci">static ngx_int_t sd_remote_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00341">sd_remote.c:341</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_ae2ed22148f461a79d70e69d30471cd26"><div class="ttname"><a href="sd__remote_8c.html#ae2ed22148f461a79d70e69d30471cd26">sd_remote_close</a></div><div class="ttdeci">static ngx_int_t sd_remote_close(brix_sd_obj_t *obj)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00224">sd_remote.c:224</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_af35203665f3a23befa41cb6879fbb8d3"><div class="ttname"><a href="sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3">sd_remote_pread</a></div><div class="ttdeci">static ssize_t sd_remote_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00239">sd_remote.c:239</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00370">370</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00637">637</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00390">brix_sd_remote_create()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00664">brix_sd_remote_create()</a>.</p>
 
 </div>
 </div>

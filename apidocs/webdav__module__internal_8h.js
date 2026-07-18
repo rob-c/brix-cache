@@ -1,6 +1,7 @@
 var webdav__module__internal_8h =
 [
     [ "brix_http_add_protocol_variables", "webdav__module__internal_8h.html#a2100246246aa87afd18823db9b0fc5c6", null ],
+    [ "brix_http_delegated_cred_variable", "webdav__module__internal_8h.html#afdb04a0154198748df3d58db93149e09", null ],
     [ "brix_http_protocol_variable", "webdav__module__internal_8h.html#ad453bbca74f3c1ea17bb8933e040af87", null ],
     [ "ngx_http_brix_webdav_exit_process", "webdav__module__internal_8h.html#a9085ae9448fb651ecf672ce95e0d56b4", null ],
     [ "ngx_http_brix_webdav_init_process", "webdav__module__internal_8h.html#aeab8747159ca3ec7c5eb0887aec5862f", null ],

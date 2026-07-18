@@ -1,6 +1,7 @@
 var vfs__ops_8h =
 [
     [ "brix_vfs_walk_opts_t", "structbrix__vfs__walk__opts__t.html", "structbrix__vfs__walk__opts__t" ],
+    [ "BRIX_VFS_WRITER_T_DECLARED", "vfs__ops_8h.html#a6223d452abd245b0bb78ae4d967d5941", null ],
     [ "brix_vfs_copy_meta_cb", "vfs__ops_8h.html#a32e419ed64ddb082fdf62652f5ffe7a1", null ],
     [ "brix_vfs_walk_file_cb", "vfs__ops_8h.html#a14702ab421bd09ab124fed44429dfc9c", null ],
     [ "brix_vfs_walk_target_t", "vfs__ops_8h.html#aaf8c2ad0a528302bb0820547141742da", [
@@ -35,5 +36,14 @@ var vfs__ops_8h =
     [ "brix_vfs_staged_write", "vfs__ops_8h.html#a0be9eb286912502b02c91e880bd00a49", null ],
     [ "brix_vfs_unlink_at", "vfs__ops_8h.html#aa2304ecba949e9331e702838a4388d46", null ],
     [ "brix_vfs_unlink_path", "vfs__ops_8h.html#a10305c6ec60d84b90d7289db40afa4f8", null ],
-    [ "brix_vfs_walk", "vfs__ops_8h.html#a662cffe898f184daa2729284f7017f94", null ]
+    [ "brix_vfs_walk", "vfs__ops_8h.html#a662cffe898f184daa2729284f7017f94", null ],
+    [ "brix_vfs_writer_abort", "vfs__ops_8h.html#ac70f7cfca15bcaec5d002a9eb9d441b6", null ],
+    [ "brix_vfs_writer_commit", "vfs__ops_8h.html#a33c9ceb49a7e56140ef9b4422b3714a2", null ],
+    [ "brix_vfs_writer_commit_ex", "vfs__ops_8h.html#a5329dd58271d96c3d7a04cc6055e4048", null ],
+    [ "brix_vfs_writer_expected_off", "vfs__ops_8h.html#a985d0b2836f1bec0ff735501fb9e7ff2", null ],
+    [ "brix_vfs_writer_fd", "vfs__ops_8h.html#ad5bc4b92afbc30f2727a10a26a23d0c7", null ],
+    [ "brix_vfs_writer_open", "vfs__ops_8h.html#a6e8e52037516ab17ed691fad0e6a75be", null ],
+    [ "brix_vfs_writer_staged", "vfs__ops_8h.html#acbc8efaff350f55a73768c42a4a38d06", null ],
+    [ "brix_vfs_writer_write", "vfs__ops_8h.html#a2359ff9ed7968c92e02ea1a45aa0abd0", null ],
+    [ "brix_vfs_writer_write_fd", "vfs__ops_8h.html#a278c1550c9ef597b430f356ba8e1ce67", null ]
 ];

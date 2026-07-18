@@ -2,6 +2,7 @@ var structbrix__credential__t =
 [
     [ "ca_dir", "structbrix__credential__t.html#a2e4cdb13810aba2531b1992efb033852", null ],
     [ "last_def_cycle", "structbrix__credential__t.html#ae67a07ddb37985cb7822bcf5a4b2bb60", null ],
+    [ "mode", "structbrix__credential__t.html#a342663ac75f5c568b414fe6397273983", null ],
     [ "name", "structbrix__credential__t.html#afc260aea2ef891c32e5bdad42825013b", null ],
     [ "s3_access_key", "structbrix__credential__t.html#a28573c94544f8113507b2c52fbf1cc24", null ],
     [ "s3_region", "structbrix__credential__t.html#a699180aec5c2442769ac03399f253143", null ],

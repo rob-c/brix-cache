@@ -362,51 +362,57 @@ $(document).ready(function(){initNavTree('http__cache__fill__registry_8c_source.
 <div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    ngx_http_request_t *r, <a class="code hl_typedef" href="http__cache__fill_8h.html#a6c2190b5266152bd5f1feae9c90fc124">brix_http_cache_reenter_pt</a> reenter,</div>
 <div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <span class="keywordtype">void</span> *reenter_data)</div>
 <div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>{</div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    <a class="code hl_struct" href="structbrix__http__fill__waiter__t.html">brix_http_fill_waiter_t</a> *w = calloc(1, <span class="keyword">sizeof</span>(*w));</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    ngx_pool_cleanup_t        *cln;</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span> </div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    <span class="keywordflow">if</span> (w == NULL) {</div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    }</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    cln = ngx_pool_cleanup_add(r-&gt;pool, 0);</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <span class="keywordflow">if</span> (cln == NULL) {</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>        free(w);</div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    }</div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a476274e05699303bf9eea788edf00a57">r</a>            = r;</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#aa3a9421547b7db3cb2d51687c15c89c9">reenter</a>      = reenter;</div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a9fd16fbda9730b888c6c3ebcbda8d3d0">reenter_data</a> = reenter_data;</div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a0a756dc126d24d2f648431a1df7b0760">parked_ms</a>    = ngx_current_msec;</div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#aac351e33705c5bb3c01f20d34cdd917f">owner</a>        = t;</div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a6b1523ff05e0bbefd16483d36ecf171b">next</a>         = t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a5a665b57ba62b04036a10a51d9c91135">waiters</a>;</div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>    t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a5a665b57ba62b04036a10a51d9c91135">waiters</a>      = w;</div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>    atomic_fetch_add_explicit(&amp;t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a80e4e179311ff70efd54645c5d5a2af1">waiters_n</a>, 1, memory_order_relaxed);</div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span> </div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    cln-&gt;handler = brix_http_fill_waiter_cleanup;</div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    cln-&gt;data    = w;</div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span> </div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    <span class="keywordflow">if</span> (t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a753ee42de06d7b41e3e1902ea3919ee9">client_hold</a> &gt; 0) {</div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>        w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>.handler = brix_http_fill_hold_expire;</div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>        w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>.data    = w;</div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>        w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>.log     = r-&gt;connection-&gt;log;</div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>        ngx_add_timer(&amp;w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>, (ngx_msec_t) t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a753ee42de06d7b41e3e1902ea3919ee9">client_hold</a> * 1000);</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>    }</div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span> </div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>    <span class="comment">/* Notice a client that breaks its connection while parked (above): the</span></div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span><span class="comment">     * read handler logs it, reclaims this slot, and finalizes — the fill</span></div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span><span class="comment">     * runs on. Arm the read event so the abort actually wakes us. */</span></div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>    r-&gt;read_event_handler = brix_http_fill_client_read;</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>    <span class="keywordflow">if</span> (ngx_handle_read_event(r-&gt;connection-&gt;read, 0) != NGX_OK) {</div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>        <span class="comment">/* non-fatal: we simply fall back to the hold timer for teardown */</span></div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r-&gt;connection-&gt;log, 0,</div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>            <span class="stringliteral">&quot;xrootd-fill: could not arm client-abort read event&quot;</span>);</div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>    }</div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span> </div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>    r-&gt;main-&gt;count++;</div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    <span class="keywordflow">return</span> NGX_DONE;</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>}</div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span> </div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span><span class="preprocessor">#endif </span><span class="comment">/* NGX_THREADS */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    <span class="comment">/* padded to ngx_connection_t: with --with-debug, ngx_add_timer&#39;s debug</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment">     * line casts ev-&gt;data (== w, via w-&gt;hold) to a connection to read -&gt;fd;</span></div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment">     * keep that read in-bounds (zeroed) instead of past the allocation. */</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    <span class="keywordtype">size_t</span> wsz = <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__http__fill__waiter__t.html">brix_http_fill_waiter_t</a>) &gt; <span class="keyword">sizeof</span>(ngx_connection_t)</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>                     ? <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__http__fill__waiter__t.html">brix_http_fill_waiter_t</a>)</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>                     : sizeof(ngx_connection_t);</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    <a class="code hl_struct" href="structbrix__http__fill__waiter__t.html">brix_http_fill_waiter_t</a> *w = calloc(1, wsz);</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    ngx_pool_cleanup_t        *cln;</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span> </div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    <span class="keywordflow">if</span> (w == NULL) {</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    }</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    cln = ngx_pool_cleanup_add(r-&gt;pool, 0);</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    <span class="keywordflow">if</span> (cln == NULL) {</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>        free(w);</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    }</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a476274e05699303bf9eea788edf00a57">r</a>            = r;</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#aa3a9421547b7db3cb2d51687c15c89c9">reenter</a>      = reenter;</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a9fd16fbda9730b888c6c3ebcbda8d3d0">reenter_data</a> = reenter_data;</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a0a756dc126d24d2f648431a1df7b0760">parked_ms</a>    = ngx_current_msec;</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#aac351e33705c5bb3c01f20d34cdd917f">owner</a>        = t;</div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#a6b1523ff05e0bbefd16483d36ecf171b">next</a>         = t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a5a665b57ba62b04036a10a51d9c91135">waiters</a>;</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a5a665b57ba62b04036a10a51d9c91135">waiters</a>      = w;</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>    atomic_fetch_add_explicit(&amp;t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a80e4e179311ff70efd54645c5d5a2af1">waiters_n</a>, 1, memory_order_relaxed);</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span> </div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>    cln-&gt;handler = brix_http_fill_waiter_cleanup;</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    cln-&gt;data    = w;</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span> </div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>    <span class="keywordflow">if</span> (t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a753ee42de06d7b41e3e1902ea3919ee9">client_hold</a> &gt; 0) {</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>        w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>.handler = brix_http_fill_hold_expire;</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>        w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>.data    = w;</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>        w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>.log     = r-&gt;connection-&gt;log;</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>        ngx_add_timer(&amp;w-&gt;<a class="code hl_variable" href="structbrix__http__fill__waiter__t.html#ac4920b8c708f693865ec07c5a5a0f167">hold</a>, (ngx_msec_t) t-&gt;<a class="code hl_variable" href="structbrix__http__cache__fill__ctx__t.html#a753ee42de06d7b41e3e1902ea3919ee9">client_hold</a> * 1000);</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>    }</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span> </div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>    <span class="comment">/* Notice a client that breaks its connection while parked (above): the</span></div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span><span class="comment">     * read handler logs it, reclaims this slot, and finalizes — the fill</span></div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span><span class="comment">     * runs on. Arm the read event so the abort actually wakes us. */</span></div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    r-&gt;read_event_handler = brix_http_fill_client_read;</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>    <span class="keywordflow">if</span> (ngx_handle_read_event(r-&gt;connection-&gt;read, 0) != NGX_OK) {</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>        <span class="comment">/* non-fatal: we simply fall back to the hold timer for teardown */</span></div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r-&gt;connection-&gt;log, 0,</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>            <span class="stringliteral">&quot;xrootd-fill: could not arm client-abort read event&quot;</span>);</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    }</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span> </div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    r-&gt;main-&gt;count++;</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>    <span class="keywordflow">return</span> NGX_DONE;</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>}</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span> </div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span><span class="preprocessor">#endif </span><span class="comment">/* NGX_THREADS */</span><span class="preprocessor"></span></div>
 <div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
 <div class="ttc" id="adiag__compare_8c_html_a66fbe8fcb6c98ecd1a9f4552856b4e12"><div class="ttname"><a href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a></div><div class="ttdeci">void probe(const char *name, int ok, const char *fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="diag__compare_8c_source.html#l00008">diag_compare.c:8</a></div></div>
 <div class="ttc" id="afill__retry_8h_html"><div class="ttname"><a href="fill__retry_8h.html">fill_retry.h</a></div></div>

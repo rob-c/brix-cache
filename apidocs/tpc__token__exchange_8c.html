@@ -100,12 +100,14 @@ $(document).ready(function(){initNavTree('tpc__token__exchange_8c.html',''); ini
 <code>#include &quot;<a class="el" href="tpc__token__internal_8h_source.html">tpc/outbound/tpc_token_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="auth_2token_2file_8h_source.html">auth/token/file.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="subprocess_8h_source.html">core/compat/subprocess.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="cred__stage_8h_source.html">core/compat/cred_stage.h</a>&quot;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;sys/wait.h&gt;</code><br />
+<code>#include &lt;openssl/crypto.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for tpc_token_exchange.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -147,7 +149,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00034">34</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00036">36</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
 
 </div>
 </div>
@@ -192,11 +194,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00131">131</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00134">134</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00220">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00223">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -240,11 +242,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00045">45</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00047">47</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
 
 <p class="reference">References <a class="el" href="file_8c_source.html#l00164">brix_token_read_file()</a>, <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00220">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00223">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -300,11 +302,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00181">181</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00184">184</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
 
 <p class="reference">References <a class="el" href="subprocess_8c_source.html#l00165">brix_subprocess_capture()</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00220">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00223">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -354,11 +356,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00081">81</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00085">85</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="tpc__internal_8h_source.html#l00103">brix_tpc_pull_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00116">brix_tpc_pull_t::token_scope</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="cred__stage_8c_source.html#l00067">brix_cred_stage_write()</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="tpc__internal_8h_source.html#l00103">brix_tpc_pull_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00116">brix_tpc_pull_t::token_scope</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00220">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc__token__exchange_8c_source.html#l00223">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -394,9 +396,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00220">220</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__token__exchange_8c_source.html#l00223">223</a> of file <a class="el" href="tpc__token__exchange_8c_source.html">tpc_token_exchange.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00131">tpc_rfc8693_build_argv()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00045">tpc_rfc8693_read_subject()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00181">tpc_rfc8693_run_curl()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00081">tpc_rfc8693_stage_body()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00034">TPC_TOKEN_MAX_LEN</a>, <a class="el" href="tpc__token_8c_source.html#l00063">tpc_token_parse_access_token()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00134">tpc_rfc8693_build_argv()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00047">tpc_rfc8693_read_subject()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00184">tpc_rfc8693_run_curl()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00085">tpc_rfc8693_stage_body()</a>, <a class="el" href="tpc__token__exchange_8c_source.html#l00036">TPC_TOKEN_MAX_LEN</a>, <a class="el" href="tpc__token_8c_source.html#l00063">tpc_token_parse_access_token()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="tpc__token_8c_source.html#l00346">tpc_fetch_delegated_token()</a>.</p>
 

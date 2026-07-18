@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2webdav_2locks_2READ
   <div class="headertitle"><div class="title">webdav/locks — WebDAV LOCK request-header &amp; body parsers</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md479"></a> </p>
-<h1><a class="anchor" id="autotoc_md480"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md483"></a> </p>
+<h1><a class="anchor" id="autotoc_md484"></a>
 Overview</h1>
 <p>This subsystem is the <b>request-parsing layer</b> for WebDAV locking (RFC 4918, <code>LOCK</code>/<code>UNLOCK</code>). It does <b>not</b> hold lock state and owns no storage — it is a set of small, pure-ish helpers that extract the four pieces of client intent a lock operation needs from the incoming HTTP request: the requested timeout, the lock token presented in <code>If</code>/<code>Lock-Token</code>, the operation depth, and the lock owner/scope from the XML request body. Each helper takes an <code>ngx_http_request_t *</code> and returns a parsed primitive (msec, int, <code>ngx_int_t</code> status, or fills a caller-owned buffer).</p>
 <p>It exists to keep the lock <em>state machine</em> in <code>../lock.c</code> readable. <code>lock.c</code> implements <code>webdav_handle_lock</code>/<code>webdav_handle_unlock</code> and the <code>webdav_check_locks</code> / <code>webdav_check_locks_tree</code> gates that every mutating WebDAV method calls before touching the filesystem; the header/body decoding chores are factored out here so that file can focus on the actual lock logic (read existing xattr, decide refresh vs. create vs. 423, persist). In the request lifecycle these helpers run inside <code>../lock.c</code> after the access-phase auth/CORS/scope checks and after <code>resolve_path()</code> has confined the target path — i.e. they only ever see an already-authorized, already-confined request.</p>
 <p>The actual lock record is stored as a <b>single extended attribute on the locked resource</b> (<code><a class="el" href="structwebdav__lock__xattr__t.html">webdav_lock_xattr_t</a></code>, encoded by <code>../prop_xattr.c</code> under <code>WEBDAV_LOCK_XATTR_KEY</code>), not in a shared-memory slot table. Lock creation is serialized by the kernel via <code>XATTR_CREATE</code>; checking for a lock is an <code>O(path_depth)</code> walk of xattr reads from the target up to the export root. The parsers here feed that flow: <code>webdav_lock_parse_body</code> fills the <code>owner</code>/ <code>exclusive</code> fields, <code>webdav_lock_parse_timeout</code> computes the absolute <code>expires</code>, <code>webdav_lock_if_header_matches</code> matches a presented token against an existing record's <code>token</code>, and <code>webdav_lock_parse_depth</code> rejects malformed <code>Depth</code> headers.</p>
 <p>Only the WebDAV/<code>davs://</code>/<code><a href="http://">http://</a></code> HTTP protocol path uses this code; the <code>root://</code> stream protocol and S3 REST surface have no notion of WebDAV locks.</p>
-<h1><a class="anchor" id="autotoc_md481"></a>
+<h1><a class="anchor" id="autotoc_md485"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -113,7 +113,7 @@ Files</h1>
 <blockquote class="doxtable">
 <p>&zwj;Build registration is in the top-level <code>config</code> script (<code><a class="el" href="request_8h.html">request.h</a></code> ~line 225, <code>request.c</code> ~line 572 in <code>NGX_ADDON_SRCS</code>/<code>NGX_ADDON_DEPS</code>), <b>not</b> in <code><a class="el" href="config_2config_8h.html">src/core/config/config.h</a></code>. A new source file in this directory must be added there and picked up by re-running <code>./configure</code>. </p>
 </blockquote>
-<h1><a class="anchor" id="autotoc_md482"></a>
+<h1><a class="anchor" id="autotoc_md486"></a>
 Key types &amp; data structures</h1>
 <p>This subsystem defines <b>no types of its own</b>. The structures it reads from and writes into are owned elsewhere:</p>
 <ul>
@@ -121,7 +121,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html#a5a70fde01b60941f3498e4d1735d69e1">ngx_http_brix_webdav_loc_conf_t::lock_timeout</a></code>** (<code>../webdav.h</code>, line 175) — per-location maximum lock lifetime in seconds; the upper clamp and the value substituted for a <code>Timeout: Infinite</code> request.</li>
 <li>**<code>ngx_table_elt_t</code>** — nginx's header element, the input these parsers read via <code>webdav_tpc_find_header</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md483"></a>
+<h1><a class="anchor" id="autotoc_md487"></a>
 Control &amp; data flow</h1>
 <p><b>Entry:</b> every function here is called only from <code>../lock.c</code> (<code>webdav_handle_lock</code>, <code>webdav_handle_unlock</code>, and the <code>webdav_check_locks</code>/<code>check_locks_descendants</code> gates). There is no other caller.</p>
 <ul>
@@ -139,7 +139,7 @@ Control &amp; data flow</h1>
 <li>Path-confinement and the actual xattr persistence: <code>../prop_xattr.c</code> (<code>webdav_lock_xattr_read/write/delete</code>) and <a class="el" href="md_src_2fs_2path_2README.html">`../../path/README.md`</a> (<code>resolve_path</code>/RESOLVE_BENEATH runs before any of this).</li>
 <li>Mutating methods that gate on locks before acting: <code>../dispatch.c</code>, <code>../methods_basic.c</code> (DELETE), <code>../copy.c</code>, <code>../move.c</code>, <code>../namespace.c</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md484"></a>
+<h1><a class="anchor" id="autotoc_md488"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>No path/syscall access here.</b> These helpers operate purely on already-parsed HTTP headers and the buffered request body. They never touch the filesystem and must never be given a raw client path — confinement (<a class="el" href="md_src_2fs_2path_2README.html">`../../path/README.md`</a>, <code>openat2</code>+<code>RESOLVE_BENEATH</code>) is the caller's responsibility and has already happened by the time <code>../lock.c</code> invokes them.</li>
@@ -150,7 +150,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Defaults are RFC-fail-safe.</b> <code>webdav_lock_parse_body</code> defaults <code>exclusive = 1</code> (RFC 4918 §9.10) and writes &lsquo;owner[0]=&rsquo;\0'<code>before parsing, so a missing/garbled body yields a valid exclusive lock with an empty owner rather than uninitialized state.</code>webdav_lock_parse_depth<code>defaults to depth *infinity* when the header is absent.</code></li>
 <li><code>**Stale doc note:** older notes describe a fixed 1024-slot shared-memory lock table returning</code>507<code>at capacity. That design has been **replaced** by the per-resource xattr scheme (see the header comment in</code>../lock.c:4-10<code>): no SHM, no mutex,</code>XATTR_CREATE<code>gives kernel-serialized atomic creation, and a startup sweep (</code>webdav_lock_startup_sweep`) can purge persisted locks. Lock capacity is no longer a fixed slot count.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md485"></a>
+<h1><a class="anchor" id="autotoc_md489"></a>
 Entry points / extending</h1>
 <p>To add support for a <b>new LOCK request header or body element</b>:</p>
 <ol type="1">
@@ -161,7 +161,7 @@ Entry points / extending</h1>
 <li>If you add a <b>new <code>.c</code> file</b> in this directory, register it in the top-level <code>config</code> script (<code>NGX_ADDON_SRCS</code>/<code>NGX_ADDON_DEPS</code>) and re-run <code>./configure</code> — not in <code><a class="el" href="config_2config_8h.html">src/core/config/config.h</a></code>.</li>
 <li>Per the project rule, ship 3 tests with the change: success, error (malformed/oversized header or body), and a security-negative (e.g. token spoof / XXE / unbounded timeout attempt).</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md486"></a>
+<h1><a class="anchor" id="autotoc_md490"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2webdav_2README.html">`../README.md`</a> — WebDAV subsystem overview and method router (the lock state machine <code>lock.c</code> and its xattr persistence <code><a class="el" href="prop__xattr_8c.html">prop_xattr.c</a></code> live one level up).</li>

@@ -16,6 +16,6 @@ var broker__ops_8c =
     [ "imp_xattr_name_ok", "broker__ops_8c.html#ab913186b422889f61101e4088c3e69ff", null ],
     [ "imp_xattr_open", "broker__ops_8c.html#a72f51d50c62e44cfed8ff32274927719", null ],
     [ "fn", "broker__ops_8c.html#a5c3d91bb07df8e05d3407e6ec6ce47f6", null ],
-    [ "imp_op_table", "broker__ops_8c.html#aac14cde8ffecd0f96cd8c8218c78f47c", null ],
+    [ "imp_op_table", "broker__ops_8c.html#aca1f34033f7b992387385f5721f7b16d", null ],
     [ "op", "broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c", null ]
 ];

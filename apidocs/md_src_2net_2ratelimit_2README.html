@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2net_2ratelimit_2README.html','
   <div class="headertitle"><div class="title">ratelimit — identity-aware leaky-bucket rate, bandwidth &amp; concurrency limiting (Phase 25)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md252"></a> </p>
-<h1><a class="anchor" id="autotoc_md253"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md256"></a> </p>
+<h1><a class="anchor" id="autotoc_md257"></a>
 Overview</h1>
 <p>This subsystem is a second, richer rate limiter than the coarse per-IP/per-DN token bucket of the Phase 20 <code>brix_rate_limit</code> directive. It enforces <b>request-rate</b>, <b>bandwidth</b>, and <b>concurrency</b> (in-flight) limits keyed on XRootD-specific <em>identity dimensions</em> — VO group, token issuer, client IP, GSI subject DN, or storage-volume path prefix — so a Tier-1 gateway can express policies the stock nginx limiter cannot, e.g. "ATLAS VO: 500 r/s, burst 800" or "`/store/tape`: 50 MiB/s aggregate" or "max 16 concurrent connections per VO".</p>
 <p>It works identically across both data planes. On the <b>stream</b> plane (<code>root://</code>/<code>roots://</code>) a dispatch gate runs before each data-plane opcode handler and answers a throttled client with <code><a class="el" href="opcodes_8h.html#af3e9dd178f967eff0ca0988847f8b0fa">kXR_wait(seconds)</a></code>, leaving the connection open to retry. On the <b>HTTP/WebDAV</b> plane an <code>NGX_HTTP_ACCESS_PHASE</code> handler answers a throttled client with <code>429 Too Many Requests</code> + <code>Retry-After</code>. Bandwidth is charged <em>after</em> the response is sent (in the stream read/write handlers and in the HTTP log phase), so throttling reacts to real bytes moved, not declared content length.</p>
 <p>State lives in one or more named nginx shared-memory slab zones (<code>brix_rate_limit_zone</code>). Each zone holds an rbtree of per-principal leaky-bucket nodes plus an LRU queue for O(1) eviction when the zone fills — the same structure as <code>ngx_http_limit_req_module</code>. A single shared SHM tag is used for every zone, so the <em>same zone name</em> declared in both an <code>http{}</code> block and a <code>stream{}</code> block resolves to <b>one</b> shared zone, giving cross-plane principal accounting (a VO's <code>root://</code> and <code>davs://</code> traffic share one bucket).</p>
 <p>The limiter is <b>fail-open</b>: any internal failure (zone not yet attached, slab exhausted after eviction) returns <code>NGX_OK</code>/allow, because availability beats strict enforcement on a storage gateway. Throttle/eviction/exhaustion counts are exported to Prometheus and a live snapshot feeds the dashboard. The naming note matters: this is the <code>brix_rate_limit_zone</code> / <code>_rule</code> / <code>_bandwidth</code> / <code>_concurrency</code> family — unrelated to and unchanged by the Phase 20 <code>brix_rate_limit</code> directive.</p>
-<h1><a class="anchor" id="autotoc_md254"></a>
+<h1><a class="anchor" id="autotoc_md258"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -118,10 +118,10 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="ratelimit__stream_8c.html">ratelimit_stream.c</a></code>   </td><td class="markdownTableBodyNone">XRootD stream enforcement. <code>brix_rl_stream_gate</code> (per-opcode gate → <code>kXR_wait</code>), <code>brix_rl_charge_ctx</code> (post-send byte charge), <code>brix_rl_release_ctx</code> (release per-connection concurrency slot on disconnect). Carries the opcode allowlist (<code>rl_op_rate_limited</code>), the path-bearing check (<code>rl_op_path_bearing</code>), and per-ctx key caching.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md255"></a>
+<h1><a class="anchor" id="autotoc_md259"></a>
 Key types &amp; data structures</h1>
 <ul>
-<li>**<code>brix_rl_key_type_t</code>** (<code><a class="el" href="ratelimit_8h.html">ratelimit.h</a></code>) — the five identity dimensions: <code>VO</code>, <code>ISSUER</code>, <code>IP</code>, <code>DN</code>, <code>VOLUME</code> (path-prefix match on <code>key_match</code>).</li>
+<li>**<code>brix_rl_key_type_t</code>** (<code><a class="el" href="ratelimit_8h.html">ratelimit.h</a></code>) — the six identity dimensions: <code>VO</code>, <code>ISSUER</code>, <code>IP</code>, <code>DN</code>, <code>SUBJECT</code> (WLCG/JWT token subject), <code>VOLUME</code> (path-prefix match on <code>key_match</code>). <code>DN</code> and <code>SUBJECT</code> are FNV-1a32-hashed into <code>dn:&lt;8 hex&gt;</code> / <code>sub:&lt;8 hex&gt;</code> so no raw identity reaches a metric label (INVARIANT #8); both fall back to the client IP for an anonymous connection.</li>
 <li>**<code><a class="el" href="structbrix__rl__node__t.html">brix_rl_node_t</a></code>** — one slab-allocated per-principal bucket. <code>node.key</code> is the FNV-1a32 hash of the key string (rbtree ties broken by <code>key_str</code> bytes); carries <code>req_excess</code> (request bucket, stored ×1000 so a 1-request charge is 1000 units and millisecond-granular drain stays integer), <code>bw_excess</code> (bytes, ×1), <code>in_flight</code> (W7 concurrency counter), cumulative <code>req_total</code>/<code>bytes_total</code>/<code>throttle_count</code>, <code>last</code> (ms of last update), an LRU <code>queue</code> link, and a flexible <code>key_str[1]</code> tail (<code>len</code> bytes follow). Lives inside the SHM zone.</li>
 <li>**<code><a class="el" href="structbrix__rl__shctx__t.html">brix_rl_shctx_t</a></code>** — the shared <code>{rbtree, sentinel, queue}</code> at the head of the slab pool; <code>queue</code> head = most-recently-used.</li>
 <li>**<code><a class="el" href="structbrix__rl__zone__t.html">brix_rl_zone_t</a></code>** — runtime handle (resolved at config time): <code>sh</code> (shared ctx, set in the zone init callback), <code>shpool</code>, <code>shm_zone</code>, <code>name</code>, <code>size</code>. Up to <code>BRIX_RL_MAX_ZONES</code> (16) tracked in a static registry in <code><a class="el" href="ratelimit__zone_8c.html">ratelimit_zone.c</a></code>.</li>
@@ -131,7 +131,7 @@ Key types &amp; data structures</h1>
 <p>Per-connection / per-request state lives <b>outside</b> this subsystem on <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code> (stream, <code>../types/context.h</code>: <code>rl_bw_rule</code>/<code>rl_bw_key</code>, <code>rl_conc_rule</code>/<code>rl_conc_key</code>, and the <code>rl_key_cache[BRIX_RL_RULE_CACHE_MAX]</code></p><ul>
 <li><code>rl_key_cache_valid</code> bitmask) and on the WebDAV request ctx (HTTP: <code>rl_bw_rule</code>/<code>rl_key_str</code>, <code>rl_conc_rule</code>/<code>rl_conc_key</code>). <code>BRIX_RL_RULE_CACHE_MAX</code> is defined as 8 in <code>../types/tunables.h</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md256"></a>
+<h1><a class="anchor" id="autotoc_md260"></a>
 Directive reference (configuration surface)</h1>
 <p>Declared once at config time; setters live in <code><a class="el" href="ratelimit__keys_8c.html">ratelimit_keys.c</a></code>, registered in both <code>../stream/module.c</code> and <code>../webdav/module.c</code>.</p>
 <div class="fragment"><div class="line"># 1. Declare a shared zone (size clamped up to 64 KiB minimum). Same NAME in</div>
@@ -147,14 +147,14 @@ Directive reference (configuration surface)</h1>
 <div class="line"> </div>
 <div class="line"># 4. Concurrency / in-flight cap (W7).</div>
 <div class="line">brix_concurrency_limit zone=vo_limits key=vo limit=16;</div>
-</div><!-- fragment --><p><code>key=</code> accepts <code>vo | issuer | ip | dn | volume:&lt;prefix&gt;</code>; <code>zone=</code>, <code>key=</code>, and <code>rate=</code>/<code>limit=</code> are required (a zone unknown at rule-parse time is a hard config error).</p>
-<h1><a class="anchor" id="autotoc_md257"></a>
+</div><!-- fragment --><p><code>key=</code> accepts <code>vo | issuer | ip | dn | subject | volume:&lt;prefix&gt;</code>; <code>zone=</code>, <code>key=</code>, and <code>rate=</code>/<code>limit=</code> are required (a zone unknown at rule-parse time is a hard config error).</p>
+<h1><a class="anchor" id="autotoc_md261"></a>
 Control &amp; data flow</h1>
 <p><b>Config time.</b> <code>brix_rate_limit_zone</code> (setter <code>brix_rl_zone_directive</code>) declares an SHM slab zone via <code>brix_rl_zone_add</code> → <code>ngx_shared_memory_add</code> under the shared tag. <code>brix_rate_limit_rule</code> / <code>brix_bandwidth_limit</code> / <code>brix_concurrency_limit</code> push <code><a class="el" href="structbrix__rl__rule__t.html">brix_rl_rule_t</a></code>s into a rules array stored at <code>cmd-&gt;offset</code> in the loc-conf (WebDAV) or srv-conf (stream); one <code>rl_add_rule</code> implementation serves both planes. Source files are listed in <code>config</code> (<code>NGX_ADDON_SRCS</code>).</p>
 <p><b>Stream plane.</b> <code>../handshake/dispatch.c</code> (<code>dispatch.c:64</code>) calls <code>brix_rl_stream_gate</code> <em>after</em> login/proxy checks and <em>before</em> the data-plane opcode handler. The gate limits only data-plane opcodes (<code>kXR_open</code>, <code>kXR_read</code>, <code>kXR_readv</code>, <code>kXR_pgread</code>, <code>kXR_write</code>, <code>kXR_writev</code>, <code>kXR_pgwrite</code>, <code>kXR_dirlist</code>, <code>kXR_locate</code>) — stat/statx/ping/close/sync/login/auth are never limited so keepalive and health checks are unaffected. It derives the key (caching identity-stable keys on the ctx to avoid per-read re-hashing), runs the rate → bandwidth → concurrency checks, and on throttle returns <code>brix_send_wait</code> (see <code>../response/</code>). It stashes the matched bandwidth rule/key on the ctx; the read (<code>../read/read.c:191</code>, <code>../read/pgread.c:292</code>) and write (<code>../write/write.c:149</code>, <code>../write/pgwrite.c:303</code>) handlers call <code>brix_rl_charge_ctx</code> after sending bytes. The connection-lifetime concurrency slot is released by <code>brix_rl_release_ctx</code> from <code>../connection/disconnect.c:291</code> (<code>brix_on_disconnect</code>).</p>
 <p><b>HTTP/WebDAV plane.</b> <code>../webdav/postconfig.c</code> registers <code>brix_rl_http_access_handler</code> (ACCESS phase, after the auth handler so identity is populated) and <code>brix_rl_http_log_handler</code> (LOG phase). The access handler reads identity from the WebDAV request ctx, resolves the request path lazily (only when a VOLUME rule exists, via <code>ngx_http_brix_webdav_resolve_path</code>, see <code>../path/</code>), runs the three checks, and returns <code>429</code> on throttle. It stashes the bandwidth rule/key and the W7 concurrency rule/key on the request ctx; the log handler charges the response size (<code>content_length_n</code>, falling back to <code>connection-&gt;sent - header_size</code>) and releases the concurrency slot exactly once.</p>
 <p><b>Observability.</b> Counters increment via the local <code>BRIX_RL_METRIC_INC</code> macro into the metrics SHM (<code>../metrics/metrics.h</code>): <code>rl_throttled_http_total</code>, <code>rl_throttled_stream_total</code>, <code>rl_eviction_total</code>, <code>rl_zone_full_errors</code>. They are exported by <code>../metrics/ratelimit.c</code> (<code>brix_export_ratelimit_metrics</code>) and the live per-principal snapshot is served at <code>/xrootd/api/v1/ratelimit</code> (<code>../dashboard/module.c:446</code>) by <code>../dashboard/api.c</code> (<code>dashboard_build_v1_ratelimit</code> → <code>brix_rl_snapshot</code>).</p>
-<h1><a class="anchor" id="autotoc_md258"></a>
+<h1><a class="anchor" id="autotoc_md262"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Fail-open by design.</b> Every check returns allow (<code>NGX_OK</code>) on zone-not- attached or slab-exhausted-after-eviction (<code>ratelimit.c:30-46</code>, <code>98-113</code>, <code>216</code>). The limiter never denies otherwise-authorised access on internal failure — availability over strict enforcement.</li>
@@ -168,7 +168,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>VOLUME rules are path-dependent and uncacheable.</b> Stream key caching skips VOLUME rules and rules beyond <code>BRIX_RL_RULE_CACHE_MAX</code>; the gate only copies the request payload path when a VOLUME rule exists (Phase 33 C4 hot-path optimisation, <code><a class="el" href="ratelimit__stream_8c.html">ratelimit_stream.c</a>:95-106</code>). Only path-bearing opcodes (<code>kXR_open</code>/<code>kXR_dirlist</code>/<code>kXR_locate</code>) expose a usable path; handle-bearing read/write ops do not. A VOLUME prefix miss returns <code>NGX_DECLINED</code> so the rule simply does not apply.</li>
 <li><b>Subrequests inherit the parent verdict</b> — the HTTP access handler returns <code>NGX_DECLINED</code> for <code>r != r-&gt;main</code> (<code><a class="el" href="ratelimit__http_8c.html">ratelimit_http.c</a>:56</code>); the log handler is likewise a no-op for subrequests.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md259"></a>
+<h1><a class="anchor" id="autotoc_md263"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a key dimension:</b> extend <code>brix_rl_key_type_t</code> (<code><a class="el" href="ratelimit_8h.html">ratelimit.h</a></code>), add a <code>case</code> in both <code>brix_rl_key_stream</code> and <code>brix_rl_key_http</code> (<code><a class="el" href="ratelimit__keys_8c.html">ratelimit_keys.c</a></code>) with an IP fallback for the unauthenticated case, and add the type string to <code>rl_parse_key</code>.</li>
@@ -176,7 +176,7 @@ Entry points / extending</h1>
 <li><b>Add a metric:</b> add an <code>ngx_atomic_t rl_*</code> field in <code>../metrics/metrics.h</code>, bump it with <code><a class="el" href="ratelimit__http_8c.html#a04f308e95bbf2709794f38ba85c3bb75">BRIX_RL_METRIC_INC(field)</a></code>, and export it in <code>../metrics/ratelimit.c</code>.</li>
 <li><b>Limit a new stream opcode:</b> add it to <code>rl_op_rate_limited</code> (and <code>rl_op_path_bearing</code> if its payload starts with the path) in <code><a class="el" href="ratelimit__stream_8c.html">ratelimit_stream.c</a></code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md260"></a>
+<h1><a class="anchor" id="autotoc_md264"></a>
 See also</h1>
 <ul>
 <li><code>../handshake/README.md</code> — stream dispatcher that invokes the gate (<code>dispatch.c:64</code>)</li>

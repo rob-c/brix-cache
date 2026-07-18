@@ -113,6 +113,12 @@ Data Fields</h2></td></tr>
 <tr class="separator:ad5c5573e4a01f7e063f4e6ddfae91796"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a81f55d66c65bb40d8990abfe5dacc4b8" id="r_a81f55d66c65bb40d8990abfe5dacc4b8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__relay__guard__t.html#a81f55d66c65bb40d8990abfe5dacc4b8">drop</a></td></tr>
 <tr class="separator:a81f55d66c65bb40d8990abfe5dacc4b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aefd469170a4b264db0edb420b5a79242" id="r_aefd469170a4b264db0edb420b5a79242"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__relay__guard__t.html#aefd469170a4b264db0edb420b5a79242">hs_seen</a></td></tr>
+<tr class="separator:aefd469170a4b264db0edb420b5a79242"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af240b092e845a27d75b688706f20dbe3" id="r_af240b092e845a27d75b688706f20dbe3"><td class="memItemLeft" align="right" valign="top">unsigned char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__relay__guard__t.html#af240b092e845a27d75b688706f20dbe3">hs_buf</a> [20]</td></tr>
+<tr class="separator:af240b092e845a27d75b688706f20dbe3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0ce6034b33d609758987101ecd27e4bc" id="r_a0ce6034b33d609758987101ecd27e4bc"><td class="memItemLeft" align="right" valign="top">unsigned char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__relay__guard__t.html#a0ce6034b33d609758987101ecd27e4bc">hs_len</a></td></tr>
+<tr class="separator:a0ce6034b33d609758987101ecd27e4bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a04f248be6c338c5ef7a2a834b7bb2760" id="r_a04f248be6c338c5ef7a2a834b7bb2760"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__relay__guard__t.html#a04f248be6c338c5ef7a2a834b7bb2760">ip</a> [64]</td></tr>
 <tr class="separator:a04f248be6c338c5ef7a2a834b7bb2760"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acacd5333455582d4160df0adfbfe38bc" id="r_acacd5333455582d4160df0adfbfe38bc"><td class="memItemLeft" align="right" valign="top">ngx_log_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__relay__guard__t.html#acacd5333455582d4160df0adfbfe38bc">log</a></td></tr>
@@ -136,7 +142,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00026">26</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00258">brix_relay_guard_should_drop()</a>, and <a class="el" href="relay__guard_8c_source.html#l00198">brix_relay_guard_sink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>, <a class="el" href="relay__guard_8c_source.html#l00338">brix_relay_guard_should_drop()</a>, and <a class="el" href="relay__guard_8c_source.html#l00278">brix_relay_guard_sink()</a>.</p>
 
 </div>
 </div>
@@ -154,7 +160,61 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00025">25</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00159">brix_relay_guard_init()</a>, <a class="el" href="relay__guard_8c_source.html#l00198">brix_relay_guard_sink()</a>, and <a class="el" href="relay_8c_source.html#l00322">brix_relay_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>, <a class="el" href="relay__guard_8c_source.html#l00159">brix_relay_guard_init()</a>, <a class="el" href="relay__guard_8c_source.html#l00278">brix_relay_guard_sink()</a>, and <a class="el" href="relay_8c_source.html#l00327">brix_relay_start()</a>.</p>
+
+</div>
+</div>
+<a id="af240b092e845a27d75b688706f20dbe3" name="af240b092e845a27d75b688706f20dbe3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af240b092e845a27d75b688706f20dbe3">&#9670;&#160;</a></span>hs_buf</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">unsigned char brix_relay_guard_t::hs_buf[20]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00028">28</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>.</p>
+
+</div>
+</div>
+<a id="a0ce6034b33d609758987101ecd27e4bc" name="a0ce6034b33d609758987101ecd27e4bc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0ce6034b33d609758987101ecd27e4bc">&#9670;&#160;</a></span>hs_len</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">unsigned char brix_relay_guard_t::hs_len</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00029">29</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>.</p>
+
+</div>
+</div>
+<a id="aefd469170a4b264db0edb420b5a79242" name="aefd469170a4b264db0edb420b5a79242"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aefd469170a4b264db0edb420b5a79242">&#9670;&#160;</a></span>hs_seen</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_relay_guard_t::hs_seen</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00027">27</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>.</p>
 
 </div>
 </div>
@@ -170,9 +230,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00027">27</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00030">30</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00159">brix_relay_guard_init()</a>, and <a class="el" href="relay__guard_8c_source.html#l00198">brix_relay_guard_sink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>, <a class="el" href="relay__guard_8c_source.html#l00159">brix_relay_guard_init()</a>, and <a class="el" href="relay__guard_8c_source.html#l00278">brix_relay_guard_sink()</a>.</p>
 
 </div>
 </div>
@@ -188,7 +248,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00028">28</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00031">31</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00159">brix_relay_guard_init()</a>, and <a class="el" href="relay__guard_8c_source.html#l00127">relay_guard_audit()</a>.</p>
 
@@ -208,7 +268,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="relay__guard_8h_source.html#l00024">24</a> of file <a class="el" href="relay__guard_8h_source.html">relay_guard.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00159">brix_relay_guard_init()</a>, and <a class="el" href="relay__guard_8c_source.html#l00198">brix_relay_guard_sink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00159">brix_relay_guard_init()</a>, and <a class="el" href="relay__guard_8c_source.html#l00278">brix_relay_guard_sink()</a>.</p>
 
 </div>
 </div>

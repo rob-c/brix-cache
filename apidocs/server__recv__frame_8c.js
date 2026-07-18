@@ -16,7 +16,7 @@ var server__recv__frame_8c =
     [ "cms_srv_frame_update", "server__recv__frame_8c.html#a302c1b740f1e80d97d56eb7d95055a56", null ],
     [ "cms_srv_frame_xauth", "server__recv__frame_8c.html#a4fabeb851b22c47955be60f2feba721c", null ],
     [ "cms_srv_process_frame", "server__recv__frame_8c.html#adc322b1d4750b738b63381e381de8df1", null ],
-    [ "cms_srv_frame_routes", "server__recv__frame_8c.html#a377121d98bffdf44e88fdf34a5d13d2d", null ],
+    [ "cms_srv_frame_routes", "server__recv__frame_8c.html#a2ced3300c2af90dab16d72fdb4735270", null ],
     [ "code", "server__recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6", null ],
     [ "handler", "server__recv__frame_8c.html#a517eeb40497b5fda9945aca1ceb204c3", null ]
 ];

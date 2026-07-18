@@ -111,6 +111,8 @@ $(document).ready(function(){initNavTree('guard__audit_8c.html',''); initResizab
 Functions</h2></td></tr>
 <tr class="memitem:a5f12dff8a52326152bf9e81d611cff04" id="r_a5f12dff8a52326152bf9e81d611cff04"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__audit_8c.html#a5f12dff8a52326152bf9e81d611cff04">guard_reason_str</a> (<a class="el" href="guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46">guard_reason_t</a> r)</td></tr>
 <tr class="separator:a5f12dff8a52326152bf9e81d611cff04"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4e20daa4fe31d4fd5ebd6b7211cedfc1" id="r_a4e20daa4fe31d4fd5ebd6b7211cedfc1"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__audit_8c.html#a4e20daa4fe31d4fd5ebd6b7211cedfc1">guard_wire_str</a> (<a class="el" href="guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49e">guard_wire_t</a> w)</td></tr>
+<tr class="separator:a4e20daa4fe31d4fd5ebd6b7211cedfc1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a41d6ec4c08dc5f3c6fa120dd2acf389c" id="r_a41d6ec4c08dc5f3c6fa120dd2acf389c"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__audit_8c.html#a41d6ec4c08dc5f3c6fa120dd2acf389c">guard_op_str</a> (<a class="el" href="guard_8h.html#a0f89a0e2fe6eabea9293becbffddab5c">guard_op_class_t</a> <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>)</td></tr>
 <tr class="separator:a41d6ec4c08dc5f3c6fa120dd2acf389c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2f004e515c13e0fc6033170bd1473b5f" id="r_a2f004e515c13e0fc6033170bd1473b5f"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="guard__audit_8c.html#a2f004e515c13e0fc6033170bd1473b5f">guard_audit_format</a> (const <a class="el" href="structguard__request__t.html">guard_request_t</a> *req, <a class="el" href="guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46">guard_reason_t</a> reason, const char *ts, char *out, size_t outsz)</td></tr>
@@ -161,11 +163,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="guard__audit_8c_source.html#l00079">79</a> of file <a class="el" href="guard__audit_8c_source.html">guard_audit.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="guard__audit_8c_source.html#l00105">105</a> of file <a class="el" href="guard__audit_8c_source.html">guard_audit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="guard__audit_8c_source.html#l00047">guard_op_str()</a>, <a class="el" href="guard__audit_8c_source.html#l00026">guard_reason_str()</a>, <a class="el" href="guard_8h_source.html#l00039">guard_request_t::ip</a>, <a class="el" href="guard_8h_source.html#l00041">guard_request_t::op</a>, <a class="el" href="guard_8h_source.html#l00042">guard_request_t::path</a>, <a class="el" href="guard_8h_source.html#l00043">guard_request_t::path_len</a>, <a class="el" href="guard_8h_source.html#l00040">guard_request_t::proto</a>, and <a class="el" href="guard_8h_source.html#l00046">guard_request_t::status_code</a>.</p>
+<p class="reference">References <a class="el" href="guard__audit_8c_source.html#l00073">guard_op_str()</a>, <a class="el" href="guard__audit_8c_source.html#l00026">guard_reason_str()</a>, <a class="el" href="guard_8h_source.html#l00057">guard_request_t::ip</a>, <a class="el" href="guard_8h_source.html#l00059">guard_request_t::op</a>, <a class="el" href="guard_8h_source.html#l00060">guard_request_t::path</a>, <a class="el" href="guard_8h_source.html#l00061">guard_request_t::path_len</a>, <a class="el" href="guard_8h_source.html#l00058">guard_request_t::proto</a>, and <a class="el" href="guard_8h_source.html#l00064">guard_request_t::status_code</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="guard__test_8c_source.html#l00020">main()</a>, <a class="el" href="guard__http__req_8c_source.html#l00153">ngx_http_brix_guard_write_audit()</a>, and <a class="el" href="relay__guard_8c_source.html#l00127">relay_guard_audit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00112">cvmfs_guard_emit()</a>, <a class="el" href="guard__test_8c_source.html#l00020">main()</a>, <a class="el" href="guard__http__req_8c_source.html#l00153">ngx_http_brix_guard_write_audit()</a>, <a class="el" href="relay__guard_8c_source.html#l00127">relay_guard_audit()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00245">sd_cache_guard_tamper()</a>.</p>
 
 </div>
 </div>
@@ -185,11 +187,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="guard__audit_8c_source.html#l00047">47</a> of file <a class="el" href="guard__audit_8c_source.html">guard_audit.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="guard__audit_8c_source.html#l00073">73</a> of file <a class="el" href="guard__audit_8c_source.html">guard_audit.c</a>.</p>
 
 <p class="reference">References <a class="el" href="guard_8h_source.html#l00022">GUARD_OP_DELEG</a>, <a class="el" href="guard_8h_source.html#l00021">GUARD_OP_DELETE</a>, <a class="el" href="guard_8h_source.html#l00023">GUARD_OP_HANDSHAKE</a>, <a class="el" href="guard_8h_source.html#l00022">GUARD_OP_INFO</a>, <a class="el" href="guard_8h_source.html#l00022">GUARD_OP_JOBCTL</a>, <a class="el" href="guard_8h_source.html#l00021">GUARD_OP_LIST</a>, <a class="el" href="guard_8h_source.html#l00021">GUARD_OP_READ</a>, <a class="el" href="guard_8h_source.html#l00022">GUARD_OP_STAGE</a>, <a class="el" href="guard_8h_source.html#l00023">GUARD_OP_UNKNOWN</a>, <a class="el" href="guard_8h_source.html#l00021">GUARD_OP_WRITE</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="guard__audit_8c_source.html#l00079">guard_audit_format()</a>, and <a class="el" href="guard__test_8c_source.html#l00020">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="guard__audit_8c_source.html#l00105">guard_audit_format()</a>, and <a class="el" href="guard__test_8c_source.html#l00020">main()</a>.</p>
 
 </div>
 </div>
@@ -211,9 +213,33 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="guard__audit_8c_source.html#l00026">26</a> of file <a class="el" href="guard__audit_8c_source.html">guard_audit.c</a>.</p>
 
-<p class="reference">References <a class="el" href="guard_8h_source.html#l00035">GUARD_R_AUTHFAIL</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_GRAMMAR</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_NONE</a>, <a class="el" href="guard_8h_source.html#l00035">GUARD_R_NOTFOUND</a>, and <a class="el" href="guard_8h_source.html#l00034">GUARD_R_SIGNATURE</a>.</p>
+<p class="reference">References <a class="el" href="guard_8h_source.html#l00035">GUARD_R_AUTHFAIL</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_GRAMMAR</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_NONE</a>, <a class="el" href="guard_8h_source.html#l00035">GUARD_R_NOTFOUND</a>, <a class="el" href="guard_8h_source.html#l00035">GUARD_R_NOTROOT</a>, <a class="el" href="guard_8h_source.html#l00036">GUARD_R_PROXYABUSE</a>, <a class="el" href="guard_8h_source.html#l00034">GUARD_R_SIGNATURE</a>, and <a class="el" href="guard_8h_source.html#l00038">GUARD_R_TAMPER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="guard__audit_8c_source.html#l00079">guard_audit_format()</a>, and <a class="el" href="guard__test_8c_source.html#l00020">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="guard__audit_8c_source.html#l00105">guard_audit_format()</a>, and <a class="el" href="guard__test_8c_source.html#l00020">main()</a>.</p>
+
+</div>
+</div>
+<a id="a4e20daa4fe31d4fd5ebd6b7211cedfc1" name="a4e20daa4fe31d4fd5ebd6b7211cedfc1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4e20daa4fe31d4fd5ebd6b7211cedfc1">&#9670;&#160;</a></span>guard_wire_str()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const char * guard_wire_str </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49e">guard_wire_t</a>&#160;</td>
+          <td class="paramname"><em>w</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="guard__audit_8c_source.html#l00051">51</a> of file <a class="el" href="guard__audit_8c_source.html">guard_audit.c</a>.</p>
+
+<p class="reference">References <a class="el" href="guard_8h_source.html#l00052">GUARD_WIRE_EMPTY</a>, <a class="el" href="guard_8h_source.html#l00050">GUARD_WIRE_HTTP</a>, <a class="el" href="guard_8h_source.html#l00053">GUARD_WIRE_JUNK</a>, <a class="el" href="guard_8h_source.html#l00048">GUARD_WIRE_ROOT</a>, <a class="el" href="guard_8h_source.html#l00051">GUARD_WIRE_SSH</a>, and <a class="el" href="guard_8h_source.html#l00049">GUARD_WIRE_TLS</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>, and <a class="el" href="guard__test_8c_source.html#l00020">main()</a>.</p>
 
 </div>
 </div>

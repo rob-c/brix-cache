@@ -110,6 +110,8 @@ $(document).ready(function(){initNavTree('protocols_2root_2handshake_2policy_8c.
 Functions</h2></td></tr>
 <tr class="memitem:a59f594459de0e212cad877f80faba314" id="r_a59f594459de0e212cad877f80faba314"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2handshake_2policy_8c.html#a59f594459de0e212cad877f80faba314">brix_check_token_scope</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, const char *logical_path, int need_write)</td></tr>
 <tr class="separator:a59f594459de0e212cad877f80faba314"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acb6ca69605b9f96e3f8ac7faa0fde77a" id="r_acb6ca69605b9f96e3f8ac7faa0fde77a"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2handshake_2policy_8c.html#acb6ca69605b9f96e3f8ac7faa0fde77a">brix_min_sec_enforce</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="separator:acb6ca69605b9f96e3f8ac7faa0fde77a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afc2d9177116da0302492a4277aec6eb1" id="r_afc2d9177116da0302492a4277aec6eb1"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2handshake_2policy_8c.html#afc2d9177116da0302492a4277aec6eb1">brix_dispatch_require_login</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:afc2d9177116da0302492a4277aec6eb1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a745f2bb622560814db720ef1e942b22d" id="r_a745f2bb622560814db720ef1e942b22d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2root_2handshake_2policy_8c.html#a745f2bb622560814db720ef1e942b22d">brix_dispatch_require_auth</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
@@ -184,11 +186,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00054">54</a> of file <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html">policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00096">96</a> of file <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html">policy.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ctx__structs_8h_source.html#l00160">brix_ctx_login_t::auth_done</a>, <a class="el" href="handshake_8h_source.html#l00011">BRIX_DISPATCH_CONTINUE</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::logged_in</a>, and <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00065">brix_dispatch_require_write()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00107">brix_dispatch_require_write()</a>.</p>
 
 </div>
 </div>
@@ -218,7 +220,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00043">43</a> of file <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html">policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00085">85</a> of file <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html">policy.c</a>.</p>
 
 <p class="reference">References <a class="el" href="handshake_8h_source.html#l00011">BRIX_DISPATCH_CONTINUE</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::logged_in</a>, and <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>.</p>
 
@@ -258,11 +260,51 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00065">65</a> of file <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html">policy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00107">107</a> of file <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html">policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="handshake_8h_source.html#l00011">BRIX_DISPATCH_CONTINUE</a>, <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00054">brix_dispatch_require_auth()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="context_8h_source.html#l00285">brix_ctx_t::is_bound</a>, <a class="el" href="opcodes_8h_source.html#l00169">kXR_fsReadOnly</a>, and <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>.</p>
+<p class="reference">References <a class="el" href="handshake_8h_source.html#l00011">BRIX_DISPATCH_CONTINUE</a>, <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00096">brix_dispatch_require_auth()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="context_8h_source.html#l00285">brix_ctx_t::is_bound</a>, <a class="el" href="opcodes_8h_source.html#l00169">kXR_fsReadOnly</a>, and <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="dispatch__write_8c_source.html#l00127">brix_dispatch_write_opcode()</a>.</p>
+
+</div>
+</div>
+<a id="acb6ca69605b9f96e3f8ac7faa0fde77a" name="acb6ca69605b9f96e3f8ac7faa0fde77a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acb6ca69605b9f96e3f8ac7faa0fde77a">&#9670;&#160;</a></span>brix_min_sec_enforce()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_min_sec_enforce </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00043">43</a> of file <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html">policy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00254">BRIX_AUTH_NONE</a>, <a class="el" href="handshake_8h_source.html#l00011">BRIX_DISPATCH_CONTINUE</a>, <a class="el" href="handshake_8h_source.html#l00048">BRIX_MIN_SEC_INTENSE</a>, <a class="el" href="handshake_8h_source.html#l00046">BRIX_MIN_SEC_NONE</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00182">brix_ctx_recv_t::cur_reqid</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00171">kXR_TLSRequired</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="root_2handshake_2dispatch_8c_source.html#l00031">brix_dispatch()</a>.</p>
 
 </div>
 </div>

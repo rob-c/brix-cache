@@ -35,6 +35,8 @@ var webdav_8h =
     [ "ngx_http_brix_webdav_merge_loc_conf", "webdav_8h.html#a88f7b304ebfacd2556299c811fc15f62", null ],
     [ "ngx_http_brix_webdav_postconfiguration", "webdav_8h.html#ac83d906dd98db673aed10a71d7fcf9ef", null ],
     [ "webdav_conf_authdb", "webdav_8h.html#a21883798319947f434a55de678fd209b", null ],
+    [ "webdav_conf_client_cert_folder", "webdav_8h.html#a5670e412ddd861d8bd7d0af826a9e811", null ],
+    [ "webdav_conf_proxy_ssl_capath", "webdav_8h.html#a4aee37de6bb2797f3bfd75bc6b39f68e", null ],
     [ "webdav_conf_require_vo", "webdav_8h.html#a305ec103e9ea655351b698a97b2d75b8", null ],
     [ "webdav_conf_revoke_cache", "webdav_8h.html#aac002871d048c02b22b6328e60aee27e", null ],
     [ "webdav_introspect_access_handler", "webdav_8h.html#ac10b6c8c73a3cceb05e2b1ff98e72b1e", null ],

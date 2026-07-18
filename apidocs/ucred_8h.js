@@ -13,5 +13,6 @@ var ucred_8h =
     [ "brix_sd_ucred_key", "ucred_8h.html#a3dde26eee3ce03e5d5a3f6c2c7fb6728", null ],
     [ "brix_sd_ucred_principal", "ucred_8h.html#ad2505a06a712bfa5db77e77908d09824", null ],
     [ "brix_sd_ucred_resolve", "ucred_8h.html#a245e06c20eea3791952c9c5f27393d47", null ],
-    [ "brix_sd_ucred_select", "ucred_8h.html#a7387294fba3a0cde679e72b5ed32f1c5", null ]
+    [ "brix_sd_ucred_select", "ucred_8h.html#a7387294fba3a0cde679e72b5ed32f1c5", null ],
+    [ "brix_sd_ucred_wipe", "ucred_8h.html#a6f06f7fb547ae9e4344a558ed49d9d79", null ]
 ];

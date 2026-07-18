@@ -4,6 +4,7 @@ var metrics__webdav_8h =
     [ "BRIX_WEBDAV_AUTH_RESULT_ANONYMOUS", "metrics__webdav_8h.html#aefca7126ba093a8a7c93fa3a81798e0c", null ],
     [ "BRIX_WEBDAV_AUTH_RESULT_CERT_OK", "metrics__webdav_8h.html#a3ec4443636e8d46145e7032baeebd86c", null ],
     [ "BRIX_WEBDAV_AUTH_RESULT_NONE", "metrics__webdav_8h.html#ae63b40b0f410e1c61a895ea607df3615", null ],
+    [ "BRIX_WEBDAV_AUTH_RESULT_PWD_OK", "metrics__webdav_8h.html#ad34d218bbcadc02a0a17f498676caba9", null ],
     [ "BRIX_WEBDAV_AUTH_RESULT_REJECTED", "metrics__webdav_8h.html#a0ee99256a54b7c7f9879addfc7f495be", null ],
     [ "BRIX_WEBDAV_AUTH_RESULT_TOKEN_OK", "metrics__webdav_8h.html#a416b1fc9dbd357fe8fdb60f61cf04221", null ],
     [ "BRIX_WEBDAV_CORS_ALLOWED", "metrics__webdav_8h.html#a6d4e67948069be1eb4519194a4ec3f07", null ],

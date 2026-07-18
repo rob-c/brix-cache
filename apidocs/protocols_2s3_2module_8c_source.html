@@ -218,321 +218,332 @@ $(document).ready(function(){initNavTree('protocols_2s3_2module_8c_source.html',
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="protocols_2s3_2module__internal_8h.html#ac68e317cb9df3d817783c40b58b57dfc">s3_merge_export</a>(cf, conf) != NGX_CONF_OK) {</div>
 <div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
 <div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>        }</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    }</div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span> </div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>}</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>        <span class="comment">/* E-1: an S3 export with neither a SigV4 access key nor WLCG token auth</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment">         * accepts every request unauthenticated. Warn always; refuse strict. */</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        <span class="keywordflow">if</span> (!conf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#ab9adb6997b1b6a61348a199326bcd98d">token_enable</a> &amp;&amp; conf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#a6bfcffec245bb3d237de2ebfb4343175">access_key</a>.len == 0</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>            &amp;&amp; <a class="code hl_function" href="shared__conf_8h.html#ae904211581d5169324aa75095f6f8ed1">brix_shared_security_gate</a>(cf, conf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a5687645f29fefb62da94b7eb3f28b1c0">strict_security</a>,</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>                   <span class="stringliteral">&quot;S3 export accepts unauthenticated requests &quot;</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>                   <span class="stringliteral">&quot;(no brix_s3_access_key and brix_s3_token off)&quot;</span>,</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>                   <span class="stringliteral">&quot;brix_s3_access_key/brix_s3_secret_key or brix_s3_token&quot;</span>)</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>               != NGX_OK)</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        {</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        }</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    }</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>}</div>
 </div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span> </div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment"> * Post-config: install content handler</span></div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment"> * */</span></div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span> </div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00128" data-start="{" data-end="}">
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">  128</a></span><a class="code hl_function" href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">ngx_http_s3_postconfiguration</a>(ngx_conf_t *cf)</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>{</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    ngx_http_core_main_conf_t  *cmcf;</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    ngx_http_core_srv_conf_t  **cscfp;</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    <a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>     *scf;</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="keyword">static</span> ngx_str_t            default_pool_name = ngx_string(<span class="stringliteral">&quot;default&quot;</span>);</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    ngx_str_t                  *pool_name;</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    ngx_uint_t                  <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span> </div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    cscfp = cmcf-&gt;servers.elts;</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span> </div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    <span class="keywordflow">for</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = 0; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt; cmcf-&gt;servers.nelts; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>++) {</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        ngx_http_conf_ctx_t *ctx = cscfp[<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>]-&gt;ctx;</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span> </div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        scf = ctx-&gt;loc_conf[<a class="code hl_variable" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a>.ctx_index];</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        <span class="keywordflow">if</span> (scf == NULL || !scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">enable</a>) {</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        }</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span> </div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> * Post-config: install content handler</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> * */</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00139" data-start="{" data-end="}">
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">  139</a></span><a class="code hl_function" href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">ngx_http_s3_postconfiguration</a>(ngx_conf_t *cf)</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>{</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    ngx_http_core_main_conf_t  *cmcf;</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    ngx_http_core_srv_conf_t  **cscfp;</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    <a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>     *scf;</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    <span class="keyword">static</span> ngx_str_t            default_pool_name = ngx_string(<span class="stringliteral">&quot;default&quot;</span>);</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    ngx_str_t                  *pool_name;</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    ngx_uint_t                  <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
 <div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span> </div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>        pool_name = (scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a5da31a0f39f2c6105aa59f2cd7d9e8f3">thread_pool_name</a>.len &gt; 0)</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>                    ? &amp;scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a5da31a0f39f2c6105aa59f2cd7d9e8f3">thread_pool_name</a></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>                    : &amp;default_pool_name;</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span> </div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">thread_pool</a> = ngx_thread_pool_get(cf-&gt;cycle, pool_name);</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        <span class="keywordflow">if</span> (scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">thread_pool</a> == NULL) {</div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>                <span class="stringliteral">&quot;brix_s3: thread pool \&quot;%V\&quot; not found - &quot;</span></div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>                <span class="stringliteral">&quot;async PUT I/O disabled (add a thread_pool directive)&quot;</span>,</div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>                pool_name);</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>        }</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>        <span class="comment">/* kTLS for S3 https servers is enabled centrally in the WebDAV</span></div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment">         * postconfiguration server loop (every server carries a server-level</span></div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment">         * webdav loc-conf whose common.ktls flag drives SSL_OP_ENABLE_KTLS). */</span></div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    }</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span> </div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>}</div>
-</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span> </div>
-<div class="foldopen" id="foldopen00167" data-start="{" data-end="};">
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">  167</a></span><span class="keyword">static</span> ngx_http_module_t <a class="code hl_variable" href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">ngx_http_s3_module_ctx</a> = {</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    NULL,                          <span class="comment">/* preconfiguration        */</span></div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <a class="code hl_function" href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">ngx_http_s3_postconfiguration</a>, <span class="comment">/* postconfiguration       */</span></div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    NULL,                          <span class="comment">/* create main conf        */</span></div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    NULL,                          <span class="comment">/* init main conf          */</span></div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    NULL,                          <span class="comment">/* create server conf      */</span></div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    NULL,                          <span class="comment">/* merge server conf       */</span></div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <a class="code hl_function" href="protocols_2s3_2module_8c.html#a015cbf86532034d27511f380f81e2543">ngx_http_s3_create_loc_conf</a>,   <span class="comment">/* create location conf    */</span></div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <a class="code hl_function" href="protocols_2s3_2module_8c.html#acea91af943c62ace1cb2bec12d94dab9">ngx_http_s3_merge_loc_conf</a>,    <span class="comment">/* merge location conf     */</span></div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>};</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    cscfp = cmcf-&gt;servers.elts;</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span> </div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    <span class="keywordflow">for</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = 0; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt; cmcf-&gt;servers.nelts; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>++) {</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        ngx_http_conf_ctx_t *ctx = cscfp[<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>]-&gt;ctx;</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span> </div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        scf = ctx-&gt;loc_conf[<a class="code hl_variable" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a>.ctx_index];</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        <span class="keywordflow">if</span> (scf == NULL || !scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">enable</a>) {</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        }</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span> </div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>        pool_name = (scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a5da31a0f39f2c6105aa59f2cd7d9e8f3">thread_pool_name</a>.len &gt; 0)</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>                    ? &amp;scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a5da31a0f39f2c6105aa59f2cd7d9e8f3">thread_pool_name</a></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>                    : &amp;default_pool_name;</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span> </div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">thread_pool</a> = ngx_thread_pool_get(cf-&gt;cycle, pool_name);</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="keywordflow">if</span> (scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">thread_pool</a> == NULL) {</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>                <span class="stringliteral">&quot;brix_s3: thread pool \&quot;%V\&quot; not found - &quot;</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>                <span class="stringliteral">&quot;async PUT I/O disabled (add a thread_pool directive)&quot;</span>,</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>                pool_name);</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>        }</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>        <span class="comment">/* kTLS for S3 https servers is enabled centrally in the WebDAV</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="comment">         * postconfiguration server loop (every server carries a server-level</span></div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="comment">         * webdav loc-conf whose common.ktls flag drives SSL_OP_ENABLE_KTLS). */</span></div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    }</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span> </div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>}</div>
 </div>
 <div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span> </div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00179" data-start="{" data-end="}">
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">  179</a></span><a class="code hl_function" href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">ngx_http_s3_set</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>, <span class="keywordtype">void</span> *conf)</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>{</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    ngx_http_core_loc_conf_t  *clcf;</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="keywordtype">char</span>                      *rv;</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span> </div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    rv = ngx_conf_set_flag_slot(cf, <a class="code hl_struct" href="structcmd.html">cmd</a>, conf);</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordflow">if</span> (rv != NGX_CONF_OK) {</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span> rv;</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
+<div class="foldopen" id="foldopen00178" data-start="{" data-end="};">
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">  178</a></span><span class="keyword">static</span> ngx_http_module_t <a class="code hl_variable" href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">ngx_http_s3_module_ctx</a> = {</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    NULL,                          <span class="comment">/* preconfiguration        */</span></div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <a class="code hl_function" href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">ngx_http_s3_postconfiguration</a>, <span class="comment">/* postconfiguration       */</span></div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    NULL,                          <span class="comment">/* create main conf        */</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    NULL,                          <span class="comment">/* init main conf          */</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    NULL,                          <span class="comment">/* create server conf      */</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    NULL,                          <span class="comment">/* merge server conf       */</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <a class="code hl_function" href="protocols_2s3_2module_8c.html#a015cbf86532034d27511f380f81e2543">ngx_http_s3_create_loc_conf</a>,   <span class="comment">/* create location conf    */</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    <a class="code hl_function" href="protocols_2s3_2module_8c.html#acea91af943c62ace1cb2bec12d94dab9">ngx_http_s3_merge_loc_conf</a>,    <span class="comment">/* merge location conf     */</span></div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>};</div>
+</div>
 <div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span> </div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    clcf-&gt;handler = <a class="code hl_function" href="protocols_2s3_2handler_8c.html#ad64a819954f73b04cbed96b7dc8fd8cf">ngx_http_s3_handler</a>;</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span> </div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>}</div>
-</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00190" data-start="{" data-end="}">
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">  190</a></span><a class="code hl_function" href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">ngx_http_s3_set</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>, <span class="keywordtype">void</span> *conf)</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>{</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    ngx_http_core_loc_conf_t  *clcf;</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    <span class="keywordtype">char</span>                      *rv;</div>
 <div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span> </div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="comment"> * Directives</span></div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="comment"> * */</span></div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span> </div>
-<div class="foldopen" id="foldopen00199" data-start="{" data-end="};">
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">  199</a></span><span class="keyword">static</span> ngx_command_t <a class="code hl_variable" href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">ngx_http_s3_commands</a>[] = {</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span> </div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3&quot;</span>),</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>      <a class="code hl_function" href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">ngx_http_s3_set</a>,</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.enable),</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>      NULL },</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span> </div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <span class="comment">/* The XrdAcc directives (brix_authdb / _format / _audit) are registered by</span></div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span><span class="comment">     * the WebDAV module with shared setters that populate the S3 loc-conf too,</span></div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span><span class="comment">     * so they are intentionally NOT redeclared here (a duplicate would conflict). */</span></div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="comment">/* Export root, storage backend/credential, outbound compression and the</span></div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span><span class="comment">     * composable tier grammar (brix_export, brix_storage_backend,</span></div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span><span class="comment">     * brix_storage_credential, brix_compress, brix_cache_*, brix_stage*) are</span></div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="comment">     * owned by the shared ngx_http_brix_common_module; this protocol adopts</span></div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="comment">     * them via brix_http_common_adopt(). */</span></div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span> </div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_bucket&quot;</span>),</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, bucket),</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>      NULL },</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span> </div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_cache_root&quot;</span>),</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, cache_root),</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>      NULL },</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span> </div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_access_key&quot;</span>),</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, access_key),</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>      NULL },</div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span> </div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_secret_key&quot;</span>),</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, secret_key),</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>      NULL },</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span> </div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_region&quot;</span>),</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>),</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>      NULL },</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <span class="comment">/* brix_allow_write / brix_read_only are owned by ngx_http_brix_common_module. */</span></div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span> </div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_allow_unsigned_session_token&quot;</span>),</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, allow_unsigned_session_token),</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>      NULL },</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span> </div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_verify_chunk_signatures&quot;</span>),</div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, verify_chunk_signatures),</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>      NULL },</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span> </div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_list_cache&quot;</span>),</div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, list_cache),</div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>      NULL },</div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span> </div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <span class="comment">/* ZIP member access over S3 GetObject (phase-57 W2). Opt-in, off default. */</span></div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_zip_access&quot;</span>),</div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, zip_access),</div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>      NULL },</div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span> </div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_zip_cd_max_bytes&quot;</span>),</div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>      ngx_conf_set_size_slot,</div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, zip_cd_max_bytes),</div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>      NULL },</div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span> </div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_list_cache_ttl&quot;</span>),</div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>      ngx_conf_set_msec_slot,</div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, list_cache_ttl),</div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>      NULL },</div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span> </div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_max_keys&quot;</span>),</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>      ngx_conf_set_num_slot,</div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, max_keys),</div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>      NULL },</div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span> </div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>    <span class="comment">/* Phase 39 (WS8): incomplete-multipart reaper idle age in seconds (0=off). */</span></div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_mpu_max_age&quot;</span>),</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>      ngx_conf_set_num_slot,</div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, mpu_max_age),</div>
-<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>      NULL },</div>
-<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span> </div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>    <span class="comment">/* brix_thread_pool is owned by ngx_http_brix_common_module. */</span></div>
-<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span> </div>
-<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>    <span class="comment">/* SciTags packet marking (src/pmark/) — see phase-34 doc */</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark&quot;</span>),</div>
-<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.enable), NULL },</div>
-<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_firefly&quot;</span>),</div>
-<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.firefly), NULL },</div>
-<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_flowlabel&quot;</span>),</div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.flowlabel), NULL },</div>
-<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_scitag_cgi&quot;</span>),</div>
-<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.scitag_cgi), NULL },</div>
-<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_firefly_origin&quot;</span>),</div>
-<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.firefly_origin), NULL },</div>
-<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_http_plain&quot;</span>),</div>
-<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.http_plain), NULL },</div>
-<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_echo&quot;</span>),</div>
-<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_msec_slot,</div>
-<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.echo), NULL },</div>
-<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_appname&quot;</span>),</div>
-<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.appname), NULL },</div>
-<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_defsfile&quot;</span>),</div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.defsfile), NULL },</div>
-<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_domain&quot;</span>),</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, <a class="code hl_function" href="observability_2pmark_2config_8c.html#aaf44b208c2621b2cb705641ae2c5421d">brix_pmark_set_domain</a>,</div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_firefly_dest&quot;</span>),</div>
-<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, <a class="code hl_function" href="observability_2pmark_2config_8c.html#abd86767412890b028a730f40edc1c7f5">brix_pmark_set_firefly_dest</a>,</div>
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
-<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_map_experiment&quot;</span>),</div>
-<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE23, <a class="code hl_function" href="observability_2pmark_2config_8c.html#ac2c6101049bd75e026d53c01e66f7783">brix_pmark_set_map_experiment</a>,</div>
-<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
-<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_map_activity&quot;</span>),</div>
-<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE3 | NGX_CONF_TAKE4,</div>
-<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>      <a class="code hl_function" href="observability_2pmark_2config_8c.html#aa2f9539db7e6af45cc604c9da45da346">brix_pmark_set_map_activity</a>,</div>
-<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span> </div>
-<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    <span class="comment">/* WLCG bearer-token authentication (off by default).</span></div>
-<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span><span class="comment">     * brix_s3_token on — enable enforcing JWT mode; requires brix_s3_token_jwks.</span></div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span><span class="comment">     * brix_s3_token_jwks — path to a JWKS JSON file with RSA/EC public keys.</span></div>
-<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span><span class="comment">     * brix_s3_token_issuer — expected &quot;iss&quot; claim value.</span></div>
-<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span><span class="comment">     * brix_s3_token_audience — expected &quot;aud&quot; claim value.</span></div>
-<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span><span class="comment">     * brix_s3_token_clock_skew — grace period in seconds for exp/nbf (default 60). */</span></div>
-<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token&quot;</span>),</div>
-<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_enable),</div>
-<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>      NULL },</div>
-<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span> </div>
-<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_jwks&quot;</span>),</div>
-<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_jwks),</div>
-<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>      NULL },</div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span> </div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_issuer&quot;</span>),</div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_issuer),</div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>      NULL },</div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span> </div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_audience&quot;</span>),</div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_audience),</div>
-<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>      NULL },</div>
-<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span> </div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_clock_skew&quot;</span>),</div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>      ngx_conf_set_num_slot,</div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
-<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_clock_skew),</div>
-<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>      NULL },</div>
-<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span> </div>
-<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    ngx_null_command</div>
-<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>};</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    rv = ngx_conf_set_flag_slot(cf, <a class="code hl_struct" href="structcmd.html">cmd</a>, conf);</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="keywordflow">if</span> (rv != NGX_CONF_OK) {</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <span class="keywordflow">return</span> rv;</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    }</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span> </div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    clcf-&gt;handler = <a class="code hl_function" href="protocols_2s3_2handler_8c.html#ad64a819954f73b04cbed96b7dc8fd8cf">ngx_http_s3_handler</a>;</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span> </div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>}</div>
 </div>
-<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span> </div>
-<div class="foldopen" id="foldopen00409" data-start="{" data-end="};">
-<div class="line"><a id="l00409" name="l00409"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">  409</a></span>ngx_module_t <a class="code hl_variable" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a> = {</div>
-<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>    NGX_MODULE_V1,</div>
-<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    &amp;<a class="code hl_variable" href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">ngx_http_s3_module_ctx</a>,    <span class="comment">/* module context     */</span></div>
-<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    <a class="code hl_variable" href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">ngx_http_s3_commands</a>,       <span class="comment">/* module directives  */</span></div>
-<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>    NGX_HTTP_MODULE,            <span class="comment">/* module type        */</span></div>
-<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>    NULL,                       <span class="comment">/* init master        */</span></div>
-<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>    NULL,                       <span class="comment">/* init module        */</span></div>
-<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>    NULL,                       <span class="comment">/* init process       */</span></div>
-<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    NULL,                       <span class="comment">/* init thread        */</span></div>
-<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>    NULL,                       <span class="comment">/* exit thread        */</span></div>
-<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>    NULL,                       <span class="comment">/* exit process       */</span></div>
-<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>    NULL,                       <span class="comment">/* exit master        */</span></div>
-<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>    NGX_MODULE_V1_PADDING</div>
-<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>};</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span> </div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="comment"> * Directives</span></div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="comment"> * */</span></div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span> </div>
+<div class="foldopen" id="foldopen00210" data-start="{" data-end="};">
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">  210</a></span><span class="keyword">static</span> ngx_command_t <a class="code hl_variable" href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">ngx_http_s3_commands</a>[] = {</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3&quot;</span>),</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>      <a class="code hl_function" href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">ngx_http_s3_set</a>,</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.enable),</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>      NULL },</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span> </div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    <span class="comment">/* The XrdAcc directives (brix_authdb / _format / _audit) are registered by</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment">     * the WebDAV module with shared setters that populate the S3 loc-conf too,</span></div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment">     * so they are intentionally NOT redeclared here (a duplicate would conflict). */</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span> </div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    <span class="comment">/* Export root, storage backend/credential, outbound compression and the</span></div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span><span class="comment">     * composable tier grammar (brix_export, brix_storage_backend,</span></div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment">     * brix_storage_credential, brix_compress, brix_cache_*, brix_stage*) are</span></div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment">     * owned by the shared ngx_http_brix_common_module; this protocol adopts</span></div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span><span class="comment">     * them via brix_http_common_adopt(). */</span></div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span> </div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_bucket&quot;</span>),</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, bucket),</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>      NULL },</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span> </div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_cache_root&quot;</span>),</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, cache_root),</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>      NULL },</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span> </div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_access_key&quot;</span>),</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, access_key),</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>      NULL },</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span> </div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_secret_key&quot;</span>),</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, secret_key),</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>      NULL },</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span> </div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_region&quot;</span>),</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>),</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>      NULL },</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span> </div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>    <span class="comment">/* brix_allow_write / brix_read_only are owned by ngx_http_brix_common_module. */</span></div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span> </div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_allow_unsigned_session_token&quot;</span>),</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, allow_unsigned_session_token),</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>      NULL },</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span> </div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_verify_chunk_signatures&quot;</span>),</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, verify_chunk_signatures),</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>      NULL },</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span> </div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_list_cache&quot;</span>),</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, list_cache),</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>      NULL },</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span> </div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    <span class="comment">/* ZIP member access over S3 GetObject (phase-57 W2). Opt-in, off default. */</span></div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_zip_access&quot;</span>),</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, zip_access),</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>      NULL },</div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span> </div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_zip_cd_max_bytes&quot;</span>),</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>      ngx_conf_set_size_slot,</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, zip_cd_max_bytes),</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>      NULL },</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span> </div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_list_cache_ttl&quot;</span>),</div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>      ngx_conf_set_msec_slot,</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, list_cache_ttl),</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>      NULL },</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span> </div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_max_keys&quot;</span>),</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>      ngx_conf_set_num_slot,</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, max_keys),</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>      NULL },</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span> </div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>    <span class="comment">/* Phase 39 (WS8): incomplete-multipart reaper idle age in seconds (0=off). */</span></div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_mpu_max_age&quot;</span>),</div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>      ngx_conf_set_num_slot,</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, mpu_max_age),</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>      NULL },</div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span> </div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <span class="comment">/* brix_thread_pool is owned by ngx_http_brix_common_module. */</span></div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span> </div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>    <span class="comment">/* SciTags packet marking (src/pmark/) — see phase-34 doc */</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark&quot;</span>),</div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.enable), NULL },</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_firefly&quot;</span>),</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.firefly), NULL },</div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_flowlabel&quot;</span>),</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.flowlabel), NULL },</div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_scitag_cgi&quot;</span>),</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.scitag_cgi), NULL },</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_firefly_origin&quot;</span>),</div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.firefly_origin), NULL },</div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_http_plain&quot;</span>),</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.http_plain), NULL },</div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_echo&quot;</span>),</div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_msec_slot,</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.echo), NULL },</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_appname&quot;</span>),</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.appname), NULL },</div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_defsfile&quot;</span>),</div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, common.pmark.defsfile), NULL },</div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_domain&quot;</span>),</div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, <a class="code hl_function" href="observability_2pmark_2config_8c.html#aaf44b208c2621b2cb705641ae2c5421d">brix_pmark_set_domain</a>,</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_firefly_dest&quot;</span>),</div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, <a class="code hl_function" href="observability_2pmark_2config_8c.html#abd86767412890b028a730f40edc1c7f5">brix_pmark_set_firefly_dest</a>,</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_map_experiment&quot;</span>),</div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE23, <a class="code hl_function" href="observability_2pmark_2config_8c.html#ac2c6101049bd75e026d53c01e66f7783">brix_pmark_set_map_experiment</a>,</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    { ngx_string(<span class="stringliteral">&quot;brix_pmark_map_activity&quot;</span>),</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE3 | NGX_CONF_TAKE4,</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>      <a class="code hl_function" href="observability_2pmark_2config_8c.html#aa2f9539db7e6af45cc604c9da45da346">brix_pmark_set_map_activity</a>,</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },</div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span> </div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    <span class="comment">/* WLCG bearer-token authentication (off by default).</span></div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span><span class="comment">     * brix_s3_token on — enable enforcing JWT mode; requires brix_s3_token_jwks.</span></div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span><span class="comment">     * brix_s3_token_jwks — path to a JWKS JSON file with RSA/EC public keys.</span></div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span><span class="comment">     * brix_s3_token_issuer — expected &quot;iss&quot; claim value.</span></div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span><span class="comment">     * brix_s3_token_audience — expected &quot;aud&quot; claim value.</span></div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span><span class="comment">     * brix_s3_token_clock_skew — grace period in seconds for exp/nbf (default 60). */</span></div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token&quot;</span>),</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_enable),</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>      NULL },</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span> </div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_jwks&quot;</span>),</div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_jwks),</div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>      NULL },</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span> </div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_issuer&quot;</span>),</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_issuer),</div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>      NULL },</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span> </div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_audience&quot;</span>),</div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_audience),</div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>      NULL },</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span> </div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>    { ngx_string(<span class="stringliteral">&quot;brix_s3_token_clock_skew&quot;</span>),</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>      ngx_conf_set_num_slot,</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>      NGX_HTTP_LOC_CONF_OFFSET,</div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>      offsetof(<a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>, token_clock_skew),</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>      NULL },</div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span> </div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    ngx_null_command</div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>};</div>
+</div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span> </div>
+<div class="foldopen" id="foldopen00420" data-start="{" data-end="};">
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno"><a class="line" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">  420</a></span>ngx_module_t <a class="code hl_variable" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a> = {</div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>    NGX_MODULE_V1,</div>
+<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>    &amp;<a class="code hl_variable" href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">ngx_http_s3_module_ctx</a>,    <span class="comment">/* module context     */</span></div>
+<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span>    <a class="code hl_variable" href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">ngx_http_s3_commands</a>,       <span class="comment">/* module directives  */</span></div>
+<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>    NGX_HTTP_MODULE,            <span class="comment">/* module type        */</span></div>
+<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>    NULL,                       <span class="comment">/* init master        */</span></div>
+<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span>    NULL,                       <span class="comment">/* init module        */</span></div>
+<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span>    NULL,                       <span class="comment">/* init process       */</span></div>
+<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span>    NULL,                       <span class="comment">/* init thread        */</span></div>
+<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span>    NULL,                       <span class="comment">/* exit thread        */</span></div>
+<div class="line"><a id="l00430" name="l00430"></a><span class="lineno">  430</span>    NULL,                       <span class="comment">/* exit process       */</span></div>
+<div class="line"><a id="l00431" name="l00431"></a><span class="lineno">  431</span>    NULL,                       <span class="comment">/* exit master        */</span></div>
+<div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span>    NGX_MODULE_V1_PADDING</div>
+<div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span>};</div>
 </div>
 <div class="ttc" id="aacc_8h_html"><div class="ttname"><a href="acc_8h.html">acc.h</a></div></div>
 <div class="ttc" id="aacc_8h_html_aa2434f2aecc4349e06076f03cbd4b83d"><div class="ttname"><a href="acc_8h.html#aa2434f2aecc4349e06076f03cbd4b83d">brix_acc_http_init_conf</a></div><div class="ttdeci">void brix_acc_http_init_conf(brix_acc_http_t *acc)</div><div class="ttdef"><b>Definition</b> <a href="auth_2authz_2acc_2config_8c_source.html#l00163">config.c:163</a></div></div>
@@ -550,26 +561,30 @@ $(document).ready(function(){initNavTree('protocols_2s3_2module_8c_source.html',
 <div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
 <div class="ttc" id="aprotocols_2s3_2handler_8c_html_ad64a819954f73b04cbed96b7dc8fd8cf"><div class="ttname"><a href="protocols_2s3_2handler_8c.html#ad64a819954f73b04cbed96b7dc8fd8cf">ngx_http_s3_handler</a></div><div class="ttdeci">ngx_int_t ngx_http_s3_handler(ngx_http_request_t *r)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2handler_8c_source.html#l00364">handler.c:364</a></div></div>
 <div class="ttc" id="aprotocols_2s3_2module_8c_html_a015cbf86532034d27511f380f81e2543"><div class="ttname"><a href="protocols_2s3_2module_8c.html#a015cbf86532034d27511f380f81e2543">ngx_http_s3_create_loc_conf</a></div><div class="ttdeci">static void * ngx_http_s3_create_loc_conf(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00059">module.c:59</a></div></div>
-<div class="ttc" id="aprotocols_2s3_2module_8c_html_a055768004fd51062e392d483f97bc596"><div class="ttname"><a href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">ngx_http_s3_set</a></div><div class="ttdeci">static char * ngx_http_s3_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00179">module.c:179</a></div></div>
-<div class="ttc" id="aprotocols_2s3_2module_8c_html_a65f491b9d280e71673cde15333a8201c"><div class="ttname"><a href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">ngx_http_s3_postconfiguration</a></div><div class="ttdeci">static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00128">module.c:128</a></div></div>
-<div class="ttc" id="aprotocols_2s3_2module_8c_html_a8ed7b77535caac1b11362bc277adf5f5"><div class="ttname"><a href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">ngx_http_s3_commands</a></div><div class="ttdeci">static ngx_command_t ngx_http_s3_commands[]</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00199">module.c:199</a></div></div>
-<div class="ttc" id="aprotocols_2s3_2module_8c_html_aa3ebe1b6782bf4652135fb0c0bcd9489"><div class="ttname"><a href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_s3_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00409">module.c:409</a></div></div>
-<div class="ttc" id="aprotocols_2s3_2module_8c_html_ac7b7a471dfe4dc490c7e6be77ddf5d34"><div class="ttname"><a href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">ngx_http_s3_module_ctx</a></div><div class="ttdeci">static ngx_http_module_t ngx_http_s3_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00167">module.c:167</a></div></div>
+<div class="ttc" id="aprotocols_2s3_2module_8c_html_a055768004fd51062e392d483f97bc596"><div class="ttname"><a href="protocols_2s3_2module_8c.html#a055768004fd51062e392d483f97bc596">ngx_http_s3_set</a></div><div class="ttdeci">static char * ngx_http_s3_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00190">module.c:190</a></div></div>
+<div class="ttc" id="aprotocols_2s3_2module_8c_html_a65f491b9d280e71673cde15333a8201c"><div class="ttname"><a href="protocols_2s3_2module_8c.html#a65f491b9d280e71673cde15333a8201c">ngx_http_s3_postconfiguration</a></div><div class="ttdeci">static ngx_int_t ngx_http_s3_postconfiguration(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00139">module.c:139</a></div></div>
+<div class="ttc" id="aprotocols_2s3_2module_8c_html_a8ed7b77535caac1b11362bc277adf5f5"><div class="ttname"><a href="protocols_2s3_2module_8c.html#a8ed7b77535caac1b11362bc277adf5f5">ngx_http_s3_commands</a></div><div class="ttdeci">static ngx_command_t ngx_http_s3_commands[]</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00210">module.c:210</a></div></div>
+<div class="ttc" id="aprotocols_2s3_2module_8c_html_aa3ebe1b6782bf4652135fb0c0bcd9489"><div class="ttname"><a href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_s3_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00420">module.c:420</a></div></div>
+<div class="ttc" id="aprotocols_2s3_2module_8c_html_ac7b7a471dfe4dc490c7e6be77ddf5d34"><div class="ttname"><a href="protocols_2s3_2module_8c.html#ac7b7a471dfe4dc490c7e6be77ddf5d34">ngx_http_s3_module_ctx</a></div><div class="ttdeci">static ngx_http_module_t ngx_http_s3_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00178">module.c:178</a></div></div>
 <div class="ttc" id="aprotocols_2s3_2module_8c_html_acea91af943c62ace1cb2bec12d94dab9"><div class="ttname"><a href="protocols_2s3_2module_8c.html#acea91af943c62ace1cb2bec12d94dab9">ngx_http_s3_merge_loc_conf</a></div><div class="ttdeci">static char * ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00102">module.c:102</a></div></div>
 <div class="ttc" id="aprotocols_2s3_2module__internal_8h_html"><div class="ttname"><a href="protocols_2s3_2module__internal_8h.html">module_internal.h</a></div></div>
 <div class="ttc" id="aprotocols_2s3_2module__internal_8h_html_a091a8bb09f159a7f92a94c17545b33fb"><div class="ttname"><a href="protocols_2s3_2module__internal_8h.html#a091a8bb09f159a7f92a94c17545b33fb">s3_merge_token</a></div><div class="ttdeci">char * s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev, ngx_http_s3_loc_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="module__merge_8c_source.html#l00124">module_merge.c:124</a></div></div>
 <div class="ttc" id="aprotocols_2s3_2module__internal_8h_html_a637f222679fa6708d9edd1a74a5abdd7"><div class="ttname"><a href="protocols_2s3_2module__internal_8h.html#a637f222679fa6708d9edd1a74a5abdd7">s3_merge_preamble</a></div><div class="ttdeci">char * s3_merge_preamble(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev, ngx_http_s3_loc_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="module__merge_8c_source.html#l00052">module_merge.c:52</a></div></div>
 <div class="ttc" id="aprotocols_2s3_2module__internal_8h_html_aa2094f7e199f972b54a1d29a4239d2f2"><div class="ttname"><a href="protocols_2s3_2module__internal_8h.html#aa2094f7e199f972b54a1d29a4239d2f2">s3_merge_scalars</a></div><div class="ttdeci">void s3_merge_scalars(ngx_http_s3_loc_conf_t *prev, ngx_http_s3_loc_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="module__merge_8c_source.html#l00085">module_merge.c:85</a></div></div>
-<div class="ttc" id="aprotocols_2s3_2module__internal_8h_html_ac68e317cb9df3d817783c40b58b57dfc"><div class="ttname"><a href="protocols_2s3_2module__internal_8h.html#ac68e317cb9df3d817783c40b58b57dfc">s3_merge_export</a></div><div class="ttdeci">char * s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="module__merge_8c_source.html#l00245">module_merge.c:245</a></div></div>
+<div class="ttc" id="aprotocols_2s3_2module__internal_8h_html_ac68e317cb9df3d817783c40b58b57dfc"><div class="ttname"><a href="protocols_2s3_2module__internal_8h.html#ac68e317cb9df3d817783c40b58b57dfc">s3_merge_export</a></div><div class="ttdeci">char * s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="module__merge_8c_source.html#l00230">module_merge.c:230</a></div></div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>
 <div class="ttc" id="aroot__prepare_8h_html"><div class="ttname"><a href="root__prepare_8h.html">root_prepare.h</a></div></div>
 <div class="ttc" id="as3_8h_html"><div class="ttname"><a href="s3_8h.html">s3.h</a></div></div>
-<div class="ttc" id="ashared__conf_8h_html_af73d294883b111c056260443f163e0db"><div class="ttname"><a href="shared__conf_8h.html#af73d294883b111c056260443f163e0db">ngx_http_brix_shared_init</a></div><div class="ttdeci">static void ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00205">shared_conf.h:205</a></div></div>
+<div class="ttc" id="ashared__conf_8h_html_ae904211581d5169324aa75095f6f8ed1"><div class="ttname"><a href="shared__conf_8h.html#ae904211581d5169324aa75095f6f8ed1">brix_shared_security_gate</a></div><div class="ttdeci">static ngx_int_t brix_shared_security_gate(ngx_conf_t *cf, ngx_flag_t strict, const char *what, const char *remedy)</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00499">shared_conf.h:499</a></div></div>
+<div class="ttc" id="ashared__conf_8h_html_af73d294883b111c056260443f163e0db"><div class="ttname"><a href="shared__conf_8h.html#af73d294883b111c056260443f163e0db">ngx_http_brix_shared_init</a></div><div class="ttdeci">static void ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00278">shared_conf.h:278</a></div></div>
 <div class="ttc" id="astructcmd_html"><div class="ttname"><a href="structcmd.html">cmd</a></div><div class="ttdef"><b>Definition</b> <a href="aio__internal_8h_source.html#l00125">aio_internal.h:125</a></div></div>
-<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a22842bb7d808f3a1b9ae0d8c9640f00e"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">ngx_http_brix_shared_conf_t::thread_pool</a></div><div class="ttdeci">ngx_thread_pool_t * thread_pool</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00183">shared_conf.h:183</a></div></div>
-<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a5da31a0f39f2c6105aa59f2cd7d9e8f3"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a5da31a0f39f2c6105aa59f2cd7d9e8f3">ngx_http_brix_shared_conf_t::thread_pool_name</a></div><div class="ttdeci">ngx_str_t thread_pool_name</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00182">shared_conf.h:182</a></div></div>
-<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a830119e50c06bb31f63133378b85ff11"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">ngx_http_brix_shared_conf_t::enable</a></div><div class="ttdeci">ngx_flag_t enable</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00033">shared_conf.h:33</a></div></div>
+<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a22842bb7d808f3a1b9ae0d8c9640f00e"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">ngx_http_brix_shared_conf_t::thread_pool</a></div><div class="ttdeci">ngx_thread_pool_t * thread_pool</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00256">shared_conf.h:256</a></div></div>
+<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a5687645f29fefb62da94b7eb3f28b1c0"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a5687645f29fefb62da94b7eb3f28b1c0">ngx_http_brix_shared_conf_t::strict_security</a></div><div class="ttdeci">ngx_flag_t strict_security</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00219">shared_conf.h:219</a></div></div>
+<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a5da31a0f39f2c6105aa59f2cd7d9e8f3"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a5da31a0f39f2c6105aa59f2cd7d9e8f3">ngx_http_brix_shared_conf_t::thread_pool_name</a></div><div class="ttdeci">ngx_str_t thread_pool_name</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00255">shared_conf.h:255</a></div></div>
+<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a830119e50c06bb31f63133378b85ff11"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">ngx_http_brix_shared_conf_t::enable</a></div><div class="ttdeci">ngx_flag_t enable</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00047">shared_conf.h:47</a></div></div>
 <div class="ttc" id="astructngx__http__s3__loc__conf__t_html"><div class="ttname"><a href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="s3_8h_source.html#l00069">s3.h:69</a></div></div>
+<div class="ttc" id="astructngx__http__s3__loc__conf__t_html_a6bfcffec245bb3d237de2ebfb4343175"><div class="ttname"><a href="structngx__http__s3__loc__conf__t.html#a6bfcffec245bb3d237de2ebfb4343175">ngx_http_s3_loc_conf_t::access_key</a></div><div class="ttdeci">ngx_str_t access_key</div><div class="ttdef"><b>Definition</b> <a href="s3_8h_source.html#l00075">s3.h:75</a></div></div>
+<div class="ttc" id="astructngx__http__s3__loc__conf__t_html_ab9adb6997b1b6a61348a199326bcd98d"><div class="ttname"><a href="structngx__http__s3__loc__conf__t.html#ab9adb6997b1b6a61348a199326bcd98d">ngx_http_s3_loc_conf_t::token_enable</a></div><div class="ttdeci">ngx_flag_t token_enable</div><div class="ttdef"><b>Definition</b> <a href="s3_8h_source.html#l00110">s3.h:110</a></div></div>
 <div class="ttc" id="astructngx__http__s3__loc__conf__t_html_abae5b8721da1cd9bf144304d76b39cb8"><div class="ttname"><a href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">ngx_http_s3_loc_conf_t::common</a></div><div class="ttdeci">ngx_http_brix_shared_conf_t common</div><div class="ttdef"><b>Definition</b> <a href="s3_8h_source.html#l00070">s3.h:70</a></div></div>
 <div class="ttc" id="atmp__path_8h_html"><div class="ttname"><a href="tmp__path_8h.html">tmp_path.h</a></div></div>
 <div class="ttc" id="atoken_8h_html"><div class="ttname"><a href="token_8h.html">token.h</a></div></div>

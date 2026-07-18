@@ -105,6 +105,7 @@ $(document).ready(function(){initNavTree('protocols_2root_2stream_2module_8c.htm
 <code>#include &quot;<a class="el" href="health__check_8h_source.html">net/manager/health_check.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="stream__mirror_8h_source.html">net/mirror/stream_mirror.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="ratelimit_8h_source.html">net/ratelimit/ratelimit.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="negcache_8h_source.html">core/negcache/negcache.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="lifecycle_8h_source.html">auth/impersonate/lifecycle.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cns_8h_source.html">net/cms/cns.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="credential__block_8h_source.html">core/config/credential_block.h</a>&quot;</code><br />
@@ -195,7 +196,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00081">81</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00082">82</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 <p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
@@ -241,7 +242,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00129">129</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00130">130</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>
@@ -271,7 +272,7 @@ Variables</h2></td></tr>
 <div class="line">    { ngx_null_string,    0 }</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00038">38</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00039">39</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>
@@ -303,14 +304,14 @@ Variables</h2></td></tr>
 <div class="line">    { ngx_string(<span class="stringliteral">&quot;auto&quot;</span>),        <a class="code hl_enumvalue" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a> },</div>
 <div class="line">    { ngx_null_string,           0 }</div>
 <div class="line">}</div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03">BRIX_CRED_DELEGATE</a></div><div class="ttdeci">@ BRIX_CRED_DELEGATE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00195">sd.h:195</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214">BRIX_CRED_EXCHANGE</a></div><div class="ttdeci">@ BRIX_CRED_EXCHANGE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00194">sd.h:194</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b">BRIX_CRED_SELECT</a></div><div class="ttdeci">@ BRIX_CRED_SELECT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00192">sd.h:192</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739">BRIX_CRED_MINT</a></div><div class="ttdeci">@ BRIX_CRED_MINT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00196">sd.h:196</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a></div><div class="ttdeci">@ BRIX_CRED_PASSTHROUGH</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00193">sd.h:193</a></div></div>
-<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a></div><div class="ttdeci">@ BRIX_CRED_AUTO</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00198">sd.h:197</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a0205e036576e27d7563164e9c92a4f03">BRIX_CRED_DELEGATE</a></div><div class="ttdeci">@ BRIX_CRED_DELEGATE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00200">sd.h:200</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a10e4ea54e08575b20a57fefc6a8d1214">BRIX_CRED_EXCHANGE</a></div><div class="ttdeci">@ BRIX_CRED_EXCHANGE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00199">sd.h:199</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a4d26fdb822d9a3269f9f8b5a2176609b">BRIX_CRED_SELECT</a></div><div class="ttdeci">@ BRIX_CRED_SELECT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00197">sd.h:197</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a5203ce68c3f8a4d48687a5ef3e5af739">BRIX_CRED_MINT</a></div><div class="ttdeci">@ BRIX_CRED_MINT</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00201">sd.h:201</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a></div><div class="ttdeci">@ BRIX_CRED_PASSTHROUGH</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00198">sd.h:198</a></div></div>
+<div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a></div><div class="ttdeci">@ BRIX_CRED_AUTO</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00203">sd.h:202</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00050">50</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00051">51</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>
@@ -339,7 +340,7 @@ Variables</h2></td></tr>
 <div class="line">    { ngx_null_string,     0 }</div>
 <div class="line">}</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00060">60</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00061">61</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>
@@ -355,7 +356,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00153">153</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2root_2stream_2module_8c_source.html#l00154">154</a> of file <a class="el" href="protocols_2root_2stream_2module_8c_source.html">module.c</a>.</p>
 
 </div>
 </div>

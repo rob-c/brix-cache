@@ -112,6 +112,12 @@ Data Fields</h2></td></tr>
 <tr class="separator:ad50a1d4690ea901644f91cb0cea0b05f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aedb91dbb51523159b1d3a1defec35b04" id="r_aedb91dbb51523159b1d3a1defec35b04"><td class="memItemLeft" align="right" valign="top">time_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__cache__policy__t.html#aedb91dbb51523159b1d3a1defec35b04">cvmfs_manifest_ttl</a></td></tr>
 <tr class="separator:aedb91dbb51523159b1d3a1defec35b04"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a44ace4b208423e3e6ff146e2d213f185" id="r_a44ace4b208423e3e6ff146e2d213f185"><td class="memItemLeft" align="right" valign="top">time_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__cache__policy__t.html#a44ace4b208423e3e6ff146e2d213f185">cvmfs_offline_ttl</a></td></tr>
+<tr class="separator:a44ace4b208423e3e6ff146e2d213f185"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef7b8bea99954f1057eb0b5d1ae84786" id="r_aef7b8bea99954f1057eb0b5d1ae84786"><td class="memItemLeft" align="right" valign="top">const unsigned char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__cache__policy__t.html#aef7b8bea99954f1057eb0b5d1ae84786">cvmfs_master_pub</a></td></tr>
+<tr class="separator:aef7b8bea99954f1057eb0b5d1ae84786"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a964d12e6ded408a95266475ca98d6516" id="r_a964d12e6ded408a95266475ca98d6516"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__cache__policy__t.html#a964d12e6ded408a95266475ca98d6516">cvmfs_master_pub_len</a></td></tr>
+<tr class="separator:a964d12e6ded408a95266475ca98d6516"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aba1f2cba0d755dcbde19573169cb229a" id="r_aba1f2cba0d755dcbde19573169cb229a"><td class="memItemLeft" align="right" valign="top">regex_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__cache__policy__t.html#aba1f2cba0d755dcbde19573169cb229a">include_regex</a></td></tr>
 <tr class="separator:aba1f2cba0d755dcbde19573169cb229a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a90ddc5023e1cd9dcd0b885655638089f" id="r_a90ddc5023e1cd9dcd0b885655638089f"><td class="memItemLeft" align="right" valign="top">ngx_array_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__cache__policy__t.html#a90ddc5023e1cd9dcd0b885655638089f">deny_prefixes</a></td></tr>
@@ -147,9 +153,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00087">87</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00097">97</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
 
 </div>
 </div>
@@ -165,9 +171,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00091">91</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00101">101</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00302">brix_sd_cache_create()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00302">brix_sd_cache_create()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
 
 </div>
 </div>
@@ -185,7 +191,61 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00083">83</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00383">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00286">cache_fill_commit()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00072">sd_cache_is_cvmfs()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00174">sd_cache_stale_serve_ok()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00401">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00072">sd_cache_is_cvmfs()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00174">sd_cache_stale_serve_ok()</a>.</p>
+
+</div>
+</div>
+<a id="aef7b8bea99954f1057eb0b5d1ae84786" name="aef7b8bea99954f1057eb0b5d1ae84786"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef7b8bea99954f1057eb0b5d1ae84786">&#9670;&#160;</a></span>cvmfs_master_pub</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const unsigned char* brix_cache_policy_t::cvmfs_master_pub</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00090">90</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00189">brix_tier_load_master_key()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00363">cache_fill_verify()</a>, <a class="el" href="sd__cache__manifest_8c_source.html#l00146">meta_check_whitelist()</a>, and <a class="el" href="sd__cache__manifest_8c_source.html#l00282">sd_cache_verify_manifest()</a>.</p>
+
+</div>
+</div>
+<a id="a964d12e6ded408a95266475ca98d6516" name="a964d12e6ded408a95266475ca98d6516"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a964d12e6ded408a95266475ca98d6516">&#9670;&#160;</a></span>cvmfs_master_pub_len</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t brix_cache_policy_t::cvmfs_master_pub_len</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00094">94</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00189">brix_tier_load_master_key()</a>, <a class="el" href="sd__cache__manifest_8c_source.html#l00146">meta_check_whitelist()</a>, and <a class="el" href="sd__cache__manifest_8c_source.html#l00282">sd_cache_verify_manifest()</a>.</p>
+
+</div>
+</div>
+<a id="a44ace4b208423e3e6ff146e2d213f185" name="a44ace4b208423e3e6ff146e2d213f185"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a44ace4b208423e3e6ff146e2d213f185">&#9670;&#160;</a></span>cvmfs_offline_ttl</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">time_t brix_cache_policy_t::cvmfs_offline_ttl</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00085">85</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00174">sd_cache_stale_serve_ok()</a>.</p>
 
 </div>
 </div>
@@ -201,9 +261,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00086">86</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00096">96</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
 
 </div>
 </div>
@@ -219,7 +279,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00088">88</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00098">98</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
 </div>
 </div>
@@ -235,9 +295,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00093">93</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00103">103</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
 
 </div>
 </div>
@@ -255,7 +315,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00078">78</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
 
 </div>
 </div>
@@ -273,7 +333,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00079">79</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
 
 </div>
 </div>
@@ -289,9 +349,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00085">85</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00095">95</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
 
 </div>
 </div>
@@ -307,9 +367,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00092">92</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00102">102</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00302">brix_sd_cache_create()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00302">brix_sd_cache_create()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
 
 </div>
 </div>
@@ -327,7 +387,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00077">77</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>.</p>
 
 </div>
 </div>
@@ -343,9 +403,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00090">90</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00100">100</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00302">brix_sd_cache_create()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00302">brix_sd_cache_create()</a>, and <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>.</p>
 
 </div>
 </div>
@@ -363,7 +423,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00081">81</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>.</p>
 
 </div>
 </div>
@@ -379,9 +439,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00089">89</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00099">99</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00383">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>, <a class="el" href="sd__cache_8c_source.html#l00138">cache_open_miss_serve()</a>, and <a class="el" href="sd__cache__partial_8c_source.html#l00282">sd_cache_partial_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00401">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, <a class="el" href="sd__cache_8c_source.html#l00138">cache_open_miss_serve()</a>, and <a class="el" href="sd__cache__partial_8c_source.html#l00282">sd_cache_partial_open()</a>.</p>
 
 </div>
 </div>
@@ -399,7 +459,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tier_8h_source.html#l00080">80</a> of file <a class="el" href="tier_8h_source.html">tier.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00138">brix_tier_register_cache_store()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00072">sd_cache_is_cvmfs()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="runtime__server__backend_8c_source.html#l00336">brix_tier_register_cache_store()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00363">cache_fill_verify()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00072">sd_cache_is_cvmfs()</a>.</p>
 
 </div>
 </div>

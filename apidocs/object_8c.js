@@ -9,6 +9,7 @@ var object_8c =
     [ "s3_get_resolve", "object_8c.html#a278938919aac6bdbcfffc39b13c71619", null ],
     [ "s3_get_resolve_identity", "object_8c.html#a9379792d3629f6c4abd4301f8d977e12", null ],
     [ "s3_get_serve", "object_8c.html#ad1a75b470cef40d75dc7475b58dcfd72", null ],
+    [ "s3_get_serve_multirange", "object_8c.html#ac655acac3a3c76d25bb5341d24d6e725", null ],
     [ "s3_get_serve_offload", "object_8c.html#ada1db9df0ad98a88f97be6aa0973cb1a", null ],
     [ "s3_get_serve_zip_member", "object_8c.html#afe6c9caf8ff154ad8a1ea6ed0903c4d4", null ],
     [ "s3_handle_get", "object_8c.html#a071b321f5fc384497920fc9713789578", null ],

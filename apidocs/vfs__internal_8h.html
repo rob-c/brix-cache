@@ -161,6 +161,8 @@ Functions</h2></td></tr>
 <tr class="separator:a674c11c23ee252783b1f3003927b3ab4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ade9fadd2fca862021377cd489f513d71" id="r_ade9fadd2fca862021377cd489f513d71"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__internal_8h.html#ade9fadd2fca862021377cd489f513d71">brix_vfs_ctx_path</a> (const <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx)</td></tr>
 <tr class="separator:ade9fadd2fca862021377cd489f513d71"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a58197fdbd97de24e5e9860f53add4083" id="r_a58197fdbd97de24e5e9860f53add4083"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__internal_8h.html#a58197fdbd97de24e5e9860f53add4083">brix_vfs_ctx_pool_clone</a> (const <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx, ngx_pool_t *pool)</td></tr>
+<tr class="separator:a58197fdbd97de24e5e9860f53add4083"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a167afe0ba96740212bcb3d1500c26c66" id="r_a167afe0ba96740212bcb3d1500c26c66"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__internal_8h.html#a167afe0ba96740212bcb3d1500c26c66">brix_vfs_require_confined</a> (const <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx)</td></tr>
 <tr class="separator:a167afe0ba96740212bcb3d1500c26c66"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af99717551be0a1b22680b48dbc55ad09" id="r_af99717551be0a1b22680b48dbc55ad09"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__internal_8h.html#af99717551be0a1b22680b48dbc55ad09">brix_vfs_require_write</a> (const <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *ctx)</td></tr>
@@ -291,11 +293,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00410">410</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00430">430</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__cred_8c_source.html#l00388">vfs_backend_cap_ok()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00301">vfs_backend_cred_decide()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__cred_8c_source.html#l00408">vfs_backend_cap_ok()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00302">vfs_backend_cred_decide()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="open__resolved__file__open_8c_source.html#l00116">brix_open_resolved_via_driver()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00168">staged_open_driver()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="open__resolved__file__open_8c_source.html#l00116">brix_open_resolved_via_driver()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00118">staged_open_driver()</a>.</p>
 
 </div>
 </div>
@@ -329,7 +331,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open__adopt_8c_source.html#l00121">brix_vfs_adopt_fd()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00229">brix_vfs_adopt_obj()</a>, <a class="el" href="vfs__open_8c_source.html#l00088">brix_vfs_mkdir_parent_path()</a>, <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open__adopt_8c_source.html#l00121">brix_vfs_adopt_fd()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00229">brix_vfs_adopt_obj()</a>, <a class="el" href="vfs__open_8c_source.html#l00088">brix_vfs_mkdir_parent_path()</a>, <a class="el" href="vfs__dir_8c_source.html#l00164">brix_vfs_opendir_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>.</p>
 
 </div>
 </div>
@@ -349,11 +351,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00433">433</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00459">459</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00192">BRIX_CRED_SELECT</a>, <a class="el" href="vfs__deleg_8c_source.html#l00204">brix_vfs_backend_mode()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::storage_cred_dir</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00197">BRIX_CRED_SELECT</a>, <a class="el" href="sd__registry_8c_source.html#l00196">brix_sd_cred_accept()</a>, <a class="el" href="sd_8h_source.html#l00124">BRIX_SD_CRED_IDENTITY</a>, <a class="el" href="vfs__deleg_8c_source.html#l00204">brix_vfs_backend_mode()</a>, <a class="el" href="vfs__cred_8c_source.html#l00497">brix_vfs_ns_leaf()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00101">brix_vfs_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00114">brix_vfs_ctx_t::storage_cred_dir</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00112">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00172">brix_vfs_xattr_write_gate()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00123">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00174">brix_vfs_xattr_write_gate()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>.</p>
 
 </div>
 </div>
@@ -383,9 +385,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00161">161</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>.</p>
+<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00194">brix_vfs_copy()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00230">brix_vfs_delete()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00213">brix_vfs_mkdir()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00061">vfs_dir_route()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00196">brix_vfs_copy()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00248">brix_vfs_delete()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00214">brix_vfs_mkdir()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00256">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00210">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00061">vfs_dir_route()</a>.</p>
 
 </div>
 </div>
@@ -413,11 +415,53 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00248">248</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00252">252</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00028">brix_path_result_t::resolved</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00122">brix_vfs_ctx_t::resolved</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2unified_8h_source.html#l00028">brix_path_result_t::resolved</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00127">brix_vfs_ctx_t::resolved</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open_8c_source.html#l00284">brix_cache_open()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00194">brix_vfs_copy()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00230">brix_vfs_delete()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00179">brix_vfs_delete_via_namespace()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00213">brix_vfs_mkdir()</a>, <a class="el" href="vfs__open_8c_source.html#l00384">brix_vfs_open()</a>, <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__internal_8h_source.html#l00261">brix_vfs_require_confined()</a>, <a class="el" href="vfs__stat_8c_source.html#l00155">brix_vfs_residency()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="vfs__staged_8c_source.html#l00322">brix_vfs_staged_commit()</a>, <a class="el" href="vfs__staged_8c_source.html#l00225">brix_vfs_staged_open()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__staged_8c_source.html#l00095">staged_alloc_handle()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00036">vfs_opendir_fail()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open_8c_source.html#l00284">brix_cache_open()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00196">brix_vfs_copy()</a>, <a class="el" href="vfs__internal_8h_source.html#l00271">brix_vfs_ctx_pool_clone()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00248">brix_vfs_delete()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00197">brix_vfs_delete_via_namespace()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00214">brix_vfs_mkdir()</a>, <a class="el" href="vfs__open_8c_source.html#l00387">brix_vfs_open()</a>, <a class="el" href="vfs__dir_8c_source.html#l00164">brix_vfs_opendir_impl()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00256">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__internal_8h_source.html#l00311">brix_vfs_require_confined()</a>, <a class="el" href="vfs__stat_8c_source.html#l00157">brix_vfs_residency()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00210">brix_vfs_setxattr()</a>, <a class="el" href="vfs__staged_8c_source.html#l00275">brix_vfs_staged_commit()</a>, <a class="el" href="vfs__staged_8c_source.html#l00178">brix_vfs_staged_open()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00036">vfs_opendir_fail()</a>.</p>
+
+</div>
+</div>
+<a id="a58197fdbd97de24e5e9860f53add4083" name="a58197fdbd97de24e5e9860f53add4083"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a58197fdbd97de24e5e9860f53add4083">&#9670;&#160;</a></span>brix_vfs_ctx_pool_clone()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> * brix_vfs_ctx_pool_clone </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_pool_t *&#160;</td>
+          <td class="paramname"><em>pool</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00271">271</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00252">brix_vfs_ctx_path()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00028">brix_path_result_t::resolved</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00127">brix_vfs_ctx_t::resolved</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00103">brix_vfs_ctx_t::root_canon</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__writer_8c_source.html#l00075">brix_vfs_writer_open()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00067">staged_alloc_handle()</a>.</p>
 
 </div>
 </div>
@@ -461,11 +505,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00192">192</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00194">194</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>.</p>
+<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open__adopt_8c_source.html#l00121">brix_vfs_adopt_fd()</a>, and <a class="el" href="vfs__internal_8h_source.html#l00204">brix_vfs_handle_sd_obj()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open__adopt_8c_source.html#l00121">brix_vfs_adopt_fd()</a>, and <a class="el" href="vfs__internal_8h_source.html#l00206">brix_vfs_handle_sd_obj()</a>.</p>
 
 </div>
 </div>
@@ -507,9 +551,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__deleg_8c_source.html#l00611">611</a> of file <a class="el" href="vfs__deleg_8c_source.html">vfs_deleg.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__deleg_8c_source.html#l00634">634</a> of file <a class="el" href="vfs__deleg_8c_source.html">vfs_deleg.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2krb5_2forward_8c_source.html#l00208">brix_krb5_deleg_to_origin()</a>, <a class="el" href="auth_2krb5_2forward_8c_source.html#l00202">brix_krb5_forward_available()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::log</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>.</p>
+<p class="reference">References <a class="el" href="auth_2krb5_2forward_8c_source.html#l00208">brix_krb5_deleg_to_origin()</a>, <a class="el" href="auth_2krb5_2forward_8c_source.html#l00202">brix_krb5_forward_available()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00100">brix_vfs_ctx_t::log</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>.</p>
 
 </div>
 </div>
@@ -551,9 +595,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__deleg_8c_source.html#l00485">485</a> of file <a class="el" href="vfs__deleg_8c_source.html">vfs_deleg.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__deleg_8c_source.html#l00508">508</a> of file <a class="el" href="vfs__deleg_8c_source.html">vfs_deleg.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00194">BRIX_CRED_EXCHANGE</a>, <a class="el" href="sd__registry_8c_source.html#l00192">brix_sd_cred_accept()</a>, <a class="el" href="sd_8h_source.html#l00118">BRIX_SD_CRED_BEARER</a>, <a class="el" href="sd_8h_source.html#l00119">BRIX_SD_CRED_PROXY_PEM</a>, <a class="el" href="vfs__deleg_8c_source.html#l00326">brix_vfs_deleg_bearer()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00297">brix_vfs_deleg_deny()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00355">brix_vfs_deleg_exchange()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00410">brix_vfs_deleg_proxy()</a>, <a class="el" href="vfs__cred_8c_source.html#l00465">brix_vfs_ns_leaf()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00121">brix_vfs_ctx_t::deleg_live</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00199">BRIX_CRED_EXCHANGE</a>, <a class="el" href="sd__registry_8c_source.html#l00196">brix_sd_cred_accept()</a>, <a class="el" href="sd_8h_source.html#l00118">BRIX_SD_CRED_BEARER</a>, <a class="el" href="sd_8h_source.html#l00119">BRIX_SD_CRED_PROXY_PEM</a>, <a class="el" href="vfs__deleg_8c_source.html#l00349">brix_vfs_deleg_bearer()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00320">brix_vfs_deleg_deny()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00378">brix_vfs_deleg_exchange()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00433">brix_vfs_deleg_proxy()</a>, <a class="el" href="vfs__cred_8c_source.html#l00497">brix_vfs_ns_leaf()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00126">brix_vfs_ctx_t::deleg_live</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__cred_8c_source.html#l00120">vfs_cred_live_bag()</a>.</p>
 
@@ -603,9 +647,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__deleg_8c_source.html#l00556">556</a> of file <a class="el" href="vfs__deleg_8c_source.html">vfs_deleg.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__deleg_8c_source.html#l00579">579</a> of file <a class="el" href="vfs__deleg_8c_source.html">vfs_deleg.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00194">BRIX_CRED_EXCHANGE</a>, <a class="el" href="sts_8c_source.html#l00374">brix_s3_sts_assume()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00297">brix_vfs_deleg_deny()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00096">brix_vfs_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00095">brix_vfs_ctx_t::log</a>, <a class="el" href="sd_8h_source.html#l00213">brix_sd_cred_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="sts_8h_source.html#l00037">brix_s3_sts_conf_t::region</a>, <a class="el" href="sd_8h_source.html#l00203">brix_sd_cred_t::s3_ak</a>, <a class="el" href="sd_8h_source.html#l00205">brix_sd_cred_t::s3_region</a>, and <a class="el" href="sd_8h_source.html#l00204">brix_sd_cred_t::s3_sk</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00199">BRIX_CRED_EXCHANGE</a>, <a class="el" href="sts_8c_source.html#l00374">brix_s3_sts_assume()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00320">brix_vfs_deleg_deny()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00101">brix_vfs_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00100">brix_vfs_ctx_t::log</a>, <a class="el" href="sd_8h_source.html#l00220">brix_sd_cred_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="sts_8h_source.html#l00037">brix_s3_sts_conf_t::region</a>, <a class="el" href="sd_8h_source.html#l00208">brix_sd_cred_t::s3_ak</a>, <a class="el" href="sd_8h_source.html#l00210">brix_sd_cred_t::s3_region</a>, and <a class="el" href="sd_8h_source.html#l00209">brix_sd_cred_t::s3_sk</a>.</p>
 
 </div>
 </div>
@@ -633,11 +677,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00348">348</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00398">398</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00337">brix_vfs_now_ns()</a>, and <a class="el" href="aio__mgr_8c_source.html#l00382">now_ns()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00387">brix_vfs_now_ns()</a>, and <a class="el" href="aio__mgr_8c_source.html#l00382">now_ns()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__internal_8h_source.html#l00415">brix_vfs_observe_ctx_op()</a>.</p>
 
 </div>
 </div>
@@ -699,7 +743,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__open__adopt_8c_source.html#l00202">202</a> of file <a class="el" href="vfs__open__adopt_8c_source.html">vfs_open_adopt.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__or__fill_8c_source.html#l00141">brix_cache_fill_composed_thread()</a>, <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00185">brix_open_dispatch_driver()</a>, <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="open__request_8c_source.html#l00648">brix_open_try_cache_offload()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, <a class="el" href="vfs__open_8c_source.html#l00088">brix_vfs_mkdir_parent_path()</a>, and <a class="el" href="vfs__rename_8c_source.html#l00025">brix_vfs_rename_path()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__or__fill_8c_source.html#l00141">brix_cache_fill_composed_thread()</a>, <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00186">brix_open_dispatch_driver()</a>, <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="open__request_8c_source.html#l00699">brix_open_try_cache_offload()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00223">brix_vfs_export_relative()</a>, <a class="el" href="vfs__open_8c_source.html#l00088">brix_vfs_mkdir_parent_path()</a>, and <a class="el" href="vfs__rename_8c_source.html#l00026">brix_vfs_rename_path()</a>.</p>
 
 </div>
 </div>
@@ -731,9 +775,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__open__adopt_8c_source.html#l00072">72</a> of file <a class="el" href="vfs__open__adopt_8c_source.html">vfs_open_adopt.c</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00074">brix_vfs_stat_t::atime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00080">brix_vfs_stat_t::blocks</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00073">brix_vfs_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::dev</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00079">brix_vfs_stat_t::gid</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::is_regular</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00075">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00078">brix_vfs_stat_t::uid</a>.</p>
+<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00079">brix_vfs_stat_t::atime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00085">brix_vfs_stat_t::blocks</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00078">brix_vfs_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::dev</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00084">brix_vfs_stat_t::gid</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00086">brix_vfs_stat_t::is_directory</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00087">brix_vfs_stat_t::is_regular</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00080">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::mtime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::size</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00083">brix_vfs_stat_t::uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__dir_8c_source.html#l00298">vfs_readdir_stat_child()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00095">vfs_walk_emit_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__dir_8c_source.html#l00299">vfs_readdir_stat_child()</a>, and <a class="el" href="vfs__walk_8c_source.html#l00095">vfs_walk_emit_file()</a>.</p>
 
 </div>
 </div>
@@ -771,11 +815,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00204">204</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00206">206</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00192">brix_vfs_ctx_sd_obj()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00194">brix_vfs_ctx_sd_obj()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00070">brix_vfs_file_sd_obj()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00220">brix_vfs_file_stat()</a>, <a class="el" href="vfs__internal_8h_source.html#l00232">brix_vfs_handle_sendfile_fd()</a>, and <a class="el" href="vfs__open__handle_8c_source.html#l00104">brix_vfs_memfile_materialize()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00070">brix_vfs_file_sd_obj()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00238">brix_vfs_file_stat()</a>, <a class="el" href="vfs__internal_8h_source.html#l00236">brix_vfs_handle_sendfile_fd()</a>, and <a class="el" href="vfs__open__handle_8c_source.html#l00122">brix_vfs_memfile_materialize()</a>.</p>
 
 </div>
 </div>
@@ -825,11 +869,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00232">232</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00236">236</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00204">brix_vfs_handle_sd_obj()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00206">brix_vfs_handle_sd_obj()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00159">brix_vfs_file_sendfile_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00177">brix_vfs_file_sendfile_fd()</a>.</p>
 
 </div>
 </div>
@@ -857,11 +901,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00320">320</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00370">370</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00097">brix_vfs_ctx_t::metrics_proto</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00036">BRIX_PROTO_COUNT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00102">brix_vfs_ctx_t::metrics_proto</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>, <a class="el" href="vfs__open_8c_source.html#l00188">brix_vfs_open_try_cache()</a>, <a class="el" href="vfs__cred_8c_source.html#l00257">vfs_cred_deny_or_fallback()</a>, <a class="el" href="vfs__cred_8c_source.html#l00223">vfs_cred_fill_user()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00185">vfs_cred_no_cap()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__internal_8h_source.html#l00415">brix_vfs_observe_ctx_op()</a>, <a class="el" href="vfs__open_8c_source.html#l00188">brix_vfs_open_try_cache()</a>, <a class="el" href="vfs__cred_8c_source.html#l00258">vfs_cred_deny_or_fallback()</a>, <a class="el" href="vfs__cred_8c_source.html#l00223">vfs_cred_fill_user()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00185">vfs_cred_no_cap()</a>.</p>
 
 </div>
 </div>
@@ -889,9 +933,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00337">337</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00387">387</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00194">brix_vfs_copy()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00230">brix_vfs_delete()</a>, <a class="el" href="vfs__internal_8h_source.html#l00348">brix_vfs_elapsed_usec()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00306">brix_vfs_fgetxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00316">brix_vfs_flistxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00341">brix_vfs_fremovexattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00326">brix_vfs_fsetxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00213">brix_vfs_mkdir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="vfs__staged_8c_source.html#l00322">brix_vfs_staged_commit()</a>, and <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00196">brix_vfs_copy()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00248">brix_vfs_delete()</a>, <a class="el" href="vfs__internal_8h_source.html#l00398">brix_vfs_elapsed_usec()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00310">brix_vfs_fgetxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00320">brix_vfs_flistxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00345">brix_vfs_fremovexattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00330">brix_vfs_fsetxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00214">brix_vfs_mkdir()</a>, <a class="el" href="vfs__dir_8c_source.html#l00164">brix_vfs_opendir_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00256">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00210">brix_vfs_setxattr()</a>, <a class="el" href="vfs__staged_8c_source.html#l00275">brix_vfs_staged_commit()</a>, and <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>.</p>
 
 </div>
 </div>
@@ -939,11 +983,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00542">542</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00574">574</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__cred_8c_source.html#l00301">vfs_backend_cred_decide()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00512">vfs_ns_cap_ok()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__cred_8c_source.html#l00302">vfs_backend_cred_decide()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00544">vfs_ns_cap_ok()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00112">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00172">brix_vfs_xattr_write_gate()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00123">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00174">brix_vfs_xattr_write_gate()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>.</p>
 
 </div>
 </div>
@@ -963,11 +1007,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00465">465</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__cred_8c_source.html#l00497">497</a> of file <a class="el" href="vfs__cred_8c_source.html">vfs_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00450">brix_sd_cache_source_instance()</a>, and <a class="el" href="sd__stage_8c_source.html#l00284">brix_sd_stage_source_instance()</a>.</p>
+<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00468">brix_sd_cache_source_instance()</a>, and <a class="el" href="sd__stage_8c_source.html#l00284">brix_sd_stage_source_instance()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00163">brix_open_write_needs_staged()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00485">brix_vfs_deleg_live_cred()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00112">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__cred_8c_source.html#l00388">vfs_backend_cap_ok()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00512">vfs_ns_cap_ok()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00164">brix_open_write_needs_staged()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00227">brix_vfs_backend_accepts_proxy()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__cred_8c_source.html#l00459">brix_vfs_cred_gate_active()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00508">brix_vfs_deleg_live_cred()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00123">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00256">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00210">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="put__inner_8c_source.html#l00094">s3put_ensure_parent_dirs()</a>, <a class="el" href="vfs__cred_8c_source.html#l00408">vfs_backend_cap_ok()</a>, <a class="el" href="vfs__cred_8c_source.html#l00302">vfs_backend_cred_decide()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00544">vfs_ns_cap_ok()</a>.</p>
 
 </div>
 </div>
@@ -995,11 +1039,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00300">300</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00350">350</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
 <p class="reference">References <a class="el" href="ns__status_8h_source.html#l00022">BRIX_NS_CONFLICT</a>, <a class="el" href="ns__status_8h_source.html#l00020">BRIX_NS_DENIED</a>, <a class="el" href="ns__status_8h_source.html#l00021">BRIX_NS_EXISTS</a>, <a class="el" href="ns__status_8h_source.html#l00026">BRIX_NS_IO_ERROR</a>, <a class="el" href="ns__status_8h_source.html#l00025">BRIX_NS_NO_SPACE</a>, <a class="el" href="ns__status_8h_source.html#l00023">BRIX_NS_NOT_EMPTY</a>, <a class="el" href="ns__status_8h_source.html#l00019">BRIX_NS_NOT_FOUND</a>, <a class="el" href="ns__status_8h_source.html#l00018">BRIX_NS_OK</a>, and <a class="el" href="ns__status_8h_source.html#l00024">BRIX_NS_TOO_LONG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00156">brix_vfs_copy_ns()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00179">brix_vfs_delete_via_namespace()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__rename_8c_source.html#l00025">brix_vfs_rename_path()</a>, and <a class="el" href="sd__posix__ns_8c_source.html#l00067">sd_posix_ns_result()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00158">brix_vfs_copy_ns()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00197">brix_vfs_delete_via_namespace()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__rename_8c_source.html#l00026">brix_vfs_rename_path()</a>, and <a class="el" href="sd__posix__ns_8c_source.html#l00067">sd_posix_ns_result()</a>.</p>
 
 </div>
 </div>
@@ -1073,11 +1117,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00365">365</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00415">415</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00054">BRIX_ERR_NONE</a>, <a class="el" href="unified__record_8c_source.html#l00085">brix_metric_backend_bytes()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00160">brix_metric_err_from_errno()</a>, <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, <a class="el" href="sd__registry_8c_source.html#l00179">brix_sd_backend_name()</a>, <a class="el" href="vfs__internal_8h_source.html#l00348">brix_vfs_elapsed_usec()</a>, <a class="el" href="vfs__internal_8h_source.html#l00320">brix_vfs_metrics_proto()</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00104">brix_vfs_ctx_t::sd</a>.</p>
+<p class="reference">References <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00054">BRIX_ERR_NONE</a>, <a class="el" href="unified__record_8c_source.html#l00085">brix_metric_backend_bytes()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00160">brix_metric_err_from_errno()</a>, <a class="el" href="unified__record_8c_source.html#l00031">brix_metric_op_done()</a>, <a class="el" href="sd__registry_8c_source.html#l00183">brix_sd_backend_name()</a>, <a class="el" href="vfs__internal_8h_source.html#l00398">brix_vfs_elapsed_usec()</a>, <a class="el" href="vfs__internal_8h_source.html#l00370">brix_vfs_metrics_proto()</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__copy_8c_source.html#l00037">brix_vfs_copy_fail()</a>, <a class="el" href="vfs__copy_8c_source.html#l00156">brix_vfs_copy_ns()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00230">brix_vfs_delete()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00112">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00179">brix_vfs_delete_via_namespace()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00341">brix_vfs_fremovexattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00326">brix_vfs_fsetxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00213">brix_vfs_mkdir()</a>, <a class="el" href="vfs__internal_8h_source.html#l00396">brix_vfs_observe_file_op()</a>, <a class="el" href="vfs__dir_8c_source.html#l00163">brix_vfs_opendir_impl()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__staged_8c_source.html#l00322">brix_vfs_staged_commit()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00034">brix_vfs_xattr_observe_count()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00153">brix_vfs_xattr_observe_mut()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00036">vfs_opendir_fail()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__copy_8c_source.html#l00037">brix_vfs_copy_fail()</a>, <a class="el" href="vfs__copy_8c_source.html#l00158">brix_vfs_copy_ns()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00248">brix_vfs_delete()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00123">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00197">brix_vfs_delete_via_namespace()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00345">brix_vfs_fremovexattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00330">brix_vfs_fsetxattr()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00214">brix_vfs_mkdir()</a>, <a class="el" href="vfs__internal_8h_source.html#l00446">brix_vfs_observe_file_op()</a>, <a class="el" href="vfs__dir_8c_source.html#l00164">brix_vfs_opendir_impl()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__staged_8c_source.html#l00275">brix_vfs_staged_commit()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00034">brix_vfs_xattr_observe_count()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00155">brix_vfs_xattr_observe_mut()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00036">vfs_opendir_fail()</a>.</p>
 
 </div>
 </div>
@@ -1145,9 +1189,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00396">396</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00446">446</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00415">brix_vfs_observe_ctx_op()</a>, and <a class="el" href="broker__ops_8c_source.html#l00392">op</a>.</p>
 
 </div>
 </div>
@@ -1175,11 +1219,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00261">261</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00311">311</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00248">brix_vfs_ctx_path()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00031">brix_path_result_t::is_confined</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00122">brix_vfs_ctx_t::resolved</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00252">brix_vfs_ctx_path()</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00031">brix_path_result_t::is_confined</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00127">brix_vfs_ctx_t::resolved</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>, <a class="el" href="vfs__open_8c_source.html#l00156">brix_vfs_open_precheck()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>, <a class="el" href="vfs__internal_8h_source.html#l00279">brix_vfs_require_write()</a>, <a class="el" href="vfs__stat_8c_source.html#l00155">brix_vfs_residency()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00061">vfs_dir_route()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>, <a class="el" href="vfs__open_8c_source.html#l00156">brix_vfs_open_precheck()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00256">brix_vfs_removexattr()</a>, <a class="el" href="vfs__internal_8h_source.html#l00329">brix_vfs_require_write()</a>, <a class="el" href="vfs__stat_8c_source.html#l00157">brix_vfs_residency()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00210">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00061">vfs_dir_route()</a>.</p>
 
 </div>
 </div>
@@ -1207,11 +1251,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00279">279</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00329">329</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00123">brix_vfs_ctx_t::allow_write</a>, and <a class="el" href="vfs__internal_8h_source.html#l00261">brix_vfs_require_confined()</a>.</p>
+<p class="reference">References <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00128">brix_vfs_ctx_t::allow_write</a>, and <a class="el" href="vfs__internal_8h_source.html#l00311">brix_vfs_require_confined()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00194">brix_vfs_copy()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00230">brix_vfs_delete()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00213">brix_vfs_mkdir()</a>, <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00095">staged_alloc_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00196">brix_vfs_copy()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00248">brix_vfs_delete()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00214">brix_vfs_mkdir()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00067">staged_alloc_handle()</a>.</p>
 
 </div>
 </div>
@@ -1251,9 +1295,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00174">174</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00253">brix_sd_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00073">brix_vfs_stat_t::ctime</a>, <a class="el" href="sd_8h_source.html#l00255">brix_sd_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::ino</a>, <a class="el" href="sd_8h_source.html#l00256">brix_sd_stat_t::is_dir</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, <a class="el" href="sd_8h_source.html#l00257">brix_sd_stat_t::is_reg</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::is_regular</a>, <a class="el" href="sd_8h_source.html#l00254">brix_sd_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00075">brix_vfs_stat_t::mode</a>, <a class="el" href="sd_8h_source.html#l00252">brix_sd_stat_t::mtime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00272">brix_sd_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00078">brix_vfs_stat_t::ctime</a>, <a class="el" href="sd_8h_source.html#l00276">brix_sd_stat_t::gid</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00084">brix_vfs_stat_t::gid</a>, <a class="el" href="sd_8h_source.html#l00274">brix_sd_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::ino</a>, <a class="el" href="sd_8h_source.html#l00277">brix_sd_stat_t::is_dir</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00086">brix_vfs_stat_t::is_directory</a>, <a class="el" href="sd_8h_source.html#l00278">brix_sd_stat_t::is_reg</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00087">brix_vfs_stat_t::is_regular</a>, <a class="el" href="sd_8h_source.html#l00273">brix_sd_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00080">brix_vfs_stat_t::mode</a>, <a class="el" href="sd_8h_source.html#l00271">brix_sd_stat_t::mtime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::mtime</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::size</a>, <a class="el" href="sd_8h_source.html#l00275">brix_sd_stat_t::uid</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00083">brix_vfs_stat_t::uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00347">vfs_readdir_sd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00348">vfs_readdir_sd()</a>.</p>
 
 </div>
 </div>
@@ -1291,11 +1335,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00215">215</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__internal_8h_source.html#l00217">217</a> of file <a class="el" href="vfs__internal_8h_source.html">vfs_internal.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00253">brix_sd_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00073">brix_vfs_stat_t::ctime</a>, <a class="el" href="sd_8h_source.html#l00255">brix_sd_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::ino</a>, <a class="el" href="sd_8h_source.html#l00256">brix_sd_stat_t::is_dir</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, <a class="el" href="sd_8h_source.html#l00257">brix_sd_stat_t::is_reg</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::is_regular</a>, <a class="el" href="sd_8h_source.html#l00254">brix_sd_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00075">brix_vfs_stat_t::mode</a>, <a class="el" href="sd_8h_source.html#l00252">brix_sd_stat_t::mtime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00272">brix_sd_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00078">brix_vfs_stat_t::ctime</a>, <a class="el" href="sd_8h_source.html#l00276">brix_sd_stat_t::gid</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00084">brix_vfs_stat_t::gid</a>, <a class="el" href="sd_8h_source.html#l00274">brix_sd_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::ino</a>, <a class="el" href="sd_8h_source.html#l00277">brix_sd_stat_t::is_dir</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00086">brix_vfs_stat_t::is_directory</a>, <a class="el" href="sd_8h_source.html#l00278">brix_sd_stat_t::is_reg</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00087">brix_vfs_stat_t::is_regular</a>, <a class="el" href="sd_8h_source.html#l00273">brix_sd_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00080">brix_vfs_stat_t::mode</a>, <a class="el" href="sd_8h_source.html#l00271">brix_sd_stat_t::mtime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::mtime</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::size</a>, <a class="el" href="sd_8h_source.html#l00275">brix_sd_stat_t::uid</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00083">brix_vfs_stat_t::uid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00220">brix_vfs_file_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00238">brix_vfs_file_stat()</a>.</p>
 
 </div>
 </div>

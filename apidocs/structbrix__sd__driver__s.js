@@ -40,6 +40,7 @@ var structbrix__sd__driver__s =
     [ "setattr_cred", "structbrix__sd__driver__s.html#ab39d90bbcfc36c85bfc4709e62a1908e", null ],
     [ "setxattr", "structbrix__sd__driver__s.html#af21a383869ae67d602ec4f44aeeabdc9", null ],
     [ "setxattr_cred", "structbrix__sd__driver__s.html#ac03e578d16ece899f4641aad18bb8840", null ],
+    [ "space", "structbrix__sd__driver__s.html#a84d4dbc61f4e1f87110987843740c918", null ],
     [ "staged_abort", "structbrix__sd__driver__s.html#ae70fe4993b1b206945049de64cb1318b", null ],
     [ "staged_commit", "structbrix__sd__driver__s.html#ad5a3488ae2751be0317b876c8feb968c", null ],
     [ "staged_open", "structbrix__sd__driver__s.html#ae0301e8f1ac8d78e1d69c30f191e483d", null ],

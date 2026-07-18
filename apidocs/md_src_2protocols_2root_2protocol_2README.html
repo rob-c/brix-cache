@@ -93,18 +93,18 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2protocol_2REA
   <div class="headertitle"><div class="title">protocol — XRootD &lt;tt&gt;root://&lt;/tt&gt; wire-format constants &amp; packed structs</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md353"></a> </p>
-<h1><a class="anchor" id="autotoc_md354"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md357"></a> </p>
+<h1><a class="anchor" id="autotoc_md358"></a>
 Overview</h1>
 <p>This subsystem is the single source of truth for the <b>XRootD binary wire protocol</b> (<code>root://</code> / <code>roots://</code>). It is a <b>header-only library</b>: every file is pure <code>#define</code> constants and <code>#pragma pack(1)</code> <code>typedef struct</code> declarations — <b>no <code>.c</code> code, no functions, no allocation, no runtime state</b>. It is an <b>independent reimplementation</b> of the XRootD wire protocol, written from the published <b>XRootD Protocol Specification v5.2.0</b> and cross-checked against the upstream <code>xrootd/xrootd src/XProtocol/XProtocol.hh</code> header and the <code>dcache/xrootd4j</code> (Java) and <code>go-hep/hep</code> (Go) reference implementations, so that the rest of the module frames and parses the wire <b>byte-for-byte identically</b> to a real XRootD server.</p>
-<h2><a class="anchor" id="autotoc_md355"></a>
+<h2><a class="anchor" id="autotoc_md359"></a>
 Provenance &amp; licensing</h2>
 <p>These definitions are <b>wire-protocol facts</b> — opcode numbers, status/error codes, option bitmasks, field names, and packed byte layouts that any interoperable implementation must reproduce. They are expressed here in this project's own code and comments; <b>no XRootD source code is copied, linked, or distributed</b> by this module. Such interface facts are what every independent client/server (xrootd4j, go-hep, etc.) re-states, and reproducing them is what makes interoperability possible.</p>
 <p>XRootD itself is independent software distributed by its authors under the <b>LGPL-3.0</b> (see <a href="https://github.com/xrootd/xrootd">https://github.com/xrootd/xrootd</a>); LGPL-3.0 is compatible with this project's <b>AGPL-3.0</b> license. The XRootD relationship and the licenses of all third-party components linked into the built binary are recorded in the repo-root <a href="../../../../THIRD-PARTY-NOTICES"><code>THIRD-PARTY-NOTICES</code></a> file.</p>
 <p>It exists so that opcodes, status/error codes, option bitmasks, and on-the-wire byte layouts are declared <b>once</b> and shared by every consumer instead of being re-derived at each call site. Anyone asking "what opcode is X?", "what does this
 flag bit mean?", or "what is the byte layout of request Y?" answers it from here. These definitions are <b>wire facts, not policy</b>: they describe what bytes look like on the network, never how a request is authorized, confined, or executed.</p>
 <p>In the request lifecycle this subsystem sits <em>underneath</em> everything on the stream path. The umbrella module header <code>../ngx_brix_module.h</code> pulls in <code><a class="el" href="root_2protocol_2protocol_8h.html">protocol/protocol.h</a></code>, which transitively makes every constant and struct visible to the connection/handshake/dispatch layers, the per-opcode handlers (<code>../read/</code>, <code>../write/</code>, <code>../dirlist/</code>, <code>../query/</code>, <code>../fattr/</code>), the auth layers (<code>../gsi/</code>, <code>../session/</code>), the response framer (<code>../response/</code>), and the cluster/proxy layers (<code>../cms/</code>, <code>../manager/</code>, <code>../proxy/</code>, <code>../tpc/</code>). It is consumed **only by the stream (<code>root://</code>) side**; the HTTP-side protocols (WebDAV in <code>../webdav/</code>, S3 in <code>../s3/</code>) speak text/HTTP and do not use these structs.</p>
-<h1><a class="anchor" id="autotoc_md356"></a>
+<h1><a class="anchor" id="autotoc_md360"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -126,7 +126,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="gsi_8h.html">gsi.h</a></code>   </td><td class="markdownTableBodyNone">GSI (x509) handshake constants: step numbers (<code>kXGS_*</code> server→client, <code>kXGC_*</code> client→server) and <code>XrdSutBucket</code> type codes (<code>kXRS_*</code>, <code>kXRS_none</code>=0 terminator, <code>[type:4B][len:4B][data]</code>). The GSI <em>logic</em> lives in <code>../gsi/</code>.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md357"></a>
+<h1><a class="anchor" id="autotoc_md361"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structClientRequestHdr.html">ClientRequestHdr</a></code> (24 B)** — the universal client request header: <code>streamid[2]</code> (client-chosen, echoed back), <code>requestid</code> (a <code>kXR_*</code> opcode), 16-byte request-specific <code>body</code>, then <code>dlen</code> (payload length; payload follows inline). <b>Every opcode struct in <code><a class="el" href="wire_8h.html">wire.h</a></code> is just this 24-byte shape with the <code>body</code> region reinterpreted into named fields</b> — that is why all of them are exactly 24 bytes.</li>
@@ -138,7 +138,7 @@ Key types &amp; data structures</h1>
 <li>**Opcode/code numbering domains (<code><a class="el" href="opcodes_8h.html">opcodes.h</a></code>)** — request IDs run 3000–3032 (<code>kXR_auth</code> … <code>kXR_clone</code>); legacy ROOTD opcodes (&lt;3000) are unsupported. Error codes and query infotypes <b>also</b> start near 3000 but are <b>separate numbering domains</b> from request IDs and from POSIX errno. Status codes live in the 4000s.</li>
 <li>**GSI step/bucket constants (<code><a class="el" href="gsi_8h.html">gsi.h</a></code>)** — <code>kXGS_*</code>/<code>kXGC_*</code> drive the GSI handshake state machine; <code>kXRS_*</code> tag each length-delimited <code>[type:4B][len:4B][data]</code> bucket, parsed until <code>kXRS_none</code> (0).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md358"></a>
+<h1><a class="anchor" id="autotoc_md362"></a>
 Control &amp; data flow</h1>
 <p>Nothing <em>executes</em> here — this subsystem is <b>included, not called</b>. The flow that <em>uses</em> it on the <code>root://</code> path:</p>
 <ol type="1">
@@ -149,7 +149,7 @@ Control &amp; data flow</h1>
 <li>GSI auth (<code>../gsi/</code>) uses <code><a class="el" href="gsi_8h.html">gsi.h</a></code> step/bucket codes; manager/cluster redirects (<code>../manager/</code>, <code>../cms/</code>) and proxy forwarding (<code>../proxy/</code>) emit <code>kXR_redirect</code> (<code><a class="el" href="structServerRedirectBody.html">ServerRedirectBody</a></code>) and advertise role bits from <code><a class="el" href="flags_8h.html">flags.h</a></code> (<code>kXR_isServer</code>/<code>kXR_isManager</code>/<code>kXR_attrProxy</code>/<code>kXR_attrCache</code> …) in the <code>kXR_protocol</code> response (<code><a class="el" href="structServerProtocolBody.html">ServerProtocolBody</a></code>).</li>
 </ol>
 <p>Outbound dependency: <b>only <code>&lt;stdint.h&gt;</code></b> (via <code><a class="el" href="types_8h.html">types.h</a></code>). This subsystem depends on no other module code, which is why it can sit at the very bottom of the include graph.</p>
-<h1><a class="anchor" id="autotoc_md359"></a>
+<h1><a class="anchor" id="autotoc_md363"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Big-endian, exact byte layout.</b> All multi-byte integers are network byte order — use <code>htonl</code>/<code>ntohl</code>/<code>htons</code>/<code>ntohs</code>. <code>#pragma pack(1)</code> is mandatory: any compiler-inserted padding corrupts parsing immediately (<code><a class="el" href="wire__core__requests_8h.html">wire_core_requests.h</a>:8-15</code>, <code>:15</code> / <code>:350</code> for the <code>pack(push,1)</code>/<code>pop</code>). Every <code>Client*Request</code> is exactly 24 bytes by construction.</li>
@@ -165,7 +165,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Local extensions vs spec — do not assume upstream clients understand them.</b> Flagged in comments: stat bits <code>kXR_statAttrCache</code> (256) and <code>kXR_cachersp</code> (512), and <code>kXR_fa_recurse</code> (0x20) fattr-list option. <code>kXR_ecRedir</code>, <code>kXR_supgpf</code>, <code>kXR_anongpf</code> are declared for completeness but <b>never set</b> (no backing implementation) (<code><a class="el" href="flags_8h.html">flags.h</a>:67-76,119-132,294-296</code>).</li>
 <li><b>Doc-comment opcode typos (cosmetic — trust <code><a class="el" href="opcodes_8h.html">opcodes.h</a></code>).</b> The <code><a class="el" href="structClientChkPointRequest.html">ClientChkPointRequest</a></code> section is labelled <code>kXR_chkpoint (3033)</code> but the real opcode is <code>kXR_chkpoint = 3012</code> (3033 is the unrelated error code <code>kXR_TooManyErrs</code>) (<code><a class="el" href="wire__write__extended__requests_8h.html">wire_write_extended_requests.h</a>:316</code> vs <code><a class="el" href="opcodes_8h.html">opcodes.h</a>:56</code>). The <code><a class="el" href="structClientPgReadRequest.html">ClientPgReadRequest</a></code> section is labelled <code>kXR_pgread (3031)</code> but the real opcode is <code>kXR_pgread = 3030</code> (3031 is <code>kXR_writev</code>) (<code><a class="el" href="wire__write__extended__requests_8h.html">wire_write_extended_requests.h</a>:282</code> vs <code><a class="el" href="opcodes_8h.html">opcodes.h</a>:74-75</code>). Several comments also reference a dispatcher named <code>brix_dispatch_opcode()</code>; the actual function is **<code><a class="el" href="ngx__brix__module_8h.html#af132ef0a0493ad5eae6803fcee92c20e">brix_dispatch()</a></code>** in <code>../handshake/dispatch.c</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md360"></a>
+<h1><a class="anchor" id="autotoc_md364"></a>
 Entry points / extending</h1>
 <p>To add a <b>new XRootD opcode</b> (mirrors the <code>../../CLAUDE.md</code> recipe; the parts that touch <em>this</em> subsystem):</p>
 <ol type="1">
@@ -175,7 +175,7 @@ Entry points / extending</h1>
 <li>Then leave this subsystem: register the handler in the matching <code>../handshake/dispatch_*.c</code>, implement the op under <code>../read/</code>/<code>../write/</code>/etc., frame the reply via <code>../response/</code>, and add the 3 required tests (success + error + security-negative).</li>
 </ol>
 <p>Adding a <b>new flag / error code / infotype only</b> is a one-line <code>#define</code> in <code><a class="el" href="opcodes_8h.html">opcodes.h</a></code> or <code><a class="el" href="flags_8h.html">flags.h</a></code> — no <code>./configure</code> and no new-file registration in the top-level <code>config</code> script (the module's <code>ngx_module_srcs</code> / <code>NGX_ADDON_SRCS</code> list), because this subsystem ships <b>no <code>.c</code> files</b>.</p>
-<h1><a class="anchor" id="autotoc_md361"></a>
+<h1><a class="anchor" id="autotoc_md365"></a>
 See also</h1>
 <ul>
 <li><code>../README.md</code> — master subsystem index.</li>

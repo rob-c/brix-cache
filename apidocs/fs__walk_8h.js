@@ -2,6 +2,7 @@ var fs__walk_8h =
 [
     [ "brix_fs_walk_entry_t", "structbrix__fs__walk__entry__t.html", "structbrix__fs__walk__entry__t" ],
     [ "brix_fs_walk_options_t", "structbrix__fs__walk__options__t.html", "structbrix__fs__walk__options__t" ],
+    [ "BRIX_FS_TREE_MAX_DEPTH", "fs__walk_8h.html#a191ca5ee1a62aeec0e6c6c0407fd611a", null ],
     [ "brix_fs_walk_pt", "fs__walk_8h.html#a673a0e1c89fc76aeb0b3c5aa3f7c5b0a", null ],
     [ "brix_fs_dir_is_empty", "fs__walk_8h.html#a84e68c23a5a599986a31f399b3a72c7f", null ],
     [ "brix_fs_is_dot_entry", "fs__walk_8h.html#a37f764dd8629a47dbb2eabddef7bc220", null ],

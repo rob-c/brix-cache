@@ -6,7 +6,7 @@ var put__body_8c =
     [ "webdav_put_aio_thread", "put__body_8c.html#a7056b13b2655b2507d4fecd399d43ec0", null ],
     [ "webdav_put_persist_checksums", "put__body_8c.html#ad02005cc7df71b9ead988d83dd04a9eb", null ],
     [ "webdav_put_select_codec", "put__body_8c.html#a514ed85fb08adcffbe8194bd46a40d58", null ],
-    [ "webdav_put_stream_body", "put__body_8c.html#ad3113fabc15636fadaaa17f09a2cac65", null ],
+    [ "webdav_put_stream_body", "put__body_8c.html#ad339eddfa81a5ad18625b1b163584bfe", null ],
     [ "webdav_put_try_threaded", "put__body_8c.html#a8ebbee4d3dffcae1cca7d867375c165f", null ],
     [ "webdav_put_write_sync", "put__body_8c.html#ace82e59d5ee64f75d7bc924b457eedb4", null ]
 ];

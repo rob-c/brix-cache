@@ -477,9 +477,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdhttp__multipart_8c_source.html#l00343">343</a> of file <a class="el" href="xrdhttp__multipart_8c_source.html">xrdhttp_multipart.c</a>.</p>
 
-<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00049">brix_range_vector_opts_t::allow_open_ended</a>, <a class="el" href="range__vector_8h_source.html#l00048">brix_range_vector_opts_t::allow_suffix</a>, <a class="el" href="range__vector_8c_source.html#l00203">brix_http_parse_range_vector()</a>, <a class="el" href="range__vector_8h_source.html#l00050">brix_range_vector_opts_t::drop_unsatisfiable</a>, <a class="el" href="range__vector_8h_source.html#l00046">brix_range_vector_opts_t::max_ranges</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00304">mp_account_metrics()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00225">mp_build_chain()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00142">mp_compute_content_length()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00332">mp_resolve_path()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00269">mp_set_response_headers()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00057">mp_ctx_t::r</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="xrdhttp__response_8c_source.html#l00116">xrdhttp_add_response_headers()</a>, and <a class="el" href="xrdhttp_8h_source.html#l00045">XRDHTTP_MAX_RANGES</a>.</p>
+<p class="reference">References <a class="el" href="range__vector_8h_source.html#l00049">brix_range_vector_opts_t::allow_open_ended</a>, <a class="el" href="range__vector_8h_source.html#l00048">brix_range_vector_opts_t::allow_suffix</a>, <a class="el" href="range__vector_8c_source.html#l00218">brix_http_parse_range_vector()</a>, <a class="el" href="range__vector_8h_source.html#l00050">brix_range_vector_opts_t::drop_unsatisfiable</a>, <a class="el" href="range__vector_8h_source.html#l00046">brix_range_vector_opts_t::max_ranges</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00304">mp_account_metrics()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00225">mp_build_chain()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00142">mp_compute_content_length()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00332">mp_resolve_path()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00269">mp_set_response_headers()</a>, <a class="el" href="xrdhttp__multipart_8c_source.html#l00057">mp_ctx_t::r</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="xrdhttp__response_8c_source.html#l00116">xrdhttp_add_response_headers()</a>, and <a class="el" href="xrdhttp_8h_source.html#l00045">XRDHTTP_MAX_RANGES</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00370">get_serve_range()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00370">get_serve_range()</a>, and <a class="el" href="object_8c_source.html#l00423">s3_get_serve_multirange()</a>.</p>
 
 </div>
 </div>
@@ -551,7 +551,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="http__headers__set_8c_source.html#l00174">brix_http_request_header_add()</a>, <a class="el" href="net__target__parse_8c_source.html#l00244">brix_net_target_parse()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="xrdhttp_8h_source.html#l00065">xrdhttp_req_ctx_t::tpc_dst</a>, <a class="el" href="xrdhttp_8h_source.html#l00064">xrdhttp_req_ctx_t::tpc_src</a>, <a class="el" href="xrdhttp_8h_source.html#l00067">xrdhttp_req_ctx_t::tpc_token</a>, <a class="el" href="webdav__tpc_8h_source.html#l00070">webdav_tpc_find_header</a>, and <a class="el" href="xrdhttp_8h_source.html#l00040">XRDHTTP_TPC_KEY_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00509">ngx_http_brix_webdav_access_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00574">ngx_http_brix_webdav_access_handler()</a>.</p>
 
 </div>
 </div>
@@ -575,7 +575,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="xrdhttp_8h_source.html#l00070">xrdhttp_req_ctx_t::requuid</a>, <a class="el" href="xrdhttp_8h_source.html#l00067">xrdhttp_req_ctx_t::tpc_token</a>, <a class="el" href="xrdhttp_8h_source.html#l00060">xrdhttp_req_ctx_t::want_cksum</a>, <a class="el" href="webdav__tpc_8h_source.html#l00070">webdav_tpc_find_header</a>, <a class="el" href="xrdhttp_8c_source.html#l00141">xrdhttp_capture_header()</a>, <a class="el" href="xrdhttp_8c_source.html#l00051">xrdhttp_get_ctx()</a>, <a class="el" href="xrdhttp_8c_source.html#l00245">xrdhttp_log_client_identity()</a>, <a class="el" href="xrdhttp_8c_source.html#l00099">xrdhttp_normalize_rfc3230_algo()</a>, <a class="el" href="xrdhttp_8c_source.html#l00161">xrdhttp_parse_proto_headers()</a>, <a class="el" href="xrdhttp_8c_source.html#l00202">xrdhttp_parse_query_params()</a>, <a class="el" href="xrdhttp_8h_source.html#l00040">XRDHTTP_TPC_KEY_MAX</a>, and <a class="el" href="xrdhttp_8h_source.html#l00036">XRDHTTP_UUID_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00509">ngx_http_brix_webdav_access_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00574">ngx_http_brix_webdav_access_handler()</a>.</p>
 
 </div>
 </div>
@@ -597,7 +597,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdhttp__response_8c_source.html#l00345">345</a> of file <a class="el" href="xrdhttp__response_8c_source.html">xrdhttp_response.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="webdav_2get_8c_source.html#l00498">webdav_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="object_8c_source.html#l00492">s3_handle_get()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00498">webdav_handle_get()</a>.</p>
 
 </div>
 </div>

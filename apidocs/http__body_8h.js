@@ -12,5 +12,6 @@ var http__body_8h =
     [ "brix_http_body_write_to_fd", "http__body_8h.html#acc271dcf335c3fe7b4782c57a3dc1ccd", null ],
     [ "brix_http_body_write_to_fd_at", "http__body_8h.html#abd90f7ea078fc227c986f555b3e9078d", null ],
     [ "brix_http_body_write_to_staged", "http__body_8h.html#adefe3dc6fb192a0824d6de100a57fd4f", null ],
+    [ "brix_http_body_write_to_writer", "http__body_8h.html#afa6fed58271ba64de60b2ec96bf8b4d9", null ],
     [ "brix_http_read_body", "http__body_8h.html#a37610e52a1e3bbe36bff45d160435e1b", null ]
 ];

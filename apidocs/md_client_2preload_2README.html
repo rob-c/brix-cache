@@ -93,22 +93,22 @@ $(document).ready(function(){initNavTree('md_client_2preload_2README.html',''); 
   <div class="headertitle"><div class="title">&lt;tt&gt;client/preload/&lt;/tt&gt; — LD_PRELOAD POSIX → XRootD shim</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md591"></a> </p>
-<h1><a class="anchor" id="autotoc_md592"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md595"></a> </p>
+<h1><a class="anchor" id="autotoc_md596"></a>
 Overview</h1>
 <p>An <code>LD_PRELOAD</code> shim that lets <b>unmodified POSIX tools</b> (<code>cat</code>, <code>md5sum</code>, <code>ls</code>, analysis jobs) read data from a remote XRootD <code>root://</code> export with no recompile and <b>no libXrdCl / XrdPosix</b> — just <code>libbrix</code>. It interposes the libc read-path calls and routes any path under a configured prefix to the remote server; every other path falls straight through to the real libc call.</p>
 <div class="fragment"><div class="line">LD_PRELOAD=libbrixposix_preload.so BRIX_VMP=/xrd=root://host:port/ cat /xrd/file</div>
 </div><!-- fragment --><p><code>$BRIX_VMP = "&lt;localprefix&gt;=root://host[:port][/base]"</code>. A path starting with <code>&lt;localprefix&gt;</code> is rewritten to the remote logical path and opened through a single lazily-connected, mutex-guarded <code>libbrix</code> session (one request in flight).</p>
-<h1><a class="anchor" id="autotoc_md593"></a>
+<h1><a class="anchor" id="autotoc_md597"></a>
 How it works</h1>
 <ul>
 <li><b>Interposed calls:</b> <code>open</code>/<code>read</code>/<code>pread</code>/<code>lseek</code>/<code>close</code>, the <code>stat</code> family (incl. <code>statx</code> and the LFS <code>*64</code> variants), and <code>access</code>. Real libc symbols are resolved with <code>dlsym(RTLD_NEXT)</code> via the <code>__typeof__</code>-based <code><a class="el" href="brixposix__preload_8c.html#ad122bb37f27ae294e99f914bda617edc">REAL()</a></code> helper, so each wrapper inherits libc's exact prototype.</li>
 <li><b>Shadow fd table:</b> remote descriptors live at <code>fd &gt;= XFS_FD_BASE</code> so <code>read</code>/<code>lseek</code>/<code>close</code>/<code>fstat</code> can distinguish them from real libc fds.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md594"></a>
+<h1><a class="anchor" id="autotoc_md598"></a>
 Scope</h1>
 <p>First cut is the <b>read path</b>. Documented fall-throughs to libc (passed straight to the real call): files opened for <b>write</b> under the prefix, <code>fopen</code>/<code>mmap</code>, and the legacy <code>__xstat()</code> routing (modern glibc exports <code>stat</code>/<code>lstat</code>/<code>fstat</code> as real symbols, which are interposed directly).</p>
-<h1><a class="anchor" id="autotoc_md595"></a>
+<h1><a class="anchor" id="autotoc_md599"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -116,7 +116,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="brixposix__preload_8c.html">brixposix_preload.c</a></code>   </td><td class="markdownTableBodyNone">The entire shim: env parsing, the interposed wrappers, the shadow fd table, and the lazy <code>libbrix</code> session.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md596"></a>
+<h1><a class="anchor" id="autotoc_md600"></a>
 See also</h1>
 <ul>
 <li><code>../lib/README.md</code> — the <code>libbrix</code> library the shim opens its sessions through.</li>

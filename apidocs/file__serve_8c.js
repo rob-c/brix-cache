@@ -9,7 +9,7 @@ var file__serve_8c =
     [ "brix_http_serve_file_ranged", "file__serve_8c.html#a6f541a3097eda1fbe34fb5a7576ebf70", null ],
     [ "brix_serve_memory_backed", "file__serve_8c.html#a4ac4e40f7d232e3af1f5d5cac9b40c40", null ],
     [ "serve_apply_tcp_congestion", "file__serve_8c.html#a7580f2aa926c217199c866f65036b97b", null ],
-    [ "serve_range_unsatisfiable", "file__serve_8c.html#a945c7181f9375d9c59d8758f46571de3", null ],
+    [ "serve_range_unsatisfiable", "file__serve_8c.html#ac0e3e27ec8ed2e91ddd1be4df2f15e8c", null ],
     [ "serve_record_body_accounting", "file__serve_8c.html#a0a0cdc3c64985febd48958a6d631b85e", null ],
     [ "serve_send_memory_backed", "file__serve_8c.html#a231f06d1104f040c9ed224ab87eb385e", null ],
     [ "serve_send_sendfile", "file__serve_8c.html#a27aecadac9a947d6d7911be7791c5888", null ],

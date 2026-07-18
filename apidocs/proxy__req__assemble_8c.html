@@ -103,6 +103,7 @@ $(document).ready(function(){initNavTree('proxy__req__assemble_8c.html',''); ini
 <code>#include &lt;openssl/x509.h&gt;</code><br />
 <code>#include &lt;openssl/pem.h&gt;</code><br />
 <code>#include &lt;openssl/evp.h&gt;</code><br />
+<code>#include &lt;openssl/crypto.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="proxy__req__internal_8h_source.html">proxy_req_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for proxy_req_assemble.c:</div>
@@ -123,6 +124,8 @@ Data Structures</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:aff966e3539fe63eca40e7437a768ee1c" id="r_aff966e3539fe63eca40e7437a768ee1c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proxy__req__assemble_8c.html#aff966e3539fe63eca40e7437a768ee1c">asm_check_key_match</a> (const <a class="el" href="structasm__args.html">asm_args</a> *a, EVP_PKEY *reqkey)</td></tr>
 <tr class="separator:aff966e3539fe63eca40e7437a768ee1c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afcb2718bfc9d0a50553f789bafe2c273" id="r_afcb2718bfc9d0a50553f789bafe2c273"><td class="memItemLeft" align="right" valign="top">static uint8_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proxy__req__assemble_8c.html#afcb2718bfc9d0a50553f789bafe2c273">asm_export_key</a> (const <a class="el" href="structasm__args.html">asm_args</a> *a, EVP_PKEY *reqkey, size_t *len)</td></tr>
+<tr class="separator:afcb2718bfc9d0a50553f789bafe2c273"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a30196ef71600e4d03f14730305c60685" id="r_a30196ef71600e4d03f14730305c60685"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proxy__req__assemble_8c.html#a30196ef71600e4d03f14730305c60685">asm_concat_pem</a> (const <a class="el" href="structasm__args.html">asm_args</a> *a, uint8_t **out_pem, size_t *out_len)</td></tr>
 <tr class="separator:a30196ef71600e4d03f14730305c60685"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6a1e91487853496599e830c863bd3b13" id="r_a6a1e91487853496599e830c863bd3b13"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="proxy__req__assemble_8c.html#a6a1e91487853496599e830c863bd3b13">brix_gsi_assemble_proxy</a> (const <a class="el" href="structbrix__gsi__blob__t.html">brix_gsi_blob_t</a> *proxy_pem, EVP_PKEY *reqkey, const <a class="el" href="structbrix__gsi__blob__t.html">brix_gsi_blob_t</a> *chain_pem, <a class="el" href="structbrix__gsi__buf__t.html">brix_gsi_buf_t</a> *out_pem, const <a class="el" href="structbrix__gsi__err__t.html">brix_gsi_err_t</a> *err)</td></tr>
@@ -163,11 +166,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proxy__req__assemble_8c_source.html#l00047">47</a> of file <a class="el" href="proxy__req__assemble_8c_source.html">proxy_req_assemble.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proxy__req__assemble_8c_source.html#l00055">55</a> of file <a class="el" href="proxy__req__assemble_8c_source.html">proxy_req_assemble.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proxy__req__assemble_8c_source.html#l00039">asm_args::err</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00040">asm_args::errcap</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00035">asm_args::proxy_pem</a>, and <a class="el" href="proxy__req__assemble_8c_source.html#l00036">asm_args::proxy_pem_len</a>.</p>
+<p class="reference">References <a class="el" href="proxy__req__assemble_8c_source.html#l00047">asm_args::err</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00048">asm_args::errcap</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00041">asm_args::proxy_pem</a>, and <a class="el" href="proxy__req__assemble_8c_source.html#l00042">asm_args::proxy_pem_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proxy__req__assemble_8c_source.html#l00105">brix_gsi_assemble_proxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proxy__req__assemble_8c_source.html#l00152">brix_gsi_assemble_proxy()</a>.</p>
 
 </div>
 </div>
@@ -211,11 +214,59 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proxy__req__assemble_8c_source.html#l00080">80</a> of file <a class="el" href="proxy__req__assemble_8c_source.html">proxy_req_assemble.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proxy__req__assemble_8c_source.html#l00124">124</a> of file <a class="el" href="proxy__req__assemble_8c_source.html">proxy_req_assemble.c</a>.</p>
 
-<p class="reference">References <a class="el" href="safe__size_8h_source.html#l00065">brix_size_add()</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00037">asm_args::chain_pem</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00038">asm_args::chain_pem_len</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00039">asm_args::err</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00040">asm_args::errcap</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00035">asm_args::proxy_pem</a>, and <a class="el" href="proxy__req__assemble_8c_source.html#l00036">asm_args::proxy_pem_len</a>.</p>
+<p class="reference">References <a class="el" href="safe__size_8h_source.html#l00065">brix_size_add()</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00043">asm_args::chain_pem</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00044">asm_args::chain_pem_len</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00047">asm_args::err</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00048">asm_args::errcap</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00045">asm_args::key_pem</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00046">asm_args::key_pem_len</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00041">asm_args::proxy_pem</a>, and <a class="el" href="proxy__req__assemble_8c_source.html#l00042">asm_args::proxy_pem_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="proxy__req__assemble_8c_source.html#l00105">brix_gsi_assemble_proxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="proxy__req__assemble_8c_source.html#l00152">brix_gsi_assemble_proxy()</a>.</p>
+
+</div>
+</div>
+<a id="afcb2718bfc9d0a50553f789bafe2c273" name="afcb2718bfc9d0a50553f789bafe2c273"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afcb2718bfc9d0a50553f789bafe2c273">&#9670;&#160;</a></span>asm_export_key()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static uint8_t * asm_export_key </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structasm__args.html">asm_args</a> *&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">EVP_PKEY *&#160;</td>
+          <td class="paramname"><em>reqkey</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="proxy__req__assemble_8c_source.html#l00088">88</a> of file <a class="el" href="proxy__req__assemble_8c_source.html">proxy_req_assemble.c</a>.</p>
+
+<p class="reference">References <a class="el" href="proxy__req__assemble_8c_source.html#l00047">asm_args::err</a>, and <a class="el" href="proxy__req__assemble_8c_source.html#l00048">asm_args::errcap</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="proxy__req__assemble_8c_source.html#l00152">brix_gsi_assemble_proxy()</a>.</p>
 
 </div>
 </div>
@@ -263,11 +314,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="proxy__req__assemble_8c_source.html#l00105">105</a> of file <a class="el" href="proxy__req__assemble_8c_source.html">proxy_req_assemble.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="proxy__req__assemble_8c_source.html#l00152">152</a> of file <a class="el" href="proxy__req__assemble_8c_source.html">proxy_req_assemble.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proxy__req__assemble_8c_source.html#l00047">asm_check_key_match()</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00080">asm_concat_pem()</a>, <a class="el" href="proxy__req_8h_source.html#l00034">brix_gsi_err_t::buf</a>, <a class="el" href="proxy__req_8h_source.html#l00035">brix_gsi_err_t::cap</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00037">asm_args::chain_pem</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00038">asm_args::chain_pem_len</a>, <a class="el" href="proxy__req_8h_source.html#l00020">brix_gsi_blob_t::data</a>, <a class="el" href="proxy__req_8h_source.html#l00027">brix_gsi_buf_t::data</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00039">asm_args::err</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00040">asm_args::errcap</a>, <a class="el" href="proxy__req_8h_source.html#l00021">brix_gsi_blob_t::len</a>, <a class="el" href="proxy__req_8h_source.html#l00028">brix_gsi_buf_t::len</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00035">asm_args::proxy_pem</a>, and <a class="el" href="proxy__req__assemble_8c_source.html#l00036">asm_args::proxy_pem_len</a>.</p>
+<p class="reference">References <a class="el" href="proxy__req__assemble_8c_source.html#l00055">asm_check_key_match()</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00124">asm_concat_pem()</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00088">asm_export_key()</a>, <a class="el" href="proxy__req_8h_source.html#l00034">brix_gsi_err_t::buf</a>, <a class="el" href="proxy__req_8h_source.html#l00035">brix_gsi_err_t::cap</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00043">asm_args::chain_pem</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00044">asm_args::chain_pem_len</a>, <a class="el" href="proxy__req_8h_source.html#l00020">brix_gsi_blob_t::data</a>, <a class="el" href="proxy__req_8h_source.html#l00027">brix_gsi_buf_t::data</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00047">asm_args::err</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00048">asm_args::errcap</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00045">asm_args::key_pem</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00046">asm_args::key_pem_len</a>, <a class="el" href="proxy__req_8h_source.html#l00021">brix_gsi_blob_t::len</a>, <a class="el" href="proxy__req_8h_source.html#l00028">brix_gsi_buf_t::len</a>, <a class="el" href="proxy__req__assemble_8c_source.html#l00041">asm_args::proxy_pem</a>, and <a class="el" href="proxy__req__assemble_8c_source.html#l00042">asm_args::proxy_pem_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01160">delegation_put_assemble()</a>, and <a class="el" href="proxy__req__unittest_8c_source.html#l00233">test_assemble_proxy()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2gsi_2delegation_8c_source.html#l00312">brix_gsi_handle_sigpxy()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01178">delegation_put_assemble()</a>, <a class="el" href="gsi__mech_8c_source.html#l00289">gss_recv_signed()</a>, and <a class="el" href="proxy__req__unittest_8c_source.html#l00235">test_assemble_proxy()</a>.</p>
 
 </div>
 </div>

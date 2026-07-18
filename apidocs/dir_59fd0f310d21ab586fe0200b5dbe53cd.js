@@ -6,6 +6,7 @@ var dir_59fd0f310d21ab586fe0200b5dbe53cd =
     [ "util", "dir_dca6497a6de9600b4048ec5fbaf0b239.html", "dir_dca6497a6de9600b4048ec5fbaf0b239" ],
     [ "access.c", "protocols_2webdav_2access_8c.html", "protocols_2webdav_2access_8c" ],
     [ "acl.c", "protocols_2webdav_2acl_8c.html", "protocols_2webdav_2acl_8c" ],
+    [ "auth_basic.c", "auth__basic_8c.html", "auth__basic_8c" ],
     [ "auth_cert.c", "auth__cert_8c.html", "auth__cert_8c" ],
     [ "auth_store.c", "auth__store_8c.html", "auth__store_8c" ],
     [ "auth_token.c", "auth__token_8c.html", "auth__token_8c" ],

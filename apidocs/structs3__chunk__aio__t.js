@@ -7,8 +7,8 @@ var structs3__chunk__aio__t =
     [ "r", "structs3__chunk__aio__t.html#ad80281710f0fd8264db7e9f9163aa486", null ],
     [ "rc", "structs3__chunk__aio__t.html#a6b6e79944427ba3848e5d2879dc8441b", null ],
     [ "root_canon", "structs3__chunk__aio__t.html#a5c8aee653997ded9030ad36a433eb421", null ],
-    [ "staged", "structs3__chunk__aio__t.html#ab223b753533d0836fc024fa9b46cdb94", null ],
     [ "trailer", "structs3__chunk__aio__t.html#af9c2003e860229ff319167b8b54dfcc8", null ],
     [ "verify", "structs3__chunk__aio__t.html#af9bdb92cd50a02a79704c354450a4b72", null ],
-    [ "window", "structs3__chunk__aio__t.html#a7af3a9c6926ac2557325312512fc3a14", null ]
+    [ "window", "structs3__chunk__aio__t.html#a7af3a9c6926ac2557325312512fc3a14", null ],
+    [ "writer", "structs3__chunk__aio__t.html#a8d5a3a994788a191f5f370b024e927da", null ]
 ];

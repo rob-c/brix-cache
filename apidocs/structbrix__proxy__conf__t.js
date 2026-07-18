@@ -15,6 +15,7 @@ var structbrix__proxy__conf__t =
     [ "port", "structbrix__proxy__conf__t.html#a4bfe4e4337e5816ce99801e61a8f34d2", null ],
     [ "read_timeout", "structbrix__proxy__conf__t.html#ab5c74db096afae2ad06314cfafa35393", null ],
     [ "reconnect_attempts", "structbrix__proxy__conf__t.html#a2bc25de96251a070c017c2518bfc9873", null ],
+    [ "upstream_ssl_verify", "structbrix__proxy__conf__t.html#ad56470db23c94fd7a63f63d810fac925", null ],
     [ "upstream_tls", "structbrix__proxy__conf__t.html#a31003d4b85ffc645d358b1c166e346ae", null ],
     [ "upstream_tls_ca", "structbrix__proxy__conf__t.html#a4e41e8006e4fe6011c104c88a6eadb29", null ],
     [ "upstream_tls_name", "structbrix__proxy__conf__t.html#aab1e9b1641c620065ab59cfcc93ea917", null ],

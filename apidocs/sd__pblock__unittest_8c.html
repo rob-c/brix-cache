@@ -102,7 +102,9 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c.html',''); ini
 <code>#include &quot;<a class="el" href="sd__pblock__catalog_8h_source.html">sd_pblock_catalog.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;ftw.h&gt;</code><br />
+<code>#include &lt;limits.h&gt;</code><br />
 <code>#include &lt;pthread.h&gt;</code><br />
+<code>#include &lt;sqlite3.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
@@ -122,6 +124,10 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c.html',''); ini
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structthread__arg.html">thread_arg</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structenum__probe__t.html">enum_probe_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbreak__arg.html">break_arg</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
@@ -181,6 +187,58 @@ Functions</h2></td></tr>
 <tr class="separator:a6898f9572bd3d2333a89aae802edd6a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6f8d7a9095c2771640fb3c94a0866f22" id="r_a6f8d7a9095c2771640fb3c94a0866f22"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a6f8d7a9095c2771640fb3c94a0866f22">test_block_copy_and_unlink</a> (void)</td></tr>
 <tr class="separator:a6f8d7a9095c2771640fb3c94a0866f22"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae4c25ea1ba4daa5428270e0373bc56d2" id="r_ae4c25ea1ba4daa5428270e0373bc56d2"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ae4c25ea1ba4daa5428270e0373bc56d2">cred_write_file</a> (brix_sd_instance_t *inst, const char *path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *who)</td></tr>
+<tr class="separator:ae4c25ea1ba4daa5428270e0373bc56d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5ac68e08d1fb10ed351a3b4bcf1887e1" id="r_a5ac68e08d1fb10ed351a3b4bcf1887e1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a5ac68e08d1fb10ed351a3b4bcf1887e1">test_ident_ownership</a> (brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:a5ac68e08d1fb10ed351a3b4bcf1887e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac47136f7f2ffe5231e3e329a513368a3" id="r_ac47136f7f2ffe5231e3e329a513368a3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ac47136f7f2ffe5231e3e329a513368a3">test_ident_vo_dir</a> (brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:ac47136f7f2ffe5231e3e329a513368a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1560203f36e72f91a806534e199a76b0" id="r_a1560203f36e72f91a806534e199a76b0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a1560203f36e72f91a806534e199a76b0">test_ident_traverse</a> (brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:a1560203f36e72f91a806534e199a76b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac494d2845fb948a93fa77b05f7967800" id="r_ac494d2845fb948a93fa77b05f7967800"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ac494d2845fb948a93fa77b05f7967800">test_ident_setattr</a> (brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:ac494d2845fb948a93fa77b05f7967800"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2f6d615d33f2ed660088a7f91cf9e3e5" id="r_a2f6d615d33f2ed660088a7f91cf9e3e5"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a2f6d615d33f2ed660088a7f91cf9e3e5">test_ident_xattr_sticky</a> (brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:a2f6d615d33f2ed660088a7f91cf9e3e5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afcb07bd75da0e3bf4e43cd4925dc896c" id="r_afcb07bd75da0e3bf4e43cd4925dc896c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#afcb07bd75da0e3bf4e43cd4925dc896c">test_identity</a> (void)</td></tr>
+<tr class="separator:afcb07bd75da0e3bf4e43cd4925dc896c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9e3f6d6485104cc3a2d143fcf66b3254" id="r_a9e3f6d6485104cc3a2d143fcf66b3254"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a9e3f6d6485104cc3a2d143fcf66b3254">lab_write_sidecar</a> (const char *root, const char *line)</td></tr>
+<tr class="separator:a9e3f6d6485104cc3a2d143fcf66b3254"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab261c48fe840e90e16e2860802c7bb25" id="r_ab261c48fe840e90e16e2860802c7bb25"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ab261c48fe840e90e16e2860802c7bb25">lab_ctl_set</a> (const char *root, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const char *val, long epoch)</td></tr>
+<tr class="separator:ab261c48fe840e90e16e2860802c7bb25"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a88325fdee0e71e9aa7626140058da797" id="r_a88325fdee0e71e9aa7626140058da797"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a88325fdee0e71e9aa7626140058da797">test_lab_fault_inject</a> (void)</td></tr>
+<tr class="separator:a88325fdee0e71e9aa7626140058da797"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad4492f84e81b7dfcb496322e7f2f0f76" id="r_ad4492f84e81b7dfcb496322e7f2f0f76"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ad4492f84e81b7dfcb496322e7f2f0f76">test_lab_gate_closed</a> (void)</td></tr>
+<tr class="separator:ad4492f84e81b7dfcb496322e7f2f0f76"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0c7587ac47f40a668ba68b5e7e6d9459" id="r_a0c7587ac47f40a668ba68b5e7e6d9459"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a0c7587ac47f40a668ba68b5e7e6d9459">test_lab_caps_mask</a> (void)</td></tr>
+<tr class="separator:a0c7587ac47f40a668ba68b5e7e6d9459"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4a24cde3f8ae52c0e0d3b32c72325e82" id="r_a4a24cde3f8ae52c0e0d3b32c72325e82"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a4a24cde3f8ae52c0e0d3b32c72325e82">enum_probe_cb</a> (void *ctx, const <a class="el" href="structbrix__sd__catalog__ent__t.html">brix_sd_catalog_ent_t</a> *ent)</td></tr>
+<tr class="separator:a4a24cde3f8ae52c0e0d3b32c72325e82"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b79ee397832355d7be4d3c7f5f1a842" id="r_a2b79ee397832355d7be4d3c7f5f1a842"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a2b79ee397832355d7be4d3c7f5f1a842">enum_walk</a> (brix_sd_instance_t *inst, const char *dir, int *files, int64_t *bytes)</td></tr>
+<tr class="separator:a2b79ee397832355d7be4d3c7f5f1a842"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad8c772681eee899ed9cddb04ff7d99a7" id="r_ad8c772681eee899ed9cddb04ff7d99a7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ad8c772681eee899ed9cddb04ff7d99a7">test_lab_enumerate</a> (void)</td></tr>
+<tr class="separator:ad8c772681eee899ed9cddb04ff7d99a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8393ce33483112849f0909902ca1a4e8" id="r_a8393ce33483112849f0909902ca1a4e8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a8393ce33483112849f0909902ca1a4e8">q_blob_id</a> (const char *root, const char *path, char *out, size_t cap)</td></tr>
+<tr class="separator:a8393ce33483112849f0909902ca1a4e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a296f9fdf062a7b3b276d626b00dd4f0d" id="r_a296f9fdf062a7b3b276d626b00dd4f0d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a296f9fdf062a7b3b276d626b00dd4f0d">q_refcount</a> (const char *root, const char *blob_id)</td></tr>
+<tr class="separator:a296f9fdf062a7b3b276d626b00dd4f0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad1e51dcbf1dba1eaeb641c9005eacea0" id="r_ad1e51dcbf1dba1eaeb641c9005eacea0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ad1e51dcbf1dba1eaeb641c9005eacea0">q_count</a> (const char *root, const char *sql)</td></tr>
+<tr class="separator:ad1e51dcbf1dba1eaeb641c9005eacea0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acc4618c9d19a4d11b100e44363986dd6" id="r_acc4618c9d19a4d11b100e44363986dd6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#acc4618c9d19a4d11b100e44363986dd6">staged_put</a> (brix_sd_instance_t *inst, const char *path, const char *data, size_t len)</td></tr>
+<tr class="separator:acc4618c9d19a4d11b100e44363986dd6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a16ea33532403cbef875c4d35c859fc60" id="r_a16ea33532403cbef875c4d35c859fc60"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a16ea33532403cbef875c4d35c859fc60">trunc_write</a> (brix_sd_instance_t *inst, const char *path, const char *data, size_t len)</td></tr>
+<tr class="separator:a16ea33532403cbef875c4d35c859fc60"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac1eb095883e8773e9c2a477e46d6b33a" id="r_ac1eb095883e8773e9c2a477e46d6b33a"><td class="memItemLeft" align="right" valign="top">static void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#ac1eb095883e8773e9c2a477e46d6b33a">break_body</a> (void *p)</td></tr>
+<tr class="separator:ac1eb095883e8773e9c2a477e46d6b33a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aed51d3169f359bd05ddd70fcad7198ec" id="r_aed51d3169f359bd05ddd70fcad7198ec"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#aed51d3169f359bd05ddd70fcad7198ec">test_dedup_refs</a> (void)</td></tr>
+<tr class="separator:aed51d3169f359bd05ddd70fcad7198ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a50e21bec55fd2dd71dc19cf220ae965b" id="r_a50e21bec55fd2dd71dc19cf220ae965b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a50e21bec55fd2dd71dc19cf220ae965b">test_dedup_forged_hash</a> (void)</td></tr>
+<tr class="separator:a50e21bec55fd2dd71dc19cf220ae965b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8880001ce9e36f604f207122adb09fea" id="r_a8880001ce9e36f604f207122adb09fea"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a8880001ce9e36f604f207122adb09fea">test_dedup_gate_closed</a> (void)</td></tr>
+<tr class="separator:a8880001ce9e36f604f207122adb09fea"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5663d06a92f88f5290a017fed78b36a2" id="r_a5663d06a92f88f5290a017fed78b36a2"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a5663d06a92f88f5290a017fed78b36a2">test_snapshot</a> (void)</td></tr>
+<tr class="separator:a5663d06a92f88f5290a017fed78b36a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb0ec8d04512f9566effcf72cd60169d" id="r_afb0ec8d04512f9566effcf72cd60169d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#afb0ec8d04512f9566effcf72cd60169d">test_versioning</a> (void)</td></tr>
+<tr class="separator:afb0ec8d04512f9566effcf72cd60169d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a840291bc02cba5474a4cb46a9b9566fe" id="r_a840291bc02cba5474a4cb46a9b9566fe"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe">main</a> (void)</td></tr>
 <tr class="separator:a840291bc02cba5474a4cb46a9b9566fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -196,6 +254,12 @@ Variables</h2></td></tr>
 <tr class="separator:aaa384923dd7c121d8929afe4fcd5b686"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a895db2d579d4b8f85b270dceed6d783e" id="r_a895db2d579d4b8f85b270dceed6d783e"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a895db2d579d4b8f85b270dceed6d783e">g_blk_max</a></td></tr>
 <tr class="separator:a895db2d579d4b8f85b270dceed6d783e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3ef4fb1dcfa1e1c542414831eceff93b" id="r_a3ef4fb1dcfa1e1c542414831eceff93b"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a3ef4fb1dcfa1e1c542414831eceff93b">CRED_ALICE</a></td></tr>
+<tr class="separator:a3ef4fb1dcfa1e1c542414831eceff93b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a10e137665958131989e9b0177ab14792" id="r_a10e137665958131989e9b0177ab14792"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#a10e137665958131989e9b0177ab14792">CRED_BOB</a></td></tr>
+<tr class="separator:a10e137665958131989e9b0177ab14792"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff37bdba314ca66d641b02f4dc57c7d6" id="r_aff37bdba314ca66d641b02f4dc57c7d6"><td class="memItemLeft" align="right" valign="top">static const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__unittest_8c.html#aff37bdba314ca66d641b02f4dc57c7d6">CRED_CAROL</a></td></tr>
+<tr class="separator:aff37bdba314ca66d641b02f4dc57c7d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a369266c24eacffb87046522897a570d5" name="a369266c24eacffb87046522897a570d5"></a>
@@ -247,9 +311,9 @@ Variables</h2></td></tr>
 <div class="line">            <a class="code hl_variable" href="sd__pblock__unittest_8c.html#a5c7ba59d434acf5dafb8ec5fd28e9a1e">failures</a>++;                                                        \</div>
 <div class="line">        }                                                                      \</div>
 <div class="line">    } <span class="keywordflow">while</span> (0)</div>
-<div class="ttc" id="asd__pblock__unittest_8c_html_a5c7ba59d434acf5dafb8ec5fd28e9a1e"><div class="ttname"><a href="sd__pblock__unittest_8c.html#a5c7ba59d434acf5dafb8ec5fd28e9a1e">failures</a></div><div class="ttdeci">static int failures</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__unittest_8c_source.html#l00030">sd_pblock_unittest.c:30</a></div></div>
+<div class="ttc" id="asd__pblock__unittest_8c_html_a5c7ba59d434acf5dafb8ec5fd28e9a1e"><div class="ttname"><a href="sd__pblock__unittest_8c.html#a5c7ba59d434acf5dafb8ec5fd28e9a1e">failures</a></div><div class="ttdeci">static int failures</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__unittest_8c_source.html#l00032">sd_pblock_unittest.c:32</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">32</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">34</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
 </div>
 </div>
@@ -300,11 +364,289 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00466">466</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00468">468</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_max</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_total</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_max</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_total</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>.</p>
+
+</div>
+</div>
+<a id="ac1eb095883e8773e9c2a477e46d6b33a" name="ac1eb095883e8773e9c2a477e46d6b33a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac1eb095883e8773e9c2a477e46d6b33a">&#9670;&#160;</a></span>break_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void * break_body </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>p</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01400">1400</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l01394">break_arg::data</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01392">break_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01395">break_arg::len</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01393">break_arg::path</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01396">break_arg::rc</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01372">trunc_write()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>.</p>
+
+</div>
+</div>
+<a id="ae4c25ea1ba4daa5428270e0373bc56d2" name="ae4c25ea1ba4daa5428270e0373bc56d2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae4c25ea1ba4daa5428270e0373bc56d2">&#9670;&#160;</a></span>cred_write_file()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cred_write_file </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>who</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00691">691</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">test_ident_ownership()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00874">test_ident_setattr()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">test_ident_traverse()</a>.</p>
+
+</div>
+</div>
+<a id="a4a24cde3f8ae52c0e0d3b32c72325e82" name="a4a24cde3f8ae52c0e0d3b32c72325e82"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4a24cde3f8ae52c0e0d3b32c72325e82">&#9670;&#160;</a></span>enum_probe_cb()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int enum_probe_cb </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__catalog__ent__t.html">brix_sd_catalog_ent_t</a> *&#160;</td>
+          <td class="paramname"><em>ent</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01168">1168</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l01162">enum_probe_t::bytes</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01161">enum_probe_t::files</a>, <a class="el" href="sd_8h_source.html#l00257">brix_sd_catalog_ent_t::have_stat</a>, <a class="el" href="sd_8h_source.html#l00255">brix_sd_catalog_ent_t::key</a>, <a class="el" href="sd_8h_source.html#l00256">brix_sd_catalog_ent_t::path</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01163">enum_probe_t::saw_nested</a>, <a class="el" href="sd_8h_source.html#l00258">brix_sd_catalog_ent_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01164">enum_probe_t::stop_after</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01218">test_lab_enumerate()</a>.</p>
+
+</div>
+</div>
+<a id="a2b79ee397832355d7be4d3c7f5f1a842" name="a2b79ee397832355d7be4d3c7f5f1a842"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b79ee397832355d7be4d3c7f5f1a842">&#9670;&#160;</a></span>enum_walk()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void enum_walk </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>files</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int64_t *&#160;</td>
+          <td class="paramname"><em>bytes</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01188">1188</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01188">enum_walk()</a>, <a class="el" href="sd_8h_source.html#l00277">brix_sd_stat_t::is_dir</a>, <a class="el" href="sd_8h_source.html#l00284">brix_sd_dirent_t::name</a>, and <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01188">enum_walk()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01218">test_lab_enumerate()</a>.</p>
+
+</div>
+</div>
+<a id="ab261c48fe840e90e16e2860802c7bb25" name="ab261c48fe840e90e16e2860802c7bb25"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab261c48fe840e90e16e2860802c7bb25">&#9670;&#160;</a></span>lab_ctl_set()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void lab_ctl_set </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>val</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>epoch</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01032">1032</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01055">test_lab_fault_inject()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01099">test_lab_gate_closed()</a>.</p>
+
+</div>
+</div>
+<a id="a9e3f6d6485104cc3a2d143fcf66b3254" name="a9e3f6d6485104cc3a2d143fcf66b3254"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9e3f6d6485104cc3a2d143fcf66b3254">&#9670;&#160;</a></span>lab_write_sidecar()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void lab_write_sidecar </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>line</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01016">1016</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01498">test_dedup_forged_hash()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01133">test_lab_caps_mask()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01055">test_lab_fault_inject()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01617">test_snapshot()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>.</p>
 
 </div>
 </div>
@@ -324,9 +666,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">675</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">1785</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00030">failures</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00171">test_dirs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00305">test_fsync_durability()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00152">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00402">test_processes()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00197">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00221">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00254">test_staged()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00376">test_threads()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00129">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00284">test_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00100">test_write_read_fstat()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00236">test_xattr()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">failures</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01392">break_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01498">test_dedup_forged_hash()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01579">test_dedup_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00173">test_dirs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00307">test_fsync_durability()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01133">test_lab_caps_mask()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01218">test_lab_enumerate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01055">test_lab_fault_inject()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01099">test_lab_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00154">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00404">test_processes()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00199">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00223">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01617">test_snapshot()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00256">test_staged()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00378">test_threads()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00131">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00286">test_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00102">test_write_read_fstat()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00238">test_xattr()</a>.</p>
 
 </div>
 </div>
@@ -370,11 +712,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00495">495</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">497</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>.</p>
 
 </div>
 </div>
@@ -402,11 +744,149 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">48</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">50</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00305">test_fsync_durability()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00152">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00129">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00100">test_write_read_fstat()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00691">cred_write_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00307">test_fsync_durability()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">test_ident_ownership()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">test_ident_traverse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01055">test_lab_fault_inject()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01099">test_lab_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00154">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01617">test_snapshot()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00131">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00102">test_write_read_fstat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01372">trunc_write()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+</div>
+</div>
+<a id="a8393ce33483112849f0909902ca1a4e8" name="a8393ce33483112849f0909902ca1a4e8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8393ce33483112849f0909902ca1a4e8">&#9670;&#160;</a></span>q_blob_id()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void q_blob_id </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01277">1277</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01498">test_dedup_forged_hash()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01579">test_dedup_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>.</p>
+
+</div>
+</div>
+<a id="ad1e51dcbf1dba1eaeb641c9005eacea0" name="ad1e51dcbf1dba1eaeb641c9005eacea0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad1e51dcbf1dba1eaeb641c9005eacea0">&#9670;&#160;</a></span>q_count()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int q_count </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sql</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01330">1330</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>.</p>
+
+</div>
+</div>
+<a id="a296f9fdf062a7b3b276d626b00dd4f0d" name="a296f9fdf062a7b3b276d626b00dd4f0d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a296f9fdf062a7b3b276d626b00dd4f0d">&#9670;&#160;</a></span>q_refcount()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int q_refcount </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>blob_id</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01304">1304</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>.</p>
 
 </div>
 </div>
@@ -456,11 +936,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">81</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">83</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00197">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00221">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00254">test_staged()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00100">test_write_read_fstat()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00350">thread_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01498">test_dedup_forged_hash()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01579">test_dedup_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00199">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00223">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01617">test_snapshot()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00256">test_staged()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00102">test_write_read_fstat()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00352">thread_body()</a>.</p>
 
 </div>
 </div>
@@ -488,11 +968,65 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">483</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">485</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00466">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_max</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_total</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00468">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_max</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_total</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>.</p>
+
+</div>
+</div>
+<a id="acc4618c9d19a4d11b100e44363986dd6" name="acc4618c9d19a4d11b100e44363986dd6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acc4618c9d19a4d11b100e44363986dd6">&#9670;&#160;</a></span>staged_put()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int staged_put </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01353">1353</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>.</p>
 
 </div>
 </div>
@@ -520,11 +1054,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">645</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">647</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00495">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -552,11 +1086,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">549</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">551</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_max</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_total</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00495">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_max</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_total</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -584,11 +1118,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">573</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">575</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00495">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, and <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, and <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -616,11 +1150,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">510</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">512</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_max</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_total</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00495">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_max</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_total</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -648,11 +1182,107 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">610</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">612</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">g_blk_total</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00495">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_count</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">g_blk_total</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="a50e21bec55fd2dd71dc19cf220ae965b" name="a50e21bec55fd2dd71dc19cf220ae965b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a50e21bec55fd2dd71dc19cf220ae965b">&#9670;&#160;</a></span>test_dedup_forged_hash()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_dedup_forged_hash </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01498">1498</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01392">break_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01016">lab_write_sidecar()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00034">PBLOCK_BLOB_ID_CAP</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01277">q_blob_id()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="a8880001ce9e36f604f207122adb09fea" name="a8880001ce9e36f604f207122adb09fea"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8880001ce9e36f604f207122adb09fea">&#9670;&#160;</a></span>test_dedup_gate_closed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_dedup_gate_closed </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01579">1579</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01392">break_arg::inst</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00034">PBLOCK_BLOB_ID_CAP</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01277">q_blob_id()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="aed51d3169f359bd05ddd70fcad7198ec" name="aed51d3169f359bd05ddd70fcad7198ec"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aed51d3169f359bd05ddd70fcad7198ec">&#9670;&#160;</a></span>test_dedup_refs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_dedup_refs </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">1409</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l01400">break_body()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01392">break_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01016">lab_write_sidecar()</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00034">PBLOCK_BLOB_ID_CAP</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01277">q_blob_id()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01304">q_refcount()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01396">break_arg::rc</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01372">trunc_write()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -680,11 +1310,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00171">171</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00173">173</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd_8h_source.html#l00263">brix_sd_dirent_t::name</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd_8h_source.html#l00284">brix_sd_dirent_t::name</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -712,11 +1342,331 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00305">305</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00307">307</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, and <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, and <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="a5ac68e08d1fb10ed351a3b4bcf1887e1" name="a5ac68e08d1fb10ed351a3b4bcf1887e1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5ac68e08d1fb10ed351a3b4bcf1887e1">&#9670;&#160;</a></span>test_ident_ownership()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_ident_ownership </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">713</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00681">CRED_ALICE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00683">CRED_BOB</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00685">CRED_CAROL</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00691">cred_write_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd_8h_source.html#l00276">brix_sd_stat_t::gid</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00068">PBLOCK_ID_BASE</a>, and <a class="el" href="sd_8h_source.html#l00275">brix_sd_stat_t::uid</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>.</p>
+
+</div>
+</div>
+<a id="ac494d2845fb948a93fa77b05f7967800" name="ac494d2845fb948a93fa77b05f7967800"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac494d2845fb948a93fa77b05f7967800">&#9670;&#160;</a></span>test_ident_setattr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_ident_setattr </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00874">874</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00681">CRED_ALICE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00683">CRED_BOB</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00691">cred_write_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd_8h_source.html#l00276">brix_sd_stat_t::gid</a>, <a class="el" href="sd_8h_source.html#l00301">brix_sd_setattr_t::gid</a>, <a class="el" href="sd_8h_source.html#l00297">brix_sd_setattr_t::mode</a>, <a class="el" href="sd_8h_source.html#l00294">brix_sd_setattr_t::set_mode</a>, <a class="el" href="sd_8h_source.html#l00296">brix_sd_setattr_t::set_owner</a>, <a class="el" href="sd_8h_source.html#l00275">brix_sd_stat_t::uid</a>, and <a class="el" href="sd_8h_source.html#l00300">brix_sd_setattr_t::uid</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>.</p>
+
+</div>
+</div>
+<a id="a1560203f36e72f91a806534e199a76b0" name="a1560203f36e72f91a806534e199a76b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1560203f36e72f91a806534e199a76b0">&#9670;&#160;</a></span>test_ident_traverse()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_ident_traverse </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">830</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00681">CRED_ALICE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00683">CRED_BOB</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00685">CRED_CAROL</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00691">cred_write_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>.</p>
+
+</div>
+</div>
+<a id="ac47136f7f2ffe5231e3e329a513368a3" name="ac47136f7f2ffe5231e3e329a513368a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac47136f7f2ffe5231e3e329a513368a3">&#9670;&#160;</a></span>test_ident_vo_dir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_ident_vo_dir </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00781">781</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00681">CRED_ALICE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00683">CRED_BOB</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00685">CRED_CAROL</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00068">PBLOCK_ID_BASE</a>, and <a class="el" href="sd_8h_source.html#l00275">brix_sd_stat_t::uid</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>.</p>
+
+</div>
+</div>
+<a id="a2f6d615d33f2ed660088a7f91cf9e3e5" name="a2f6d615d33f2ed660088a7f91cf9e3e5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2f6d615d33f2ed660088a7f91cf9e3e5">&#9670;&#160;</a></span>test_ident_xattr_sticky()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_ident_xattr_sticky </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00927">927</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00681">CRED_ALICE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00683">CRED_BOB</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00685">CRED_CAROL</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>.</p>
+
+</div>
+</div>
+<a id="afcb07bd75da0e3bf4e43cd4925dc896c" name="afcb07bd75da0e3bf4e43cd4925dc896c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afcb07bd75da0e3bf4e43cd4925dc896c">&#9670;&#160;</a></span>test_identity()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_identity </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">990</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00124">BRIX_SD_CRED_IDENTITY</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">test_ident_ownership()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00874">test_ident_setattr()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">test_ident_traverse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00781">test_ident_vo_dir()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00927">test_ident_xattr_sticky()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="a0c7587ac47f40a668ba68b5e7e6d9459" name="a0c7587ac47f40a668ba68b5e7e6d9459"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0c7587ac47f40a668ba68b5e7e6d9459">&#9670;&#160;</a></span>test_lab_caps_mask()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_lab_caps_mask </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01133">1133</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00105">BRIX_SD_CAP_CATALOG</a>, <a class="el" href="sd_8h_source.html#l00083">BRIX_SD_CAP_FD</a>, <a class="el" href="sd_8h_source.html#l00088">BRIX_SD_CAP_SENDFILE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01016">lab_write_sidecar()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="ad8c772681eee899ed9cddb04ff7d99a7" name="ad8c772681eee899ed9cddb04ff7d99a7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad8c772681eee899ed9cddb04ff7d99a7">&#9670;&#160;</a></span>test_lab_enumerate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_lab_enumerate </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01218">1218</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00105">BRIX_SD_CAP_CATALOG</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01162">enum_probe_t::bytes</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01168">enum_probe_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01188">enum_walk()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01161">enum_probe_t::files</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01163">enum_probe_t::saw_nested</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01164">enum_probe_t::stop_after</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="a88325fdee0e71e9aa7626140058da797" name="a88325fdee0e71e9aa7626140058da797"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a88325fdee0e71e9aa7626140058da797">&#9670;&#160;</a></span>test_lab_fault_inject()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_lab_fault_inject </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01055">1055</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01032">lab_ctl_set()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01016">lab_write_sidecar()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="ad4492f84e81b7dfcb496322e7f2f0f76" name="ad4492f84e81b7dfcb496322e7f2f0f76"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad4492f84e81b7dfcb496322e7f2f0f76">&#9670;&#160;</a></span>test_lab_gate_closed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_lab_gate_closed </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01099">1099</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01032">lab_ctl_set()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -744,11 +1694,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00152">152</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00154">154</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -786,11 +1736,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00402">402</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00404">404</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -818,11 +1768,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00197">197</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00199">199</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -850,11 +1800,43 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00221">221</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00223">223</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="a5663d06a92f88f5290a017fed78b36a2" name="a5663d06a92f88f5290a017fed78b36a2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5663d06a92f88f5290a017fed78b36a2">&#9670;&#160;</a></span>test_snapshot()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_snapshot </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01617">1617</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01392">break_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01016">lab_write_sidecar()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -882,11 +1864,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00254">254</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00256">256</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -914,11 +1896,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00376">376</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00378">378</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00341">thread_arg::id</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00340">thread_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00343">thread_arg::ok</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00342">thread_arg::ops</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00350">thread_body()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00343">thread_arg::id</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00342">thread_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00345">thread_arg::ok</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00344">thread_arg::ops</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00352">thread_body()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -946,11 +1928,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00129">129</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00131">131</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -978,11 +1960,43 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00284">284</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00286">286</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
+
+</div>
+</div>
+<a id="afb0ec8d04512f9566effcf72cd60169d" name="afb0ec8d04512f9566effcf72cd60169d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afb0ec8d04512f9566effcf72cd60169d">&#9670;&#160;</a></span>test_versioning()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void test_versioning </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">1696</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01392">break_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01016">lab_write_sidecar()</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00034">PBLOCK_BLOB_ID_CAP</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01277">q_blob_id()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01330">q_count()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01304">q_refcount()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01353">staged_put()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -1010,11 +2024,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00100">100</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00102">102</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, <a class="el" href="sd_8h_source.html#l00257">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, and <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, <a class="el" href="sd_8h_source.html#l00278">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -1042,11 +2056,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00236">236</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00238">238</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00034">CHECK</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -1074,11 +2088,65 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00350">350</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00352">352</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00341">thread_arg::id</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00340">thread_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00343">thread_arg::ok</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00342">thread_arg::ops</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__unittest_8c_source.html#l00343">thread_arg::id</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00342">thread_arg::inst</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00345">thread_arg::ok</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00344">thread_arg::ops</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00376">test_threads()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00378">test_threads()</a>.</p>
+
+</div>
+</div>
+<a id="a16ea33532403cbef875c4d35c859fc60" name="a16ea33532403cbef875c4d35c859fc60"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a16ea33532403cbef875c4d35c859fc60">&#9670;&#160;</a></span>trunc_write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int trunc_write </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l01372">1372</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00134">BRIX_SD_O_TRUNC</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01400">break_body()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>.</p>
 
 </div>
 </div>
@@ -1128,15 +2196,99 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">60</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">62</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00125">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00126">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00131">BRIX_SD_O_WRITE</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">D</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00171">test_dirs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00152">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00402">test_processes()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00197">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00221">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00129">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00284">test_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00236">test_xattr()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00350">thread_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01498">test_dedup_forged_hash()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01579">test_dedup_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00173">test_dirs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01218">test_lab_enumerate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01055">test_lab_fault_inject()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01099">test_lab_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00154">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00404">test_processes()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00199">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00223">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01617">test_snapshot()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00131">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00286">test_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00238">test_xattr()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00352">thread_body()</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Variable Documentation</h2>
+<a id="a3ef4fb1dcfa1e1c542414831eceff93b" name="a3ef4fb1dcfa1e1c542414831eceff93b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3ef4fb1dcfa1e1c542414831eceff93b">&#9670;&#160;</a></span>CRED_ALICE</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> CRED_ALICE</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= { .principal = <span class="stringliteral">&quot;alice&quot;</span>,</div>
+<div class="line">                                           .vos = <span class="stringliteral">&quot;atlas&quot;</span> }</div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00681">681</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">test_ident_ownership()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00874">test_ident_setattr()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">test_ident_traverse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00781">test_ident_vo_dir()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00927">test_ident_xattr_sticky()</a>.</p>
+
+</div>
+</div>
+<a id="a10e137665958131989e9b0177ab14792" name="a10e137665958131989e9b0177ab14792"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a10e137665958131989e9b0177ab14792">&#9670;&#160;</a></span>CRED_BOB</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> CRED_BOB</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= { .principal = <span class="stringliteral">&quot;bob&quot;</span>,</div>
+<div class="line">                                           .vos = <span class="stringliteral">&quot;cms&quot;</span> }</div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00683">683</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">test_ident_ownership()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00874">test_ident_setattr()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">test_ident_traverse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00781">test_ident_vo_dir()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00927">test_ident_xattr_sticky()</a>.</p>
+
+</div>
+</div>
+<a id="aff37bdba314ca66d641b02f4dc57c7d6" name="aff37bdba314ca66d641b02f4dc57c7d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff37bdba314ca66d641b02f4dc57c7d6">&#9670;&#160;</a></span>CRED_CAROL</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> CRED_CAROL</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= { .principal = <span class="stringliteral">&quot;carol&quot;</span>,</div>
+<div class="line">                                           .vos = <span class="stringliteral">&quot;atlas&quot;</span> }</div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00685">685</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">test_ident_ownership()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">test_ident_traverse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00781">test_ident_vo_dir()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00927">test_ident_xattr_sticky()</a>.</p>
+
+</div>
+</div>
 <a id="a71e67c1c886c7c8dd9d2f8c8a3006e08" name="a71e67c1c886c7c8dd9d2f8c8a3006e08"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a71e67c1c886c7c8dd9d2f8c8a3006e08">&#9670;&#160;</a></span>D</h2>
 
@@ -1157,9 +2309,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00042">42</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00044">44</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>, <a class="el" href="metabench_8c_source.html#l00013">metabench_plan_init()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00495">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00048">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00081">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00171">test_dirs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00305">test_fsync_durability()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00152">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00402">test_processes()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00197">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00221">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00254">test_staged()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00376">test_threads()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00129">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00284">test_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00100">test_write_read_fstat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00236">test_xattr()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00060">write_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00691">cred_write_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01188">enum_walk()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>, <a class="el" href="metabench_8c_source.html#l00013">metabench_plan_init()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00497">open_block_export()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00050">pb_close()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00083">read_file()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01353">staged_put()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01498">test_dedup_forged_hash()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01579">test_dedup_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01409">test_dedup_refs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00173">test_dirs()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00307">test_fsync_durability()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00713">test_ident_ownership()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00874">test_ident_setattr()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00830">test_ident_traverse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00781">test_ident_vo_dir()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00927">test_ident_xattr_sticky()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00990">test_identity()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01133">test_lab_caps_mask()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01218">test_lab_enumerate()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01055">test_lab_fault_inject()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01099">test_lab_gate_closed()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00154">test_preadv()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00404">test_processes()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00199">test_rename()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00223">test_server_copy()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01617">test_snapshot()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00256">test_staged()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00378">test_threads()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00131">test_truncate_and_stat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00286">test_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01696">test_versioning()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00102">test_write_read_fstat()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00238">test_xattr()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l01372">trunc_write()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00062">write_file()</a>.</p>
 
 </div>
 </div>
@@ -1183,9 +2335,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00030">30</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00032">32</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00675">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l01785">main()</a>.</p>
 
 </div>
 </div>
@@ -1209,9 +2361,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">463</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">465</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00466">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00645">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00573">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00468">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00647">test_block_copy_and_unlink()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00575">test_block_sparse()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>.</p>
 
 </div>
 </div>
@@ -1235,9 +2387,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">463</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">465</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00466">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00468">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>.</p>
 
 </div>
 </div>
@@ -1261,9 +2413,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00463">463</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__unittest_8c_source.html#l00465">465</a> of file <a class="el" href="sd__pblock__unittest_8c_source.html">sd_pblock_unittest.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00466">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00483">scan_blocks()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00549">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00510">test_block_striping()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00610">test_block_truncate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__pblock__unittest_8c_source.html#l00468">blk_walk_cb()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00485">scan_blocks()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00551">test_block_size_configurable()</a>, <a class="el" href="sd__pblock__unittest_8c_source.html#l00512">test_block_striping()</a>, and <a class="el" href="sd__pblock__unittest_8c_source.html#l00612">test_block_truncate()</a>.</p>
 
 </div>
 </div>

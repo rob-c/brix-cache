@@ -2,6 +2,8 @@ var cvmfs_8h =
 [
     [ "brix_cvmfs_coord_t", "structbrix__cvmfs__coord__t.html", "structbrix__cvmfs__coord__t" ],
     [ "brix_cvmfs_conf_t", "structbrix__cvmfs__conf__t.html", "structbrix__cvmfs__conf__t" ],
+    [ "brix_cvmfs_repo_authz_t", "structbrix__cvmfs__repo__authz__t.html", "structbrix__cvmfs__repo__authz__t" ],
+    [ "brix_cvmfs_qos_t", "structbrix__cvmfs__qos__t.html", "structbrix__cvmfs__qos__t" ],
     [ "ngx_http_brix_cvmfs_loc_conf_t", "structngx__http__brix__cvmfs__loc__conf__t.html", "structngx__http__brix__cvmfs__loc__conf__t" ],
     [ "ngx_http_brix_cvmfs_ctx_t", "structngx__http__brix__cvmfs__ctx__t.html", "structngx__http__brix__cvmfs__ctx__t" ],
     [ "BRIX_CVMFS_CACHE_FILL", "cvmfs_8h.html#a754cfca35187aaad3bd0e469662853ab", null ],
@@ -11,6 +13,13 @@ var cvmfs_8h =
     [ "brix_cvmfs_geo_answer_e", "cvmfs_8h.html#a0dc058ee430b1e805daaec390a3746c7", [
       [ "BRIX_CVMFS_GEO_PASSTHROUGH", "cvmfs_8h.html#a0dc058ee430b1e805daaec390a3746c7a239ca2e477a4a0e97498e9a435193eba", null ],
       [ "BRIX_CVMFS_GEO_RTT", "cvmfs_8h.html#a0dc058ee430b1e805daaec390a3746c7aea678cd3bccaecb23a66afbba11a8852", null ]
+    ] ],
+    [ "brix_cvmfs_origin_http_e", "cvmfs_8h.html#ab170f5f982fd1b1e8f652c6d092376c2", [
+      [ "BRIX_CVMFS_ORIGIN_HTTP_UNSET", "cvmfs_8h.html#ab170f5f982fd1b1e8f652c6d092376c2a5f9abf82e0852e51f7703fd645573725", null ],
+      [ "BRIX_CVMFS_ORIGIN_HTTP_11", "cvmfs_8h.html#ab170f5f982fd1b1e8f652c6d092376c2ae74f67c6230d108397e5be2599f8c45f", null ],
+      [ "BRIX_CVMFS_ORIGIN_HTTP_2", "cvmfs_8h.html#ab170f5f982fd1b1e8f652c6d092376c2af94b39179c7006972c401c81cd9a6732", null ],
+      [ "BRIX_CVMFS_ORIGIN_HTTP_2D", "cvmfs_8h.html#ab170f5f982fd1b1e8f652c6d092376c2a5fa2eeedbc7419534c3b06ea3bf25f0d", null ],
+      [ "BRIX_CVMFS_ORIGIN_HTTP_3", "cvmfs_8h.html#ab170f5f982fd1b1e8f652c6d092376c2a7bb84b0a1850b3a19028f02764331149", null ]
     ] ],
     [ "brix_cvmfs_retry_policy_e", "cvmfs_8h.html#a3ef614f95b558baa8dc58fc9641570e6", [
       [ "BRIX_CVMFS_RETRY_FAILOVER", "cvmfs_8h.html#a3ef614f95b558baa8dc58fc9641570e6af80eb7b263518112b54146475c3fd94c", null ],
@@ -31,6 +40,8 @@ var cvmfs_8h =
     [ "brix_cvmfs_geo_passthrough", "cvmfs_8h.html#a24f6f97e7f2c2f6b701885c13896eba7", null ],
     [ "brix_cvmfs_notify_status", "cvmfs_8h.html#a00c1208cbaaae01be8e0d5a7b054ccf3", null ],
     [ "brix_cvmfs_proxy_target", "cvmfs_8h.html#a8b67a3f6ed8e7bf0d033e29cbd942734", null ],
+    [ "brix_cvmfs_qos_check", "cvmfs_8h.html#a65dc021ef8181dc3def8f170c7de6312", null ],
+    [ "brix_cvmfs_repo_authz_eval", "cvmfs_8h.html#ac12cc5eb19e65ab2aba3878293a98a3b", null ],
     [ "brix_cvmfs_rtt_init_worker", "cvmfs_8h.html#a3d1726958fcfd077449b73de5a452e94", null ],
     [ "brix_cvmfs_rtt_register", "cvmfs_8h.html#a34249e3981e728a27eeabfd744cd4959", null ],
     [ "brix_cvmfs_upstream_get", "cvmfs_8h.html#ac081b3df0a9e8b112cd44757753d0a82", null ],

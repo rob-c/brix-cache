@@ -101,19 +101,19 @@ var sectionId = 'dynsection-1';
 </a>
 </g>
 </g>
-<!-- Node160 -->
-<g id="Node000160" class="node">
-<title>Node160</title>
-<g id="a_Node000160"><a xlink:href="ngx__brix__module_8h.html" target="_top" xlink:title=" ">
+<!-- Node166 -->
+<g id="Node000166" class="node">
+<title>Node166</title>
+<g id="a_Node000166"><a xlink:href="ngx__brix__module_8h.html" target="_top" xlink:title=" ">
 <polygon fill="#fff0f0" stroke="red" points="6306,-151 6155,-151 6155,-132 6306,-132 6306,-151"/>
 <text text-anchor="middle" x="6230.5" y="-139" font-family="Helvetica,sans-Serif" font-size="10.00">src/core/ngx_brix_module.h</text>
 </a>
 </g>
 </g>
-<!-- Node1&#45;&gt;Node160 -->
-<g id="edge82_Node000001_Node000160" class="edge">
-<title>Node1&#45;&gt;Node160</title>
-<g id="a_edge82_Node000001_Node000160"><a xlink:title=" ">
+<!-- Node1&#45;&gt;Node166 -->
+<g id="edge82_Node000001_Node000166" class="edge">
+<title>Node1&#45;&gt;Node166</title>
+<g id="a_edge82_Node000001_Node000166"><a xlink:title=" ">
 <path fill="none" stroke="#63b8ff" d="M6160.16,-182.07C6178.66,-171.66 6200.72,-159.25 6215.14,-151.14"/>
 <polygon fill="#63b8ff" stroke="#63b8ff" points="6158.41,-179.03 6151.41,-186.99 6161.84,-185.14 6158.41,-179.03"/>
 </a>

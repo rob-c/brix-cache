@@ -8,6 +8,9 @@ var credential__block_8c =
     [ "brix_credential_bearer", "credential__block_8c.html#abe2bf4c39d5b199d46d736eae66cd18b", null ],
     [ "brix_credential_line", "credential__block_8c.html#abe1cf8bda3a9129efcfb2d414727eefb", null ],
     [ "brix_credential_lookup", "credential__block_8c.html#a2e49b65a02a996980f002a53e6933f6a", null ],
+    [ "brix_credential_mode_token", "credential__block_8c.html#a081b74a5609a1e3debd32e9d28acf780", null ],
+    [ "brix_credential_str_or_null", "credential__block_8c.html#a8eb84775db1efb603af8ad10af8866a6", null ],
+    [ "brix_credential_to_backend_cred", "credential__block_8c.html#a46081c19e853dafad3756760975e3f9c", null ],
     [ "brix_credential_count", "credential__block_8c.html#a098e314ab583a540470e6f1b7aaa02be", null ],
     [ "brix_credential_fields", "credential__block_8c.html#ad28c6f20b8370e27e1dd199598a8898f", null ],
     [ "brix_credentials", "credential__block_8c.html#ae1ac32e92216c0f87517c47ebf8055d6", null ]

@@ -91,6 +91,7 @@ $(document).ready(function(){initNavTree('sd__http__introspect_8c.html',''); ini
 
 <div class="header">
   <div class="summary">
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">sd_http_introspect.c File Reference</div></div>
 </div><!--header-->
@@ -108,10 +109,17 @@ $(document).ready(function(){initNavTree('sd__http__introspect_8c.html',''); ini
 </div>
 <p><a href="sd__http__introspect_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:a029151ab158572c4d039bfee09e105da" id="r_a029151ab158572c4d039bfee09e105da"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__introspect_8c.html#a029151ab158572c4d039bfee09e105da">SD_HTTP_VERIFY_PENALTY</a>&#160;&#160;&#160;512</td></tr>
+<tr class="separator:a029151ab158572c4d039bfee09e105da"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ab6ad462c690c7cdd54d9ba6fde433a19" id="r_ab6ad462c690c7cdd54d9ba6fde433a19"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__introspect_8c.html#ab6ad462c690c7cdd54d9ba6fde433a19">sd_http_set_ranks</a> (brix_sd_instance_t *inst, const int *ranks, int n)</td></tr>
 <tr class="separator:ab6ad462c690c7cdd54d9ba6fde433a19"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a197fd443f56064bc95964c008475ad98" id="r_a197fd443f56064bc95964c008475ad98"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__introspect_8c.html#a197fd443f56064bc95964c008475ad98">sd_http_penalize_last_origin</a> (brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:a197fd443f56064bc95964c008475ad98"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7676f5eb142c09ea63f5a744b8893d0f" id="r_a7676f5eb142c09ea63f5a744b8893d0f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__introspect_8c.html#a7676f5eb142c09ea63f5a744b8893d0f">sd_http_endpoint_list</a> (brix_sd_instance_t *inst, char hosts[][256], int *ports, int max)</td></tr>
 <tr class="separator:a7676f5eb142c09ea63f5a744b8893d0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a183631283f596cdcc922c6327f7eb924" id="r_a183631283f596cdcc922c6327f7eb924"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__introspect_8c.html#a183631283f596cdcc922c6327f7eb924">sd_http_n_endpoints</a> (brix_sd_instance_t *inst)</td></tr>
@@ -123,6 +131,23 @@ Functions</h2></td></tr>
 <tr class="memitem:a174e63b04dd4e718bd58916b155e8930" id="r_a174e63b04dd4e718bd58916b155e8930"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__introspect_8c.html#a174e63b04dd4e718bd58916b155e8930">sd_http_health_snapshot</a> (brix_sd_instance_t *inst, char hosts[][256], int *ports, int *scores, int max)</td></tr>
 <tr class="separator:a174e63b04dd4e718bd58916b155e8930"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a029151ab158572c4d039bfee09e105da" name="a029151ab158572c4d039bfee09e105da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a029151ab158572c4d039bfee09e105da">&#9670;&#160;</a></span>SD_HTTP_VERIFY_PENALTY</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define SD_HTTP_VERIFY_PENALTY&#160;&#160;&#160;512</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00046">46</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a7676f5eb142c09ea63f5a744b8893d0f" name="a7676f5eb142c09ea63f5a744b8893d0f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a7676f5eb142c09ea63f5a744b8893d0f">&#9670;&#160;</a></span>sd_http_endpoint_list()</h2>
@@ -162,7 +187,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00039">39</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00064">64</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00025">sd_http_endpoint::host</a>, <a class="el" href="sd__http__internal_8h_source.html#l00040">sd_http_inst_state::n_eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00026">sd_http_endpoint::port</a>, and <a class="el" href="sd__http_8c_source.html#l00055">sd_http_instance_is()</a>.</p>
 
@@ -212,7 +237,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00095">95</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00120">120</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00029">sd_http_endpoint::fail_score</a>, <a class="el" href="sd__http__internal_8h_source.html#l00025">sd_http_endpoint::host</a>, <a class="el" href="sd__http__internal_8h_source.html#l00040">sd_http_inst_state::n_eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00026">sd_http_endpoint::port</a>, and <a class="el" href="sd__http_8c_source.html#l00055">sd_http_instance_is()</a>.</p>
 
@@ -252,11 +277,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00068">68</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00093">93</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00047">sd_http_inst_state::last_origin</a>, and <a class="el" href="sd__http_8c_source.html#l00055">sd_http_instance_is()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00153">cvmfs_var_origin()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00117">sd_cache_note_upstream()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00157">cvmfs_var_origin()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00245">sd_cache_guard_tamper()</a>, and <a class="el" href="sd__cache__policy_8c_source.html#l00117">sd_cache_note_upstream()</a>.</p>
 
 </div>
 </div>
@@ -276,7 +301,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00086">86</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00111">111</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__http_8c_source.html#l00055">sd_http_instance_is()</a>.</p>
 
@@ -300,9 +325,33 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00059">59</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00084">84</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__http_8c_source.html#l00055">sd_http_instance_is()</a>.</p>
+
+</div>
+</div>
+<a id="a197fd443f56064bc95964c008475ad98" name="a197fd443f56064bc95964c008475ad98"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a197fd443f56064bc95964c008475ad98">&#9670;&#160;</a></span>sd_http_penalize_last_origin()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void sd_http_penalize_last_origin </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__http__introspect_8c_source.html#l00048">48</a> of file <a class="el" href="sd__http__introspect_8c_source.html">sd_http_introspect.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00064">sd_http_inst_state::cur_ep</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00029">sd_http_endpoint::fail_score</a>, <a class="el" href="sd__http__internal_8h_source.html#l00040">sd_http_inst_state::n_eps</a>, <a class="el" href="sd__http_8c_source.html#l00055">sd_http_instance_is()</a>, and <a class="el" href="sd__http__introspect_8c_source.html#l00046">SD_HTTP_VERIFY_PENALTY</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>.</p>
 
 </div>
 </div>

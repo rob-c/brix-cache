@@ -93,9 +93,9 @@ $(document).ready(function(){initNavTree('md_client_2apps_2README.html',''); ini
   <div class="headertitle"><div class="title">&lt;tt&gt;client/apps/&lt;/tt&gt; — native client CLI tools</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md571"></a> The command-line front-ends built on <code>libbrix</code> (<code>../lib/</code>). All are pure-C, libXrdCl-free, and speak <code>root://</code>/<code>roots://</code> plus (where noted) HTTP/WebDAV/S3. Binaries are listed in <code>BINS</code> in <code>client/Makefile</code> and land in <code>client/bin/</code>.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md575"></a> The command-line front-ends built on <code>libbrix</code> (<code>../lib/</code>). All are pure-C, libXrdCl-free, and speak <code>root://</code>/<code>roots://</code> plus (where noted) HTTP/WebDAV/S3. Binaries are listed in <code>BINS</code> in <code>client/Makefile</code> and land in <code>client/bin/</code>.</p>
 <p>Several tools are <b>split across multiple <code>.c</code> files</b> (a single-responsibility refactor, behavior-identical) that link into one binary — e.g. <code>xrdcp</code> = <code><a class="el" href="xrdcp_8c.html">xrdcp.c</a></code> + <code><a class="el" href="xrdcp__transfer_8c.html">xrdcp_transfer.c</a></code> + <code><a class="el" href="xrdcp__recursive_8c.html">xrdcp_recursive.c</a></code>. The <code>*_SPLIT</code> Make variables record the groupings; the table lists each tool by its binary, not its files.</p>
-<h1><a class="anchor" id="autotoc_md572"></a>
+<h1><a class="anchor" id="autotoc_md576"></a>
 Data movement</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -107,7 +107,7 @@ Data movement</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>xrd</code>   </td><td class="markdownTableBodyNone">Multi-call swiss-army front-end exposing the full verb set (ls/stat/cat/cp/du/df/tree/find/locate/query/prepare/stage/evict/explain/…) plus the <code>battery</code>/<code>doctor</code>/<code>clockskew</code>/<code>mount</code> subcommands and the backend-storage verbs <code>inventory</code>/<code>verify</code>/<code>drift</code>/<code>inspect</code> (→ <code>xrdstorascan</code>).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md573"></a>
+<h1><a class="anchor" id="autotoc_md577"></a>
 Checksums &amp; verification</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -125,7 +125,7 @@ Checksums &amp; verification</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>xrdcksum check</code>   </td><td class="markdownTableBodyNone">Verify every digest in a manifest against a local directory or <code>root://</code> tree (<code>--algo NAME</code>).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md574"></a>
+<h1><a class="anchor" id="autotoc_md578"></a>
 Diagnostics &amp; monitoring</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -143,7 +143,7 @@ Diagnostics &amp; monitoring</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>xrdstorascan</code>   </td><td class="markdownTableBodyNone">Backend-aware storage admin tool. Phase 1 (client-side, any backend): <code>verify &lt;url&gt;</code> — end-to-end single-file integrity (pull the bytes, recompute, compare to the server's <code>kXR_Qcksum</code>); <code>bench &lt;url&gt;</code> — gateway throughput/IOPS/latency sweep over block size × parallelism. Later phases add server-engine modes (<code>inspect</code>/<code>inventory</code>/<code>drift</code>/<code>health</code>).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md575"></a>
+<h1><a class="anchor" id="autotoc_md579"></a>
 Auth &amp; security</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -155,7 +155,7 @@ Auth &amp; security</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>xrdsssadmin-brix</code>   </td><td class="markdownTableBodyNone">Manage an SSS (Simple Shared Secret) keytab.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md576"></a>
+<h1><a class="anchor" id="autotoc_md580"></a>
 Namespace / staging</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -163,7 +163,7 @@ Namespace / staging</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>xrdprep</code>   </td><td class="markdownTableBodyNone">Issue a <code>kXR_prepare</code> (stage/cancel/evict/…) for one or more paths.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md577"></a>
+<h1><a class="anchor" id="autotoc_md581"></a>
 Optional (built only when &lt;tt&gt;libfuse3&lt;/tt&gt; is present — not in &lt;tt&gt;BINS&lt;/tt&gt;)</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -175,7 +175,7 @@ Optional (built only when &lt;tt&gt;libfuse3&lt;/tt&gt; is present — not in &l
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>libbrixposix_preload.so</code>   </td><td class="markdownTableBodyNone">LD_PRELOAD POSIX→XRootD read-path shim (see <a href="../preload/"><code>../preload/</code></a>).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md578"></a>
+<h1><a class="anchor" id="autotoc_md582"></a>
 Ceph operator tools (&lt;tt&gt;apps/ceph/&lt;/tt&gt; — built only when the Ceph dev headers are present)</h1>
 <p>Storage-plane migration and rescue utilities linking librados directly (they do not speak <code>root://</code>). Compile-gated per tool; <code>make -C client ceph-tools</code> builds exactly this group. The migration pair ships BOTH a compiled C++ primary and a pure-Python variant (<code>.py</code> suffix, installed under <code>libexec/brix/</code> with <code>bin/</code> symlinks) with extra operator plumbing (<code>--json</code>, resumable <code>--state</code>, <code>--prefix</code>/<code>--match</code> filters, <code>--progress</code>) backed by the <code>pymigrate/</code> package (ctypes bridge to librados's C++-only manifest ops, with a compiled shim fallback).</p>
 <table class="markdownTable">
@@ -192,7 +192,7 @@ Ceph operator tools (&lt;tt&gt;apps/ceph/&lt;/tt&gt; — built only when the Cep
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>xrdceph_migrate</code>   </td><td class="markdownTableBodyNone">Flat pool → filesystem tree copy-through-mount (the only sound flat→CephFS upgrade).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md579"></a>
+<h1><a class="anchor" id="autotoc_md583"></a>
 Configuration — &lt;tt&gt;~/.xrdrc&lt;/tt&gt;</h1>
 <p>The per-user config file supports two kinds of section:</p>
 <p>**<code>[alias NAME]</code>** — endpoint credential bundles (looked up by URL prefix or explicit alias argument). Keys: <code>url</code>, <code>token</code>, <code>token_file</code>, <code>bearer_token_file</code>, <code>s3_access</code>, <code>s3_secret</code>, <code>s3_region</code>.</p>
@@ -210,7 +210,7 @@ Configuration — &lt;tt&gt;~/.xrdrc&lt;/tt&gt;</h1>
 <td class="markdownTableBodyNone"><code>backoff_base_ms</code>   </td><td class="markdownTableBodyNone">—   </td><td class="markdownTableBodyNone">Base for exponential reconnect back-off (default 25 ms)   </td></tr>
 </table>
 <p>Override the config file path with <code>$XRDRC</code>.</p>
-<h1><a class="anchor" id="autotoc_md580"></a>
+<h1><a class="anchor" id="autotoc_md584"></a>
 Man pages &amp; bash completion</h1>
 <p>Man pages land in <code>client/man/</code> (section 1). Install them system-wide:</p>
 <div class="fragment"><div class="line">sudo cp client/man/*.1 /usr/local/share/man/man1/</div>
@@ -221,7 +221,7 @@ Man pages &amp; bash completion</h1>
 <div class="line"># system-wide</div>
 <div class="line">sudo cp client/completions/brix-tools.bash /etc/bash_completion.d/brix-tools</div>
 </div><!-- fragment --><p>zsh: <code>autoload -U +X bashcompinit &amp;&amp; bashcompinit</code>, then source the same file.</p>
-<h1><a class="anchor" id="autotoc_md581"></a>
+<h1><a class="anchor" id="autotoc_md585"></a>
 CLI compatibility contract (binding for all flag/env/output work)</h1>
 <p>Per `docs/superpowers/specs/2026-07-06-client-cli-usability-design.md` §2:</p>
 <ul>
@@ -232,7 +232,7 @@ CLI compatibility contract (binding for all flag/env/output work)</h1>
 <li><b>C5</b> — exit-code values are frozen (documented per tool in the man pages).</li>
 </ul>
 <p>Usage text, man page, and shell completion must stay in sync for every flag — <code>client/man/check_man.sh</code> and <code>client/completions/check_completions.sh</code> run in <code>make -C client test</code> and fail the build on drift.</p>
-<h1><a class="anchor" id="autotoc_md582"></a>
+<h1><a class="anchor" id="autotoc_md586"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_client_2lib_2README.html">`../lib/README.md`</a> — the <code>libbrix</code> library these tools link against.</li>

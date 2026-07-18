@@ -196,229 +196,250 @@ $(document).ready(function(){initNavTree('vfs__open__handle_8c_source.html','');
 <div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>}</div>
 </div>
 <div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span> </div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment">/* brix_vfs_memfile_materialize — phase-71 step 2 memfd sendfile proxy.</span></div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> * WHAT: For a CAP_MEMFILE backend that exposes no kernel fd (obj.fd invalid,</span></div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="comment"> *       read_sendfile_fd declines), pread the whole object into an anonymous</span></div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="comment"> *       memfd ONCE and cache it on fh-&gt;memfd, so the VFS can hand every backend</span></div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment"> *       a uniform seekable fd for the sendfile / file-backed serve path.</span></div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment"> * WHY:  Removes the last backend-identity branch in the serve path: callers stop</span></div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> *       special-casing &quot;no fd → build a memory buffer myself&quot; and use one fd path.</span></div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="comment"> * HOW:  memfd_create + a pread→write loop through the driver&#39;s worker-safe pread</span></div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="comment"> *       slot; the fd is owned by the handle and closed in brix_vfs_close. Returns</span></div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment"> *       the cached fd on repeat calls. NGX_INVALID_FILE on any failure (the caller</span></div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment"> *       then falls back to its legacy memory-backed path — no behaviour change). */</span></div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="keyword">static</span> ngx_fd_t</div>
-<div class="foldopen" id="foldopen00104" data-start="{" data-end="}">
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno"><a class="line" href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">  104</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">brix_vfs_memfile_materialize</a>(brix_vfs_file_t *fh)</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>{</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    brix_sd_obj_t obj;</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    ngx_fd_t      fd;</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    off_t         off;</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    u_char        buf[65536];</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span> </div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordflow">if</span> (fh-&gt;memfd != NGX_INVALID_FILE) {</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>        <span class="keywordflow">return</span> fh-&gt;memfd;              <span class="comment">/* already materialised */</span></div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    }</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span> </div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <a class="code hl_function" href="vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17">brix_vfs_handle_sd_obj</a>(fh, &amp;obj);</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="keywordflow">if</span> (obj.driver == NULL || obj.driver-&gt;pread == NULL</div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>        || !(<a class="code hl_function" href="sd_8h.html#ae9e412fd5ac2fb04de48c04761f52e64">brix_sd_caps</a>(obj.inst) &amp; <a class="code hl_enumvalue" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c">BRIX_SD_CAP_MEMFILE</a>))</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    {</div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    }</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span> </div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    fd = (ngx_fd_t) memfd_create(<span class="stringliteral">&quot;brix-vfs-memfile&quot;</span>, MFD_CLOEXEC);</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <span class="keywordflow">if</span> (fd == NGX_INVALID_FILE) {</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    }</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span> </div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    <span class="keywordflow">for</span> (off = 0; off &lt; fh-&gt;size; <span class="comment">/* advanced below */</span>) {</div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        <span class="keywordtype">size_t</span>  want = (size_t) ngx_min((off_t) <span class="keyword">sizeof</span>(buf), fh-&gt;size - off);</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        ssize_t n = obj.driver-&gt;pread(&amp;obj, buf, want, off);</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span> </div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        <span class="keywordflow">if</span> (n &lt;= 0) {</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>            (void) ngx_close_file(fd);</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>            <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        }</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <span class="keywordflow">if</span> (write(fd, buf, (<span class="keywordtype">size_t</span>) n) != n) {</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>            (void) ngx_close_file(fd);</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>            <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>        }</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        off += n;</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    }</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span> </div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="brixposix__preload_8c.html#a8bd74caed008a66808d92d57fa74d9f6">lseek</a>(fd, 0, SEEK_SET) == (off_t) -1) {</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        (void) ngx_close_file(fd);</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    }</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span> </div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    fh-&gt;memfd = fd;</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    <span class="keywordflow">return</span> fd;</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>}</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment">/* Write up to `len` bytes at `off` through the handle&#39;s storage driver — the</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment"> * backend-neutral write used when a raw-fd pwrite would bypass an object</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> * backend&#39;s block routing and size bookkeeping (e.g. pblock, whose bytes span</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="comment"> * multiple block files and whose catalog size is maintained by the driver&#39;s</span></div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="comment"> * pwrite slot, not by the kernel fd). Returns bytes written, or -1 with errno;</span></div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment"> * the caller loops on a short write. */</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>ssize_t</div>
+<div class="foldopen" id="foldopen00098" data-start="{" data-end="}">
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a5066c677bd22b13c7896ef719b9e75ee">   98</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a5066c677bd22b13c7896ef719b9e75ee">brix_vfs_file_pwrite</a>(brix_vfs_file_t *fh, <span class="keyword">const</span> <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len, off_t off)</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>{</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="keywordflow">if</span> (fh == NULL || fh-&gt;obj.driver == NULL</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        || fh-&gt;obj.driver-&gt;pwrite == NULL)</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    {</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        errno = EINVAL;</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    }</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <span class="keywordflow">return</span> fh-&gt;obj.driver-&gt;pwrite(&amp;fh-&gt;obj, buf, len, off);</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>}</div>
 </div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span> </div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment">/* The fd only when the backend elects to back a zero-copy transfer of the whole</span></div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> * object, else NGX_INVALID_FILE. The decision is delegated to the backend&#39;s</span></div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment"> * read_sendfile_fd slot (want_zerocopy=1: the HTTP serve helper applies the</span></div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment"> * TLS/cleartext choice itself). For a fd-less CAP_MEMFILE backend the VFS</span></div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment"> * materialises a handle-owned memfd (phase-71 step 2) so the serve path is a</span></div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment"> * uniform seekable fd for every backend. The contract gate for callers that</span></div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="comment"> * build a sendfile / file-backed response. */</span></div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>ngx_fd_t</div>
-<div class="foldopen" id="foldopen00159" data-start="{" data-end="}">
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a83f6e427a283eb2a3f323acbe6b71c03">  159</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03">brix_vfs_file_sendfile_fd</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>{</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    ngx_fd_t fd;</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span> </div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    <span class="keywordflow">if</span> (fh == NULL) {</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    }</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    fd = <a class="code hl_function" href="vfs__internal_8h.html#a674c11c23ee252783b1f3003927b3ab4">brix_vfs_handle_sendfile_fd</a>(fh, 0, (<span class="keywordtype">size_t</span>) fh-&gt;size, 1);</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keywordflow">if</span> (fd != NGX_INVALID_FILE) {</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>        <span class="keywordflow">return</span> fd;</div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    }</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <span class="comment">/* fh is const by contract, but the memfd cache is an internal materialisation</span></div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="comment">     * that does not change the observable file — safe to fill lazily here. */</span></div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">brix_vfs_memfile_materialize</a>((brix_vfs_file_t *) fh);</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>}</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment">/* brix_vfs_memfile_materialize — phase-71 step 2 memfd sendfile proxy.</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> * WHAT: For a CAP_MEMFILE backend that exposes no kernel fd (obj.fd invalid,</span></div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="comment"> *       read_sendfile_fd declines), pread the whole object into an anonymous</span></div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="comment"> *       memfd ONCE and cache it on fh-&gt;memfd, so the VFS can hand every backend</span></div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="comment"> *       a uniform seekable fd for the sendfile / file-backed serve path.</span></div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment"> * WHY:  Removes the last backend-identity branch in the serve path: callers stop</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment"> *       special-casing &quot;no fd → build a memory buffer myself&quot; and use one fd path.</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment"> * HOW:  memfd_create + a pread→write loop through the driver&#39;s worker-safe pread</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment"> *       slot; the fd is owned by the handle and closed in brix_vfs_close. Returns</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment"> *       the cached fd on repeat calls. NGX_INVALID_FILE on any failure (the caller</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> *       then falls back to its legacy memory-backed path — no behaviour change). */</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="keyword">static</span> ngx_fd_t</div>
+<div class="foldopen" id="foldopen00122" data-start="{" data-end="}">
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno"><a class="line" href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">  122</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">brix_vfs_memfile_materialize</a>(brix_vfs_file_t *fh)</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>{</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    brix_sd_obj_t obj;</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    ngx_fd_t      fd;</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    off_t         off;</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    u_char        buf[65536];</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span> </div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    <span class="keywordflow">if</span> (fh-&gt;memfd != NGX_INVALID_FILE) {</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="keywordflow">return</span> fh-&gt;memfd;              <span class="comment">/* already materialised */</span></div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    }</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span> </div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <a class="code hl_function" href="vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17">brix_vfs_handle_sd_obj</a>(fh, &amp;obj);</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordflow">if</span> (obj.driver == NULL || obj.driver-&gt;pread == NULL</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        || !(<a class="code hl_function" href="sd_8h.html#ae9e412fd5ac2fb04de48c04761f52e64">brix_sd_caps</a>(obj.inst) &amp; <a class="code hl_enumvalue" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c">BRIX_SD_CAP_MEMFILE</a>))</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    {</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    }</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span> </div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    fd = (ngx_fd_t) memfd_create(<span class="stringliteral">&quot;brix-vfs-memfile&quot;</span>, MFD_CLOEXEC);</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    <span class="keywordflow">if</span> (fd == NGX_INVALID_FILE) {</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    }</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span> </div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="keywordflow">for</span> (off = 0; off &lt; fh-&gt;size; <span class="comment">/* advanced below */</span>) {</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        <span class="keywordtype">size_t</span>  want = (size_t) ngx_min((off_t) <span class="keyword">sizeof</span>(buf), fh-&gt;size - off);</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>        ssize_t n = obj.driver-&gt;pread(&amp;obj, buf, want, off);</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span> </div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        <span class="keywordflow">if</span> (n &lt;= 0) {</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>            (void) ngx_close_file(fd);</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>            <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        }</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        <span class="keywordflow">if</span> (write(fd, buf, (<span class="keywordtype">size_t</span>) n) != n) {</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>            (void) ngx_close_file(fd);</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>            <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>        }</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        off += n;</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>    }</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span> </div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="brixposix__preload_8c.html#a8bd74caed008a66808d92d57fa74d9f6">lseek</a>(fd, 0, SEEK_SET) == (off_t) -1) {</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        (void) ngx_close_file(fd);</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    }</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span> </div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    fh-&gt;memfd = fd;</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    <span class="keywordflow">return</span> fd;</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>}</div>
 </div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span> </div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="comment">/* Predicate form: 1 iff the backend will provide a sendfile fd for this handle. */</span></div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>ngx_uint_t</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span> </div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="comment">/* The fd only when the backend elects to back a zero-copy transfer of the whole</span></div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><span class="comment"> * object, else NGX_INVALID_FILE. The decision is delegated to the backend&#39;s</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="comment"> * read_sendfile_fd slot (want_zerocopy=1: the HTTP serve helper applies the</span></div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="comment"> * TLS/cleartext choice itself). For a fd-less CAP_MEMFILE backend the VFS</span></div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span><span class="comment"> * materialises a handle-owned memfd (phase-71 step 2) so the serve path is a</span></div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="comment"> * uniform seekable fd for every backend. The contract gate for callers that</span></div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="comment"> * build a sendfile / file-backed response. */</span></div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>ngx_fd_t</div>
 <div class="foldopen" id="foldopen00177" data-start="{" data-end="}">
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#ab9eba3074b946bba50c331a32f54c7d7">  177</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#ab9eba3074b946bba50c331a32f54c7d7">brix_vfs_file_can_sendfile</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a83f6e427a283eb2a3f323acbe6b71c03">  177</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03">brix_vfs_file_sendfile_fd</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
 <div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>{</div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03">brix_vfs_file_sendfile_fd</a>(fh) != NGX_INVALID_FILE ? 1 : 0;</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>}</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    ngx_fd_t fd;</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    <span class="keywordflow">if</span> (fh == NULL) {</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    }</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    fd = <a class="code hl_function" href="vfs__internal_8h.html#a674c11c23ee252783b1f3003927b3ab4">brix_vfs_handle_sendfile_fd</a>(fh, 0, (<span class="keywordtype">size_t</span>) fh-&gt;size, 1);</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordflow">if</span> (fd != NGX_INVALID_FILE) {</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span> fd;</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="comment">/* fh is const by contract, but the memfd cache is an internal materialisation</span></div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="comment">     * that does not change the observable file — safe to fill lazily here. */</span></div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">brix_vfs_memfile_materialize</a>((brix_vfs_file_t *) fh);</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>}</div>
 </div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span> </div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment">/* The census name of the backend serving this handle: the bound instance&#39;s</span></div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment"> * driver name, or &quot;posix&quot; for the default instance / a NULL handle. Used for</span></div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="comment"> * per-backend byte attribution at serve time (the serve paths release the</span></div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="comment"> * handle before the bytes are counted, so callers capture this up front). */</span></div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="keyword">const</span> <span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00187" data-start="{" data-end="}">
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a959e44f8f8dd57fdbd37519e9a7772bb">  187</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a959e44f8f8dd57fdbd37519e9a7772bb">brix_vfs_file_backend_name</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>{</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    <span class="keywordflow">if</span> (fh == NULL || fh-&gt;ctx == NULL || fh-&gt;ctx-&gt;sd == NULL) {</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>        <span class="keywordflow">return</span> <span class="stringliteral">&quot;posix&quot;</span>;</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    }</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd_8h.html#a05a5f40f81f7a08c02bc26a4c1e393aa">brix_sd_backend_name</a>(fh-&gt;ctx-&gt;sd);</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>}</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span> </div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span><span class="comment">/* Predicate form: 1 iff the backend will provide a sendfile fd for this handle. */</span></div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>ngx_uint_t</div>
+<div class="foldopen" id="foldopen00195" data-start="{" data-end="}">
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#ab9eba3074b946bba50c331a32f54c7d7">  195</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#ab9eba3074b946bba50c331a32f54c7d7">brix_vfs_file_can_sendfile</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>{</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03">brix_vfs_file_sendfile_fd</a>(fh) != NGX_INVALID_FILE ? 1 : 0;</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>}</div>
 </div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span> </div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="keyword">const</span> <span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00196" data-start="{" data-end="}">
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a8624f191d8d0d21f18656e685eaaa448">  196</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a8624f191d8d0d21f18656e685eaaa448">brix_vfs_file_path</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>{</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    <span class="keywordflow">return</span> (fh != NULL &amp;&amp; fh-&gt;path != NULL) ? fh-&gt;path : <span class="stringliteral">&quot;&quot;</span>;</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>}</div>
-</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span> </div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>off_t</div>
-<div class="foldopen" id="foldopen00202" data-start="{" data-end="}">
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a8489164ebd9f32bd34231f243777d61c">  202</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a8489164ebd9f32bd34231f243777d61c">brix_vfs_file_size</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>{</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    <span class="keywordflow">return</span> fh != NULL ? fh-&gt;size : 0;</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>}</div>
-</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span> </div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>time_t</div>
-<div class="foldopen" id="foldopen00208" data-start="{" data-end="}">
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#aae1bd755f56793476801e35a41914ba9">  208</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#aae1bd755f56793476801e35a41914ba9">brix_vfs_file_mtime</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>{</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    <span class="keywordflow">return</span> fh != NULL ? fh-&gt;mtime : 0;</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span> </div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment">/* The census name of the backend serving this handle: the bound instance&#39;s</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment"> * driver name, or &quot;posix&quot; for the default instance / a NULL handle. Used for</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment"> * per-backend byte attribution at serve time (the serve paths release the</span></div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="comment"> * handle before the bytes are counted, so callers capture this up front). */</span></div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><span class="keyword">const</span> <span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00205" data-start="{" data-end="}">
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a959e44f8f8dd57fdbd37519e9a7772bb">  205</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a959e44f8f8dd57fdbd37519e9a7772bb">brix_vfs_file_backend_name</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>{</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    <span class="keywordflow">if</span> (fh == NULL || fh-&gt;ctx == NULL || fh-&gt;ctx-&gt;sd == NULL) {</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>        <span class="keywordflow">return</span> <span class="stringliteral">&quot;posix&quot;</span>;</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    }</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd_8h.html#a05a5f40f81f7a08c02bc26a4c1e393aa">brix_sd_backend_name</a>(fh-&gt;ctx-&gt;sd);</div>
 <div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>}</div>
 </div>
 <div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span> </div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>ngx_uint_t</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span><span class="keyword">const</span> <span class="keywordtype">char</span> *</div>
 <div class="foldopen" id="foldopen00214" data-start="{" data-end="}">
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a6afc82e33ee2cc090a866474b35e33e9">  214</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a6afc82e33ee2cc090a866474b35e33e9">brix_vfs_file_from_cache</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a8624f191d8d0d21f18656e685eaaa448">  214</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a8624f191d8d0d21f18656e685eaaa448">brix_vfs_file_path</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
 <div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>{</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keywordflow">return</span> (fh != NULL &amp;&amp; fh-&gt;from_cache) ? 1 : 0;</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keywordflow">return</span> (fh != NULL &amp;&amp; fh-&gt;path != NULL) ? fh-&gt;path : <span class="stringliteral">&quot;&quot;</span>;</div>
 <div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>}</div>
 </div>
 <div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span> </div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>ngx_int_t</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>off_t</div>
 <div class="foldopen" id="foldopen00220" data-start="{" data-end="}">
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a16f0ced4de7104f0842121e3f90c1beb">  220</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a16f0ced4de7104f0842121e3f90c1beb">brix_vfs_file_stat</a>(<span class="keyword">const</span> brix_vfs_file_t *fh, <a class="code hl_struct" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *stat_out)</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a8489164ebd9f32bd34231f243777d61c">  220</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a8489164ebd9f32bd34231f243777d61c">brix_vfs_file_size</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
 <div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>{</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> st;</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    brix_sd_obj_t  obj;</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    <span class="keywordflow">return</span> fh != NULL ? fh-&gt;size : 0;</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>}</div>
+</div>
 <div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span> </div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    <span class="keywordflow">if</span> (fh == NULL || stat_out == NULL</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        || (fh-&gt;obj.fd == NGX_INVALID_FILE &amp;&amp; fh-&gt;obj.driver == NULL))</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    {</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>        <span class="comment">/* A driver-backed handle (object/remote backend) has no kernel fd; it</span></div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="comment">         * answers from cached metadata or the driver&#39;s fstat slot below. */</span></div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        errno = EINVAL;</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    }</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span> </div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span><span class="comment">     * phase-45 W2/R1: when the metadata cached at adopt time is authoritative,</span></div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span><span class="comment">     * answer from it and skip a redundant fstat(2).  This is the common read</span></div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span><span class="comment">     * path (S3/WebDAV GET open the fd then immediately stat it).  stat_current is</span></div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span><span class="comment">     * set by adopt_fd only for read-only handles, whose file cannot change</span></div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span><span class="comment">     * through them; a writable handle has it clear and always takes a live fstat.</span></div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <span class="keywordflow">if</span> (fh-&gt;stat_current) {</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        ngx_memzero(stat_out, <span class="keyword">sizeof</span>(*stat_out));</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a388905f8bbcb799b9aacb158528553a3">size</a> = fh-&gt;size;</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a76597c6ab358290ab062817c5ea65494">mtime</a> = fh-&gt;mtime;</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a95e7a780841348ce9500b835d6b54e70">ctime</a> = fh-&gt;ctime;</div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a336bd6ae92c16b085a65339e698862b9">mode</a> = (ngx_uint_t) fh-&gt;mode;</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#ae2ca5d5f932dd421d5f585ac3197a483">ino</a> = fh-&gt;ino;</div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#adba7009cfc8468e685a7d684ddd51f0c">is_directory</a> = S_ISDIR(fh-&gt;mode) ? 1 : 0;</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a6a6ef3574079e6f434809209df9cfa16">is_regular</a> = S_ISREG(fh-&gt;mode) ? 1 : 0;</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    }</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <span class="comment">/* Live re-stat through the backend&#39;s fstat slot (not a direct fstat(2)). */</span></div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    <a class="code hl_function" href="vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17">brix_vfs_handle_sd_obj</a>(fh, &amp;obj);</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    <span class="keywordflow">if</span> (obj.driver-&gt;fstat == NULL || obj.driver-&gt;fstat(&amp;obj, &amp;st) != NGX_OK) {</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    }</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span> </div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    <a class="code hl_function" href="vfs__internal_8h.html#a3d7c79f672def2c7ae70a32a0987a7fb">brix_vfs_sd_stat_to_vfs</a>(&amp;st, stat_out);</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>}</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>time_t</div>
+<div class="foldopen" id="foldopen00226" data-start="{" data-end="}">
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#aae1bd755f56793476801e35a41914ba9">  226</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#aae1bd755f56793476801e35a41914ba9">brix_vfs_file_mtime</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>{</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    <span class="keywordflow">return</span> fh != NULL ? fh-&gt;mtime : 0;</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>}</div>
+</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span> </div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>ngx_uint_t</div>
+<div class="foldopen" id="foldopen00232" data-start="{" data-end="}">
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a6afc82e33ee2cc090a866474b35e33e9">  232</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a6afc82e33ee2cc090a866474b35e33e9">brix_vfs_file_from_cache</a>(<span class="keyword">const</span> brix_vfs_file_t *fh)</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>{</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    <span class="keywordflow">return</span> (fh != NULL &amp;&amp; fh-&gt;from_cache) ? 1 : 0;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>}</div>
+</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span> </div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00238" data-start="{" data-end="}">
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno"><a class="line" href="src_2fs_2vfs_2vfs_8h.html#a16f0ced4de7104f0842121e3f90c1beb">  238</a></span><a class="code hl_function" href="vfs__open__handle_8c.html#a16f0ced4de7104f0842121e3f90c1beb">brix_vfs_file_stat</a>(<span class="keyword">const</span> brix_vfs_file_t *fh, <a class="code hl_struct" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a> *stat_out)</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>{</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> st;</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    brix_sd_obj_t  obj;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span> </div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    <span class="keywordflow">if</span> (fh == NULL || stat_out == NULL</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        || (fh-&gt;obj.fd == NGX_INVALID_FILE &amp;&amp; fh-&gt;obj.driver == NULL))</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    {</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        <span class="comment">/* A driver-backed handle (object/remote backend) has no kernel fd; it</span></div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span><span class="comment">         * answers from cached metadata or the driver&#39;s fstat slot below. */</span></div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>        errno = EINVAL;</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    }</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span> </div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span><span class="comment">     * phase-45 W2/R1: when the metadata cached at adopt time is authoritative,</span></div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span><span class="comment">     * answer from it and skip a redundant fstat(2).  This is the common read</span></div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span><span class="comment">     * path (S3/WebDAV GET open the fd then immediately stat it).  stat_current is</span></div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span><span class="comment">     * set by adopt_fd only for read-only handles, whose file cannot change</span></div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span><span class="comment">     * through them; a writable handle has it clear and always takes a live fstat.</span></div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    <span class="keywordflow">if</span> (fh-&gt;stat_current) {</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>        ngx_memzero(stat_out, <span class="keyword">sizeof</span>(*stat_out));</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a388905f8bbcb799b9aacb158528553a3">size</a> = fh-&gt;size;</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a76597c6ab358290ab062817c5ea65494">mtime</a> = fh-&gt;mtime;</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a95e7a780841348ce9500b835d6b54e70">ctime</a> = fh-&gt;ctime;</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a336bd6ae92c16b085a65339e698862b9">mode</a> = (ngx_uint_t) fh-&gt;mode;</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#ae2ca5d5f932dd421d5f585ac3197a483">ino</a> = fh-&gt;ino;</div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#adba7009cfc8468e685a7d684ddd51f0c">is_directory</a> = S_ISDIR(fh-&gt;mode) ? 1 : 0;</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>        stat_out-&gt;<a class="code hl_variable" href="structbrix__vfs__stat__t.html#a6a6ef3574079e6f434809209df9cfa16">is_regular</a> = S_ISREG(fh-&gt;mode) ? 1 : 0;</div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    }</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span> </div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    <span class="comment">/* Live re-stat through the backend&#39;s fstat slot (not a direct fstat(2)). */</span></div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <a class="code hl_function" href="vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17">brix_vfs_handle_sd_obj</a>(fh, &amp;obj);</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    <span class="keywordflow">if</span> (obj.driver-&gt;fstat == NULL || obj.driver-&gt;fstat(&amp;obj, &amp;st) != NGX_OK) {</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    }</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span> </div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    <a class="code hl_function" href="vfs__internal_8h.html#a3d7c79f672def2c7ae70a32a0987a7fb">brix_vfs_sd_stat_to_vfs</a>(&amp;st, stat_out);</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>}</div>
 </div>
 <div class="ttc" id="abrixposix__preload_8c_html_a8bd74caed008a66808d92d57fa74d9f6"><div class="ttname"><a href="brixposix__preload_8c.html#a8bd74caed008a66808d92d57fa74d9f6">lseek</a></div><div class="ttdeci">off_t lseek(int fd, off_t offset, int whence)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00353">brixposix_preload.c:353</a></div></div>
 <div class="ttc" id="alog__diag_8h_html"><div class="ttname"><a href="log__diag_8h.html">log_diag.h</a></div></div>
 <div class="ttc" id="alog__diag_8h_html_aa5f0bd9e49a33dea19ddfbf671f5c5c5"><div class="ttname"><a href="log__diag_8h.html#aa5f0bd9e49a33dea19ddfbf671f5c5c5">BRIX_DIAG_ERR</a></div><div class="ttdeci">#define BRIX_DIAG_ERR(log, err, summary, cause, fix,...)</div><div class="ttdef"><b>Definition</b> <a href="log__diag_8h_source.html#l00070">log_diag.h:70</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 <div class="ttc" id="asd_8h_html_a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c"><div class="ttname"><a href="sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c">BRIX_SD_CAP_MEMFILE</a></div><div class="ttdeci">@ BRIX_SD_CAP_MEMFILE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00111">sd.h:110</a></div></div>
-<div class="ttc" id="asd_8h_html_a05a5f40f81f7a08c02bc26a4c1e393aa"><div class="ttname"><a href="sd_8h.html#a05a5f40f81f7a08c02bc26a4c1e393aa">brix_sd_backend_name</a></div><div class="ttdeci">const char * brix_sd_backend_name(const brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__registry_8c_source.html#l00179">sd_registry.c:179</a></div></div>
-<div class="ttc" id="asd_8h_html_ae9e412fd5ac2fb04de48c04761f52e64"><div class="ttname"><a href="sd_8h.html#ae9e412fd5ac2fb04de48c04761f52e64">brix_sd_caps</a></div><div class="ttdeci">uint32_t brix_sd_caps(const brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__registry_8c_source.html#l00162">sd_registry.c:162</a></div></div>
-<div class="ttc" id="astructbrix__sd__stat__t_html"><div class="ttname"><a href="structbrix__sd__stat__t.html">brix_sd_stat_t</a></div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00250">sd.h:250</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html"><div class="ttname"><a href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a></div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00070">vfs.h:70</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html_a336bd6ae92c16b085a65339e698862b9"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a336bd6ae92c16b085a65339e698862b9">brix_vfs_stat_t::mode</a></div><div class="ttdeci">ngx_uint_t mode</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00075">vfs.h:75</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html_a388905f8bbcb799b9aacb158528553a3"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a388905f8bbcb799b9aacb158528553a3">brix_vfs_stat_t::size</a></div><div class="ttdeci">off_t size</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00071">vfs.h:71</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html_a6a6ef3574079e6f434809209df9cfa16"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a6a6ef3574079e6f434809209df9cfa16">brix_vfs_stat_t::is_regular</a></div><div class="ttdeci">unsigned is_regular</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00082">vfs.h:82</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html_a76597c6ab358290ab062817c5ea65494"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a76597c6ab358290ab062817c5ea65494">brix_vfs_stat_t::mtime</a></div><div class="ttdeci">time_t mtime</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00072">vfs.h:72</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html_a95e7a780841348ce9500b835d6b54e70"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a95e7a780841348ce9500b835d6b54e70">brix_vfs_stat_t::ctime</a></div><div class="ttdeci">time_t ctime</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00073">vfs.h:73</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html_adba7009cfc8468e685a7d684ddd51f0c"><div class="ttname"><a href="structbrix__vfs__stat__t.html#adba7009cfc8468e685a7d684ddd51f0c">brix_vfs_stat_t::is_directory</a></div><div class="ttdeci">unsigned is_directory</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00081">vfs.h:81</a></div></div>
-<div class="ttc" id="astructbrix__vfs__stat__t_html_ae2ca5d5f932dd421d5f585ac3197a483"><div class="ttname"><a href="structbrix__vfs__stat__t.html#ae2ca5d5f932dd421d5f585ac3197a483">brix_vfs_stat_t::ino</a></div><div class="ttdeci">ino_t ino</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00076">vfs.h:76</a></div></div>
+<div class="ttc" id="asd_8h_html_a05a5f40f81f7a08c02bc26a4c1e393aa"><div class="ttname"><a href="sd_8h.html#a05a5f40f81f7a08c02bc26a4c1e393aa">brix_sd_backend_name</a></div><div class="ttdeci">const char * brix_sd_backend_name(const brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__registry_8c_source.html#l00183">sd_registry.c:183</a></div></div>
+<div class="ttc" id="asd_8h_html_ae9e412fd5ac2fb04de48c04761f52e64"><div class="ttname"><a href="sd_8h.html#ae9e412fd5ac2fb04de48c04761f52e64">brix_sd_caps</a></div><div class="ttdeci">uint32_t brix_sd_caps(const brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__registry_8c_source.html#l00164">sd_registry.c:164</a></div></div>
+<div class="ttc" id="astructbrix__sd__stat__t_html"><div class="ttname"><a href="structbrix__sd__stat__t.html">brix_sd_stat_t</a></div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00269">sd.h:269</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html"><div class="ttname"><a href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a></div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00075">vfs.h:75</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html_a336bd6ae92c16b085a65339e698862b9"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a336bd6ae92c16b085a65339e698862b9">brix_vfs_stat_t::mode</a></div><div class="ttdeci">ngx_uint_t mode</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00080">vfs.h:80</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html_a388905f8bbcb799b9aacb158528553a3"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a388905f8bbcb799b9aacb158528553a3">brix_vfs_stat_t::size</a></div><div class="ttdeci">off_t size</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00076">vfs.h:76</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html_a6a6ef3574079e6f434809209df9cfa16"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a6a6ef3574079e6f434809209df9cfa16">brix_vfs_stat_t::is_regular</a></div><div class="ttdeci">unsigned is_regular</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00087">vfs.h:87</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html_a76597c6ab358290ab062817c5ea65494"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a76597c6ab358290ab062817c5ea65494">brix_vfs_stat_t::mtime</a></div><div class="ttdeci">time_t mtime</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00077">vfs.h:77</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html_a95e7a780841348ce9500b835d6b54e70"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a95e7a780841348ce9500b835d6b54e70">brix_vfs_stat_t::ctime</a></div><div class="ttdeci">time_t ctime</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00078">vfs.h:78</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html_adba7009cfc8468e685a7d684ddd51f0c"><div class="ttname"><a href="structbrix__vfs__stat__t.html#adba7009cfc8468e685a7d684ddd51f0c">brix_vfs_stat_t::is_directory</a></div><div class="ttdeci">unsigned is_directory</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00086">vfs.h:86</a></div></div>
+<div class="ttc" id="astructbrix__vfs__stat__t_html_ae2ca5d5f932dd421d5f585ac3197a483"><div class="ttname"><a href="structbrix__vfs__stat__t.html#ae2ca5d5f932dd421d5f585ac3197a483">brix_vfs_stat_t::ino</a></div><div class="ttdeci">ino_t ino</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00081">vfs.h:81</a></div></div>
 <div class="ttc" id="avfs__backend__registry_8h_html"><div class="ttname"><a href="vfs__backend__registry_8h.html">vfs_backend_registry.h</a></div></div>
 <div class="ttc" id="avfs__internal_8h_html"><div class="ttname"><a href="vfs__internal_8h.html">vfs_internal.h</a></div></div>
-<div class="ttc" id="avfs__internal_8h_html_a3d7c79f672def2c7ae70a32a0987a7fb"><div class="ttname"><a href="vfs__internal_8h.html#a3d7c79f672def2c7ae70a32a0987a7fb">brix_vfs_sd_stat_to_vfs</a></div><div class="ttdeci">static void brix_vfs_sd_stat_to_vfs(const brix_sd_stat_t *in, brix_vfs_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="vfs__internal_8h_source.html#l00215">vfs_internal.h:215</a></div></div>
-<div class="ttc" id="avfs__internal_8h_html_a674c11c23ee252783b1f3003927b3ab4"><div class="ttname"><a href="vfs__internal_8h.html#a674c11c23ee252783b1f3003927b3ab4">brix_vfs_handle_sendfile_fd</a></div><div class="ttdeci">static ngx_fd_t brix_vfs_handle_sendfile_fd(const brix_vfs_file_t *fh, off_t off, size_t len, unsigned want_zerocopy)</div><div class="ttdef"><b>Definition</b> <a href="vfs__internal_8h_source.html#l00232">vfs_internal.h:232</a></div></div>
-<div class="ttc" id="avfs__internal_8h_html_aac798cc4e16b6684c72696dbde614f17"><div class="ttname"><a href="vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17">brix_vfs_handle_sd_obj</a></div><div class="ttdeci">static void brix_vfs_handle_sd_obj(const brix_vfs_file_t *fh, brix_sd_obj_t *obj)</div><div class="ttdef"><b>Definition</b> <a href="vfs__internal_8h_source.html#l00204">vfs_internal.h:204</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_a16f0ced4de7104f0842121e3f90c1beb"><div class="ttname"><a href="vfs__open__handle_8c.html#a16f0ced4de7104f0842121e3f90c1beb">brix_vfs_file_stat</a></div><div class="ttdeci">ngx_int_t brix_vfs_file_stat(const brix_vfs_file_t *fh, brix_vfs_stat_t *stat_out)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00220">vfs_open_handle.c:220</a></div></div>
+<div class="ttc" id="avfs__internal_8h_html_a3d7c79f672def2c7ae70a32a0987a7fb"><div class="ttname"><a href="vfs__internal_8h.html#a3d7c79f672def2c7ae70a32a0987a7fb">brix_vfs_sd_stat_to_vfs</a></div><div class="ttdeci">static void brix_vfs_sd_stat_to_vfs(const brix_sd_stat_t *in, brix_vfs_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="vfs__internal_8h_source.html#l00217">vfs_internal.h:217</a></div></div>
+<div class="ttc" id="avfs__internal_8h_html_a674c11c23ee252783b1f3003927b3ab4"><div class="ttname"><a href="vfs__internal_8h.html#a674c11c23ee252783b1f3003927b3ab4">brix_vfs_handle_sendfile_fd</a></div><div class="ttdeci">static ngx_fd_t brix_vfs_handle_sendfile_fd(const brix_vfs_file_t *fh, off_t off, size_t len, unsigned want_zerocopy)</div><div class="ttdef"><b>Definition</b> <a href="vfs__internal_8h_source.html#l00236">vfs_internal.h:236</a></div></div>
+<div class="ttc" id="avfs__internal_8h_html_aac798cc4e16b6684c72696dbde614f17"><div class="ttname"><a href="vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17">brix_vfs_handle_sd_obj</a></div><div class="ttdeci">static void brix_vfs_handle_sd_obj(const brix_vfs_file_t *fh, brix_sd_obj_t *obj)</div><div class="ttdef"><b>Definition</b> <a href="vfs__internal_8h_source.html#l00206">vfs_internal.h:206</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a16f0ced4de7104f0842121e3f90c1beb"><div class="ttname"><a href="vfs__open__handle_8c.html#a16f0ced4de7104f0842121e3f90c1beb">brix_vfs_file_stat</a></div><div class="ttdeci">ngx_int_t brix_vfs_file_stat(const brix_vfs_file_t *fh, brix_vfs_stat_t *stat_out)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00238">vfs_open_handle.c:238</a></div></div>
 <div class="ttc" id="avfs__open__handle_8c_html_a1b8fc31f828136cd340fa873c9b170d2"><div class="ttname"><a href="vfs__open__handle_8c.html#a1b8fc31f828136cd340fa873c9b170d2">brix_vfs_file_fd</a></div><div class="ttdeci">ngx_fd_t brix_vfs_file_fd(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00064">vfs_open_handle.c:64</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a5066c677bd22b13c7896ef719b9e75ee"><div class="ttname"><a href="vfs__open__handle_8c.html#a5066c677bd22b13c7896ef719b9e75ee">brix_vfs_file_pwrite</a></div><div class="ttdeci">ssize_t brix_vfs_file_pwrite(brix_vfs_file_t *fh, const void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00098">vfs_open_handle.c:98</a></div></div>
 <div class="ttc" id="avfs__open__handle_8c_html_a6408ce9c1f39f6d8cdd249050c161ec0"><div class="ttname"><a href="vfs__open__handle_8c.html#a6408ce9c1f39f6d8cdd249050c161ec0">brix_vfs_file_sd_obj</a></div><div class="ttdeci">void brix_vfs_file_sd_obj(const brix_vfs_file_t *fh, brix_sd_obj_t *out)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00070">vfs_open_handle.c:70</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_a6afc82e33ee2cc090a866474b35e33e9"><div class="ttname"><a href="vfs__open__handle_8c.html#a6afc82e33ee2cc090a866474b35e33e9">brix_vfs_file_from_cache</a></div><div class="ttdeci">ngx_uint_t brix_vfs_file_from_cache(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00214">vfs_open_handle.c:214</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_a81ef9ef006260a6c7061803409c3b4a1"><div class="ttname"><a href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">brix_vfs_memfile_materialize</a></div><div class="ttdeci">static ngx_fd_t brix_vfs_memfile_materialize(brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00104">vfs_open_handle.c:104</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_a83f6e427a283eb2a3f323acbe6b71c03"><div class="ttname"><a href="vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03">brix_vfs_file_sendfile_fd</a></div><div class="ttdeci">ngx_fd_t brix_vfs_file_sendfile_fd(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00159">vfs_open_handle.c:159</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_a8489164ebd9f32bd34231f243777d61c"><div class="ttname"><a href="vfs__open__handle_8c.html#a8489164ebd9f32bd34231f243777d61c">brix_vfs_file_size</a></div><div class="ttdeci">off_t brix_vfs_file_size(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00202">vfs_open_handle.c:202</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_a8624f191d8d0d21f18656e685eaaa448"><div class="ttname"><a href="vfs__open__handle_8c.html#a8624f191d8d0d21f18656e685eaaa448">brix_vfs_file_path</a></div><div class="ttdeci">const char * brix_vfs_file_path(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00196">vfs_open_handle.c:196</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_a959e44f8f8dd57fdbd37519e9a7772bb"><div class="ttname"><a href="vfs__open__handle_8c.html#a959e44f8f8dd57fdbd37519e9a7772bb">brix_vfs_file_backend_name</a></div><div class="ttdeci">const char * brix_vfs_file_backend_name(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00187">vfs_open_handle.c:187</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a6afc82e33ee2cc090a866474b35e33e9"><div class="ttname"><a href="vfs__open__handle_8c.html#a6afc82e33ee2cc090a866474b35e33e9">brix_vfs_file_from_cache</a></div><div class="ttdeci">ngx_uint_t brix_vfs_file_from_cache(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00232">vfs_open_handle.c:232</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a81ef9ef006260a6c7061803409c3b4a1"><div class="ttname"><a href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">brix_vfs_memfile_materialize</a></div><div class="ttdeci">static ngx_fd_t brix_vfs_memfile_materialize(brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00122">vfs_open_handle.c:122</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a83f6e427a283eb2a3f323acbe6b71c03"><div class="ttname"><a href="vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03">brix_vfs_file_sendfile_fd</a></div><div class="ttdeci">ngx_fd_t brix_vfs_file_sendfile_fd(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00177">vfs_open_handle.c:177</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a8489164ebd9f32bd34231f243777d61c"><div class="ttname"><a href="vfs__open__handle_8c.html#a8489164ebd9f32bd34231f243777d61c">brix_vfs_file_size</a></div><div class="ttdeci">off_t brix_vfs_file_size(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00220">vfs_open_handle.c:220</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a8624f191d8d0d21f18656e685eaaa448"><div class="ttname"><a href="vfs__open__handle_8c.html#a8624f191d8d0d21f18656e685eaaa448">brix_vfs_file_path</a></div><div class="ttdeci">const char * brix_vfs_file_path(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00214">vfs_open_handle.c:214</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_a959e44f8f8dd57fdbd37519e9a7772bb"><div class="ttname"><a href="vfs__open__handle_8c.html#a959e44f8f8dd57fdbd37519e9a7772bb">brix_vfs_file_backend_name</a></div><div class="ttdeci">const char * brix_vfs_file_backend_name(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00205">vfs_open_handle.c:205</a></div></div>
 <div class="ttc" id="avfs__open__handle_8c_html_a95e843f2c2c963647e3b3079e976964f"><div class="ttname"><a href="vfs__open__handle_8c.html#a95e843f2c2c963647e3b3079e976964f">brix_vfs_file_pread</a></div><div class="ttdeci">ssize_t brix_vfs_file_pread(brix_vfs_file_t *fh, void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00080">vfs_open_handle.c:80</a></div></div>
 <div class="ttc" id="avfs__open__handle_8c_html_aa79c4914106c61b8d70a3d836fc033b6"><div class="ttname"><a href="vfs__open__handle_8c.html#aa79c4914106c61b8d70a3d836fc033b6">brix_vfs_close</a></div><div class="ttdeci">ngx_int_t brix_vfs_close(brix_vfs_file_t *fh, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00029">vfs_open_handle.c:29</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_aae1bd755f56793476801e35a41914ba9"><div class="ttname"><a href="vfs__open__handle_8c.html#aae1bd755f56793476801e35a41914ba9">brix_vfs_file_mtime</a></div><div class="ttdeci">time_t brix_vfs_file_mtime(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00208">vfs_open_handle.c:208</a></div></div>
-<div class="ttc" id="avfs__open__handle_8c_html_ab9eba3074b946bba50c331a32f54c7d7"><div class="ttname"><a href="vfs__open__handle_8c.html#ab9eba3074b946bba50c331a32f54c7d7">brix_vfs_file_can_sendfile</a></div><div class="ttdeci">ngx_uint_t brix_vfs_file_can_sendfile(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00177">vfs_open_handle.c:177</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_aae1bd755f56793476801e35a41914ba9"><div class="ttname"><a href="vfs__open__handle_8c.html#aae1bd755f56793476801e35a41914ba9">brix_vfs_file_mtime</a></div><div class="ttdeci">time_t brix_vfs_file_mtime(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00226">vfs_open_handle.c:226</a></div></div>
+<div class="ttc" id="avfs__open__handle_8c_html_ab9eba3074b946bba50c331a32f54c7d7"><div class="ttname"><a href="vfs__open__handle_8c.html#ab9eba3074b946bba50c331a32f54c7d7">brix_vfs_file_can_sendfile</a></div><div class="ttdeci">ngx_uint_t brix_vfs_file_can_sendfile(const brix_vfs_file_t *fh)</div><div class="ttdef"><b>Definition</b> <a href="vfs__open__handle_8c_source.html#l00195">vfs_open_handle.c:195</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

@@ -6,9 +6,9 @@ var s3__put__internal_8h =
     [ "s3_build_chunk_verify", "s3__put__internal_8h.html#a6194d0ac0038644644977af70464a8e4", null ],
     [ "s3_chunk_aio_done", "s3__put__internal_8h.html#a03155c30eef2b729ee8d158a7bd82dc6", null ],
     [ "s3_chunk_aio_thread", "s3__put__internal_8h.html#a4b5db5da6bbb49f66671da8b67be218a", null ],
-    [ "s3_chunk_decode_failed", "s3__put__internal_8h.html#a9abdfa5a15c7474128759743efadec64", null ],
-    [ "s3_chunk_finalize", "s3__put__internal_8h.html#a7f4ca7da93ba90b46222cbe9f5bf870a", null ],
-    [ "s3_commit_put", "s3__put__internal_8h.html#a2bb2fc5004e7353a8265da75c602186b", null ],
+    [ "s3_chunk_decode_failed", "s3__put__internal_8h.html#a678e995341f9b265377cadb06527b210", null ],
+    [ "s3_chunk_finalize", "s3__put__internal_8h.html#a1b8a662a84e089cd242f7e6c93ed0da6", null ],
+    [ "s3_commit_put", "s3__put__internal_8h.html#a55cb949ba26946fbb132f46dfbfb5329", null ],
     [ "s3_dashboard_identity", "s3__put__internal_8h.html#a1ceb26321f8992b064563733d0609a5f", null ],
     [ "s3_dashboard_put_op", "s3__put__internal_8h.html#ab45d670a83f8f6efc18ecb8b3e19deca", null ],
     [ "s3_put_aio_done", "s3__put__internal_8h.html#a20c147783808b4328ed12b69572042f3", null ],
@@ -25,7 +25,7 @@ var s3__put__internal_8h =
     [ "s3_put_finalize_fs_error", "s3__put__internal_8h.html#a96c091def73e99ca966bb70b952f6b73", null ],
     [ "s3_put_finalize_invalid_request", "s3__put__internal_8h.html#a1bd5fb94f097fde52020a332710aa834", null ],
     [ "s3_put_finalize_ok", "s3__put__internal_8h.html#aa3910ea021515f434dab0a0c3a42fa46", null ],
-    [ "s3_put_streaming", "s3__put__internal_8h.html#accfc738522b5398ab26b541076d753aa", null ],
+    [ "s3_put_streaming", "s3__put__internal_8h.html#a1456f53ca7c5b6dd96e23e73bc7123e4", null ],
     [ "s3put_commit_and_headers", "s3__put__internal_8h.html#a7c876b66bda1d27bdc59d28c4bc39a51", null ],
     [ "s3put_stream_body", "s3__put__internal_8h.html#afa78c11958a36ecc73cc3ba96f759583", null ]
 ];

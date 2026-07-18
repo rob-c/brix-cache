@@ -107,11 +107,93 @@ $(document).ready(function(){initNavTree('structsd__remote__staged__state.html',
 Data Fields</h2></td></tr>
 <tr class="memitem:a7259ade73d35d66ea94bc1366aabf59b" id="r_a7259ade73d35d66ea94bc1366aabf59b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structsd__s3__file.html">sd_s3_file</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a></td></tr>
 <tr class="separator:a7259ade73d35d66ea94bc1366aabf59b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4cd08cedf4372d63c537ba5a15e8940f" id="r_a4cd08cedf4372d63c537ba5a15e8940f"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__remote__staged__state.html#a4cd08cedf4372d63c537ba5a15e8940f">objpath</a> [768]</td></tr>
+<tr class="separator:a4cd08cedf4372d63c537ba5a15e8940f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4c0451a16e8a142bedce45f6d61f111d" id="r_a4c0451a16e8a142bedce45f6d61f111d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__remote__staged__state.html#a4c0451a16e8a142bedce45f6d61f111d">has_cred</a></td></tr>
+<tr class="separator:a4c0451a16e8a142bedce45f6d61f111d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad88d273cab2078353701fea2a4a3633d" id="r_ad88d273cab2078353701fea2a4a3633d"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">ak</a> [128]</td></tr>
+<tr class="separator:ad88d273cab2078353701fea2a4a3633d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3a19a58ac652d8ddc8d294d42b730ab6" id="r_a3a19a58ac652d8ddc8d294d42b730ab6"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__remote__staged__state.html#a3a19a58ac652d8ddc8d294d42b730ab6">sk</a> [256]</td></tr>
+<tr class="separator:a3a19a58ac652d8ddc8d294d42b730ab6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6cfb7ade6a00a1bd82947b1d6c3cb210" id="r_a6cfb7ade6a00a1bd82947b1d6c3cb210"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a> [64]</td></tr>
+<tr class="separator:a6cfb7ade6a00a1bd82947b1d6c3cb210"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00022">22</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00029">29</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
+<a id="ad88d273cab2078353701fea2a4a3633d" name="ad88d273cab2078353701fea2a4a3633d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad88d273cab2078353701fea2a4a3633d">&#9670;&#160;</a></span>ak</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char sd_remote_staged_state::ak[128]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00033">33</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00521">sd_remote_staged_commit()</a>, and <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a4c0451a16e8a142bedce45f6d61f111d" name="a4c0451a16e8a142bedce45f6d61f111d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4c0451a16e8a142bedce45f6d61f111d">&#9670;&#160;</a></span>has_cred</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_remote_staged_state::has_cred</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00032">32</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00521">sd_remote_staged_commit()</a>, and <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a4cd08cedf4372d63c537ba5a15e8940f" name="a4cd08cedf4372d63c537ba5a15e8940f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4cd08cedf4372d63c537ba5a15e8940f">&#9670;&#160;</a></span>objpath</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char sd_remote_staged_state::objpath[768]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00031">31</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00521">sd_remote_staged_commit()</a>, and <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>.</p>
+
+</div>
+</div>
+<a id="a6cfb7ade6a00a1bd82947b1d6c3cb210" name="a6cfb7ade6a00a1bd82947b1d6c3cb210"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6cfb7ade6a00a1bd82947b1d6c3cb210">&#9670;&#160;</a></span>region</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char sd_remote_staged_state::region[64]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00035">35</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00521">sd_remote_staged_commit()</a>, and <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>.</p>
+
+</div>
+</div>
 <a id="a7259ade73d35d66ea94bc1366aabf59b" name="a7259ade73d35d66ea94bc1366aabf59b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a7259ade73d35d66ea94bc1366aabf59b">&#9670;&#160;</a></span>s3</h2>
 
@@ -124,9 +206,27 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00023">23</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00030">30</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00338">sd_remote_staged_abort()</a>, <a class="el" href="sd__remote_8c_source.html#l00319">sd_remote_staged_commit()</a>, <a class="el" href="sd__remote_8c_source.html#l00267">sd_remote_staged_open()</a>, and <a class="el" href="sd__remote_8c_source.html#l00305">sd_remote_staged_write()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00572">sd_remote_staged_abort()</a>, <a class="el" href="sd__remote_8c_source.html#l00521">sd_remote_staged_commit()</a>, <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>, and <a class="el" href="sd__remote_8c_source.html#l00507">sd_remote_staged_write()</a>.</p>
+
+</div>
+</div>
+<a id="a3a19a58ac652d8ddc8d294d42b730ab6" name="a3a19a58ac652d8ddc8d294d42b730ab6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3a19a58ac652d8ddc8d294d42b730ab6">&#9670;&#160;</a></span>sk</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char sd_remote_staged_state::sk[256]</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__remote_8c_source.html#l00034">34</a> of file <a class="el" href="sd__remote_8c_source.html">sd_remote.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00521">sd_remote_staged_commit()</a>, and <a class="el" href="sd__remote_8c_source.html#l00422">sd_remote_staged_open_impl()</a>.</p>
 
 </div>
 </div>

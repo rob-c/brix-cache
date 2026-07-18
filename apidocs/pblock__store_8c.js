@@ -12,5 +12,7 @@ var pblock__store_8c =
     [ "pblock_obj_dir", "pblock__store_8c.html#a711e8f9e4bc323ddc787c4772243f171", null ],
     [ "pblock_read_blocks", "pblock__store_8c.html#ae8ca52dbd255dc0af08453eca4d29cec", null ],
     [ "pblock_remove_blocks", "pblock__store_8c.html#ab1c1372dee836272f1bba01b4184452a", null ],
-    [ "pblock_write_blocks", "pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911", null ]
+    [ "pblock_write_blocks", "pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911", null ],
+    [ "pblock_xform_read", "pblock__store_8c.html#a6de5d3a9aaa3e5d9557a9547e8c8b500", null ],
+    [ "pblock_xform_write", "pblock__store_8c.html#ae1741a7619a7199ded032a151a90a1b4", null ]
 ];

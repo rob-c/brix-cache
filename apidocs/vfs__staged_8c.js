@@ -10,6 +10,5 @@ var vfs__staged_8c =
     [ "staged_alloc_handle", "vfs__staged_8c.html#a36db6007d8cbc8ea8e5395e3ddfaab70", null ],
     [ "staged_open_driver", "vfs__staged_8c.html#accd851b95ce0df9daccbd30595d0f613", null ],
     [ "staged_open_fail", "vfs__staged_8c.html#a4637753752199c4991c2b00f8d7a4c09", null ],
-    [ "staged_open_posix", "vfs__staged_8c.html#a39b5de16e470938a9dbbc73669f4360d", null ],
-    [ "staged_pool_strdup", "vfs__staged_8c.html#a983138453a0a14e2c0652f0dd3c08c1f", null ]
+    [ "staged_open_posix", "vfs__staged_8c.html#a39b5de16e470938a9dbbc73669f4360d", null ]
 ];

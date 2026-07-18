@@ -113,12 +113,68 @@ $(document).ready(function(){initNavTree('fs__walk__remove_8c.html',''); initRes
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a05686a2270ede3c88a282d627035c9c5" id="r_a05686a2270ede3c88a282d627035c9c5"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk__remove_8c.html#a05686a2270ede3c88a282d627035c9c5">brix_fs_remove_tree_entry</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, int rootfd, const char *path, const struct dirent *de)</td></tr>
-<tr class="separator:a05686a2270ede3c88a282d627035c9c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7715484e911e0f752d61540bb4f3babf" id="r_a7715484e911e0f752d61540bb4f3babf"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk__remove_8c.html#a7715484e911e0f752d61540bb4f3babf">brix_fs_remove_tree_at</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *path, ngx_uint_t depth)</td></tr>
+<tr class="separator:a7715484e911e0f752d61540bb4f3babf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a592ad9e5df164706d74f87b52eee6607" id="r_a592ad9e5df164706d74f87b52eee6607"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk__remove_8c.html#a592ad9e5df164706d74f87b52eee6607">brix_fs_remove_tree_entry</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, int rootfd, const char *path, const struct dirent *de, ngx_uint_t depth)</td></tr>
+<tr class="separator:a592ad9e5df164706d74f87b52eee6607"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab7c689145a905f214951c13eec523cf7" id="r_ab7c689145a905f214951c13eec523cf7"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="fs__walk__remove_8c.html#ab7c689145a905f214951c13eec523cf7">brix_fs_remove_tree_confined</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, const char *path)</td></tr>
 <tr class="separator:ab7c689145a905f214951c13eec523cf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a7715484e911e0f752d61540bb4f3babf" name="a7715484e911e0f752d61540bb4f3babf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7715484e911e0f752d61540bb4f3babf">&#9670;&#160;</a></span>brix_fs_remove_tree_at()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t brix_fs_remove_tree_at </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>root_canon</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="fs__walk__remove_8c_source.html#l00121">121</a> of file <a class="el" href="fs__walk__remove_8c_source.html">fs_walk_remove.c</a>.</p>
+
+<p class="reference">References <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="fs__walk__remove_8c_source.html#l00057">brix_fs_remove_tree_entry()</a>, <a class="el" href="fs__walk_8h_source.html#l00023">BRIX_FS_TREE_MAX_DEPTH</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="fs__walk__remove_8c_source.html#l00206">brix_fs_remove_tree_confined()</a>, and <a class="el" href="fs__walk__remove_8c_source.html#l00057">brix_fs_remove_tree_entry()</a>.</p>
+
+</div>
+</div>
 <a id="ab7c689145a905f214951c13eec523cf7" name="ab7c689145a905f214951c13eec523cf7"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab7c689145a905f214951c13eec523cf7">&#9670;&#160;</a></span>brix_fs_remove_tree_confined()</h2>
 
@@ -151,16 +207,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs__walk__remove_8c_source.html#l00115">115</a> of file <a class="el" href="fs__walk__remove_8c_source.html">fs_walk_remove.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs__walk__remove_8c_source.html#l00206">206</a> of file <a class="el" href="fs__walk__remove_8c_source.html">fs_walk_remove.c</a>.</p>
 
-<p class="reference">References <a class="el" href="beneath_8c_source.html#l00078">brix_beneath_open_root()</a>, <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="fs__walk__remove_8c_source.html#l00051">brix_fs_remove_tree_entry()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00657">brix_opendir_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="fs__walk__remove_8c_source.html#l00121">brix_fs_remove_tree_at()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fs__walk__remove_8c_source.html#l00051">brix_fs_remove_tree_entry()</a>, <a class="el" href="namespace__ops_8c_source.html#l00272">brix_ns_rename()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00139">mpu_rmdir_recursive()</a>, <a class="el" href="namespace__ops_8c_source.html#l00169">ns_delete_remove()</a>, and <a class="el" href="namespace_8c_source.html#l00055">webdav_delete_path_recursive()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="namespace__ops_8c_source.html#l00275">brix_ns_rename()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00139">mpu_rmdir_recursive()</a>, <a class="el" href="namespace__ops_8c_source.html#l00172">ns_delete_remove()</a>, and <a class="el" href="namespace_8c_source.html#l00055">webdav_delete_path_recursive()</a>.</p>
 
 </div>
 </div>
-<a id="a05686a2270ede3c88a282d627035c9c5" name="a05686a2270ede3c88a282d627035c9c5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a05686a2270ede3c88a282d627035c9c5">&#9670;&#160;</a></span>brix_fs_remove_tree_entry()</h2>
+<a id="a592ad9e5df164706d74f87b52eee6607" name="a592ad9e5df164706d74f87b52eee6607"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a592ad9e5df164706d74f87b52eee6607">&#9670;&#160;</a></span>brix_fs_remove_tree_entry()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -196,7 +252,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const struct dirent *&#160;</td>
-          <td class="paramname"><em>de</em>&#160;</td>
+          <td class="paramname"><em>de</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>depth</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -211,11 +273,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="fs__walk__remove_8c_source.html#l00051">51</a> of file <a class="el" href="fs__walk__remove_8c_source.html">fs_walk_remove.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="fs__walk__remove_8c_source.html#l00057">57</a> of file <a class="el" href="fs__walk__remove_8c_source.html">fs_walk_remove.c</a>.</p>
 
-<p class="reference">References <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>, <a class="el" href="fs__walk_8c_source.html#l00057">brix_fs_join_path()</a>, <a class="el" href="fs__walk__remove_8c_source.html#l00115">brix_fs_remove_tree_confined()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="beneath_8h_source.html#l00097">brix_beneath_strip_root()</a>, <a class="el" href="fs__walk_8c_source.html#l00036">brix_fs_is_dot_entry()</a>, <a class="el" href="fs__walk_8c_source.html#l00057">brix_fs_join_path()</a>, <a class="el" href="fs__walk__remove_8c_source.html#l00121">brix_fs_remove_tree_at()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fs__walk__remove_8c_source.html#l00115">brix_fs_remove_tree_confined()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fs__walk__remove_8c_source.html#l00121">brix_fs_remove_tree_at()</a>.</p>
 
 </div>
 </div>

@@ -1,6 +1,7 @@
 var sd_8h =
 [
     [ "brix_sd_cred_t", "structbrix__sd__cred__t.html", "structbrix__sd__cred__t" ],
+    [ "brix_sd_space_t", "structbrix__sd__space__t.html", "structbrix__sd__space__t" ],
     [ "brix_sd_catalog_ent_t", "structbrix__sd__catalog__ent__t.html", "structbrix__sd__catalog__ent__t" ],
     [ "brix_sd_stat_t", "structbrix__sd__stat__t.html", "structbrix__sd__stat__t" ],
     [ "brix_sd_dirent_t", "structbrix__sd__dirent__t.html", "structbrix__sd__dirent__t" ],
@@ -49,7 +50,8 @@ var sd_8h =
     [ "brix_sd_cred_kind_t", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5", [
       [ "BRIX_SD_CRED_NONE", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345", null ],
       [ "BRIX_SD_CRED_BEARER", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b", null ],
-      [ "BRIX_SD_CRED_PROXY_PEM", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630", null ]
+      [ "BRIX_SD_CRED_PROXY_PEM", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630", null ],
+      [ "BRIX_SD_CRED_IDENTITY", "sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a362e1d7b39b03966993d8dd5a1a745ff", null ]
     ] ],
     [ "brix_sd_residency_t", "sd_8h.html#adcf5163d1b44e53391d7876814133d2e", [
       [ "BRIX_SD_RES_ONLINE", "sd_8h.html#adcf5163d1b44e53391d7876814133d2ea5808b29f6197f162d0911558dc90e550", null ],
@@ -71,6 +73,7 @@ var sd_8h =
     [ "brix_sd_instance_destroy", "sd_8h.html#aa2505c51ae311a1c3af3dd144feed399", null ],
     [ "brix_sd_listxattr_maybe_cred", "sd_8h.html#a28ed16e160fc56564e8ebc82ba90c65f", null ],
     [ "brix_sd_mkdir_maybe_cred", "sd_8h.html#a7d3fb145adb83eb15b40efdcd3d2dd9a", null ],
+    [ "brix_sd_obj_preadv", "sd_8h.html#a30bcdd008c9f794342c482f5cef2276d", null ],
     [ "brix_sd_obj_release", "sd_8h.html#aaaf8275711dbb922c9eb84802b20575d", null ],
     [ "brix_sd_open_maybe_cred", "sd_8h.html#a31ca4d429ffeca0836b9aec2d74bf85e", null ],
     [ "brix_sd_opendir_maybe_cred", "sd_8h.html#afc13a8988ff61b04bf7574886f1cadf7", null ],

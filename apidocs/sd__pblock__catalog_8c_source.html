@@ -438,63 +438,88 @@ $(document).ready(function(){initNavTree('sd__pblock__catalog_8c_source.html',''
 <div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>               <span class="stringliteral">&quot;  block_size INTEGER NOT NULL DEFAULT 0,&quot;</span></div>
 <div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>               <span class="stringliteral">&quot;  mtime INTEGER NOT NULL DEFAULT 0,&quot;</span></div>
 <div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>               <span class="stringliteral">&quot;  ctime INTEGER NOT NULL DEFAULT 0,&quot;</span></div>
-<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>               <span class="stringliteral">&quot;  mode INTEGER NOT NULL DEFAULT 0);&quot;</span>) != 0</div>
-<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>        || <a class="code hl_function" href="sd__pblock__catalog__internal_8h.html#a0abf33dc1701107fa14eb17f8e538be5">cat_exec</a>(cat,</div>
-<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>               <span class="stringliteral">&quot;CREATE INDEX IF NOT EXISTS objects_parent&quot;</span></div>
-<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>               <span class="stringliteral">&quot;  ON objects(parent);&quot;</span>) != 0</div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>               <span class="stringliteral">&quot;  mode INTEGER NOT NULL DEFAULT 0,&quot;</span></div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>               <span class="stringliteral">&quot;  uid INTEGER NOT NULL DEFAULT 0,&quot;</span></div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>               <span class="stringliteral">&quot;  gid INTEGER NOT NULL DEFAULT 0,&quot;</span></div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>               <span class="stringliteral">&quot;  xform TEXT NOT NULL DEFAULT &#39;&#39;);&quot;</span>) != 0</div>
 <div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>        || <a class="code hl_function" href="sd__pblock__catalog__internal_8h.html#a0abf33dc1701107fa14eb17f8e538be5">cat_exec</a>(cat,</div>
-<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>               <span class="stringliteral">&quot;CREATE TABLE IF NOT EXISTS xattrs(&quot;</span></div>
-<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>               <span class="stringliteral">&quot;  path TEXT NOT NULL,&quot;</span></div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>               <span class="stringliteral">&quot;  name TEXT NOT NULL,&quot;</span></div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>               <span class="stringliteral">&quot;  value BLOB NOT NULL,&quot;</span></div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>               <span class="stringliteral">&quot;  PRIMARY KEY(path, name));&quot;</span>) != 0)</div>
-<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    {</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>        <span class="keywordtype">int</span> err = errno;</div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span> </div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>        sqlite3_close(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>);</div>
-<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>        free(cat);</div>
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>        errno = err;</div>
-<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>        <span class="keywordflow">return</span> NULL;</div>
-<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    }</div>
-<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span> </div>
-<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    <span class="comment">/* Forward-compat: add block_size to an `objects` table created before the</span></div>
-<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span><span class="comment">     * column existed. Best-effort — a &quot;duplicate column&quot; error on an up-to-date</span></div>
-<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span><span class="comment">     * schema is expected and ignored. */</span></div>
-<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    sqlite3_exec(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>,</div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>        <span class="stringliteral">&quot;ALTER TABLE objects ADD COLUMN block_size INTEGER NOT NULL DEFAULT 0;&quot;</span>,</div>
-<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>        NULL, NULL, NULL);</div>
-<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span> </div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    <span class="comment">/* Namespace lookup cache (best-effort: a calloc failure just disables it —</span></div>
-<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span><span class="comment">     * lookups still work, only slower). */</span></div>
-<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>    pthread_mutex_init(&amp;cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2806b1e8da6954e631e2fd02c85b5b37">cache_mtx</a>, NULL);</div>
-<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>    cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#aa00dd6345bcd4c745e484ab8a1c2a30b">cache_gen</a> = 0;</div>
-<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a> = calloc((<span class="keywordtype">size_t</span>) <a class="code hl_define" href="sd__pblock__catalog__internal_8h.html#a047c598baa503db8073ef286e3d0f7d2">PBLOCK_NSCACHE_BUCKETS</a>, <span class="keyword">sizeof</span>(*cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a>));</div>
-<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span> </div>
-<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    <span class="keywordflow">return</span> cat;</div>
-<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>}</div>
-<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span> </div>
-<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span><span class="keywordtype">void</span></div>
-<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span><a class="code hl_function" href="sd__pblock__catalog_8h.html#a84ab430455e51a7de01a1ab221ee3a69">pblock_catalog_close</a>(<a class="code hl_struct" href="structpblock__catalog.html">pblock_catalog</a> *cat)</div>
-<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>{</div>
-<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>    <span class="keywordflow">if</span> (cat == NULL) {</div>
-<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>    }</div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    <span class="keywordflow">if</span> (cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a> != NULL) {</div>
-<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>        free(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a>);</div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>    }</div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    pthread_mutex_destroy(&amp;cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2806b1e8da6954e631e2fd02c85b5b37">cache_mtx</a>);</div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    sqlite3_close(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>);</div>
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    free(cat);</div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>}</div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span> </div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>               <span class="stringliteral">&quot;CREATE INDEX IF NOT EXISTS objects_parent&quot;</span></div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>               <span class="stringliteral">&quot;  ON objects(parent);&quot;</span>) != 0</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>        || <a class="code hl_function" href="sd__pblock__catalog__internal_8h.html#a0abf33dc1701107fa14eb17f8e538be5">cat_exec</a>(cat,</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>               <span class="stringliteral">&quot;CREATE TABLE IF NOT EXISTS xattrs(&quot;</span></div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>               <span class="stringliteral">&quot;  path TEXT NOT NULL,&quot;</span></div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>               <span class="stringliteral">&quot;  name TEXT NOT NULL,&quot;</span></div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>               <span class="stringliteral">&quot;  value BLOB NOT NULL,&quot;</span></div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>               <span class="stringliteral">&quot;  PRIMARY KEY(path, name));&quot;</span>) != 0</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>        || <a class="code hl_function" href="sd__pblock__catalog__internal_8h.html#a0abf33dc1701107fa14eb17f8e538be5">cat_exec</a>(cat,</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>               <span class="comment">/* Identity registry: catalog-internal synthetic uid/gid</span></div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span><span class="comment">                * assignment (kind 0 = principal/uid, 1 = VO-group/gid). The</span></div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span><span class="comment">                * UNIQUE index makes an id collision from a concurrent</span></div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span><span class="comment">                * assignment a constraint failure, not silent aliasing. */</span></div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>               <span class="stringliteral">&quot;CREATE TABLE IF NOT EXISTS ids(&quot;</span></div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>               <span class="stringliteral">&quot;  kind INTEGER NOT NULL,&quot;</span></div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>               <span class="stringliteral">&quot;  name TEXT NOT NULL,&quot;</span></div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>               <span class="stringliteral">&quot;  id INTEGER NOT NULL,&quot;</span></div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>               <span class="stringliteral">&quot;  PRIMARY KEY(kind, name));&quot;</span>) != 0</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>        || <a class="code hl_function" href="sd__pblock__catalog__internal_8h.html#a0abf33dc1701107fa14eb17f8e538be5">cat_exec</a>(cat,</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>               <span class="stringliteral">&quot;CREATE UNIQUE INDEX IF NOT EXISTS ids_id ON ids(id);&quot;</span>) != 0)</div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>    {</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>        <span class="keywordtype">int</span> err = errno;</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span> </div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>        sqlite3_close(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>);</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>        free(cat);</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>        errno = err;</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>        <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    }</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span> </div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>    <span class="comment">/* Forward-compat: add columns to an `objects` table created before they</span></div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span><span class="comment">     * existed. Best-effort — a &quot;duplicate column&quot; error on an up-to-date</span></div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span><span class="comment">     * schema is expected and ignored. Pre-migration rows keep uid/gid 0</span></div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span><span class="comment">     * (service-owned), matching their pre-identity behaviour. */</span></div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>    sqlite3_exec(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>,</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>        <span class="stringliteral">&quot;ALTER TABLE objects ADD COLUMN block_size INTEGER NOT NULL DEFAULT 0;&quot;</span>,</div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>        NULL, NULL, NULL);</div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    sqlite3_exec(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>,</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>        <span class="stringliteral">&quot;ALTER TABLE objects ADD COLUMN uid INTEGER NOT NULL DEFAULT 0;&quot;</span>,</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>        NULL, NULL, NULL);</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    sqlite3_exec(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>,</div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>        <span class="stringliteral">&quot;ALTER TABLE objects ADD COLUMN gid INTEGER NOT NULL DEFAULT 0;&quot;</span>,</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>        NULL, NULL, NULL);</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    sqlite3_exec(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>,</div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>        <span class="stringliteral">&quot;ALTER TABLE objects ADD COLUMN xform TEXT NOT NULL DEFAULT &#39;&#39;;&quot;</span>,</div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>        NULL, NULL, NULL);</div>
 <div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span> </div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span><span class="comment">/* ISO C forbids an empty translation unit; a no-sqlite build compiles this</span></div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span><span class="comment"> * file to nothing but this placeholder (same contract as sd_pblock.c). */</span></div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno"><a class="line" href="sd__pblock__catalog_8c.html#ab5a72f0ffb855412865ade0b9520aa8d">  394</a></span><span class="keyword">typedef</span> <span class="keywordtype">int</span> <a class="code hl_typedef" href="sd__pblock__catalog_8c.html#ab5a72f0ffb855412865ade0b9520aa8d">brix_sd_pblock_catalog_disabled_t</a>;</div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span> </div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_HAVE_SQLITE */</span><span class="preprocessor"></span></div>
-<div class="ttc" id="asd__pblock__catalog_8c_html_ab5a72f0ffb855412865ade0b9520aa8d"><div class="ttname"><a href="sd__pblock__catalog_8c.html#ab5a72f0ffb855412865ade0b9520aa8d">brix_sd_pblock_catalog_disabled_t</a></div><div class="ttdeci">int brix_sd_pblock_catalog_disabled_t</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8c_source.html#l00394">sd_pblock_catalog.c:394</a></div></div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    <span class="comment">/* Namespace lookup cache (best-effort: a calloc failure just disables it —</span></div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span><span class="comment">     * lookups still work, only slower). */</span></div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>    pthread_mutex_init(&amp;cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2806b1e8da6954e631e2fd02c85b5b37">cache_mtx</a>, NULL);</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#aa00dd6345bcd4c745e484ab8a1c2a30b">cache_gen</a> = 0;</div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a> = calloc((<span class="keywordtype">size_t</span>) <a class="code hl_define" href="sd__pblock__catalog__internal_8h.html#a047c598baa503db8073ef286e3d0f7d2">PBLOCK_NSCACHE_BUCKETS</a>, <span class="keyword">sizeof</span>(*cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a>));</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span> </div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    <span class="keywordflow">return</span> cat;</div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>}</div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span> </div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span><span class="keywordtype">void</span></div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span><a class="code hl_function" href="sd__pblock__catalog_8h.html#a84ab430455e51a7de01a1ab221ee3a69">pblock_catalog_close</a>(<a class="code hl_struct" href="structpblock__catalog.html">pblock_catalog</a> *cat)</div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>{</div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>    <span class="keywordflow">if</span> (cat == NULL) {</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    }</div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>    <span class="keywordflow">if</span> (cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a> != NULL) {</div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>        free(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">cache</a>);</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    }</div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>    pthread_mutex_destroy(&amp;cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a2806b1e8da6954e631e2fd02c85b5b37">cache_mtx</a>);</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    sqlite3_close(cat-&gt;<a class="code hl_variable" href="structpblock__catalog.html#a1d9d10895b2ff8fd95aed3d45cdf2159">db</a>);</div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    free(cat);</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>}</div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span> </div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span> </div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span><span class="comment">/* ISO C forbids an empty translation unit; a no-sqlite build compiles this</span></div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span><span class="comment"> * file to nothing but this placeholder (same contract as sd_pblock.c). */</span></div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno"><a class="line" href="sd__pblock__catalog_8c.html#ab5a72f0ffb855412865ade0b9520aa8d">  419</a></span><span class="keyword">typedef</span> <span class="keywordtype">int</span> <a class="code hl_typedef" href="sd__pblock__catalog_8c.html#ab5a72f0ffb855412865ade0b9520aa8d">brix_sd_pblock_catalog_disabled_t</a>;</div>
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span> </div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_HAVE_SQLITE */</span><span class="preprocessor"></span></div>
+<div class="ttc" id="asd__pblock__catalog_8c_html_ab5a72f0ffb855412865ade0b9520aa8d"><div class="ttname"><a href="sd__pblock__catalog_8c.html#ab5a72f0ffb855412865ade0b9520aa8d">brix_sd_pblock_catalog_disabled_t</a></div><div class="ttdeci">int brix_sd_pblock_catalog_disabled_t</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8c_source.html#l00419">sd_pblock_catalog.c:419</a></div></div>
 <div class="ttc" id="asd__pblock__catalog_8h_html"><div class="ttname"><a href="sd__pblock__catalog_8h.html">sd_pblock_catalog.h</a></div></div>
 <div class="ttc" id="asd__pblock__catalog_8h_html_a3480a6839303b722d13688f883925f8d"><div class="ttname"><a href="sd__pblock__catalog_8h.html#a3480a6839303b722d13688f883925f8d">pblock_catalog_open</a></div><div class="ttdeci">pblock_catalog * pblock_catalog_open(const char *db_path, int busy_timeout_ms)</div></div>
 <div class="ttc" id="asd__pblock__catalog_8h_html_a6b14b6cd37cb6bba9fb64f2bc7a2cc14"><div class="ttname"><a href="sd__pblock__catalog_8h.html#a6b14b6cd37cb6bba9fb64f2bc7a2cc14">pblock_catalog_lookup</a></div><div class="ttdeci">int pblock_catalog_lookup(pblock_catalog *cat, const char *path, pblock_meta *out)</div></div>
@@ -518,8 +543,8 @@ $(document).ready(function(){initNavTree('sd__pblock__catalog_8c_source.html',''
 <div class="ttc" id="astructpblock__catalog_html_a2717cc487499096c27f165469fdaa286"><div class="ttname"><a href="structpblock__catalog.html#a2717cc487499096c27f165469fdaa286">pblock_catalog::cache</a></div><div class="ttdeci">pblock_nscache_ent * cache</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog__internal_8h_source.html#l00064">sd_pblock_catalog_internal.h:64</a></div></div>
 <div class="ttc" id="astructpblock__catalog_html_a2806b1e8da6954e631e2fd02c85b5b37"><div class="ttname"><a href="structpblock__catalog.html#a2806b1e8da6954e631e2fd02c85b5b37">pblock_catalog::cache_mtx</a></div><div class="ttdeci">pthread_mutex_t cache_mtx</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog__internal_8h_source.html#l00062">sd_pblock_catalog_internal.h:62</a></div></div>
 <div class="ttc" id="astructpblock__catalog_html_aa00dd6345bcd4c745e484ab8a1c2a30b"><div class="ttname"><a href="structpblock__catalog.html#aa00dd6345bcd4c745e484ab8a1c2a30b">pblock_catalog::cache_gen</a></div><div class="ttdeci">uint64_t cache_gen</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog__internal_8h_source.html#l00063">sd_pblock_catalog_internal.h:63</a></div></div>
-<div class="ttc" id="astructpblock__meta_html"><div class="ttname"><a href="structpblock__meta.html">pblock_meta</a></div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00045">sd_pblock_catalog.h:45</a></div></div>
-<div class="ttc" id="astructpblock__meta_html_afa5128eed39bef1d296c42985c85a4c3"><div class="ttname"><a href="structpblock__meta.html#afa5128eed39bef1d296c42985c85a4c3">pblock_meta::is_dir</a></div><div class="ttdeci">int is_dir</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00046">sd_pblock_catalog.h:46</a></div></div>
+<div class="ttc" id="astructpblock__meta_html"><div class="ttname"><a href="structpblock__meta.html">pblock_meta</a></div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00049">sd_pblock_catalog.h:49</a></div></div>
+<div class="ttc" id="astructpblock__meta_html_afa5128eed39bef1d296c42985c85a4c3"><div class="ttname"><a href="structpblock__meta.html#afa5128eed39bef1d296c42985c85a4c3">pblock_meta::is_dir</a></div><div class="ttdeci">int is_dir</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00050">sd_pblock_catalog.h:50</a></div></div>
 <div class="ttc" id="astructpblock__nscache__ent_html"><div class="ttname"><a href="structpblock__nscache__ent.html">pblock_nscache_ent</a></div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog__internal_8h_source.html#l00054">sd_pblock_catalog_internal.h:54</a></div></div>
 <div class="ttc" id="astructpblock__nscache__ent_html_a3ceb3908a6377a0314a607c4e9bb00b6"><div class="ttname"><a href="structpblock__nscache__ent.html#a3ceb3908a6377a0314a607c4e9bb00b6">pblock_nscache_ent::valid</a></div><div class="ttdeci">uint8_t valid</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog__internal_8h_source.html#l00057">sd_pblock_catalog_internal.h:57</a></div></div>
 <div class="ttc" id="astructpblock__nscache__ent_html_a9080a3676164ca3df0f85fafaf07fb93"><div class="ttname"><a href="structpblock__nscache__ent.html#a9080a3676164ca3df0f85fafaf07fb93">pblock_nscache_ent::meta</a></div><div class="ttdeci">pblock_meta meta</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog__internal_8h_source.html#l00056">sd_pblock_catalog_internal.h:56</a></div></div>

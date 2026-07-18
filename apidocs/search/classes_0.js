@@ -12,5 +12,7 @@ var searchData=
   ['afh_9',['afh',['../structafh.html',1,'']]],
   ['arg_5fcursor_10',['arg_cursor',['../structarg__cursor.html',1,'']]],
   ['asm_5fargs_11',['asm_args',['../structasm__args.html',1,'']]],
-  ['auth_5fgate_5fctx_5ft_12',['auth_gate_ctx_t',['../structauth__gate__ctx__t.html',1,'']]]
+  ['auth_5fgate_5fctx_5ft_12',['auth_gate_ctx_t',['../structauth__gate__ctx__t.html',1,'']]],
+  ['autofs_5fopts_5ft_13',['autofs_opts_t',['../structautofs__opts__t.html',1,'']]],
+  ['autofs_5fstate_5ft_14',['autofs_state_t',['../structautofs__state__t.html',1,'']]]
 ];

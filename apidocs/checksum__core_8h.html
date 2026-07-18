@@ -110,7 +110,7 @@ $(document).ready(function(){initNavTree('checksum__core_8h.html',''); initResiz
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="checksum__core_8h__dep__incl.svg" width="612" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="checksum__core_8h__dep__incl.svg" width="100%" height="404"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="checksum__core_8h_source.html">Go to the source code of this file.</a></p>
@@ -144,6 +144,12 @@ Functions</h2></td></tr>
 <tr class="separator:a6add6b296f3b61e0eaa825c4fa52eed8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9efb3f6213ea945d19a5b8d45fc64c73" id="r_a9efb3f6213ea945d19a5b8d45fc64c73"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__core_8h.html#a9efb3f6213ea945d19a5b8d45fc64c73">brix_cksum_digest_obj</a> (int kind, brix_sd_obj_t *obj, unsigned char *out, unsigned int *outlen)</td></tr>
 <tr class="separator:a9efb3f6213ea945d19a5b8d45fc64c73"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8ef505a181f8536fda52f1fcce97edad" id="r_a8ef505a181f8536fda52f1fcce97edad"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__core_8h.html#a8ef505a181f8536fda52f1fcce97edad">brix_cksum_u32_obj_range</a> (int kind, brix_sd_obj_t *obj, off_t start, off_t len, uint32_t *out)</td></tr>
+<tr class="separator:a8ef505a181f8536fda52f1fcce97edad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad66aab15f8d273565a7ad91e4cd65381" id="r_ad66aab15f8d273565a7ad91e4cd65381"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__core_8h.html#ad66aab15f8d273565a7ad91e4cd65381">brix_cksum_u64_obj_range</a> (int kind, brix_sd_obj_t *obj, off_t start, off_t len, uint64_t *out)</td></tr>
+<tr class="separator:ad66aab15f8d273565a7ad91e4cd65381"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96c29c70dd7c9f81e6547d8f05ce7394" id="r_a96c29c70dd7c9f81e6547d8f05ce7394"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__core_8h.html#a96c29c70dd7c9f81e6547d8f05ce7394">brix_cksum_digest_obj_range</a> (int kind, brix_sd_obj_t *obj, off_t start, off_t len, unsigned char *out, unsigned int *outlen)</td></tr>
+<tr class="separator:a96c29c70dd7c9f81e6547d8f05ce7394"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac5dd18ca31c782ab2fc1638510b55a7d" id="r_ac5dd18ca31c782ab2fc1638510b55a7d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__core_8h.html#ac5dd18ca31c782ab2fc1638510b55a7d">brix_cksum_u32_fd</a> (int kind, int fd, uint32_t *out)</td></tr>
 <tr class="separator:ac5dd18ca31c782ab2fc1638510b55a7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3517608bcd4af2ff9825633a75ef4255" id="r_a3517608bcd4af2ff9825633a75ef4255"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__core_8h.html#a3517608bcd4af2ff9825633a75ef4255">brix_cksum_u64_fd</a> (int kind, int fd, uint64_t *out)</td></tr>
@@ -337,9 +343,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00259">259</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00322">322</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00238">brix_cksum_digest_obj()</a>, and <a class="el" href="sd_8h_source.html#l00957">brix_sd_posix_wrap()</a>.</p>
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00315">brix_cksum_digest_obj()</a>, and <a class="el" href="sd_8h_source.html#l00989">brix_sd_posix_wrap()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00293">brix_checksum_digest_fd()</a>, and <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>.</p>
 
@@ -383,11 +389,69 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00238">238</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00315">315</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00209">digest_drive()</a>, and <a class="el" href="checksum__core_8c_source.html#l00197">md_for()</a>.</p>
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00294">brix_cksum_digest_obj_range()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00402">brix_checksum_hex_obj()</a>, and <a class="el" href="checksum__core_8c_source.html#l00259">brix_cksum_digest_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00402">brix_checksum_hex_obj()</a>, and <a class="el" href="checksum__core_8c_source.html#l00322">brix_cksum_digest_fd()</a>.</p>
+
+</div>
+</div>
+<a id="a96c29c70dd7c9f81e6547d8f05ce7394" name="a96c29c70dd7c9f81e6547d8f05ce7394"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96c29c70dd7c9f81e6547d8f05ce7394">&#9670;&#160;</a></span>brix_cksum_digest_obj_range()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_cksum_digest_obj_range </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>kind</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned int *&#160;</td>
+          <td class="paramname"><em>outlen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00294">294</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00260">digest_drive()</a>, and <a class="el" href="checksum__core_8c_source.html#l00247">md_for()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="checksum__core_8c_source.html#l00315">brix_cksum_digest_obj()</a>, and <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>.</p>
 
 </div>
 </div>
@@ -423,9 +487,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00141">141</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00177">177</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00101">brix_cksum_u32_obj()</a>, and <a class="el" href="sd_8h_source.html#l00957">brix_sd_posix_wrap()</a>.</p>
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00171">brix_cksum_u32_obj()</a>, and <a class="el" href="sd_8h_source.html#l00989">brix_sd_posix_wrap()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00254">brix_checksum_u32_fd()</a>, and <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>.</p>
 
@@ -463,11 +527,63 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00101">101</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00171">171</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00026">BRIX_CK_BUFSZ</a>, <a class="el" href="checksum__core_8h_source.html#l00026">BRIX_CK_CRC32</a>, <a class="el" href="checksum__core_8h_source.html#l00027">BRIX_CK_CRC32C</a>, <a class="el" href="checksum__core_8h_source.html#l00033">BRIX_CK_ZCRC32</a>, <a class="el" href="checksum__core_8c_source.html#l00041">u32_kind_ok()</a>, <a class="el" href="checksum__core_8c_source.html#l00062">u32_seed()</a>, and <a class="el" href="checksum__core_8c_source.html#l00088">u32_update()</a>.</p>
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00124">brix_cksum_u32_obj_range()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00402">brix_checksum_hex_obj()</a>, and <a class="el" href="checksum__core_8c_source.html#l00141">brix_cksum_u32_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00402">brix_checksum_hex_obj()</a>, <a class="el" href="checksum__core_8c_source.html#l00177">brix_cksum_u32_fd()</a>, and <a class="el" href="vfs__wverify_8c_source.html#l00025">brix_vfs_wverify_check()</a>.</p>
+
+</div>
+</div>
+<a id="a8ef505a181f8536fda52f1fcce97edad" name="a8ef505a181f8536fda52f1fcce97edad"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8ef505a181f8536fda52f1fcce97edad">&#9670;&#160;</a></span>brix_cksum_u32_obj_range()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_cksum_u32_obj_range </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>kind</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00124">124</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00026">BRIX_CK_BUFSZ</a>, <a class="el" href="checksum__core_8h_source.html#l00026">BRIX_CK_CRC32</a>, <a class="el" href="checksum__core_8h_source.html#l00027">BRIX_CK_CRC32C</a>, <a class="el" href="checksum__core_8h_source.html#l00033">BRIX_CK_ZCRC32</a>, <a class="el" href="checksum__core_8c_source.html#l00112">range_want()</a>, <a class="el" href="checksum__core_8c_source.html#l00041">u32_kind_ok()</a>, <a class="el" href="checksum__core_8c_source.html#l00062">u32_seed()</a>, and <a class="el" href="checksum__core_8c_source.html#l00088">u32_update()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="checksum__core_8c_source.html#l00171">brix_cksum_u32_obj()</a>, and <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>.</p>
 
 </div>
 </div>
@@ -503,9 +619,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00188">188</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00238">238</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00150">brix_cksum_u64_obj()</a>, and <a class="el" href="sd_8h_source.html#l00957">brix_sd_posix_wrap()</a>.</p>
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00232">brix_cksum_u64_obj()</a>, and <a class="el" href="sd_8h_source.html#l00989">brix_sd_posix_wrap()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00279">brix_checksum_u64_fd()</a>, and <a class="el" href="client_2lib_2protocols_2shared_2checksum_8c_source.html#l00045">brix_cksum_fd()</a>.</p>
 
@@ -543,11 +659,63 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00150">150</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00232">232</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00026">BRIX_CK_BUFSZ</a>, <a class="el" href="checksum__core_8h_source.html#l00031">BRIX_CK_CRC64</a>, <a class="el" href="checksum__core_8h_source.html#l00032">BRIX_CK_CRC64NVME</a>, <a class="el" href="crc64_8c_source.html#l00081">brix_crc64_extend()</a>, <a class="el" href="crc64_8h_source.html#l00040">BRIX_CRC64_NVME</a>, and <a class="el" href="crc64_8h_source.html#l00039">BRIX_CRC64_XZ</a>.</p>
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00186">brix_cksum_u64_obj_range()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00402">brix_checksum_hex_obj()</a>, and <a class="el" href="checksum__core_8c_source.html#l00188">brix_cksum_u64_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00402">brix_checksum_hex_obj()</a>, and <a class="el" href="checksum__core_8c_source.html#l00238">brix_cksum_u64_fd()</a>.</p>
+
+</div>
+</div>
+<a id="ad66aab15f8d273565a7ad91e4cd65381" name="ad66aab15f8d273565a7ad91e4cd65381"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad66aab15f8d273565a7ad91e4cd65381">&#9670;&#160;</a></span>brix_cksum_u64_obj_range()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_cksum_u64_obj_range </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>kind</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="checksum__core_8c_source.html#l00186">186</a> of file <a class="el" href="checksum__core_8c_source.html">checksum_core.c</a>.</p>
+
+<p class="reference">References <a class="el" href="checksum__core_8c_source.html#l00026">BRIX_CK_BUFSZ</a>, <a class="el" href="checksum__core_8h_source.html#l00031">BRIX_CK_CRC64</a>, <a class="el" href="checksum__core_8h_source.html#l00032">BRIX_CK_CRC64NVME</a>, <a class="el" href="crc64_8c_source.html#l00081">brix_crc64_extend()</a>, <a class="el" href="crc64_8h_source.html#l00040">BRIX_CRC64_NVME</a>, <a class="el" href="crc64_8h_source.html#l00039">BRIX_CRC64_XZ</a>, and <a class="el" href="checksum__core_8c_source.html#l00112">range_want()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="checksum__core_8c_source.html#l00232">brix_cksum_u64_obj()</a>.</p>
 
 </div>
 </div>

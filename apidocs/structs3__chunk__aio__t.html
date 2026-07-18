@@ -109,8 +109,8 @@ $(document).ready(function(){initNavTree('structs3__chunk__aio__t.html',''); ini
 Data Fields</h2></td></tr>
 <tr class="memitem:ad80281710f0fd8264db7e9f9163aa486" id="r_ad80281710f0fd8264db7e9f9163aa486"><td class="memItemLeft" align="right" valign="top">ngx_http_request_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__chunk__aio__t.html#ad80281710f0fd8264db7e9f9163aa486">r</a></td></tr>
 <tr class="separator:ad80281710f0fd8264db7e9f9163aa486"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab223b753533d0836fc024fa9b46cdb94" id="r_ab223b753533d0836fc024fa9b46cdb94"><td class="memItemLeft" align="right" valign="top">brix_vfs_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__chunk__aio__t.html#ab223b753533d0836fc024fa9b46cdb94">staged</a></td></tr>
-<tr class="separator:ab223b753533d0836fc024fa9b46cdb94"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8d5a3a994788a191f5f370b024e927da" id="r_a8d5a3a994788a191f5f370b024e927da"><td class="memItemLeft" align="right" valign="top">brix_vfs_writer_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__chunk__aio__t.html#a8d5a3a994788a191f5f370b024e927da">writer</a></td></tr>
+<tr class="separator:a8d5a3a994788a191f5f370b024e927da"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aca2fe4769c834cc2c3da7a50f523af45" id="r_aca2fe4769c834cc2c3da7a50f523af45"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__chunk__aio__t.html#aca2fe4769c834cc2c3da7a50f523af45">fs_path</a> [<a class="el" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>]</td></tr>
 <tr class="separator:aca2fe4769c834cc2c3da7a50f523af45"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5c8aee653997ded9030ad36a433eb421" id="r_a5c8aee653997ded9030ad36a433eb421"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3__chunk__aio__t.html#a5c8aee653997ded9030ad36a433eb421">root_canon</a> [<a class="el" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>]</td></tr>
@@ -260,24 +260,6 @@ Data Fields</h2></td></tr>
 
 </div>
 </div>
-<a id="ab223b753533d0836fc024fa9b46cdb94" name="ab223b753533d0836fc024fa9b46cdb94"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab223b753533d0836fc024fa9b46cdb94">&#9670;&#160;</a></span>staged</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">brix_vfs_staged_t* s3_chunk_aio_t::staged</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00039">39</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00158">s3_chunk_aio_done()</a>, <a class="el" href="put__chunk_8c_source.html#l00113">s3_chunk_aio_thread()</a>, and <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
-
-</div>
-</div>
 <a id="af9c2003e860229ff319167b8b54dfcc8" name="af9c2003e860229ff319167b8b54dfcc8"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#af9c2003e860229ff319167b8b54dfcc8">&#9670;&#160;</a></span>trailer</h2>
 
@@ -329,6 +311,24 @@ Data Fields</h2></td></tr>
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00048">48</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00113">s3_chunk_aio_thread()</a>.</p>
+
+</div>
+</div>
+<a id="a8d5a3a994788a191f5f370b024e927da" name="a8d5a3a994788a191f5f370b024e927da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8d5a3a994788a191f5f370b024e927da">&#9670;&#160;</a></span>writer</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_vfs_writer_t* s3_chunk_aio_t::writer</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00039">39</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00158">s3_chunk_aio_done()</a>, <a class="el" href="put__chunk_8c_source.html#l00113">s3_chunk_aio_thread()</a>, and <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
 
 </div>
 </div>

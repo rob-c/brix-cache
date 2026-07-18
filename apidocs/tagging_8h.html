@@ -125,8 +125,8 @@ Functions</h2></td></tr>
 <tr class="separator:a0501910b2f70bb8e0195e3bc5bb1ae0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9453d7f1bf9c27fc7627f8a39730e54d" id="r_a9453d7f1bf9c27fc7627f8a39730e54d"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8h.html#a9453d7f1bf9c27fc7627f8a39730e54d">s3_handle_get_bucket_versioning</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a9453d7f1bf9c27fc7627f8a39730e54d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a47bfb3b004133cdc47fe17621d279414" id="r_a47bfb3b004133cdc47fe17621d279414"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8h.html#a47bfb3b004133cdc47fe17621d279414">s3_handle_get_acl</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
-<tr class="separator:a47bfb3b004133cdc47fe17621d279414"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa8888d2bd1713632ed5c49632c321999" id="r_aa8888d2bd1713632ed5c49632c321999"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8h.html#aa8888d2bd1713632ed5c49632c321999">s3_handle_get_acl</a> (ngx_http_request_t *r, const char *fs_path, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</td></tr>
+<tr class="separator:aa8888d2bd1713632ed5c49632c321999"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3167fea7d81d4b674938f1f44f565626" id="r_a3167fea7d81d4b674938f1f44f565626"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tagging_8h.html#a3167fea7d81d4b674938f1f44f565626">s3_handle_get_cors</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a3167fea7d81d4b674938f1f44f565626"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -165,9 +165,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00249">249</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="tagging_8c_source.html#l00141">s3_tag_blob_valid()</a>, and <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, <a class="el" href="tagging_8c_source.html#l00141">s3_tag_blob_valid()</a>, and <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>.</p>
 
 </div>
 </div>
@@ -205,14 +205,14 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00233">233</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>, and <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="s3_2util_8c_source.html#l00192">s3_fail()</a>, and <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00182">s3_dispatch_object_delete()</a>.</p>
 
 </div>
 </div>
-<a id="a47bfb3b004133cdc47fe17621d279414" name="a47bfb3b004133cdc47fe17621d279414"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a47bfb3b004133cdc47fe17621d279414">&#9670;&#160;</a></span>s3_handle_get_acl()</h2>
+<a id="aa8888d2bd1713632ed5c49632c321999" name="aa8888d2bd1713632ed5c49632c321999"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa8888d2bd1713632ed5c49632c321999">&#9670;&#160;</a></span>s3_handle_get_acl()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -222,6 +222,12 @@ Functions</h2></td></tr>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fs_path</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -239,7 +245,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00501">501</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00086">brix_vfs_stat_t::is_directory</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="s3_2util_8c_source.html#l00192">s3_fail()</a>, <a class="el" href="tagging_8c_source.html#l00053">s3_tag_vfs_ctx()</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00231">s3_dispatch_bucket_get()</a>, and <a class="el" href="handler__object__route_8c_source.html#l00058">s3_dispatch_object_get()</a>.</p>
 
@@ -285,9 +291,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00547">547</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00570">570</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00231">s3_dispatch_bucket_get()</a>.</p>
 
@@ -327,7 +333,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00158">158</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00027">BRIX_URLDECODE_PLUS_TO_SPACE</a>, <a class="el" href="s3_2util_8c_source.html#l00186">s3_fail()</a>, <a class="el" href="tagging_8c_source.html#l00073">s3_tag_load()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
+<p class="reference">References <a class="el" href="http__xml_8c_source.html#l00146">brix_http_send_xml_buffer()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00014">brix_http_urldecode()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00036">BRIX_URLDECODE_OK</a>, <a class="el" href="core_2compat_2uri_8h_source.html#l00027">BRIX_URLDECODE_PLUS_TO_SPACE</a>, <a class="el" href="s3_2util_8c_source.html#l00192">s3_fail()</a>, <a class="el" href="tagging_8c_source.html#l00073">s3_tag_load()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>, <a class="el" href="s3_8h_source.html#l00195">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00205">XML_APPEND_ELEM</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00058">s3_dispatch_object_get()</a>.</p>
 
@@ -351,7 +357,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tagging_8c_source.html#l00424">424</a> of file <a class="el" href="tagging_8c_source.html">tagging.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00365">brix_http_body_read_all()</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>, <a class="el" href="tagging_8c_source.html#l00390">s3_tag_blob_from_xml()</a>, <a class="el" href="tagging_8c_source.html#l00141">s3_tag_blob_valid()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>, and <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00417">brix_http_body_read_all()</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>, <a class="el" href="tagging_8c_source.html#l00390">s3_tag_blob_from_xml()</a>, <a class="el" href="tagging_8c_source.html#l00141">s3_tag_blob_valid()</a>, <a class="el" href="tagging_8c_source.html#l00041">S3_TAG_MAX</a>, <a class="el" href="tagging_8c_source.html#l00105">s3_tag_store()</a>, and <a class="el" href="tagging_8c_source.html#l00042">S3_TAG_XML_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00146">s3_dispatch_object_put()</a>.</p>
 

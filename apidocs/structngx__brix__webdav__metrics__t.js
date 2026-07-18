@@ -1,6 +1,6 @@
 var structngx__brix__webdav__metrics__t =
 [
-    [ "auth_total", "structngx__brix__webdav__metrics__t.html#a80c0f8745cb9aee0643b008b00e8dd72", null ],
+    [ "auth_total", "structngx__brix__webdav__metrics__t.html#a98dc2d7fa49e26ecfa9b7cdd845ac12f", null ],
     [ "bytes_rx_ipv4_total", "structngx__brix__webdav__metrics__t.html#a70052e302e8970c9fbf4fc80a8ae041a", null ],
     [ "bytes_rx_ipv6_total", "structngx__brix__webdav__metrics__t.html#a2298704b6ca9361d54cc9e9b56dcb85e", null ],
     [ "bytes_rx_total", "structngx__brix__webdav__metrics__t.html#acbf97ed1b482e349560de785c0d5c8d3", null ],

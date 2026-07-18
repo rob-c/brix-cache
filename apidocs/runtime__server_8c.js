@@ -1,8 +1,7 @@
 var runtime__server_8c =
 [
     [ "brix_config_prepare_server", "runtime__server_8c.html#ad15a912235219ad6c91556664a89bab8", null ],
-    [ "brix_server_cred_str_or_null", "runtime__server_8c.html#a39c073e078d78796b5cefb78ad178f5a", null ],
-    [ "brix_server_fill_x509_credential", "runtime__server_8c.html#ae3fe8aa9f4427738b035b0463c7bcee5", null ],
+    [ "brix_server_guard_remote_authz", "runtime__server_8c.html#a62f5439554495ac6bc85bcb1d53434ce", null ],
     [ "brix_server_has_runtime_export", "runtime__server_8c.html#a0982bf6090e8a08fc90452258ef232a5", null ],
     [ "brix_server_set_storage_credential", "runtime__server_8c.html#a282d192363f991d28d6faa7e8b36da77", null ],
     [ "brix_server_set_wt_credential", "runtime__server_8c.html#a9a9cfae3bf81f411bb683c5375cd2362", null ],

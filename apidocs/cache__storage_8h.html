@@ -123,6 +123,8 @@ Functions</h2></td></tr>
 <tr class="separator:a86e8d6fe5af2067cfa625745ba4366fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab756b709ec8a65917af9770ed0c55ec3" id="r_ab756b709ec8a65917af9770ed0c55ec3"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__storage_8h.html#ab756b709ec8a65917af9770ed0c55ec3">brix_cache_storage</a> (const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:ab756b709ec8a65917af9770ed0c55ec3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0ae61f51c62c0dbca37259ed99ba71aa" id="r_a0ae61f51c62c0dbca37259ed99ba71aa"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__storage_8h.html#a0ae61f51c62c0dbca37259ed99ba71aa">brix_cache_storage_decorator</a> (const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
+<tr class="separator:a0ae61f51c62c0dbca37259ed99ba71aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a52049244721db78795a0d6ebd329eba6" id="r_a52049244721db78795a0d6ebd329eba6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__cstore__t.html">brix_cstore_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__storage_8h.html#a52049244721db78795a0d6ebd329eba6">brix_cache_storage_cstore</a> (const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:a52049244721db78795a0d6ebd329eba6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1a2616ad4ffd6864322cdf97a0a91fc6" id="r_a1a2616ad4ffd6864322cdf97a0a91fc6"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cache__storage_8h.html#a1a2616ad4ffd6864322cdf97a0a91fc6">brix_cache_source_inst</a> (const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
@@ -357,7 +359,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00119">119</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00047">brix_cache_commit_staged()</a>, <a class="el" href="evict__policy_8c_source.html#l00096">brix_cache_evict_remove_sidecars()</a>, <a class="el" href="open_8c_source.html#l00200">brix_cache_hit_fresh()</a>, and <a class="el" href="evict__candidates_8c_source.html#l00356">evict_collect_visit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00047">brix_cache_commit_staged()</a>, <a class="el" href="evict__policy_8c_source.html#l00100">brix_cache_evict_remove_sidecars()</a>, <a class="el" href="open_8c_source.html#l00200">brix_cache_hit_fresh()</a>, and <a class="el" href="evict__candidates_8c_source.html#l00356">evict_collect_visit()</a>.</p>
 
 </div>
 </div>
@@ -377,7 +379,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00229">229</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00247">247</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
 </div>
 </div>
@@ -443,7 +445,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00241">241</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00259">259</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
 </div>
 </div>
@@ -465,9 +467,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00203">203</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00370">brix_sd_cache_instance_is()</a>, <a class="el" href="sd__cache_8c_source.html#l00440">brix_sd_cache_store_instance()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00248">brix_vfs_backend_resolve()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00370">brix_sd_cache_instance_is()</a>, <a class="el" href="sd__cache_8c_source.html#l00458">brix_sd_cache_store_instance()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00304">brix_vfs_backend_resolve()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00305">brix_cache_fill_from_source()</a>, and <a class="el" href="evict__policy_8c_source.html#l00242">brix_cache_purge_setup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00305">brix_cache_fill_from_source()</a>, and <a class="el" href="evict__policy_8c_source.html#l00261">brix_cache_purge_setup()</a>.</p>
 
 </div>
 </div>
@@ -511,11 +513,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00436">436</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00454">454</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
 <p class="reference">References <a class="el" href="cstore_8c_source.html#l00091">brix_cstore_cleanup()</a>, <a class="el" href="sd__stage_8c_source.html#l00264">brix_sd_stage_destroy()</a>, <a class="el" href="sd__stage_8c_source.html#l00284">brix_sd_stage_source_instance()</a>, <a class="el" href="sd__xroot_8c_source.html#l00417">brix_sd_xroot_destroy()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00254">brix_exit_process()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00272">brix_exit_process()</a>.</p>
 
 </div>
 </div>
@@ -535,11 +537,35 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00216">216</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00234">234</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00459">brix_sd_cache_cstore()</a>, <a class="el" href="sd__cache_8c_source.html#l00370">brix_sd_cache_instance_is()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00248">brix_vfs_backend_resolve()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00477">brix_sd_cache_cstore()</a>, <a class="el" href="sd__cache_8c_source.html#l00370">brix_sd_cache_instance_is()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00304">brix_vfs_backend_resolve()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00457">brix_cache_evict_if_needed()</a>, <a class="el" href="evict__policy_8c_source.html#l00242">brix_cache_purge_setup()</a>, <a class="el" href="cache__reap_8c_source.html#l00256">brix_cache_reap_dirty()</a>, and <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00479">brix_cache_evict_if_needed()</a>, <a class="el" href="evict__policy_8c_source.html#l00261">brix_cache_purge_setup()</a>, <a class="el" href="cache__reap_8c_source.html#l00256">brix_cache_reap_dirty()</a>, and <a class="el" href="paths_8c_source.html#l00093">brix_cache_state_root()</a>.</p>
+
+</div>
+</div>
+<a id="a0ae61f51c62c0dbca37259ed99ba71aa" name="a0ae61f51c62c0dbca37259ed99ba71aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0ae61f51c62c0dbca37259ed99ba71aa">&#9670;&#160;</a></span>brix_cache_storage_decorator()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_instance_t * brix_cache_storage_decorator </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00221">221</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00370">brix_sd_cache_instance_is()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00304">brix_vfs_backend_resolve()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00261">brix_cache_purge_setup()</a>.</p>
 
 </div>
 </div>
@@ -569,11 +595,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00339">339</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00357">357</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cstore_8h_source.html#l00047">BRIX_CMETA_AUTO</a>, <a class="el" href="cstore_8c_source.html#l00045">brix_cstore_init()</a>, <a class="el" href="cache__storage_8c_source.html#l00276">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>, <a class="el" href="cache__storage_8c_source.html#l00256">cache_open_rootfd()</a>, <a class="el" href="cache__storage_8c_source.html#l00078">cs_root_register()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
+<p class="reference">References <a class="el" href="cstore_8h_source.html#l00047">BRIX_CMETA_AUTO</a>, <a class="el" href="cstore_8c_source.html#l00045">brix_cstore_init()</a>, <a class="el" href="cache__storage_8c_source.html#l00294">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00315">cache_build_wt_stage()</a>, <a class="el" href="cache__storage_8c_source.html#l00274">cache_open_rootfd()</a>, <a class="el" href="cache__storage_8c_source.html#l00078">cs_root_register()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process__server__init_8c_source.html#l00342">brix_init_one_server()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="process__server__init_8c_source.html#l00351">brix_init_one_server()</a>.</p>
 
 </div>
 </div>
@@ -593,7 +619,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00247">247</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00265">265</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
 </div>
 </div>
@@ -613,9 +639,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00235">235</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cache__storage_8c_source.html#l00253">253</a> of file <a class="el" href="cache__storage_8c_source.html">cache_storage.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00103">brix_open_select_sd_inst()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00102">brix_open_select_sd_inst()</a>.</p>
 
 </div>
 </div>

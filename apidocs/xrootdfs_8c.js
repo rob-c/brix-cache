@@ -11,6 +11,8 @@ var xrootdfs_8c =
     [ "srv_path", "xrootdfs_8c.html#a22ee76959605f73d8a7a33d788590a9b", null ],
     [ "usage", "xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a", null ],
     [ "usage_fp", "xrootdfs_8c.html#a28999b7bf77e817ab21c70002c3ad233", null ],
+    [ "web_slot_close", "xrootdfs_8c.html#a31a9b1b9b684b014daac49e1679b1258", null ],
+    [ "web_slot_connect", "xrootdfs_8c.html#a7e82baf61cf3af9b8e1e9b2046eae79b", null ],
     [ "xfs_conn_healthy", "xrootdfs_8c.html#afc281412eba3725777dce9bd9107acbc", null ],
     [ "xfs_err", "xrootdfs_8c.html#ad0bc97aee018fa2b2de9a323bc12d887", null ],
     [ "xfs_fill_stat", "xrootdfs_8c.html#ae050f98d355f1ad7ccde3d50c949f945", null ],
@@ -42,9 +44,12 @@ var xrootdfs_8c =
     [ "g_url", "xrootdfs_8c.html#a3cf91f8c7a2c4175a01683d559351840", null ],
     [ "g_web", "xrootdfs_8c.html#a7fc759f55c33398559ef2ef5fe02ce27", null ],
     [ "g_web_ca", "xrootdfs_8c.html#af075f048c15f52dd1003cabeb30c09cb", null ],
+    [ "g_web_pool", "xrootdfs_8c.html#aae0ce21e1f18045ad99773c4c22a33bf", null ],
+    [ "g_web_tmpl", "xrootdfs_8c.html#a75925e947b616bc5b403ab704fa5f2d7", null ],
     [ "g_web_verify", "xrootdfs_8c.html#a764b4a05813360a8d6f1c7a2fbc447bf", null ],
     [ "g_weburl", "xrootdfs_8c.html#ac620525a7f7b99bbdfb4ddc35c28e0c9", null ],
     [ "g_writeback", "xrootdfs_8c.html#a55825d0835bf204f6d9f1dc0ea716e77", null ],
     [ "g_xattr", "xrootdfs_8c.html#a628e31c837f196f91431235a413b9c33", null ],
+    [ "WEB_VT", "xrootdfs_8c.html#ac800fb0c3101c191bd4353fc948054a0", null ],
     [ "xfs_ops", "xrootdfs_8c.html#af392879b26166874e3668cfc25c9c81b", null ]
 ];

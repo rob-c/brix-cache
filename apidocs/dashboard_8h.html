@@ -154,7 +154,7 @@ Macros</h2></td></tr>
 <tr class="separator:a82372c2efcff2c93e8a937626e6b73c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8573c19949b5211091fbffe7ae70bb32" id="r_a8573c19949b5211091fbffe7ae70bb32"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dashboard_8h.html#a8573c19949b5211091fbffe7ae70bb32">X</a>(ID,  metric_label,  dash_name,  http_plane)&#160;&#160;&#160;BRIX_XFER_PROTO_##ID,</td></tr>
 <tr class="separator:a8573c19949b5211091fbffe7ae70bb32"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8166003a3b63226a9f587e74318a56de" id="r_a8166003a3b63226a9f587e74318a56de"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dashboard_8h.html#a8166003a3b63226a9f587e74318a56de">BRIX_XFER_NPROTOS</a>&#160;&#160;&#160;(<a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9ea2aaef7c6c530e8531668108347e55fe4">BRIX_XFER_PROTO__END</a> - 1)</td></tr>
+<tr class="memitem:a8166003a3b63226a9f587e74318a56de" id="r_a8166003a3b63226a9f587e74318a56de"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dashboard_8h.html#a8166003a3b63226a9f587e74318a56de">BRIX_XFER_NPROTOS</a>&#160;&#160;&#160;(<a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25a2aaef7c6c530e8531668108347e55fe4">BRIX_XFER_PROTO__END</a> - 1)</td></tr>
 <tr class="separator:a8166003a3b63226a9f587e74318a56de"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab48c9e0a5c378a2247a9c3a15397697e" id="r_ab48c9e0a5c378a2247a9c3a15397697e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dashboard_8h.html#ab48c9e0a5c378a2247a9c3a15397697e">BRIX_XFER_DIR_READ</a>&#160;&#160;&#160;1   /* client downloading (egress)        */</td></tr>
 <tr class="separator:ab48c9e0a5c378a2247a9c3a15397697e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -187,17 +187,17 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
-<tr class="memitem:a05589fbab0657f08285ebdfe93f5ec9e" id="r_a05589fbab0657f08285ebdfe93f5ec9e"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom">{ <br />
-&#160;&#160;<a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9ea67e2910576c9e1eadcfac6fc75652a2c">BRIX_XFER_PROTO_NONE</a> = 0
-, <a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9ea0d58e1d9beecc2df49ba17d1b231b58f">BRIX_XFER_PROTO_ROOT</a>
-, <a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9ea1ad1b1421c921c10a894455725fc4739">BRIX_XFER_PROTO_WEBDAV</a>
-, <a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9eaf01cefb7e08aa8c7b494cdb44f3b0f42">BRIX_XFER_PROTO_S3</a>
+<tr class="memitem:aba01db17f4a2bfbc3db60dc172972a25" id="r_aba01db17f4a2bfbc3db60dc172972a25"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom">{ <br />
+&#160;&#160;<a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25a67e2910576c9e1eadcfac6fc75652a2c">BRIX_XFER_PROTO_NONE</a> = 0
+, <a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25a0d58e1d9beecc2df49ba17d1b231b58f">BRIX_XFER_PROTO_ROOT</a>
+, <a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25a1ad1b1421c921c10a894455725fc4739">BRIX_XFER_PROTO_WEBDAV</a>
+, <a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25af01cefb7e08aa8c7b494cdb44f3b0f42">BRIX_XFER_PROTO_S3</a>
 , <br />
-&#160;&#160;<a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9eaa722240d44ce6d2bd19ae8b3b2257534">BRIX_XFER_PROTO_CVMFS</a>
-, <a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9ea2aaef7c6c530e8531668108347e55fe4">BRIX_XFER_PROTO__END</a>
+&#160;&#160;<a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25aa722240d44ce6d2bd19ae8b3b2257534">BRIX_XFER_PROTO_CVMFS</a>
+, <a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25a2aaef7c6c530e8531668108347e55fe4">BRIX_XFER_PROTO__END</a>
 <br />
  }</td></tr>
-<tr class="separator:a05589fbab0657f08285ebdfe93f5ec9e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="separator:aba01db17f4a2bfbc3db60dc172972a25"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa40206dc05b44511a4dd403ad026e6ab" id="r_aa40206dc05b44511a4dd403ad026e6ab"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dashboard_8h.html#aa40206dc05b44511a4dd403ad026e6ab">brix_dashboard_event_class_e</a> { <br />
 &#160;&#160;<a class="el" href="dashboard_8h.html#aa40206dc05b44511a4dd403ad026e6abaedf6787be0fa37da995a8c93010bc2b5">BRIX_DASH_EVENT_AUTH</a> = 1
 , <a class="el" href="dashboard_8h.html#aa40206dc05b44511a4dd403ad026e6aba729eada0d7befb1dbf2621f98ed03599">BRIX_DASH_EVENT_NAMESPACE</a>
@@ -505,7 +505,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define BRIX_XFER_NPROTOS&#160;&#160;&#160;(<a class="el" href="dashboard_8h.html#a05589fbab0657f08285ebdfe93f5ec9ea2aaef7c6c530e8531668108347e55fe4">BRIX_XFER_PROTO__END</a> - 1)</td>
+          <td class="memname">#define BRIX_XFER_NPROTOS&#160;&#160;&#160;(<a class="el" href="dashboard_8h.html#aba01db17f4a2bfbc3db60dc172972a25a2aaef7c6c530e8531668108347e55fe4">BRIX_XFER_PROTO__END</a> - 1)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -669,8 +669,8 @@ Variables</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="a05589fbab0657f08285ebdfe93f5ec9e" name="a05589fbab0657f08285ebdfe93f5ec9e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a05589fbab0657f08285ebdfe93f5ec9e">&#9670;&#160;</a></span>anonymous enum</h2>
+<a id="aba01db17f4a2bfbc3db60dc172972a25" name="aba01db17f4a2bfbc3db60dc172972a25"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aba01db17f4a2bfbc3db60dc172972a25">&#9670;&#160;</a></span>anonymous enum</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -681,12 +681,12 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a05589fbab0657f08285ebdfe93f5ec9ea67e2910576c9e1eadcfac6fc75652a2c" name="a05589fbab0657f08285ebdfe93f5ec9ea67e2910576c9e1eadcfac6fc75652a2c"></a>BRIX_XFER_PROTO_NONE&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a05589fbab0657f08285ebdfe93f5ec9ea0d58e1d9beecc2df49ba17d1b231b58f" name="a05589fbab0657f08285ebdfe93f5ec9ea0d58e1d9beecc2df49ba17d1b231b58f"></a>BRIX_XFER_PROTO_ROOT&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a05589fbab0657f08285ebdfe93f5ec9ea1ad1b1421c921c10a894455725fc4739" name="a05589fbab0657f08285ebdfe93f5ec9ea1ad1b1421c921c10a894455725fc4739"></a>BRIX_XFER_PROTO_WEBDAV&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a05589fbab0657f08285ebdfe93f5ec9eaf01cefb7e08aa8c7b494cdb44f3b0f42" name="a05589fbab0657f08285ebdfe93f5ec9eaf01cefb7e08aa8c7b494cdb44f3b0f42"></a>BRIX_XFER_PROTO_S3&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a05589fbab0657f08285ebdfe93f5ec9eaa722240d44ce6d2bd19ae8b3b2257534" name="a05589fbab0657f08285ebdfe93f5ec9eaa722240d44ce6d2bd19ae8b3b2257534"></a>BRIX_XFER_PROTO_CVMFS&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a05589fbab0657f08285ebdfe93f5ec9ea2aaef7c6c530e8531668108347e55fe4" name="a05589fbab0657f08285ebdfe93f5ec9ea2aaef7c6c530e8531668108347e55fe4"></a>BRIX_XFER_PROTO__END&#160;</td><td class="fielddoc"></td></tr>
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aba01db17f4a2bfbc3db60dc172972a25a67e2910576c9e1eadcfac6fc75652a2c" name="aba01db17f4a2bfbc3db60dc172972a25a67e2910576c9e1eadcfac6fc75652a2c"></a>BRIX_XFER_PROTO_NONE&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aba01db17f4a2bfbc3db60dc172972a25a0d58e1d9beecc2df49ba17d1b231b58f" name="aba01db17f4a2bfbc3db60dc172972a25a0d58e1d9beecc2df49ba17d1b231b58f"></a>BRIX_XFER_PROTO_ROOT&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aba01db17f4a2bfbc3db60dc172972a25a1ad1b1421c921c10a894455725fc4739" name="aba01db17f4a2bfbc3db60dc172972a25a1ad1b1421c921c10a894455725fc4739"></a>BRIX_XFER_PROTO_WEBDAV&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aba01db17f4a2bfbc3db60dc172972a25af01cefb7e08aa8c7b494cdb44f3b0f42" name="aba01db17f4a2bfbc3db60dc172972a25af01cefb7e08aa8c7b494cdb44f3b0f42"></a>BRIX_XFER_PROTO_S3&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aba01db17f4a2bfbc3db60dc172972a25aa722240d44ce6d2bd19ae8b3b2257534" name="aba01db17f4a2bfbc3db60dc172972a25aa722240d44ce6d2bd19ae8b3b2257534"></a>BRIX_XFER_PROTO_CVMFS&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aba01db17f4a2bfbc3db60dc172972a25a2aaef7c6c530e8531668108347e55fe4" name="aba01db17f4a2bfbc3db60dc172972a25a2aaef7c6c530e8531668108347e55fe4"></a>BRIX_XFER_PROTO__END&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
 <p class="definition">Definition at line <a class="el" href="dashboard_8h_source.html#l00051">51</a> of file <a class="el" href="dashboard_8h_source.html">dashboard.h</a>.</p>

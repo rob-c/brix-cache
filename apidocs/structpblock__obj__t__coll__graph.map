@@ -1,12 +1,14 @@
 <map id="pblock_obj_t" name="pblock_obj_t">
-<area shape="rect" id="Node000001" title=" " alt="" coords="23,357,127,383"/>
-<area shape="rect" id="Node000002" href="$structpblock__state__t.html" title=" " alt="" coords="88,269,205,295"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="130,307,87,359,83,355,126,303"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="27,357,131,383"/>
+<area shape="rect" id="Node000002" href="$structpblock__state__t.html" title=" " alt="" coords="101,269,219,295"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="142,307,92,359,88,355,138,303"/>
 <area shape="rect" id="Node000003" href="$structpblock__catalog.html" title=" " alt="" coords="100,181,220,207"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="159,220,151,269,146,268,154,220"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="163,221,163,269,157,269,157,221"/>
 <area shape="rect" id="Node000004" href="$structpblock__nscache__ent.html" title=" " alt="" coords="79,93,233,119"/>
 <area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="160,132,162,181,157,181,155,133"/>
 <area shape="rect" id="Node000005" href="$structpblock__meta.html" title=" " alt="" coords="5,5,112,31"/>
-<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="52,44,44,73,40,105,40,283,43,304,50,324,68,356,64,359,45,326,38,305,35,284,35,105,39,72,47,43"/>
+<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="52,44,44,73,40,105,40,283,43,304,51,324,71,355,66,358,46,326,38,305,35,284,35,105,39,72,47,43"/>
 <area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="84,38,144,91,141,95,80,42"/>
+<area shape="rect" id="Node000006" href="$structpblock__xform__t.html" title=" " alt="" coords="244,181,367,207"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="275,216,181,271,178,267,273,211"/>
 </map>

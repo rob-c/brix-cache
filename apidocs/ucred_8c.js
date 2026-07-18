@@ -5,6 +5,7 @@ var ucred_8c =
     [ "brix_sd_ucred_principal", "ucred_8c.html#ad2505a06a712bfa5db77e77908d09824", null ],
     [ "brix_sd_ucred_resolve", "ucred_8c.html#a245e06c20eea3791952c9c5f27393d47", null ],
     [ "brix_sd_ucred_select", "ucred_8c.html#a7387294fba3a0cde679e72b5ed32f1c5", null ],
+    [ "brix_sd_ucred_wipe", "ucred_8c.html#a6f06f7fb547ae9e4344a558ed49d9d79", null ],
     [ "ucred_check_pem", "ucred_8c.html#adef19066198072b88c4af0d81d975689", null ],
     [ "ucred_fs_safe_char", "ucred_8c.html#aba17a17ffb67ce7c3e2206a2c7572b0d", null ],
     [ "ucred_keyring_next_line", "ucred_8c.html#ad6a2d69af8a5d5e243dde281f5c5e938", null ],

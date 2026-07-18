@@ -123,300 +123,318 @@ $(document).ready(function(){initNavTree('process_8c_source.html',''); initResiz
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#include &quot;<a class="code" href="keypool_8h.html">auth/gsi/keypool.h</a>&quot;</span></div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">#include &quot;<a class="code" href="lifecycle_8h.html">auth/impersonate/lifecycle.h</a>&quot;</span></div>
 <div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#include &quot;core/aio/uring.h&quot;</span></div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="preprocessor">#include &quot;<a class="code" href="sesslog__ngx_8h.html">observability/sesslog/sesslog_ngx.h</a>&quot;</span></div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span> </div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="preprocessor">#if defined(__SANITIZE_ADDRESS__)   </span><span class="comment">/* Phase 27 W6: explicit LSan check at exit */</span><span class="preprocessor"></span></div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="preprocessor">#include &lt;sanitizer/lsan_interface.h&gt;</span></div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> </div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="comment">/* ---- Bring up the durable stage engine (phase-64 SP4) for this worker ----</span></div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="comment"> * WHAT: Initialises the stage journal and, on worker 0 only, replays staged</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment"> * flushes interrupted by a crash and reaps orphaned direct-write temp files.</span></div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment"> * No return value — the engine degrades to in-memory when the journal dir is</span></div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment"> * unset and reconcile/reap are best-effort recovery.</span></div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="comment"> * WHY: A crash can strand a staged FLUSH mid-flight and leave partial</span></div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="comment"> * &quot;&lt;final&gt;.xrd-tmp.&lt;dead-pid&gt;.*&quot; files in the export tree; without this the</span></div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment"> * write never reaches the backend and the partials leak disk forever.</span></div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> * HOW:</span></div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> *   1. Init the stage engine with the opt-in $BRIX_STAGE_JOURNAL_DIR</span></div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> *      (unset = in-memory, no recovery).</span></div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment"> *   2. On worker 0: replay any journalled staged FLUSH (brix_stage_reconcile).</span></div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="comment"> *   3. On worker 0: reap orphaned non-staged direct-write temporaries — the</span></div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="comment"> *      broken write is discarded; the client retries (§11.3).</span></div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00051" data-start="{" data-end="}">
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno"><a class="line" href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">   51</a></span><a class="code hl_function" href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">brix_init_stage_engine_worker</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>{</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    <span class="comment">/* phase-64 SP4: durable stage journal + restart reconcile. The journal dir is</span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment">     * opt-in via $BRIX_STAGE_JOURNAL_DIR (unset = in-memory, no recovery). On a</span></div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment">     * restart worker 0 replays any staged FLUSH left in flight by a crash so the</span></div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment">     * write reaches the backend (only staged writes are recoverable - a non-staged</span></div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment">     * direct write&#39;s partial is reaped, not replayed; §11.3). */</span></div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    <a class="code hl_function" href="stage__engine_8h.html#a4e65b53a38ab5edfc3f9f391d192db59">brix_stage_engine_init</a>(getenv(<span class="stringliteral">&quot;BRIX_STAGE_JOURNAL_DIR&quot;</span>));</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keywordflow">if</span> (ngx_worker == 0) {</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        <a class="code hl_function" href="stage__engine_8h.html#a2573183a9cf8f22590a304e27a3836cc">brix_stage_reconcile</a>(NULL);</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        <span class="comment">/* Clean up the OTHER half: a NON-staged direct write interrupted by the</span></div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment">         * crash left an orphan &quot;&lt;final&gt;.xrd-tmp.&lt;dead-pid&gt;.*&quot; in the export tree -</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment">         * reap it (the broken write is discarded; the client retries). */</span></div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>        (void) <a class="code hl_function" href="tmp__path_8c.html#ad623b4cf4e7ebf487302264af3d78402">brix_tmp_reap_all</a>(cycle-&gt;log);</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    }</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>}</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="preprocessor">#include &quot;<a class="code" href="seccomp_8h.html">core/seccomp/seccomp.h</a>&quot;</span>          <span class="comment">/* D-3 per-worker syscall filter */</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#include &quot;<a class="code" href="sesslog__ngx_8h.html">observability/sesslog/sesslog_ngx.h</a>&quot;</span></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span> </div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="preprocessor">#if defined(__SANITIZE_ADDRESS__)   </span><span class="comment">/* Phase 27 W6: explicit LSan check at exit */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#include &lt;sanitizer/lsan_interface.h&gt;</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span> </div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="comment">/* ---- Bring up the durable stage engine (phase-64 SP4) for this worker ----</span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment"> * WHAT: Initialises the stage journal and, on worker 0 only, replays staged</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment"> * flushes interrupted by a crash and reaps orphaned direct-write temp files.</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment"> * No return value — the engine degrades to in-memory when the journal dir is</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="comment"> * unset and reconcile/reap are best-effort recovery.</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="comment"> * WHY: A crash can strand a staged FLUSH mid-flight and leave partial</span></div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment"> * &quot;&lt;final&gt;.xrd-tmp.&lt;dead-pid&gt;.*&quot; files in the export tree; without this the</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> * write never reaches the backend and the partials leak disk forever.</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> *   1. Init the stage engine with the opt-in $BRIX_STAGE_JOURNAL_DIR</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment"> *      (unset = in-memory, no recovery).</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="comment"> *   2. On worker 0: replay any journalled staged FLUSH (brix_stage_reconcile).</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="comment"> *   3. On worker 0: reap orphaned non-staged direct-write temporaries — the</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"> *      broken write is discarded; the client retries (§11.3).</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00052" data-start="{" data-end="}">
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno"><a class="line" href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">   52</a></span><a class="code hl_function" href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">brix_init_stage_engine_worker</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>{</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <span class="comment">/* phase-64 SP4: durable stage journal + restart reconcile. The journal dir is</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment">     * opt-in via $BRIX_STAGE_JOURNAL_DIR (unset = in-memory, no recovery). On a</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment">     * restart worker 0 replays any staged FLUSH left in flight by a crash so the</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment">     * write reaches the backend (only staged writes are recoverable - a non-staged</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment">     * direct write&#39;s partial is reaped, not replayed; §11.3). */</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <a class="code hl_function" href="stage__engine_8h.html#a4e65b53a38ab5edfc3f9f391d192db59">brix_stage_engine_init</a>(getenv(<span class="stringliteral">&quot;BRIX_STAGE_JOURNAL_DIR&quot;</span>));</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <span class="keywordflow">if</span> (ngx_worker == 0) {</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        <a class="code hl_function" href="stage__engine_8h.html#a2573183a9cf8f22590a304e27a3836cc">brix_stage_reconcile</a>(NULL);</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>        <span class="comment">/* Clean up the OTHER half: a NON-staged direct write interrupted by the</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment">         * crash left an orphan &quot;&lt;final&gt;.xrd-tmp.&lt;dead-pid&gt;.*&quot; in the export tree -</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="comment">         * reap it (the broken write is discarded; the client retries). */</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>        (void) <a class="code hl_function" href="tmp__path_8c.html#ad623b4cf4e7ebf487302264af3d78402">brix_tmp_reap_all</a>(cycle-&gt;log);</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    }</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>}</div>
 </div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment">/* ---- Warm the per-worker GSI ephemeral-DH key pool ----</span></div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment"> * WHAT: Seeds the GSI DH key pool from the first GSI-enabled server block&#39;s</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> * configuration. No return value — a config with no GSI server is a no-op</span></div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> * and pool warm-up failures degrade to on-demand keygen.</span></div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> * WHY: Phase 33 — kXGC_certreq must never run keygen on the event thread</span></div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="comment"> * under a concurrent handshake burst. Only a small seed is generated</span></div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment"> * synchronously here; the pool fills to its configured size off the event</span></div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="comment"> * thread (via the GSI server&#39;s thread pool) so worker startup is not blocked</span></div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="comment"> * on the full warm-up.</span></div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="comment"> * HOW:</span></div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="comment"> *   1. Skip unless the server scan found a GSI/BOTH block.</span></div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment"> *   2. Init the keypool with that block&#39;s thread pool, size, and seed count.</span></div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00085" data-start="{" data-end="}">
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno"><a class="line" href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">   85</a></span><a class="code hl_function" href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">brix_init_gsi_keypool</a>(ngx_cycle_t *cycle, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *gsi_xcf)</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>{</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    <span class="keywordflow">if</span> (gsi_xcf == NULL) {</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    }</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <a class="code hl_function" href="keypool_8c.html#a33c14cab25bf05271bfacda30b4a0e10">brix_gsi_keypool_init</a>(cycle, gsi_xcf-&gt;common.thread_pool,</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>                            gsi_xcf-&gt;gsi_keypool_size,</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>                            gsi_xcf-&gt;gsi_keypool_seed);</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>}</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span> </div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment">/* ---- Warm the per-worker GSI ephemeral-DH key pool ----</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> * WHAT: Seeds the GSI DH key pool from the first GSI-enabled server block&#39;s</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> * configuration. No return value — a config with no GSI server is a no-op</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> * and pool warm-up failures degrade to on-demand keygen.</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="comment"> * WHY: Phase 33 — kXGC_certreq must never run keygen on the event thread</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment"> * under a concurrent handshake burst. Only a small seed is generated</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="comment"> * synchronously here; the pool fills to its configured size off the event</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="comment"> * thread (via the GSI server&#39;s thread pool) so worker startup is not blocked</span></div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="comment"> * on the full warm-up.</span></div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="comment"> *   1. Skip unless the server scan found a GSI/BOTH block.</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="comment"> *   2. Init the keypool with that block&#39;s thread pool, size, and seed count.</span></div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00086" data-start="{" data-end="}">
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno"><a class="line" href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">   86</a></span><a class="code hl_function" href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">brix_init_gsi_keypool</a>(ngx_cycle_t *cycle, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *gsi_xcf)</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>{</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    <span class="keywordflow">if</span> (gsi_xcf == NULL) {</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    }</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <a class="code hl_function" href="keypool_8c.html#a33c14cab25bf05271bfacda30b4a0e10">brix_gsi_keypool_init</a>(cycle, gsi_xcf-&gt;common.thread_pool,</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>                            gsi_xcf-&gt;gsi_keypool_size,</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>                            gsi_xcf-&gt;gsi_keypool_seed);</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>}</div>
 </div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span> </div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="comment">/* ---- Warn once when openat2(2) confinement is unavailable ----</span></div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment"> * WHAT: Emits a persistent startup WARN when the running kernel lacks</span></div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> * openat2(2). No return value — this is diagnostics only; the fallback path</span></div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="comment"> * still works.</span></div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment"> * WHY: F-05 — without openat2 (kernel &lt; 5.6 or built without the headers),</span></div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment"> * path confinement falls back to the O_NOFOLLOW segment-by-segment walk</span></div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> * which has a narrow TOCTOU window; operators must know confinement is</span></div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> * degraded so they can plan a kernel upgrade.</span></div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> * HOW:</span></div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> *   1. Probe runtime availability (brix_openat2_runtime_available).</span></div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> *   2. Log the degraded-confinement warning when unavailable.</span></div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00111" data-start="{" data-end="}">
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno"><a class="line" href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">  111</a></span><a class="code hl_function" href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">brix_warn_openat2_unavailable</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>{</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="fs_2path_2path_8h.html#a2691f02d2dd9796ad43862c050eef3ec">brix_openat2_runtime_available</a>()) {</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>        ngx_log_error(NGX_LOG_WARN, cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>                      <span class="stringliteral">&quot;brix: openat2(2) is not available on this system &quot;</span></div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>                      <span class="stringliteral">&quot;(requires Linux kernel 5.6+). Path confinement falls &quot;</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>                      <span class="stringliteral">&quot;back to O_NOFOLLOW traversal, which has a TOCTOU race &quot;</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>                      <span class="stringliteral">&quot;window on multi-tenant storage. Upgrade the kernel for &quot;</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>                      <span class="stringliteral">&quot;strongest path confinement.&quot;</span>);</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    }</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>}</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span> </div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="comment">/* ---- Warn once when openat2(2) confinement is unavailable ----</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> * WHAT: Emits a persistent startup WARN when the running kernel lacks</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="comment"> * openat2(2). No return value — this is diagnostics only; the fallback path</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="comment"> * still works.</span></div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment"> * WHY: F-05 — without openat2 (kernel &lt; 5.6 or built without the headers),</span></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> * path confinement falls back to the O_NOFOLLOW segment-by-segment walk</span></div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> * which has a narrow TOCTOU window; operators must know confinement is</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> * degraded so they can plan a kernel upgrade.</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> *   1. Probe runtime availability (brix_openat2_runtime_available).</span></div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> *   2. Log the degraded-confinement warning when unavailable.</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00112" data-start="{" data-end="}">
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno"><a class="line" href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">  112</a></span><a class="code hl_function" href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">brix_warn_openat2_unavailable</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>{</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="fs_2path_2path_8h.html#a2691f02d2dd9796ad43862c050eef3ec">brix_openat2_runtime_available</a>()) {</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        ngx_log_error(NGX_LOG_WARN, cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>                      <span class="stringliteral">&quot;brix: openat2(2) is not available on this system &quot;</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>                      <span class="stringliteral">&quot;(requires Linux kernel 5.6+). Path confinement falls &quot;</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>                      <span class="stringliteral">&quot;back to O_NOFOLLOW traversal, which has a TOCTOU race &quot;</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>                      <span class="stringliteral">&quot;window on multi-tenant storage. Upgrade the kernel for &quot;</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>                      <span class="stringliteral">&quot;strongest path confinement.&quot;</span>);</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    }</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>}</div>
 </div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span> </div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment"> * Worker process init: start CRL reload timers for every server block that</span></div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment"> * has brix_crl_reload configured. Timers are per-worker because each</span></div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="comment"> * nginx worker process has its own event loop and its own copy of the config</span></div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="comment"> * pointers (but the X509_STORE* is shared within a worker).</span></div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="comment">/* ---- Per-worker init after fork: bring up all worker-scoped subsystems ----</span></div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment"> * WHAT: Initialises crypto, the stage engine + scheduler, the proxy pool,</span></div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="comment"> * io_uring, every enabled server block (via brix_init_one_server), the GSI</span></div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="comment"> * keypool, the identity broker, and the worker-0 maintenance reapers.</span></div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment"> * Returns NGX_OK / NGX_ERROR (NGX_ERROR aborts the worker).</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> * WHY: nginx workers are forked from the master and inherit config but not</span></div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment"> * per-process resources (fds, timers, rings, key pools); everything a worker</span></div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment"> * owns must be (re)built here, in the frozen order the reload-semantics</span></div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="comment"> * contract documents.</span></div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> * HOW:</span></div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment"> *   1. Start the boot-cost phase timer and init OpenSSL crypto (fatal).</span></div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment"> *   2. Bring up the stage engine and arm the per-worker stage-flush</span></div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="comment"> *      scheduler — BEFORE the stream-config early-return so HTTP-only</span></div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="comment"> *      (WebDAV/S3) workers get them too.</span></div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="comment"> *   3. Early-return NGX_OK when there is no stream config.</span></div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="comment"> *   4. Warn once when openat2(2) is unavailable (degraded confinement).</span></div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment"> *   5. Init the proxy pool and this worker&#39;s io_uring ring (fatal under</span></div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment"> *      `brix_io_uring on`).</span></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment"> *   6. For each enabled server block: note GSI/manager presence, then run</span></div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment"> *      the per-server init ladder (fatal on error).</span></div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> *   7. Warm the GSI keypool, arm the pending-locate reaper, connect the</span></div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment"> *      identity broker, arm the stage-out reaper.</span></div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment"> *   8. Log the per-worker boot-cost breakdown and return NGX_OK.</span></div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00157" data-start="{" data-end="}">
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno"><a class="line" href="process_8c.html#a9041a20a2a88dee5db2546577526ba4a">  157</a></span><a class="code hl_function" href="process_8c.html#a9041a20a2a88dee5db2546577526ba4a">ngx_stream_brix_init_process</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>{</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    ngx_stream_core_main_conf_t   *cmcf;</div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    ngx_stream_core_srv_conf_t   **cscfp;</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>  *xcf;</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    ngx_uint_t                     i;</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>  *gsi_xcf = NULL;  <span class="comment">/* first GSI block: keypool cfg */</span></div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    ngx_uint_t                     manager_seen = 0;</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    <a class="code hl_struct" href="structbrix__phase__timer__t.html">brix_phase_timer_t</a>           pt;</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    u_char                         ctx[64];</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span> </div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    <span class="comment">/* Permanent per-worker boot-cost breakdown (one NOTICE line at the end). */</span></div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a6c5d44dbf9934bd46b366f967eb10858">brix_phase_timer_start</a>(&amp;pt);</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span> </div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="crypto_8c.html#ade07d1dd3acb0b87b5f44cd63c2de23b">brix_crypto_init</a>()) {</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        ngx_log_error(NGX_LOG_EMERG, cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>                      <span class="stringliteral">&quot;brix: failed to initialise OpenSSL crypto primitives&quot;</span>);</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span> </div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <a class="code hl_function" href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">brix_init_stage_engine_worker</a>(cycle);</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span> </div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment"> * Worker process init: start CRL reload timers for every server block that</span></div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="comment"> * has brix_crl_reload configured. Timers are per-worker because each</span></div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="comment"> * nginx worker process has its own event loop and its own copy of the config</span></div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="comment"> * pointers (but the X509_STORE* is shared within a worker).</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="comment">/* ---- Per-worker init after fork: bring up all worker-scoped subsystems ----</span></div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="comment"> * WHAT: Initialises crypto, the stage engine + scheduler, the proxy pool,</span></div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="comment"> * io_uring, every enabled server block (via brix_init_one_server), the GSI</span></div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment"> * keypool, the identity broker, and the worker-0 maintenance reapers.</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> * Returns NGX_OK / NGX_ERROR (NGX_ERROR aborts the worker).</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment"> * WHY: nginx workers are forked from the master and inherit config but not</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment"> * per-process resources (fds, timers, rings, key pools); everything a worker</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="comment"> * owns must be (re)built here, in the frozen order the reload-semantics</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment"> * contract documents.</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment"> * HOW:</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment"> *   1. Start the boot-cost phase timer and init OpenSSL crypto (fatal).</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="comment"> *   2. Bring up the stage engine and arm the per-worker stage-flush</span></div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="comment"> *      scheduler — BEFORE the stream-config early-return so HTTP-only</span></div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="comment"> *      (WebDAV/S3) workers get them too.</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="comment"> *   3. Early-return NGX_OK when there is no stream config.</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment"> *   4. Warn once when openat2(2) is unavailable (degraded confinement).</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment"> *   5. Init the proxy pool and this worker&#39;s io_uring ring (fatal under</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment"> *      `brix_io_uring on`).</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment"> *   6. For each enabled server block: note GSI/manager presence, then run</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> *      the per-server init ladder (fatal on error).</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment"> *   7. Warm the GSI keypool, arm the pending-locate reaper, connect the</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment"> *      identity broker, arm the stage-out reaper.</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment"> *   8. Log the per-worker boot-cost breakdown and return NGX_OK.</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00158" data-start="{" data-end="}">
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno"><a class="line" href="process_8c.html#a9041a20a2a88dee5db2546577526ba4a">  158</a></span><a class="code hl_function" href="process_8c.html#a9041a20a2a88dee5db2546577526ba4a">ngx_stream_brix_init_process</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>{</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    ngx_stream_core_main_conf_t   *cmcf;</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    ngx_stream_core_srv_conf_t   **cscfp;</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>  *xcf;</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    ngx_uint_t                     i;</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>  *gsi_xcf = NULL;  <span class="comment">/* first GSI block: keypool cfg */</span></div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    ngx_uint_t                     manager_seen = 0;</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    ngx_uint_t                     seccomp_mode = <a class="code hl_define" href="tunables_8h.html#a2f7a3e0ffe413efd7d532404a2cdfd21">BRIX_SECCOMP_OFF</a>; <span class="comment">/* D-3: strictest wins */</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <a class="code hl_struct" href="structbrix__phase__timer__t.html">brix_phase_timer_t</a>           pt;</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    u_char                         ctx[64];</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span> </div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <span class="comment">/* Permanent per-worker boot-cost breakdown (one NOTICE line at the end). */</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a6c5d44dbf9934bd46b366f967eb10858">brix_phase_timer_start</a>(&amp;pt);</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span> </div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="crypto_8c.html#ade07d1dd3acb0b87b5f44cd63c2de23b">brix_crypto_init</a>()) {</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        ngx_log_error(NGX_LOG_EMERG, cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>                      <span class="stringliteral">&quot;brix: failed to initialise OpenSSL crypto primitives&quot;</span>);</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    }</div>
 <div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span> </div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="comment">/* arm the per-worker async stage-flush scheduler. Done BEFORE the stream-config</span></div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><span class="comment">     * early-return below so it runs in HTTP-only (WebDAV/S3) workers too - the</span></div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="comment">     * deferred-flush queue is per-worker and protocol-agnostic; the tick is a no-op</span></div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment">     * when the queue is empty. */</span></div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <a class="code hl_function" href="process__internal_8h.html#ae6ba0df58c4dc495ed32682c441e1d49">brix_init_stage_sched_timer</a>(cycle);</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span> </div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    <span class="keywordflow">if</span> (cmcf == NULL) {</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    }</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span> </div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <a class="code hl_function" href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">brix_warn_openat2_unavailable</a>(cycle);</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <a class="code hl_function" href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">brix_init_stage_engine_worker</a>(cycle);</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    <span class="comment">/* arm the per-worker async stage-flush scheduler. Done BEFORE the stream-config</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment">     * early-return below so it runs in HTTP-only (WebDAV/S3) workers too - the</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment">     * deferred-flush queue is per-worker and protocol-agnostic; the tick is a no-op</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="comment">     * when the queue is empty. */</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <a class="code hl_function" href="process__internal_8h.html#ae6ba0df58c4dc495ed32682c441e1d49">brix_init_stage_sched_timer</a>(cycle);</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span> </div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordflow">if</span> (cmcf == NULL) {</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    }</div>
 <div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span> </div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    cscfp = cmcf-&gt;servers.elts;</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    <a class="code hl_function" href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">brix_warn_openat2_unavailable</a>(cycle);</div>
 <div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span> </div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <a class="code hl_function" href="src_2net_2proxy_2pool_8c.html#a70f1ba07ee8acacdf9db1387d9883041">brix_proxy_pool_init</a>();</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    cscfp = cmcf-&gt;servers.elts;</div>
 <div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span> </div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="comment">     * Phase 44: bring up this worker&#39;s optional io_uring ring (after the proxy</span></div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="comment">     * pool, same lifetime as every other per-worker async resource).  A no-op</span></div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="comment">     * unless a server block enabled it; under `brix_io_uring on` a bring-up</span></div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment">     * failure returns NGX_ERROR so the worker refuses to run on the thread pool</span></div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment">     * (§32.7 backstop).  Under `auto` it degrades silently.</span></div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="src_2core_2aio_2uring_8c.html#ac60b7da463b6cba486159362a9a08d49">brix_uring_init_worker</a>(cycle) != NGX_OK) {</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    }</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a10d037d207c267950473a8e519bd35ff">brix_phase_mark</a>(&amp;pt, <span class="stringliteral">&quot;uring&quot;</span>);</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span> </div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <span class="keywordflow">for</span> (i = 0; i &lt; cmcf-&gt;servers.nelts; i++) {</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>                                                   <a class="code hl_variable" href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>        <span class="keywordflow">if</span> (!xcf-&gt;common.enable) {</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>        }</div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span> </div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>        <span class="keywordflow">if</span> ((xcf-&gt;auth == <a class="code hl_define" href="tunables_8h.html#ad7411dd133cf2a77572005e0d219ddd0">BRIX_AUTH_GSI</a> || xcf-&gt;auth == <a class="code hl_define" href="tunables_8h.html#a498d07a4f289ac7c5e6049513f318dbf">BRIX_AUTH_BOTH</a>)</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>            &amp;&amp; gsi_xcf == NULL)</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>        {</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>            <span class="comment">/* Phase 33: warm the GSI DH key pool below — keypool sizing +</span></div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment">             * thread pool come from the first GSI block. */</span></div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>            gsi_xcf = xcf;</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        }</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span> </div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>        <span class="keywordflow">if</span> (xcf-&gt;manager_mode) {</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>            manager_seen = 1;   <span class="comment">/* A4: arm the pending-locate reaper below */</span></div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        }</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span> </div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="process__internal_8h.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a>(cycle, xcf) != NGX_OK) {</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        }</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    }</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span> </div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a10d037d207c267950473a8e519bd35ff">brix_phase_mark</a>(&amp;pt, <span class="stringliteral">&quot;servers&quot;</span>);</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span> </div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    <a class="code hl_function" href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">brix_init_gsi_keypool</a>(cycle, gsi_xcf);</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a10d037d207c267950473a8e519bd35ff">brix_phase_mark</a>(&amp;pt, <span class="stringliteral">&quot;keypool&quot;</span>);</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span> </div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <a class="code hl_function" href="process__internal_8h.html#a684cfcb58f8aea1d0c383195310bfee1">brix_init_pending_reap_timer</a>(cycle, manager_seen);</div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span> </div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <span class="comment">/* Phase 40: connect this worker to the identity broker (no-op unless</span></div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span><span class="comment">     * brix_impersonation=map; lazily reconnects if the broker isn&#39;t up yet). */</span></div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    <a class="code hl_function" href="lifecycle_8h.html#a399627ae243a5f7ef8a64ad520ac9596">brix_imp_init_worker</a>(cycle);</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <a class="code hl_function" href="src_2net_2proxy_2pool_8c.html#a70f1ba07ee8acacdf9db1387d9883041">brix_proxy_pool_init</a>();</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span> </div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="comment">     * Phase 44: bring up this worker&#39;s optional io_uring ring (after the proxy</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment">     * pool, same lifetime as every other per-worker async resource).  A no-op</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment">     * unless a server block enabled it; under `brix_io_uring on` a bring-up</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment">     * failure returns NGX_ERROR so the worker refuses to run on the thread pool</span></div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="comment">     * (§32.7 backstop).  Under `auto` it degrades silently.</span></div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="src_2core_2aio_2uring_8c.html#ac60b7da463b6cba486159362a9a08d49">brix_uring_init_worker</a>(cycle) != NGX_OK) {</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    }</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a10d037d207c267950473a8e519bd35ff">brix_phase_mark</a>(&amp;pt, <span class="stringliteral">&quot;uring&quot;</span>);</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span> </div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    <span class="keywordflow">for</span> (i = 0; i &lt; cmcf-&gt;servers.nelts; i++) {</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>                                                   <a class="code hl_variable" href="negcache_8c.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span> </div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>        <span class="keywordflow">if</span> (!xcf-&gt;common.enable) {</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>        }</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span> </div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>        <span class="keywordflow">if</span> ((xcf-&gt;auth == <a class="code hl_define" href="tunables_8h.html#ad7411dd133cf2a77572005e0d219ddd0">BRIX_AUTH_GSI</a> || xcf-&gt;auth == <a class="code hl_define" href="tunables_8h.html#a498d07a4f289ac7c5e6049513f318dbf">BRIX_AUTH_BOTH</a>)</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>            &amp;&amp; gsi_xcf == NULL)</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>        {</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>            <span class="comment">/* Phase 33: warm the GSI DH key pool below — keypool sizing +</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="comment">             * thread pool come from the first GSI block. */</span></div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>            gsi_xcf = xcf;</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>        }</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span> </div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        <span class="keywordflow">if</span> (xcf-&gt;manager_mode) {</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>            manager_seen = 1;   <span class="comment">/* A4: arm the pending-locate reaper below */</span></div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>        }</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span> </div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        <span class="comment">/* D-3: the seccomp filter is process-global, but the directive is</span></div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="comment">         * per-server; take the strictest requested value across enabled blocks</span></div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span><span class="comment">         * (off &lt; audit &lt; enforce, encoded in the enum order). */</span></div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        <span class="keywordflow">if</span> (xcf-&gt;seccomp &gt; seccomp_mode) {</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>            seccomp_mode = xcf-&gt;seccomp;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>        }</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span> </div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="process__internal_8h.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a>(cycle, xcf) != NGX_OK) {</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>        }</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    }</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span> </div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a10d037d207c267950473a8e519bd35ff">brix_phase_mark</a>(&amp;pt, <span class="stringliteral">&quot;servers&quot;</span>);</div>
 <div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span> </div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    <a class="code hl_function" href="process__internal_8h.html#a7135b2a645e7af45cdfd50a7aff3d105">brix_init_stage_reap_timer</a>(cycle);</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span> </div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    ngx_snprintf(ctx, <span class="keyword">sizeof</span>(ctx) - 1, <span class="stringliteral">&quot;xrootd init_process[w%ui]%Z&quot;</span>, ngx_worker);</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a8b50cabf3533b7bf09904994636c073c">brix_phase_timer_log</a>(&amp;pt, cycle-&gt;log, (<span class="keyword">const</span> <span class="keywordtype">char</span> *) ctx);</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    <a class="code hl_function" href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">brix_init_gsi_keypool</a>(cycle, gsi_xcf);</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a10d037d207c267950473a8e519bd35ff">brix_phase_mark</a>(&amp;pt, <span class="stringliteral">&quot;keypool&quot;</span>);</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span> </div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    <a class="code hl_function" href="process__internal_8h.html#a684cfcb58f8aea1d0c383195310bfee1">brix_init_pending_reap_timer</a>(cycle, manager_seen);</div>
 <div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span> </div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>}</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="comment">/* Phase 40: connect this worker to the identity broker (no-op unless</span></div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span><span class="comment">     * brix_impersonation=map; lazily reconnects if the broker isn&#39;t up yet). */</span></div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    <a class="code hl_function" href="lifecycle_8h.html#a399627ae243a5f7ef8a64ad520ac9596">brix_imp_init_worker</a>(cycle);</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <a class="code hl_function" href="process__internal_8h.html#a7135b2a645e7af45cdfd50a7aff3d105">brix_init_stage_reap_timer</a>(cycle);</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span> </div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    ngx_snprintf(ctx, <span class="keyword">sizeof</span>(ctx) - 1, <span class="stringliteral">&quot;xrootd init_process[w%ui]%Z&quot;</span>, ngx_worker);</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    <a class="code hl_function" href="lifecycle__timing_8c.html#a8b50cabf3533b7bf09904994636c073c">brix_phase_timer_log</a>(&amp;pt, cycle-&gt;log, (<span class="keyword">const</span> <span class="keywordtype">char</span> *) ctx);</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span> </div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    <span class="comment">/* D-3: install the seccomp syscall filter LAST, once every one-shot setup</span></div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span><span class="comment">     * syscall above has run, so only the steady-state serving set must be on the</span></div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span><span class="comment">     * allowlist. Fails the worker closed if an audit/enforce filter cannot be</span></div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span><span class="comment">     * loaded (e.g. libseccomp missing) — never serve unfiltered when the operator</span></div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span><span class="comment">     * configured a filter. */</span></div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="seccomp_8c.html#a37b0196103bbf2ac6128f6168057d63c">brix_seccomp_install</a>(cycle, seccomp_mode) != NGX_OK) {</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    }</div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span> </div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>}</div>
 </div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span> </div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span><span class="comment">/* Per-worker teardown at exit: release process-scoped resources. */</span></div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00254" data-start="{" data-end="}">
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno"><a class="line" href="process_8c.html#a556eae007725d3778b6ad3fceebf0dcd">  254</a></span><a class="code hl_function" href="process_8c.html#a556eae007725d3778b6ad3fceebf0dcd">brix_exit_process</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>{</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    ngx_stream_core_main_conf_t   *cmcf;</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    ngx_stream_core_srv_conf_t   **cscfp;</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>  *xcf;</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    ngx_uint_t                     i;</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span> </div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span><span class="comment">     * Phase 27 W6: best-effort explicit LeakSanitizer check at worker exit.</span></div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span><span class="comment">     * nginx&#39;s daemon exit path does not reliably reach LSan&#39;s own atexit hook,</span></div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span><span class="comment">     * so a sanitizer build would otherwise never report leaks.  Placed before</span></div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span><span class="comment">     * any early return so it runs for http-only configs too.  Compiled out</span></div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment">     * entirely in normal builds — zero production effect.</span></div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment">     *</span></div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span><span class="comment">     * NOTE: whether this actually fires depends on nginx reaching exit_process</span></div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span><span class="comment">     * at shutdown, which is platform/signal-dependent (it was observed NOT to</span></div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span><span class="comment">     * run under WSL2 in dev).  See docs/03-configuration/build-guide.md.</span></div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span><span class="preprocessor">#if defined(__SANITIZE_ADDRESS__)</span></div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    __lsan_do_recoverable_leak_check();</div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span> </div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <a class="code hl_function" href="sesslog__ngx_8c.html#a33d3cff15ddb8b93d133df5527d5eb18">brix_sesslog_shutdown_flush</a>();</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span> </div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    <span class="comment">/* Fast teardown: drop any idle pooled upstream connections so this draining</span></div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span><span class="comment">     * worker releases authenticated upstream sockets immediately (with a clean</span></div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span><span class="comment">     * FIN) rather than leaving process-exit to reap them.  Idempotent and safe</span></div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span><span class="comment">     * when proxy mode was never used (the pool is simply empty). */</span></div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>    <a class="code hl_function" href="src_2net_2proxy_2pool_8c.html#a9dbc50308fa3a82cb28386e5cd8e99c0">brix_proxy_pool_shutdown</a>();</div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span> </div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    <span class="comment">/* Phase 44: tear down this worker&#39;s io_uring ring (no-op if never up). */</span></div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    <a class="code hl_function" href="src_2core_2aio_2uring_8c.html#a2de5faca8d5c68f3bd7facddbb01f83c">brix_uring_exit_worker</a>(cycle);</div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span> </div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);</div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    <span class="keywordflow">if</span> (cmcf == NULL) {</div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>    }</div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span> </div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    cscfp = cmcf-&gt;servers.elts;</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>    <span class="keywordflow">for</span> (i = 0; i &lt; cmcf-&gt;servers.nelts; i++) {</div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],</div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>                                                   <a class="code hl_variable" href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>        <span class="keywordflow">if</span> (!xcf-&gt;common.enable) {</div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>        }</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>        <span class="keywordflow">if</span> (xcf-&gt;rootfd &gt;= 0) {</div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>            <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(xcf-&gt;rootfd);</div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>            xcf-&gt;rootfd = -1;</div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>        }</div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>        <a class="code hl_function" href="cache__storage_8c.html#a86e8d6fe5af2067cfa625745ba4366fd">brix_cache_storage_cleanup</a>(xcf);</div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    }</div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span> </div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    <a class="code hl_function" href="crypto_8c.html#ac18379c18e88c057819a9591486177c9">brix_crypto_cleanup</a>();</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>}</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span> </div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span><span class="comment">/* Per-worker teardown at exit: release process-scoped resources. */</span></div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00272" data-start="{" data-end="}">
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno"><a class="line" href="process_8c.html#a556eae007725d3778b6ad3fceebf0dcd">  272</a></span><a class="code hl_function" href="process_8c.html#a556eae007725d3778b6ad3fceebf0dcd">brix_exit_process</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>{</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    ngx_stream_core_main_conf_t   *cmcf;</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    ngx_stream_core_srv_conf_t   **cscfp;</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>  *xcf;</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    ngx_uint_t                     i;</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span> </div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span><span class="comment">     * Phase 27 W6: best-effort explicit LeakSanitizer check at worker exit.</span></div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span><span class="comment">     * nginx&#39;s daemon exit path does not reliably reach LSan&#39;s own atexit hook,</span></div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span><span class="comment">     * so a sanitizer build would otherwise never report leaks.  Placed before</span></div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span><span class="comment">     * any early return so it runs for http-only configs too.  Compiled out</span></div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span><span class="comment">     * entirely in normal builds — zero production effect.</span></div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span><span class="comment">     *</span></div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span><span class="comment">     * NOTE: whether this actually fires depends on nginx reaching exit_process</span></div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span><span class="comment">     * at shutdown, which is platform/signal-dependent (it was observed NOT to</span></div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span><span class="comment">     * run under WSL2 in dev).  See docs/03-configuration/build-guide.md.</span></div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span><span class="preprocessor">#if defined(__SANITIZE_ADDRESS__)</span></div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>    __lsan_do_recoverable_leak_check();</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span> </div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>    <a class="code hl_function" href="sesslog__ngx_8c.html#a33d3cff15ddb8b93d133df5527d5eb18">brix_sesslog_shutdown_flush</a>();</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span> </div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>    <span class="comment">/* Fast teardown: drop any idle pooled upstream connections so this draining</span></div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span><span class="comment">     * worker releases authenticated upstream sockets immediately (with a clean</span></div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span><span class="comment">     * FIN) rather than leaving process-exit to reap them.  Idempotent and safe</span></div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span><span class="comment">     * when proxy mode was never used (the pool is simply empty). */</span></div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>    <a class="code hl_function" href="src_2net_2proxy_2pool_8c.html#a9dbc50308fa3a82cb28386e5cd8e99c0">brix_proxy_pool_shutdown</a>();</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span> </div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>    <span class="comment">/* Phase 44: tear down this worker&#39;s io_uring ring (no-op if never up). */</span></div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>    <a class="code hl_function" href="src_2core_2aio_2uring_8c.html#a2de5faca8d5c68f3bd7facddbb01f83c">brix_uring_exit_worker</a>(cycle);</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span> </div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>    cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    <span class="keywordflow">if</span> (cmcf == NULL) {</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>    }</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span> </div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>    cscfp = cmcf-&gt;servers.elts;</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    <span class="keywordflow">for</span> (i = 0; i &lt; cmcf-&gt;servers.nelts; i++) {</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>                                                   <a class="code hl_variable" href="negcache_8c.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>        <span class="keywordflow">if</span> (!xcf-&gt;common.enable) {</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>        }</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>        <span class="keywordflow">if</span> (xcf-&gt;rootfd &gt;= 0) {</div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>            <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(xcf-&gt;rootfd);</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>            xcf-&gt;rootfd = -1;</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>        }</div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>        <a class="code hl_function" href="cache__storage_8c.html#a86e8d6fe5af2067cfa625745ba4366fd">brix_cache_storage_cleanup</a>(xcf);</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>    }</div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span> </div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <a class="code hl_function" href="crypto_8c.html#ac18379c18e88c057819a9591486177c9">brix_crypto_cleanup</a>();</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>}</div>
 </div>
 <div class="ttc" id="abrixposix__preload_8c_html_aafbcde67669a1b96577e735ddebd8634"><div class="ttname"><a href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a></div><div class="ttdeci">int close(int fd)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00374">brixposix_preload.c:374</a></div></div>
-<div class="ttc" id="acache__storage_8c_html_a86e8d6fe5af2067cfa625745ba4366fd"><div class="ttname"><a href="cache__storage_8c.html#a86e8d6fe5af2067cfa625745ba4366fd">brix_cache_storage_cleanup</a></div><div class="ttdeci">void brix_cache_storage_cleanup(ngx_stream_brix_srv_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="cache__storage_8c_source.html#l00436">cache_storage.c:436</a></div></div>
+<div class="ttc" id="acache__storage_8c_html_a86e8d6fe5af2067cfa625745ba4366fd"><div class="ttname"><a href="cache__storage_8c.html#a86e8d6fe5af2067cfa625745ba4366fd">brix_cache_storage_cleanup</a></div><div class="ttdeci">void brix_cache_storage_cleanup(ngx_stream_brix_srv_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="cache__storage_8c_source.html#l00454">cache_storage.c:454</a></div></div>
 <div class="ttc" id="acache__storage_8h_html"><div class="ttname"><a href="cache__storage_8h.html">cache_storage.h</a></div></div>
 <div class="ttc" id="acrypto_8c_html_ac18379c18e88c057819a9591486177c9"><div class="ttname"><a href="crypto_8c.html#ac18379c18e88c057819a9591486177c9">brix_crypto_cleanup</a></div><div class="ttdeci">void brix_crypto_cleanup(void)</div><div class="ttdef"><b>Definition</b> <a href="crypto_8c_source.html#l00030">crypto.c:30</a></div></div>
 <div class="ttc" id="acrypto_8c_html_ade07d1dd3acb0b87b5f44cd63c2de23b"><div class="ttname"><a href="crypto_8c.html#ade07d1dd3acb0b87b5f44cd63c2de23b">brix_crypto_init</a></div><div class="ttdeci">int brix_crypto_init(void)</div><div class="ttdef"><b>Definition</b> <a href="crypto_8c_source.html#l00022">crypto.c:22</a></div></div>
@@ -430,19 +448,21 @@ $(document).ready(function(){initNavTree('process_8c_source.html',''); initResiz
 <div class="ttc" id="alifecycle__timing_8c_html_a6c5d44dbf9934bd46b366f967eb10858"><div class="ttname"><a href="lifecycle__timing_8c.html#a6c5d44dbf9934bd46b366f967eb10858">brix_phase_timer_start</a></div><div class="ttdeci">void brix_phase_timer_start(brix_phase_timer_t *t)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__timing_8c_source.html#l00035">lifecycle_timing.c:35</a></div></div>
 <div class="ttc" id="alifecycle__timing_8c_html_a8b50cabf3533b7bf09904994636c073c"><div class="ttname"><a href="lifecycle__timing_8c.html#a8b50cabf3533b7bf09904994636c073c">brix_phase_timer_log</a></div><div class="ttdeci">void brix_phase_timer_log(brix_phase_timer_t *t, ngx_log_t *log, const char *context)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__timing_8c_source.html#l00097">lifecycle_timing.c:97</a></div></div>
 <div class="ttc" id="alifecycle__timing_8h_html"><div class="ttname"><a href="lifecycle__timing_8h.html">lifecycle_timing.h</a></div></div>
+<div class="ttc" id="anegcache_8c_html_a05c4e5ac379ae60715b73cca5b1ebe88"><div class="ttname"><a href="negcache_8c.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_module</div><div class="ttdef"><b>Definition</b> <a href="module__definition_8c_source.html#l00029">module_definition.c:29</a></div></div>
 <div class="ttc" id="anet_2proxy_2proxy__internal_8h_html"><div class="ttname"><a href="net_2proxy_2proxy__internal_8h.html">proxy_internal.h</a></div></div>
-<div class="ttc" id="angx__brix__module_8h_html_a05c4e5ac379ae60715b73cca5b1ebe88"><div class="ttname"><a href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_module</div><div class="ttdef"><b>Definition</b> <a href="module__definition_8c_source.html#l00029">module_definition.c:29</a></div></div>
-<div class="ttc" id="aprocess_8c_html_a31483984f7f5174495c7ea4a4aee060b"><div class="ttname"><a href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">brix_init_stage_engine_worker</a></div><div class="ttdeci">static void brix_init_stage_engine_worker(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00051">process.c:51</a></div></div>
-<div class="ttc" id="aprocess_8c_html_a556eae007725d3778b6ad3fceebf0dcd"><div class="ttname"><a href="process_8c.html#a556eae007725d3778b6ad3fceebf0dcd">brix_exit_process</a></div><div class="ttdeci">void brix_exit_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00254">process.c:254</a></div></div>
-<div class="ttc" id="aprocess_8c_html_a9041a20a2a88dee5db2546577526ba4a"><div class="ttname"><a href="process_8c.html#a9041a20a2a88dee5db2546577526ba4a">ngx_stream_brix_init_process</a></div><div class="ttdeci">ngx_int_t ngx_stream_brix_init_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00157">process.c:157</a></div></div>
-<div class="ttc" id="aprocess_8c_html_aba9417f5093f9190bc8c7c27b11ffa6e"><div class="ttname"><a href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">brix_init_gsi_keypool</a></div><div class="ttdeci">static void brix_init_gsi_keypool(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *gsi_xcf)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00085">process.c:85</a></div></div>
-<div class="ttc" id="aprocess_8c_html_ad4b36dcd5016319df35afe5f846afa9c"><div class="ttname"><a href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">brix_warn_openat2_unavailable</a></div><div class="ttdeci">static void brix_warn_openat2_unavailable(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00111">process.c:111</a></div></div>
+<div class="ttc" id="aprocess_8c_html_a31483984f7f5174495c7ea4a4aee060b"><div class="ttname"><a href="process_8c.html#a31483984f7f5174495c7ea4a4aee060b">brix_init_stage_engine_worker</a></div><div class="ttdeci">static void brix_init_stage_engine_worker(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00052">process.c:52</a></div></div>
+<div class="ttc" id="aprocess_8c_html_a556eae007725d3778b6ad3fceebf0dcd"><div class="ttname"><a href="process_8c.html#a556eae007725d3778b6ad3fceebf0dcd">brix_exit_process</a></div><div class="ttdeci">void brix_exit_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00272">process.c:272</a></div></div>
+<div class="ttc" id="aprocess_8c_html_a9041a20a2a88dee5db2546577526ba4a"><div class="ttname"><a href="process_8c.html#a9041a20a2a88dee5db2546577526ba4a">ngx_stream_brix_init_process</a></div><div class="ttdeci">ngx_int_t ngx_stream_brix_init_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00158">process.c:158</a></div></div>
+<div class="ttc" id="aprocess_8c_html_aba9417f5093f9190bc8c7c27b11ffa6e"><div class="ttname"><a href="process_8c.html#aba9417f5093f9190bc8c7c27b11ffa6e">brix_init_gsi_keypool</a></div><div class="ttdeci">static void brix_init_gsi_keypool(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *gsi_xcf)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00086">process.c:86</a></div></div>
+<div class="ttc" id="aprocess_8c_html_ad4b36dcd5016319df35afe5f846afa9c"><div class="ttname"><a href="process_8c.html#ad4b36dcd5016319df35afe5f846afa9c">brix_warn_openat2_unavailable</a></div><div class="ttdeci">static void brix_warn_openat2_unavailable(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process_8c_source.html#l00112">process.c:112</a></div></div>
 <div class="ttc" id="aprocess__internal_8h_html"><div class="ttname"><a href="process__internal_8h.html">process_internal.h</a></div></div>
 <div class="ttc" id="aprocess__internal_8h_html_a684cfcb58f8aea1d0c383195310bfee1"><div class="ttname"><a href="process__internal_8h.html#a684cfcb58f8aea1d0c383195310bfee1">brix_init_pending_reap_timer</a></div><div class="ttdeci">void brix_init_pending_reap_timer(ngx_cycle_t *cycle, ngx_uint_t manager_seen)</div><div class="ttdef"><b>Definition</b> <a href="process__timers_8c_source.html#l00236">process_timers.c:236</a></div></div>
 <div class="ttc" id="aprocess__internal_8h_html_a7135b2a645e7af45cdfd50a7aff3d105"><div class="ttname"><a href="process__internal_8h.html#a7135b2a645e7af45cdfd50a7aff3d105">brix_init_stage_reap_timer</a></div><div class="ttdeci">void brix_init_stage_reap_timer(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process__timers_8c_source.html#l00266">process_timers.c:266</a></div></div>
-<div class="ttc" id="aprocess__internal_8h_html_ac59610dbd0be7fe9571ab27059b064ae"><div class="ttname"><a href="process__internal_8h.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a></div><div class="ttdeci">ngx_int_t brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="process__server__init_8c_source.html#l00342">process_server_init.c:342</a></div></div>
+<div class="ttc" id="aprocess__internal_8h_html_ac59610dbd0be7fe9571ab27059b064ae"><div class="ttname"><a href="process__internal_8h.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a></div><div class="ttdeci">ngx_int_t brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="process__server__init_8c_source.html#l00351">process_server_init.c:351</a></div></div>
 <div class="ttc" id="aprocess__internal_8h_html_ae6ba0df58c4dc495ed32682c441e1d49"><div class="ttname"><a href="process__internal_8h.html#ae6ba0df58c4dc495ed32682c441e1d49">brix_init_stage_sched_timer</a></div><div class="ttdeci">void brix_init_stage_sched_timer(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="process__timers_8c_source.html#l00207">process_timers.c:207</a></div></div>
 <div class="ttc" id="aproxy_8h_html"><div class="ttname"><a href="proxy_8h.html">proxy.h</a></div></div>
+<div class="ttc" id="aseccomp_8c_html_a37b0196103bbf2ac6128f6168057d63c"><div class="ttname"><a href="seccomp_8c.html#a37b0196103bbf2ac6128f6168057d63c">brix_seccomp_install</a></div><div class="ttdeci">ngx_int_t brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode)</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00038">seccomp.c:38</a></div></div>
+<div class="ttc" id="aseccomp_8h_html"><div class="ttname"><a href="seccomp_8h.html">seccomp.h</a></div></div>
 <div class="ttc" id="asesslog__ngx_8c_html_a33d3cff15ddb8b93d133df5527d5eb18"><div class="ttname"><a href="sesslog__ngx_8c.html#a33d3cff15ddb8b93d133df5527d5eb18">brix_sesslog_shutdown_flush</a></div><div class="ttdeci">void brix_sesslog_shutdown_flush(void)</div><div class="ttdef"><b>Definition</b> <a href="sesslog__ngx_8c_source.html#l00488">sesslog_ngx.c:488</a></div></div>
 <div class="ttc" id="asesslog__ngx_8h_html"><div class="ttname"><a href="sesslog__ngx_8h.html">sesslog_ngx.h</a></div></div>
 <div class="ttc" id="asrc_2core_2aio_2uring_8c_html_a2de5faca8d5c68f3bd7facddbb01f83c"><div class="ttname"><a href="src_2core_2aio_2uring_8c.html#a2de5faca8d5c68f3bd7facddbb01f83c">brix_uring_exit_worker</a></div><div class="ttdeci">void brix_uring_exit_worker(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="src_2core_2aio_2uring_8c_source.html#l00210">uring.c:210</a></div></div>
@@ -450,14 +470,15 @@ $(document).ready(function(){initNavTree('process_8c_source.html',''); initResiz
 <div class="ttc" id="asrc_2net_2proxy_2pool_8c_html_a70f1ba07ee8acacdf9db1387d9883041"><div class="ttname"><a href="src_2net_2proxy_2pool_8c.html#a70f1ba07ee8acacdf9db1387d9883041">brix_proxy_pool_init</a></div><div class="ttdeci">void brix_proxy_pool_init(void)</div><div class="ttdef"><b>Definition</b> <a href="src_2net_2proxy_2pool_8c_source.html#l00257">pool.c:257</a></div></div>
 <div class="ttc" id="asrc_2net_2proxy_2pool_8c_html_a9dbc50308fa3a82cb28386e5cd8e99c0"><div class="ttname"><a href="src_2net_2proxy_2pool_8c.html#a9dbc50308fa3a82cb28386e5cd8e99c0">brix_proxy_pool_shutdown</a></div><div class="ttdeci">void brix_proxy_pool_shutdown(void)</div><div class="ttdef"><b>Definition</b> <a href="src_2net_2proxy_2pool_8c_source.html#l00209">pool.c:209</a></div></div>
 <div class="ttc" id="astage__engine_8h_html"><div class="ttname"><a href="stage__engine_8h.html">stage_engine.h</a></div></div>
-<div class="ttc" id="astage__engine_8h_html_a2573183a9cf8f22590a304e27a3836cc"><div class="ttname"><a href="stage__engine_8h.html#a2573183a9cf8f22590a304e27a3836cc">brix_stage_reconcile</a></div><div class="ttdeci">void brix_stage_reconcile(brix_stage_queue_t *queue)</div><div class="ttdef"><b>Definition</b> <a href="stage__engine__reconcile_8c_source.html#l00173">stage_engine_reconcile.c:173</a></div></div>
+<div class="ttc" id="astage__engine_8h_html_a2573183a9cf8f22590a304e27a3836cc"><div class="ttname"><a href="stage__engine_8h.html#a2573183a9cf8f22590a304e27a3836cc">brix_stage_reconcile</a></div><div class="ttdeci">void brix_stage_reconcile(brix_stage_queue_t *queue)</div><div class="ttdef"><b>Definition</b> <a href="stage__engine__reconcile_8c_source.html#l00186">stage_engine_reconcile.c:186</a></div></div>
 <div class="ttc" id="astage__engine_8h_html_a4e65b53a38ab5edfc3f9f391d192db59"><div class="ttname"><a href="stage__engine_8h.html#a4e65b53a38ab5edfc3f9f391d192db59">brix_stage_engine_init</a></div><div class="ttdeci">void brix_stage_engine_init(const char *journal_dir)</div><div class="ttdef"><b>Definition</b> <a href="stage__engine__journal_8c_source.html#l00050">stage_engine_journal.c:50</a></div></div>
 <div class="ttc" id="astructbrix__phase__timer__t_html"><div class="ttname"><a href="structbrix__phase__timer__t.html">brix_phase_timer_t</a></div><div class="ttdef"><b>Definition</b> <a href="lifecycle__timing_8h_source.html#l00045">lifecycle_timing.h:45</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00112">config.h:112</a></div></div>
+<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00115">config.h:115</a></div></div>
 <div class="ttc" id="atmp__path_8c_html_ad623b4cf4e7ebf487302264af3d78402"><div class="ttname"><a href="tmp__path_8c.html#ad623b4cf4e7ebf487302264af3d78402">brix_tmp_reap_all</a></div><div class="ttdeci">ngx_uint_t brix_tmp_reap_all(ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="tmp__path_8c_source.html#l00213">tmp_path.c:213</a></div></div>
 <div class="ttc" id="atmp__path_8h_html"><div class="ttname"><a href="tmp__path_8h.html">tmp_path.h</a></div></div>
-<div class="ttc" id="atunables_8h_html_a498d07a4f289ac7c5e6049513f318dbf"><div class="ttname"><a href="tunables_8h.html#a498d07a4f289ac7c5e6049513f318dbf">BRIX_AUTH_BOTH</a></div><div class="ttdeci">#define BRIX_AUTH_BOTH</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00232">tunables.h:232</a></div></div>
-<div class="ttc" id="atunables_8h_html_ad7411dd133cf2a77572005e0d219ddd0"><div class="ttname"><a href="tunables_8h.html#ad7411dd133cf2a77572005e0d219ddd0">BRIX_AUTH_GSI</a></div><div class="ttdeci">#define BRIX_AUTH_GSI</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00230">tunables.h:230</a></div></div>
+<div class="ttc" id="atunables_8h_html_a2f7a3e0ffe413efd7d532404a2cdfd21"><div class="ttname"><a href="tunables_8h.html#a2f7a3e0ffe413efd7d532404a2cdfd21">BRIX_SECCOMP_OFF</a></div><div class="ttdeci">#define BRIX_SECCOMP_OFF</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00114">tunables.h:114</a></div></div>
+<div class="ttc" id="atunables_8h_html_a498d07a4f289ac7c5e6049513f318dbf"><div class="ttname"><a href="tunables_8h.html#a498d07a4f289ac7c5e6049513f318dbf">BRIX_AUTH_BOTH</a></div><div class="ttdeci">#define BRIX_AUTH_BOTH</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00257">tunables.h:257</a></div></div>
+<div class="ttc" id="atunables_8h_html_ad7411dd133cf2a77572005e0d219ddd0"><div class="ttname"><a href="tunables_8h.html#ad7411dd133cf2a77572005e0d219ddd0">BRIX_AUTH_GSI</a></div><div class="ttdeci">#define BRIX_AUTH_GSI</div><div class="ttdef"><b>Definition</b> <a href="tunables_8h_source.html#l00255">tunables.h:255</a></div></div>
 <div class="ttc" id="atypes_2config_8h_html"><div class="ttname"><a href="types_2config_8h.html">config.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

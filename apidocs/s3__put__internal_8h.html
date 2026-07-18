@@ -148,8 +148,8 @@ Functions</h2></td></tr>
 <tr class="separator:afa78c11958a36ecc73cc3ba96f759583"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7c876b66bda1d27bdc59d28c4bc39a51" id="r_a7c876b66bda1d27bdc59d28c4bc39a51"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a7c876b66bda1d27bdc59d28c4bc39a51">s3put_commit_and_headers</a> (<a class="el" href="structs3put__state__t.html">s3put_state_t</a> *st)</td></tr>
 <tr class="separator:a7c876b66bda1d27bdc59d28c4bc39a51"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2bb2fc5004e7353a8265da75c602186b" id="r_a2bb2fc5004e7353a8265da75c602186b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a2bb2fc5004e7353a8265da75c602186b">s3_commit_put</a> (ngx_http_request_t *r, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, brix_vfs_staged_t *staged, const char *final_path)</td></tr>
-<tr class="separator:a2bb2fc5004e7353a8265da75c602186b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a55cb949ba26946fbb132f46dfbfb5329" id="r_a55cb949ba26946fbb132f46dfbfb5329"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a55cb949ba26946fbb132f46dfbfb5329">s3_commit_put</a> (ngx_http_request_t *r, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *root_canon, brix_vfs_writer_t *writer, const char *final_path)</td></tr>
+<tr class="separator:a55cb949ba26946fbb132f46dfbfb5329"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a368ddb9a5ab722e81a4184ba6a03371d" id="r_a368ddb9a5ab722e81a4184ba6a03371d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a368ddb9a5ab722e81a4184ba6a03371d">s3_put_commit_conflict</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a368ddb9a5ab722e81a4184ba6a03371d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a78e422b5e6f262427c459bfc5eecf61f" id="r_a78e422b5e6f262427c459bfc5eecf61f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a78e422b5e6f262427c459bfc5eecf61f">s3_put_aio_thread</a> (void *data, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
@@ -176,18 +176,18 @@ Functions</h2></td></tr>
 <tr class="separator:a61d3c59dc37618983fa0f71f5d78d328"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3dc90cfa96845877163479e7e66e4bdb" id="r_a3dc90cfa96845877163479e7e66e4bdb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a3dc90cfa96845877163479e7e66e4bdb">s3_put_finalize_client_error</a> (ngx_http_request_t *r, int status, const char *<a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, const char *message)</td></tr>
 <tr class="separator:a3dc90cfa96845877163479e7e66e4bdb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7f4ca7da93ba90b46222cbe9f5bf870a" id="r_a7f4ca7da93ba90b46222cbe9f5bf870a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a7f4ca7da93ba90b46222cbe9f5bf870a">s3_chunk_finalize</a> (ngx_http_request_t *r, const char *root_canon, const char *fs_path, brix_vfs_staged_t *staged, const <a class="el" href="structs3__chunk__trailer__t.html">s3_chunk_trailer_t</a> *trailer, uint64_t expected, ngx_uint_t body_mode)</td></tr>
-<tr class="separator:a7f4ca7da93ba90b46222cbe9f5bf870a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9abdfa5a15c7474128759743efadec64" id="r_a9abdfa5a15c7474128759743efadec64"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a9abdfa5a15c7474128759743efadec64">s3_chunk_decode_failed</a> (ngx_http_request_t *r, const char *root_canon, brix_vfs_staged_t *staged, int http_status)</td></tr>
-<tr class="separator:a9abdfa5a15c7474128759743efadec64"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1b8a662a84e089cd242f7e6c93ed0da6" id="r_a1b8a662a84e089cd242f7e6c93ed0da6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a1b8a662a84e089cd242f7e6c93ed0da6">s3_chunk_finalize</a> (ngx_http_request_t *r, const char *root_canon, const char *fs_path, brix_vfs_writer_t *writer, const <a class="el" href="structs3__chunk__trailer__t.html">s3_chunk_trailer_t</a> *trailer, uint64_t expected, ngx_uint_t body_mode)</td></tr>
+<tr class="separator:a1b8a662a84e089cd242f7e6c93ed0da6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a678e995341f9b265377cadb06527b210" id="r_a678e995341f9b265377cadb06527b210"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a678e995341f9b265377cadb06527b210">s3_chunk_decode_failed</a> (ngx_http_request_t *r, const char *root_canon, brix_vfs_writer_t *writer, int http_status)</td></tr>
+<tr class="separator:a678e995341f9b265377cadb06527b210"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4b5db5da6bbb49f66671da8b67be218a" id="r_a4b5db5da6bbb49f66671da8b67be218a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a4b5db5da6bbb49f66671da8b67be218a">s3_chunk_aio_thread</a> (void *data, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a4b5db5da6bbb49f66671da8b67be218a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6194d0ac0038644644977af70464a8e4" id="r_a6194d0ac0038644644977af70464a8e4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a6194d0ac0038644644977af70464a8e4">s3_build_chunk_verify</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, <a class="el" href="structs3__chunk__verify__t.html">s3_chunk_verify_t</a> *v)</td></tr>
 <tr class="separator:a6194d0ac0038644644977af70464a8e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a03155c30eef2b729ee8d158a7bd82dc6" id="r_a03155c30eef2b729ee8d158a7bd82dc6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a03155c30eef2b729ee8d158a7bd82dc6">s3_chunk_aio_done</a> (ngx_event_t *ev)</td></tr>
 <tr class="separator:a03155c30eef2b729ee8d158a7bd82dc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:accfc738522b5398ab26b541076d753aa" id="r_accfc738522b5398ab26b541076d753aa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#accfc738522b5398ab26b541076d753aa">s3_put_streaming</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, brix_vfs_staged_t *staged, const char *fs_path, ngx_uint_t body_mode)</td></tr>
-<tr class="separator:accfc738522b5398ab26b541076d753aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1456f53ca7c5b6dd96e23e73bc7123e4" id="r_a1456f53ca7c5b6dd96e23e73bc7123e4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a1456f53ca7c5b6dd96e23e73bc7123e4">s3_put_streaming</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, brix_vfs_writer_t *writer, const char *fs_path, ngx_uint_t body_mode)</td></tr>
+<tr class="separator:a1456f53ca7c5b6dd96e23e73bc7123e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8ffd9bdb9dfb4f96d1b43216ef080e8e" id="r_a8ffd9bdb9dfb4f96d1b43216ef080e8e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__put__internal_8h.html#a8ffd9bdb9dfb4f96d1b43216ef080e8e">s3_put_body_inner</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a8ffd9bdb9dfb4f96d1b43216ef080e8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -226,7 +226,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="put__chunk_8c_source.html#l00133">133</a> of file <a class="el" href="put__chunk_8c_source.html">put_chunk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aws__chunked_8h_source.html#l00043">s3_chunk_verify_t::amz_date</a>, <a class="el" href="aws__chunked_8h_source.html#l00040">s3_chunk_verify_t::enabled</a>, <a class="el" href="s3_8h_source.html#l00139">ngx_http_s3_req_ctx_t::have_sigv4</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="aws__chunked_8h_source.html#l00044">s3_chunk_verify_t::scope</a>, <a class="el" href="aws__chunked_8h_source.html#l00042">s3_chunk_verify_t::seed_signature</a>, <a class="el" href="aws__chunked_8h_source.html#l00041">s3_chunk_verify_t::signing_key</a>, <a class="el" href="s3_8h_source.html#l00142">ngx_http_s3_req_ctx_t::sigv4_amz_date</a>, <a class="el" href="s3_8h_source.html#l00143">ngx_http_s3_req_ctx_t::sigv4_scope</a>, <a class="el" href="s3_8h_source.html#l00141">ngx_http_s3_req_ctx_t::sigv4_seed_signature</a>, <a class="el" href="s3_8h_source.html#l00140">ngx_http_s3_req_ctx_t::sigv4_signing_key</a>, and <a class="el" href="s3_8h_source.html#l00079">ngx_http_s3_loc_conf_t::verify_chunk_signatures</a>.</p>
+<p class="reference">References <a class="el" href="aws__chunked_8h_source.html#l00043">s3_chunk_verify_t::amz_date</a>, <a class="el" href="aws__chunked_8h_source.html#l00040">s3_chunk_verify_t::enabled</a>, <a class="el" href="s3_8h_source.html#l00139">ngx_http_s3_req_ctx_t::have_sigv4</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="aws__chunked_8h_source.html#l00044">s3_chunk_verify_t::scope</a>, <a class="el" href="aws__chunked_8h_source.html#l00042">s3_chunk_verify_t::seed_signature</a>, <a class="el" href="aws__chunked_8h_source.html#l00041">s3_chunk_verify_t::signing_key</a>, <a class="el" href="s3_8h_source.html#l00142">ngx_http_s3_req_ctx_t::sigv4_amz_date</a>, <a class="el" href="s3_8h_source.html#l00143">ngx_http_s3_req_ctx_t::sigv4_scope</a>, <a class="el" href="s3_8h_source.html#l00141">ngx_http_s3_req_ctx_t::sigv4_seed_signature</a>, <a class="el" href="s3_8h_source.html#l00140">ngx_http_s3_req_ctx_t::sigv4_signing_key</a>, and <a class="el" href="s3_8h_source.html#l00079">ngx_http_s3_loc_conf_t::verify_chunk_signatures</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
 
@@ -250,7 +250,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="put__chunk_8c_source.html#l00158">158</a> of file <a class="el" href="put__chunk_8c_source.html">put_chunk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00043">s3_chunk_aio_t::body_mode</a>, <a class="el" href="s3__put__internal_8h_source.html#l00042">s3_chunk_aio_t::expected</a>, <a class="el" href="s3__put__internal_8h_source.html#l00040">s3_chunk_aio_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00047">s3_chunk_aio_t::http_status</a>, <a class="el" href="s3__put__internal_8h_source.html#l00038">s3_chunk_aio_t::r</a>, <a class="el" href="s3__put__internal_8h_source.html#l00046">s3_chunk_aio_t::rc</a>, <a class="el" href="s3__put__internal_8h_source.html#l00041">s3_chunk_aio_t::root_canon</a>, <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00039">s3_chunk_aio_t::staged</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00044">s3_chunk_aio_t::trailer</a>.</p>
+<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00043">s3_chunk_aio_t::body_mode</a>, <a class="el" href="s3__put__internal_8h_source.html#l00042">s3_chunk_aio_t::expected</a>, <a class="el" href="s3__put__internal_8h_source.html#l00040">s3_chunk_aio_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00047">s3_chunk_aio_t::http_status</a>, <a class="el" href="s3__put__internal_8h_source.html#l00038">s3_chunk_aio_t::r</a>, <a class="el" href="s3__put__internal_8h_source.html#l00046">s3_chunk_aio_t::rc</a>, <a class="el" href="s3__put__internal_8h_source.html#l00041">s3_chunk_aio_t::root_canon</a>, <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00044">s3_chunk_aio_t::trailer</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00039">s3_chunk_aio_t::writer</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
 
@@ -284,14 +284,14 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="put__chunk_8c_source.html#l00113">113</a> of file <a class="el" href="put__chunk_8c_source.html">put_chunk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__staged_8c_source.html#l00265">brix_vfs_staged_fd()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00042">s3_chunk_aio_t::expected</a>, <a class="el" href="s3__put__internal_8h_source.html#l00040">s3_chunk_aio_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00047">s3_chunk_aio_t::http_status</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="s3__put__internal_8h_source.html#l00038">s3_chunk_aio_t::r</a>, <a class="el" href="s3__put__internal_8h_source.html#l00046">s3_chunk_aio_t::rc</a>, <a class="el" href="aws__chunked_8c_source.html#l00199">s3_aws_chunked_decode_to_fd()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00039">s3_chunk_aio_t::staged</a>, <a class="el" href="s3__put__internal_8h_source.html#l00044">s3_chunk_aio_t::trailer</a>, <a class="el" href="s3__put__internal_8h_source.html#l00045">s3_chunk_aio_t::verify</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00048">s3_chunk_aio_t::window</a>.</p>
+<p class="reference">References <a class="el" href="vfs__writer_8c_source.html#l00374">brix_vfs_writer_fd()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00042">s3_chunk_aio_t::expected</a>, <a class="el" href="s3__put__internal_8h_source.html#l00040">s3_chunk_aio_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00047">s3_chunk_aio_t::http_status</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="s3__put__internal_8h_source.html#l00038">s3_chunk_aio_t::r</a>, <a class="el" href="s3__put__internal_8h_source.html#l00046">s3_chunk_aio_t::rc</a>, <a class="el" href="aws__chunked_8c_source.html#l00199">s3_aws_chunked_decode_to_fd()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00044">s3_chunk_aio_t::trailer</a>, <a class="el" href="s3__put__internal_8h_source.html#l00045">s3_chunk_aio_t::verify</a>, <a class="el" href="s3__put__internal_8h_source.html#l00048">s3_chunk_aio_t::window</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00039">s3_chunk_aio_t::writer</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
 
 </div>
 </div>
-<a id="a9abdfa5a15c7474128759743efadec64" name="a9abdfa5a15c7474128759743efadec64"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9abdfa5a15c7474128759743efadec64">&#9670;&#160;</a></span>s3_chunk_decode_failed()</h2>
+<a id="a678e995341f9b265377cadb06527b210" name="a678e995341f9b265377cadb06527b210"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a678e995341f9b265377cadb06527b210">&#9670;&#160;</a></span>s3_chunk_decode_failed()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -311,8 +311,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">brix_vfs_staged_t *&#160;</td>
-          <td class="paramname"><em>staged</em>, </td>
+          <td class="paramtype">brix_vfs_writer_t *&#160;</td>
+          <td class="paramname"><em>writer</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -330,14 +330,14 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="put__chunk_8c_source.html#l00087">87</a> of file <a class="el" href="put__chunk_8c_source.html">put_chunk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__staged_8c_source.html#l00397">brix_vfs_staged_abort()</a>, <a class="el" href="put__finalize_8c_source.html#l00339">s3_put_finalize_client_error()</a>, and <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="put__finalize_8c_source.html#l00340">s3_put_finalize_client_error()</a>, and <a class="el" href="put__finalize_8c_source.html#l00100">s3_put_finalize_error()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00158">s3_chunk_aio_done()</a>, and <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
 
 </div>
 </div>
-<a id="a7f4ca7da93ba90b46222cbe9f5bf870a" name="a7f4ca7da93ba90b46222cbe9f5bf870a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7f4ca7da93ba90b46222cbe9f5bf870a">&#9670;&#160;</a></span>s3_chunk_finalize()</h2>
+<a id="a1b8a662a84e089cd242f7e6c93ed0da6" name="a1b8a662a84e089cd242f7e6c93ed0da6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1b8a662a84e089cd242f7e6c93ed0da6">&#9670;&#160;</a></span>s3_chunk_finalize()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -363,8 +363,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">brix_vfs_staged_t *&#160;</td>
-          <td class="paramname"><em>staged</em>, </td>
+          <td class="paramtype">brix_vfs_writer_t *&#160;</td>
+          <td class="paramname"><em>writer</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -394,14 +394,14 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="put__chunk_8c_source.html#l00015">15</a> of file <a class="el" href="put__chunk_8c_source.html">put_chunk.c</a>.</p>
 
-<p class="reference">References <a class="el" href="aws__chunked_8h_source.html#l00027">s3_chunk_trailer_t::algo_token</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>, <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="put__finalize_8c_source.html#l00021">s3_commit_put()</a>, <a class="el" href="s3_2util_8c_source.html#l00150">s3_etag()</a>, <a class="el" href="put__finalize_8c_source.html#l00285">s3_put_checksum_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00078">s3_put_commit_conflict()</a>, <a class="el" href="put__finalize_8c_source.html#l00221">s3_put_finalize_bad_digest()</a>, <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00238">s3_put_finalize_invalid_request()</a>, <a class="el" href="put__finalize_8c_source.html#l00199">s3_put_finalize_ok()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>, <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>, <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="aws__chunked_8h_source.html#l00028">s3_chunk_trailer_t::value</a>.</p>
+<p class="reference">References <a class="el" href="aws__chunked_8h_source.html#l00027">s3_chunk_trailer_t::algo_token</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>, <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="put__finalize_8c_source.html#l00022">s3_commit_put()</a>, <a class="el" href="s3_2util_8c_source.html#l00156">s3_etag()</a>, <a class="el" href="put__finalize_8c_source.html#l00286">s3_put_checksum_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00079">s3_put_commit_conflict()</a>, <a class="el" href="put__finalize_8c_source.html#l00222">s3_put_finalize_bad_digest()</a>, <a class="el" href="put__finalize_8c_source.html#l00100">s3_put_finalize_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00239">s3_put_finalize_invalid_request()</a>, <a class="el" href="put__finalize_8c_source.html#l00200">s3_put_finalize_ok()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>, <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>, <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00073">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="aws__chunked_8h_source.html#l00028">s3_chunk_trailer_t::value</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00158">s3_chunk_aio_done()</a>, and <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
 
 </div>
 </div>
-<a id="a2bb2fc5004e7353a8265da75c602186b" name="a2bb2fc5004e7353a8265da75c602186b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2bb2fc5004e7353a8265da75c602186b">&#9670;&#160;</a></span>s3_commit_put()</h2>
+<a id="a55cb949ba26946fbb132f46dfbfb5329" name="a55cb949ba26946fbb132f46dfbfb5329"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a55cb949ba26946fbb132f46dfbfb5329">&#9670;&#160;</a></span>s3_commit_put()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -427,8 +427,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">brix_vfs_staged_t *&#160;</td>
-          <td class="paramname"><em>staged</em>, </td>
+          <td class="paramtype">brix_vfs_writer_t *&#160;</td>
+          <td class="paramname"><em>writer</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -444,11 +444,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00021">21</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00022">22</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__staged_8c_source.html#l00322">brix_vfs_staged_commit()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00133">ngx_http_s3_req_ctx_t::exclusive_create</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::is_regular</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, and <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>.</p>
+<p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__writer_8c_source.html#l00310">brix_vfs_writer_commit_ex()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00133">ngx_http_s3_req_ctx_t::exclusive_create</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00087">brix_vfs_stat_t::is_regular</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::size</a>, <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, and <a class="el" href="shared__conf_8h_source.html#l00073">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>.</p>
 
 </div>
 </div>
@@ -492,9 +492,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3_2put_8c_source.html#l00024">24</a> of file <a class="el" href="s3_2put_8c_source.html">put.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="identity_8c_source.html#l00358">brix_identity_subject_cstr()</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="identity_8c_source.html#l00358">brix_identity_subject_cstr()</a>, <a class="el" href="s3_8h_source.html#l00121">ngx_http_s3_req_ctx_t::identity</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00012">s3_put_try_sentinel()</a>, and <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00015">s3_put_try_sentinel()</a>, and <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -518,7 +518,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -538,9 +538,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__aio_8c_source.html#l00075">75</a> of file <a class="el" href="put__aio_8c_source.html">put_aio.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__aio_8c_source.html#l00070">70</a> of file <a class="el" href="put__aio_8c_source.html">put_aio.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00032">s3_put_aio_t::body_bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00031">s3_put_aio_t::body_mode</a>, <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, <a class="el" href="vfs__staged_8c_source.html#l00397">brix_vfs_staged_abort()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__put__internal_8h_source.html#l00033">s3_put_aio_t::final_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00030">s3_put_aio_t::io_errno</a>, <a class="el" href="s3__put__internal_8h_source.html#l00028">s3_put_aio_t::len</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="s3__put__internal_8h_source.html#l00029">s3_put_aio_t::nwritten</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00094">brix_vfs_ctx_t::pool</a>, <a class="el" href="s3__put__internal_8h_source.html#l00026">s3_put_aio_t::r</a>, <a class="el" href="s3__put__internal_8h_source.html#l00034">s3_put_aio_t::root_canon</a>, <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>, <a class="el" href="put__finalize_8c_source.html#l00021">s3_commit_put()</a>, <a class="el" href="s3_2util_8c_source.html#l00150">s3_etag()</a>, <a class="el" href="put__finalize_8c_source.html#l00285">s3_put_checksum_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00078">s3_put_commit_conflict()</a>, <a class="el" href="put__finalize_8c_source.html#l00174">s3_put_finalize_empty_ok()</a>, <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>, <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>, <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>, <a class="el" href="s3__put__internal_8h_source.html#l00027">s3_put_aio_t::staged</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="shared__conf_8h_source.html#l00050">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, and <a class="el" href="shared__conf_8h_source.html#l00055">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>.</p>
+<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00032">s3_put_aio_t::body_bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00031">s3_put_aio_t::body_mode</a>, <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_S3</a>, <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__put__internal_8h_source.html#l00033">s3_put_aio_t::final_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00030">s3_put_aio_t::io_errno</a>, <a class="el" href="s3__put__internal_8h_source.html#l00028">s3_put_aio_t::len</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::mtime</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, <a class="el" href="s3__put__internal_8h_source.html#l00029">s3_put_aio_t::nwritten</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="s3__put__internal_8h_source.html#l00026">s3_put_aio_t::r</a>, <a class="el" href="s3__put__internal_8h_source.html#l00034">s3_put_aio_t::root_canon</a>, <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>, <a class="el" href="put__finalize_8c_source.html#l00022">s3_commit_put()</a>, <a class="el" href="s3_2util_8c_source.html#l00156">s3_etag()</a>, <a class="el" href="put__finalize_8c_source.html#l00286">s3_put_checksum_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00079">s3_put_commit_conflict()</a>, <a class="el" href="put__finalize_8c_source.html#l00175">s3_put_finalize_empty_ok()</a>, <a class="el" href="put__finalize_8c_source.html#l00100">s3_put_finalize_error()</a>, <a class="el" href="s3_2util_8c_source.html#l00099">s3_set_header()</a>, <a class="el" href="s3_2util_8c_source.html#l00071">s3_vfs_bind_deleg()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00073">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00027">s3_put_aio_t::writer</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
 
@@ -574,7 +574,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="put__aio_8c_source.html#l00042">42</a> of file <a class="el" href="put__aio_8c_source.html">put_aio.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00183">brix_http_body_write_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00312">brix_http_body_write_to_staged()</a>, <a class="el" href="vfs__staged_8c_source.html#l00265">brix_vfs_staged_fd()</a>, <a class="el" href="vfs__staged_8c_source.html#l00274">brix_vfs_staged_is_driver()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00033">s3_put_aio_t::final_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00030">s3_put_aio_t::io_errno</a>, <a class="el" href="s3__put__internal_8h_source.html#l00028">s3_put_aio_t::len</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="s3__put__internal_8h_source.html#l00029">s3_put_aio_t::nwritten</a>, <a class="el" href="s3__put__internal_8h_source.html#l00026">s3_put_aio_t::r</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00027">s3_put_aio_t::staged</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00352">brix_http_body_write_to_writer()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00030">s3_put_aio_t::io_errno</a>, <a class="el" href="s3__put__internal_8h_source.html#l00028">s3_put_aio_t::len</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="s3__put__internal_8h_source.html#l00029">s3_put_aio_t::nwritten</a>, <a class="el" href="s3__put__internal_8h_source.html#l00026">s3_put_aio_t::r</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00027">s3_put_aio_t::writer</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
 
@@ -596,9 +596,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__inner_8c_source.html#l00218">218</a> of file <a class="el" href="put__inner_8c_source.html">put_inner.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__inner_8c_source.html#l00239">239</a> of file <a class="el" href="put__inner_8c_source.html">put_inner.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00075">s3put_state_t::body_mode</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="metrics__s3_8h_source.html#l00049">BRIX_S3_PUT_EMPTY</a>, <a class="el" href="s3__put__internal_8h_source.html#l00070">s3put_state_t::cf</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00071">s3put_state_t::fs_path</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, <a class="el" href="s3__put__internal_8h_source.html#l00073">s3put_state_t::put_codec</a>, <a class="el" href="s3__put__internal_8h_source.html#l00069">s3put_state_t::r</a>, <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__inner_8c_source.html#l00193">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00163">s3put_precondition()</a>, and <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>.</p>
+<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00075">s3put_state_t::body_mode</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="metrics__s3_8h_source.html#l00049">BRIX_S3_PUT_EMPTY</a>, <a class="el" href="s3__put__internal_8h_source.html#l00070">s3put_state_t::cf</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00071">s3put_state_t::fs_path</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, <a class="el" href="s3__put__internal_8h_source.html#l00073">s3put_state_t::put_codec</a>, <a class="el" href="s3__put__internal_8h_source.html#l00069">s3put_state_t::r</a>, <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__inner_8c_source.html#l00213">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00181">s3put_precondition()</a>, and <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>.</p>
 
@@ -624,7 +624,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00049">BRIX_S3_PUT_EMPTY</a>, <a class="el" href="metrics__s3_8h_source.html#l00050">BRIX_S3_PUT_MEMORY</a>, <a class="el" href="metrics__s3_8h_source.html#l00052">BRIX_S3_PUT_MIXED</a>, <a class="el" href="metrics__s3_8h_source.html#l00051">BRIX_S3_PUT_SPOOLED</a>, <a class="el" href="http__body_8h_source.html#l00040">brix_http_body_summary_t::has_memory</a>, and <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -660,11 +660,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00285">285</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00286">286</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="put__finalize_8c_source.html#l00221">s3_put_finalize_bad_digest()</a>, and <a class="el" href="put__finalize_8c_source.html#l00238">s3_put_finalize_invalid_request()</a>.</p>
+<p class="reference">References <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="put__finalize_8c_source.html#l00222">s3_put_finalize_bad_digest()</a>, and <a class="el" href="put__finalize_8c_source.html#l00239">s3_put_finalize_invalid_request()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>.</p>
 
 </div>
 </div>
@@ -684,11 +684,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00078">78</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00079">79</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="put__finalize_8c_source.html#l00339">s3_put_finalize_client_error()</a>.</p>
+<p class="reference">References <a class="el" href="put__finalize_8c_source.html#l00340">s3_put_finalize_client_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>.</p>
 
 </div>
 </div>
@@ -708,11 +708,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00221">221</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00222">222</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00285">s3_put_checksum_failed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00286">s3_put_checksum_failed()</a>.</p>
 
 </div>
 </div>
@@ -754,11 +754,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00339">339</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00340">340</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00078">s3_put_commit_conflict()</a>, and <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00079">s3_put_commit_conflict()</a>, and <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>.</p>
 
 </div>
 </div>
@@ -788,9 +788,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00259">259</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00260">260</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
 
@@ -812,11 +812,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00174">174</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00175">175</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
 <p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, <a class="el" href="put__finalize_8c_source.html#l00199">s3_put_finalize_ok()</a>, and <a class="el" href="put__inner_8c_source.html#l00012">s3_put_try_sentinel()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, <a class="el" href="put__finalize_8c_source.html#l00200">s3_put_finalize_ok()</a>, and <a class="el" href="put__inner_8c_source.html#l00015">s3_put_try_sentinel()</a>.</p>
 
 </div>
 </div>
@@ -836,11 +836,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00099">99</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00100">100</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
 <p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00075">s3_put_aio_done()</a>, <a class="el" href="put__finalize_8c_source.html#l00126">s3_put_finalize_fs_error()</a>, <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>, <a class="el" href="put__inner_8c_source.html#l00012">s3_put_try_sentinel()</a>, <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__inner_8c_source.html#l00163">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, <a class="el" href="put__finalize_8c_source.html#l00127">s3_put_finalize_fs_error()</a>, <a class="el" href="s3_2put_8c_source.html#l00088">s3_put_streaming()</a>, <a class="el" href="put__inner_8c_source.html#l00015">s3_put_try_sentinel()</a>, <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__inner_8c_source.html#l00181">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
 
 </div>
 </div>
@@ -870,11 +870,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00126">126</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00127">127</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="error__mapping_8c_source.html#l00184">brix_http_errno_to_status()</a>, <a class="el" href="metrics__s3_8h_source.html#l00056">BRIX_S3_EVENT_ACCESS_DENIED</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="error__mapping_8c_source.html#l00205">brix_http_errno_to_status()</a>, <a class="el" href="metrics__s3_8h_source.html#l00056">BRIX_S3_EVENT_ACCESS_DENIED</a>, <a class="el" href="metrics__s3_8h_source.html#l00057">BRIX_S3_EVENT_NO_SUCH_KEY</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, <a class="el" href="put__finalize_8c_source.html#l00100">s3_put_finalize_error()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00012">s3_put_try_sentinel()</a>, <a class="el" href="put__inner_8c_source.html#l00091">s3put_ensure_parent_dirs()</a>, and <a class="el" href="put__inner_8c_source.html#l00193">s3put_open_target()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00015">s3_put_try_sentinel()</a>, <a class="el" href="put__inner_8c_source.html#l00094">s3put_ensure_parent_dirs()</a>, and <a class="el" href="put__inner_8c_source.html#l00213">s3put_open_target()</a>.</p>
 
 </div>
 </div>
@@ -894,11 +894,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00238">238</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00239">239</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00166">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00285">s3_put_checksum_failed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00286">s3_put_checksum_failed()</a>.</p>
 
 </div>
 </div>
@@ -934,16 +934,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00199">199</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00200">200</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, and <a class="el" href="put__finalize_8c_source.html#l00174">s3_put_finalize_empty_ok()</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, and <a class="el" href="put__finalize_8c_source.html#l00175">s3_put_finalize_empty_ok()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>.</p>
 
 </div>
 </div>
-<a id="accfc738522b5398ab26b541076d753aa" name="accfc738522b5398ab26b541076d753aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#accfc738522b5398ab26b541076d753aa">&#9670;&#160;</a></span>s3_put_streaming()</h2>
+<a id="a1456f53ca7c5b6dd96e23e73bc7123e4" name="a1456f53ca7c5b6dd96e23e73bc7123e4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1456f53ca7c5b6dd96e23e73bc7123e4">&#9670;&#160;</a></span>s3_put_streaming()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -963,8 +963,8 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">brix_vfs_staged_t *&#160;</td>
-          <td class="paramname"><em>staged</em>, </td>
+          <td class="paramtype">brix_vfs_writer_t *&#160;</td>
+          <td class="paramname"><em>writer</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -988,7 +988,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3_2put_8c_source.html#l00088">88</a> of file <a class="el" href="s3_2put_8c_source.html">put.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00043">s3_chunk_aio_t::body_mode</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="vfs__staged_8c_source.html#l00397">brix_vfs_staged_abort()</a>, <a class="el" href="vfs__staged_8c_source.html#l00265">brix_vfs_staged_fd()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__put__internal_8h_source.html#l00042">s3_chunk_aio_t::expected</a>, <a class="el" href="s3__put__internal_8h_source.html#l00040">s3_chunk_aio_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00038">s3_chunk_aio_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="s3__put__internal_8h_source.html#l00041">s3_chunk_aio_t::root_canon</a>, <a class="el" href="aws__chunked_8c_source.html#l00199">s3_aws_chunked_decode_to_fd()</a>, <a class="el" href="put__chunk_8c_source.html#l00133">s3_build_chunk_verify()</a>, <a class="el" href="put__chunk_8c_source.html#l00158">s3_chunk_aio_done()</a>, <a class="el" href="put__chunk_8c_source.html#l00113">s3_chunk_aio_thread()</a>, <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__finalize_8c_source.html#l00339">s3_put_finalize_client_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>, <a class="el" href="put__aio_8c_source.html#l00022">s3_thread_pool()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00039">s3_chunk_aio_t::staged</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00045">s3_chunk_aio_t::verify</a>.</p>
+<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00043">s3_chunk_aio_t::body_mode</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="vfs__writer_8c_source.html#l00374">brix_vfs_writer_fd()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__put__internal_8h_source.html#l00042">s3_chunk_aio_t::expected</a>, <a class="el" href="s3__put__internal_8h_source.html#l00040">s3_chunk_aio_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00038">s3_chunk_aio_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="s3__put__internal_8h_source.html#l00041">s3_chunk_aio_t::root_canon</a>, <a class="el" href="aws__chunked_8c_source.html#l00199">s3_aws_chunked_decode_to_fd()</a>, <a class="el" href="put__chunk_8c_source.html#l00133">s3_build_chunk_verify()</a>, <a class="el" href="put__chunk_8c_source.html#l00158">s3_chunk_aio_done()</a>, <a class="el" href="put__chunk_8c_source.html#l00113">s3_chunk_aio_thread()</a>, <a class="el" href="put__chunk_8c_source.html#l00087">s3_chunk_decode_failed()</a>, <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__finalize_8c_source.html#l00340">s3_put_finalize_client_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00100">s3_put_finalize_error()</a>, <a class="el" href="put__aio_8c_source.html#l00022">s3_thread_pool()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00045">s3_chunk_aio_t::verify</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00039">s3_chunk_aio_t::writer</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>.</p>
 
@@ -1010,11 +1010,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__stream_8c_source.html#l00289">289</a> of file <a class="el" href="put__stream_8c_source.html">put_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__stream_8c_source.html#l00297">297</a> of file <a class="el" href="put__stream_8c_source.html">put_stream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00074">s3put_state_t::body_bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00075">s3put_state_t::body_mode</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00070">s3put_state_t::cf</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__put__internal_8h_source.html#l00071">s3put_state_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00069">s3put_state_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>, <a class="el" href="put__finalize_8c_source.html#l00021">s3_commit_put()</a>, <a class="el" href="put__finalize_8c_source.html#l00285">s3_put_checksum_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00078">s3_put_commit_conflict()</a>, <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00199">s3_put_finalize_ok()</a>, <a class="el" href="put__stream_8c_source.html#l00259">s3put_emit_etag()</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00072">s3put_state_t::staged</a>.</p>
+<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00074">s3put_state_t::body_bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00075">s3put_state_t::body_mode</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="s3__put__internal_8h_source.html#l00070">s3put_state_t::cf</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__put__internal_8h_source.html#l00071">s3put_state_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00069">s3put_state_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="tagging_8c_source.html#l00249">s3_apply_put_tagging_header()</a>, <a class="el" href="usermeta_8c_source.html#l00213">s3_apply_put_user_metadata()</a>, <a class="el" href="put__finalize_8c_source.html#l00022">s3_commit_put()</a>, <a class="el" href="put__finalize_8c_source.html#l00286">s3_put_checksum_failed()</a>, <a class="el" href="put__finalize_8c_source.html#l00079">s3_put_commit_conflict()</a>, <a class="el" href="put__finalize_8c_source.html#l00100">s3_put_finalize_error()</a>, <a class="el" href="put__finalize_8c_source.html#l00200">s3_put_finalize_ok()</a>, <a class="el" href="put__stream_8c_source.html#l00267">s3put_emit_etag()</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00072">s3put_state_t::writer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00239">s3_put_body_inner()</a>.</p>
 
 </div>
 </div>
@@ -1034,11 +1034,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__stream_8c_source.html#l00205">205</a> of file <a class="el" href="put__stream_8c_source.html">put_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__stream_8c_source.html#l00213">213</a> of file <a class="el" href="put__stream_8c_source.html">put_stream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00074">s3put_state_t::body_bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00075">s3put_state_t::body_mode</a>, <a class="el" href="s3__put__internal_8h_source.html#l00076">s3put_state_t::body_summary</a>, <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, <a class="el" href="vfs__staged_8c_source.html#l00397">brix_vfs_staged_abort()</a>, <a class="el" href="dashboard_8h_source.html#l00062">BRIX_XFER_DIR_WRITE</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_S3</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00070">s3put_state_t::cf</a>, <a class="el" href="s3__put__internal_8h_source.html#l00071">s3put_state_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00069">s3put_state_t::r</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00029">s3_body_is_aws_chunked()</a>, <a class="el" href="s3_2put_8c_source.html#l00024">s3_dashboard_identity()</a>, <a class="el" href="s3_2put_8c_source.html#l00008">s3_dashboard_put_op()</a>, <a class="el" href="s3_2put_8c_source.html#l00064">s3_put_body_mode()</a>, <a class="el" href="put__finalize_8c_source.html#l00099">s3_put_finalize_error()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00072">s3put_state_t::staged</a>.</p>
+<p class="reference">References <a class="el" href="s3__put__internal_8h_source.html#l00074">s3put_state_t::body_bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00075">s3put_state_t::body_mode</a>, <a class="el" href="s3__put__internal_8h_source.html#l00076">s3put_state_t::body_summary</a>, <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="dashboard_8h_source.html#l00062">BRIX_XFER_DIR_WRITE</a>, <a class="el" href="dashboard_8h_source.html#l00054">BRIX_XFER_PROTO_S3</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="s3__put__internal_8h_source.html#l00070">s3put_state_t::cf</a>, <a class="el" href="s3__put__internal_8h_source.html#l00071">s3put_state_t::fs_path</a>, <a class="el" href="s3__put__internal_8h_source.html#l00069">s3put_state_t::r</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00029">s3_body_is_aws_chunked()</a>, <a class="el" href="s3_2put_8c_source.html#l00024">s3_dashboard_identity()</a>, <a class="el" href="s3_2put_8c_source.html#l00008">s3_dashboard_put_op()</a>, <a class="el" href="s3_2put_8c_source.html#l00064">s3_put_body_mode()</a>, <a class="el" href="put__finalize_8c_source.html#l00100">s3_put_finalize_error()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>, and <a class="el" href="s3__put__internal_8h_source.html#l00072">s3put_state_t::writer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00239">s3_put_body_inner()</a>.</p>
 
 </div>
 </div>

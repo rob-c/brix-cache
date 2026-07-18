@@ -13,7 +13,8 @@ var ratelimit_8h =
       [ "BRIX_RL_KEY_ISSUER", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49a182e78ab96aebd0df687ab0724d649db", null ],
       [ "BRIX_RL_KEY_IP", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49a483e226d17e42ea63096c7780186b3dd", null ],
       [ "BRIX_RL_KEY_DN", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49a45d242d5d8fef0cabb1b21f2733fe22e", null ],
-      [ "BRIX_RL_KEY_VOLUME", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49ad5cc982d7d985760784d987a618efa92", null ]
+      [ "BRIX_RL_KEY_VOLUME", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49ad5cc982d7d985760784d987a618efa92", null ],
+      [ "BRIX_RL_KEY_SUBJECT", "ratelimit_8h.html#a7491f5e63affb29c7a633a327bf5bd49adade2449a0fbe2e3a0f82e7c0c7e4ce8", null ]
     ] ],
     [ "brix_rl_bw_check", "ratelimit_8h.html#a4cca63088088390199318b881064f50f", null ],
     [ "brix_rl_bw_directive", "ratelimit_8h.html#ae7b618872125aa3c41d0612465bb24f7", null ],

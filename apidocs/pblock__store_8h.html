@@ -98,6 +98,7 @@ $(document).ready(function(){initNavTree('pblock__store_8h.html',''); initResiza
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="sd_8h_source.html">fs/backend/sd.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="sd__pblock__catalog_8h_source.html">sd_pblock_catalog.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="pblock__xform_8h_source.html">pblock_xform.h</a>&quot;</code><br />
 <code>#include &lt;limits.h&gt;</code><br />
 <code>#include &lt;stdint.h&gt;</code><br />
 <code>#include &lt;sys/types.h&gt;</code><br />
@@ -113,7 +114,7 @@ $(document).ready(function(){initNavTree('pblock__store_8h.html',''); initResiza
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="pblock__store_8h__dep__incl.svg" width="360" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><iframe scrolling="no" frameborder="0" src="pblock__store_8h__dep__incl.svg" width="547" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="pblock__store_8h_source.html">Go to the source code of this file.</a></p>
@@ -199,9 +200,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00134">134</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pblock__store_8h_source.html#l00026">pblock_state_t::data_dir</a>.</p>
+<p class="reference">References <a class="el" href="pblock__store_8h_source.html#l00027">pblock_state_t::data_dir</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="pblock__store_8c_source.html#l00240">pblock_read_blocks()</a>, <a class="el" href="pblock__store_8c_source.html#l00292">pblock_remove_blocks()</a>, and <a class="el" href="pblock__store_8c_source.html#l00184">pblock_write_blocks()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="pblock__store_8c_source.html#l00326">pblock_read_blocks()</a>, <a class="el" href="pblock__store_8c_source.html#l00382">pblock_remove_blocks()</a>, <a class="el" href="pblock__store_8c_source.html#l00230">pblock_write_blocks()</a>, <a class="el" href="pblock__store_8c_source.html#l00293">pblock_xform_read()</a>, and <a class="el" href="pblock__store_8c_source.html#l00190">pblock_xform_write()</a>.</p>
 
 </div>
 </div>
@@ -231,7 +232,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00325">325</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00415">415</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>.</p>
 
@@ -303,7 +304,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00164">164</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__pblock__catalog_8h_source.html#l00051">pblock_meta::ctime</a>, <a class="el" href="sd_8h_source.html#l00253">brix_sd_stat_t::ctime</a>, <a class="el" href="sd_8h_source.html#l00255">brix_sd_stat_t::ino</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00046">pblock_meta::is_dir</a>, <a class="el" href="sd_8h_source.html#l00256">brix_sd_stat_t::is_dir</a>, <a class="el" href="sd_8h_source.html#l00257">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00052">pblock_meta::mode</a>, <a class="el" href="sd_8h_source.html#l00254">brix_sd_stat_t::mode</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00050">pblock_meta::mtime</a>, <a class="el" href="sd_8h_source.html#l00252">brix_sd_stat_t::mtime</a>, <a class="el" href="pblock__store_8c_source.html#l00042">pblock_fnv()</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00048">pblock_meta::size</a>, and <a class="el" href="sd_8h_source.html#l00251">brix_sd_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="sd__pblock__catalog_8h_source.html#l00055">pblock_meta::ctime</a>, <a class="el" href="sd_8h_source.html#l00272">brix_sd_stat_t::ctime</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00058">pblock_meta::gid</a>, <a class="el" href="sd_8h_source.html#l00276">brix_sd_stat_t::gid</a>, <a class="el" href="sd_8h_source.html#l00274">brix_sd_stat_t::ino</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00050">pblock_meta::is_dir</a>, <a class="el" href="sd_8h_source.html#l00277">brix_sd_stat_t::is_dir</a>, <a class="el" href="sd_8h_source.html#l00278">brix_sd_stat_t::is_reg</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00056">pblock_meta::mode</a>, <a class="el" href="sd_8h_source.html#l00273">brix_sd_stat_t::mode</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00054">pblock_meta::mtime</a>, <a class="el" href="sd_8h_source.html#l00271">brix_sd_stat_t::mtime</a>, <a class="el" href="pblock__store_8c_source.html#l00042">pblock_fnv()</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00052">pblock_meta::size</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="sd__pblock__catalog_8h_source.html#l00057">pblock_meta::uid</a>, and <a class="el" href="sd_8h_source.html#l00275">brix_sd_stat_t::uid</a>.</p>
 
 </div>
 </div>
@@ -349,7 +350,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00089">89</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, and <a class="el" href="sd__pblock__catalog_8h_source.html#l00032">PBLOCK_BLOB_ID_HEX</a>.</p>
+<p class="reference">References <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, and <a class="el" href="sd__pblock__catalog_8h_source.html#l00033">PBLOCK_BLOB_ID_HEX</a>.</p>
 
 </div>
 </div>
@@ -381,7 +382,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00034">34</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="pblock__store_8c_source.html#l00292">pblock_remove_blocks()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="pblock__store_8c_source.html#l00382">pblock_remove_blocks()</a>.</p>
 
 </div>
 </div>
@@ -469,9 +470,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00118">118</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pblock__store_8h_source.html#l00026">pblock_state_t::data_dir</a>.</p>
+<p class="reference">References <a class="el" href="pblock__store_8h_source.html#l00027">pblock_state_t::data_dir</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="pblock__store_8c_source.html#l00151">pblock_ensure_obj_dir()</a>, and <a class="el" href="pblock__store_8c_source.html#l00292">pblock_remove_blocks()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="pblock__store_8c_source.html#l00151">pblock_ensure_obj_dir()</a>, and <a class="el" href="pblock__store_8c_source.html#l00382">pblock_remove_blocks()</a>.</p>
 
 </div>
 </div>
@@ -531,9 +532,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00240">240</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00326">326</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="pblock__store_8c_source.html#l00134">pblock_block_path()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="pblock__store_8c_source.html#l00134">pblock_block_path()</a>, <a class="el" href="pblock__xform_8h.html#a5a0aea554c7803de487fa271d09efed3">pblock_xform_active()</a>, <a class="el" href="pblock__store_8c_source.html#l00293">pblock_xform_read()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00326">pread()</a>, and <a class="el" href="pblock__store_8h_source.html#l00058">pblock_state_t::xform</a>.</p>
 
 </div>
 </div>
@@ -575,9 +576,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00292">292</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00382">382</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pblock__store_8h_source.html#l00026">pblock_state_t::data_dir</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="pblock__store_8c_source.html#l00134">pblock_block_path()</a>, <a class="el" href="pblock__store_8c_source.html#l00034">pblock_last_block()</a>, and <a class="el" href="pblock__store_8c_source.html#l00118">pblock_obj_dir()</a>.</p>
+<p class="reference">References <a class="el" href="pblock__store_8h_source.html#l00027">pblock_state_t::data_dir</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="pblock__store_8c_source.html#l00134">pblock_block_path()</a>, <a class="el" href="pblock__store_8c_source.html#l00034">pblock_last_block()</a>, and <a class="el" href="pblock__store_8c_source.html#l00118">pblock_obj_dir()</a>.</p>
 
 </div>
 </div>
@@ -637,9 +638,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00184">184</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="pblock__store_8c_source.html#l00230">230</a> of file <a class="el" href="pblock__store_8c_source.html">pblock_store.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="pblock__store_8c_source.html#l00134">pblock_block_path()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="pblock__store_8c_source.html#l00134">pblock_block_path()</a>, <a class="el" href="pblock__xform_8h.html#a5a0aea554c7803de487fa271d09efed3">pblock_xform_active()</a>, <a class="el" href="pblock__store_8c_source.html#l00190">pblock_xform_write()</a>, and <a class="el" href="pblock__store_8h_source.html#l00058">pblock_state_t::xform</a>.</p>
 
 </div>
 </div>

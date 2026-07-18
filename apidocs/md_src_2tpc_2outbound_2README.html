@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_src_2tpc_2outbound_2README.html',''
   <div class="headertitle"><div class="title">outbound — the blocking source-session client for native TPC pulls</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md558"></a> </p>
-<h1><a class="anchor" id="autotoc_md559"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md562"></a> </p>
+<h1><a class="anchor" id="autotoc_md563"></a>
 Overview</h1>
 <p>This is the destination server acting as an XRootD <em>client</em>: for each native-TPC pull, a thread-pool worker (<code>thread.c::brix_tpc_pull_thread()</code>, posted by <a href="../engine/">../engine/</a>'s <code><a class="el" href="launch_8c.html">launch.c</a></code>) opens its own connection to the remote source, authenticates, opens the file, and pulls the bytes. Everything here is deliberately blocking — it owns a whole pool thread for the transfer's duration and must never run on the event loop.</p>
 <p><code>bootstrap.c</code> performs the 3-step anonymous session handshake; <code>connect.c</code> resolves the origin via <code>getaddrinfo</code> and validates candidate addresses; <code>tls.c</code> runs the client-side TLS handshake when the source requires it; <code><a class="el" href="tpc__token_8c.html">tpc_token.c</a></code> fetches OAuth2/OIDC access tokens when token auth is in play; GSI lives in <a href="../gsi/">../gsi/</a>. <code><a class="el" href="source_8c.html">source.c</a></code> completes the pull (open, read loop, close) using the three blocking I/O primitives in <code>io.c</code>.</p>
-<h1><a class="anchor" id="autotoc_md560"></a>
+<h1><a class="anchor" id="autotoc_md564"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -118,14 +118,14 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="tpc__token_8c.html">tpc_token.c</a></code>   </td><td class="markdownTableBodyNone">OAuth2/OIDC access-token fetch for token-authenticated sources   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md561"></a>
+<h1><a class="anchor" id="autotoc_md565"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>Blocking-only: no function here may be called from the nginx event loop.</li>
 <li>Outbound connect honors the address-family policy and SSRF restrictions configured for TPC (<code>enforce_ssrf</code> and friends) — validation happens in <code>connect.c</code> before any byte is sent.</li>
 <li>Timeouts everywhere: a stalled source must fail the transfer, not wedge the pool thread (stall/idle deadlines on every blocking primitive).</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md562"></a>
+<h1><a class="anchor" id="autotoc_md566"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2tpc_2engine_2README.html">../engine/README.md</a> — who launches this and how completion returns</li>

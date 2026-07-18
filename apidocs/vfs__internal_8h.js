@@ -10,6 +10,7 @@ var vfs__internal_8h =
     [ "brix_vfs_cred_gate_active", "vfs__internal_8h.html#ae3bcc249f50c739c67be864d5d92fcdc", null ],
     [ "brix_vfs_ctx_driver", "vfs__internal_8h.html#a23f403a637e4ed999144ffad7715af90", null ],
     [ "brix_vfs_ctx_path", "vfs__internal_8h.html#ade9fadd2fca862021377cd489f513d71", null ],
+    [ "brix_vfs_ctx_pool_clone", "vfs__internal_8h.html#a58197fdbd97de24e5e9860f53add4083", null ],
     [ "brix_vfs_ctx_sd_obj", "vfs__internal_8h.html#ab39b480559601b6a076f8af0b2e3a4ab", null ],
     [ "brix_vfs_deleg_krb5_token", "vfs__internal_8h.html#abcfb80d829211d055702e3b1085bf275", null ],
     [ "brix_vfs_deleg_live_cred", "vfs__internal_8h.html#ae66ecac332b29d709e2d1fad105d8606", null ],

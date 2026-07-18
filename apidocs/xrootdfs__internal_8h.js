@@ -78,6 +78,7 @@ var xrootdfs__internal_8h =
     [ "g_url", "xrootdfs__internal_8h.html#a3cf91f8c7a2c4175a01683d559351840", null ],
     [ "g_web", "xrootdfs__internal_8h.html#a7fc759f55c33398559ef2ef5fe02ce27", null ],
     [ "g_web_ca", "xrootdfs__internal_8h.html#af075f048c15f52dd1003cabeb30c09cb", null ],
+    [ "g_web_pool", "xrootdfs__internal_8h.html#a8ce91b38c414a0c31d40d4bf86a9c001", null ],
     [ "g_web_verify", "xrootdfs__internal_8h.html#a764b4a05813360a8d6f1c7a2fbc447bf", null ],
     [ "g_weburl", "xrootdfs__internal_8h.html#ac620525a7f7b99bbdfb4ddc35c28e0c9", null ],
     [ "g_writeback", "xrootdfs__internal_8h.html#a55825d0835bf204f6d9f1dc0ea716e77", null ],

@@ -113,8 +113,8 @@ Data Fields</h2></td></tr>
 <tr class="separator:a9ca8dd45331c69ffaca668b92fb44c36"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a66fe1fc2410c990a0988b862008777d2" id="r_a66fe1fc2410c990a0988b862008777d2"><td class="memItemLeft" align="right" valign="top">const u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3put__state__t.html#a66fe1fc2410c990a0988b862008777d2">fs_path</a></td></tr>
 <tr class="separator:a66fe1fc2410c990a0988b862008777d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acabfd73df26ee81e0633c7e1e5ab993c" id="r_acabfd73df26ee81e0633c7e1e5ab993c"><td class="memItemLeft" align="right" valign="top">brix_vfs_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3put__state__t.html#acabfd73df26ee81e0633c7e1e5ab993c">staged</a></td></tr>
-<tr class="separator:acabfd73df26ee81e0633c7e1e5ab993c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a55b33a60dedf0eaf4069815d6227f05c" id="r_a55b33a60dedf0eaf4069815d6227f05c"><td class="memItemLeft" align="right" valign="top">brix_vfs_writer_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3put__state__t.html#a55b33a60dedf0eaf4069815d6227f05c">writer</a></td></tr>
+<tr class="separator:a55b33a60dedf0eaf4069815d6227f05c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6f4fe18286c1279a3fc37d7a38cf4586" id="r_a6f4fe18286c1279a3fc37d7a38cf4586"><td class="memItemLeft" align="right" valign="top"><a class="el" href="codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793">brix_codec_id_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3put__state__t.html#a6f4fe18286c1279a3fc37d7a38cf4586">put_codec</a></td></tr>
 <tr class="separator:a6f4fe18286c1279a3fc37d7a38cf4586"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa684a8401912e82eb34f4be23278e7de" id="r_aa684a8401912e82eb34f4be23278e7de"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3put__state__t.html#aa684a8401912e82eb34f4be23278e7de">body_bytes</a></td></tr>
@@ -142,7 +142,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00074">74</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, and <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, and <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
 
 </div>
 </div>
@@ -160,7 +160,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00075">75</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, and <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00239">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, and <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
 
 </div>
 </div>
@@ -178,7 +178,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00076">76</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
 
 </div>
 </div>
@@ -196,7 +196,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00070">70</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00259">s3put_emit_etag()</a>, <a class="el" href="put__inner_8c_source.html#l00091">s3put_ensure_parent_dirs()</a>, <a class="el" href="put__inner_8c_source.html#l00193">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00163">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, and <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00239">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00267">s3put_emit_etag()</a>, <a class="el" href="put__inner_8c_source.html#l00094">s3put_ensure_parent_dirs()</a>, <a class="el" href="put__inner_8c_source.html#l00213">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00181">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, and <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>.</p>
 
 </div>
 </div>
@@ -214,7 +214,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00071">71</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00259">s3put_emit_etag()</a>, <a class="el" href="put__inner_8c_source.html#l00091">s3put_ensure_parent_dirs()</a>, <a class="el" href="put__inner_8c_source.html#l00193">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00163">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00239">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00267">s3put_emit_etag()</a>, <a class="el" href="put__inner_8c_source.html#l00094">s3put_ensure_parent_dirs()</a>, <a class="el" href="put__inner_8c_source.html#l00213">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00181">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
 
 </div>
 </div>
@@ -232,7 +232,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00073">73</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00239">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
 
 </div>
 </div>
@@ -250,25 +250,25 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00069">69</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00218">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00259">s3put_emit_etag()</a>, <a class="el" href="put__inner_8c_source.html#l00091">s3put_ensure_parent_dirs()</a>, <a class="el" href="put__inner_8c_source.html#l00193">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00163">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__inner_8c_source.html#l00239">s3_put_body_inner()</a>, <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__stream_8c_source.html#l00267">s3put_emit_etag()</a>, <a class="el" href="put__inner_8c_source.html#l00094">s3put_ensure_parent_dirs()</a>, <a class="el" href="put__inner_8c_source.html#l00213">s3put_open_target()</a>, <a class="el" href="put__inner_8c_source.html#l00181">s3put_precondition()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
 
 </div>
 </div>
-<a id="acabfd73df26ee81e0633c7e1e5ab993c" name="acabfd73df26ee81e0633c7e1e5ab993c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acabfd73df26ee81e0633c7e1e5ab993c">&#9670;&#160;</a></span>staged</h2>
+<a id="a55b33a60dedf0eaf4069815d6227f05c" name="a55b33a60dedf0eaf4069815d6227f05c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a55b33a60dedf0eaf4069815d6227f05c">&#9670;&#160;</a></span>writer</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">brix_vfs_staged_t* s3put_state_t::staged</td>
+          <td class="memname">brix_vfs_writer_t* s3put_state_t::writer</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="s3__put__internal_8h_source.html#l00072">72</a> of file <a class="el" href="s3__put__internal_8h_source.html">s3_put_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00289">s3put_commit_and_headers()</a>, <a class="el" href="put__inner_8c_source.html#l00193">s3put_open_target()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00205">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>, <a class="el" href="put__inner_8c_source.html#l00213">s3put_open_target()</a>, <a class="el" href="put__stream_8c_source.html#l00048">s3put_select_codec()</a>, <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>, <a class="el" href="put__stream_8c_source.html#l00213">s3put_stream_body()</a>, <a class="el" href="put__stream_8c_source.html#l00083">s3put_stream_offload()</a>, and <a class="el" href="put__stream_8c_source.html#l00152">s3put_stream_sync()</a>.</p>
 
 </div>
 </div>

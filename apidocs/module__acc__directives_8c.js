@@ -14,5 +14,6 @@ var module__acc__directives_8c =
     [ "brix_acc_http_set_refresh", "module__acc__directives_8c.html#a699ac84f496aae3aed3cdc4dcab32e50", null ],
     [ "brix_acc_http_set_resolve_hosts", "module__acc__directives_8c.html#ae8bfa38d72c549d253946ba8547ecc3f", null ],
     [ "brix_acc_http_set_spacechar", "module__acc__directives_8c.html#a641a7f34c170391489f20507b9ca006c", null ],
+    [ "brix_http_set_cache_store_endpoint", "module__acc__directives_8c.html#a55f577e58dc5e0b2e25bc7ccb34012f7", null ],
     [ "brix_http_set_ktls", "module__acc__directives_8c.html#a9178c96abd2bd394787e5ebf9bccedb3", null ]
 ];

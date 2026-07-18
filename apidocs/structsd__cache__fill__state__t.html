@@ -105,6 +105,12 @@ $(document).ready(function(){initNavTree('structsd__cache__fill__state__t.html',
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
 Data Fields</h2></td></tr>
+<tr class="memitem:abf0a2540aec26cdbd0bb334e4279d1fd" id="r_abf0a2540aec26cdbd0bb334e4279d1fd"><td class="memItemLeft" align="right" valign="top">brix_sd_instance_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__cache__fill__state__t.html#abf0a2540aec26cdbd0bb334e4279d1fd">src</a></td></tr>
+<tr class="separator:abf0a2540aec26cdbd0bb334e4279d1fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a87a5a15fcbec561a1d7064c11256f7df" id="r_a87a5a15fcbec561a1d7064c11256f7df"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__cache__fill__state__t.html#a87a5a15fcbec561a1d7064c11256f7df">from_cold</a></td></tr>
+<tr class="separator:a87a5a15fcbec561a1d7064c11256f7df"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a135b246b37294fca825363769ffb8215" id="r_a135b246b37294fca825363769ffb8215"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__cache__fill__state__t.html#a135b246b37294fca825363769ffb8215">from_peer</a></td></tr>
+<tr class="separator:a135b246b37294fca825363769ffb8215"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a311e23f9aa2b195b3b51a0c040aaa2bd" id="r_a311e23f9aa2b195b3b51a0c040aaa2bd"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__cache__fill__state__t.html#a311e23f9aa2b195b3b51a0c040aaa2bd">so</a></td></tr>
 <tr class="separator:a311e23f9aa2b195b3b51a0c040aaa2bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5b25410aa97776af952b9901e55e5f1a" id="r_a5b25410aa97776af952b9901e55e5f1a"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__cache__fill__state__t.html#a5b25410aa97776af952b9901e55e5f1a">staged</a></td></tr>
@@ -122,7 +128,7 @@ Data Fields</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00049">49</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00053">53</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
 <a id="ad62f428d8820dc5f6529e0885126a476" name="ad62f428d8820dc5f6529e0885126a476"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad62f428d8820dc5f6529e0885126a476">&#9670;&#160;</a></span>buf</h2>
@@ -136,9 +142,45 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00053">53</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00067">67</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>.</p>
+
+</div>
+</div>
+<a id="a87a5a15fcbec561a1d7064c11256f7df" name="a87a5a15fcbec561a1d7064c11256f7df"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a87a5a15fcbec561a1d7064c11256f7df">&#9670;&#160;</a></span>from_cold</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_cache_fill_state_t::from_cold</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00058">58</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00478">sd_cache_fill_attempt()</a>.</p>
+
+</div>
+</div>
+<a id="a135b246b37294fca825363769ffb8215" name="a135b246b37294fca825363769ffb8215"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a135b246b37294fca825363769ffb8215">&#9670;&#160;</a></span>from_peer</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_cache_fill_state_t::from_peer</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00060">60</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00478">sd_cache_fill_attempt()</a>.</p>
 
 </div>
 </div>
@@ -154,9 +196,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00054">54</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00068">68</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00286">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>.</p>
 
 </div>
 </div>
@@ -172,9 +214,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00052">52</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00066">66</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00286">cache_fill_commit()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>.</p>
 
 </div>
 </div>
@@ -190,9 +232,27 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00050">50</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00064">64</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>.</p>
+
+</div>
+</div>
+<a id="abf0a2540aec26cdbd0bb334e4279d1fd" name="abf0a2540aec26cdbd0bb334e4279d1fd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abf0a2540aec26cdbd0bb334e4279d1fd">&#9670;&#160;</a></span>src</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_instance_t* sd_cache_fill_state_t::src</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00054">54</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00478">sd_cache_fill_attempt()</a>.</p>
 
 </div>
 </div>
@@ -208,9 +268,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00051">51</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00065">65</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00286">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00363">cache_fill_verify()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>.</p>
 
 </div>
 </div>
@@ -226,9 +286,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00056">56</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00070">70</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00286">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00342">sd_cache_fill()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00295">cache_fill_verify_reject()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00478">sd_cache_fill_attempt()</a>.</p>
 
 </div>
 </div>
@@ -244,9 +304,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00055">55</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00069">69</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00286">cache_fill_commit()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00228">cache_fill_verify()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00427">cache_fill_commit()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00363">cache_fill_verify()</a>.</p>
 
 </div>
 </div>

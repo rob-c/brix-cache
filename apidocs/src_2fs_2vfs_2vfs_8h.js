@@ -6,6 +6,7 @@ var src_2fs_2vfs_2vfs_8h =
     [ "brix_vfs_ctx_t", "structbrix__vfs__ctx__t.html", "structbrix__vfs__ctx__t" ],
     [ "brix_vfs_adopt_attrs_t", "structbrix__vfs__adopt__attrs__t.html", "structbrix__vfs__adopt__attrs__t" ],
     [ "BRIX_VFS_O_APPEND", "src_2fs_2vfs_2vfs_8h.html#a7b923deee22b449ca297e94d568007fa", null ],
+    [ "BRIX_VFS_O_ATOMIC", "src_2fs_2vfs_2vfs_8h.html#a3879fe5d4e9005f9968360cad3137df6", null ],
     [ "BRIX_VFS_O_CREATE", "src_2fs_2vfs_2vfs_8h.html#a4a082c93dccac6408e3dda42991a0415", null ],
     [ "BRIX_VFS_O_EXCL", "src_2fs_2vfs_2vfs_8h.html#aa341a4ffd8c75e4133b419e7e1e62d89", null ],
     [ "BRIX_VFS_O_MKDIRPATH", "src_2fs_2vfs_2vfs_8h.html#a14bf57ec5dc436be50ee4931acc769d3", null ],
@@ -22,6 +23,7 @@ var src_2fs_2vfs_2vfs_8h =
     ] ],
     [ "brix_vfs_adopt_fd", "src_2fs_2vfs_2vfs_8h.html#afc016a95cefa1640da8411c2893ca6df", null ],
     [ "brix_vfs_adopt_obj", "src_2fs_2vfs_2vfs_8h.html#a9a490b54301194e4ad6b7bae331f1215", null ],
+    [ "brix_vfs_backend_accepts_proxy", "src_2fs_2vfs_2vfs_8h.html#ac914913da6f8b03025bbf0b39ced2711", null ],
     [ "brix_vfs_backend_mode", "src_2fs_2vfs_2vfs_8h.html#ae2764294d4dd2566e766feff1f4e0ad4", null ],
     [ "brix_vfs_chmod", "src_2fs_2vfs_2vfs_8h.html#a77186e83d9a823134a696b7ec35669b5", null ],
     [ "brix_vfs_close", "src_2fs_2vfs_2vfs_8h.html#aa79c4914106c61b8d70a3d836fc033b6", null ],
@@ -43,6 +45,7 @@ var src_2fs_2vfs_2vfs_8h =
     [ "brix_vfs_file_mtime", "src_2fs_2vfs_2vfs_8h.html#aae1bd755f56793476801e35a41914ba9", null ],
     [ "brix_vfs_file_path", "src_2fs_2vfs_2vfs_8h.html#a8624f191d8d0d21f18656e685eaaa448", null ],
     [ "brix_vfs_file_pread", "src_2fs_2vfs_2vfs_8h.html#a95e843f2c2c963647e3b3079e976964f", null ],
+    [ "brix_vfs_file_pwrite", "src_2fs_2vfs_2vfs_8h.html#a5066c677bd22b13c7896ef719b9e75ee", null ],
     [ "brix_vfs_file_sd_obj", "src_2fs_2vfs_2vfs_8h.html#a6408ce9c1f39f6d8cdd249050c161ec0", null ],
     [ "brix_vfs_file_sendfile_fd", "src_2fs_2vfs_2vfs_8h.html#a83f6e427a283eb2a3f323acbe6b71c03", null ],
     [ "brix_vfs_file_size", "src_2fs_2vfs_2vfs_8h.html#a8489164ebd9f32bd34231f243777d61c", null ],
@@ -59,9 +62,11 @@ var src_2fs_2vfs_2vfs_8h =
     [ "brix_vfs_residency", "src_2fs_2vfs_2vfs_8h.html#a91567e1859556f7c9064d14265aba6b0", null ],
     [ "brix_vfs_rmdir", "src_2fs_2vfs_2vfs_8h.html#a1729e222b072582d57f101e4a45f0606", null ],
     [ "brix_vfs_setattr", "src_2fs_2vfs_2vfs_8h.html#af0b90dc42eca2339665962f3b3ba45d3", null ],
+    [ "brix_vfs_space", "src_2fs_2vfs_2vfs_8h.html#a75665acb2c863968bd7163a183025a98", null ],
     [ "brix_vfs_stat", "src_2fs_2vfs_2vfs_8h.html#a753599f4eb76235e21019f735acd0325", null ],
     [ "brix_vfs_statf", "src_2fs_2vfs_2vfs_8h.html#afc440ef2d2e744dcaa9a9f01c527da81", null ],
     [ "brix_vfs_sync", "src_2fs_2vfs_2vfs_8h.html#aba90056b0b4b28f4409ed06cd29fbc8b", null ],
     [ "brix_vfs_truncate", "src_2fs_2vfs_2vfs_8h.html#a0cac02a0127666cb39179269d41c3979", null ],
-    [ "brix_vfs_unlink", "src_2fs_2vfs_2vfs_8h.html#ac54fe3322ccd39f3b688b7180d3058f1", null ]
+    [ "brix_vfs_unlink", "src_2fs_2vfs_2vfs_8h.html#ac54fe3322ccd39f3b688b7180d3058f1", null ],
+    [ "brix_vfs_wverify_check", "src_2fs_2vfs_2vfs_8h.html#aea04cf3bb9ec8459167efcc1d4889346", null ]
 ];

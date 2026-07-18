@@ -7,5 +7,5 @@ var structs3put__state__t =
     [ "fs_path", "structs3put__state__t.html#a66fe1fc2410c990a0988b862008777d2", null ],
     [ "put_codec", "structs3put__state__t.html#a6f4fe18286c1279a3fc37d7a38cf4586", null ],
     [ "r", "structs3put__state__t.html#aac55348807598c642cb5f30f7e73a980", null ],
-    [ "staged", "structs3put__state__t.html#acabfd73df26ee81e0633c7e1e5ab993c", null ]
+    [ "writer", "structs3put__state__t.html#a55b33a60dedf0eaf4069815d6227f05c", null ]
 ];

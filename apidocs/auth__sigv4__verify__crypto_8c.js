@@ -7,5 +7,5 @@ var auth__sigv4__verify__crypto_8c =
     [ "date", "auth__sigv4__verify__crypto_8c.html#a20d8c6b5428110e36cdf8d8c847d6dc9", null ],
     [ "key", "auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665", null ],
     [ "region", "auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425", null ],
-    [ "s_signing_key_cache", "auth__sigv4__verify__crypto_8c.html#a0742154ff1733147d1a54b41bc80686a", null ]
+    [ "s_signing_key_cache", "auth__sigv4__verify__crypto_8c.html#a090c320ef59c9254b5ad75fbcc81c47f", null ]
 ];

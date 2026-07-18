@@ -13,7 +13,7 @@ var net_2cms_2recv__frame_8c =
     [ "cms_state_extract_path", "net_2cms_2recv__frame_8c.html#a9a9f9ee5a235d0114d008c619884ca84", null ],
     [ "cms_wake_pending_session", "net_2cms_2recv__frame_8c.html#a4d9f00513956725f0d0da5aa8899fd15", null ],
     [ "ngx_brix_cms_process_frame", "net_2cms_2recv__frame_8c.html#a97b0158b9f001886abb408195ecda231", null ],
-    [ "cms_frame_table", "net_2cms_2recv__frame_8c.html#abeb17ad72f850d65cb156ea9c276780e", null ],
+    [ "cms_frame_table", "net_2cms_2recv__frame_8c.html#a8f8982b1852327ba2a893a864b9f4471", null ],
     [ "code", "net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6", null ],
     [ "handler", "net_2cms_2recv__frame_8c.html#a8720b9ebf06a5cf8d914fc81a5464da2", null ]
 ];

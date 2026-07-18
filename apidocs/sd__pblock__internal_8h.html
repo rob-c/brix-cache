@@ -92,6 +92,7 @@ $(document).ready(function(){initNavTree('sd__pblock__internal_8h.html',''); ini
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">sd_pblock_internal.h File Reference</div></div>
 </div><!--header-->
@@ -117,6 +118,13 @@ $(document).ready(function(){initNavTree('sd__pblock__internal_8h.html',''); ini
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structpblock__obj__t.html">pblock_obj_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structpblock__ids__t.html">pblock_ids_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:a283119641405afb319e1a5595c5305d0" id="r_a283119641405afb319e1a5595c5305d0"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a283119641405afb319e1a5595c5305d0">PBLOCK_MAX_GIDS</a>&#160;&#160;&#160;16</td></tr>
+<tr class="separator:a283119641405afb319e1a5595c5305d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -174,8 +182,263 @@ Functions</h2></td></tr>
 <tr class="separator:a704fe6e7b3953d3c1d59fa556f4e5e8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a042c708f534fb6ceffdaef4363f4e29f" id="r_a042c708f534fb6ceffdaef4363f4e29f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a042c708f534fb6ceffdaef4363f4e29f">sd_pblock_staged_abort</a> (brix_sd_staged_t *st)</td></tr>
 <tr class="separator:a042c708f534fb6ceffdaef4363f4e29f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaa7ee5c46b8498af08fd1d69016c367d" id="r_aaa7ee5c46b8498af08fd1d69016c367d"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#aaa7ee5c46b8498af08fd1d69016c367d">sd_pblock_open_as</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, uint32_t uid, uint32_t gid, int *err_out)</td></tr>
+<tr class="separator:aaa7ee5c46b8498af08fd1d69016c367d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab38aeb97350c1f75f71fbe35a25e385f" id="r_ab38aeb97350c1f75f71fbe35a25e385f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#ab38aeb97350c1f75f71fbe35a25e385f">sd_pblock_mkdir_as</a> (brix_sd_instance_t *inst, const char *path, mode_t mode, uint32_t uid, uint32_t gid)</td></tr>
+<tr class="separator:ab38aeb97350c1f75f71fbe35a25e385f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a29c6fddbf27c14ecad7e0643deefa7f5" id="r_a29c6fddbf27c14ecad7e0643deefa7f5"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a29c6fddbf27c14ecad7e0643deefa7f5">sd_pblock_server_copy_as</a> (brix_sd_instance_t *inst, const char *src, const char *dst, off_t *bytes_out, uint32_t uid, uint32_t gid)</td></tr>
+<tr class="separator:a29c6fddbf27c14ecad7e0643deefa7f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaf6731654cc825af6bb0cee458ef7471" id="r_aaf6731654cc825af6bb0cee458ef7471"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#aaf6731654cc825af6bb0cee458ef7471">sd_pblock_staged_open_as</a> (brix_sd_instance_t *inst, const char *final_path, mode_t mode, uint32_t uid, uint32_t gid, int *err_out)</td></tr>
+<tr class="separator:aaf6731654cc825af6bb0cee458ef7471"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc396b90ff750d662f9829d799c9c6c4" id="r_afc396b90ff750d662f9829d799c9c6c4"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#afc396b90ff750d662f9829d799c9c6c4">pblock_ident_resolve</a> (<a class="el" href="structpblock__state__t.html">pblock_state_t</a> *st, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *out)</td></tr>
+<tr class="separator:afc396b90ff750d662f9829d799c9c6c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afcc0e4e5b0a8895998716fcfe1fb9162" id="r_afcc0e4e5b0a8895998716fcfe1fb9162"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#afcc0e4e5b0a8895998716fcfe1fb9162">pblock_ident_access</a> (const <a class="el" href="structpblock__meta.html">pblock_meta</a> *meta, const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *ids, int want)</td></tr>
+<tr class="separator:afcc0e4e5b0a8895998716fcfe1fb9162"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5620d04200650a5b33a3115f820c30c3" id="r_a5620d04200650a5b33a3115f820c30c3"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a5620d04200650a5b33a3115f820c30c3">pblock_ident_check</a> (<a class="el" href="structpblock__state__t.html">pblock_state_t</a> *st, const char *path, const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *ids, int want, <a class="el" href="structpblock__meta.html">pblock_meta</a> *meta_out)</td></tr>
+<tr class="separator:a5620d04200650a5b33a3115f820c30c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a180c6a5d9fa28a8f71f7bdb628abe1bd" id="r_a180c6a5d9fa28a8f71f7bdb628abe1bd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a180c6a5d9fa28a8f71f7bdb628abe1bd">pblock_ident_check_parent</a> (<a class="el" href="structpblock__state__t.html">pblock_state_t</a> *st, const char *path, const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *ids, int want, <a class="el" href="structpblock__meta.html">pblock_meta</a> *parent_out)</td></tr>
+<tr class="separator:a180c6a5d9fa28a8f71f7bdb628abe1bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5498a1cc33c5ce9e93ffb8093b9b7a88" id="r_a5498a1cc33c5ce9e93ffb8093b9b7a88"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a5498a1cc33c5ce9e93ffb8093b9b7a88">pblock_ident_sticky_gate</a> (const <a class="el" href="structpblock__meta.html">pblock_meta</a> *parent, const <a class="el" href="structpblock__meta.html">pblock_meta</a> *entry, const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *ids)</td></tr>
+<tr class="separator:a5498a1cc33c5ce9e93ffb8093b9b7a88"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a96342aea0c9a216170d969ebdf62910a" id="r_a96342aea0c9a216170d969ebdf62910a"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a96342aea0c9a216170d969ebdf62910a">sd_pblock_open_cred</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:a96342aea0c9a216170d969ebdf62910a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aedc580e9e8d5655a5316fe4aec71a902" id="r_aedc580e9e8d5655a5316fe4aec71a902"><td class="memItemLeft" align="right" valign="top">brix_sd_staged_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#aedc580e9e8d5655a5316fe4aec71a902">sd_pblock_staged_open_cred</a> (brix_sd_instance_t *inst, const char *final_path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
+<tr class="separator:aedc580e9e8d5655a5316fe4aec71a902"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3ca02470355e217d588df87c31d67243" id="r_a3ca02470355e217d588df87c31d67243"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a3ca02470355e217d588df87c31d67243">sd_pblock_stat_cred</a> (brix_sd_instance_t *inst, const char *path, <a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a3ca02470355e217d588df87c31d67243"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adb9f7a1f11e56de663d017f832362b80" id="r_adb9f7a1f11e56de663d017f832362b80"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#adb9f7a1f11e56de663d017f832362b80">sd_pblock_unlink_cred</a> (brix_sd_instance_t *inst, const char *path, int is_dir, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:adb9f7a1f11e56de663d017f832362b80"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a601a064fe6dd268bebf65fdf11bdf692" id="r_a601a064fe6dd268bebf65fdf11bdf692"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a601a064fe6dd268bebf65fdf11bdf692">sd_pblock_mkdir_cred</a> (brix_sd_instance_t *inst, const char *path, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a601a064fe6dd268bebf65fdf11bdf692"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae7f5a5bc4888317474d5947eb3821405" id="r_ae7f5a5bc4888317474d5947eb3821405"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#ae7f5a5bc4888317474d5947eb3821405">sd_pblock_rename_cred</a> (brix_sd_instance_t *inst, const char *src, const char *dst, int noreplace, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:ae7f5a5bc4888317474d5947eb3821405"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff1891249d032d52502ed6bdd8387d32" id="r_aff1891249d032d52502ed6bdd8387d32"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#aff1891249d032d52502ed6bdd8387d32">sd_pblock_setattr_cred</a> (brix_sd_instance_t *inst, const char *path, const <a class="el" href="structbrix__sd__setattr__t.html">brix_sd_setattr_t</a> *attr, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:aff1891249d032d52502ed6bdd8387d32"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0baefd97192ed4326f301ce5d6c367f4" id="r_a0baefd97192ed4326f301ce5d6c367f4"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a0baefd97192ed4326f301ce5d6c367f4">sd_pblock_getxattr_cred</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a0baefd97192ed4326f301ce5d6c367f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a096ecbdc4eedff84215734c296812546" id="r_a096ecbdc4eedff84215734c296812546"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a096ecbdc4eedff84215734c296812546">sd_pblock_listxattr_cred</a> (brix_sd_instance_t *inst, const char *path, void *buf, size_t cap, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a096ecbdc4eedff84215734c296812546"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1f2d31828a77074782d8fc2733cd67f5" id="r_a1f2d31828a77074782d8fc2733cd67f5"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a1f2d31828a77074782d8fc2733cd67f5">sd_pblock_setxattr_cred</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const void *val, size_t len, int flags, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a1f2d31828a77074782d8fc2733cd67f5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a660c22118887e6c33fc3a484b667e35c" id="r_a660c22118887e6c33fc3a484b667e35c"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a660c22118887e6c33fc3a484b667e35c">sd_pblock_removexattr_cred</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a660c22118887e6c33fc3a484b667e35c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac57367037748bf13bf63ad93d4fcc9cf" id="r_ac57367037748bf13bf63ad93d4fcc9cf"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#ac57367037748bf13bf63ad93d4fcc9cf">sd_pblock_server_copy_cred</a> (brix_sd_instance_t *inst, const char *src, const char *dst, off_t *bytes_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:ac57367037748bf13bf63ad93d4fcc9cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a25f1a17b65ad596bd6ac95bf74fc6eae" id="r_a25f1a17b65ad596bd6ac95bf74fc6eae"><td class="memItemLeft" align="right" valign="top">brix_sd_dir_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a25f1a17b65ad596bd6ac95bf74fc6eae">sd_pblock_opendir_cred</a> (brix_sd_instance_t *inst, const char *path, int *err_out, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a25f1a17b65ad596bd6ac95bf74fc6eae"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a283119641405afb319e1a5595c5305d0" name="a283119641405afb319e1a5595c5305d0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a283119641405afb319e1a5595c5305d0">&#9670;&#160;</a></span>PBLOCK_MAX_GIDS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define PBLOCK_MAX_GIDS&#160;&#160;&#160;16</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__pblock__internal_8h_source.html#l00163">163</a> of file <a class="el" href="sd__pblock__internal_8h_source.html">sd_pblock_internal.h</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="afcc0e4e5b0a8895998716fcfe1fb9162" name="afcc0e4e5b0a8895998716fcfe1fb9162"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afcc0e4e5b0a8895998716fcfe1fb9162">&#9670;&#160;</a></span>pblock_ident_access()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t pblock_ident_access </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structpblock__meta.html">pblock_meta</a> *&#160;</td>
+          <td class="paramname"><em>meta</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *&#160;</td>
+          <td class="paramname"><em>ids</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>want</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a5620d04200650a5b33a3115f820c30c3" name="a5620d04200650a5b33a3115f820c30c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5620d04200650a5b33a3115f820c30c3">&#9670;&#160;</a></span>pblock_ident_check()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t pblock_ident_check </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structpblock__state__t.html">pblock_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *&#160;</td>
+          <td class="paramname"><em>ids</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>want</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structpblock__meta.html">pblock_meta</a> *&#160;</td>
+          <td class="paramname"><em>meta_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a180c6a5d9fa28a8f71f7bdb628abe1bd" name="a180c6a5d9fa28a8f71f7bdb628abe1bd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a180c6a5d9fa28a8f71f7bdb628abe1bd">&#9670;&#160;</a></span>pblock_ident_check_parent()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t pblock_ident_check_parent </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structpblock__state__t.html">pblock_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *&#160;</td>
+          <td class="paramname"><em>ids</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>want</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structpblock__meta.html">pblock_meta</a> *&#160;</td>
+          <td class="paramname"><em>parent_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="afc396b90ff750d662f9829d799c9c6c4" name="afc396b90ff750d662f9829d799c9c6c4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc396b90ff750d662f9829d799c9c6c4">&#9670;&#160;</a></span>pblock_ident_resolve()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t pblock_ident_resolve </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structpblock__state__t.html">pblock_state_t</a> *&#160;</td>
+          <td class="paramname"><em>st</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a5498a1cc33c5ce9e93ffb8093b9b7a88" name="a5498a1cc33c5ce9e93ffb8093b9b7a88"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5498a1cc33c5ce9e93ffb8093b9b7a88">&#9670;&#160;</a></span>pblock_ident_sticky_gate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t pblock_ident_sticky_gate </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structpblock__meta.html">pblock_meta</a> *&#160;</td>
+          <td class="paramname"><em>parent</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structpblock__meta.html">pblock_meta</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structpblock__ids__t.html">pblock_ids_t</a> *&#160;</td>
+          <td class="paramname"><em>ids</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a4f034d4bb873b317c873cbed8df31134" name="a4f034d4bb873b317c873cbed8df31134"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a4f034d4bb873b317c873cbed8df31134">&#9670;&#160;</a></span>sd_pblock_closedir()</h2>
 
@@ -394,6 +657,58 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a0baefd97192ed4326f301ce5d6c367f4" name="a0baefd97192ed4326f301ce5d6c367f4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0baefd97192ed4326f301ce5d6c367f4">&#9670;&#160;</a></span>sd_pblock_getxattr_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t sd_pblock_getxattr_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a666bcaa206928358486783aee3b0392b" name="a666bcaa206928358486783aee3b0392b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a666bcaa206928358486783aee3b0392b">&#9670;&#160;</a></span>sd_pblock_listxattr()</h2>
 
@@ -423,6 +738,52 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">size_t&#160;</td>
           <td class="paramname"><em>cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a096ecbdc4eedff84215734c296812546" name="a096ecbdc4eedff84215734c296812546"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a096ecbdc4eedff84215734c296812546">&#9670;&#160;</a></span>sd_pblock_listxattr_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t sd_pblock_listxattr_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -468,6 +829,202 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ab38aeb97350c1f75f71fbe35a25e385f" name="ab38aeb97350c1f75f71fbe35a25e385f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab38aeb97350c1f75f71fbe35a25e385f">&#9670;&#160;</a></span>sd_pblock_mkdir_as()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_mkdir_as </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>uid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>gid</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a601a064fe6dd268bebf65fdf11bdf692" name="a601a064fe6dd268bebf65fdf11bdf692"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a601a064fe6dd268bebf65fdf11bdf692">&#9670;&#160;</a></span>sd_pblock_mkdir_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_mkdir_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="aaa7ee5c46b8498af08fd1d69016c367d" name="aaa7ee5c46b8498af08fd1d69016c367d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaa7ee5c46b8498af08fd1d69016c367d">&#9670;&#160;</a></span>sd_pblock_open_as()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_obj_t * sd_pblock_open_as </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sd_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>uid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>gid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a96342aea0c9a216170d969ebdf62910a" name="a96342aea0c9a216170d969ebdf62910a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a96342aea0c9a216170d969ebdf62910a">&#9670;&#160;</a></span>sd_pblock_open_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_obj_t * sd_pblock_open_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sd_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a2e2992fd0a9c1a476185ecd5243dc527" name="a2e2992fd0a9c1a476185ecd5243dc527"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a2e2992fd0a9c1a476185ecd5243dc527">&#9670;&#160;</a></span>sd_pblock_opendir()</h2>
 
@@ -491,6 +1048,46 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">int *&#160;</td>
           <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a25f1a17b65ad596bd6ac95bf74fc6eae" name="a25f1a17b65ad596bd6ac95bf74fc6eae"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a25f1a17b65ad596bd6ac95bf74fc6eae">&#9670;&#160;</a></span>sd_pblock_opendir_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_dir_t * sd_pblock_opendir_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -770,6 +1367,46 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a660c22118887e6c33fc3a484b667e35c" name="a660c22118887e6c33fc3a484b667e35c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a660c22118887e6c33fc3a484b667e35c">&#9670;&#160;</a></span>sd_pblock_removexattr_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_removexattr_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a786a6f0ffb29b94ccd805e73706e7b82" name="a786a6f0ffb29b94ccd805e73706e7b82"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a786a6f0ffb29b94ccd805e73706e7b82">&#9670;&#160;</a></span>sd_pblock_rename()</h2>
 
@@ -799,6 +1436,52 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>noreplace</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ae7f5a5bc4888317474d5947eb3821405" name="ae7f5a5bc4888317474d5947eb3821405"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae7f5a5bc4888317474d5947eb3821405">&#9670;&#160;</a></span>sd_pblock_rename_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_rename_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>noreplace</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -850,6 +1533,104 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a29c6fddbf27c14ecad7e0643deefa7f5" name="a29c6fddbf27c14ecad7e0643deefa7f5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a29c6fddbf27c14ecad7e0643deefa7f5">&#9670;&#160;</a></span>sd_pblock_server_copy_as()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_server_copy_as </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>bytes_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>uid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>gid</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ac57367037748bf13bf63ad93d4fcc9cf" name="ac57367037748bf13bf63ad93d4fcc9cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac57367037748bf13bf63ad93d4fcc9cf">&#9670;&#160;</a></span>sd_pblock_server_copy_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_server_copy_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>bytes_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a2d53c1c528cffe6b22870832bce03bda" name="a2d53c1c528cffe6b22870832bce03bda"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a2d53c1c528cffe6b22870832bce03bda">&#9670;&#160;</a></span>sd_pblock_setattr()</h2>
 
@@ -873,6 +1654,46 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">const <a class="el" href="structbrix__sd__setattr__t.html">brix_sd_setattr_t</a> *&#160;</td>
           <td class="paramname"><em>attr</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="aff1891249d032d52502ed6bdd8387d32" name="aff1891249d032d52502ed6bdd8387d32"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff1891249d032d52502ed6bdd8387d32">&#9670;&#160;</a></span>sd_pblock_setattr_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_setattr_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__setattr__t.html">brix_sd_setattr_t</a> *&#160;</td>
+          <td class="paramname"><em>attr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -925,6 +1746,64 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>flags</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a1f2d31828a77074782d8fc2733cd67f5" name="a1f2d31828a77074782d8fc2733cd67f5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1f2d31828a77074782d8fc2733cd67f5">&#9670;&#160;</a></span>sd_pblock_setxattr_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_setxattr_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>val</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1022,6 +1901,104 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="aaf6731654cc825af6bb0cee458ef7471" name="aaf6731654cc825af6bb0cee458ef7471"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaf6731654cc825af6bb0cee458ef7471">&#9670;&#160;</a></span>sd_pblock_staged_open_as()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_staged_t * sd_pblock_staged_open_as </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>final_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>uid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>gid</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="aedc580e9e8d5655a5316fe4aec71a902" name="aedc580e9e8d5655a5316fe4aec71a902"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aedc580e9e8d5655a5316fe4aec71a902">&#9670;&#160;</a></span>sd_pblock_staged_open_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_staged_t * sd_pblock_staged_open_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>final_path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a21f8b1fdf5d09632a6be03f0d24bfa1a" name="a21f8b1fdf5d09632a6be03f0d24bfa1a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a21f8b1fdf5d09632a6be03f0d24bfa1a">&#9670;&#160;</a></span>sd_pblock_staged_write()</h2>
 
@@ -1096,6 +2073,46 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="a3ca02470355e217d588df87c31d67243" name="a3ca02470355e217d588df87c31d67243"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3ca02470355e217d588df87c31d67243">&#9670;&#160;</a></span>sd_pblock_stat_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_stat_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a7254818e7f361d3ccd7f02a19b75e4c0" name="a7254818e7f361d3ccd7f02a19b75e4c0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a7254818e7f361d3ccd7f02a19b75e4c0">&#9670;&#160;</a></span>sd_pblock_unlink()</h2>
 
@@ -1119,6 +2136,46 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>is_dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="adb9f7a1f11e56de663d017f832362b80" name="adb9f7a1f11e56de663d017f832362b80"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adb9f7a1f11e56de663d017f832362b80">&#9670;&#160;</a></span>sd_pblock_unlink_cred()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_unlink_cred </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>is_dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
         </tr>
         <tr>
           <td></td>

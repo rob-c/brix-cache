@@ -93,15 +93,15 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2dirlist_2READ
   <div class="headertitle"><div class="title">dirlist — XRootD &lt;tt&gt;kXR_dirlist&lt;/tt&gt; directory enumeration (stream protocol)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md319"></a> </p>
-<h1><a class="anchor" id="autotoc_md320"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md323"></a> </p>
+<h1><a class="anchor" id="autotoc_md324"></a>
 Overview</h1>
 <p>This subsystem implements the <code>root://</code> / <code>roots://</code> directory-listing operation, <code>kXR_dirlist</code>. A client asks to enumerate one directory and receives the entries as a flat, newline-delimited text block. Depending on the request <code>options</code> bitfield, each entry may also carry a per-entry <b>stat</b> line (<code>kXR_dstat</code>) and a per-entry <b>checksum</b> token (<code>kXR_dcksm</code>). Because a single directory can contain far more entries than fit in one wire frame, the response is streamed as a series of <code>kXR_oksofar</code> continuation frames followed by a final <code>kXR_ok</code> frame that marks end-of-listing.</p>
 <p>It sits in the <b>stream protocol handler</b> layer. The opcode dispatcher (<code>../handshake/dispatch_read.c</code>) routes <code>kXR_dirlist</code> to <code><a class="el" href="dirlist_8h.html#a8e9c80b2909b1dcc0fbc7b55ed540b05">brix_handle_dirlist()</a></code> (<code>handler.c</code>) after login/auth has completed. The handler parses the request, confines the requested path beneath the export root, applies an auth gate, opens the directory with <code>openat(O_DIRECTORY)</code>, iterates with <code>readdir</code>/<code>fstatat</code>, and frames the result. This is the stream-protocol sibling of the HTTP enumeration paths — WebDAV <code>PROPFIND</code> (<code>../webdav/propfind.c</code>) and S3 <code>ListObjectsV2</code> (<code>../s3/list.c</code>) — which present the <em>same</em> on-disk export through different wire encodings.</p>
 <p>Two execution modes exist. The default is <b>synchronous</b>: the full enumeration runs inline on the event loop. An <b>AIO/thread-pool</b> variant lives in <code>../aio/dirlist.c</code> (<code>brix_dirlist_aio_thread</code> / <code>_done</code>) and offloads the blocking <code>readdir</code>/<code>fstatat</code>/checksum work; however, in <code>handler.c</code> it is currently gated off behind <code>if (0 &amp;&amp; ...)</code> because the AIO path could complete without delivering a response frame, wedging <code>xrdfs</code> readiness probes in one-worker test deployments. Reviewers should treat the synchronous path as the live code path.</p>
 <p>Since phase-54 the VFS-owned thread-safe core <code><a class="el" href="vfs__io__core_8c.html#aab00f7ff5deb71f5898ed860402962a7">brix_vfs_io_execute()</a></code> has an <code>OPENDIR</code> op (in <a class="el" href="md_src_2fs_2README.html">`../fs/vfs_io_core.c`</a>) that scans a confined directory fd and builds the <code>kXR_dirlist</code> wire body off the event loop. <b>It is wired into the <code>../aio/dirlist.c</code> worker only</b> — and that worker is currently gated off (see above) — so the <b>live</b> path is still the synchronous <code>fdopendir</code>/<code>readdir</code> loop in <code>handler.c</code>. Routing that live path through the core (and ungating the worker) is the tracked follow-up that finishes bringing dirlist into the unified VFS I/O core.</p>
 <p>In <b>manager / redirector mode</b> the handler does not enumerate locally at all: it selects a registered data server via <code><a class="el" href="net_2manager_2registry_8h.html#a3239940eb727df4b789fccf11a394ba9">brix_srv_select()</a></code> (<code>../manager/registry.h</code>) and replies with <code>kXR_redirect</code>, or <code>kXR_Overloaded</code> if no server is available.</p>
-<h1><a class="anchor" id="autotoc_md321"></a>
+<h1><a class="anchor" id="autotoc_md325"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -115,7 +115,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="dirlist_8h.html">dirlist.h</a></code>   </td><td class="markdownTableBodyNone">Public prototype for <code><a class="el" href="dirlist_8h.html#a8e9c80b2909b1dcc0fbc7b55ed540b05">brix_handle_dirlist()</a></code> (the subsystem's only external entry point), called from the read-opcode dispatcher.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md322"></a>
+<h1><a class="anchor" id="autotoc_md326"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structClientDirlistRequest.html">ClientDirlistRequest</a></code>** (<code>../protocol</code>, XRootD wire struct) — overlaid directly on <code>ctx-&gt;hdr_buf</code>. The relevant field is <code>options</code>, a <code>u_char</code> bitfield: <code>kXR_dstat</code> (0x01) requests per-entry stat lines, <code>kXR_dcksm</code> (0x02) requests per-entry checksums and <em>implies</em> dstat (<code>want_stat = options &amp; (kXR_dstat | kXR_dcksm)</code>).</li>
@@ -124,7 +124,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__integrity__info__t.html">brix_integrity_info_t</a></code> / <code><a class="el" href="structbrix__integrity__opts__t.html">brix_integrity_opts_t</a></code>** (<code>../compat/integrity_info.h</code>) — checksum result + options used by <code><a class="el" href="dcksm_8c.html#a5cbb69d542b0fe3cb3c23ff8f4736b6f">brix_dirlist_checksum_token()</a></code>; it enables the xattr digest cache (<code>allow_xattr_cache</code> / <code>update_xattr_cache</code>) so repeated listings do not re-hash unchanged files.</li>
 <li>**<code><a class="el" href="structbrix__dirlist__aio__t.html">brix_dirlist_aio_t</a></code>** (<code>../aio/aio.h</code>) — the offload context for the (currently disabled) thread-pool variant: carries the resolved path, streamid, flags, a <code>BRIX_DIRLIST_AIO_RESPONSE_MAX</code> (4 MiB) response buffer, and error fields. Defined and consumed in <code>../aio/dirlist.c</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md323"></a>
+<h1><a class="anchor" id="autotoc_md327"></a>
 Control &amp; data flow</h1>
 <p><b>Entry:</b> <code>../handshake/dispatch_read.c</code> calls <code>brix_handle_dirlist(ctx, c,
 conf)</code> for the <code>kXR_dirlist</code> opcode, after the session is authenticated.</p>
@@ -140,7 +140,7 @@ conf)</code> for the <code>kXR_dirlist</code> opcode, after the session is authe
 <li><b>Account &amp; log:</b> bump <code><a class="el" href="tunables_8h.html#ae2e4a2b4087dd93d802a298d453663e7">BRIX_OP_OK(... BRIX_OP_DIRLIST)</a></code> metrics (<code>../metrics</code>) and <code><a class="el" href="fs_2path_2path_8h.html#a308cfe11a89dc7e25d8c493abffaf624">brix_log_access()</a></code> (<code>../path/access_log</code>).</li>
 </ol>
 <p><b>Calls out to:</b> <code>../path/</code> (extract/confine/auth/access-log), <code>../manager/</code> (server selection in manager mode), <code>../compat/checksum.{c,h}</code> + <code>../compat/integrity_info.h</code> (digest compute + xattr cache), <code>../response</code> / connection send for framing, <code>../metrics</code> for counters, and optionally <code>../aio/dirlist.c</code> for the thread-pool variant.</p>
-<h1><a class="anchor" id="autotoc_md324"></a>
+<h1><a class="anchor" id="autotoc_md328"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Kernel-confined directory open is mandatory.</b> The directory is opened with <code>brix_open_beneath(conf-&gt;rootfd, reqpath, O_RDONLY|O_DIRECTORY)</code> (<code>handler.c:205</code>) — never a raw <code><a class="el" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open()</a></code> on a client path. Entry files for checksums are opened with <code>openat(dfd, name, O_RDONLY|O_CLOEXEC|O_NOFOLLOW)</code> relative to the already-confined directory fd (<code><a class="el" href="dcksm_8c.html">dcksm.c</a>:131</code>), and <code>fstatat(..., AT_SYMLINK_NOFOLLOW)</code> is used for stat — symlinks are never followed out of the export root.</li>
@@ -154,7 +154,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Manager mode never lists locally.</b> Reviewers debugging "empty listing on a
   redirector" should remember step 4 short-circuits to a redirect; the data server performs the real enumeration.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md325"></a>
+<h1><a class="anchor" id="autotoc_md329"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a new dirlist option/sub-mode:</b> branch on a new <code>req-&gt;options</code> bit in <code>handler.c</code> (mirror how <code>want_stat</code> / <code>want_cksum</code> are derived). Keep the emitted bytes inside the chunked-flush loop so large directories still frame correctly.</li>
@@ -162,7 +162,7 @@ Entry points / extending</h1>
 <li><b>Adjust framing/chunk size:</b> change <code>chunk_cap</code> (64 KiB) in <code>handler.c</code>; the <code>XRD_RESPONSE_HDR_LEN</code> reservation and <code>kXR_oksofar</code>/<code>kXR_ok</code> boundary logic must stay intact.</li>
 <li><b>Re-enable AIO offload:</b> work in <code>../aio/dirlist.c</code> and the gated block in <code>handler.c</code>; the offload context (<code><a class="el" href="structbrix__dirlist__aio__t.html">brix_dirlist_aio_t</a></code>) and the 4 MiB <code>BRIX_DIRLIST_AIO_RESPONSE_MAX</code> cap are defined in <code>../aio/aio.h</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md326"></a>
+<h1><a class="anchor" id="autotoc_md330"></a>
 See also</h1>
 <ul>
 <li><code>../handshake/README.md</code> — read-opcode dispatcher that invokes this handler</li>

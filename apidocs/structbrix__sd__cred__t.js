@@ -11,5 +11,6 @@ var structbrix__sd__cred__t =
     [ "s3_ak", "structbrix__sd__cred__t.html#af22aa0e4e90da47fe1b7b66d1d903b11", null ],
     [ "s3_region", "structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273", null ],
     [ "s3_sk", "structbrix__sd__cred__t.html#abe8cafe7c4088eb46620a974ee14bcf4", null ],
+    [ "vos", "structbrix__sd__cred__t.html#a8b53bf415295069ce6acca48287222ce", null ],
     [ "x509_proxy", "structbrix__sd__cred__t.html#a3a51b644a5ead3552e55714fe90c5531", null ]
 ];

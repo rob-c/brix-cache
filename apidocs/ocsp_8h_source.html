@@ -129,33 +129,36 @@ $(document).ready(function(){initNavTree('ocsp_8h_source.html',''); initResizabl
 <div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="comment"> * @soft_fail: if 1, treat network errors / unknown status as pass (return 0);</span></div>
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="comment"> *             if 0, treat any non-GOOD status as failure (return -1).</span></div>
 <div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="comment"> *             A REVOKED status always returns -1 regardless of soft_fail.</span></div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="comment"> * Returns 0 if the certificate is GOOD (or soft_fail allows the status),</span></div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="comment"> *         -1 if the certificate is REVOKED or the check definitively fails.</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="keywordtype">int</span> <a class="code hl_function" href="ocsp_8h.html#a7afb6a47b246d2bad2005e70d29d2529">brix_ocsp_check_cert</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, X509 *leaf, X509 *issuer,</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="keywordtype">int</span> soft_fail);</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span> </div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="comment"> * brix_ocsp_staple_fetch — fetch and cache an OCSP staple for the server</span></div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment"> * certificate.</span></div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> * Queries the OCSP responder URL embedded in xcf-&gt;gsi_cert and stores the</span></div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> * raw DER-encoded OCSP response in xcf-&gt;ocsp.staple_data / ocsp.staple_len.</span></div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> * Memory is allocated with ngx_alloc() and must be freed by the caller when</span></div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment"> * the configuration is destroyed.</span></div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="comment"> * Returns NGX_OK on success, NGX_ERROR on failure.</span></div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>ngx_int_t <a class="code hl_function" href="ocsp_8h.html#aa6cefc9f713a01736427c76e0f95832b">brix_ocsp_staple_fetch</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>,</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf);</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_CRYPTO_OCSP_H */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="comment"> * @require_nonce: if 1, a response that omits the request&#39;s nonce is a hard</span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="comment"> *             failure (replay defence, A-6 item 2); if 0, missing nonce warns</span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="comment"> *             only (interop with pre-signed, nonce-less responders).</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment"> * Returns 0 if the certificate is GOOD (or soft_fail allows the status),</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment"> *         -1 if the certificate is REVOKED or the check definitively fails.</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="keywordtype">int</span> <a class="code hl_function" href="ocsp_8h.html#adb727b9697d94bd321797aa5076a33b3">brix_ocsp_check_cert</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, X509 *leaf, X509 *issuer,</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    <span class="keywordtype">int</span> soft_fail, <span class="keywordtype">int</span> require_nonce);</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span> </div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> * brix_ocsp_staple_fetch — fetch and cache an OCSP staple for the server</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> * certificate.</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment"> * Queries the OCSP responder URL embedded in xcf-&gt;gsi_cert and stores the</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="comment"> * raw DER-encoded OCSP response in xcf-&gt;ocsp.staple_data / ocsp.staple_len.</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="comment"> * Memory is allocated with ngx_alloc() and must be freed by the caller when</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment"> * the configuration is destroyed.</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment"> * Returns NGX_OK on success, NGX_ERROR on failure.</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>ngx_int_t <a class="code hl_function" href="ocsp_8h.html#aa6cefc9f713a01736427c76e0f95832b">brix_ocsp_staple_fetch</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>,</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf);</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span> </div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_CRYPTO_OCSP_H */</span><span class="preprocessor"></span></div>
 <div class="ttc" id="angx__brix__module_8h_html"><div class="ttname"><a href="ngx__brix__module_8h.html">ngx_brix_module.h</a></div></div>
-<div class="ttc" id="aocsp_8h_html_a7afb6a47b246d2bad2005e70d29d2529"><div class="ttname"><a href="ocsp_8h.html#a7afb6a47b246d2bad2005e70d29d2529">brix_ocsp_check_cert</a></div><div class="ttdeci">int brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)</div><div class="ttdef"><b>Definition</b> <a href="ocsp_8c_source.html#l00132">ocsp.c:132</a></div></div>
-<div class="ttc" id="aocsp_8h_html_aa6cefc9f713a01736427c76e0f95832b"><div class="ttname"><a href="ocsp_8h.html#aa6cefc9f713a01736427c76e0f95832b">brix_ocsp_staple_fetch</a></div><div class="ttdeci">ngx_int_t brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="ocsp_8c_source.html#l00323">ocsp.c:323</a></div></div>
+<div class="ttc" id="aocsp_8h_html_aa6cefc9f713a01736427c76e0f95832b"><div class="ttname"><a href="ocsp_8h.html#aa6cefc9f713a01736427c76e0f95832b">brix_ocsp_staple_fetch</a></div><div class="ttdeci">ngx_int_t brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="ocsp_8c_source.html#l00329">ocsp.c:329</a></div></div>
+<div class="ttc" id="aocsp_8h_html_adb727b9697d94bd321797aa5076a33b3"><div class="ttname"><a href="ocsp_8h.html#adb727b9697d94bd321797aa5076a33b3">brix_ocsp_check_cert</a></div><div class="ttdeci">int brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail, int require_nonce)</div><div class="ttdef"><b>Definition</b> <a href="ocsp_8c_source.html#l00132">ocsp.c:132</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
-<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00112">config.h:112</a></div></div>
+<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00115">config.h:115</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

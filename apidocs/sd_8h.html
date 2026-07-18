@@ -121,6 +121,8 @@ $(document).ready(function(){initNavTree('sd_8h.html',''); initResizable(); });
 Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__space__t.html">brix_sd_space_t</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__catalog__ent__t.html">brix_sd_catalog_ent_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a></td></tr>
@@ -194,6 +196,7 @@ Enumerations</h2></td></tr>
 <tr class="memitem:a79590dd9eb9df69b9f7efb775364c4c5" id="r_a79590dd9eb9df69b9f7efb775364c4c5"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5">brix_sd_cred_kind_t</a> { <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345">BRIX_SD_CRED_NONE</a> = 0
 , <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b">BRIX_SD_CRED_BEARER</a> = 1u &lt;&lt; 0
 , <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630">BRIX_SD_CRED_PROXY_PEM</a> = 1u &lt;&lt; 1
+, <a class="el" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a362e1d7b39b03966993d8dd5a1a745ff">BRIX_SD_CRED_IDENTITY</a> = 1u &lt;&lt; 2
  }</td></tr>
 <tr class="separator:a79590dd9eb9df69b9f7efb775364c4c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a14e5dbdc241bcb9af0bfe56db399dfb7" id="r_a14e5dbdc241bcb9af0bfe56db399dfb7"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7">brix_cred_mode</a> { <br />
@@ -274,6 +277,8 @@ Functions</h2></td></tr>
 <tr class="separator:ada4f4b6c600ca1d727e710e903af9c86"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7e5da1d786888ae8aac242c4901e0efd" id="r_a7e5da1d786888ae8aac242c4901e0efd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a7e5da1d786888ae8aac242c4901e0efd">brix_sd_posix_wrap</a> (brix_sd_obj_t *obj, ngx_fd_t fd)</td></tr>
 <tr class="separator:a7e5da1d786888ae8aac242c4901e0efd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a30bcdd008c9f794342c482f5cef2276d" id="r_a30bcdd008c9f794342c482f5cef2276d"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd_8h.html#a30bcdd008c9f794342c482f5cef2276d">brix_sd_obj_preadv</a> (brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt, off_t off)</td></tr>
+<tr class="separator:a30bcdd008c9f794342c482f5cef2276d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -295,7 +300,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00130">130</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00135">135</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -311,7 +316,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00127">127</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00132">132</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -327,7 +332,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00131">131</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00136">136</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -343,7 +348,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00128">128</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00133">133</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -359,7 +364,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00132">132</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00137">137</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -375,7 +380,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00125">125</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00130">130</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -391,7 +396,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00129">129</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00134">134</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -407,7 +412,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00126">126</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00131">131</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -424,7 +429,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00247">247</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00264">264</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -449,7 +454,7 @@ Variables</h2></td></tr>
 <tr><td class="fieldname"><a id="a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b" name="a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"></a>BRIX_CRED_AUTO&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00191">191</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00196">196</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -503,6 +508,7 @@ Variables</h2></td></tr>
 <tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345" name="a79590dd9eb9df69b9f7efb775364c4c5a3268f7345ede0b45efbd6381f0941345"></a>BRIX_SD_CRED_NONE&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b" name="a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b"></a>BRIX_SD_CRED_BEARER&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630" name="a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630"></a>BRIX_SD_CRED_PROXY_PEM&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="a79590dd9eb9df69b9f7efb775364c4c5a362e1d7b39b03966993d8dd5a1a745ff" name="a79590dd9eb9df69b9f7efb775364c4c5a362e1d7b39b03966993d8dd5a1a745ff"></a>BRIX_SD_CRED_IDENTITY&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
 <p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00116">116</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
@@ -527,7 +533,7 @@ Variables</h2></td></tr>
 <tr><td class="fieldname"><a id="adcf5163d1b44e53391d7876814133d2ea1a1f77be78d75bdedf0260374e5d372d" name="adcf5163d1b44e53391d7876814133d2ea1a1f77be78d75bdedf0260374e5d372d"></a>BRIX_SD_RES_LOST&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00223">223</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00230">230</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
 </div>
 </div>
@@ -548,9 +554,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00179">179</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00183">183</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00235">brix_cache_fill_body()</a>, <a class="el" href="open__or__fill_8c_source.html#l00018">brix_cache_open_or_fill()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00187">brix_vfs_file_backend_name()</a>, <a class="el" href="vfs__internal_8h_source.html#l00365">brix_vfs_observe_ctx_op()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00185">vfs_cred_no_cap()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00235">brix_cache_fill_body()</a>, <a class="el" href="open__or__fill_8c_source.html#l00018">brix_cache_open_or_fill()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00205">brix_vfs_file_backend_name()</a>, <a class="el" href="vfs__internal_8h_source.html#l00415">brix_vfs_observe_ctx_op()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00185">vfs_cred_no_cap()</a>.</p>
 
 </div>
 </div>
@@ -588,7 +594,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__block_8c_source.html#l00100">100</a> of file <a class="el" href="sd__block_8c_source.html">sd_block.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00127">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00129">BRIX_SD_O_TRUNC</a>, and <a class="el" href="sd__posix_8c_source.html#l00084">brix_sd_posix_open_unconfined()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00132">BRIX_SD_O_CREATE</a>, <a class="el" href="sd_8h_source.html#l00134">BRIX_SD_O_TRUNC</a>, and <a class="el" href="sd__posix_8c_source.html#l00084">brix_sd_posix_open_unconfined()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__block_8c_source.html#l00359">block_be_open()</a>, and <a class="el" href="vfs__block_8c_source.html#l00444">block_be_stat()</a>.</p>
 
@@ -610,9 +616,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00162">162</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00164">164</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00045">brix_cstore_init()</a>, <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00163">brix_open_write_needs_staged()</a>, <a class="el" href="sd__cache_8c_source.html#l00383">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="sd__registry_8c_source.html#l00185">brix_sd_supports()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00104">brix_vfs_memfile_materialize()</a>, <a class="el" href="vfs__stat_8c_source.html#l00155">brix_vfs_residency()</a>, <a class="el" href="sd__cache_8c_source.html#l00100">cache_open_recall_parked()</a>, and <a class="el" href="scan__http_8c_source.html#l00309">scan_run_walk()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cstore_8c_source.html#l00045">brix_cstore_init()</a>, <a class="el" href="open__resolved__file__dispatch_8c_source.html#l00164">brix_open_write_needs_staged()</a>, <a class="el" href="sd__cache_8c_source.html#l00401">brix_sd_cache_fill_needs_offload()</a>, <a class="el" href="sd__registry_8c_source.html#l00189">brix_sd_supports()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00122">brix_vfs_memfile_materialize()</a>, <a class="el" href="vfs__stat_8c_source.html#l00157">brix_vfs_residency()</a>, <a class="el" href="vfs__sync_8c_source.html#l00024">brix_vfs_truncate()</a>, <a class="el" href="sd__cache_8c_source.html#l00100">cache_open_recall_parked()</a>, <a class="el" href="put__inner_8c_source.html#l00094">s3put_ensure_parent_dirs()</a>, <a class="el" href="scan__http_8c_source.html#l00309">scan_run_walk()</a>, and <a class="el" href="vfs__writer_8c_source.html#l00045">writer_random_backend()</a>.</p>
 
 </div>
 </div>
@@ -632,9 +638,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00192">192</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00196">196</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__deleg_8c_source.html#l00485">brix_vfs_deleg_live_cred()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__deleg_8c_source.html#l00227">brix_vfs_backend_accepts_proxy()</a>, <a class="el" href="vfs__cred_8c_source.html#l00459">brix_vfs_cred_gate_active()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00508">brix_vfs_deleg_live_cred()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00302">vfs_backend_cred_decide()</a>.</p>
 
 </div>
 </div>
@@ -656,9 +662,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00060">60</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00251">brix_sd_posix_driver</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00253">brix_sd_posix_driver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="staged__file__commit_8c_source.html#l00364">brix_commit_staged()</a>, <a class="el" href="vfs__internal_8h_source.html#l00161">brix_vfs_ctx_driver()</a>, <a class="el" href="vfs__internal_8h_source.html#l00192">brix_vfs_ctx_sd_obj()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="vfs__rename_8c_source.html#l00025">brix_vfs_rename_path()</a>, <a class="el" href="vfs__staged_8c_source.html#l00225">brix_vfs_staged_open()</a>, <a class="el" href="recv__forward_8c_source.html#l00272">cms_node_exec_forward()</a>, and <a class="el" href="stat_8c_source.html#l00442">stat_query_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="staged__file__commit_8c_source.html#l00364">brix_commit_staged()</a>, <a class="el" href="vfs__internal_8h_source.html#l00161">brix_vfs_ctx_driver()</a>, <a class="el" href="vfs__internal_8h_source.html#l00194">brix_vfs_ctx_sd_obj()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="vfs__rename_8c_source.html#l00026">brix_vfs_rename_path()</a>, <a class="el" href="vfs__staged_8c_source.html#l00178">brix_vfs_staged_open()</a>, <a class="el" href="recv__forward_8c_source.html#l00272">cms_node_exec_forward()</a>, and <a class="el" href="stat_8c_source.html#l00482">stat_query_handle()</a>.</p>
 
 </div>
 </div>
@@ -746,7 +752,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00168">168</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00170">170</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd_8h_source.html#l00083">BRIX_SD_CAP_FD</a>.</p>
 
@@ -810,9 +816,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00738">738</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00770">770</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00049">brix_vfs_getxattr()</a>.</p>
 
@@ -880,7 +886,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00152">152</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00154">154</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
 </div>
 </div>
@@ -936,11 +942,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00759">759</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00791">791</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00101">brix_vfs_listxattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00102">brix_vfs_listxattr()</a>.</p>
 
 </div>
 </div>
@@ -990,11 +996,63 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00677">677</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00709">709</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00116">vfs_backend_mkdir_dispatch()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00041">vfs_backend_mkpath_leaf()</a>.</p>
+
+</div>
+</div>
+<a id="a30bcdd008c9f794342c482f5cef2276d" name="a30bcdd008c9f794342c482f5cef2276d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a30bcdd008c9f794342c482f5cef2276d">&#9670;&#160;</a></span>brix_sd_obj_preadv()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t brix_sd_obj_preadv </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const struct iovec *&#160;</td>
+          <td class="paramname"><em>iov</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>iovcnt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l01017">1017</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="pgread_8c_source.html#l00154">brix_pgread_read_encode_inplace()</a>, and <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00108">brix_readv_read_one_run()</a>.</p>
 
 </div>
 </div>
@@ -1022,9 +1080,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00523">523</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00555">555</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>, <a class="el" href="sd__cache__partial_8c_source.html#l00374">sd_cache_close()</a>, and <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00633">brix_sd_cache_demote()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00181">cache_fill_pump()</a>, <a class="el" href="sd__cache__manifest_8c_source.html#l00094">meta_fetch_source()</a>, <a class="el" href="sd__cache__partial_8c_source.html#l00374">sd_cache_close()</a>, and <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>.</p>
 
 </div>
 </div>
@@ -1086,11 +1144,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00567">567</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00599">599</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__resolved__file__open_8c_source.html#l00116">brix_open_resolved_via_driver()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00076">cache_fill_acquire()</a>, <a class="el" href="sd__cache__partial_8c_source.html#l00090">partial_source_ensure()</a>, <a class="el" href="sd__cache_8c_source.html#l00180">sd_cache_open_common()</a>, and <a class="el" href="sd__stage_8c_source.html#l00058">sd_stage_open_cred()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__resolved__file__open_8c_source.html#l00116">brix_open_resolved_via_driver()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00090">cache_fill_acquire()</a>, <a class="el" href="sd__cache__manifest_8c_source.html#l00094">meta_fetch_source()</a>, <a class="el" href="sd__cache__partial_8c_source.html#l00090">partial_source_ensure()</a>, <a class="el" href="sd__cache_8c_source.html#l00180">sd_cache_open_common()</a>, and <a class="el" href="sd__stage_8c_source.html#l00058">sd_stage_open_cred()</a>.</p>
 
 </div>
 </div>
@@ -1140,11 +1198,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00845">845</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00877">877</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00041">brix_vfs_driver_rmtree()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00043">brix_vfs_driver_rmtree()</a>, and <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>.</p>
 
 </div>
 </div>
@@ -1186,11 +1244,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00159">159</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00161">161</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix__internal_8h_source.html#l00035">sd_posix_state_t::borrowed</a>, <a class="el" href="sd__posix_8c_source.html#l00251">brix_sd_posix_driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="sd__posix__internal_8h_source.html#l00034">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix__internal_8h_source.html#l00033">sd_posix_state_t::rootfd</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix__internal_8h_source.html#l00035">sd_posix_state_t::borrowed</a>, <a class="el" href="sd__posix_8c_source.html#l00253">brix_sd_posix_driver</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="sd__posix__internal_8h_source.html#l00034">sd_posix_state_t::root_canon</a>, and <a class="el" href="sd__posix__internal_8h_source.html#l00033">sd_posix_state_t::rootfd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00296">brix_vfs_open_confined_fd()</a>, <a class="el" href="cache__storage_8c_source.html#l00276">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00297">cache_build_wt_stage()</a>, and <a class="el" href="cache__storage_8c_source.html#l00159">cs_root_lazy_posix()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open_8c_source.html#l00299">brix_vfs_open_confined_fd()</a>, <a class="el" href="cache__storage_8c_source.html#l00294">cache_build_instance()</a>, <a class="el" href="cache__storage_8c_source.html#l00315">cache_build_wt_stage()</a>, and <a class="el" href="cache__storage_8c_source.html#l00159">cs_root_lazy_posix()</a>.</p>
 
 </div>
 </div>
@@ -1268,11 +1326,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00957">957</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00989">989</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00251">brix_sd_posix_driver</a>.</p>
+<p class="reference">References <a class="el" href="sd__posix_8c_source.html#l00253">brix_sd_posix_driver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__block_8c_source.html#l00444">block_be_stat()</a>, <a class="el" href="vfs__block_8c_source.html#l00272">block_commit()</a>, <a class="el" href="vfs__block_8c_source.html#l00190">block_fstat()</a>, <a class="el" href="vfs__block_8c_source.html#l00111">block_pread()</a>, <a class="el" href="vfs__block_8c_source.html#l00144">block_pwrite()</a>, <a class="el" href="vfs__block_8c_source.html#l00240">block_sync()</a>, <a class="el" href="fs_2cache_2io_8c_source.html#l00122">brix_cache_fd_write_all()</a>, <a class="el" href="checksum__core_8c_source.html#l00259">brix_cksum_digest_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00141">brix_cksum_u32_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00188">brix_cksum_u64_fd()</a>, <a class="el" href="cstore_8c_source.html#l00189">brix_cstore_serve_pread()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00132">brix_vfs_effective_obj()</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00299">commit_cross_device()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00260">commit_flush_and_chmod()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00136">cstb_pump_and_commit()</a>, <a class="el" href="vfs__core__unittest_8c_source.html#l00033">main()</a>, <a class="el" href="tpc__curl__pmark_8c_source.html#l00093">ms_write_cb()</a>, <a class="el" href="vfs__posix_8c_source.html#l00227">posix_fstat()</a>, <a class="el" href="vfs__posix_8c_source.html#l00150">posix_pread()</a>, <a class="el" href="vfs__posix_8c_source.html#l00184">posix_pwrite()</a>, <a class="el" href="vfs__posix_8c_source.html#l00277">posix_sync()</a>, <a class="el" href="vfs__posix_8c_source.html#l00255">posix_truncate()</a>, <a class="el" href="zip__dir_8c_source.html#l00031">pread_full()</a>, <a class="el" href="read__buffered_8c_source.html#l00158">read_try_warm()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00218">s3_copy_bytes()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00123">srq_pread_all()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00148">srq_pwrite_all()</a>, <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>, <a class="el" href="protocols_2webdav_2io_8c_source.html#l00013">webdav_write_full()</a>, <a class="el" href="vfs__core_8c_source.html#l00158">xvfs_stage_fd()</a>, <a class="el" href="zip__member_8c_source.html#l00099">zip_deflate_pump()</a>, and <a class="el" href="zip__member_8c_source.html#l00190">zip_pread_full()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__block_8c_source.html#l00444">block_be_stat()</a>, <a class="el" href="vfs__block_8c_source.html#l00272">block_commit()</a>, <a class="el" href="vfs__block_8c_source.html#l00190">block_fstat()</a>, <a class="el" href="vfs__block_8c_source.html#l00111">block_pread()</a>, <a class="el" href="vfs__block_8c_source.html#l00144">block_pwrite()</a>, <a class="el" href="vfs__block_8c_source.html#l00240">block_sync()</a>, <a class="el" href="fs_2cache_2io_8c_source.html#l00122">brix_cache_fd_write_all()</a>, <a class="el" href="checksum__core_8c_source.html#l00322">brix_cksum_digest_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00177">brix_cksum_u32_fd()</a>, <a class="el" href="checksum__core_8c_source.html#l00238">brix_cksum_u64_fd()</a>, <a class="el" href="cstore_8c_source.html#l00189">brix_cstore_serve_pread()</a>, <a class="el" href="vfs__io__core_8h_source.html#l00132">brix_vfs_effective_obj()</a>, <a class="el" href="vfs__read_8c_source.html#l00029">brix_vfs_pread_full()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00299">commit_cross_device()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00260">commit_flush_and_chmod()</a>, <a class="el" href="staged__file__commit_8c_source.html#l00136">cstb_pump_and_commit()</a>, <a class="el" href="vfs__core__unittest_8c_source.html#l00033">main()</a>, <a class="el" href="tpc__curl__pmark_8c_source.html#l00093">ms_write_cb()</a>, <a class="el" href="vfs__posix_8c_source.html#l00227">posix_fstat()</a>, <a class="el" href="vfs__posix_8c_source.html#l00150">posix_pread()</a>, <a class="el" href="vfs__posix_8c_source.html#l00184">posix_pwrite()</a>, <a class="el" href="vfs__posix_8c_source.html#l00277">posix_sync()</a>, <a class="el" href="vfs__posix_8c_source.html#l00255">posix_truncate()</a>, <a class="el" href="zip__dir_8c_source.html#l00031">pread_full()</a>, <a class="el" href="read__buffered_8c_source.html#l00158">read_try_warm()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00218">s3_copy_bytes()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00123">srq_pread_all()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00148">srq_pwrite_all()</a>, <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>, <a class="el" href="protocols_2webdav_2io_8c_source.html#l00013">webdav_write_full()</a>, <a class="el" href="vfs__core_8c_source.html#l00158">xvfs_stage_fd()</a>, <a class="el" href="zip__member_8c_source.html#l00099">zip_deflate_pump()</a>, and <a class="el" href="zip__member_8c_source.html#l00190">zip_pread_full()</a>.</p>
 
 </div>
 </div>
@@ -1322,11 +1380,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00803">803</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00835">835</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00253">brix_vfs_removexattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00256">brix_vfs_removexattr()</a>.</p>
 
 </div>
 </div>
@@ -1382,11 +1440,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00695">695</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00727">727</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__rename_8c_source.html#l00068">brix_vfs_rename()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>.</p>
 
 </div>
 </div>
@@ -1442,9 +1500,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00824">824</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00856">856</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>.</p>
 
@@ -1496,11 +1554,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00715">715</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00747">747</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00280">brix_vfs_chmod()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00345">brix_vfs_setattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, and <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>.</p>
 
 </div>
 </div>
@@ -1568,11 +1626,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00780">780</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00812">812</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00208">brix_vfs_setxattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__xattr_8c_source.html#l00210">brix_vfs_setxattr()</a>.</p>
 
 </div>
 </div>
@@ -1628,11 +1686,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00594">594</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00626">626</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__forward_8c_source.html#l00240">sd_cache_staged_open_cred()</a>, <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00168">staged_open_driver()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__forward_8c_source.html#l00240">sd_cache_staged_open_cred()</a>, <a class="el" href="stage__engine_8c_source.html#l00209">stage_engine_move()</a>, and <a class="el" href="vfs__staged_8c_source.html#l00118">staged_open_driver()</a>.</p>
 
 </div>
 </div>
@@ -1682,11 +1740,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00637">637</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00669">669</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00041">brix_vfs_driver_rmtree()</a>, <a class="el" href="vfs__stat_8c_source.html#l00199">brix_vfs_probe()</a>, and <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00043">brix_vfs_driver_rmtree()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, and <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>.</p>
 
 </div>
 </div>
@@ -1716,9 +1774,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00185">185</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__registry_8c_source.html#l00189">189</a> of file <a class="el" href="sd__registry_8c_source.html">sd_registry.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00162">brix_sd_caps()</a>.</p>
+<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00164">brix_sd_caps()</a>.</p>
 
 </div>
 </div>
@@ -1768,11 +1826,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00657">657</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd_8h_source.html#l00689">689</a> of file <a class="el" href="sd_8h_source.html">sd.h</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00214">brix_sd_cred_t::fallback_deny</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00112">brix_vfs_delete_via_driver()</a>, and <a class="el" href="vfs__unlink_8c_source.html#l00041">brix_vfs_driver_rmtree()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__unlink_8c_source.html#l00123">brix_vfs_delete_via_driver()</a>, and <a class="el" href="vfs__unlink_8c_source.html#l00043">brix_vfs_driver_rmtree()</a>.</p>
 
 </div>
 </div>
@@ -1823,9 +1881,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00251">251</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__posix_8c_source.html#l00253">253</a> of file <a class="el" href="sd__posix_8c_source.html">sd_posix.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="sd__posix_8c_source.html#l00159">brix_sd_posix_borrow_instance()</a>, <a class="el" href="sd_8h_source.html#l00957">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="sd__block_8c_source.html#l00062">sd_block_fsync()</a>, <a class="el" href="sd__block_8c_source.html#l00036">sd_block_pread()</a>, <a class="el" href="sd__block_8c_source.html#l00048">sd_block_preadv()</a>, <a class="el" href="sd__block_8c_source.html#l00055">sd_block_preadv2()</a>, <a class="el" href="sd__block_8c_source.html#l00042">sd_block_pwrite()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__registry_8c_source.html#l00060">brix_sd_default_driver()</a>, <a class="el" href="sd__posix_8c_source.html#l00161">brix_sd_posix_borrow_instance()</a>, <a class="el" href="sd_8h_source.html#l00989">brix_sd_posix_wrap()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="sd__block_8c_source.html#l00062">sd_block_fsync()</a>, <a class="el" href="sd__block_8c_source.html#l00036">sd_block_pread()</a>, <a class="el" href="sd__block_8c_source.html#l00048">sd_block_preadv()</a>, <a class="el" href="sd__block_8c_source.html#l00055">sd_block_preadv2()</a>, <a class="el" href="sd__block_8c_source.html#l00042">sd_block_pwrite()</a>, and <a class="el" href="tpc__curl_8c_source.html#l00459">tpc_ms_prepare_output()</a>.</p>
 
 </div>
 </div>

@@ -141,6 +141,8 @@ Functions</h2></td></tr>
 <tr class="separator:a825b1cddddc8faf0ae70c882ea76e964"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad453bbca74f3c1ea17bb8933e040af87" id="r_ad453bbca74f3c1ea17bb8933e040af87"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__module__internal_8h.html#ad453bbca74f3c1ea17bb8933e040af87">brix_http_protocol_variable</a> (ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)</td></tr>
 <tr class="separator:ad453bbca74f3c1ea17bb8933e040af87"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afdb04a0154198748df3d58db93149e09" id="r_afdb04a0154198748df3d58db93149e09"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__module__internal_8h.html#afdb04a0154198748df3d58db93149e09">brix_http_delegated_cred_variable</a> (ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)</td></tr>
+<tr class="separator:afdb04a0154198748df3d58db93149e09"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2100246246aa87afd18823db9b0fc5c6" id="r_a2100246246aa87afd18823db9b0fc5c6"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__module__internal_8h.html#a2100246246aa87afd18823db9b0fc5c6">brix_http_add_protocol_variables</a> (ngx_conf_t *cf)</td></tr>
 <tr class="separator:a2100246246aa87afd18823db9b0fc5c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4d8136ce0aabfd9dff762f05abd0cedd" id="r_a4d8136ce0aabfd9dff762f05abd0cedd"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__module__internal_8h.html#a4d8136ce0aabfd9dff762f05abd0cedd">ngx_http_brix_webdav_preconfiguration</a> (ngx_conf_t *cf)</td></tr>
@@ -178,11 +180,51 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00068">68</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00224">224</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
 
-<p class="reference">References <a class="el" href="module__init_8c_source.html#l00029">brix_http_protocol_variable()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="module__init_8c_source.html#l00128">brix_http_delegated_cred_variable()</a>, <a class="el" href="module__init_8c_source.html#l00031">brix_http_protocol_variable()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00086">ngx_http_brix_webdav_preconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00252">ngx_http_brix_webdav_preconfiguration()</a>.</p>
+
+</div>
+</div>
+<a id="afdb04a0154198748df3d58db93149e09" name="afdb04a0154198748df3d58db93149e09"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afdb04a0154198748df3d58db93149e09">&#9670;&#160;</a></span>brix_http_delegated_cred_variable()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_http_delegated_cred_variable </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_http_variable_value_t *&#160;</td>
+          <td class="paramname"><em>v</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uintptr_t&#160;</td>
+          <td class="paramname"><em>data</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00128">128</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ucred_8c_source.html#l00464">brix_sd_ucred_key()</a>, <a class="el" href="ucred_8c_source.html#l00511">brix_sd_ucred_resolve()</a>, <a class="el" href="ucred_8c_source.html#l00682">brix_sd_ucred_wipe()</a>, <a class="el" href="ucred_8h_source.html#l00073">BRIX_UCRED_KEY_MAX</a>, <a class="el" href="ucred_8h_source.html#l00076">BRIX_UCRED_PATH_MAX</a>, <a class="el" href="ucred_8h_source.html#l00079">BRIX_UCRED_PRINC_MAX</a>, <a class="el" href="store__policy_8c_source.html#l00044">brix_x509_oneline()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="module__init_8c_source.html#l00078">delegated_cred_find_eec()</a>, <a class="el" href="ucred_8h_source.html#l00133">brix_sd_ucred_t::expired</a>, <a class="el" href="ucred_8h_source.html#l00135">brix_sd_ucred_t::is_bearer</a>, <a class="el" href="ucred_8h_source.html#l00137">brix_sd_ucred_t::is_ceph</a>, <a class="el" href="ucred_8h_source.html#l00136">brix_sd_ucred_t::is_s3</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="ucred_8h_source.html#l00120">brix_sd_ucred_t::path</a>, and <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00224">brix_http_add_protocol_variables()</a>.</p>
 
 </div>
 </div>
@@ -218,11 +260,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00029">29</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00031">31</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00106">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="shared__conf_8h_source.html#l00033">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="cvmfs_8h_source.html#l00055">brix_cvmfs_conf_t::enable</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00409">ngx_http_brix_s3_module</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="shared__conf_8h_source.html#l00047">ngx_http_brix_shared_conf_t::enable</a>, <a class="el" href="cvmfs_8h_source.html#l00066">brix_cvmfs_conf_t::enable</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00351">ngx_http_brix_cvmfs_module</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00420">ngx_http_brix_s3_module</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00068">brix_http_add_protocol_variables()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00224">brix_http_add_protocol_variables()</a>.</p>
 
 </div>
 </div>
@@ -242,7 +284,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00102">102</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00268">268</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
 
 </div>
 </div>
@@ -262,7 +304,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00093">93</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00259">259</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
 
 </div>
 </div>
@@ -282,9 +324,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00086">86</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__init_8c_source.html#l00252">252</a> of file <a class="el" href="module__init_8c_source.html">module_init.c</a>.</p>
 
-<p class="reference">References <a class="el" href="module__init_8c_source.html#l00068">brix_http_add_protocol_variables()</a>.</p>
+<p class="reference">References <a class="el" href="module__init_8c_source.html#l00224">brix_http_add_protocol_variables()</a>.</p>
 
 </div>
 </div>
@@ -320,9 +362,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00083">83</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00086">86</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00123">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00146">ngx_http_brix_webdav_loc_conf_t::cors_origins</a>.</p>
 
 </div>
 </div>
@@ -358,9 +400,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00118">118</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00121">121</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav_8h_source.html#l00131">brix_dig_export_t::canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00112">ngx_http_brix_webdav_loc_conf_t::dig_exports</a>, <a class="el" href="webdav_8h_source.html#l00130">brix_dig_export_t::dir</a>, <a class="el" href="webdav_8h_source.html#l00129">brix_dig_export_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="webdav_8h_source.html#l00131">brix_dig_export_t::canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::dig_exports</a>, <a class="el" href="webdav_8h_source.html#l00130">brix_dig_export_t::dir</a>, <a class="el" href="webdav_8h_source.html#l00129">brix_dig_export_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -396,9 +438,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00277">277</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00280">280</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00145">ngx_http_brix_webdav_loc_conf_t::open_file_cache</a>, and <a class="el" href="module__directives_8c_source.html#l00250">webdav_open_file_cache_arg()</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00168">ngx_http_brix_webdav_loc_conf_t::open_file_cache</a>, and <a class="el" href="module__directives_8c_source.html#l00253">webdav_open_file_cache_arg()</a>.</p>
 
 </div>
 </div>
@@ -434,9 +476,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00167">167</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00170">170</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
-<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00156">ngx_http_brix_webdav_loc_conf_t::upstream_auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00157">ngx_http_brix_webdav_loc_conf_t::upstream_auth_token</a>, <a class="el" href="webdav_8h_source.html#l00096">WEBDAV_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="webdav_8h_source.html#l00097">WEBDAV_PROXY_AUTH_FORWARD</a>, and <a class="el" href="webdav_8h_source.html#l00098">WEBDAV_PROXY_AUTH_TOKEN</a>.</p>
+<p class="reference">References <a class="el" href="webdav__loc__conf_8h_source.html#l00179">ngx_http_brix_webdav_loc_conf_t::upstream_auth</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00180">ngx_http_brix_webdav_loc_conf_t::upstream_auth_token</a>, <a class="el" href="webdav_8h_source.html#l00096">WEBDAV_PROXY_AUTH_ANONYMOUS</a>, <a class="el" href="webdav_8h_source.html#l00097">WEBDAV_PROXY_AUTH_FORWARD</a>, and <a class="el" href="webdav_8h_source.html#l00098">WEBDAV_PROXY_AUTH_TOKEN</a>.</p>
 
 </div>
 </div>
@@ -478,11 +520,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00250">250</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="module__directives_8c_source.html#l00253">253</a> of file <a class="el" href="module__directives_8c_source.html">module_directives.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00277">webdav_conf_open_file_cache()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__directives_8c_source.html#l00280">webdav_conf_open_file_cache()</a>.</p>
 
 </div>
 </div>

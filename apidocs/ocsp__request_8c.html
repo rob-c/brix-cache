@@ -113,14 +113,14 @@ $(document).ready(function(){initNavTree('ocsp__request_8c.html',''); initResiza
 Functions</h2></td></tr>
 <tr class="memitem:aacbef7732036033b5e88d4dac0bc90fe" id="r_aacbef7732036033b5e88d4dac0bc90fe"><td class="memItemLeft" align="right" valign="top">static OCSP_REQUEST *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp__request_8c.html#aacbef7732036033b5e88d4dac0bc90fe">ocsp_build_request</a> (OCSP_CERTID *id)</td></tr>
 <tr class="separator:aacbef7732036033b5e88d4dac0bc90fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9d59799f83ee38a0ec974f95a83efdde" id="r_a9d59799f83ee38a0ec974f95a83efdde"><td class="memItemLeft" align="right" valign="top">OCSP_RESPONSE *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp__request_8c.html#a9d59799f83ee38a0ec974f95a83efdde">do_ocsp_request</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *url, X509 *leaf, X509 *issuer, OCSP_CERTID *id)</td></tr>
-<tr class="separator:a9d59799f83ee38a0ec974f95a83efdde"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4c44527e7ab1443b9e76164f8e4efcc1" id="r_a4c44527e7ab1443b9e76164f8e4efcc1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp__request_8c.html#a4c44527e7ab1443b9e76164f8e4efcc1">check_ocsp_response</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, OCSP_RESPONSE *resp, <a class="el" href="webdav_8h.html#a3a2b800bae08729d11bc28f12b795597">X509_STORE</a> *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce)</td></tr>
-<tr class="separator:a4c44527e7ab1443b9e76164f8e4efcc1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5aa37855281dd6e799f875aff5096499" id="r_a5aa37855281dd6e799f875aff5096499"><td class="memItemLeft" align="right" valign="top">OCSP_RESPONSE *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp__request_8c.html#a5aa37855281dd6e799f875aff5096499">do_ocsp_request</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const char *url, X509 *leaf, X509 *issuer, OCSP_CERTID *id, OCSP_REQUEST **req_out)</td></tr>
+<tr class="separator:a5aa37855281dd6e799f875aff5096499"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a300b85ef8ba8a0f71146e55efb9301f2" id="r_a300b85ef8ba8a0f71146e55efb9301f2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ocsp__request_8c.html#a300b85ef8ba8a0f71146e55efb9301f2">check_ocsp_response</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, OCSP_RESPONSE *resp, <a class="el" href="webdav_8h.html#a3a2b800bae08729d11bc28f12b795597">X509_STORE</a> *store, OCSP_CERTID *id, OCSP_REQUEST *req_for_nonce, int require_nonce)</td></tr>
+<tr class="separator:a300b85ef8ba8a0f71146e55efb9301f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a4c44527e7ab1443b9e76164f8e4efcc1" name="a4c44527e7ab1443b9e76164f8e4efcc1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4c44527e7ab1443b9e76164f8e4efcc1">&#9670;&#160;</a></span>check_ocsp_response()</h2>
+<a id="a300b85ef8ba8a0f71146e55efb9301f2" name="a300b85ef8ba8a0f71146e55efb9301f2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a300b85ef8ba8a0f71146e55efb9301f2">&#9670;&#160;</a></span>check_ocsp_response()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -153,7 +153,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">OCSP_REQUEST *&#160;</td>
-          <td class="paramname"><em>req_for_nonce</em>&#160;</td>
+          <td class="paramname"><em>req_for_nonce</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>require_nonce</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -163,16 +169,16 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ocsp__request_8c_source.html#l00140">140</a> of file <a class="el" href="ocsp__request_8c_source.html">ocsp_request.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ocsp__request_8c_source.html#l00175">175</a> of file <a class="el" href="ocsp__request_8c_source.html">ocsp_request.c</a>.</p>
 
 <p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ocsp_8c_source.html#l00084">ocsp_check_urls()</a>, and <a class="el" href="ocsp_8c_source.html#l00281">ocsp_fetch_staple_urls()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ocsp_8c_source.html#l00081">ocsp_check_urls()</a>, and <a class="el" href="ocsp_8c_source.html#l00282">ocsp_fetch_staple_urls()</a>.</p>
 
 </div>
 </div>
-<a id="a9d59799f83ee38a0ec974f95a83efdde" name="a9d59799f83ee38a0ec974f95a83efdde"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9d59799f83ee38a0ec974f95a83efdde">&#9670;&#160;</a></span>do_ocsp_request()</h2>
+<a id="a5aa37855281dd6e799f875aff5096499" name="a5aa37855281dd6e799f875aff5096499"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5aa37855281dd6e799f875aff5096499">&#9670;&#160;</a></span>do_ocsp_request()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -205,7 +211,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">OCSP_CERTID *&#160;</td>
-          <td class="paramname"><em>id</em>&#160;</td>
+          <td class="paramname"><em>id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">OCSP_REQUEST **&#160;</td>
+          <td class="paramname"><em>req_out</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -217,9 +229,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ocsp__request_8c_source.html#l00070">70</a> of file <a class="el" href="ocsp__request_8c_source.html">ocsp_request.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ocsp__internal_8h_source.html#l00047">BRIX_OCSP_TIMEOUT_SECS</a>, <a class="el" href="ocsp__internal_8h_source.html#l00081">ocsp_conn_t::cbio</a>, <a class="el" href="ocsp__internal_8h_source.html#l00062">ocsp_url_t::host</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ocsp__request_8c_source.html#l00046">ocsp_build_request()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00184">ocsp_conn_free()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00296">ocsp_connect_bio()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00260">ocsp_open_bio()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00039">ocsp_set_io_timeouts()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00323">ocsp_tls_handshake()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00133">parse_ocsp_url()</a>, <a class="el" href="ocsp__internal_8h_source.html#l00063">ocsp_url_t::path</a>, <a class="el" href="ocsp__internal_8h_source.html#l00064">ocsp_url_t::port</a>, and <a class="el" href="ocsp__internal_8h_source.html#l00065">ocsp_url_t::use_ssl</a>.</p>
+<p class="reference">References <a class="el" href="ocsp__internal_8h_source.html#l00047">BRIX_OCSP_TIMEOUT_SECS</a>, <a class="el" href="ocsp__internal_8h_source.html#l00092">ocsp_conn_t::cbio</a>, <a class="el" href="ocsp__internal_8h_source.html#l00073">ocsp_url_t::host</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ocsp__request_8c_source.html#l00046">ocsp_build_request()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00184">ocsp_conn_free()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00296">ocsp_connect_bio()</a>, <a class="el" href="ocsp__internal_8h_source.html#l00058">OCSP_MAX_RESPONSE_BYTES</a>, <a class="el" href="ocsp__transport_8c_source.html#l00260">ocsp_open_bio()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00039">ocsp_set_io_timeouts()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00323">ocsp_tls_handshake()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00133">parse_ocsp_url()</a>, <a class="el" href="ocsp__internal_8h_source.html#l00074">ocsp_url_t::path</a>, <a class="el" href="ocsp__internal_8h_source.html#l00075">ocsp_url_t::port</a>, and <a class="el" href="ocsp__internal_8h_source.html#l00076">ocsp_url_t::use_ssl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ocsp_8c_source.html#l00084">ocsp_check_urls()</a>, and <a class="el" href="ocsp_8c_source.html#l00281">ocsp_fetch_staple_urls()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ocsp_8c_source.html#l00081">ocsp_check_urls()</a>, and <a class="el" href="ocsp_8c_source.html#l00282">ocsp_fetch_staple_urls()</a>.</p>
 
 </div>
 </div>

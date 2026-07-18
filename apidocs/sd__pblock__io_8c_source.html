@@ -132,260 +132,401 @@ $(document).ready(function(){initNavTree('sd__pblock__io_8c_source.html',''); in
 <div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="preprocessor">#include &quot;<a class="code" href="sd__pblock__catalog_8h.html">sd_pblock_catalog.h</a>&quot;</span></div>
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="preprocessor">#include &quot;<a class="code" href="pblock__store_8h.html">pblock_store.h</a>&quot;</span>        <span class="comment">/* packed-block storage engine (split out) */</span></div>
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#include &quot;<a class="code" href="sd__pblock__internal_8h.html">sd_pblock_internal.h</a>&quot;</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span> </div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="preprocessor">#include &lt;errno.h&gt;</span></div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="preprocessor">#include &lt;fcntl.h&gt;</span></div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="preprocessor">#include &lt;limits.h&gt;</span></div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="preprocessor">#include &lt;unistd.h&gt;</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="preprocessor">#include &quot;<a class="code" href="pblock__fault_8h.html">pblock_fault.h</a>&quot;</span>        <span class="comment">/* Phase-83 lab fault injection + I/O shaping */</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="preprocessor">#include &quot;<a class="code" href="pblock__csi_8h.html">pblock_csi.h</a>&quot;</span>          <span class="comment">/* Phase-83 F3 per-block CRC32c integrity */</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="preprocessor">#include &quot;<a class="code" href="pblock__quota_8h.html">pblock_quota.h</a>&quot;</span>        <span class="comment">/* Phase-83 F5 quotas + space accounting */</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="preprocessor">#include &quot;<a class="code" href="pblock__locks_8h.html">pblock_locks.h</a>&quot;</span>        <span class="comment">/* Phase-83 F15 range-lease snapshot check */</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="preprocessor">#include &quot;<a class="code" href="wverify_8h.html">core/compat/wverify.h</a>&quot;</span> <span class="comment">/* Phase-83 F10 whole-object CRC accumulator */</span></div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="preprocessor">#include &lt;sys/types.h&gt;</span></div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">#include &lt;sys/uio.h&gt;</span></div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment">/* ---- worker-safe raw byte I/O (block files; no SQLite on the hot path) ----- */</span></div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>ssize_t</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a30ded86d7d62c5ee4662a2d747358464">sd_pblock_pread</a>(brix_sd_obj_t *obj, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len, off_t off)</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>{</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    <span class="keywordtype">size_t</span>        avail;</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span> </div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <span class="keywordflow">if</span> (off &lt; 0 || off &gt;= os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>        <span class="keywordflow">return</span> 0;                          <span class="comment">/* at/after EOF */</span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    }</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    avail = (size_t) (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> - off);</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <span class="keywordflow">if</span> (len &gt; avail) {</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        len = avail;</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    }</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keywordflow">if</span> (len == 0) {</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="preprocessor">#include &lt;errno.h&gt;</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">#include &lt;fcntl.h&gt;</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="preprocessor">#include &lt;limits.h&gt;</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="preprocessor">#include &lt;string.h&gt;</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="preprocessor">#include &lt;unistd.h&gt;</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="preprocessor">#include &lt;sys/types.h&gt;</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="preprocessor">#include &lt;sys/uio.h&gt;</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="comment">/* ---- worker-safe raw byte I/O (block files; no SQLite on the hot path) ----- */</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>ssize_t</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a30ded86d7d62c5ee4662a2d747358464">sd_pblock_pread</a>(brix_sd_obj_t *obj, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len, off_t off)</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>{</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    <span class="keywordtype">size_t</span>        avail;</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keywordflow">if</span> (off &lt; 0 || off &gt;= os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        <span class="keywordflow">return</span> 0;                          <span class="comment">/* at/after EOF */</span></div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    }</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="pblock__store_8c.html#ae8ca52dbd255dc0af08453eca4d29cec">pblock_read_blocks</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>, obj-&gt;fd,</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>                              buf, len, off);</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>}</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>ssize_t</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a7f7298253a73e8d3da6640e16f73c321">sd_pblock_pwrite</a>(brix_sd_obj_t *obj, <span class="keyword">const</span> <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len, off_t off)</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>{</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    ssize_t       n;</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    avail = (size_t) (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> - off);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <span class="keywordflow">if</span> (len &gt; avail) {</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>        len = avail;</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    }</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="keywordflow">if</span> (len == 0) {</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>    }</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a239d9761a7ddf890e6d7776f604b6fa6">lab</a> != NULL) {                       <span class="comment">/* Phase-83 F1/F8 */</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>        <span class="keywordtype">int</span> e = <a class="code hl_function" href="pblock__fault_8h.html#add4183bb38c781341794b45df2f8137a">pblock_lab_io_gate</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a239d9761a7ddf890e6d7776f604b6fa6">lab</a>, 0, &amp;len, off);</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    <span class="keywordflow">if</span> (len == 0) {</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    }</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    n = <a class="code hl_function" href="pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911">pblock_write_blocks</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>, obj-&gt;fd,</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>                            buf, len, off);</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <span class="keywordflow">if</span> (n &gt; 0) {</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a> = <a class="code hl_function" href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a>();</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>        <span class="keywordflow">if</span> ((int64_t) off + n &gt; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>            os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> = (int64_t) off + n;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        }</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a> = 1;</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    }</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="keywordflow">return</span> n;</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>}</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span> </div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="comment">/* sd_pblock_preadv — vectored read as a loop of the block-aware pread (stops at</span></div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="comment"> * the first short/EOF segment); bytes read or -1. */</span></div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>ssize_t</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a5efc16a365a364564e6bb5d90196f28e">sd_pblock_preadv</a>(brix_sd_obj_t *obj, <span class="keyword">const</span> <span class="keyword">struct</span> iovec *iov, <span class="keywordtype">int</span> iovcnt,</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    off_t off)</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>{</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    ssize_t total = 0;</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    <span class="keywordtype">int</span>     i;</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span> </div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    <span class="keywordflow">for</span> (i = 0; i &lt; iovcnt; i++) {</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        ssize_t n = <a class="code hl_function" href="sd__pblock__internal_8h.html#a30ded86d7d62c5ee4662a2d747358464">sd_pblock_pread</a>(obj, iov[i].iov_base, iov[i].iov_len,</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>                                    off + total);</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span> </div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        <span class="keywordflow">if</span> (n &lt; 0) {</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>            <span class="keywordflow">return</span> total ? total : -1;</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>        }</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        total += n;</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>        <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) n &lt; iov[i].iov_len) {</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>            <span class="keywordflow">break</span>;                         <span class="comment">/* short read / EOF */</span></div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>        }</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    }</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    <span class="keywordflow">return</span> total;</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>}</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span> </div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>ssize_t</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a237197e87d2d993136483f4ba0cfe884">sd_pblock_preadv2</a>(brix_sd_obj_t *obj, <span class="keyword">const</span> <span class="keyword">struct</span> iovec *iov, <span class="keywordtype">int</span> iovcnt,</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    off_t off, <span class="keywordtype">int</span> flags)</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>{</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    (void) flags;   <span class="comment">/* RWF_* flags not distinguished by this backend */</span></div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__pblock__internal_8h.html#a5efc16a365a364564e6bb5d90196f28e">sd_pblock_preadv</a>(obj, iov, iovcnt, off);</div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>}</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span> </div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment">/* sd_pblock_copy_range — copy up to `len` bytes src-&gt;dst through a bounded</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> * userspace buffer (blocks straddle file boundaries, so copy_file_range across</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment"> * whole objects does not apply). The VFS owns the outer loop; one call copies up</span></div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment"> * to the buffer size. Returns bytes copied (0 = src EOF) or -1. */</span></div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>ssize_t</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><a class="code hl_function" href="sd__pblock__internal_8h.html#aff625da2c1cab61533265c14a70c06d7">sd_pblock_copy_range</a>(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst,</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    off_t dst_off, <span class="keywordtype">size_t</span> len)</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>{</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *sos = src-&gt;state;</div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *dos = dst-&gt;state;</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    <span class="keywordtype">char</span>          buf[65536];</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    <span class="keywordtype">size_t</span>        chunk = len &lt; <span class="keyword">sizeof</span>(buf) ? len : sizeof(buf);</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    ssize_t       r, w;</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span> </div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="keywordflow">if</span> (src_off &lt; 0 || src_off &gt;= sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    }</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    <span class="keywordflow">if</span> (chunk &gt; (<span class="keywordtype">size_t</span>) (sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> - src_off)) {</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>        chunk = (size_t) (sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> - src_off);</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    }</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    <span class="keywordflow">if</span> (chunk == 0) {</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    }</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span> </div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    r = <a class="code hl_function" href="pblock__store_8c.html#ae8ca52dbd255dc0af08453eca4d29cec">pblock_read_blocks</a>(sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>, src-&gt;fd,</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>                           buf, chunk, src_off);</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="keywordflow">if</span> (r &lt;= 0) {</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        <span class="keywordflow">return</span> r;</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    }</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    w = <a class="code hl_function" href="pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911">pblock_write_blocks</a>(dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>, dst-&gt;fd,</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>                            buf, (<span class="keywordtype">size_t</span>) r, dst_off);</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    <span class="keywordflow">if</span> (w &gt; 0) {</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>        dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a> = <a class="code hl_function" href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a>();</div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        <span class="keywordflow">if</span> ((int64_t) dst_off + w &gt; dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>            dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> = (int64_t) dst_off + w;</div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        }</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a> = 1;</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    }</div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    <span class="keywordflow">return</span> w;</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>}</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span> </div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment">/* sd_pblock_read_sendfile_fd — zero-copy only for an offset-0 range that lies</span></div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> * within block 0 (the persistently-open obj-&gt;fd): small files and the start of</span></div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> * large ones. Multi-block ranges return NGX_INVALID_FILE (served memory-backed)</span></div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> * until the VFS read path is block-aware. */</span></div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>ngx_fd_t</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a4096929997a9802a0c553947d77d8b2d">sd_pblock_read_sendfile_fd</a>(brix_sd_obj_t *obj, off_t off, <span class="keywordtype">size_t</span> len,</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    <span class="keywordtype">unsigned</span> want_zerocopy)</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>{</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span> </div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <span class="keywordflow">if</span> (!want_zerocopy || obj-&gt;fd == NGX_INVALID_FILE) {</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    }</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    <span class="keywordflow">if</span> (off == 0 &amp;&amp; (int64_t) len &lt;= os-&gt;block_size) {</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="keywordflow">return</span> obj-&gt;fd;</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>}</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span> </div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>ngx_int_t</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><a class="code hl_function" href="sd__pblock__internal_8h.html#ac164e066f786774310ee1d54f453b3ea">sd_pblock_ftruncate</a>(brix_sd_obj_t *obj, off_t len)</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>{</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    int64_t       bs = os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>;</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    int64_t       old_last = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>, bs);</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    int64_t       keep = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(len, bs);</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    int64_t       boundary = (int64_t) len - keep * bs;   <span class="comment">/* bytes kept in `keep` */</span></div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    int64_t       i;</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordtype">int</span>           fd, transient = 0;</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span> </div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <span class="comment">/* trim the boundary block to its surviving length */</span></div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordflow">if</span> (keep == 0) {</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>        fd = obj-&gt;fd;</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        <span class="keywordtype">char</span> bp[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span> </div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, keep, bp, <span class="keyword">sizeof</span>(bp)) != 0) {</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>        }</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>        fd = <a class="code hl_function" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a>(bp, O_RDWR | O_CREAT, 0600);</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        <span class="keywordflow">if</span> (fd &lt; 0) {</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        }</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>        transient = 1;</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    }</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    <span class="keywordflow">if</span> (ftruncate(fd, (off_t) boundary) != 0) {</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>        <span class="keywordflow">if</span> (transient) {</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>            <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>        }</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    }</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    <span class="keywordflow">if</span> (transient) {</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    }</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span> </div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <span class="comment">/* drop whole blocks past the new size */</span></div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keywordflow">for</span> (i = keep + 1; i &lt;= old_last; i++) {</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>        <span class="keywordtype">char</span> bp[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span> </div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, i, bp, <span class="keyword">sizeof</span>(bp)) == 0) {</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>            unlink(bp);</div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>        }</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    }</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span> </div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>  = (int64_t) len;</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a> = <a class="code hl_function" href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a>();</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a>      = 1;</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>}</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span> </div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span><span class="comment">/* sd_pblock_fsync — durability barrier: fsync every block file backing the</span></div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="comment"> * object, then flush dirty size/mtime to the catalog. */</span></div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>ngx_int_t</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span><a class="code hl_function" href="sd__pblock__internal_8h.html#ab630e04a4bb08bac370ce8e6828db7ae">sd_pblock_fsync</a>(brix_sd_obj_t *obj)</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>{</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    int64_t       last = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>);</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    int64_t       i;</div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span> </div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    <span class="keywordflow">if</span> (obj-&gt;fd != NGX_INVALID_FILE &amp;&amp; fsync(obj-&gt;fd) != 0) {</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    }</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    <span class="keywordflow">for</span> (i = 1; i &lt;= last; i++) {</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>        <span class="keywordtype">char</span> bp[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        <span class="keywordtype">int</span>  fd;</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span> </div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, i, bp, <span class="keyword">sizeof</span>(bp)) != 0) {</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>        <span class="keywordflow">if</span> (e != 0) {</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            errno = e;</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        }</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        <span class="keywordflow">if</span> (len == 0) {</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        }</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    }</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    {</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        ssize_t n = <a class="code hl_function" href="pblock__store_8c.html#ae8ca52dbd255dc0af08453eca4d29cec">pblock_read_blocks</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>,</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>                                       obj-&gt;fd, buf, len, off);</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span> </div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>        <span class="keywordflow">if</span> (n &gt; 0 &amp;&amp; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a34ed3de70c81117009d0de2fd53f3c48">csi</a>                     <span class="comment">/* F3: at-rest integrity */</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>            &amp;&amp; <a class="code hl_function" href="pblock__csi_8h.html#a825f0da60f983079510ecf45b65c1324">pblock_csi_verify</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a9ba9eb648105a2b41d201f1d678e8f19">csi_crc</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a9df6e5f01b94d6a079be0605371220d6">csi_n</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>,</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>                                 os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>, buf, off, (<span class="keywordtype">size_t</span>) n,</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>                                 os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aaa30b61b8707688a15c054582bec83fd">csi_dlo</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a6696ef175651fb0dfc4868f421c39ae0">csi_dhi</a>) != 0)</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        {</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>            <span class="keywordflow">return</span> -1;                               <span class="comment">/* errno=EIO; never serve  *</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="comment">                                                      * corrupt bytes            */</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>        }</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        <span class="keywordflow">if</span> (n &gt; 0 &amp;&amp; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a6cd68ad2ffa2527b20d25f1e5213e225">audit</a>) {                <span class="comment">/* F17: fold into close */</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>            int64_t last = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(off + n, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>) + 1;</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span> </div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>            os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a504215c14db2b71f1379e177bc7ea918">a_rbytes</a> += n;</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>            <span class="keywordflow">if</span> (last &gt; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a4f22aba1b0ab8582c8755f17f1ca9b16">a_maxblock</a>) {</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>                os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a4f22aba1b0ab8582c8755f17f1ca9b16">a_maxblock</a> = last;</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>            }</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        }</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    }</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>}</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>ssize_t</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a7f7298253a73e8d3da6640e16f73c321">sd_pblock_pwrite</a>(brix_sd_obj_t *obj, <span class="keyword">const</span> <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len, off_t off)</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>{</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    ssize_t       n;</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span> </div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="keywordflow">if</span> (len == 0) {</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    }</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a239d9761a7ddf890e6d7776f604b6fa6">lab</a> != NULL) {                       <span class="comment">/* Phase-83 F1/F8 */</span></div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>        <span class="keywordtype">int</span> e = <a class="code hl_function" href="pblock__fault_8h.html#add4183bb38c781341794b45df2f8137a">pblock_lab_io_gate</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a239d9761a7ddf890e6d7776f604b6fa6">lab</a>, 1, &amp;len, off);</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span> </div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        <span class="keywordflow">if</span> (e != 0) {</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>            errno = e;</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>        }</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        <span class="keywordflow">if</span> (len == 0) {</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        }</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    }</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    <span class="keywordflow">if</span> ((int64_t) off + (int64_t) len &gt; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a058fb8566b8d9490620bd3348b9a7ba4">quota_max</a>) {     <span class="comment">/* F5 */</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        errno = EDQUOT;</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    }</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a4c8e9a1a592c0da56b11f644a7f5f9bc">lock_n</a> &amp;&amp; <a class="code hl_function" href="pblock__locks_8h.html#a99a63637edbbcf68bab1f5cf75f8ffcc">pblock_locks_range_denied</a>(os, off, len)) {   <span class="comment">/* F15 */</span></div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        errno = EBUSY;</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    }</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    n = <a class="code hl_function" href="pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911">pblock_write_blocks</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>, obj-&gt;fd,</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>                            buf, len, off);</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordflow">if</span> (n &gt; 0) {</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a> = <a class="code hl_function" href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a>();</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>        <span class="keywordflow">if</span> ((int64_t) off + n &gt; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>            os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> = (int64_t) off + n;</div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>        }</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a> = 1;</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a3acd14be07ec7efd7ba7bb238659d5eb">wv</a> != NULL) {                        <span class="comment">/* F10: grow the dedup CRC */</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>            (void) <a class="code hl_function" href="wverify_8c.html#a0856aadfa8830a53c778ab38487a2454">brix_wverify_update</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a3acd14be07ec7efd7ba7bb238659d5eb">wv</a>, buf, off, (<span class="keywordtype">size_t</span>) n);</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        }</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a34ed3de70c81117009d0de2fd53f3c48">csi</a>) {                           <span class="comment">/* F3: widen written extent */</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>            int64_t fb = off / os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>;</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>            int64_t lb = (off + n - 1) / os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>;</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span> </div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>            <span class="keywordflow">if</span> (fb &lt; os-&gt;csi_dlo) {</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>                os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aaa30b61b8707688a15c054582bec83fd">csi_dlo</a> = fb;</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>            }</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>            <span class="keywordflow">if</span> (lb + 1 &gt; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a6696ef175651fb0dfc4868f421c39ae0">csi_dhi</a>) {</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>                os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a6696ef175651fb0dfc4868f421c39ae0">csi_dhi</a> = lb + 1;</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>            }</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        }</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a6cd68ad2ffa2527b20d25f1e5213e225">audit</a>) {                         <span class="comment">/* F17: fold into close */</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>            int64_t last = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(off + n, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>) + 1;</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span> </div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>            os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a7f9e741d3756df98aba107401f89a16d">a_wbytes</a> += n;</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>            <span class="keywordflow">if</span> (last &gt; os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a4f22aba1b0ab8582c8755f17f1ca9b16">a_maxblock</a>) {</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>                os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a4f22aba1b0ab8582c8755f17f1ca9b16">a_maxblock</a> = last;</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>            }</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        }</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        <a class="code hl_function" href="pblock__fault_8h.html#ad77ff30cc41159b11028840e71624c3a">pblock_lab_crash</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a18112997448e58cef7d734de2a9e201a">lab</a>, <span class="stringliteral">&quot;after_block_write&quot;</span>);   <span class="comment">/* F7 */</span></div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    }</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>}</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span> </div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="comment">/* sd_pblock_preadv — vectored read as a loop of the block-aware pread (stops at</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="comment"> * the first short/EOF segment); bytes read or -1. */</span></div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>ssize_t</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a5efc16a365a364564e6bb5d90196f28e">sd_pblock_preadv</a>(brix_sd_obj_t *obj, <span class="keyword">const</span> <span class="keyword">struct</span> iovec *iov, <span class="keywordtype">int</span> iovcnt,</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    off_t off)</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>{</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    ssize_t total = 0;</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <span class="keywordtype">int</span>     i;</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span> </div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordflow">for</span> (i = 0; i &lt; iovcnt; i++) {</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        ssize_t n = <a class="code hl_function" href="sd__pblock__internal_8h.html#a30ded86d7d62c5ee4662a2d747358464">sd_pblock_pread</a>(obj, iov[i].iov_base, iov[i].iov_len,</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>                                    off + total);</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span> </div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        <span class="keywordflow">if</span> (n &lt; 0) {</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>            <span class="keywordflow">return</span> total ? total : -1;</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>        }</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        total += n;</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) n &lt; iov[i].iov_len) {</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>            <span class="keywordflow">break</span>;                         <span class="comment">/* short read / EOF */</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        }</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordflow">return</span> total;</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>}</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span> </div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>ssize_t</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a237197e87d2d993136483f4ba0cfe884">sd_pblock_preadv2</a>(brix_sd_obj_t *obj, <span class="keyword">const</span> <span class="keyword">struct</span> iovec *iov, <span class="keywordtype">int</span> iovcnt,</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    off_t off, <span class="keywordtype">int</span> flags)</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>{</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    (void) flags;   <span class="comment">/* RWF_* flags not distinguished by this backend */</span></div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__pblock__internal_8h.html#a5efc16a365a364564e6bb5d90196f28e">sd_pblock_preadv</a>(obj, iov, iovcnt, off);</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>}</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span> </div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="comment">/* sd_pblock_copy_range — copy up to `len` bytes src-&gt;dst through a bounded</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment"> * userspace buffer (blocks straddle file boundaries, so copy_file_range across</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment"> * whole objects does not apply). The VFS owns the outer loop; one call copies up</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment"> * to the buffer size. Returns bytes copied (0 = src EOF) or -1. */</span></div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>ssize_t</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><a class="code hl_function" href="sd__pblock__internal_8h.html#aff625da2c1cab61533265c14a70c06d7">sd_pblock_copy_range</a>(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst,</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    off_t dst_off, <span class="keywordtype">size_t</span> len)</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>{</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *sos = src-&gt;state;</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *dos = dst-&gt;state;</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    <span class="keywordtype">char</span>          buf[65536];</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    <span class="keywordtype">size_t</span>        chunk = len &lt; <span class="keyword">sizeof</span>(buf) ? len : sizeof(buf);</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    ssize_t       r, w;</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span> </div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    <span class="keywordflow">if</span> (src_off &lt; 0 || src_off &gt;= sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    }</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keywordflow">if</span> (chunk &gt; (<span class="keywordtype">size_t</span>) (sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> - src_off)) {</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>        chunk = (size_t) (sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> - src_off);</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    }</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    <span class="keywordflow">if</span> (chunk == 0) {</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    }</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span> </div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    r = <a class="code hl_function" href="pblock__store_8c.html#ae8ca52dbd255dc0af08453eca4d29cec">pblock_read_blocks</a>(sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, sos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>, src-&gt;fd,</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>                           buf, chunk, src_off);</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    <span class="keywordflow">if</span> (r &lt;= 0) {</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        <span class="keywordflow">return</span> r;</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    }</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    <span class="keywordflow">if</span> ((int64_t) dst_off + r &gt; dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a058fb8566b8d9490620bd3348b9a7ba4">quota_max</a>) {            <span class="comment">/* F5 */</span></div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>        errno = EDQUOT;</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    }</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    <span class="keywordflow">if</span> (dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a4c8e9a1a592c0da56b11f644a7f5f9bc">lock_n</a></div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        &amp;&amp; <a class="code hl_function" href="pblock__locks_8h.html#a99a63637edbbcf68bab1f5cf75f8ffcc">pblock_locks_range_denied</a>(dos, dst_off, (<span class="keywordtype">size_t</span>) r))    <span class="comment">/* F15 */</span></div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    {</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>        errno = EBUSY;</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    }</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    w = <a class="code hl_function" href="pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911">pblock_write_blocks</a>(dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>, dst-&gt;fd,</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>                            buf, (<span class="keywordtype">size_t</span>) r, dst_off);</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <span class="keywordflow">if</span> (w &gt; 0) {</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>        dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a> = <a class="code hl_function" href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a>();</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        <span class="keywordflow">if</span> ((int64_t) dst_off + w &gt; dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) {</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>            dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a> = (int64_t) dst_off + w;</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        }</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>        dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a> = 1;</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        <span class="keywordflow">if</span> (dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a3acd14be07ec7efd7ba7bb238659d5eb">wv</a> != NULL) {                       <span class="comment">/* F10: grow the dedup CRC */</span></div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>            (void) <a class="code hl_function" href="wverify_8c.html#a0856aadfa8830a53c778ab38487a2454">brix_wverify_update</a>(dos-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a3acd14be07ec7efd7ba7bb238659d5eb">wv</a>, buf, dst_off, (<span class="keywordtype">size_t</span>) w);</div>
 <div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>        }</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>        fd = <a class="code hl_function" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a>(bp, O_RDONLY);</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>        <span class="keywordflow">if</span> (fd &gt;= 0) {</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>            <span class="keywordflow">if</span> (fsync(fd) != 0) {</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>                <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>                <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>            }</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>            <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>        }</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    }</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span> </div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a>) {</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="sd__pblock__catalog_8h.html#a3996a2d25692feebe05b4b9594ecba46">pblock_catalog_touch</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a31fbe900de07c3f9ca5b1b9afd36f275">cat</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a0986fc0153d81397ac4caf4455b7da20">path</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>,</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>                                 os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a>) != 0)</div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>        {</div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>        }</div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a> = 0;</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    }</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>}</div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span> </div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>ngx_int_t</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a8678b56dfca0d6f1ad5ac84fe47b7ce9">sd_pblock_fstat</a>(brix_sd_obj_t *obj, <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>{</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    }</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    <span class="keywordflow">return</span> w;</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>}</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span><span class="comment">/* sd_pblock_read_sendfile_fd — zero-copy only for an offset-0 range that lies</span></div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span><span class="comment"> * within block 0 (the persistently-open obj-&gt;fd): small files and the start of</span></div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span><span class="comment"> * large ones. Multi-block ranges return NGX_INVALID_FILE (served memory-backed)</span></div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span><span class="comment"> * until the VFS read path is block-aware. */</span></div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>ngx_fd_t</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a4096929997a9802a0c553947d77d8b2d">sd_pblock_read_sendfile_fd</a>(brix_sd_obj_t *obj, off_t off, <span class="keywordtype">size_t</span> len,</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    <span class="keywordtype">unsigned</span> want_zerocopy)</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>{</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <span class="keywordflow">if</span> (!want_zerocopy || obj-&gt;fd == NGX_INVALID_FILE) {</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    }</div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__xform_8h.html#a5a0aea554c7803de487fa271d09efed3">pblock_xform_active</a>(&amp;os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a6a56a2d1489361357d9ad938dfede1e1">xform</a>)) {</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>        <span class="keywordflow">return</span> NGX_INVALID_FILE;   <span class="comment">/* F12/F13: block 0 holds transformed bytes */</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    }</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    <span class="keywordflow">if</span> (off == 0 &amp;&amp; (int64_t) len &lt;= os-&gt;block_size) {</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>        <span class="keywordflow">return</span> obj-&gt;fd;</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    }</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <span class="keywordflow">return</span> NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>}</div>
 <div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span> </div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    <a class="code hl_function" href="pblock__store_8c.html#a83d3fc2a24e8d3ec1661766b58a45c60">pblock_fill_sd_stat</a>(&amp;os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a0986fc0153d81397ac4caf4455b7da20">path</a>, out);</div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>}</div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span> </div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_HAVE_SQLITE */</span><span class="preprocessor"></span></div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>ngx_int_t</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span><a class="code hl_function" href="sd__pblock__internal_8h.html#ac164e066f786774310ee1d54f453b3ea">sd_pblock_ftruncate</a>(brix_sd_obj_t *obj, off_t len)</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>{</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    int64_t       bs = os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>;</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    int64_t       old_last = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>, bs);</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    int64_t       keep = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(len, bs);</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>    int64_t       boundary = (int64_t) len - keep * bs;   <span class="comment">/* bytes kept in `keep` */</span></div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>    int64_t       i;</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    <span class="keywordtype">int</span>           fd, transient = 0;</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span> </div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    <span class="comment">/* F12/F13: transformed blocks carry a header — trim the boundary block by</span></div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span><span class="comment">     * re-encoding its surviving logical prefix, not a raw ftruncate. */</span></div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__xform_8h.html#a5a0aea554c7803de487fa271d09efed3">pblock_xform_active</a>(&amp;os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a6a56a2d1489361357d9ad938dfede1e1">xform</a>)) {</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>        <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *scratch = malloc((<span class="keywordtype">size_t</span>) bs);</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>        <span class="keywordtype">char</span>           bp[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>        uint32_t       llen;</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span> </div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>        <span class="keywordflow">if</span> (scratch == NULL) {</div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>        }</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, keep, bp, <span class="keyword">sizeof</span>(bp)) != 0</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>            || <a class="code hl_function" href="pblock__xform_8h.html#aa57343c1458cbe2a03526ae617fc243e">pblock_xform_block_load</a>(&amp;os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a6a56a2d1489361357d9ad938dfede1e1">xform</a>, keep, bp, scratch, bs,</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>                                       &amp;llen) != 0</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>            || <a class="code hl_function" href="pblock__xform_8h.html#ac555d978bb602a9418c4c81b00b97990">pblock_xform_block_store</a>(&amp;os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a6a56a2d1489361357d9ad938dfede1e1">xform</a>, keep, bp, scratch,</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>                                        (uint32_t) boundary, bs) != 0)</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>        {</div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>            free(scratch);</div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>        }</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>        free(scratch);</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>        <span class="keywordflow">for</span> (i = keep + 1; i &lt;= old_last; i++) {</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, i, bp, <span class="keyword">sizeof</span>(bp)) == 0) {</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>                unlink(bp);</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>            }</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>        }</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>  = (int64_t) len;</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a> = <a class="code hl_function" href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a>();</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a>      = 1;</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>    }</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span> </div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    <span class="comment">/* trim the boundary block to its surviving length */</span></div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>    <span class="keywordflow">if</span> (keep == 0) {</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>        fd = obj-&gt;fd;</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>    } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>        <span class="keywordtype">char</span> bp[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span> </div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, keep, bp, <span class="keyword">sizeof</span>(bp)) != 0) {</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>        }</div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>        fd = <a class="code hl_function" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a>(bp, O_RDWR | O_CREAT, 0600);</div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>        <span class="keywordflow">if</span> (fd &lt; 0) {</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>        }</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>        transient = 1;</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>    }</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>    <span class="keywordflow">if</span> (ftruncate(fd, (off_t) boundary) != 0) {</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>        <span class="keywordflow">if</span> (transient) {</div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>            <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>        }</div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>    }</div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>    <span class="keywordflow">if</span> (transient) {</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>    }</div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span> </div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>    <span class="comment">/* drop whole blocks past the new size */</span></div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>    <span class="keywordflow">for</span> (i = keep + 1; i &lt;= old_last; i++) {</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>        <span class="keywordtype">char</span> bp[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span> </div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, i, bp, <span class="keyword">sizeof</span>(bp)) == 0) {</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>            unlink(bp);</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>        }</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>    }</div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span> </div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>  = (int64_t) len;</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a> = <a class="code hl_function" href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a>();</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>    os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a>      = 1;</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>}</div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span> </div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span><span class="comment">/* sd_pblock_fsync — durability barrier: fsync every block file backing the</span></div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span><span class="comment"> * object, then flush dirty size/mtime to the catalog. */</span></div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>ngx_int_t</div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span><a class="code hl_function" href="sd__pblock__internal_8h.html#ab630e04a4bb08bac370ce8e6828db7ae">sd_pblock_fsync</a>(brix_sd_obj_t *obj)</div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>{</div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    int64_t       last = <a class="code hl_function" href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">block_size</a>);</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    int64_t       i;</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span> </div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>    <span class="keywordflow">if</span> (obj-&gt;fd != NGX_INVALID_FILE &amp;&amp; fsync(obj-&gt;fd) != 0) {</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>    }</div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>    <span class="keywordflow">for</span> (i = 1; i &lt;= last; i++) {</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>        <span class="keywordtype">char</span> bp[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>        <span class="keywordtype">int</span>  fd;</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span> </div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">blob_id</a>, i, bp, <span class="keyword">sizeof</span>(bp)) != 0) {</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>        }</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>        fd = <a class="code hl_function" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a>(bp, O_RDONLY);</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>        <span class="keywordflow">if</span> (fd &gt;= 0) {</div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>            <span class="keywordflow">if</span> (fsync(fd) != 0) {</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>                <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>                <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>            }</div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>            <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>        }</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>    }</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span> </div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    <span class="keywordflow">if</span> (os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a>) {</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="pblock__quota_8h.html#a08037ee580954277b77320dddcdcb445">pblock_quota_touch_admit</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a0986fc0153d81397ac4caf4455b7da20">path</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a608af25a58f7306144db94e9a3f56c85">uid</a>,</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>                                     os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>) != 0             <span class="comment">/* F5 */</span></div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>            || <a class="code hl_function" href="sd__pblock__catalog_8h.html#a3996a2d25692feebe05b4b9594ecba46">pblock_catalog_touch</a>(os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">st</a>-&gt;<a class="code hl_variable" href="structpblock__state__t.html#a31fbe900de07c3f9ca5b1b9afd36f275">cat</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a0986fc0153d81397ac4caf4455b7da20">path</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">size</a>,</div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>                                 os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>.<a class="code hl_variable" href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">mtime</a>) != 0)</div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>        {</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>        }</div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>        os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">dirty</a> = 0;</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    }</div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>}</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span> </div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>ngx_int_t</div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span><a class="code hl_function" href="sd__pblock__internal_8h.html#a8678b56dfca0d6f1ad5ac84fe47b7ce9">sd_pblock_fstat</a>(brix_sd_obj_t *obj, <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>{</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    <a class="code hl_struct" href="structpblock__obj__t.html">pblock_obj_t</a> *os = obj-&gt;state;</div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span> </div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>    <a class="code hl_function" href="pblock__store_8c.html#a83d3fc2a24e8d3ec1661766b58a45c60">pblock_fill_sd_stat</a>(&amp;os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">meta</a>, os-&gt;<a class="code hl_variable" href="structpblock__obj__t.html#a0986fc0153d81397ac4caf4455b7da20">path</a>, out);</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>}</div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span> </div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_HAVE_SQLITE */</span><span class="preprocessor"></span></div>
 <div class="ttc" id="abrixposix__preload_8c_html_aafbcde67669a1b96577e735ddebd8634"><div class="ttname"><a href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a></div><div class="ttdeci">int close(int fd)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00374">brixposix_preload.c:374</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_ad586f56cb2d7d849a4cb20dbd792b543"><div class="ttname"><a href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a></div><div class="ttdeci">int open(const char *path, int flags,...)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00252">brixposix_preload.c:252</a></div></div>
+<div class="ttc" id="apblock__csi_8h_html"><div class="ttname"><a href="pblock__csi_8h.html">pblock_csi.h</a></div></div>
+<div class="ttc" id="apblock__csi_8h_html_a825f0da60f983079510ecf45b65c1324"><div class="ttname"><a href="pblock__csi_8h.html#a825f0da60f983079510ecf45b65c1324">pblock_csi_verify</a></div><div class="ttdeci">int pblock_csi_verify(const uint32_t *crc, uint64_t n, int64_t bs, int64_t size, const unsigned char *buf, off_t off, size_t len, int64_t dlo, int64_t dhi)</div></div>
+<div class="ttc" id="apblock__fault_8h_html"><div class="ttname"><a href="pblock__fault_8h.html">pblock_fault.h</a></div></div>
+<div class="ttc" id="apblock__fault_8h_html_ad77ff30cc41159b11028840e71624c3a"><div class="ttname"><a href="pblock__fault_8h.html#ad77ff30cc41159b11028840e71624c3a">pblock_lab_crash</a></div><div class="ttdeci">void pblock_lab_crash(pblock_lab_state_t *ls, const char *point)</div></div>
+<div class="ttc" id="apblock__fault_8h_html_add4183bb38c781341794b45df2f8137a"><div class="ttname"><a href="pblock__fault_8h.html#add4183bb38c781341794b45df2f8137a">pblock_lab_io_gate</a></div><div class="ttdeci">int pblock_lab_io_gate(pblock_lab_obj_t *lo, int is_write, size_t *len, off_t off)</div></div>
+<div class="ttc" id="apblock__locks_8h_html"><div class="ttname"><a href="pblock__locks_8h.html">pblock_locks.h</a></div></div>
+<div class="ttc" id="apblock__locks_8h_html_a99a63637edbbcf68bab1f5cf75f8ffcc"><div class="ttname"><a href="pblock__locks_8h.html#a99a63637edbbcf68bab1f5cf75f8ffcc">pblock_locks_range_denied</a></div><div class="ttdeci">int pblock_locks_range_denied(const pblock_obj_t *os, off_t off, size_t len)</div></div>
+<div class="ttc" id="apblock__quota_8h_html"><div class="ttname"><a href="pblock__quota_8h.html">pblock_quota.h</a></div></div>
+<div class="ttc" id="apblock__quota_8h_html_a08037ee580954277b77320dddcdcb445"><div class="ttname"><a href="pblock__quota_8h.html#a08037ee580954277b77320dddcdcb445">pblock_quota_touch_admit</a></div><div class="ttdeci">int pblock_quota_touch_admit(const pblock_state_t *st, const char *path, uint32_t uid, int64_t newsize)</div></div>
 <div class="ttc" id="apblock__store_8c_html_a229cda01e0c071aedfdbc4d6c4dd5d43"><div class="ttname"><a href="pblock__store_8c.html#a229cda01e0c071aedfdbc4d6c4dd5d43">pblock_now</a></div><div class="ttdeci">int64_t pblock_now(void)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00026">pblock_store.c:26</a></div></div>
 <div class="ttc" id="apblock__store_8c_html_a29838f5eb9faf834f399a1f6b1d131b5"><div class="ttname"><a href="pblock__store_8c.html#a29838f5eb9faf834f399a1f6b1d131b5">pblock_last_block</a></div><div class="ttdeci">int64_t pblock_last_block(int64_t size, int64_t bs)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00034">pblock_store.c:34</a></div></div>
-<div class="ttc" id="apblock__store_8c_html_a2bef6cd5466f982d357cbdebe9afa911"><div class="ttname"><a href="pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911">pblock_write_blocks</a></div><div class="ttdeci">ssize_t pblock_write_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs, int blk0_fd, const void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00184">pblock_store.c:184</a></div></div>
+<div class="ttc" id="apblock__store_8c_html_a2bef6cd5466f982d357cbdebe9afa911"><div class="ttname"><a href="pblock__store_8c.html#a2bef6cd5466f982d357cbdebe9afa911">pblock_write_blocks</a></div><div class="ttdeci">ssize_t pblock_write_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs, int blk0_fd, const void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00230">pblock_store.c:230</a></div></div>
 <div class="ttc" id="apblock__store_8c_html_a54f45be276e456c2e6bb51ad0e7a225c"><div class="ttname"><a href="pblock__store_8c.html#a54f45be276e456c2e6bb51ad0e7a225c">pblock_block_path</a></div><div class="ttdeci">int pblock_block_path(const pblock_state_t *st, const char *blob_id, int64_t idx, char *out, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00134">pblock_store.c:134</a></div></div>
 <div class="ttc" id="apblock__store_8c_html_a83d3fc2a24e8d3ec1661766b58a45c60"><div class="ttname"><a href="pblock__store_8c.html#a83d3fc2a24e8d3ec1661766b58a45c60">pblock_fill_sd_stat</a></div><div class="ttdeci">void pblock_fill_sd_stat(const pblock_meta *m, const char *path, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00164">pblock_store.c:164</a></div></div>
-<div class="ttc" id="apblock__store_8c_html_ae8ca52dbd255dc0af08453eca4d29cec"><div class="ttname"><a href="pblock__store_8c.html#ae8ca52dbd255dc0af08453eca4d29cec">pblock_read_blocks</a></div><div class="ttdeci">ssize_t pblock_read_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs, int blk0_fd, void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00240">pblock_store.c:240</a></div></div>
+<div class="ttc" id="apblock__store_8c_html_ae8ca52dbd255dc0af08453eca4d29cec"><div class="ttname"><a href="pblock__store_8c.html#ae8ca52dbd255dc0af08453eca4d29cec">pblock_read_blocks</a></div><div class="ttdeci">ssize_t pblock_read_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs, int blk0_fd, void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8c_source.html#l00326">pblock_store.c:326</a></div></div>
 <div class="ttc" id="apblock__store_8h_html"><div class="ttname"><a href="pblock__store_8h.html">pblock_store.h</a></div></div>
+<div class="ttc" id="apblock__xform_8h_html_a5a0aea554c7803de487fa271d09efed3"><div class="ttname"><a href="pblock__xform_8h.html#a5a0aea554c7803de487fa271d09efed3">pblock_xform_active</a></div><div class="ttdeci">int pblock_xform_active(const pblock_xform_t *xf)</div></div>
+<div class="ttc" id="apblock__xform_8h_html_aa57343c1458cbe2a03526ae617fc243e"><div class="ttname"><a href="pblock__xform_8h.html#aa57343c1458cbe2a03526ae617fc243e">pblock_xform_block_load</a></div><div class="ttdeci">int pblock_xform_block_load(const pblock_xform_t *xf, int64_t idx, const char *path, unsigned char *out, int64_t bs, uint32_t *llen_out)</div></div>
+<div class="ttc" id="apblock__xform_8h_html_ac555d978bb602a9418c4c81b00b97990"><div class="ttname"><a href="pblock__xform_8h.html#ac555d978bb602a9418c4c81b00b97990">pblock_xform_block_store</a></div><div class="ttdeci">int pblock_xform_block_store(const pblock_xform_t *xf, int64_t idx, const char *path, const unsigned char *logical, uint32_t llen, int64_t bs)</div></div>
 <div class="ttc" id="asd_8h_html"><div class="ttname"><a href="sd_8h.html">sd.h</a></div></div>
 <div class="ttc" id="asd__pblock__catalog_8h_html"><div class="ttname"><a href="sd__pblock__catalog_8h.html">sd_pblock_catalog.h</a></div></div>
 <div class="ttc" id="asd__pblock__catalog_8h_html_a3996a2d25692feebe05b4b9594ecba46"><div class="ttname"><a href="sd__pblock__catalog_8h.html#a3996a2d25692feebe05b4b9594ecba46">pblock_catalog_touch</a></div><div class="ttdeci">int pblock_catalog_touch(pblock_catalog *cat, const char *path, int64_t size, int64_t mtime)</div></div>
@@ -399,17 +540,35 @@ $(document).ready(function(){initNavTree('sd__pblock__io_8c_source.html',''); in
 <div class="ttc" id="asd__pblock__internal_8h_html_ab630e04a4bb08bac370ce8e6828db7ae"><div class="ttname"><a href="sd__pblock__internal_8h.html#ab630e04a4bb08bac370ce8e6828db7ae">sd_pblock_fsync</a></div><div class="ttdeci">ngx_int_t sd_pblock_fsync(brix_sd_obj_t *obj)</div></div>
 <div class="ttc" id="asd__pblock__internal_8h_html_ac164e066f786774310ee1d54f453b3ea"><div class="ttname"><a href="sd__pblock__internal_8h.html#ac164e066f786774310ee1d54f453b3ea">sd_pblock_ftruncate</a></div><div class="ttdeci">ngx_int_t sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len)</div></div>
 <div class="ttc" id="asd__pblock__internal_8h_html_aff625da2c1cab61533265c14a70c06d7"><div class="ttname"><a href="sd__pblock__internal_8h.html#aff625da2c1cab61533265c14a70c06d7">sd_pblock_copy_range</a></div><div class="ttdeci">ssize_t sd_pblock_copy_range(brix_sd_obj_t *src, off_t src_off, brix_sd_obj_t *dst, off_t dst_off, size_t len)</div></div>
-<div class="ttc" id="astructbrix__sd__stat__t_html"><div class="ttname"><a href="structbrix__sd__stat__t.html">brix_sd_stat_t</a></div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00250">sd.h:250</a></div></div>
-<div class="ttc" id="astructpblock__meta_html_a30bac8c120e22e4fd38f165fcdf8d345"><div class="ttname"><a href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">pblock_meta::size</a></div><div class="ttdeci">int64_t size</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00048">sd_pblock_catalog.h:48</a></div></div>
-<div class="ttc" id="astructpblock__meta_html_af764c1118c886445c94ffe6606d69fab"><div class="ttname"><a href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">pblock_meta::mtime</a></div><div class="ttdeci">int64_t mtime</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00050">sd_pblock_catalog.h:50</a></div></div>
+<div class="ttc" id="astructbrix__sd__stat__t_html"><div class="ttname"><a href="structbrix__sd__stat__t.html">brix_sd_stat_t</a></div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00269">sd.h:269</a></div></div>
+<div class="ttc" id="astructpblock__meta_html_a30bac8c120e22e4fd38f165fcdf8d345"><div class="ttname"><a href="structpblock__meta.html#a30bac8c120e22e4fd38f165fcdf8d345">pblock_meta::size</a></div><div class="ttdeci">int64_t size</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00052">sd_pblock_catalog.h:52</a></div></div>
+<div class="ttc" id="astructpblock__meta_html_a608af25a58f7306144db94e9a3f56c85"><div class="ttname"><a href="structpblock__meta.html#a608af25a58f7306144db94e9a3f56c85">pblock_meta::uid</a></div><div class="ttdeci">uint32_t uid</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00057">sd_pblock_catalog.h:57</a></div></div>
+<div class="ttc" id="astructpblock__meta_html_af764c1118c886445c94ffe6606d69fab"><div class="ttname"><a href="structpblock__meta.html#af764c1118c886445c94ffe6606d69fab">pblock_meta::mtime</a></div><div class="ttdeci">int64_t mtime</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__catalog_8h_source.html#l00054">sd_pblock_catalog.h:54</a></div></div>
 <div class="ttc" id="astructpblock__obj__t_html"><div class="ttname"><a href="structpblock__obj__t.html">pblock_obj_t</a></div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00050">sd_pblock_internal.h:50</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a058fb8566b8d9490620bd3348b9a7ba4"><div class="ttname"><a href="structpblock__obj__t.html#a058fb8566b8d9490620bd3348b9a7ba4">pblock_obj_t::quota_max</a></div><div class="ttdeci">int64_t quota_max</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00076">sd_pblock_internal.h:76</a></div></div>
 <div class="ttc" id="astructpblock__obj__t_html_a072e1f174246b44014f172cb9cb30d2a"><div class="ttname"><a href="structpblock__obj__t.html#a072e1f174246b44014f172cb9cb30d2a">pblock_obj_t::meta</a></div><div class="ttdeci">pblock_meta meta</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00055">sd_pblock_internal.h:55</a></div></div>
 <div class="ttc" id="astructpblock__obj__t_html_a0986fc0153d81397ac4caf4455b7da20"><div class="ttname"><a href="structpblock__obj__t.html#a0986fc0153d81397ac4caf4455b7da20">pblock_obj_t::path</a></div><div class="ttdeci">char path[PATH_MAX]</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00052">sd_pblock_internal.h:52</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a239d9761a7ddf890e6d7776f604b6fa6"><div class="ttname"><a href="structpblock__obj__t.html#a239d9761a7ddf890e6d7776f604b6fa6">pblock_obj_t::lab</a></div><div class="ttdeci">void * lab</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00056">sd_pblock_internal.h:56</a></div></div>
 <div class="ttc" id="astructpblock__obj__t_html_a2c47df30ad384b96a616ac5294fb0e42"><div class="ttname"><a href="structpblock__obj__t.html#a2c47df30ad384b96a616ac5294fb0e42">pblock_obj_t::blob_id</a></div><div class="ttdeci">char blob_id[(32+1)]</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00053">sd_pblock_internal.h:53</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a3acd14be07ec7efd7ba7bb238659d5eb"><div class="ttname"><a href="structpblock__obj__t.html#a3acd14be07ec7efd7ba7bb238659d5eb">pblock_obj_t::wv</a></div><div class="ttdeci">void * wv</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00081">sd_pblock_internal.h:81</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a4c8e9a1a592c0da56b11f644a7f5f9bc"><div class="ttname"><a href="structpblock__obj__t.html#a4c8e9a1a592c0da56b11f644a7f5f9bc">pblock_obj_t::lock_n</a></div><div class="ttdeci">uint32_t lock_n</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00075">sd_pblock_internal.h:75</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a4f22aba1b0ab8582c8755f17f1ca9b16"><div class="ttname"><a href="structpblock__obj__t.html#a4f22aba1b0ab8582c8755f17f1ca9b16">pblock_obj_t::a_maxblock</a></div><div class="ttdeci">int64_t a_maxblock</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00061">sd_pblock_internal.h:61</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a504215c14db2b71f1379e177bc7ea918"><div class="ttname"><a href="structpblock__obj__t.html#a504215c14db2b71f1379e177bc7ea918">pblock_obj_t::a_rbytes</a></div><div class="ttdeci">int64_t a_rbytes</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00058">sd_pblock_internal.h:58</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a6696ef175651fb0dfc4868f421c39ae0"><div class="ttname"><a href="structpblock__obj__t.html#a6696ef175651fb0dfc4868f421c39ae0">pblock_obj_t::csi_dhi</a></div><div class="ttdeci">int64_t csi_dhi</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00071">sd_pblock_internal.h:71</a></div></div>
 <div class="ttc" id="astructpblock__obj__t_html_a78a26bd51182141e9b5c41fc8d141cb1"><div class="ttname"><a href="structpblock__obj__t.html#a78a26bd51182141e9b5c41fc8d141cb1">pblock_obj_t::st</a></div><div class="ttdeci">pblock_state_t * st</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00051">sd_pblock_internal.h:51</a></div></div>
-<div class="ttc" id="astructpblock__obj__t_html_a87400a4f162fe63bd7f3c1a2f61860bd"><div class="ttname"><a href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">pblock_obj_t::dirty</a></div><div class="ttdeci">unsigned dirty</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00056">sd_pblock_internal.h:56</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a7f9e741d3756df98aba107401f89a16d"><div class="ttname"><a href="structpblock__obj__t.html#a7f9e741d3756df98aba107401f89a16d">pblock_obj_t::a_wbytes</a></div><div class="ttdeci">int64_t a_wbytes</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00060">sd_pblock_internal.h:60</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a87400a4f162fe63bd7f3c1a2f61860bd"><div class="ttname"><a href="structpblock__obj__t.html#a87400a4f162fe63bd7f3c1a2f61860bd">pblock_obj_t::dirty</a></div><div class="ttdeci">unsigned dirty</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00086">sd_pblock_internal.h:86</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a9ba9eb648105a2b41d201f1d678e8f19"><div class="ttname"><a href="structpblock__obj__t.html#a9ba9eb648105a2b41d201f1d678e8f19">pblock_obj_t::csi_crc</a></div><div class="ttdeci">uint32_t * csi_crc</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00062">sd_pblock_internal.h:62</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_a9df6e5f01b94d6a079be0605371220d6"><div class="ttname"><a href="structpblock__obj__t.html#a9df6e5f01b94d6a079be0605371220d6">pblock_obj_t::csi_n</a></div><div class="ttdeci">uint64_t csi_n</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00066">sd_pblock_internal.h:66</a></div></div>
 <div class="ttc" id="astructpblock__obj__t_html_aa97f1125c997f355985b1609d1decfc3"><div class="ttname"><a href="structpblock__obj__t.html#aa97f1125c997f355985b1609d1decfc3">pblock_obj_t::block_size</a></div><div class="ttdeci">int64_t block_size</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00054">sd_pblock_internal.h:54</a></div></div>
-<div class="ttc" id="astructpblock__state__t_html_a31fbe900de07c3f9ca5b1b9afd36f275"><div class="ttname"><a href="structpblock__state__t.html#a31fbe900de07c3f9ca5b1b9afd36f275">pblock_state_t::cat</a></div><div class="ttdeci">pblock_catalog * cat</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8h_source.html#l00028">pblock_store.h:28</a></div></div>
+<div class="ttc" id="astructpblock__obj__t_html_aaa30b61b8707688a15c054582bec83fd"><div class="ttname"><a href="structpblock__obj__t.html#aaa30b61b8707688a15c054582bec83fd">pblock_obj_t::csi_dlo</a></div><div class="ttdeci">int64_t csi_dlo</div><div class="ttdef"><b>Definition</b> <a href="sd__pblock__internal_8h_source.html#l00067">sd_pblock_internal.h:67</a></div></div>
+<div class="ttc" id="astructpblock__state__t_html_a18112997448e58cef7d734de2a9e201a"><div class="ttname"><a href="structpblock__state__t.html#a18112997448e58cef7d734de2a9e201a">pblock_state_t::lab</a></div><div class="ttdeci">void * lab</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8h_source.html#l00030">pblock_store.h:30</a></div></div>
+<div class="ttc" id="astructpblock__state__t_html_a31fbe900de07c3f9ca5b1b9afd36f275"><div class="ttname"><a href="structpblock__state__t.html#a31fbe900de07c3f9ca5b1b9afd36f275">pblock_state_t::cat</a></div><div class="ttdeci">pblock_catalog * cat</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8h_source.html#l00029">pblock_store.h:29</a></div></div>
+<div class="ttc" id="astructpblock__state__t_html_a34ed3de70c81117009d0de2fd53f3c48"><div class="ttname"><a href="structpblock__state__t.html#a34ed3de70c81117009d0de2fd53f3c48">pblock_state_t::csi</a></div><div class="ttdeci">int csi</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8h_source.html#l00034">pblock_store.h:34</a></div></div>
+<div class="ttc" id="astructpblock__state__t_html_a6a56a2d1489361357d9ad938dfede1e1"><div class="ttname"><a href="structpblock__state__t.html#a6a56a2d1489361357d9ad938dfede1e1">pblock_state_t::xform</a></div><div class="ttdeci">pblock_xform_t xform</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8h_source.html#l00058">pblock_store.h:58</a></div></div>
+<div class="ttc" id="astructpblock__state__t_html_a6cd68ad2ffa2527b20d25f1e5213e225"><div class="ttname"><a href="structpblock__state__t.html#a6cd68ad2ffa2527b20d25f1e5213e225">pblock_state_t::audit</a></div><div class="ttdeci">int audit</div><div class="ttdef"><b>Definition</b> <a href="pblock__store_8h_source.html#l00032">pblock_store.h:32</a></div></div>
+<div class="ttc" id="awverify_8c_html_a0856aadfa8830a53c778ab38487a2454"><div class="ttname"><a href="wverify_8c.html#a0856aadfa8830a53c778ab38487a2454">brix_wverify_update</a></div><div class="ttdeci">int brix_wverify_update(brix_wverify_t *w, const void *buf, off_t off, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="wverify_8c_source.html#l00092">wverify.c:92</a></div></div>
+<div class="ttc" id="awverify_8h_html"><div class="ttname"><a href="wverify_8h.html">wverify.h</a></div></div>
 <div class="ttc" id="azip__dir_8h_html_ae688d728e1acdfe5988c7db45d6f0166"><div class="ttname"><a href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a></div><div class="ttdeci">#define PATH_MAX</div><div class="ttdef"><b>Definition</b> <a href="zip__dir_8h_source.html#l00027">zip_dir.h:27</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

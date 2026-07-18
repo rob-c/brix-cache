@@ -1,6 +1,8 @@
 var vfs__backend__config_8c =
 [
     [ "brix_vfs_backend_config", "vfs__backend__config_8c.html#ac6c7ac8d18dfd0e87f9e58d38717968a", null ],
+    [ "brix_vfs_backend_config_cache_cold_store", "vfs__backend__config_8c.html#a6b57a40436d337bda76b3dd800a97001", null ],
+    [ "brix_vfs_backend_config_cache_peers", "vfs__backend__config_8c.html#acde85c244fc782a306d644a51097992b", null ],
     [ "brix_vfs_backend_config_cache_store", "vfs__backend__config_8c.html#aaf91c775a842326feecf6dbd558f1183", null ],
     [ "brix_vfs_backend_config_stage_store", "vfs__backend__config_8c.html#abd37cf4899c80899ab18d4a2cef076d8", null ],
     [ "brix_vfs_backend_config_str", "vfs__backend__config_8c.html#ab7539c9c8cce550ec4c02cd8d1811e35", null ],

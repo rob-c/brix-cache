@@ -6,5 +6,5 @@ var structwebdav__put__aio__t =
     [ "nwritten", "structwebdav__put__aio__t.html#a2de5a06d3702f46e9d27a5db6e3b2b0d", null ],
     [ "path", "structwebdav__put__aio__t.html#a795d79ea5abcbbd13616fdf4bfa48428", null ],
     [ "r", "structwebdav__put__aio__t.html#a300551ef713814fba8ba5f2344adfffd", null ],
-    [ "staged", "structwebdav__put__aio__t.html#a17eb1f8f20765e5795e807282663ad71", null ]
+    [ "writer", "structwebdav__put__aio__t.html#a38946e7634943b1e4b2b1efdcef6d18a", null ]
 ];

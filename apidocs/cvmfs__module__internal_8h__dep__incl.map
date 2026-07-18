@@ -1,11 +1,13 @@
 <map id="src/protocols/cvmfs/cvmfs_module_internal.h" name="src/protocols/cvmfs/cvmfs_module_internal.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="308,5,499,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="415,5,605,45"/>
 <area shape="rect" id="Node000002" href="$cvmfs__module__build_8c.html" title=" " alt="" coords="5,93,177,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="322,52,160,96,159,91,321,46"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="405,51,178,97,177,92,404,45"/>
 <area shape="rect" id="Node000003" href="$cvmfs__module__georank_8c.html" title=" " alt="" coords="201,93,395,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="371,56,323,95,320,91,368,52"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="452,53,345,96,343,91,450,48"/>
 <area shape="rect" id="Node000004" href="$cvmfs__module__merge_8c.html" title=" " alt="" coords="419,93,601,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="439,52,488,91,485,95,436,56"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="513,59,513,93,507,93,507,59"/>
 <area shape="rect" id="Node000005" href="$protocols_2cvmfs_2module_8c.html" title=" " alt="" coords="626,93,775,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="482,47,636,91,635,96,481,52"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="565,49,660,91,658,96,563,53"/>
+<area shape="rect" id="Node000006" href="$secure_8c.html" title=" " alt="" coords="799,93,949,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="604,46,800,92,799,97,602,51"/>
 </map>

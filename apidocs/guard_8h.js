@@ -29,7 +29,10 @@ var guard_8h =
       [ "GUARD_R_SIGNATURE", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46a37eecfef8dfdfb095b215ab679693c77", null ],
       [ "GUARD_R_GRAMMAR", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46adbb7b823021aaad316d4dbab999a675d", null ],
       [ "GUARD_R_NOTFOUND", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46abbdf42d2fc8869f39f4aa5a223c126f6", null ],
-      [ "GUARD_R_AUTHFAIL", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46a651c47bab3ff9c569e7b002b2f94163a", null ]
+      [ "GUARD_R_AUTHFAIL", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46a651c47bab3ff9c569e7b002b2f94163a", null ],
+      [ "GUARD_R_NOTROOT", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46a6f22b415da11d7f31468430fb75e2bb3", null ],
+      [ "GUARD_R_PROXYABUSE", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46af7a338842706566f64b6f60729c322c5", null ],
+      [ "GUARD_R_TAMPER", "guard_8h.html#a25cb55eea8231ceeb87dc7d642b5aa46addfc6bbf310026ba928d6ec53821c91d", null ]
     ] ],
     [ "guard_sig_kind_t", "guard_8h.html#a4c8aeb186cfd0f7c6e0ffdd5fb655c81", [
       [ "GUARD_SIG_SUFFIX", "guard_8h.html#a4c8aeb186cfd0f7c6e0ffdd5fb655c81aa9375af85ea93eaa3b41d26567615c84", null ],
@@ -40,7 +43,16 @@ var guard_8h =
       [ "GUARD_ALLOW", "guard_8h.html#a90ebdfbd648e6aa9d7719f604a1056c6a07b52b65d5e1cac6300814b6431e250b", null ],
       [ "GUARD_BOUNCE", "guard_8h.html#a90ebdfbd648e6aa9d7719f604a1056c6a57ec720d30dd607b440eafbf23e66d6a", null ]
     ] ],
+    [ "guard_wire_t", "guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49e", [
+      [ "GUARD_WIRE_ROOT", "guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49eab35c419ff4779d7cf74918cab11d9b94", null ],
+      [ "GUARD_WIRE_TLS", "guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49ea6a9b00071b4287c46a97a8ffee058ec9", null ],
+      [ "GUARD_WIRE_HTTP", "guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49ea1000132683fdc47b0631f02fa2931194", null ],
+      [ "GUARD_WIRE_SSH", "guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49ea2d7ee1eb6cc593cd564d66520ae974c3", null ],
+      [ "GUARD_WIRE_EMPTY", "guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49ea82feaf483abee06a0aa4ab098296c49c", null ],
+      [ "GUARD_WIRE_JUNK", "guard_8h.html#a757fda08a84d3872e31a8ea3bb71b49ea2acb05bd3e14cbae967cac5239dfb343", null ]
+    ] ],
     [ "guard_audit_format", "guard_8h.html#a2f004e515c13e0fc6033170bd1473b5f", null ],
+    [ "guard_classify_handshake", "guard_8h.html#aaa364ccd2916cda4ed6c2bb42b92f54f", null ],
     [ "guard_classify_post", "guard_8h.html#ad0239fad9fae0eb11107385e9be3835c", null ],
     [ "guard_classify_pre", "guard_8h.html#a24713c70cb2f2ecd8a3573f67d7c472b", null ],
     [ "guard_grammar_ok", "guard_8h.html#aeacbb94a587d9865a10b3cba1e4b5e22", null ],
@@ -51,5 +63,6 @@ var guard_8h =
     [ "guard_ruleset_add_signature", "guard_8h.html#a373bda839ad9b09c4b4ce9e854ad15ec", null ],
     [ "guard_ruleset_init", "guard_8h.html#afb0f859adb923aaece19313afdf6c9ae", null ],
     [ "guard_ruleset_load_profile", "guard_8h.html#a914d77b75ef6d4877db9e5bbfa732d89", null ],
-    [ "guard_signature_match", "guard_8h.html#abf873b6bd1507d6c2b7bd644c8e85144", null ]
+    [ "guard_signature_match", "guard_8h.html#abf873b6bd1507d6c2b7bd644c8e85144", null ],
+    [ "guard_wire_str", "guard_8h.html#a4e20daa4fe31d4fd5ebd6b7211cedfc1", null ]
 ];

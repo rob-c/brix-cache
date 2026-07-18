@@ -1,6 +1,7 @@
 var vfs__deleg_8c =
 [
     [ "brix_deleg_temp_t", "structbrix__deleg__temp__t.html", "structbrix__deleg__temp__t" ],
+    [ "brix_vfs_backend_accepts_proxy", "vfs__deleg_8c.html#ac914913da6f8b03025bbf0b39ced2711", null ],
     [ "brix_vfs_backend_mode", "vfs__deleg_8c.html#ae2764294d4dd2566e766feff1f4e0ad4", null ],
     [ "brix_vfs_ctx_bind_backend_deleg", "vfs__deleg_8c.html#ae40e1204e9a55ce1152f2a1abd5d6aba", null ],
     [ "brix_vfs_deleg_bearer", "vfs__deleg_8c.html#aade7ba538627d13ce0a80e730a9aa04d", null ],

@@ -119,6 +119,8 @@ Functions</h2></td></tr>
 <tr class="separator:a6408ce9c1f39f6d8cdd249050c161ec0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a95e843f2c2c963647e3b3079e976964f" id="r_a95e843f2c2c963647e3b3079e976964f"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__open__handle_8c.html#a95e843f2c2c963647e3b3079e976964f">brix_vfs_file_pread</a> (brix_vfs_file_t *fh, void *buf, size_t len, off_t off)</td></tr>
 <tr class="separator:a95e843f2c2c963647e3b3079e976964f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5066c677bd22b13c7896ef719b9e75ee" id="r_a5066c677bd22b13c7896ef719b9e75ee"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__open__handle_8c.html#a5066c677bd22b13c7896ef719b9e75ee">brix_vfs_file_pwrite</a> (brix_vfs_file_t *fh, const void *buf, size_t len, off_t off)</td></tr>
+<tr class="separator:a5066c677bd22b13c7896ef719b9e75ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a81ef9ef006260a6c7061803409c3b4a1" id="r_a81ef9ef006260a6c7061803409c3b4a1"><td class="memItemLeft" align="right" valign="top">static ngx_fd_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__open__handle_8c.html#a81ef9ef006260a6c7061803409c3b4a1">brix_vfs_memfile_materialize</a> (brix_vfs_file_t *fh)</td></tr>
 <tr class="separator:a81ef9ef006260a6c7061803409c3b4a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a83f6e427a283eb2a3f323acbe6b71c03" id="r_a83f6e427a283eb2a3f323acbe6b71c03"><td class="memItemLeft" align="right" valign="top">ngx_fd_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vfs__open__handle_8c.html#a83f6e427a283eb2a3f323acbe6b71c03">brix_vfs_file_sendfile_fd</a> (const brix_vfs_file_t *fh)</td></tr>
@@ -169,7 +171,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="log__diag_8h_source.html#l00070">BRIX_DIAG_ERR</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">brix_cksum_aio_done()</a>, <a class="el" href="truncate_8c_source.html#l00027">brix_handle_truncate()</a>, <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00549">brix_qcksum_compute_sync()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00482">brix_qcksum_try_async()</a>, <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>, <a class="el" href="copy__block_8c_source.html#l00096">copy_block_to_remote()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00196">copy_one_l2r()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00149">copy_one_r2l()</a>, <a class="el" href="copy__block_8c_source.html#l00023">copy_remote_to_block()</a>, <a class="el" href="copy__local_8c_source.html#l00690">copy_upload()</a>, <a class="el" href="copy__block_8c_source.html#l00161">copy_vfs_to_vfs()</a>, <a class="el" href="copy__local_8c_source.html#l00744">copy_web_upload()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">cvmfs_tier_open_respond()</a>, <a class="el" href="dig_8c_source.html#l00286">dig_open_confined()</a>, <a class="el" href="xrdfs__data_8c_source.html#l01429">do_download()</a>, <a class="el" href="xrdfs__data_8c_source.html#l01224">do_upload()</a>, <a class="el" href="xrdfs__data_8c_source.html#l01328">download_finalize_local()</a>, <a class="el" href="copy__local_8c_source.html#l00362">download_to_local_file()</a>, <a class="el" href="webdav_2get_8c_source.html#l00410">get_eval_conditionals()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, <a class="el" href="webdav_2get_8c_source.html#l00370">get_serve_range()</a>, <a class="el" href="vfs__browse_8c_source.html#l00399">ngx_http_brix_dashboard_vfs_download_handler()</a>, <a class="el" href="object_8c_source.html#l00272">s3_get_resolve()</a>, <a class="el" href="object_8c_source.html#l00422">s3_handle_get()</a>, <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>, <a class="el" href="file__serve_8c_source.html#l00220">serve_range_unsatisfiable()</a>, <a class="el" href="file__serve_8c_source.html#l00346">serve_send_memory_backed()</a>, <a class="el" href="file__serve_8c_source.html#l00383">serve_send_sendfile()</a>, <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>, <a class="el" href="methods__basic_8c_source.html#l00151">webdav_head_emit_digest()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00229">webdav_lock_create_null()</a>, <a class="el" href="zip__http_8c_source.html#l00096">zip_http_open_archive()</a>, <a class="el" href="zip__http_8c_source.html#l00250">zip_http_stage_deflate()</a>, and <a class="el" href="zip__http_8c_source.html#l00216">zip_http_stage_stored()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">brix_cksum_aio_done()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00444">brix_ftp_ev_data_finish()</a>, <a class="el" href="truncate_8c_source.html#l00027">brix_handle_truncate()</a>, <a class="el" href="file__serve_8c_source.html#l00427">brix_http_serve_file_ranged()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00549">brix_qcksum_compute_sync()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00482">brix_qcksum_try_async()</a>, <a class="el" href="vfs__writer_8c_source.html#l00310">brix_vfs_writer_commit_ex()</a>, <a class="el" href="zip__http_8c_source.html#l00312">brix_zip_http_serve()</a>, <a class="el" href="copy__block_8c_source.html#l00096">copy_block_to_remote()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00196">copy_one_l2r()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00149">copy_one_r2l()</a>, <a class="el" href="copy__block_8c_source.html#l00023">copy_remote_to_block()</a>, <a class="el" href="copy__local_8c_source.html#l00690">copy_upload()</a>, <a class="el" href="copy__block_8c_source.html#l00161">copy_vfs_to_vfs()</a>, <a class="el" href="copy__local_8c_source.html#l00744">copy_web_upload()</a>, <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00205">cvmfs_tier_open_respond()</a>, <a class="el" href="dig_8c_source.html#l00286">dig_open_confined()</a>, <a class="el" href="xrdfs__data_8c_source.html#l01429">do_download()</a>, <a class="el" href="xrdfs__data_8c_source.html#l01224">do_upload()</a>, <a class="el" href="xrdfs__data_8c_source.html#l01328">download_finalize_local()</a>, <a class="el" href="copy__local_8c_source.html#l00362">download_to_local_file()</a>, <a class="el" href="webdav_2get_8c_source.html#l00410">get_eval_conditionals()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, <a class="el" href="webdav_2get_8c_source.html#l00370">get_serve_range()</a>, <a class="el" href="vfs__browse_8c_source.html#l00399">ngx_http_brix_dashboard_vfs_download_handler()</a>, <a class="el" href="object_8c_source.html#l00273">s3_get_resolve()</a>, <a class="el" href="object_8c_source.html#l00423">s3_get_serve_multirange()</a>, <a class="el" href="object_8c_source.html#l00492">s3_handle_get()</a>, <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>, <a class="el" href="file__serve_8c_source.html#l00222">serve_range_unsatisfiable()</a>, <a class="el" href="file__serve_8c_source.html#l00354">serve_send_memory_backed()</a>, <a class="el" href="file__serve_8c_source.html#l00391">serve_send_sendfile()</a>, <a class="el" href="file__serve_8c_source.html#l00282">serve_try_compressed()</a>, <a class="el" href="methods__basic_8c_source.html#l00151">webdav_head_emit_digest()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00229">webdav_lock_create_null()</a>, <a class="el" href="vfs__writer_8c_source.html#l00058">writer_release()</a>, <a class="el" href="vfs__writer_8c_source.html#l00291">writer_verify()</a>, <a class="el" href="zip__http_8c_source.html#l00096">zip_http_open_archive()</a>, <a class="el" href="zip__http_8c_source.html#l00250">zip_http_stage_deflate()</a>, and <a class="el" href="zip__http_8c_source.html#l00216">zip_http_stage_stored()</a>.</p>
 
 </div>
 </div>
@@ -189,11 +191,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00187">187</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00205">205</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00179">brix_sd_backend_name()</a>.</p>
+<p class="reference">References <a class="el" href="sd__registry_8c_source.html#l00183">brix_sd_backend_name()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00427">brix_http_serve_file_ranged()</a>.</p>
 
 </div>
 </div>
@@ -213,9 +215,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00177">177</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00195">195</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00159">brix_vfs_file_sendfile_fd()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__open__handle_8c_source.html#l00177">brix_vfs_file_sendfile_fd()</a>.</p>
 
 </div>
 </div>
@@ -237,7 +239,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00064">64</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00581">brix_query_cksum_path()</a>, <a class="el" href="object_8c_source.html#l00348">s3_get_echo_headers()</a>, <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>, <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>, <a class="el" href="methods__basic_8c_source.html#l00151">webdav_head_emit_digest()</a>, <a class="el" href="zip__http_8c_source.html#l00143">zip_http_locate_member()</a>, <a class="el" href="zip__http_8c_source.html#l00096">zip_http_open_archive()</a>, <a class="el" href="zip__http_8c_source.html#l00250">zip_http_stage_deflate()</a>, and <a class="el" href="zip__http_8c_source.html#l00216">zip_http_stage_stored()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00427">brix_http_serve_file_ranged()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00581">brix_query_cksum_path()</a>, <a class="el" href="vfs__writer_8c_source.html#l00374">brix_vfs_writer_fd()</a>, <a class="el" href="object_8c_source.html#l00349">s3_get_echo_headers()</a>, <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00320">s3_put_trailer_checksum_apply()</a>, <a class="el" href="file__serve_8c_source.html#l00282">serve_try_compressed()</a>, <a class="el" href="methods__basic_8c_source.html#l00151">webdav_head_emit_digest()</a>, <a class="el" href="zip__http_8c_source.html#l00143">zip_http_locate_member()</a>, <a class="el" href="zip__http_8c_source.html#l00096">zip_http_open_archive()</a>, <a class="el" href="zip__http_8c_source.html#l00250">zip_http_stage_deflate()</a>, and <a class="el" href="zip__http_8c_source.html#l00216">zip_http_stage_stored()</a>.</p>
 
 </div>
 </div>
@@ -257,9 +259,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00214">214</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00232">232</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, and <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00427">brix_http_serve_file_ranged()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, and <a class="el" href="file__serve_8c_source.html#l00282">serve_try_compressed()</a>.</p>
 
 </div>
 </div>
@@ -279,7 +281,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00208">208</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00226">226</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
 </div>
 </div>
@@ -299,9 +301,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00196">196</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00214">214</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, and <a class="el" href="file__serve_8c_source.html#l00274">serve_try_compressed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00427">brix_http_serve_file_ranged()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, and <a class="el" href="file__serve_8c_source.html#l00282">serve_try_compressed()</a>.</p>
 
 </div>
 </div>
@@ -345,7 +347,51 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00080">80</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00111">brix_serve_memory_backed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00111">brix_serve_memory_backed()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00144">ev_retr_mode_e_write()</a>, and <a class="el" href="ftp__ev__xfer_8c_source.html#l00046">ev_retr_write()</a>.</p>
+
+</div>
+</div>
+<a id="a5066c677bd22b13c7896ef719b9e75ee" name="a5066c677bd22b13c7896ef719b9e75ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5066c677bd22b13c7896ef719b9e75ee">&#9670;&#160;</a></span>brix_vfs_file_pwrite()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t brix_vfs_file_pwrite </td>
+          <td>(</td>
+          <td class="paramtype">brix_vfs_file_t *&#160;</td>
+          <td class="paramname"><em>fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>off</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00098">98</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__writer_8c_source.html#l00153">writer_put()</a>.</p>
 
 </div>
 </div>
@@ -377,9 +423,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00070">70</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00204">brix_vfs_handle_sd_obj()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00206">brix_vfs_handle_sd_obj()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00549">brix_qcksum_compute_sync()</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00482">brix_qcksum_try_async()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00549">brix_qcksum_compute_sync()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00482">brix_qcksum_try_async()</a>, and <a class="el" href="vfs__wverify_8c_source.html#l00025">brix_vfs_wverify_check()</a>.</p>
 
 </div>
 </div>
@@ -399,11 +445,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00159">159</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00177">177</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00232">brix_vfs_handle_sendfile_fd()</a>, and <a class="el" href="vfs__open__handle_8c_source.html#l00104">brix_vfs_memfile_materialize()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00236">brix_vfs_handle_sendfile_fd()</a>, and <a class="el" href="vfs__open__handle_8c_source.html#l00122">brix_vfs_memfile_materialize()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00419">brix_http_serve_file_ranged()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00177">brix_vfs_file_can_sendfile()</a>, <a class="el" href="dig_8c_source.html#l00286">dig_open_confined()</a>, and <a class="el" href="webdav_2get_8c_source.html#l00370">get_serve_range()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="file__serve_8c_source.html#l00427">brix_http_serve_file_ranged()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00195">brix_vfs_file_can_sendfile()</a>, <a class="el" href="vfs__writer_8c_source.html#l00244">brix_vfs_writer_write_fd()</a>, <a class="el" href="dig_8c_source.html#l00286">dig_open_confined()</a>, <a class="el" href="webdav_2get_8c_source.html#l00370">get_serve_range()</a>, and <a class="el" href="object_8c_source.html#l00423">s3_get_serve_multirange()</a>.</p>
 
 </div>
 </div>
@@ -423,7 +469,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00202">202</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00220">220</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00252">brix_ftp_ev_data_ready()</a>, and <a class="el" href="vfs__wverify_8c_source.html#l00025">brix_vfs_wverify_check()</a>.</p>
 
 </div>
 </div>
@@ -453,11 +501,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00220">220</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00238">238</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00204">brix_vfs_handle_sd_obj()</a>, <a class="el" href="vfs__internal_8h_source.html#l00215">brix_vfs_sd_stat_to_vfs()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00073">brix_vfs_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::is_directory</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::is_regular</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00075">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00072">brix_vfs_stat_t::mtime</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00071">brix_vfs_stat_t::size</a>.</p>
+<p class="reference">References <a class="el" href="vfs__internal_8h_source.html#l00206">brix_vfs_handle_sd_obj()</a>, <a class="el" href="vfs__internal_8h_source.html#l00217">brix_vfs_sd_stat_to_vfs()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00078">brix_vfs_stat_t::ctime</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00086">brix_vfs_stat_t::is_directory</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00087">brix_vfs_stat_t::is_regular</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00080">brix_vfs_stat_t::mode</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00077">brix_vfs_stat_t::mtime</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00076">brix_vfs_stat_t::size</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00186">cvmfs_tier_open_respond()</a>, <a class="el" href="dig_8c_source.html#l00286">dig_open_confined()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, <a class="el" href="vfs__browse_8c_source.html#l00399">ngx_http_brix_dashboard_vfs_download_handler()</a>, and <a class="el" href="object_8c_source.html#l00272">s3_get_resolve()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00205">cvmfs_tier_open_respond()</a>, <a class="el" href="dig_8c_source.html#l00286">dig_open_confined()</a>, <a class="el" href="webdav_2get_8c_source.html#l00320">get_resolve_and_stat()</a>, <a class="el" href="vfs__browse_8c_source.html#l00399">ngx_http_brix_dashboard_vfs_download_handler()</a>, and <a class="el" href="object_8c_source.html#l00273">s3_get_resolve()</a>.</p>
 
 </div>
 </div>
@@ -485,11 +533,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00104">104</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__open__handle_8c_source.html#l00122">122</a> of file <a class="el" href="vfs__open__handle_8c_source.html">vfs_open_handle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00110">BRIX_SD_CAP_MEMFILE</a>, <a class="el" href="sd__registry_8c_source.html#l00162">brix_sd_caps()</a>, <a class="el" href="vfs__internal_8h_source.html#l00204">brix_vfs_handle_sd_obj()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00353">lseek()</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00110">BRIX_SD_CAP_MEMFILE</a>, <a class="el" href="sd__registry_8c_source.html#l00164">brix_sd_caps()</a>, <a class="el" href="vfs__internal_8h_source.html#l00206">brix_vfs_handle_sd_obj()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00353">lseek()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00159">brix_vfs_file_sendfile_fd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__open__handle_8c_source.html#l00177">brix_vfs_file_sendfile_fd()</a>.</p>
 
 </div>
 </div>

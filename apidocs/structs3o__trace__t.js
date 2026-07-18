@@ -7,5 +7,6 @@ var structs3o__trace__t =
     [ "method", "structs3o__trace__t.html#aae86c6fb96e4d9c19b935a904ee761c3", null ],
     [ "path", "structs3o__trace__t.html#a96bc97b93112c553e7006911068b11fb", null ],
     [ "port", "structs3o__trace__t.html#a53f0d17f73463649057914ec6e37698b", null ],
+    [ "proto", "structs3o__trace__t.html#a171161fa9135cdd76502721326ca0320", null ],
     [ "status", "structs3o__trace__t.html#a0c8870ede5f117304887e8d8e588231f", null ]
 ];

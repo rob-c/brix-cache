@@ -96,6 +96,7 @@ $(document).ready(function(){initNavTree('secure_8c.html',''); initResizable(); 
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="cvmfs_8h_source.html">cvmfs.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="cvmfs__module__internal_8h_source.html">cvmfs_module_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="issuer__registry_8h_source.html">auth/token/issuer_registry.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cstr_8h_source.html">core/compat/cstr.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="tunables_8h_source.html">core/types/tunables.h</a>&quot;</code><br />
@@ -105,7 +106,7 @@ $(document).ready(function(){initNavTree('secure_8c.html',''); initResizable(); 
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="secure_8c__incl.svg" width="100%" height="580"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="secure_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="secure_8c_source.html">Go to the source code of this file.</a></p>
@@ -116,10 +117,90 @@ Functions</h2></td></tr>
 <tr class="separator:a0d3357c686df1060d00edd80f82e1986"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3cb05a4fbb6427e2a2c32fcf2870e7fa" id="r_a3cb05a4fbb6427e2a2c32fcf2870e7fa"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#a3cb05a4fbb6427e2a2c32fcf2870e7fa">scvmfs_check_bearer</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</td></tr>
 <tr class="separator:a3cb05a4fbb6427e2a2c32fcf2870e7fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2d473889a3453c638be0fce72605949f" id="r_a2d473889a3453c638be0fce72605949f"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#a2d473889a3453c638be0fce72605949f">cvmfs_conf_repo_authz</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a2d473889a3453c638be0fce72605949f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1c163a80b2f5a3d957c31f90a599eafd" id="r_a1c163a80b2f5a3d957c31f90a599eafd"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#a1c163a80b2f5a3d957c31f90a599eafd">cvmfs_repo_authz_match</a> (<a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf, const char *repo, size_t repo_len)</td></tr>
+<tr class="separator:a1c163a80b2f5a3d957c31f90a599eafd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac12cc5eb19e65ab2aba3878293a98a3b" id="r_ac12cc5eb19e65ab2aba3878293a98a3b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#ac12cc5eb19e65ab2aba3878293a98a3b">brix_cvmfs_repo_authz_eval</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</td></tr>
+<tr class="separator:ac12cc5eb19e65ab2aba3878293a98a3b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aec685fda22d95313c9ad637be6e6cf83" id="r_aec685fda22d95313c9ad637be6e6cf83"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#aec685fda22d95313c9ad637be6e6cf83">brix_scvmfs_preamble</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</td></tr>
 <tr class="separator:aec685fda22d95313c9ad637be6e6cf83"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2749650a25a3de09300cd17ebc40eb98" id="r_a2749650a25a3de09300cd17ebc40eb98"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#a2749650a25a3de09300cd17ebc40eb98">cvmfs_conf_qos</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a2749650a25a3de09300cd17ebc40eb98"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abf269a75b5d069493008c251c4c99ab8" id="r_abf269a75b5d069493008c251c4c99ab8"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#abf269a75b5d069493008c251c4c99ab8">cvmfs_qos_class</a> (<a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf, const char *sub)</td></tr>
+<tr class="separator:abf269a75b5d069493008c251c4c99ab8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a65dc021ef8181dc3def8f170c7de6312" id="r_a65dc021ef8181dc3def8f170c7de6312"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="secure_8c.html#a65dc021ef8181dc3def8f170c7de6312">brix_cvmfs_qos_check</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *lcf)</td></tr>
+<tr class="separator:a65dc021ef8181dc3def8f170c7de6312"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a65dc021ef8181dc3def8f170c7de6312" name="a65dc021ef8181dc3def8f170c7de6312"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a65dc021ef8181dc3def8f170c7de6312">&#9670;&#160;</a></span>brix_cvmfs_qos_check()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_cvmfs_qos_check </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00382">382</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+
+<p class="reference">References <a class="el" href="overlay__unittest_8c_source.html#l00071">cls()</a>, <a class="el" href="secure_8c_source.html#l00358">cvmfs_qos_class()</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00351">ngx_http_brix_cvmfs_module</a>, <a class="el" href="cvmfs_8h_source.html#l00173">ngx_http_brix_cvmfs_loc_conf_t::qos</a>, and <a class="el" href="cvmfs_8h_source.html#l00198">ngx_http_brix_cvmfs_ctx_t::token_sub</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00145">cvmfs_tier_serve_or_fill()</a>.</p>
+
+</div>
+</div>
+<a id="ac12cc5eb19e65ab2aba3878293a98a3b" name="ac12cc5eb19e65ab2aba3878293a98a3b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac12cc5eb19e65ab2aba3878293a98a3b">&#9670;&#160;</a></span>brix_cvmfs_repo_authz_eval()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_cvmfs_repo_authz_eval </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00181">181</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="tunables_8h_source.html#l00251">BRIX_TOKEN_CLOCK_SKEW_SECS</a>, <a class="el" href="token_8h_source.html#l00106">BRIX_TOKEN_OP_READ</a>, <a class="el" href="validate__registry_8c_source.html#l00207">brix_token_validate_registry()</a>, <a class="el" href="issuer__registry_8h_source.html#l00120">brix_token_registry_args_t::claims</a>, <a class="el" href="issuer__registry_8h_source.html#l00119">brix_token_registry_args_t::clock_skew</a>, <a class="el" href="secure_8c_source.html#l00161">cvmfs_repo_authz_match()</a>, <a class="el" href="issuer__registry_8h_source.html#l00113">brix_token_registry_args_t::log</a>, <a class="el" href="issuer__registry_8h_source.html#l00117">brix_token_registry_args_t::macaroon_secret</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00351">ngx_http_brix_cvmfs_module</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="issuer__registry_8h_source.html#l00116">brix_token_registry_args_t::reg</a>, <a class="el" href="cvmfs_8h_source.html#l00134">brix_cvmfs_repo_authz_t::registry</a>, <a class="el" href="cvmfs_8h_source.html#l00169">ngx_http_brix_cvmfs_loc_conf_t::repo_authz</a>, <a class="el" href="secure_8c_source.html#l00028">scvmfs_bearer_token()</a>, <a class="el" href="issuer__registry_8h_source.html#l00118">brix_token_registry_args_t::secret_len</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, <a class="el" href="issuer__registry_8h_source.html#l00114">brix_token_registry_args_t::token</a>, <a class="el" href="issuer__registry_8h_source.html#l00115">brix_token_registry_args_t::token_len</a>, <a class="el" href="cvmfs_8h_source.html#l00198">ngx_http_brix_cvmfs_ctx_t::token_sub</a>, and <a class="el" href="cvmfs_8h_source.html#l00190">ngx_http_brix_cvmfs_ctx_t::url</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00263">brix_cvmfs_gate()</a>.</p>
+
+</div>
+</div>
 <a id="aec685fda22d95313c9ad637be6e6cf83" name="aec685fda22d95313c9ad637be6e6cf83"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aec685fda22d95313c9ad637be6e6cf83">&#9670;&#160;</a></span>brix_scvmfs_preamble()</h2>
 
@@ -146,11 +227,177 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00107">107</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00256">256</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__cvmfs_8h_source.html#l00026">BRIX_CVMFS_CLASS_REJECT</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="cvmfs_8h_source.html#l00120">BRIX_SCVMFS_AUTHZ_BEARER</a>, <a class="el" href="cvmfs_8h_source.html#l00119">BRIX_SCVMFS_AUTHZ_NONE</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00339">ngx_http_brix_cvmfs_module</a>, <a class="el" href="cvmfs_8h_source.html#l00110">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_authz</a>, <a class="el" href="secure_8c_source.html#l00056">scvmfs_check_bearer()</a>, and <a class="el" href="cvmfs_8h_source.html#l00139">ngx_http_brix_cvmfs_ctx_t::secure</a>.</p>
+<p class="reference">References <a class="el" href="metrics__cvmfs_8h_source.html#l00026">BRIX_CVMFS_CLASS_REJECT</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="cvmfs_8h_source.html#l00181">BRIX_SCVMFS_AUTHZ_BEARER</a>, <a class="el" href="cvmfs_8h_source.html#l00180">BRIX_SCVMFS_AUTHZ_NONE</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00351">ngx_http_brix_cvmfs_module</a>, <a class="el" href="cvmfs_8h_source.html#l00163">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_authz</a>, <a class="el" href="secure_8c_source.html#l00057">scvmfs_check_bearer()</a>, and <a class="el" href="cvmfs_8h_source.html#l00203">ngx_http_brix_cvmfs_ctx_t::secure</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00492">ngx_http_brix_cvmfs_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00519">ngx_http_brix_cvmfs_handler()</a>.</p>
+
+</div>
+</div>
+<a id="a2749650a25a3de09300cd17ebc40eb98" name="a2749650a25a3de09300cd17ebc40eb98"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2749650a25a3de09300cd17ebc40eb98">&#9670;&#160;</a></span>cvmfs_conf_qos()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char * cvmfs_conf_qos </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00299">299</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="cvmfs_8h_source.html#l00147">brix_cvmfs_qos_t::fills</a>, <a class="el" href="cvmfs_8h_source.html#l00145">brix_cvmfs_qos_t::name</a>, and <a class="el" href="cvmfs_8h_source.html#l00146">brix_cvmfs_qos_t::sub</a>.</p>
+
+</div>
+</div>
+<a id="a2d473889a3453c638be0fce72605949f" name="a2d473889a3453c638be0fce72605949f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2d473889a3453c638be0fce72605949f">&#9670;&#160;</a></span>cvmfs_conf_repo_authz()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char * cvmfs_conf_repo_authz </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00125">125</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="cvmfs_8h_source.html#l00133">brix_cvmfs_repo_authz_t::issuers</a>, <a class="el" href="cvmfs_8h_source.html#l00134">brix_cvmfs_repo_authz_t::registry</a>, and <a class="el" href="cvmfs_8h_source.html#l00132">brix_cvmfs_repo_authz_t::repo</a>.</p>
+
+</div>
+</div>
+<a id="abf269a75b5d069493008c251c4c99ab8" name="abf269a75b5d069493008c251c4c99ab8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abf269a75b5d069493008c251c4c99ab8">&#9670;&#160;</a></span>cvmfs_qos_class()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structbrix__cvmfs__qos__t.html">brix_cvmfs_qos_t</a> * cvmfs_qos_class </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>sub</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00358">358</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00173">ngx_http_brix_cvmfs_loc_conf_t::qos</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="secure_8c_source.html#l00382">brix_cvmfs_qos_check()</a>.</p>
+
+</div>
+</div>
+<a id="a1c163a80b2f5a3d957c31f90a599eafd" name="a1c163a80b2f5a3d957c31f90a599eafd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1c163a80b2f5a3d957c31f90a599eafd">&#9670;&#160;</a></span>cvmfs_repo_authz_match()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structbrix__cvmfs__repo__authz__t.html">brix_cvmfs_repo_authz_t</a> * cvmfs_repo_authz_match </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>repo</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>repo_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00161">161</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00132">brix_cvmfs_repo_authz_t::repo</a>, and <a class="el" href="cvmfs_8h_source.html#l00169">ngx_http_brix_cvmfs_loc_conf_t::repo_authz</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="secure_8c_source.html#l00181">brix_cvmfs_repo_authz_eval()</a>.</p>
 
 </div>
 </div>
@@ -194,11 +441,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00027">27</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00028">28</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="secure_8c_source.html#l00056">scvmfs_check_bearer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="secure_8c_source.html#l00181">brix_cvmfs_repo_authz_eval()</a>, and <a class="el" href="secure_8c_source.html#l00057">scvmfs_check_bearer()</a>.</p>
 
 </div>
 </div>
@@ -236,11 +483,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00056">56</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="secure_8c_source.html#l00057">57</a> of file <a class="el" href="secure_8c_source.html">secure.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="tunables_8h_source.html#l00226">BRIX_TOKEN_CLOCK_SKEW_SECS</a>, <a class="el" href="token_8h_source.html#l00106">BRIX_TOKEN_OP_READ</a>, <a class="el" href="validate__registry_8c_source.html#l00207">brix_token_validate_registry()</a>, <a class="el" href="issuer__registry_8h_source.html#l00120">brix_token_registry_args_t::claims</a>, <a class="el" href="issuer__registry_8h_source.html#l00119">brix_token_registry_args_t::clock_skew</a>, <a class="el" href="issuer__registry_8h_source.html#l00113">brix_token_registry_args_t::log</a>, <a class="el" href="issuer__registry_8h_source.html#l00117">brix_token_registry_args_t::macaroon_secret</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="issuer__registry_8h_source.html#l00116">brix_token_registry_args_t::reg</a>, <a class="el" href="secure_8c_source.html#l00027">scvmfs_bearer_token()</a>, <a class="el" href="cvmfs_8h_source.html#l00112">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_registry</a>, <a class="el" href="issuer__registry_8h_source.html#l00118">brix_token_registry_args_t::secret_len</a>, <a class="el" href="issuer__registry_8h_source.html#l00114">brix_token_registry_args_t::token</a>, and <a class="el" href="issuer__registry_8h_source.html#l00115">brix_token_registry_args_t::token_len</a>.</p>
+<p class="reference">References <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="tunables_8h_source.html#l00251">BRIX_TOKEN_CLOCK_SKEW_SECS</a>, <a class="el" href="token_8h_source.html#l00106">BRIX_TOKEN_OP_READ</a>, <a class="el" href="validate__registry_8c_source.html#l00207">brix_token_validate_registry()</a>, <a class="el" href="issuer__registry_8h_source.html#l00120">brix_token_registry_args_t::claims</a>, <a class="el" href="issuer__registry_8h_source.html#l00119">brix_token_registry_args_t::clock_skew</a>, <a class="el" href="issuer__registry_8h_source.html#l00113">brix_token_registry_args_t::log</a>, <a class="el" href="issuer__registry_8h_source.html#l00117">brix_token_registry_args_t::macaroon_secret</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00351">ngx_http_brix_cvmfs_module</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="issuer__registry_8h_source.html#l00116">brix_token_registry_args_t::reg</a>, <a class="el" href="secure_8c_source.html#l00028">scvmfs_bearer_token()</a>, <a class="el" href="cvmfs_8h_source.html#l00165">ngx_http_brix_cvmfs_loc_conf_t::scvmfs_registry</a>, <a class="el" href="issuer__registry_8h_source.html#l00118">brix_token_registry_args_t::secret_len</a>, <a class="el" href="token_8h_source.html#l00063">brix_token_claims_t::sub</a>, <a class="el" href="issuer__registry_8h_source.html#l00114">brix_token_registry_args_t::token</a>, <a class="el" href="issuer__registry_8h_source.html#l00115">brix_token_registry_args_t::token_len</a>, and <a class="el" href="cvmfs_8h_source.html#l00198">ngx_http_brix_cvmfs_ctx_t::token_sub</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="secure_8c_source.html#l00107">brix_scvmfs_preamble()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="secure_8c_source.html#l00256">brix_scvmfs_preamble()</a>.</p>
 
 </div>
 </div>

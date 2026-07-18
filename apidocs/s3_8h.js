@@ -31,7 +31,7 @@ var s3_8h =
     [ "s3_put_body_handler", "s3_8h.html#a90b6e13fb9bce8da46cb54d7c8efe11a", null ],
     [ "s3_put_is_exclusive_create", "s3_8h.html#adbfe6f8bd02e970f7343991da6a10bcd", null ],
     [ "s3_put_precondition", "s3_8h.html#aa1f1d1fc32fdad2c06521a215876a226", null ],
-    [ "s3_resolve_key", "s3_8h.html#aac0b604ca0c44328fd5176ee0ce2c6ab", null ],
+    [ "s3_resolve_key", "s3_8h.html#a4e7b6d014f41127d887bcb1dbf4b26e0", null ],
     [ "s3_send_xml_error", "s3_8h.html#a3368c90fa0a471d25ffcd5b9a7b4e123", null ],
     [ "s3_sess_attempt_request", "s3_8h.html#a833eddbc91835ffb332b1a6cd05e7cab", null ],
     [ "s3_sess_begin_request", "s3_8h.html#a9a50120529becf4eeffaf37791a138b8", null ],

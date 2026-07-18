@@ -16,6 +16,8 @@ var webfile__internal_8h =
     [ "web_disconnect", "webfile__internal_8h.html#a5e16a7b07fe2701876b48fb1bd2f73cd", null ],
     [ "web_get_range", "webfile__internal_8h.html#a84b758f8a02e31e3c45ec2003d26e21c", null ],
     [ "web_read_some", "webfile__internal_8h.html#a16d723d9b341073e7a889fef3aaae255", null ],
+    [ "webdav_parse_multi", "webfile__internal_8h.html#a1e53e61d2474c18c2cdc0a010e88d6a3", null ],
+    [ "webdav_parse_single", "webfile__internal_8h.html#ab446660e643f7854a6655eb15837bca3", null ],
     [ "webfile_window_ms", "webfile__internal_8h.html#af30d10c36add515d9573e6713abe791c", null ],
     [ "xml_name_char", "webfile__internal_8h.html#a24d6c181421f0b83198965141f839ac8", null ]
 ];

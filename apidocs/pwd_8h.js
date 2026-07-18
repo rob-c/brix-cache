@@ -11,6 +11,6 @@ var pwd_8h =
     [ "kXPC_normal", "pwd_8h.html#a9b81c641394173c97f13d86412d89d71", null ],
     [ "kXPS_credsreq", "pwd_8h.html#a6cfb3e24f0db3d8e2ed700f06558083b", null ],
     [ "kXPS_none", "pwd_8h.html#ae4bdf29a334ea8efab8edd1a245fa26d", null ],
-    [ "brix_pwd_file_lookup", "pwd_8h.html#a29b3d3b7fff2475d7eedab942af0a975", null ],
+    [ "brix_pwd_file_lookup", "pwd_8h.html#a4b35443c492b3a188cf4b33b39b6cee2", null ],
     [ "brix_pwd_verify", "pwd_8h.html#aad23efd270bfe6d441373d7c959e2842", null ]
 ];

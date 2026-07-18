@@ -11,5 +11,5 @@ var ssi__service_8c =
     [ "svc_stream_async", "ssi__service_8c.html#a2d5d9d7fa8f8bcb9e327a7d37eb67bb4", null ],
     [ "fn", "ssi__service_8c.html#a958a24ea3e61407c12cdb0ea5bbf9738", null ],
     [ "name", "ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb", null ],
-    [ "services", "ssi__service_8c.html#ad5a70bb1ba06c9d479e3c8074bcd8293", null ]
+    [ "services", "ssi__service_8c.html#aeea5455d34fb0f8bfb1710add11ec4c6", null ]
 ];

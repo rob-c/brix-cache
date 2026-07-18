@@ -31,5 +31,7 @@ var dir_4f3e26b8b67e40a4401952554a1fee3f =
     [ "vfs_unlink.c", "vfs__unlink_8c.html", "vfs__unlink_8c" ],
     [ "vfs_walk.c", "vfs__walk_8c.html", "vfs__walk_8c" ],
     [ "vfs_write.c", "vfs__write_8c.html", "vfs__write_8c" ],
+    [ "vfs_writer.c", "vfs__writer_8c.html", "vfs__writer_8c" ],
+    [ "vfs_wverify.c", "vfs__wverify_8c.html", "vfs__wverify_8c" ],
     [ "vfs_xattr.c", "vfs__xattr_8c.html", "vfs__xattr_8c" ]
 ];
