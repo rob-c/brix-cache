@@ -29,6 +29,14 @@ A clean run prints `Done … exit 0` with no crash artifacts.
 | `fuzz_safe_size.c` | W1 overflow-checked size math + array alloc | ✅ runnable |
 | `fuzz_b64url.c`  | token base64url decode (pre-auth)       | ✅ runnable |
 | `fuzz_zip_dir.c` | server ZIP central-directory walk (Task-7; Phase-B hardened allocs) | ✅ runnable |
+| `fuzz_jwt_json.c` | JWT/JWKS JSON claim/key extraction (pre-auth; hyper-hardening C-1) | ✅ runnable |
+| `fuzz_urlcodec.c` | shared HTTP percent-codec `brix_http_urldecode`/`urlencode` — the byte core under S3 SigV4 canonicalisation, WebDAV query, XrdHttp paths (pre-auth; C-1) | ✅ runnable |
+
+All targets are built and smoke-run in CI by `.github/workflows/fuzz.yml` (blocking
+PR/push, `FUZZ_TIME=60`; nightly cron `600s`) via the `cmdscripts.fuzz_all` runner —
+add a new target to that runner's `BUILD_ARGS` and it joins the lane automatically.
+`fuzz_jwt_json` links `src/auth/token/json.c` and needs `-ljansson` (CI installs
+`libjansson-dev`); `fuzz_urlcodec` links `src/core/compat/uri.c` + `hex.c` (libc only).
 
 ## Adding a parser target (template)
 

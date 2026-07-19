@@ -1,10 +1,11 @@
 # libFuzzer smoke + nightly (hyper-hardening B-3).
 #
-# The three harnesses under tests/fuzz/ (fuzz_zip_dir, fuzz_b64url,
-# fuzz_safe_size) build with clang -fsanitize=fuzzer,address,undefined and
-# replay their committed corpora. Until this lane existed nothing ran them in
-# CI, so a harness could silently rot (fuzz_zip_dir did: a sd_posix.c file-split
-# left its unity build unlinkable — fixed 2026-07-18 when this lane was added).
+# The harnesses under tests/fuzz/ (fuzz_zip_dir, fuzz_b64url, fuzz_safe_size,
+# fuzz_jwt_json, fuzz_urlcodec — the full set enumerated by cmdscripts.fuzz_all)
+# build with clang -fsanitize=fuzzer,address,undefined and replay their committed
+# corpora. Until this lane existed nothing ran them in CI, so a harness could
+# silently rot (fuzz_zip_dir did: a sd_posix.c file-split left its unity build
+# unlinkable — fixed 2026-07-18 when this lane was added).
 #
 # BLOCKING on PRs — the harnesses are self-contained deterministic clang builds
 # with no baseline to drift, so a crash/leak here is a real, reproducible fault,
@@ -32,7 +33,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang zlib1g-dev libssl-dev
+            clang zlib1g-dev libssl-dev libjansson-dev
       - name: Run libFuzzer harnesses
         working-directory: tests
         env:
