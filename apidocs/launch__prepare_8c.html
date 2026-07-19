@@ -105,6 +105,8 @@ $(document).ready(function(){initNavTree('launch__prepare_8c.html',''); initResi
 <code>#include &lt;unistd.h&gt;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;netdb.h&gt;</code><br />
+<code>#include &lt;netinet/in.h&gt;</code><br />
+<code>#include &lt;arpa/inet.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="alloc__guard_8h_source.html">core/compat/alloc_guard.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cstr_8h_source.html">core/compat/cstr.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -191,9 +193,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00339">339</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00384">384</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fd__table_8c_source.html#l00019">brix_alloc_fhandle()</a>, <a class="el" href="fd__table__teardown_8c_source.html#l00217">brix_free_fhandle()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00035">BRIX_OP_OPEN_WR</a>, <a class="el" href="tunables_8h_source.html#l00310">BRIX_RETURN_ERR</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="handles_8c_source.html#l00197">brix_session_handle_publish()</a>, <a class="el" href="fd__table_8c_source.html#l00060">brix_set_fhandle_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="context_8h_source.html#l00285">brix_ctx_t::is_bound</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ctx__structs_8h_source.html#l00158">brix_ctx_login_t::sessid</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="launch__prepare_8c_source.html#l00275">tpc_init_dst_file()</a>, <a class="el" href="launch__prepare_8c_source.html#l00242">tpc_open_dst_logical()</a>, <a class="el" href="launch__prepare_8c_source.html#l00189">tpc_prepare_check_preconditions()</a>, and <a class="el" href="launch__prepare_8c_source.html#l00045">tpc_send_open_response()</a>.</p>
+<p class="reference">References <a class="el" href="fd__table_8c_source.html#l00019">brix_alloc_fhandle()</a>, <a class="el" href="fd__table__teardown_8c_source.html#l00217">brix_free_fhandle()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00035">BRIX_OP_OPEN_WR</a>, <a class="el" href="tunables_8h_source.html#l00310">BRIX_RETURN_ERR</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="handles_8c_source.html#l00197">brix_session_handle_publish()</a>, <a class="el" href="fd__table_8c_source.html#l00060">brix_set_fhandle_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="context_8h_source.html#l00285">brix_ctx_t::is_bound</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ctx__structs_8h_source.html#l00158">brix_ctx_login_t::sessid</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="launch__prepare_8c_source.html#l00320">tpc_init_dst_file()</a>, <a class="el" href="launch__prepare_8c_source.html#l00287">tpc_open_dst_logical()</a>, <a class="el" href="launch__prepare_8c_source.html#l00234">tpc_prepare_check_preconditions()</a>, and <a class="el" href="launch__prepare_8c_source.html#l00047">tpc_send_open_response()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00409">brix_tpc_launch_pull()</a>, and <a class="el" href="open__tpc_8c_source.html#l00031">tpc_handle_dest()</a>.</p>
 
@@ -245,11 +247,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00099">99</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00101">101</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ctx__structs_8h_source.html#l00162">brix_ctx_login_t::pid</a>, and <a class="el" href="ctx__structs_8h_source.html#l00161">brix_ctx_login_t::user</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00275">tpc_init_dst_file()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00320">tpc_init_dst_file()</a>.</p>
 
 </div>
 </div>
@@ -277,11 +279,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00154">154</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00199">199</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
 
 <p class="reference">References <a class="el" href="flags_8h_source.html#l00017">kXR_delete</a>, and <a class="el" href="flags_8h_source.html#l00019">kXR_new</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00242">tpc_open_dst_logical()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00287">tpc_open_dst_logical()</a>.</p>
 
 </div>
 </div>
@@ -343,11 +345,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00275">275</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00320">320</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="key__registry_8c_source.html#l00151">brix_tpc_generate_key()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00075">brix_file_t::bytes_read</a>, <a class="el" href="core_2types_2file_8h_source.html#l00076">brix_file_t::bytes_written</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00087">brix_file_t::cached_size</a>, <a class="el" href="core_2types_2file_8h_source.html#l00085">brix_file_t::device</a>, <a class="el" href="core_2types_2file_8h_source.html#l00081">brix_file_t::from_cache</a>, <a class="el" href="tpc__internal_8h_source.html#l00071">brix_tpc_params_t::has_token_mode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00086">brix_file_t::inode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00084">brix_file_t::is_regular</a>, <a class="el" href="tpc__internal_8h_source.html#l00055">brix_tpc_params_t::key</a>, <a class="el" href="core_2types_2file_8h_source.html#l00077">brix_file_t::open_time</a>, <a class="el" href="core_2types_2file_8h_source.html#l00089">brix_file_t::read_ahead_end</a>, <a class="el" href="core_2types_2file_8h_source.html#l00088">brix_file_t::read_last_end</a>, <a class="el" href="core_2types_2file_8h_source.html#l00080">brix_file_t::readable</a>, <a class="el" href="tpc__internal_8h_source.html#l00057">brix_tpc_params_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00058">brix_tpc_params_t::src_path</a>, <a class="el" href="tpc__internal_8h_source.html#l00072">brix_tpc_params_t::src_port</a>, <a class="el" href="tpc__internal_8h_source.html#l00063">brix_tpc_params_t::token_mode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00172">brix_file_t::tpc_armed</a>, <a class="el" href="launch__prepare_8c_source.html#l00099">tpc_build_origin_id()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00171">brix_file_t::tpc_destination</a>, <a class="el" href="core_2types_2file_8h_source.html#l00174">brix_file_t::tpc_done</a>, <a class="el" href="core_2types_2file_8h_source.html#l00175">brix_file_t::tpc_key</a>, <a class="el" href="core_2types_2file_8h_source.html#l00176">brix_file_t::tpc_org</a>, <a class="el" href="core_2types_2file_8h_source.html#l00177">brix_file_t::tpc_src_host</a>, <a class="el" href="core_2types_2file_8h_source.html#l00179">brix_file_t::tpc_src_path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00178">brix_file_t::tpc_src_port</a>, <a class="el" href="core_2types_2file_8h_source.html#l00173">brix_file_t::tpc_started</a>, <a class="el" href="core_2types_2file_8h_source.html#l00180">brix_file_t::tpc_token_mode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00181">brix_file_t::tpc_transfer_id</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00079">brix_file_t::writable</a>.</p>
+<p class="reference">References <a class="el" href="key__registry_8c_source.html#l00151">brix_tpc_generate_key()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00075">brix_file_t::bytes_read</a>, <a class="el" href="core_2types_2file_8h_source.html#l00076">brix_file_t::bytes_written</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00087">brix_file_t::cached_size</a>, <a class="el" href="core_2types_2file_8h_source.html#l00085">brix_file_t::device</a>, <a class="el" href="core_2types_2file_8h_source.html#l00081">brix_file_t::from_cache</a>, <a class="el" href="tpc__internal_8h_source.html#l00071">brix_tpc_params_t::has_token_mode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00086">brix_file_t::inode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00084">brix_file_t::is_regular</a>, <a class="el" href="tpc__internal_8h_source.html#l00055">brix_tpc_params_t::key</a>, <a class="el" href="core_2types_2file_8h_source.html#l00077">brix_file_t::open_time</a>, <a class="el" href="core_2types_2file_8h_source.html#l00089">brix_file_t::read_ahead_end</a>, <a class="el" href="core_2types_2file_8h_source.html#l00088">brix_file_t::read_last_end</a>, <a class="el" href="core_2types_2file_8h_source.html#l00080">brix_file_t::readable</a>, <a class="el" href="tpc__internal_8h_source.html#l00057">brix_tpc_params_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00058">brix_tpc_params_t::src_path</a>, <a class="el" href="tpc__internal_8h_source.html#l00072">brix_tpc_params_t::src_port</a>, <a class="el" href="tpc__internal_8h_source.html#l00063">brix_tpc_params_t::token_mode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00172">brix_file_t::tpc_armed</a>, <a class="el" href="launch__prepare_8c_source.html#l00101">tpc_build_origin_id()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00171">brix_file_t::tpc_destination</a>, <a class="el" href="core_2types_2file_8h_source.html#l00174">brix_file_t::tpc_done</a>, <a class="el" href="core_2types_2file_8h_source.html#l00175">brix_file_t::tpc_key</a>, <a class="el" href="core_2types_2file_8h_source.html#l00176">brix_file_t::tpc_org</a>, <a class="el" href="core_2types_2file_8h_source.html#l00177">brix_file_t::tpc_src_host</a>, <a class="el" href="core_2types_2file_8h_source.html#l00179">brix_file_t::tpc_src_path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00178">brix_file_t::tpc_src_port</a>, <a class="el" href="core_2types_2file_8h_source.html#l00173">brix_file_t::tpc_started</a>, <a class="el" href="core_2types_2file_8h_source.html#l00180">brix_file_t::tpc_token_mode</a>, <a class="el" href="core_2types_2file_8h_source.html#l00181">brix_file_t::tpc_transfer_id</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00079">brix_file_t::writable</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00339">brix_tpc_prepare_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00384">brix_tpc_prepare_pull()</a>.</p>
 
 </div>
 </div>
@@ -397,11 +399,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00242">242</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00287">287</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__walk_8c_source.html#l00315">brix_vfs_open_fd_at()</a>, and <a class="el" href="launch__prepare_8c_source.html#l00154">tpc_destination_open_flags()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__walk_8c_source.html#l00315">brix_vfs_open_fd_at()</a>, and <a class="el" href="launch__prepare_8c_source.html#l00199">tpc_destination_open_flags()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00339">brix_tpc_prepare_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00384">brix_tpc_prepare_pull()</a>.</p>
 
 </div>
 </div>
@@ -457,11 +459,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00189">189</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00234">234</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
 
 <p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00035">BRIX_OP_OPEN_WR</a>, <a class="el" href="tunables_8h_source.html#l00310">BRIX_RETURN_ERR</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="tpc_2engine_2noop_8c_source.html#l00097">brix_tpc_check_src_policy()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="tpc__internal_8h_source.html#l00057">brix_tpc_params_t::src_host</a>, <a class="el" href="tpc__internal_8h_source.html#l00058">brix_tpc_params_t::src_path</a>, and <a class="el" href="tpc__internal_8h_source.html#l00072">brix_tpc_params_t::src_port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00339">brix_tpc_prepare_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00384">brix_tpc_prepare_pull()</a>.</p>
 
 </div>
 </div>
@@ -517,11 +519,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00045">45</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="launch__prepare_8c_source.html#l00047">47</a> of file <a class="el" href="launch__prepare_8c_source.html">launch_prepare.c</a>.</p>
 
 <p class="reference">References <a class="el" href="basic_8c_source.html#l00033">brix_build_resp_hdr()</a>, <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="write__helpers_8c_source.html#l00189">brix_queue_response()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00364">ServerOpenBody::fhandle</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="flags_8h_source.html#l00052">kXR_readable</a>, <a class="el" href="flags_8h_source.html#l00026">kXR_retstat</a>, <a class="el" href="flags_8h_source.html#l00053">kXR_writable</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00339">brix_tpc_prepare_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch__prepare_8c_source.html#l00384">brix_tpc_prepare_pull()</a>.</p>
 
 </div>
 </div>

@@ -1,5 +1,7 @@
 var NAVTREEINDEX36 =
 {
+"nettmo_8c.html#ae1ff1463baa651ec557fee4aebaf3a41":[89,0,0,2,4,6,10],
+"nettmo_8c.html#af8e9ef4c63fbe6b35afe38ecf55431e7":[89,0,0,2,4,6,7],
 "nettmo_8c_source.html":[89,0,0,2,4,6],
 "ngx__brix__fattr_8h.html":[89,0,2,5,3,2,5],
 "ngx__brix__fattr_8h.html#a0989427f5fe023063b49add22957bd5d":[89,0,2,5,3,2,5,1],
@@ -247,7 +249,5 @@ var NAVTREEINDEX36 =
 "observability_2metrics_2metrics_8h.html#a028c60a678ed9fdcf45ae86a16984769":[89,0,2,4,2,9,7],
 "observability_2metrics_2metrics_8h.html#a083d8e84b88048d8b79da2378be4c365":[89,0,2,4,2,9,25],
 "observability_2metrics_2metrics_8h.html#a09c0a2d9cfc7e4c400e2470d5d25a9f5":[89,0,2,4,2,9,20],
-"observability_2metrics_2metrics_8h.html#a0d2825bd989c32f548075ba100beb314":[89,0,2,4,2,9,53],
-"observability_2metrics_2metrics_8h.html#a17abce2eb0f4aa975a4953ff1bb71ccb":[89,0,2,4,2,9,51],
-"observability_2metrics_2metrics_8h.html#a17abce2eb0f4aa975a4953ff1bb71ccba197314e17957515e37ad85c9f8ccbb42":[89,0,2,4,2,9,51,1]
+"observability_2metrics_2metrics_8h.html#a0d2825bd989c32f548075ba100beb314":[89,0,2,4,2,9,53]
 };

@@ -1233,7 +1233,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01056" name="l01056"></a><span class="lineno"> 1056</span>{</div>
 <div class="line"><a id="l01057" name="l01057"></a><span class="lineno"> 1057</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_lab.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01058" name="l01058"></a><span class="lineno"> 1058</span>    brix_sd_instance_t    inst = {0};</div>
-<div class="line"><a id="l01059" name="l01059"></a><span class="lineno"> 1059</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01059" name="l01059"></a><span class="lineno"> 1059</span>    brix_sd_pblock_conf_t conf = {0};   <span class="comment">/* zero enforce_unprivileged: never drop in the unit test */</span></div>
 <div class="line"><a id="l01060" name="l01060"></a><span class="lineno"> 1060</span>    <span class="keywordtype">char</span>                  buf[32];</div>
 <div class="line"><a id="l01061" name="l01061"></a><span class="lineno"> 1061</span>    <span class="keywordtype">int</span>                   err = 0;</div>
 <div class="line"><a id="l01062" name="l01062"></a><span class="lineno"> 1062</span>    brix_sd_obj_t        *o;</div>
@@ -1279,7 +1279,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01100" name="l01100"></a><span class="lineno"> 1100</span>{</div>
 <div class="line"><a id="l01101" name="l01101"></a><span class="lineno"> 1101</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_laboff.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01102" name="l01102"></a><span class="lineno"> 1102</span>    brix_sd_instance_t    inst = {0};</div>
-<div class="line"><a id="l01103" name="l01103"></a><span class="lineno"> 1103</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01103" name="l01103"></a><span class="lineno"> 1103</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01104" name="l01104"></a><span class="lineno"> 1104</span>    <span class="keywordtype">char</span>                  buf[32];</div>
 <div class="line"><a id="l01105" name="l01105"></a><span class="lineno"> 1105</span>    <span class="keywordtype">int</span>                   err = 0;</div>
 <div class="line"><a id="l01106" name="l01106"></a><span class="lineno"> 1106</span>    brix_sd_obj_t        *o;</div>
@@ -1315,7 +1315,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01134" name="l01134"></a><span class="lineno"> 1134</span>{</div>
 <div class="line"><a id="l01135" name="l01135"></a><span class="lineno"> 1135</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_caps.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01136" name="l01136"></a><span class="lineno"> 1136</span>    brix_sd_instance_t    inst = {0};</div>
-<div class="line"><a id="l01137" name="l01137"></a><span class="lineno"> 1137</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01137" name="l01137"></a><span class="lineno"> 1137</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01138" name="l01138"></a><span class="lineno"> 1138</span> </div>
 <div class="line"><a id="l01139" name="l01139"></a><span class="lineno"> 1139</span>    <a class="code hl_define" href="sd__pblock__unittest_8c.html#a13b03b1b28312e520efb76bd0b306bba">CHECK</a>(mkdtemp(root) != NULL, <span class="stringliteral">&quot;mkdtemp&quot;</span>);</div>
 <div class="line"><a id="l01140" name="l01140"></a><span class="lineno"> 1140</span>    <a class="code hl_function" href="sd__pblock__unittest_8c.html#a9e3f6d6485104cc3a2d143fcf66b3254">lab_write_sidecar</a>(root, <span class="stringliteral">&quot;lab=1&amp;caps=-sendfile&quot;</span>);</div>
@@ -1408,7 +1408,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01219" name="l01219"></a><span class="lineno"> 1219</span>{</div>
 <div class="line"><a id="l01220" name="l01220"></a><span class="lineno"> 1220</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_enum.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01221" name="l01221"></a><span class="lineno"> 1221</span>    brix_sd_instance_t    inst = {0};</div>
-<div class="line"><a id="l01222" name="l01222"></a><span class="lineno"> 1222</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01222" name="l01222"></a><span class="lineno"> 1222</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01223" name="l01223"></a><span class="lineno"> 1223</span>    <a class="code hl_struct" href="structenum__probe__t.html">enum_probe_t</a>          p;</div>
 <div class="line"><a id="l01224" name="l01224"></a><span class="lineno"> 1224</span>    <span class="keywordtype">int</span>                   walk_files = 0;</div>
 <div class="line"><a id="l01225" name="l01225"></a><span class="lineno"> 1225</span>    int64_t               walk_bytes = 0;</div>
@@ -1615,7 +1615,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01410" name="l01410"></a><span class="lineno"> 1410</span>{</div>
 <div class="line"><a id="l01411" name="l01411"></a><span class="lineno"> 1411</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_dedup.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01412" name="l01412"></a><span class="lineno"> 1412</span>    brix_sd_instance_t    <a class="code hl_variable" href="structbreak__arg.html#a5fe04ce613737bbcfd10a114e761b2a7">inst</a> = {0};</div>
-<div class="line"><a id="l01413" name="l01413"></a><span class="lineno"> 1413</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01413" name="l01413"></a><span class="lineno"> 1413</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01414" name="l01414"></a><span class="lineno"> 1414</span>    <span class="keywordtype">char</span>                  ba[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>], bb[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>];</div>
 <div class="line"><a id="l01415" name="l01415"></a><span class="lineno"> 1415</span>    <span class="keywordtype">char</span>                  buf[64];</div>
 <div class="line"><a id="l01416" name="l01416"></a><span class="lineno"> 1416</span>    <span class="comment">/* 10 bytes over a 4-byte stripe ⇒ 3 blocks: byte-verify walks real blocks. */</span></div>
@@ -1706,7 +1706,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01499" name="l01499"></a><span class="lineno"> 1499</span>{</div>
 <div class="line"><a id="l01500" name="l01500"></a><span class="lineno"> 1500</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_forge.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01501" name="l01501"></a><span class="lineno"> 1501</span>    brix_sd_instance_t    <a class="code hl_variable" href="structbreak__arg.html#a5fe04ce613737bbcfd10a114e761b2a7">inst</a> = {0};</div>
-<div class="line"><a id="l01502" name="l01502"></a><span class="lineno"> 1502</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01502" name="l01502"></a><span class="lineno"> 1502</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01503" name="l01503"></a><span class="lineno"> 1503</span>    <span class="keywordtype">char</span>                  bvictim[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>];</div>
 <div class="line"><a id="l01504" name="l01504"></a><span class="lineno"> 1504</span>    <span class="keywordtype">char</span>                  battack[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>];</div>
 <div class="line"><a id="l01505" name="l01505"></a><span class="lineno"> 1505</span>    <span class="keywordtype">char</span>                  hash[64];</div>
@@ -1789,7 +1789,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01580" name="l01580"></a><span class="lineno"> 1580</span>{</div>
 <div class="line"><a id="l01581" name="l01581"></a><span class="lineno"> 1581</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_dedupoff.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01582" name="l01582"></a><span class="lineno"> 1582</span>    brix_sd_instance_t    <a class="code hl_variable" href="structbreak__arg.html#a5fe04ce613737bbcfd10a114e761b2a7">inst</a> = {0};</div>
-<div class="line"><a id="l01583" name="l01583"></a><span class="lineno"> 1583</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01583" name="l01583"></a><span class="lineno"> 1583</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01584" name="l01584"></a><span class="lineno"> 1584</span>    <span class="keywordtype">char</span>                  ba[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>], bb[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>];</div>
 <div class="line"><a id="l01585" name="l01585"></a><span class="lineno"> 1585</span>    <span class="keywordtype">char</span>                  buf[64];</div>
 <div class="line"><a id="l01586" name="l01586"></a><span class="lineno"> 1586</span> </div>
@@ -1829,7 +1829,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01618" name="l01618"></a><span class="lineno"> 1618</span>{</div>
 <div class="line"><a id="l01619" name="l01619"></a><span class="lineno"> 1619</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_snap.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01620" name="l01620"></a><span class="lineno"> 1620</span>    brix_sd_instance_t    <a class="code hl_variable" href="structbreak__arg.html#a5fe04ce613737bbcfd10a114e761b2a7">inst</a> = {0};</div>
-<div class="line"><a id="l01621" name="l01621"></a><span class="lineno"> 1621</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01621" name="l01621"></a><span class="lineno"> 1621</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01622" name="l01622"></a><span class="lineno"> 1622</span>    <span class="keywordtype">char</span>                  buf[64];</div>
 <div class="line"><a id="l01623" name="l01623"></a><span class="lineno"> 1623</span> </div>
 <div class="line"><a id="l01624" name="l01624"></a><span class="lineno"> 1624</span>    <a class="code hl_define" href="sd__pblock__unittest_8c.html#a13b03b1b28312e520efb76bd0b306bba">CHECK</a>(mkdtemp(root) != NULL, <span class="stringliteral">&quot;mkdtemp&quot;</span>);</div>
@@ -1910,7 +1910,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01697" name="l01697"></a><span class="lineno"> 1697</span>{</div>
 <div class="line"><a id="l01698" name="l01698"></a><span class="lineno"> 1698</span>    <span class="keywordtype">char</span>                  root[] = <span class="stringliteral">&quot;/tmp/pb_ver.XXXXXX&quot;</span>;</div>
 <div class="line"><a id="l01699" name="l01699"></a><span class="lineno"> 1699</span>    brix_sd_instance_t    <a class="code hl_variable" href="structbreak__arg.html#a5fe04ce613737bbcfd10a114e761b2a7">inst</a> = {0};</div>
-<div class="line"><a id="l01700" name="l01700"></a><span class="lineno"> 1700</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01700" name="l01700"></a><span class="lineno"> 1700</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01701" name="l01701"></a><span class="lineno"> 1701</span>    <span class="keywordtype">char</span>                  a0[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>], b1[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>];</div>
 <div class="line"><a id="l01702" name="l01702"></a><span class="lineno"> 1702</span>    <span class="keywordtype">char</span>                  c2[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>], g0[<a class="code hl_define" href="sd__pblock__catalog_8h.html#a0b6f215f12bfa21e3f9f125e9e6cb673">PBLOCK_BLOB_ID_CAP</a>];</div>
 <div class="line"><a id="l01703" name="l01703"></a><span class="lineno"> 1703</span>    <span class="keywordtype">char</span>                  buf[64];</div>
@@ -2000,7 +2000,7 @@ $(document).ready(function(){initNavTree('sd__pblock__unittest_8c_source.html','
 <div class="line"><a id="l01785" name="l01785"></a><span class="lineno"><a class="line" href="sd__pblock__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe"> 1785</a></span><a class="code hl_function" href="sd__pblock__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe">main</a>(<span class="keywordtype">void</span>)</div>
 <div class="line"><a id="l01786" name="l01786"></a><span class="lineno"> 1786</span>{</div>
 <div class="line"><a id="l01787" name="l01787"></a><span class="lineno"> 1787</span>    <span class="keywordtype">char</span>                    root[] = <span class="stringliteral">&quot;/tmp/pb_ut.XXXXXX&quot;</span>;</div>
-<div class="line"><a id="l01788" name="l01788"></a><span class="lineno"> 1788</span>    brix_sd_pblock_conf_t conf;</div>
+<div class="line"><a id="l01788" name="l01788"></a><span class="lineno"> 1788</span>    brix_sd_pblock_conf_t conf = {0};</div>
 <div class="line"><a id="l01789" name="l01789"></a><span class="lineno"> 1789</span>    brix_sd_instance_t    <a class="code hl_variable" href="structbreak__arg.html#a5fe04ce613737bbcfd10a114e761b2a7">inst</a> = {0};</div>
 <div class="line"><a id="l01790" name="l01790"></a><span class="lineno"> 1790</span> </div>
 <div class="line"><a id="l01791" name="l01791"></a><span class="lineno"> 1791</span>    <a class="code hl_variable" href="sd__pblock__unittest_8c.html#a71e67c1c886c7c8dd9d2f8c8a3006e08">D</a> = &amp;brix_sd_pblock_driver;</div>

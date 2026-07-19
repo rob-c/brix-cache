@@ -18,5 +18,6 @@ var lifecycle_8h =
     [ "brix_imp_mode", "lifecycle_8h.html#ae5de3bb76c8b090c43ba5bbce97f855c", null ],
     [ "brix_imp_request_begin", "lifecycle_8h.html#aef3a2d70ed8ae6a1a18cce1ba9670e0a", null ],
     [ "brix_imp_request_end", "lifecycle_8h.html#a58ae6d1fb5e91b4128d4b20988253fec", null ],
-    [ "brix_imp_validate", "lifecycle_8h.html#a10898bb4cdb4366733ff1ccb543fba1b", null ]
+    [ "brix_imp_validate", "lifecycle_8h.html#a10898bb4cdb4366733ff1ccb543fba1b", null ],
+    [ "brix_imp_worker_harden", "lifecycle_8h.html#aedfc3423475631cc45fb8d12c26d302e", null ]
 ];

@@ -1,7 +1,9 @@
 <map id="src/core/seccomp/seccomp_core.h" name="src/core/seccomp/seccomp_core.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="124,5,321,45"/>
-<area shape="rect" id="Node000002" href="$seccomp_8c.html" title=" " alt="" coords="5,101,213,126"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="188,56,127,102,123,98,185,52"/>
-<area shape="rect" id="Node000003" href="$seccomp__core_8c.html" title=" " alt="" coords="237,93,435,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="260,52,313,91,309,95,257,56"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="195,5,392,45"/>
+<area shape="rect" id="Node000002" href="$broker__creds_8c.html" title=" " alt="" coords="5,93,165,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="236,53,132,96,130,91,234,48"/>
+<area shape="rect" id="Node000003" href="$seccomp_8c.html" title=" " alt="" coords="189,101,397,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="296,59,296,100,291,100,291,59"/>
+<area shape="rect" id="Node000004" href="$seccomp__core_8c.html" title=" " alt="" coords="421,93,619,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="357,48,471,91,469,96,355,53"/>
 </map>

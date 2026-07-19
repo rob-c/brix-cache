@@ -1,5 +1,9 @@
 var NAVTREEINDEX73 =
 {
+"structbrix__readv__seg.html":[88,0,286],
+"structbrix__readv__seg.html#a9a2b0681ce8092af0e5bd9208f314b67":[88,0,286,3],
+"structbrix__readv__seg.html#abb693d2c457c182da91fb2829707f5f4":[88,0,286,0],
+"structbrix__readv__seg.html#ac55bf269fb980fb4bbba359c52c06050":[88,0,286,2],
 "structbrix__readv__seg.html#ae64d8e4b8430a1d77ec8d680356bac09":[88,0,286,1],
 "structbrix__redir__cache__entry__t.html":[88,0,287],
 "structbrix__redir__cache__entry__t.html#a38716c2568b6faf85dc6124a1bd5025b":[88,0,287,5],
@@ -245,9 +249,5 @@ var NAVTREEINDEX73 =
 "structbrix__sd__driver__s.html#ac3d19ae8da680ab114319a5528ccc361":[88,0,317,25],
 "structbrix__sd__driver__s.html#acdec430b14c7a4eb5c6974bfc89de54b":[88,0,317,17],
 "structbrix__sd__driver__s.html#acf98cdb8ba16f0eeba97a27bfff74706":[88,0,317,8],
-"structbrix__sd__driver__s.html#ad206ca885f16552d5c34d99bae93ca5a":[88,0,317,47],
-"structbrix__sd__driver__s.html#ad5a3488ae2751be0317b876c8feb968c":[88,0,317,42],
-"structbrix__sd__driver__s.html#ad93b9e924efb509b926d926a27925a60":[88,0,317,2],
-"structbrix__sd__driver__s.html#adab90a3778851f919ac3e31dfc988aba":[88,0,317,35],
-"structbrix__sd__driver__s.html#add07a8ad995df03ec142448047a0daa9":[88,0,317,33]
+"structbrix__sd__driver__s.html#ad206ca885f16552d5c34d99bae93ca5a":[88,0,317,47]
 };

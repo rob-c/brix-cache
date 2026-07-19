@@ -270,271 +270,284 @@ $(document).ready(function(){initNavTree('lifecycle__broker_8c_source.html','');
 <div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    ngx_core_conf_t *ccf;</div>
 <div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span> </div>
 <div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    ccf = (ngx_core_conf_t *) ngx_get_conf(cycle-&gt;conf_ctx, ngx_core_module);</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <span class="keywordflow">return</span> (ccf &amp;&amp; ccf-&gt;user != (uid_t) NGX_CONF_UNSET_UINT) ? ccf-&gt;user</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>                                                             : (uid_t) -1;</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>}</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <span class="keywordflow">if</span> (ccf &amp;&amp; ccf-&gt;user != (uid_t) NGX_CONF_UNSET_UINT) {</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        <span class="keywordflow">return</span> ccf-&gt;user;</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    }</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    <span class="comment">/* No `user` directive: nginx drops workers to its built-in default account</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="comment">     * (&quot;nobody&quot;).  Resolve it so the broker&#39;s SO_PEERCRED gate stays ACTIVE — an</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="comment">     * unset `user` must NOT silently disable the gate (brix_imp_broker_allow_uid</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="comment">     * == 0 means &quot;no gate&quot;, which would let any local process on the 0600 socket</span></div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="comment">     * through). */</span></div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    {</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>        <span class="keyword">struct </span>passwd *pw = getpwnam(<span class="stringliteral">&quot;nobody&quot;</span>);</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        <span class="keywordflow">if</span> (pw != NULL) {</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>            <span class="keywordflow">return</span> pw-&gt;pw_uid;</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        }</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordflow">return</span> (uid_t) -1;</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>}</div>
 </div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span> </div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="comment"> * WHAT: Resolve the optional non-root broker service account into the broker</span></div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="comment"> *       globals (brix_imp_broker_user_uid/gid).</span></div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span><span class="comment"> * WHY:  When configured, the broker drops its real uid/gid to this account</span></div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><span class="comment"> *       (keeping only CAP_SETUID/CAP_SETGID) so nothing runs as root after</span></div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="comment"> *       startup.  The account must be real, non-root, and differ from the</span></div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="comment"> *       worker uid so a compromise cannot escalate.  Globals must be set BEFORE</span></div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span><span class="comment"> *       the fork so the broker inherits them.</span></div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="comment"> * HOW:  Default the globals to &quot;none&quot;; if a name is configured, look it up and</span></div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="comment"> *       validate it, returning NGX_ERROR (with a diagnostic) on any problem.</span></div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00178" data-start="{" data-end="}">
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">  178</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">imp_resolve_broker_user</a>(ngx_cycle_t *cycle, uid_t wuid)</div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>{</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <span class="keywordtype">char</span>           nm[256];</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    <span class="keyword">struct </span>passwd *pw;</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span> </div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <a class="code hl_variable" href="broker__creds_8c.html#ab06c0357d58cd75889efc68361244be2">brix_imp_broker_user_uid</a> = (uid_t) -1;</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    <a class="code hl_variable" href="broker__creds_8c.html#a7ed2d414e94b1c38ad7dd5e9ca4b7662">brix_imp_broker_user_gid</a> = (gid_t) -1;</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a11b61bd8a71b67621f08e94f96470680">broker_user</a>.len == 0) {</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span> </div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    ngx_snprintf((u_char *) nm, <span class="keyword">sizeof</span>(nm), <span class="stringliteral">&quot;%V%Z&quot;</span>, &amp;<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a11b61bd8a71b67621f08e94f96470680">broker_user</a>);</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    pw = getpwnam(nm);</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordflow">if</span> (pw == NULL) {</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>            <span class="stringliteral">&quot;impersonate: broker user \&quot;%s\&quot; does not exist&quot;</span>,</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>            <span class="stringliteral">&quot;brix_impersonation_broker_user names a local account that &quot;</span></div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>            <span class="stringliteral">&quot;is not present in /etc/passwd (or NSS)&quot;</span>,</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>            <span class="stringliteral">&quot;create the dedicated service account first, or correct the &quot;</span></div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>            <span class="stringliteral">&quot;name in the directive&quot;</span>,</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>            nm);</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span> </div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><span class="comment"> * WHAT: Resolve the optional non-root broker service account into the broker</span></div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="comment"> *       globals (brix_imp_broker_user_uid/gid).</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment"> * WHY:  When configured, the broker drops its real uid/gid to this account</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment"> *       (keeping only CAP_SETUID/CAP_SETGID) so nothing runs as root after</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="comment"> *       startup.  The account must be real, non-root, and differ from the</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="comment"> *       worker uid so a compromise cannot escalate.  Globals must be set BEFORE</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="comment"> *       the fork so the broker inherits them.</span></div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span><span class="comment"> * HOW:  Default the globals to &quot;none&quot;; if a name is configured, look it up and</span></div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span><span class="comment"> *       validate it, returning NGX_ERROR (with a diagnostic) on any problem.</span></div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00191" data-start="{" data-end="}">
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">  191</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">imp_resolve_broker_user</a>(ngx_cycle_t *cycle, uid_t wuid)</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>{</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    <span class="keywordtype">char</span>           nm[256];</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <span class="keyword">struct </span>passwd *pw;</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span> </div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <a class="code hl_variable" href="broker__creds_8c.html#ab06c0357d58cd75889efc68361244be2">brix_imp_broker_user_uid</a> = (uid_t) -1;</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>    <a class="code hl_variable" href="broker__creds_8c.html#a7ed2d414e94b1c38ad7dd5e9ca4b7662">brix_imp_broker_user_gid</a> = (gid_t) -1;</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a11b61bd8a71b67621f08e94f96470680">broker_user</a>.len == 0) {</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>        <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    }</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    <span class="keywordflow">if</span> (pw-&gt;pw_uid == 0 || (wuid != (uid_t) -1 &amp;&amp; pw-&gt;pw_uid == wuid)) {</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>            <span class="stringliteral">&quot;impersonate: broker user \&quot;%s\&quot; is not a safe choice&quot;</span>,</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>            <span class="stringliteral">&quot;the broker account must NOT be root and must differ from the &quot;</span></div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>            <span class="stringliteral">&quot;nginx worker user, so a compromise cannot escalate&quot;</span>,</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>            <span class="stringliteral">&quot;point brix_impersonation_broker_user at a dedicated, &quot;</span></div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>            <span class="stringliteral">&quot;unprivileged account used for nothing else&quot;</span>,</div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>            nm);</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    }</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    <a class="code hl_variable" href="broker__creds_8c.html#ab06c0357d58cd75889efc68361244be2">brix_imp_broker_user_uid</a> = pw-&gt;pw_uid;</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <a class="code hl_variable" href="broker__creds_8c.html#a7ed2d414e94b1c38ad7dd5e9ca4b7662">brix_imp_broker_user_gid</a> = pw-&gt;pw_gid;</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>}</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span> </div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    ngx_snprintf((u_char *) nm, <span class="keyword">sizeof</span>(nm), <span class="stringliteral">&quot;%V%Z&quot;</span>, &amp;<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a11b61bd8a71b67621f08e94f96470680">broker_user</a>);</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    pw = getpwnam(nm);</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    <span class="keywordflow">if</span> (pw == NULL) {</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>            <span class="stringliteral">&quot;impersonate: broker user \&quot;%s\&quot; does not exist&quot;</span>,</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>            <span class="stringliteral">&quot;brix_impersonation_broker_user names a local account that &quot;</span></div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>            <span class="stringliteral">&quot;is not present in /etc/passwd (or NSS)&quot;</span>,</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>            <span class="stringliteral">&quot;create the dedicated service account first, or correct the &quot;</span></div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>            <span class="stringliteral">&quot;name in the directive&quot;</span>,</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>            nm);</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    }</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    <span class="keywordflow">if</span> (pw-&gt;pw_uid == 0 || (wuid != (uid_t) -1 &amp;&amp; pw-&gt;pw_uid == wuid)) {</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>            <span class="stringliteral">&quot;impersonate: broker user \&quot;%s\&quot; is not a safe choice&quot;</span>,</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>            <span class="stringliteral">&quot;the broker account must NOT be root and must differ from the &quot;</span></div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>            <span class="stringliteral">&quot;nginx worker user, so a compromise cannot escalate&quot;</span>,</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>            <span class="stringliteral">&quot;point brix_impersonation_broker_user at a dedicated, &quot;</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>            <span class="stringliteral">&quot;unprivileged account used for nothing else&quot;</span>,</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>            nm);</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    }</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <a class="code hl_variable" href="broker__creds_8c.html#ab06c0357d58cd75889efc68361244be2">brix_imp_broker_user_uid</a> = pw-&gt;pw_uid;</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    <a class="code hl_variable" href="broker__creds_8c.html#a7ed2d414e94b1c38ad7dd5e9ca4b7662">brix_imp_broker_user_gid</a> = pw-&gt;pw_gid;</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>}</div>
 </div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span> </div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span><span class="comment"> * WHAT: Load the identity map (gridmap + policy) into THIS master process.</span></div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span><span class="comment"> * WHY:  The broker forks from the master and inherits the parsed map, so it</span></div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="comment"> *       must be installed before the fork.  A load failure is fatal.</span></div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment"> * HOW:  Fill an brix_idmap_conf_t from imp_settings and call brix_idmap_init.</span></div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00223" data-start="{" data-end="}">
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">  223</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">imp_load_idmap</a>(ngx_cycle_t *cycle, uid_t wuid)</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>{</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    <a class="code hl_struct" href="structbrix__idmap__conf__t.html">brix_idmap_conf_t</a> idc;</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span> </div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    <a class="code hl_function" href="lifecycle__broker_8c.html#a4385f8d1a58397ee78be96cda760c328">imp_fill_idmap_conf</a>(&amp;idc, wuid);</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="idmap_8c.html#a0960754eb8ec172cb3dfcb4a4ac10188">brix_idmap_init</a>(&amp;idc, cycle-&gt;log) != NGX_OK) {</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>            <span class="stringliteral">&quot;impersonate: identity map failed to load&quot;</span>,</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>            <span class="stringliteral">&quot;the grid-mapfile is missing, unreadable, or malformed&quot;</span>,</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>            <span class="stringliteral">&quot;check brix_impersonation_gridmap points at a readable &quot;</span></div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>            <span class="stringliteral">&quot;grid-mapfile with valid \&quot;&lt;DN&gt;\&quot; &lt;user&gt; lines&quot;</span>);</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    }</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>}</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span> </div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span><span class="comment"> * WHAT: Load the identity map (gridmap + policy) into THIS master process.</span></div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="comment"> * WHY:  The broker forks from the master and inherits the parsed map, so it</span></div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span><span class="comment"> *       must be installed before the fork.  A load failure is fatal.</span></div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span><span class="comment"> * HOW:  Fill an brix_idmap_conf_t from imp_settings and call brix_idmap_init.</span></div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00236" data-start="{" data-end="}">
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">  236</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">imp_load_idmap</a>(ngx_cycle_t *cycle, uid_t wuid)</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>{</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <a class="code hl_struct" href="structbrix__idmap__conf__t.html">brix_idmap_conf_t</a> idc;</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span> </div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <a class="code hl_function" href="lifecycle__broker_8c.html#a4385f8d1a58397ee78be96cda760c328">imp_fill_idmap_conf</a>(&amp;idc, wuid);</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="idmap_8c.html#a0960754eb8ec172cb3dfcb4a4ac10188">brix_idmap_init</a>(&amp;idc, cycle-&gt;log) != NGX_OK) {</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>            <span class="stringliteral">&quot;impersonate: identity map failed to load&quot;</span>,</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>            <span class="stringliteral">&quot;the grid-mapfile is missing, unreadable, or malformed&quot;</span>,</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>            <span class="stringliteral">&quot;check brix_impersonation_gridmap points at a readable &quot;</span></div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>            <span class="stringliteral">&quot;grid-mapfile with valid \&quot;&lt;DN&gt;\&quot; &lt;user&gt; lines&quot;</span>);</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    }</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>}</div>
 </div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span> </div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span><span class="comment"> * WHAT: Bring up the broker&#39;s two file descriptors — the listening AF_UNIX</span></div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span><span class="comment"> *       socket (*lfd) and the O_PATH export-root handle (*rootfd).</span></div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span><span class="comment"> * WHY:  Both must exist before the fork; the broker inherits them and confines</span></div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span><span class="comment"> *       all impersonated I/O beneath the export root.</span></div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span><span class="comment"> * HOW:  Bind the 0600 socket (chowned to the worker uid), then open the root;</span></div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span><span class="comment"> *       on root-open failure close the socket so nothing leaks.  fds-&gt;lfd /</span></div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span><span class="comment"> *       fds-&gt;rootfd are written only on full success.</span></div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span><span class="comment"> */</span></div>
-<div class="foldopen" id="foldopen00248" data-start="{" data-end="};">
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno"><a class="line" href="structimp__broker__fds__t.html">  248</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno"><a class="line" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">  249</a></span>    <span class="keywordtype">int</span> <a class="code hl_variable" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">lfd</a>;</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno"><a class="line" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">  250</a></span>    <span class="keywordtype">int</span> <a class="code hl_variable" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">rootfd</a>;</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>} <a class="code hl_struct" href="structimp__broker__fds__t.html">imp_broker_fds_t</a>;</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span> </div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span><span class="comment"> * WHAT: Bring up the broker&#39;s two file descriptors — the listening AF_UNIX</span></div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span><span class="comment"> *       socket (*lfd) and the O_PATH export-root handle (*rootfd).</span></div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span><span class="comment"> * WHY:  Both must exist before the fork; the broker inherits them and confines</span></div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span><span class="comment"> *       all impersonated I/O beneath the export root.</span></div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span><span class="comment"> * HOW:  Bind the 0600 socket (chowned to the worker uid), then open the root;</span></div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span><span class="comment"> *       on root-open failure close the socket so nothing leaks.  fds-&gt;lfd /</span></div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span><span class="comment"> *       fds-&gt;rootfd are written only on full success.</span></div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span><span class="comment"> */</span></div>
+<div class="foldopen" id="foldopen00261" data-start="{" data-end="};">
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno"><a class="line" href="structimp__broker__fds__t.html">  261</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno"><a class="line" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">  262</a></span>    <span class="keywordtype">int</span> <a class="code hl_variable" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">lfd</a>;</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno"><a class="line" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">  263</a></span>    <span class="keywordtype">int</span> <a class="code hl_variable" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">rootfd</a>;</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>} <a class="code hl_struct" href="structimp__broker__fds__t.html">imp_broker_fds_t</a>;</div>
 </div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00254" data-start="{" data-end="}">
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">  254</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">imp_open_broker_fds</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sockbuf, <span class="keyword">const</span> <span class="keywordtype">char</span> *rootbuf, uid_t wuid,</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>                    ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="code hl_struct" href="structimp__broker__fds__t.html">imp_broker_fds_t</a> *fds)</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>{</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    <span class="keywordtype">int</span> l, r;</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span> </div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    l = <a class="code hl_function" href="lifecycle__broker_8c.html#ac80c2b2b85dd1d9a00cb9d9e46d7430d">imp_make_listen</a>(sockbuf, wuid, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>);</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    <span class="keywordflow">if</span> (l &lt; 0) {</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    }</div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    r = <a class="code hl_function" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a>(rootbuf, <a class="code hl_define" href="resolve__confined__helpers_8c.html#a6b82111c13e7367ba2ac5fd6bf4650ab">O_PATH</a> | O_DIRECTORY | O_CLOEXEC);</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>    <span class="keywordflow">if</span> (r &lt; 0) {</div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_errno,</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>            <span class="stringliteral">&quot;impersonate: cannot open export root \&quot;%s\&quot;&quot;</span>,</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>            <span class="stringliteral">&quot;the export root directory is missing or unreadable by the master&quot;</span>,</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>            <span class="stringliteral">&quot;create the directory and ensure the master can open it; the OS &quot;</span></div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>            <span class="stringliteral">&quot;reason is appended below&quot;</span>,</div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>            rootbuf);</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(l);</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    }</div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    fds-&gt;<a class="code hl_variable" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">lfd</a>    = l;</div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    fds-&gt;<a class="code hl_variable" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">rootfd</a> = r;</div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>}</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span> </div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00267" data-start="{" data-end="}">
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">  267</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">imp_open_broker_fds</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *sockbuf, <span class="keyword">const</span> <span class="keywordtype">char</span> *rootbuf, uid_t wuid,</div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>                    ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <a class="code hl_struct" href="structimp__broker__fds__t.html">imp_broker_fds_t</a> *fds)</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>{</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    <span class="keywordtype">int</span> l, r;</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span> </div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    l = <a class="code hl_function" href="lifecycle__broker_8c.html#ac80c2b2b85dd1d9a00cb9d9e46d7430d">imp_make_listen</a>(sockbuf, wuid, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>);</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    <span class="keywordflow">if</span> (l &lt; 0) {</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    }</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    r = <a class="code hl_function" href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a>(rootbuf, <a class="code hl_define" href="resolve__confined__helpers_8c.html#a6b82111c13e7367ba2ac5fd6bf4650ab">O_PATH</a> | O_DIRECTORY | O_CLOEXEC);</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    <span class="keywordflow">if</span> (r &lt; 0) {</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_errno,</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>            <span class="stringliteral">&quot;impersonate: cannot open export root \&quot;%s\&quot;&quot;</span>,</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>            <span class="stringliteral">&quot;the export root directory is missing or unreadable by the master&quot;</span>,</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>            <span class="stringliteral">&quot;create the directory and ensure the master can open it; the OS &quot;</span></div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>            <span class="stringliteral">&quot;reason is appended below&quot;</span>,</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>            rootbuf);</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(l);</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    }</div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    fds-&gt;<a class="code hl_variable" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">lfd</a>    = l;</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    fds-&gt;<a class="code hl_variable" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">rootfd</a> = r;</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>}</div>
 </div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span> </div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span><span class="comment"> * WHAT: Double-fork the privileged broker off the master, closing the passed</span></div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span><span class="comment"> *       fds in the master afterwards.</span></div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span><span class="comment"> * WHY:  Double-fork reparents the broker to init so nginx never reaps it</span></div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span><span class="comment"> *       (SHM-safe; the FRM pattern).  SIGCHLD is blocked around the fork and</span></div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span><span class="comment"> *       the intermediate reaped so the master&#39;s signal handling is undisturbed.</span></div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span><span class="comment"> * HOW:  Block SIGCHLD, fork the intermediate (which forks the broker child and</span></div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span><span class="comment"> *       exits), close the master&#39;s fd copies, wait the intermediate, restore</span></div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span><span class="comment"> *       the signal mask.  The master&#39;s fds are closed on the fork-failure path</span></div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span><span class="comment"> *       too.  The broker child never returns from imp_broker_child.</span></div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00291" data-start="{" data-end="}">
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">  291</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">imp_spawn_broker</a>(<span class="keywordtype">int</span> lfd, <span class="keywordtype">int</span> rootfd, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>{</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>    sigset_t block, prev;</div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>    pid_t    inter;</div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span> </div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>    sigemptyset(&amp;block);</div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>    sigaddset(&amp;block, SIGCHLD);</div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>    sigprocmask(SIG_BLOCK, &amp;block, &amp;prev);</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span> </div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>    inter = fork();</div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>    <span class="keywordflow">if</span> (inter &lt; 0) {</div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>        sigprocmask(SIG_SETMASK, &amp;prev, NULL);</div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(lfd);</div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(rootfd);</div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>        ngx_log_error(NGX_LOG_EMERG, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_errno,</div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>                      <span class="stringliteral">&quot;impersonate: broker fork failed&quot;</span>);</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>    }</div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    <span class="keywordflow">if</span> (inter == 0) {</div>
-<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>        <span class="keywordflow">if</span> (fork() == 0) {</div>
-<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>            <a class="code hl_function" href="lifecycle__broker_8c.html#a853f084923ff905ff91c9cd01656a48a">imp_broker_child</a>(lfd, rootfd, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>);   <span class="comment">/* never returns */</span></div>
-<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>        }</div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>        _exit(0);                        <span class="comment">/* intermediate -&gt; broker reparents */</span></div>
-<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>    }</div>
-<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span> </div>
-<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(lfd);</div>
-<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(rootfd);</div>
-<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>    <span class="keywordflow">while</span> (waitpid(inter, NULL, 0) &lt; 0 &amp;&amp; errno == EINTR) { }</div>
-<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>    sigprocmask(SIG_SETMASK, &amp;prev, NULL);</div>
-<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>}</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span> </div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span><span class="comment"> * WHAT: Double-fork the privileged broker off the master, closing the passed</span></div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span><span class="comment"> *       fds in the master afterwards.</span></div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span><span class="comment"> * WHY:  Double-fork reparents the broker to init so nginx never reaps it</span></div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span><span class="comment"> *       (SHM-safe; the FRM pattern).  SIGCHLD is blocked around the fork and</span></div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span><span class="comment"> *       the intermediate reaped so the master&#39;s signal handling is undisturbed.</span></div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span><span class="comment"> * HOW:  Block SIGCHLD, fork the intermediate (which forks the broker child and</span></div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span><span class="comment"> *       exits), close the master&#39;s fd copies, wait the intermediate, restore</span></div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span><span class="comment"> *       the signal mask.  The master&#39;s fds are closed on the fork-failure path</span></div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span><span class="comment"> *       too.  The broker child never returns from imp_broker_child.</span></div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00304" data-start="{" data-end="}">
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">  304</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">imp_spawn_broker</a>(<span class="keywordtype">int</span> lfd, <span class="keywordtype">int</span> rootfd, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>{</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    sigset_t block, prev;</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>    pid_t    inter;</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span> </div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    sigemptyset(&amp;block);</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>    sigaddset(&amp;block, SIGCHLD);</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    sigprocmask(SIG_BLOCK, &amp;block, &amp;prev);</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span> </div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>    inter = fork();</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>    <span class="keywordflow">if</span> (inter &lt; 0) {</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>        sigprocmask(SIG_SETMASK, &amp;prev, NULL);</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(lfd);</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(rootfd);</div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>        ngx_log_error(NGX_LOG_EMERG, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, ngx_errno,</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>                      <span class="stringliteral">&quot;impersonate: broker fork failed&quot;</span>);</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>    }</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>    <span class="keywordflow">if</span> (inter == 0) {</div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>        <span class="keywordflow">if</span> (fork() == 0) {</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>            <a class="code hl_function" href="lifecycle__broker_8c.html#a853f084923ff905ff91c9cd01656a48a">imp_broker_child</a>(lfd, rootfd, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>);   <span class="comment">/* never returns */</span></div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>        }</div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>        _exit(0);                        <span class="comment">/* intermediate -&gt; broker reparents */</span></div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    }</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span> </div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(lfd);</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>    <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(rootfd);</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>    <span class="keywordflow">while</span> (waitpid(inter, NULL, 0) &lt; 0 &amp;&amp; errno == EINTR) { }</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>    sigprocmask(SIG_SETMASK, &amp;prev, NULL);</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>}</div>
 </div>
-<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span> </div>
-<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span><span class="comment"> * WHAT: Master-side guard — publish the config fingerprint every real load and</span></div>
-<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span><span class="comment"> *       decide whether the privileged-broker path should run at all.</span></div>
-<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span><span class="comment"> * WHY:  init_module is the module&#39;s single per-cycle master hook, so it owns</span></div>
-<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span><span class="comment"> *       the version publish (skipped under `nginx -t`, which must not bump the</span></div>
-<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span><span class="comment"> *       live generation counter).  The broker is only built in `map` mode, and</span></div>
-<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span><span class="comment"> *       only when the master is genuinely root.</span></div>
-<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span><span class="comment"> * HOW:  Publish unless testing; then return NGX_DECLINED when the broker path</span></div>
-<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span><span class="comment"> *       must be skipped (non-map or `nginx -t`), NGX_OK to proceed, or</span></div>
-<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span><span class="comment"> *       NGX_ERROR if `map` was requested without a root master.</span></div>
-<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00335" data-start="{" data-end="}">
-<div class="line"><a id="l00335" name="l00335"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">  335</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">imp_init_module_gate</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>{</div>
-<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>    <span class="keywordflow">if</span> (!<a class="code hl_variable" href="lifecycle__broker_8c.html#ae739c8bb4d3557c4ebd848d4d0c8eba0">ngx_test_config</a>) {</div>
-<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>        <a class="code hl_function" href="observability_2metrics_2config_8c.html#a8bf0d7534b78ed31c058776cae707cb9">brix_config_version_publish</a>(cycle);</div>
-<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>    }</div>
-<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a841cc855f135fbfbf5f4d5009ffc3fd9">mode</a> != <a class="code hl_define" href="impersonate_8h.html#aaf551c5f4dce7668967ec7b1be632055">BRIX_IMP_MAP</a> || <a class="code hl_variable" href="lifecycle__broker_8c.html#ae739c8bb4d3557c4ebd848d4d0c8eba0">ngx_test_config</a>) {</div>
-<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
-<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>    }</div>
-<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>    <span class="keywordflow">if</span> (geteuid() != 0) {</div>
-<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>            <span class="stringliteral">&quot;impersonate: map mode requires a root master process&quot;</span>,</div>
-<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>            <span class="stringliteral">&quot;brix_impersonation is set to &#39;map&#39; but nginx was not started &quot;</span></div>
-<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>            <span class="stringliteral">&quot;as root, so it cannot set up the privileged uid-mapping broker&quot;</span>,</div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>            <span class="stringliteral">&quot;start nginx as root (workers still drop to the configured user), &quot;</span></div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>            <span class="stringliteral">&quot;or change brix_impersonation away from &#39;map&#39;&quot;</span>);</div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    }</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>}</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span> </div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span><span class="comment"> * WHAT: Master-side guard — publish the config fingerprint every real load and</span></div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span><span class="comment"> *       decide whether the privileged-broker path should run at all.</span></div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span><span class="comment"> * WHY:  init_module is the module&#39;s single per-cycle master hook, so it owns</span></div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span><span class="comment"> *       the version publish (skipped under `nginx -t`, which must not bump the</span></div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span><span class="comment"> *       live generation counter).  The broker is only built in `map` mode, and</span></div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span><span class="comment"> *       only when the master is genuinely root.</span></div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span><span class="comment"> * HOW:  Publish unless testing; then return NGX_DECLINED when the broker path</span></div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span><span class="comment"> *       must be skipped (non-map or `nginx -t`), NGX_OK to proceed, or</span></div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span><span class="comment"> *       NGX_ERROR if `map` was requested without a root master.</span></div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00348" data-start="{" data-end="}">
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno"><a class="line" href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">  348</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">imp_init_module_gate</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>{</div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>    <span class="keywordflow">if</span> (!<a class="code hl_variable" href="lifecycle__broker_8c.html#ae739c8bb4d3557c4ebd848d4d0c8eba0">ngx_test_config</a>) {</div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>        <a class="code hl_function" href="observability_2metrics_2config_8c.html#a8bf0d7534b78ed31c058776cae707cb9">brix_config_version_publish</a>(cycle);</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    }</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a841cc855f135fbfbf5f4d5009ffc3fd9">mode</a> != <a class="code hl_define" href="impersonate_8h.html#aaf551c5f4dce7668967ec7b1be632055">BRIX_IMP_MAP</a> || <a class="code hl_variable" href="lifecycle__broker_8c.html#ae739c8bb4d3557c4ebd848d4d0c8eba0">ngx_test_config</a>) {</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>    }</div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    <span class="keywordflow">if</span> (geteuid() != 0) {</div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>        <a class="code hl_define" href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a>(cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>            <span class="stringliteral">&quot;impersonate: map mode requires a root master process&quot;</span>,</div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>            <span class="stringliteral">&quot;brix_impersonation is set to &#39;map&#39; but nginx was not started &quot;</span></div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>            <span class="stringliteral">&quot;as root, so it cannot set up the privileged uid-mapping broker&quot;</span>,</div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>            <span class="stringliteral">&quot;start nginx as root (workers still drop to the configured user), &quot;</span></div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>            <span class="stringliteral">&quot;or change brix_impersonation away from &#39;map&#39;&quot;</span>);</div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    }</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>}</div>
 </div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span> </div>
-<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00356" data-start="{" data-end="}">
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno"><a class="line" href="lifecycle_8h.html#ade1563480bb03cd50490df5be36abf45">  356</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#ade1563480bb03cd50490df5be36abf45">brix_imp_init_module</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>{</div>
-<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    <span class="keywordtype">char</span>             sockbuf[256], rootbuf[1024];</div>
-<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>    uid_t            wuid;</div>
-<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    <a class="code hl_struct" href="structimp__broker__fds__t.html">imp_broker_fds_t</a> fds = { -1, -1 };</div>
-<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>    ngx_int_t        gate;</div>
-<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span> </div>
-<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    gate = <a class="code hl_function" href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">imp_init_module_gate</a>(cycle);</div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    <span class="keywordflow">if</span> (gate == NGX_DECLINED) {</div>
-<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>    }</div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    <span class="keywordflow">if</span> (gate != NGX_OK) {</div>
-<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>    }</div>
-<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span> </div>
-<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    ngx_snprintf((u_char *) sockbuf, <span class="keyword">sizeof</span>(sockbuf), <span class="stringliteral">&quot;%V%Z&quot;</span>,</div>
-<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>                 &amp;<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#aa8619d135084665cf939ead6b7f9cdec">socket</a>);</div>
-<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    ngx_snprintf((u_char *) rootbuf, <span class="keyword">sizeof</span>(rootbuf), <span class="stringliteral">&quot;%V%Z&quot;</span>,</div>
-<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>                 &amp;<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a1076825fc7469ce7e8ae62acdc1c174f">export_root</a>);</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span> </div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00369" data-start="{" data-end="}">
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno"><a class="line" href="lifecycle_8h.html#ade1563480bb03cd50490df5be36abf45">  369</a></span><a class="code hl_function" href="lifecycle__broker_8c.html#ade1563480bb03cd50490df5be36abf45">brix_imp_init_module</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>{</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    <span class="keywordtype">char</span>             sockbuf[256], rootbuf[1024];</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>    uid_t            wuid;</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    <a class="code hl_struct" href="structimp__broker__fds__t.html">imp_broker_fds_t</a> fds = { -1, -1 };</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    ngx_int_t        gate;</div>
 <div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span> </div>
-<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    wuid = <a class="code hl_function" href="lifecycle__broker_8c.html#a1f9cdd5878b3caa5fcd7d01d06d79ad5">imp_worker_uid</a>(cycle);</div>
-<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span> </div>
-<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">imp_resolve_broker_user</a>(cycle, wuid) != NGX_OK) {</div>
-<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>    }</div>
-<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span> </div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    <a class="code hl_function" href="lifecycle__broker_8c.html#a00212d666a3508d4f7b0c3fd29f8f1eb">imp_kill_stale_broker</a>(cycle-&gt;log);</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    gate = <a class="code hl_function" href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">imp_init_module_gate</a>(cycle);</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>    <span class="keywordflow">if</span> (gate == NGX_DECLINED) {</div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>    }</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>    <span class="keywordflow">if</span> (gate != NGX_OK) {</div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    }</div>
 <div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span> </div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">imp_load_idmap</a>(cycle, wuid) != NGX_OK) {</div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    }</div>
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span> </div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">imp_open_broker_fds</a>(sockbuf, rootbuf, wuid, cycle-&gt;log, &amp;fds) != NGX_OK) {</div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>    }</div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span> </div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    <span class="comment">/* Gate the broker to the worker uid (defence in depth atop confinement). */</span></div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    <a class="code hl_variable" href="broker_8c.html#ad5d9e23b68de25b0dfcdb012625dfe9f">brix_imp_broker_allow_uid</a> = (wuid != (uid_t) -1) ? wuid : 0;</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>    ngx_snprintf((u_char *) sockbuf, <span class="keyword">sizeof</span>(sockbuf), <span class="stringliteral">&quot;%V%Z&quot;</span>,</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>                 &amp;<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#aa8619d135084665cf939ead6b7f9cdec">socket</a>);</div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    ngx_snprintf((u_char *) rootbuf, <span class="keyword">sizeof</span>(rootbuf), <span class="stringliteral">&quot;%V%Z&quot;</span>,</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>                 &amp;<a class="code hl_variable" href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a>.<a class="code hl_variable" href="structimp__settings__t.html#a1076825fc7469ce7e8ae62acdc1c174f">export_root</a>);</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span> </div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    wuid = <a class="code hl_function" href="lifecycle__broker_8c.html#a1f9cdd5878b3caa5fcd7d01d06d79ad5">imp_worker_uid</a>(cycle);</div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span> </div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">imp_resolve_broker_user</a>(cycle, wuid) != NGX_OK) {</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    }</div>
 <div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span> </div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">imp_spawn_broker</a>(fds.<a class="code hl_variable" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">lfd</a>, fds.<a class="code hl_variable" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">rootfd</a>, cycle-&gt;log) != NGX_OK) {</div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>    }</div>
-<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span> </div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    ngx_log_error(NGX_LOG_NOTICE, cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>                  <span class="stringliteral">&quot;impersonate: started privileged broker on \&quot;%s\&quot; &quot;</span></div>
-<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>                  <span class="stringliteral">&quot;(export root \&quot;%s\&quot;, worker uid %d)&quot;</span>,</div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>                  sockbuf, rootbuf, (<span class="keywordtype">int</span>) wuid);</div>
-<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>}</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    <a class="code hl_function" href="lifecycle__broker_8c.html#a00212d666a3508d4f7b0c3fd29f8f1eb">imp_kill_stale_broker</a>(cycle-&gt;log);</div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span> </div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">imp_load_idmap</a>(cycle, wuid) != NGX_OK) {</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    }</div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span> </div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">imp_open_broker_fds</a>(sockbuf, rootbuf, wuid, cycle-&gt;log, &amp;fds) != NGX_OK) {</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>    }</div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span> </div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>    <span class="comment">/* Gate the broker to the worker uid (defence in depth atop confinement). */</span></div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    <a class="code hl_variable" href="broker_8c.html#ad5d9e23b68de25b0dfcdb012625dfe9f">brix_imp_broker_allow_uid</a> = (wuid != (uid_t) -1) ? wuid : 0;</div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span> </div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">imp_spawn_broker</a>(fds.<a class="code hl_variable" href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">lfd</a>, fds.<a class="code hl_variable" href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">rootfd</a>, cycle-&gt;log) != NGX_OK) {</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>    }</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span> </div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    ngx_log_error(NGX_LOG_NOTICE, cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>                  <span class="stringliteral">&quot;impersonate: started privileged broker on \&quot;%s\&quot; &quot;</span></div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>                  <span class="stringliteral">&quot;(export root \&quot;%s\&quot;, worker uid %d)&quot;</span>,</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>                  sockbuf, rootbuf, (<span class="keywordtype">int</span>) wuid);</div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>}</div>
 </div>
 <div class="ttc" id="aauth_2impersonate_2lifecycle_8c_html_a6830df116fdf33ccba3c80b0d86c1361"><div class="ttname"><a href="auth_2impersonate_2lifecycle_8c.html#a6830df116fdf33ccba3c80b0d86c1361">imp_settings</a></div><div class="ttdeci">imp_settings_t imp_settings</div><div class="ttdef"><b>Definition</b> <a href="auth_2impersonate_2lifecycle_8c_source.html#l00042">lifecycle.c:42</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_aafbcde67669a1b96577e735ddebd8634"><div class="ttname"><a href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a></div><div class="ttdeci">int close(int fd)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00374">brixposix_preload.c:374</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_ad586f56cb2d7d849a4cb20dbd792b543"><div class="ttname"><a href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a></div><div class="ttdeci">int open(const char *path, int flags,...)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00252">brixposix_preload.c:252</a></div></div>
 <div class="ttc" id="abroker_8c_html_a2352229aa98c4ab494976651fac0023a"><div class="ttname"><a href="broker_8c.html#a2352229aa98c4ab494976651fac0023a">brix_imp_broker_run</a></div><div class="ttdeci">int brix_imp_broker_run(int listen_fd, int rootfd, const volatile sig_atomic_t *stop, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="broker_8c_source.html#l00413">broker.c:413</a></div></div>
 <div class="ttc" id="abroker_8c_html_ad5d9e23b68de25b0dfcdb012625dfe9f"><div class="ttname"><a href="broker_8c.html#ad5d9e23b68de25b0dfcdb012625dfe9f">brix_imp_broker_allow_uid</a></div><div class="ttdeci">uid_t brix_imp_broker_allow_uid</div><div class="ttdef"><b>Definition</b> <a href="broker_8c_source.html#l00007">broker.c:7</a></div></div>
-<div class="ttc" id="abroker__creds_8c_html_a7ed2d414e94b1c38ad7dd5e9ca4b7662"><div class="ttname"><a href="broker__creds_8c.html#a7ed2d414e94b1c38ad7dd5e9ca4b7662">brix_imp_broker_user_gid</a></div><div class="ttdeci">gid_t brix_imp_broker_user_gid</div><div class="ttdef"><b>Definition</b> <a href="broker__creds_8c_source.html#l00024">broker_creds.c:24</a></div></div>
-<div class="ttc" id="abroker__creds_8c_html_ab06c0357d58cd75889efc68361244be2"><div class="ttname"><a href="broker__creds_8c.html#ab06c0357d58cd75889efc68361244be2">brix_imp_broker_user_uid</a></div><div class="ttdeci">uid_t brix_imp_broker_user_uid</div><div class="ttdef"><b>Definition</b> <a href="broker__creds_8c_source.html#l00023">broker_creds.c:23</a></div></div>
+<div class="ttc" id="abroker__creds_8c_html_a7ed2d414e94b1c38ad7dd5e9ca4b7662"><div class="ttname"><a href="broker__creds_8c.html#a7ed2d414e94b1c38ad7dd5e9ca4b7662">brix_imp_broker_user_gid</a></div><div class="ttdeci">gid_t brix_imp_broker_user_gid</div><div class="ttdef"><b>Definition</b> <a href="broker__creds_8c_source.html#l00027">broker_creds.c:27</a></div></div>
+<div class="ttc" id="abroker__creds_8c_html_ab06c0357d58cd75889efc68361244be2"><div class="ttname"><a href="broker__creds_8c.html#ab06c0357d58cd75889efc68361244be2">brix_imp_broker_user_uid</a></div><div class="ttdeci">uid_t brix_imp_broker_user_uid</div><div class="ttdef"><b>Definition</b> <a href="broker__creds_8c_source.html#l00026">broker_creds.c:26</a></div></div>
 <div class="ttc" id="aidmap_8c_html_a0960754eb8ec172cb3dfcb4a4ac10188"><div class="ttname"><a href="idmap_8c.html#a0960754eb8ec172cb3dfcb4a4ac10188">brix_idmap_init</a></div><div class="ttdeci">ngx_int_t brix_idmap_init(const brix_idmap_conf_t *conf, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="idmap_8c_source.html#l00097">idmap.c:97</a></div></div>
 <div class="ttc" id="aimpersonate_8h_html"><div class="ttname"><a href="impersonate_8h.html">impersonate.h</a></div></div>
 <div class="ttc" id="aimpersonate_8h_html_aaf551c5f4dce7668967ec7b1be632055"><div class="ttname"><a href="impersonate_8h.html#aaf551c5f4dce7668967ec7b1be632055">BRIX_IMP_MAP</a></div><div class="ttdeci">#define BRIX_IMP_MAP</div><div class="ttdef"><b>Definition</b> <a href="impersonate_8h_source.html#l00040">impersonate.h:40</a></div></div>
@@ -542,16 +555,16 @@ $(document).ready(function(){initNavTree('lifecycle__broker_8c_source.html','');
 <div class="ttc" id="alifecycle_8h_html"><div class="ttname"><a href="lifecycle_8h.html">lifecycle.h</a></div></div>
 <div class="ttc" id="alifecycle__broker_8c_html_a00212d666a3508d4f7b0c3fd29f8f1eb"><div class="ttname"><a href="lifecycle__broker_8c.html#a00212d666a3508d4f7b0c3fd29f8f1eb">imp_kill_stale_broker</a></div><div class="ttdeci">static void imp_kill_stale_broker(ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00111">lifecycle_broker.c:111</a></div></div>
 <div class="ttc" id="alifecycle__broker_8c_html_a1f9cdd5878b3caa5fcd7d01d06d79ad5"><div class="ttname"><a href="lifecycle__broker_8c.html#a1f9cdd5878b3caa5fcd7d01d06d79ad5">imp_worker_uid</a></div><div class="ttdeci">static uid_t imp_worker_uid(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00157">lifecycle_broker.c:157</a></div></div>
-<div class="ttc" id="alifecycle__broker_8c_html_a3e9078b7cd0433b08a74eb7f912e9c53"><div class="ttname"><a href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">imp_open_broker_fds</a></div><div class="ttdeci">static ngx_int_t imp_open_broker_fds(const char *sockbuf, const char *rootbuf, uid_t wuid, ngx_log_t *log, imp_broker_fds_t *fds)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00254">lifecycle_broker.c:254</a></div></div>
+<div class="ttc" id="alifecycle__broker_8c_html_a3e9078b7cd0433b08a74eb7f912e9c53"><div class="ttname"><a href="lifecycle__broker_8c.html#a3e9078b7cd0433b08a74eb7f912e9c53">imp_open_broker_fds</a></div><div class="ttdeci">static ngx_int_t imp_open_broker_fds(const char *sockbuf, const char *rootbuf, uid_t wuid, ngx_log_t *log, imp_broker_fds_t *fds)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00267">lifecycle_broker.c:267</a></div></div>
 <div class="ttc" id="alifecycle__broker_8c_html_a4385f8d1a58397ee78be96cda760c328"><div class="ttname"><a href="lifecycle__broker_8c.html#a4385f8d1a58397ee78be96cda760c328">imp_fill_idmap_conf</a></div><div class="ttdeci">static void imp_fill_idmap_conf(brix_idmap_conf_t *c, uid_t worker_uid)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00043">lifecycle_broker.c:43</a></div></div>
-<div class="ttc" id="alifecycle__broker_8c_html_a5c38c199929dffdea48f5cf0b3c709ed"><div class="ttname"><a href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">imp_init_module_gate</a></div><div class="ttdeci">static ngx_int_t imp_init_module_gate(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00335">lifecycle_broker.c:335</a></div></div>
+<div class="ttc" id="alifecycle__broker_8c_html_a5c38c199929dffdea48f5cf0b3c709ed"><div class="ttname"><a href="lifecycle__broker_8c.html#a5c38c199929dffdea48f5cf0b3c709ed">imp_init_module_gate</a></div><div class="ttdeci">static ngx_int_t imp_init_module_gate(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00348">lifecycle_broker.c:348</a></div></div>
 <div class="ttc" id="alifecycle__broker_8c_html_a6e40e908e08683c7e3551beb67cc3a4f"><div class="ttname"><a href="lifecycle__broker_8c.html#a6e40e908e08683c7e3551beb67cc3a4f">imp_pidfile</a></div><div class="ttdeci">static void imp_pidfile(char *buf, size_t n)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00104">lifecycle_broker.c:104</a></div></div>
-<div class="ttc" id="alifecycle__broker_8c_html_a6f0452e72f128f6905ecee06626b66e9"><div class="ttname"><a href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">imp_spawn_broker</a></div><div class="ttdeci">static ngx_int_t imp_spawn_broker(int lfd, int rootfd, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00291">lifecycle_broker.c:291</a></div></div>
-<div class="ttc" id="alifecycle__broker_8c_html_a7c4190c5f8c9168ed6b5cdd89a7fe7ce"><div class="ttname"><a href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">imp_load_idmap</a></div><div class="ttdeci">static ngx_int_t imp_load_idmap(ngx_cycle_t *cycle, uid_t wuid)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00223">lifecycle_broker.c:223</a></div></div>
+<div class="ttc" id="alifecycle__broker_8c_html_a6f0452e72f128f6905ecee06626b66e9"><div class="ttname"><a href="lifecycle__broker_8c.html#a6f0452e72f128f6905ecee06626b66e9">imp_spawn_broker</a></div><div class="ttdeci">static ngx_int_t imp_spawn_broker(int lfd, int rootfd, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00304">lifecycle_broker.c:304</a></div></div>
+<div class="ttc" id="alifecycle__broker_8c_html_a7c4190c5f8c9168ed6b5cdd89a7fe7ce"><div class="ttname"><a href="lifecycle__broker_8c.html#a7c4190c5f8c9168ed6b5cdd89a7fe7ce">imp_load_idmap</a></div><div class="ttdeci">static ngx_int_t imp_load_idmap(ngx_cycle_t *cycle, uid_t wuid)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00236">lifecycle_broker.c:236</a></div></div>
 <div class="ttc" id="alifecycle__broker_8c_html_a853f084923ff905ff91c9cd01656a48a"><div class="ttname"><a href="lifecycle__broker_8c.html#a853f084923ff905ff91c9cd01656a48a">imp_broker_child</a></div><div class="ttdeci">static void imp_broker_child(int lfd, int rootfd, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00133">lifecycle_broker.c:133</a></div></div>
 <div class="ttc" id="alifecycle__broker_8c_html_ac80c2b2b85dd1d9a00cb9d9e46d7430d"><div class="ttname"><a href="lifecycle__broker_8c.html#ac80c2b2b85dd1d9a00cb9d9e46d7430d">imp_make_listen</a></div><div class="ttdeci">static int imp_make_listen(const char *path, uid_t wuid, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00060">lifecycle_broker.c:60</a></div></div>
-<div class="ttc" id="alifecycle__broker_8c_html_ade1563480bb03cd50490df5be36abf45"><div class="ttname"><a href="lifecycle__broker_8c.html#ade1563480bb03cd50490df5be36abf45">brix_imp_init_module</a></div><div class="ttdeci">ngx_int_t brix_imp_init_module(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00356">lifecycle_broker.c:356</a></div></div>
-<div class="ttc" id="alifecycle__broker_8c_html_ae1dedd22bfb882eebd3bb919656102a6"><div class="ttname"><a href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">imp_resolve_broker_user</a></div><div class="ttdeci">static ngx_int_t imp_resolve_broker_user(ngx_cycle_t *cycle, uid_t wuid)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00178">lifecycle_broker.c:178</a></div></div>
+<div class="ttc" id="alifecycle__broker_8c_html_ade1563480bb03cd50490df5be36abf45"><div class="ttname"><a href="lifecycle__broker_8c.html#ade1563480bb03cd50490df5be36abf45">brix_imp_init_module</a></div><div class="ttdeci">ngx_int_t brix_imp_init_module(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00369">lifecycle_broker.c:369</a></div></div>
+<div class="ttc" id="alifecycle__broker_8c_html_ae1dedd22bfb882eebd3bb919656102a6"><div class="ttname"><a href="lifecycle__broker_8c.html#ae1dedd22bfb882eebd3bb919656102a6">imp_resolve_broker_user</a></div><div class="ttdeci">static ngx_int_t imp_resolve_broker_user(ngx_cycle_t *cycle, uid_t wuid)</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00191">lifecycle_broker.c:191</a></div></div>
 <div class="ttc" id="alifecycle__broker_8c_html_ae739c8bb4d3557c4ebd848d4d0c8eba0"><div class="ttname"><a href="lifecycle__broker_8c.html#ae739c8bb4d3557c4ebd848d4d0c8eba0">ngx_test_config</a></div><div class="ttdeci">ngx_uint_t ngx_test_config</div></div>
 <div class="ttc" id="alifecycle__internal_8h_html"><div class="ttname"><a href="lifecycle__internal_8h.html">lifecycle_internal.h</a></div></div>
 <div class="ttc" id="alog__diag_8h_html"><div class="ttname"><a href="log__diag_8h.html">log_diag.h</a></div></div>
@@ -564,9 +577,9 @@ $(document).ready(function(){initNavTree('lifecycle__broker_8c_source.html','');
 <div class="ttc" id="apwd_8h_html"><div class="ttname"><a href="pwd_8h.html">pwd.h</a></div></div>
 <div class="ttc" id="aresolve__confined__helpers_8c_html_a6b82111c13e7367ba2ac5fd6bf4650ab"><div class="ttname"><a href="resolve__confined__helpers_8c.html#a6b82111c13e7367ba2ac5fd6bf4650ab">O_PATH</a></div><div class="ttdeci">#define O_PATH</div><div class="ttdef"><b>Definition</b> <a href="resolve__confined__helpers_8c_source.html#l00060">resolve_confined_helpers.c:60</a></div></div>
 <div class="ttc" id="astructbrix__idmap__conf__t_html"><div class="ttname"><a href="structbrix__idmap__conf__t.html">brix_idmap_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="impersonate_8h_source.html#l00070">impersonate.h:70</a></div></div>
-<div class="ttc" id="astructimp__broker__fds__t_html"><div class="ttname"><a href="structimp__broker__fds__t.html">imp_broker_fds_t</a></div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00248">lifecycle_broker.c:248</a></div></div>
-<div class="ttc" id="astructimp__broker__fds__t_html_a33bd662ce35d0afba271bb76142ee121"><div class="ttname"><a href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">imp_broker_fds_t::lfd</a></div><div class="ttdeci">int lfd</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00249">lifecycle_broker.c:249</a></div></div>
-<div class="ttc" id="astructimp__broker__fds__t_html_ae6cb50280f42d287d716f2991a5887ab"><div class="ttname"><a href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">imp_broker_fds_t::rootfd</a></div><div class="ttdeci">int rootfd</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00250">lifecycle_broker.c:250</a></div></div>
+<div class="ttc" id="astructimp__broker__fds__t_html"><div class="ttname"><a href="structimp__broker__fds__t.html">imp_broker_fds_t</a></div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00261">lifecycle_broker.c:261</a></div></div>
+<div class="ttc" id="astructimp__broker__fds__t_html_a33bd662ce35d0afba271bb76142ee121"><div class="ttname"><a href="structimp__broker__fds__t.html#a33bd662ce35d0afba271bb76142ee121">imp_broker_fds_t::lfd</a></div><div class="ttdeci">int lfd</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00262">lifecycle_broker.c:262</a></div></div>
+<div class="ttc" id="astructimp__broker__fds__t_html_ae6cb50280f42d287d716f2991a5887ab"><div class="ttname"><a href="structimp__broker__fds__t.html#ae6cb50280f42d287d716f2991a5887ab">imp_broker_fds_t::rootfd</a></div><div class="ttdeci">int rootfd</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__broker_8c_source.html#l00263">lifecycle_broker.c:263</a></div></div>
 <div class="ttc" id="astructimp__settings__t_html_a1076825fc7469ce7e8ae62acdc1c174f"><div class="ttname"><a href="structimp__settings__t.html#a1076825fc7469ce7e8ae62acdc1c174f">imp_settings_t::export_root</a></div><div class="ttdeci">ngx_str_t export_root</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__internal_8h_source.html#l00023">lifecycle_internal.h:23</a></div></div>
 <div class="ttc" id="astructimp__settings__t_html_a11b61bd8a71b67621f08e94f96470680"><div class="ttname"><a href="structimp__settings__t.html#a11b61bd8a71b67621f08e94f96470680">imp_settings_t::broker_user</a></div><div class="ttdeci">ngx_str_t broker_user</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__internal_8h_source.html#l00027">lifecycle_internal.h:27</a></div></div>
 <div class="ttc" id="astructimp__settings__t_html_a22025df6b53c270a04f681631c1d2ca1"><div class="ttname"><a href="structimp__settings__t.html#a22025df6b53c270a04f681631c1d2ca1">imp_settings_t::default_user</a></div><div class="ttdeci">ngx_str_t default_user</div><div class="ttdef"><b>Definition</b> <a href="lifecycle__internal_8h_source.html#l00025">lifecycle_internal.h:25</a></div></div>

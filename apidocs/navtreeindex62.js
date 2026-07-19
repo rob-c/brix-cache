@@ -1,5 +1,9 @@
 var NAVTREEINDEX62 =
 {
+"stream__mirror__launch_8c.html#af5c82b80bca4636626884a3700b240c0":[89,0,2,3,4,12,2],
+"stream__mirror__launch_8c_source.html":[89,0,2,3,4,12],
+"stream__proxy_8c.html":[89,0,2,4,2,25],
+"stream__proxy_8c.html#a96068362d62912871814f9066567ed79":[89,0,2,4,2,25,0],
 "stream__proxy_8c.html#ad8e0ed980bff49b4c3d2a39bd91dc92d":[89,0,2,4,2,25,1],
 "stream__proxy_8c_source.html":[89,0,2,4,2,25],
 "stream__tracking_8c.html":[89,0,2,4,2,26],
@@ -245,9 +249,5 @@ var NAVTREEINDEX62 =
 "structClientRmRequest.html":[88,0,529],
 "structClientRmRequest.html#a695fab7a7603b5186c9168840e3c8ac7":[88,0,529,2],
 "structClientRmRequest.html#a7d58c95e365065dc1b66773de78b8e9c":[88,0,529,0],
-"structClientRmRequest.html#a85f7edcdce8f30694c197ea8302af2e3":[88,0,529,3],
-"structClientRmRequest.html#aa882db89ffdab9255f2ea098a3c61a02":[88,0,529,1],
-"structClientRmdirRequest.html":[88,0,528],
-"structClientRmdirRequest.html#a2f141ea0bae776ae5c15b20f2096b9c3":[88,0,528,0],
-"structClientRmdirRequest.html#ae6d0abe50d4036fc1943ea06ff18ab66":[88,0,528,3]
+"structClientRmRequest.html#a85f7edcdce8f30694c197ea8302af2e3":[88,0,529,3]
 };

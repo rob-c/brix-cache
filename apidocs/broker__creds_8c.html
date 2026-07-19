@@ -97,12 +97,14 @@ $(document).ready(function(){initNavTree('broker__creds_8c.html',''); initResiza
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="broker__internal_8h_source.html">broker_internal.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="seccomp__core_8h_source.html">core/seccomp/seccomp_core.h</a>&quot;</code><br />
+<code>#include &lt;unistd.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for broker_creds.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="broker__creds_8c__incl.svg" width="100%" height="503"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="broker__creds_8c__incl.svg" width="100%" height="514"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="broker__creds_8c_source.html">Go to the source code of this file.</a></p>
@@ -152,9 +154,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00203">203</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00206">206</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">References <a class="el" href="broker__creds_8c_source.html#l00028">imp_capset_setuid_setgid()</a>, <a class="el" href="broker__creds_8c_source.html#l00177">imp_drop_to_service_user()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="seccomp__core_8c_source.html#l00341">brix_seccomp_broker_apply()</a>, <a class="el" href="seccomp__core_8h_source.html#l00029">BRIX_SECCOMP_CORE_ERR</a>, <a class="el" href="seccomp__core_8h_source.html#l00028">BRIX_SECCOMP_CORE_OK</a>, <a class="el" href="broker__creds_8c_source.html#l00031">imp_capset_setuid_setgid()</a>, <a class="el" href="broker__creds_8c_source.html#l00180">imp_drop_to_service_user()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="broker_8c_source.html#l00314">imp_broker_init_creds()</a>.</p>
 
@@ -200,11 +202,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00098">98</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00101">101</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00064">BRIX_DIAG_EMERG</a>, <a class="el" href="broker__creds_8c_source.html#l00028">imp_capset_setuid_setgid()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00064">BRIX_DIAG_EMERG</a>, <a class="el" href="broker__creds_8c_source.html#l00031">imp_capset_setuid_setgid()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00177">imp_drop_to_service_user()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00180">imp_drop_to_service_user()</a>.</p>
 
 </div>
 </div>
@@ -224,7 +226,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00269">269</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00303">303</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
 <p class="reference">References <a class="el" href="broker_8c_source.html#l00007">brix_imp_broker_allow_uid</a>, <a class="el" href="idmap__denylist_8c_source.html#l00161">brix_imp_creds_privileged()</a>, <a class="el" href="impersonate_8h_source.html#l00131">BRIX_IMP_HARD_MIN_ID</a>, <a class="el" href="impersonate_8h_source.html#l00060">brix_idmap_creds_t::gid</a>, <a class="el" href="impersonate_8h_source.html#l00062">brix_idmap_creds_t::groups</a>, <a class="el" href="broker__internal_8h_source.html#l00028">IMP_REFUSE_PRIV</a>, <a class="el" href="broker_8c_source.html#l00016">imp_self_uid</a>, <a class="el" href="impersonate_8h_source.html#l00061">brix_idmap_creds_t::ngroups</a>, and <a class="el" href="impersonate_8h_source.html#l00059">brix_idmap_creds_t::uid</a>.</p>
 
@@ -258,11 +260,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00028">28</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00031">31</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
 <p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00203">brix_imp_broker_drop_caps()</a>, and <a class="el" href="broker__creds_8c_source.html#l00098">imp_apply_service_drop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00206">brix_imp_broker_drop_caps()</a>, and <a class="el" href="broker__creds_8c_source.html#l00101">imp_apply_service_drop()</a>.</p>
 
 </div>
 </div>
@@ -282,11 +284,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00177">177</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00180">180</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">References <a class="el" href="broker__creds_8c_source.html#l00098">imp_apply_service_drop()</a>, <a class="el" href="broker__creds_8c_source.html#l00061">imp_resolve_service_ids()</a>, <a class="el" href="broker__creds_8c_source.html#l00147">imp_verify_service_drop()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="broker__creds_8c_source.html#l00101">imp_apply_service_drop()</a>, <a class="el" href="broker__creds_8c_source.html#l00064">imp_resolve_service_ids()</a>, <a class="el" href="broker__creds_8c_source.html#l00150">imp_verify_service_drop()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00203">brix_imp_broker_drop_caps()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00206">brix_imp_broker_drop_caps()</a>.</p>
 
 </div>
 </div>
@@ -306,7 +308,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00333">333</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00367">367</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="broker__ops_8c_source.html#l00429">imp_do_op()</a>, <a class="el" href="broker__ops__ns_8c_source.html#l00156">imp_op_rename_link()</a>, and <a class="el" href="broker__ops_8c_source.html#l00051">imp_open_parent()</a>.</p>
 
@@ -352,11 +354,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00061">61</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00064">64</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00064">BRIX_DIAG_EMERG</a>, <a class="el" href="broker__creds_8c_source.html#l00024">brix_imp_broker_user_gid</a>, <a class="el" href="broker__creds_8c_source.html#l00023">brix_imp_broker_user_uid</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00064">BRIX_DIAG_EMERG</a>, <a class="el" href="broker__creds_8c_source.html#l00027">brix_imp_broker_user_gid</a>, <a class="el" href="broker__creds_8c_source.html#l00026">brix_imp_broker_user_uid</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00177">imp_drop_to_service_user()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00180">imp_drop_to_service_user()</a>.</p>
 
 </div>
 </div>
@@ -376,7 +378,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00322">322</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00356">356</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
 <p class="reference">References <a class="el" href="broker_8c_source.html#l00010">imp_base_gid</a>, <a class="el" href="broker_8c_source.html#l00012">imp_base_groups</a>, <a class="el" href="broker_8c_source.html#l00014">imp_base_ngroups</a>, and <a class="el" href="broker_8c_source.html#l00008">imp_base_uid</a>.</p>
 
@@ -424,11 +426,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00147">147</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00150">150</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
 <p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00177">imp_drop_to_service_user()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="broker__creds_8c_source.html#l00180">imp_drop_to_service_user()</a>.</p>
 
 </div>
 </div>
@@ -445,9 +447,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00024">24</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00027">27</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00178">imp_resolve_broker_user()</a>, and <a class="el" href="broker__creds_8c_source.html#l00061">imp_resolve_service_ids()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00191">imp_resolve_broker_user()</a>, and <a class="el" href="broker__creds_8c_source.html#l00064">imp_resolve_service_ids()</a>.</p>
 
 </div>
 </div>
@@ -463,9 +465,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00023">23</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="broker__creds_8c_source.html#l00026">26</a> of file <a class="el" href="broker__creds_8c_source.html">broker_creds.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00178">imp_resolve_broker_user()</a>, and <a class="el" href="broker__creds_8c_source.html#l00061">imp_resolve_service_ids()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="lifecycle__broker_8c_source.html#l00191">imp_resolve_broker_user()</a>, and <a class="el" href="broker__creds_8c_source.html#l00064">imp_resolve_service_ids()</a>.</p>
 
 </div>
 </div>

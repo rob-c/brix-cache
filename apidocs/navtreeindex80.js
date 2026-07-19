@@ -1,5 +1,9 @@
 var NAVTREEINDEX80 =
 {
+"structckv__cinfo.html#a858e7b9428930e7087e3eff73cb6d605":[88,0,498,12],
+"structckv__cinfo.html#a85d4c676507d0acc7a3be5ba69911359":[88,0,498,5],
+"structckv__cinfo.html#a88838b97ad5ad88c33654356b49e4e91":[88,0,498,7],
+"structckv__cinfo.html#a8aacb094546af03bbf512e36d545bbd2":[88,0,498,16],
 "structckv__cinfo.html#a9ac723b6bcff359fad336d406fcfd039":[88,0,498,10],
 "structckv__cinfo.html#ab83f14f43038072168bf996b83231dc7":[88,0,498,11],
 "structckv__cinfo.html#ab925bb119717e45ab6d781133c8125cf":[88,0,498,13],
@@ -245,9 +249,5 @@ var NAVTREEINDEX80 =
 "structcvmfs__upstream__slot.html#a624043f63bac02567028d5d0260272e6":[88,0,574,2],
 "structcvmfs__upstream__slot.html#a6ee78dcd9c34d1799437a986e0c85f90":[88,0,574,0],
 "structcvmfs__upstream__slot.html#a6f44c7c3c13b3a87f96b9a1d826e21dc":[88,0,574,3],
-"structcvmfs__upstream__slot.html#ab84d4fe8109249b0fbce27d1362a19fc":[88,0,574,1],
-"structdash__cookie__parse__t.html":[88,0,575],
-"structdash__cookie__parse__t.html#a0189838fc541a0c1800c12597fc0f4a4":[88,0,575,2],
-"structdash__cookie__parse__t.html#a0eb8eee6e23c39e39a91489a0e6ba866":[88,0,575,0],
-"structdash__cookie__parse__t.html#a6a991983ba7280dcc1790ad0319d3f3f":[88,0,575,1]
+"structcvmfs__upstream__slot.html#ab84d4fe8109249b0fbce27d1362a19fc":[88,0,574,1]
 };

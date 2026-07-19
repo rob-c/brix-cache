@@ -1,7 +1,9 @@
 <map id="src/protocols/root/protocol/stat_flags.h" name="src/protocols/root/protocol/stat_flags.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="88,5,247,45"/>
-<area shape="rect" id="Node000002" href="$posix__map_8c.html" title=" " alt="" coords="5,93,161,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="141,57,104,95,100,91,137,53"/>
-<area shape="rect" id="Node000003" href="$stat__body_8c.html" title=" " alt="" coords="185,93,320,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="198,53,236,91,232,95,194,57"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="173,5,332,45"/>
+<area shape="rect" id="Node000002" href="$posix__map_8c.html" title=" " alt="" coords="5,101,161,141"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="208,54,119,103,116,98,205,50"/>
+<area shape="rect" id="Node000003" href="$stat__body_8c.html" title=" " alt="" coords="185,101,320,141"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="255,59,255,101,250,101,250,59"/>
+<area shape="rect" id="Node000004" href="$open__resolved__file_8c.html" title=" " alt="" coords="345,93,499,148"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="300,50,376,91,373,96,297,54"/>
 </map>

@@ -1,5 +1,9 @@
 var NAVTREEINDEX82 =
 {
+"structfs__usage__slot__t.html#ac205bf48600feea56b2107c5a716864b":[88,0,613,1],
+"structfs__usage__slot__t.html#af67f14891138b7ddace2ce5a754eb6e9":[88,0,613,2],
+"structftp__eb__range__t.html":[88,0,614],
+"structftp__eb__range__t.html#a45efc38c2e537bb5f5916cbebff39d9e":[88,0,614,0],
 "structftp__eb__range__t.html#adde0632edeafd2a0101c8dac44561cc0":[88,0,614,1],
 "structftp__ev__dc__s.html":[88,0,615],
 "structftp__ev__dc__s.html#a05d03fdd7fc806daa4c738e3e6a22768":[88,0,615,3],
@@ -245,9 +249,5 @@ var NAVTREEINDEX82 =
 "structidmap__cache__slot__t.html#a0f30eca76382f93336a952e13396be49":[88,0,637,2],
 "structidmap__cache__slot__t.html#a3da7f6f2949e75801f3c234a4076d2bc":[88,0,637,3],
 "structidmap__cache__slot__t.html#a990ed908b32176529eae7648662760b3":[88,0,637,1],
-"structidmap__cache__slot__t.html#add0bf377c5f2836d874c04ffa43cd608":[88,0,637,0],
-"structidmap__gridmap__entry__t.html":[88,0,638],
-"structidmap__gridmap__entry__t.html#a6432ea422bf0236cc93b3f1c858d52df":[88,0,638,0],
-"structidmap__gridmap__entry__t.html#af10189238709453ca70b8d064a2a298f":[88,0,638,1],
-"structimp__broker__fds__t.html":[88,0,639]
+"structidmap__cache__slot__t.html#add0bf377c5f2836d874c04ffa43cd608":[88,0,637,0]
 };

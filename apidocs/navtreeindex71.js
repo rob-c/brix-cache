@@ -1,5 +1,9 @@
 var NAVTREEINDEX71 =
 {
+"structbrix__ns__delete__opts__t.html#a3a7a622620fe02711cc5b138ca4db2fe":[88,0,225,3],
+"structbrix__ns__delete__opts__t.html#a5fbb8f24ceb177a77ed2881a95dc5f8d":[88,0,225,1],
+"structbrix__ns__delete__opts__t.html#ac46027ade90150e9f6bc2bc147fcc786":[88,0,225,2],
+"structbrix__ns__result__t.html":[88,0,226],
 "structbrix__ns__result__t.html#a06421e92f3c185cc9b47dc5c03391abb":[88,0,226,1],
 "structbrix__ns__result__t.html#a4caa51efffcdf4853e82f57c90f89795":[88,0,226,4],
 "structbrix__ns__result__t.html#a81e9859be35d7cab1d92524e04ff92df":[88,0,226,3],
@@ -245,9 +249,5 @@ var NAVTREEINDEX71 =
 "structbrix__pmark__named__t.html":[88,0,259],
 "structbrix__pmark__named__t.html#a173725ebef6eca129b8d5a5d19b75646":[88,0,259,0],
 "structbrix__pmark__named__t.html#a2dc7a52d713a5c867874547a78b01bd7":[88,0,259,1],
-"structbrix__pmark__sockstats__t.html":[88,0,260],
-"structbrix__pmark__sockstats__t.html#a4b5678917185d124979b2c0e6799124f":[88,0,260,2],
-"structbrix__pmark__sockstats__t.html#a4e838fc68426f9755206bb886e8ac294":[88,0,260,0],
-"structbrix__pmark__sockstats__t.html#a5a0a4eef494feb02ad101ad421773fe3":[88,0,260,1],
-"structbrix__poll__slot.html":[88,0,261]
+"structbrix__pmark__sockstats__t.html":[88,0,260]
 };

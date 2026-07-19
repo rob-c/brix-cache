@@ -152,6 +152,8 @@ Functions</h2></td></tr>
 <tr class="separator:ade1563480bb03cd50490df5be36abf45"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a399627ae243a5f7ef8a64ad520ac9596" id="r_a399627ae243a5f7ef8a64ad520ac9596"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="lifecycle_8h.html#a399627ae243a5f7ef8a64ad520ac9596">brix_imp_init_worker</a> (ngx_cycle_t *cycle)</td></tr>
 <tr class="separator:a399627ae243a5f7ef8a64ad520ac9596"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aedfc3423475631cc45fb8d12c26d302e" id="r_aedfc3423475631cc45fb8d12c26d302e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="lifecycle_8h.html#aedfc3423475631cc45fb8d12c26d302e">brix_imp_worker_harden</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
+<tr class="separator:aedfc3423475631cc45fb8d12c26d302e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aef3a2d70ed8ae6a1a18cce1ba9670e0a" id="r_aef3a2d70ed8ae6a1a18cce1ba9670e0a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="lifecycle_8h.html#aef3a2d70ed8ae6a1a18cce1ba9670e0a">brix_imp_request_begin</a> (const <a class="el" href="structbrix__identity__t.html">brix_identity_t</a> *id)</td></tr>
 <tr class="separator:aef3a2d70ed8ae6a1a18cce1ba9670e0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a58ae6d1fb5e91b4128d4b20988253fec" id="r_a58ae6d1fb5e91b4128d4b20988253fec"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="lifecycle_8h.html#a58ae6d1fb5e91b4128d4b20988253fec">brix_imp_request_end</a> (void)</td></tr>
@@ -451,9 +453,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="lifecycle__broker_8c_source.html#l00356">356</a> of file <a class="el" href="lifecycle__broker_8c_source.html">lifecycle_broker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="lifecycle__broker_8c_source.html#l00369">369</a> of file <a class="el" href="lifecycle__broker_8c_source.html">lifecycle_broker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="broker_8c_source.html#l00007">brix_imp_broker_allow_uid</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00023">imp_settings_t::export_root</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00335">imp_init_module_gate()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00111">imp_kill_stale_broker()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00223">imp_load_idmap()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00254">imp_open_broker_fds()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00178">imp_resolve_broker_user()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00291">imp_spawn_broker()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00157">imp_worker_uid()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00249">imp_broker_fds_t::lfd</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00250">imp_broker_fds_t::rootfd</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00022">imp_settings_t::socket</a>.</p>
+<p class="reference">References <a class="el" href="broker_8c_source.html#l00007">brix_imp_broker_allow_uid</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00023">imp_settings_t::export_root</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00348">imp_init_module_gate()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00111">imp_kill_stale_broker()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00236">imp_load_idmap()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00267">imp_open_broker_fds()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00191">imp_resolve_broker_user()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00304">imp_spawn_broker()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00157">imp_worker_uid()</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00262">imp_broker_fds_t::lfd</a>, <a class="el" href="lifecycle__broker_8c_source.html#l00263">imp_broker_fds_t::rootfd</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00022">imp_settings_t::socket</a>.</p>
 
 </div>
 </div>
@@ -473,9 +475,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="lifecycle__worker_8c_source.html#l00076">76</a> of file <a class="el" href="lifecycle__worker_8c_source.html">lifecycle_worker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="lifecycle__worker_8c_source.html#l00111">111</a> of file <a class="el" href="lifecycle__worker_8c_source.html">lifecycle_worker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00093">brix_imp_client_connect()</a>, <a class="el" href="impersonate_8h_source.html#l00040">BRIX_IMP_MAP</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, <a class="el" href="lifecycle__worker_8c_source.html#l00046">imp_worker_drop_caps()</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00020">imp_settings_t::mode</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00022">imp_settings_t::socket</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00093">brix_imp_client_connect()</a>, <a class="el" href="impersonate_8h_source.html#l00040">BRIX_IMP_MAP</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00020">imp_settings_t::mode</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00022">imp_settings_t::socket</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00158">ngx_stream_brix_init_process()</a>.</p>
 
@@ -519,11 +521,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="lifecycle__worker_8c_source.html#l00114">114</a> of file <a class="el" href="lifecycle__worker_8c_source.html">lifecycle_worker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="lifecycle__worker_8c_source.html#l00149">149</a> of file <a class="el" href="lifecycle__worker_8c_source.html">lifecycle_worker.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00040">BRIX_IMP_MAP</a>, <a class="el" href="client_8c_source.html#l00142">brix_imp_mark_in_request()</a>, <a class="el" href="client_8c_source.html#l00148">brix_imp_set_principal()</a>, <a class="el" href="lifecycle__worker_8c_source.html#l00102">imp_principal_of()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00020">imp_settings_t::mode</a>.</p>
+<p class="reference">References <a class="el" href="impersonate_8h_source.html#l00040">BRIX_IMP_MAP</a>, <a class="el" href="client_8c_source.html#l00142">brix_imp_mark_in_request()</a>, <a class="el" href="client_8c_source.html#l00148">brix_imp_set_principal()</a>, <a class="el" href="lifecycle__worker_8c_source.html#l00137">imp_principal_of()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00020">imp_settings_t::mode</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="root_2handshake_2dispatch_8c_source.html#l00031">brix_dispatch()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00402">ngx_http_brix_webdav_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>, <a class="el" href="propfind_8c_source.html#l00299">propfind_body_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00507">s3_delete_objects_body_handler()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="post__object_8c_source.html#l00217">s3_post_object_body_handler()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00206">webdav_handle_lock()</a>, <a class="el" href="webdav_2put_8c_source.html#l00070">webdav_handle_put_body()</a>, <a class="el" href="methods__proppatch_8c_source.html#l00476">webdav_proppatch_body_handler()</a>, and <a class="el" href="search_8c_source.html#l00588">webdav_search_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="root_2handshake_2dispatch_8c_source.html#l00031">brix_dispatch()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00402">ngx_http_brix_webdav_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>, <a class="el" href="propfind_8c_source.html#l00299">propfind_body_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00507">s3_delete_objects_body_handler()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="post__object_8c_source.html#l00217">s3_post_object_body_handler()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00206">webdav_handle_lock()</a>, <a class="el" href="webdav_2put_8c_source.html#l00071">webdav_handle_put_body()</a>, <a class="el" href="methods__proppatch_8c_source.html#l00476">webdav_proppatch_body_handler()</a>, and <a class="el" href="search_8c_source.html#l00588">webdav_search_body_handler()</a>.</p>
 
 </div>
 </div>
@@ -543,11 +545,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="lifecycle__worker_8c_source.html#l00127">127</a> of file <a class="el" href="lifecycle__worker_8c_source.html">lifecycle_worker.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="lifecycle__worker_8c_source.html#l00162">162</a> of file <a class="el" href="lifecycle__worker_8c_source.html">lifecycle_worker.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_8c_source.html#l00165">brix_imp_clear_principal()</a>, <a class="el" href="impersonate_8h_source.html#l00040">BRIX_IMP_MAP</a>, <a class="el" href="client_8c_source.html#l00142">brix_imp_mark_in_request()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00020">imp_settings_t::mode</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="root_2handshake_2dispatch_8c_source.html#l00031">brix_dispatch()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00402">ngx_http_brix_webdav_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>, <a class="el" href="propfind_8c_source.html#l00299">propfind_body_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00507">s3_delete_objects_body_handler()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="post__object_8c_source.html#l00217">s3_post_object_body_handler()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00206">webdav_handle_lock()</a>, <a class="el" href="webdav_2put_8c_source.html#l00070">webdav_handle_put_body()</a>, <a class="el" href="methods__proppatch_8c_source.html#l00476">webdav_proppatch_body_handler()</a>, and <a class="el" href="search_8c_source.html#l00588">webdav_search_body_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="root_2handshake_2dispatch_8c_source.html#l00031">brix_dispatch()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00402">ngx_http_brix_webdav_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00364">ngx_http_s3_handler()</a>, <a class="el" href="propfind_8c_source.html#l00299">propfind_body_handler()</a>, <a class="el" href="delete__objects_8c_source.html#l00507">s3_delete_objects_body_handler()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="post__object_8c_source.html#l00217">s3_post_object_body_handler()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00206">webdav_handle_lock()</a>, <a class="el" href="webdav_2put_8c_source.html#l00071">webdav_handle_put_body()</a>, <a class="el" href="methods__proppatch_8c_source.html#l00476">webdav_proppatch_body_handler()</a>, and <a class="el" href="search_8c_source.html#l00588">webdav_search_body_handler()</a>.</p>
 
 </div>
 </div>
@@ -582,6 +584,30 @@ Functions</h2></td></tr>
 <p class="reference">References <a class="el" href="impersonate_8h_source.html#l00038">BRIX_IMP_OFF</a>, <a class="el" href="impersonate_8h_source.html#l00039">BRIX_IMP_SINGLE</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00021">imp_settings_t::configured</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00025">imp_settings_t::default_user</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00023">imp_settings_t::export_root</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00024">imp_settings_t::gridmap</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00039">IMP_DEFAULT_SOCKET</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00059">imp_dup()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">imp_settings</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00020">imp_settings_t::mode</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="lifecycle__internal_8h_source.html#l00026">imp_settings_t::single_user</a>, and <a class="el" href="lifecycle__internal_8h_source.html#l00022">imp_settings_t::socket</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00337">postconf_impersonation()</a>.</p>
+
+</div>
+</div>
+<a id="aedfc3423475631cc45fb8d12c26d302e" name="aedfc3423475631cc45fb8d12c26d302e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aedfc3423475631cc45fb8d12c26d302e">&#9670;&#160;</a></span>brix_imp_worker_harden()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_imp_worker_harden </td>
+          <td>(</td>
+          <td class="paramtype">ngx_log_t *&#160;</td>
+          <td class="paramname"><em>log</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="lifecycle__worker_8c_source.html#l00105">105</a> of file <a class="el" href="lifecycle__worker_8c_source.html">lifecycle_worker.c</a>.</p>
+
+<p class="reference">References <a class="el" href="lifecycle__worker_8c_source.html#l00046">imp_worker_drop_caps()</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00158">ngx_stream_brix_init_process()</a>.</p>
 
 </div>
 </div>

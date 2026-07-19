@@ -1,5 +1,9 @@
 var NAVTREEINDEX69 =
 {
+"structbrix__fs__walk__options__t.html#a67400bf467e6a3e91d41fd9a2c273b2d":[88,0,152,3],
+"structbrix__fs__walk__options__t.html#a97575a1982fcb30e1e911f47933c7978":[88,0,152,2],
+"structbrix__fs__walk__options__t.html#a9dfb21d84c923796a0b70a483ecc8a02":[88,0,152,4],
+"structbrix__ftp__dc__sec__t.html":[88,0,153],
 "structbrix__ftp__dc__sec__t.html#a08d34e477c7fe92324b8cfe101632e52":[88,0,153,4],
 "structbrix__ftp__dc__sec__t.html#a22efe266e298e147338a2c2f428f0abe":[88,0,153,2],
 "structbrix__ftp__dc__sec__t.html#a26a3b9173422152045e3c4e89ced6ff8":[88,0,153,1],
@@ -245,9 +249,5 @@ var NAVTREEINDEX69 =
 "structbrix__iobuf.html#a68b0b0a544d49e98ec825c8a093d8e51":[88,0,192,1],
 "structbrix__iobuf.html#a6a1eaa979b7241c7ee310d2609ba16e4":[88,0,192,12],
 "structbrix__iobuf.html#a73cfd21712a5b2102d99f32febf2f08d":[88,0,192,0],
-"structbrix__iobuf.html#a744c999a33aa539c4b9c741e5a7f82ef":[88,0,192,8],
-"structbrix__iobuf.html#a76ad78c66cfc59eeb4dedcc46bb219c6":[88,0,192,9],
-"structbrix__iobuf.html#a8294fcacbaa0b0b2b603d2b1d5cec102":[88,0,192,5],
-"structbrix__iobuf.html#a90f5e33e9a84da3b22e70a31a7d64310":[88,0,192,10],
-"structbrix__iobuf.html#ab6b069937d439d8f3de007319080133b":[88,0,192,4]
+"structbrix__iobuf.html#a744c999a33aa539c4b9c741e5a7f82ef":[88,0,192,8]
 };

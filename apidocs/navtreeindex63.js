@@ -1,5 +1,9 @@
 var NAVTREEINDEX63 =
 {
+"structClientRmRequest.html#aa882db89ffdab9255f2ea098a3c61a02":[88,0,529,1],
+"structClientRmdirRequest.html":[88,0,528],
+"structClientRmdirRequest.html#a2f141ea0bae776ae5c15b20f2096b9c3":[88,0,528,0],
+"structClientRmdirRequest.html#ae6d0abe50d4036fc1943ea06ff18ab66":[88,0,528,3],
 "structClientRmdirRequest.html#aea2f43179ff286e67dae3687f8027e5a":[88,0,528,1],
 "structClientRmdirRequest.html#af86d3fe3f88d7231563ae3a738250731":[88,0,528,2],
 "structClientSetRequest.html":[88,0,531],
@@ -245,9 +249,5 @@ var NAVTREEINDEX63 =
 "structbdg__ctx.html#a6d8c12546ae4f161de11846d188bc200":[88,0,16,7],
 "structbdg__ctx.html#a8c8904cce8e3231d710e11a2230f5243":[88,0,16,0],
 "structbdg__ctx.html#a95064093884adf3b9f8195b18987b0a7":[88,0,16,1],
-"structbdg__ctx.html#a9e33d90e41ff7af1e2794affeb721dd9":[88,0,16,4],
-"structbdg__ctx.html#ab207d9f84b249e707cc5500212c89a62":[88,0,16,6],
-"structbdg__ctx.html#ad1e1b5ac41185ee1a3368bcd9595eb07":[88,0,16,11],
-"structbdg__ctx.html#ad640e4458a0778d3d7826f7bac9ecca4":[88,0,16,9],
-"structbdg__ctx.html#ada3e9cb1f112a8b6946a5bc511cbc4fe":[88,0,16,10]
+"structbdg__ctx.html#a9e33d90e41ff7af1e2794affeb721dd9":[88,0,16,4]
 };
