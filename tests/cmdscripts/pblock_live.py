@@ -12,6 +12,7 @@ import argparse
 import os
 from pathlib import Path
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -354,6 +355,50 @@ def pblock_lab_spec(name: str, tail: str, *,
     )
 
 
+def pblock_worker_own(catalog: Path) -> None:
+    """Hand a test-written catalog.db (and its WAL/SHM sidecars) to the pblock
+    worker's account so the worker can open it read-write.
+
+    Under the root harness the pblock nginx worker runs as ``nobody`` and OWNS
+    catalog.db (pblock refuses to touch root-owned on-disk state). Test helpers
+    that poke the catalog over an sqlite3 side-channel run as the root pytest
+    process, so if the worker has not yet lazily created catalog.db their
+    ``sqlite3.connect()`` creates it root-owned — after which the nobody worker
+    cannot open it read-write, the ``objects`` table is never created, and
+    pblock-fsck fails "no such table: objects". Call this after any such
+    side-channel write. Best-effort; a no-op when unprivileged.
+    """
+    if os.geteuid() != 0:
+        return
+    runas = os.environ.get("REF_RUNAS_USER", "nobody")
+    for p in (catalog, Path(str(catalog) + "-wal"), Path(str(catalog) + "-shm")):
+        if p.exists():
+            try:
+                shutil.chown(p, runas, runas)
+            except (OSError, LookupError):
+                pass
+
+
+def pblock_worker_readable(path: Path) -> None:
+    """Make a test-written file (e.g. a crypt keyfile) reachable and readable by
+    the pblock worker's account under the root harness.
+
+    The lifecycle worker runs as ``nobody`` but the root pytest process writes
+    xform keyfiles into its 0700 ``mkdtemp`` LiveRun tree, which the worker cannot
+    traverse to read — so the crypt/xform backend init fails EACCES and the export
+    silently degrades. Grant world-read on the file and world-traverse on the
+    containing directory. Best-effort; a no-op when unprivileged.
+    """
+    if os.geteuid() != 0:
+        return
+    try:
+        if path.exists():
+            os.chmod(path, 0o644)
+            os.chmod(path.parent, os.stat(path.parent).st_mode | 0o011)
+    except OSError:
+        pass
+
+
 def _ctl_set(catalog: Path, key: str, value: str, epoch: int) -> None:
     """Inject a runtime ctl rule exactly as a test operator would via the
     sqlite3 CLI — a side-channel into the live export's catalog.db."""
@@ -367,6 +412,7 @@ def _ctl_set(catalog: Path, key: str, value: str, epoch: int) -> None:
         conn.commit()
     finally:
         conn.close()
+    pblock_worker_own(catalog)
 
 
 def pblock_lab(nginx: Path | None = None) -> int:
@@ -438,23 +484,17 @@ def pblock_lab(nginx: Path | None = None) -> int:
 # --------------------------------------------------------------------------- #
 
 def _ensure_pki(run: LiveRun) -> bool:
-    """Provision the fleet CA-signed PKI on demand; refresh an expired proxy."""
-    if not (CA_CERT.is_file() and SERVER_CERT.is_file() and PROXY_STD.is_file()):
-        print("== provisioning PKI (blitz_test_pki) ==")
-        try:
-            regenerate_pki(PKI_DIR)
-        except Exception as exc:  # provisioning failure is a clean skip
-            print(f"SKIP: PKI provisioning failed: {exc}")
-            return False
-    fresh = run.call(
-        ["openssl", "x509", "-in", PROXY_STD, "-noout", "-checkend", "300"], check=False
-    ).returncode == 0
-    if not fresh:
-        try:
-            regenerate_pki(PKI_DIR)
-        except Exception:
-            pass
-    return True
+    """Provision the fleet CA-signed PKI on demand; refresh an expired proxy WITHOUT
+    regenerating the CA.  A full regen (regenerate_pki/blitz_test_pki) rebuilds the
+    CA and desyncs the standing fleet — it loaded its certs at startup, so freshly
+    minted proxies then chain to a CA the fleet no longer trusts and every
+    concurrent GSI/TLS test fails.  refresh_shared_pki refreshes only the proxy
+    when the CA/hostcert exist.  See live_common.refresh_shared_pki."""
+    from cmdscripts.live_common import refresh_shared_pki  # noqa: PLC0415
+    ok, msg = refresh_shared_pki(run.root, want_proxy=True)
+    if not ok:
+        print(f"SKIP: {msg}")
+    return ok
 
 
 def _build_meta_bench(run: LiveRun) -> Path:

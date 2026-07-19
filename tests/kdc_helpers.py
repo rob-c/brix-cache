@@ -207,6 +207,17 @@ def provision():
         _kadmin(f"addprinc -randkey {principal}")
         _kadmin(f"ktadd -k {KRB5_KEYTAB} {principal}")
     os.chmod(KRB5_KEYTAB, 0o600)
+    # Under the root harness the nginx worker drops to `nobody`, so a 0600
+    # root-owned keytab is UNREADABLE by the acceptor — krb5_rd_req then rejects
+    # every valid client AP-REQ with "Service key not available" even though the
+    # keytab is correct. Hand the service keytab to the worker's runas user so it
+    # can read its own service key (0600 preserved; root ignores ownership).
+    if os.geteuid() == 0:
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        try:
+            shutil.chown(KRB5_KEYTAB, runas)
+        except (OSError, LookupError):
+            os.chmod(KRB5_KEYTAB, 0o644)
 
     # Client principal (random key) exported to a client keytab, so the test
     # driver can kinit fully non-interactively (``kinit -k -t``) — no password
@@ -260,24 +271,68 @@ def kinit_client():
           "-c", KRB5_CCACHE, KRB5_CLIENT_PRINCIPAL])
 
 
+# Cross-process realm lock: BOTH krb5 test files (test_krb5_auth + test_native_krb5)
+# call up()/down() around a module-scoped fixture. Under `pytest -n --dist load`
+# their tests land on different xdist workers and race provision() — which
+# rmtree's + `kdb5_util create`s the SHARED KRB5_DIR/db — so `kdb5_util create`
+# fails ("command failed") and every krb5 test ERRORs at setup. (xdist_group can't
+# fix this: `--dist load` ignores groups.) Serialize each up()->down() lifecycle
+# with an flock on a file OUTSIDE KRB5_DIR (provision() wipes KRB5_DIR itself), so
+# the second worker blocks until the first tears its realm down.
+_REALM_LOCK_PATH = os.path.join(os.path.dirname(KRB5_DIR), ".krb5-realm.lock")
+_realm_lock_fd = None
+
+
+def _acquire_realm_lock():
+    global _realm_lock_fd
+    import fcntl  # noqa: PLC0415 — Linux-only, imported lazily
+    os.makedirs(os.path.dirname(_REALM_LOCK_PATH), exist_ok=True)
+    _realm_lock_fd = open(_REALM_LOCK_PATH, "w", encoding="utf-8")
+    fcntl.flock(_realm_lock_fd.fileno(), fcntl.LOCK_EX)  # blocking
+
+
+def _release_realm_lock():
+    global _realm_lock_fd
+    if _realm_lock_fd is not None:
+        import fcntl  # noqa: PLC0415
+        try:
+            fcntl.flock(_realm_lock_fd.fileno(), fcntl.LOCK_UN)
+        finally:
+            _realm_lock_fd.close()
+            _realm_lock_fd = None
+
+
 def up():
-    """Provision + start the KDC + kinit the client.  Returns True on success."""
+    """Provision + start the KDC + kinit the client.  Returns True on success.
+
+    Holds the cross-process realm lock from here until down(), so concurrent
+    xdist workers never provision the shared realm at the same time.
+    """
     if not krb5_tools_available():
         missing = [t for t in _REQUIRED_TOOLS if not _find_tool(t)]
         print(f"krb5 tier: skipped (missing MIT KDC tooling: {', '.join(missing)}; "
               f"install krb5-server)")
         return False
-    provision()
-    start_kdc()
-    kinit_client()
+    _acquire_realm_lock()
+    try:
+        provision()
+        start_kdc()
+        kinit_client()
+    except BaseException:
+        _release_realm_lock()
+        raise
     print(f"krb5 tier: realm {KRB5_REALM} up (kdc :{KRB5_KDC_PORT}, "
           f"keytab {KRB5_KEYTAB})")
     return True
 
 
 def down():
-    """Stop the KDC (files are reclaimed by the session-wide TEST_ROOT wipe)."""
-    stop_kdc()
+    """Stop the KDC and release the realm lock (files are reclaimed by the
+    session-wide TEST_ROOT wipe)."""
+    try:
+        stop_kdc()
+    finally:
+        _release_realm_lock()
 
 
 # ---------------------------------------------------------------------------

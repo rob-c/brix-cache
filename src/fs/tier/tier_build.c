@@ -107,6 +107,14 @@ tier_build_pblock(const brix_tier_cfg_t *t, ngx_log_t *log)
     conf.root            = t->path;
     conf.busy_timeout_ms = 5000;
     conf.block_size      = (int64_t) t->block_size;
+    /* Enforce the off-root drop ONLY in a worker: pblock blobs/catalog.db must
+     * never be owned by root. Cache/stage pblock tiers are also built once at
+     * config time in the master (root) for validation — dropping THERE would
+     * strip the master of the privilege it needs to open logs and fork workers,
+     * so gate on ngx_process. The worker build (request-time) is what actually
+     * creates the on-disk data; it drops to the `user <acct>;` account, or
+     * "nobody" for a root worker (conf.unpriv_user left NULL). */
+    conf.enforce_unprivileged = (ngx_process == NGX_PROCESS_WORKER);
     return brix_sd_instance_create(log, "pblock", &conf, &err);
 #else
     (void) t;

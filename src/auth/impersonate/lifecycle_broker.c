@@ -159,8 +159,21 @@ imp_worker_uid(ngx_cycle_t *cycle)
     ngx_core_conf_t *ccf;
 
     ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
-    return (ccf && ccf->user != (uid_t) NGX_CONF_UNSET_UINT) ? ccf->user
-                                                             : (uid_t) -1;
+    if (ccf && ccf->user != (uid_t) NGX_CONF_UNSET_UINT) {
+        return ccf->user;
+    }
+    /* No `user` directive: nginx drops workers to its built-in default account
+     * ("nobody").  Resolve it so the broker's SO_PEERCRED gate stays ACTIVE — an
+     * unset `user` must NOT silently disable the gate (brix_imp_broker_allow_uid
+     * == 0 means "no gate", which would let any local process on the 0600 socket
+     * through). */
+    {
+        struct passwd *pw = getpwnam("nobody");
+        if (pw != NULL) {
+            return pw->pw_uid;
+        }
+    }
+    return (uid_t) -1;
 }
 
 /*

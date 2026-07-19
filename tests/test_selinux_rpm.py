@@ -55,10 +55,28 @@ def _selinux_enabled():
     return tool is not None and subprocess.run([tool]).returncode == 0
 
 
+def _brix_selinux_rpm_installed():
+    """True only when the -selinux subpackage that ships the policy under test is
+    actually installed.  Without it there is nothing to verify — a source/static
+    dev tree has no policy in the store — so the whole module must skip rather than
+    fail 16 packaging assertions against a policy that was never installed."""
+    rpm = shutil.which("rpm")
+    if rpm is None:
+        return False
+    return subprocess.run(
+        [rpm, "-q", "nginx-mod-brix-cache-selinux"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode == 0
+
+
 if not _selinux_enabled():
     pytestmark.append(pytest.mark.skip(reason="SELinux not enabled on this host"))
 elif os.geteuid() != 0:
     pytestmark.append(pytest.mark.skip(reason="SELinux policy verification needs root"))
+elif not _brix_selinux_rpm_installed():
+    pytestmark.append(pytest.mark.skip(
+        reason="nginx-mod-brix-cache-selinux RPM not installed — no policy to verify "
+               "(source/static dev tree); install the -selinux subpackage to run these"))
 
 
 def _need(tool, package):

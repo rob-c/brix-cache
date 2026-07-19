@@ -93,6 +93,10 @@ def test_truncate_directory_parity(srv):
 def test_chmod_directory_parity(srv):
     """chmod of a directory should SUCCEED identically on both (a directory is a
     valid chmod target); pin the success-class to STOCK."""
+    # BOTH servers' workers drop to `nobody` under the root harness, so each can
+    # only chmod a dir it owns — chown both sides, not just the stock one.
+    L.chown_stock(os.path.join(srv["our_data"], "empty_dir"))
+    L.chown_stock(os.path.join(srv["off_data"], "empty_dir"))
     _assert_parity(srv, "chmod", "/empty_dir", "rwxr-xr-x")
 
 

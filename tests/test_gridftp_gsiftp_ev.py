@@ -52,6 +52,7 @@ import pytest
 from settings import BIND_HOST, NGINX_BIN, PKI_DIR
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from gridftp_client_env import gsi_client_env
 
 # Stands up its own throwaway event-engine gsiftp gateway(s) through the phase-81
 # registry (LifecycleHarness); the marker keeps it out of the registry-lint
@@ -122,9 +123,7 @@ def _guc(*args, timeout=60, dc="dcpriv"):
     Defaults to ``dc="dcpriv"`` (DCAU A + PROT P) — the event PROT P data channel
     is exactly what this suite exercises.  ``dc="nodcau"`` keeps the data leg
     cleartext (control still fully GSI-secured) for the error/negative cases."""
-    env = dict(os.environ)
-    env["X509_CERT_DIR"] = CA_DIR
-    env["X509_USER_PROXY"] = USER_PROXY
+    env = gsi_client_env(CA_DIR, USER_PROXY)
     flag = {"nodcau": "-nodcau", "dcpriv": "-dcpriv"}[dc]
     cmd = [GUC, flag, *args]
     return subprocess.run(cmd, capture_output=True, text=True, env=env,

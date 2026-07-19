@@ -7,6 +7,7 @@ from pathlib import Path
 import atexit
 import hashlib
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -15,7 +16,7 @@ import time
 from typing import Iterable
 
 from cmdscripts.compile_run import REPO_ROOT
-from lib_py.util import wait_tcp
+from lib_py.util import kill_pid_list, pids_on_port, wait_tcp
 
 
 class LiveFailure(RuntimeError):
@@ -148,7 +149,34 @@ class LiveRun(AbstractContextManager["LiveRun"]):
 
     def start_nginx(self, prefix: Path, config: Path, port: int, *, timeout: float = 10) -> None:
         prefix.mkdir(parents=True, exist_ok=True)
-        result = self.call([self.nginx, "-p", prefix, "-c", config], check=False)
+        # Self-heal against a LEAKED live nginx squatting this port: if a prior
+        # test's teardown was skipped (crash, kill, xdist worker death) its master
+        # keeps the fixed port bound and every later run of the same test dies with
+        # "bind() ... Address already in use". Live-cmd ports (11600-11999) are a
+        # dedicated range disjoint from the standing fleet (<=~11251), so reaping
+        # whatever holds this exact port cannot touch a fleet server.
+        stale = pids_on_port(port)
+        if stale:
+            kill_pid_list(stale)
+            for _ in range(30):
+                if not pids_on_port(port):
+                    break
+                time.sleep(0.1)
+        cmd = [self.nginx, "-p", prefix, "-c", config]
+        # Root harness: nginx drops workers to `nobody`, which cannot traverse the
+        # 0700 mkdtemp LiveRun tree nor read/write its backends and cache store —
+        # so every cache fill fails and GETs return 504. Keep workers as root (the
+        # §4b posture; unprivileged the invoking user already owns the tree, so no
+        # injection). Skip if the config already pins a `user` (nginx forbids a
+        # duplicate `user` directive from `-g`).
+        if os.geteuid() == 0:
+            try:
+                cfg_text = Path(config).read_text(errors="ignore")
+            except OSError:
+                cfg_text = ""
+            if not re.search(r"(?m)^\s*user\s+\S", cfg_text):
+                cmd += ["-g", "user root;"]
+        result = self.call(cmd, check=False)
         if result.returncode:
             raise LiveFailure(result.stderr or result.stdout or f"nginx failed to start for {config}")
         pidfile = prefix / "nginx.pid"
@@ -205,6 +233,64 @@ def nginx_binary_from_args(argv: list[str] | None = None) -> tuple[Path | None, 
     if values and not values[0].startswith("-"):
         return Path(values.pop(0)), values
     return None, values
+
+
+def refresh_shared_pki(log_dir: Path | str | None = None, *, want_proxy: bool = True) -> tuple[bool, str]:
+    """Ensure the shared TEST_ROOT/pki has a fresh user proxy WITHOUT churning the CA.
+
+    ``pki_helpers.blitz_test_pki()`` rmtree's and regenerates the ENTIRE PKI — a
+    brand-new CA and hostcert. The standing fleet loads its certs once at startup,
+    so a mid-run blitz desyncs it: the fleet keeps serving the OLD CA while a
+    freshly-minted client proxy chains to the NEW CA, and EVERY concurrent
+    TLS/GSI/HTTPS handshake across all xdist workers then fails (this was the
+    fast-lane's biggest flakiness source — a stale proxy in one gsi cmd scenario
+    would blow up ~130 unrelated TLS tests).
+
+    So: full-blitz ONLY when the CA/hostcert are genuinely absent (first-time
+    provisioning, before any fleet exists). When they are present but the proxy is
+    merely stale, refresh ONLY the proxy via ``utils/make_proxy.py`` (it reads the
+    existing usercert/userkey and rewrites proxy_std.pem) — the CA and hostcert,
+    and therefore the fleet, are left untouched. Returns ``(ok, err_message)``.
+    """
+    from settings import CA_CERT, SERVER_CERT, TEST_ROOT  # noqa: PLC0415 — avoid import cycle
+
+    pki_dir = os.path.join(TEST_ROOT, "pki")
+    proxy = os.path.join(pki_dir, "user", "proxy_std.pem")
+
+    def _proxy_fresh() -> bool:
+        if not os.path.isfile(proxy):
+            return False
+        return subprocess.run(
+            ["openssl", "x509", "-in", proxy, "-noout", "-checkend", "300"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ).returncode == 0
+
+    ca_ok = os.path.isfile(CA_CERT) and os.path.isfile(SERVER_CERT)
+    if ca_ok and (not want_proxy or _proxy_fresh()):
+        return True, ""
+
+    if ca_ok:
+        # CA/hostcert intact — refresh ONLY the proxy; never touch the fleet's CA.
+        argv = ["python3", str(REPO_ROOT / "utils" / "make_proxy.py"), pki_dir]
+    else:
+        # No CA yet: safe to build the whole PKI (no fleet is up to desync).
+        argv = ["python3", "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"]
+
+    result = subprocess.run(
+        argv,
+        cwd=str(REPO_ROOT / "tests"),
+        env={**os.environ, "PYTHONPATH": "."},
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    if log_dir is not None:
+        try:
+            Path(log_dir).mkdir(parents=True, exist_ok=True)
+            (Path(log_dir) / "pki.log").write_text(result.stdout or "", encoding="utf-8")
+        except OSError:
+            pass
+    if result.returncode != 0:
+        return False, "PKI provisioning failed: " + (result.stdout or "")[-1000:]
+    return True, ""
 
 
 __all__ = ["LiveFailure", "LiveRun", "REPO_ROOT", "nginx_binary_from_args", "random_file", "sha256"]

@@ -16,6 +16,7 @@
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs/vfs.h"
+#include "fs/xfer/xfer.h"   /* brix_xfer_finish — unified transfer ledger */
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"
 #include "core/compat/cstr.h"
@@ -144,6 +145,11 @@ webdav_put_aio_done(ngx_event_t *ev)
         brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
                              "brix_webdav: async staged commit failed for: "
                              "\"%s\"", t->path);
+        /* A direct WebDAV PUT is a STAGE-class ingest — record the failed
+         * publish in the unified ledger (mirrors webdav_put_commit). */
+        brix_xfer_finish(BRIX_XFER_STAGE, "in", (const char *) t->path, NULL,
+                         t->len, BRIX_XFER_COMMIT_ERR, ngx_errno,
+                         r->connection->log);
         brix_dashboard_http_error(r, "webdav PUT staged commit failed");
         brix_dashboard_http_finish(r);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
@@ -152,6 +158,10 @@ webdav_put_aio_done(ngx_event_t *ev)
 
     brix_dashboard_http_add(r, (ngx_atomic_int_t) t->len);
     brix_dashboard_http_finish(r);
+
+    /* Unified transfer ledger: the async PUT publish (mirrors the sync path). */
+    brix_xfer_finish(BRIX_XFER_STAGE, "in", (const char *) t->path, NULL,
+                     t->len, BRIX_XFER_OK, 0, r->connection->log);
 
     webdav_put_persist_checksums(r, (const char *) t->path);   /* §8.3 */
 

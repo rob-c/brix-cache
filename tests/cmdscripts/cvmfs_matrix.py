@@ -70,12 +70,35 @@ def _sh(argv: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
     return proc
 
 
+def _netem_usable() -> bool:
+    """True only if the sch_netem qdisc can actually be instantiated. A network
+    namespace can be created on hosts where the sch_netem kernel module is
+    absent, so `tc qdisc add ... netem` then fails with 'qdisc kind is unknown'.
+    Probe inside a throwaway netns so the host loopback the fleet runs on is
+    never perturbed."""
+    probe_ns = "cvmfs_netem_probe"
+    subprocess.run(["ip", "netns", "del", probe_ns], capture_output=True, text=True)
+    if subprocess.run(["ip", "netns", "add", probe_ns], capture_output=True, text=True).returncode:
+        return False
+    try:
+        subprocess.run(["ip", "netns", "exec", probe_ns, "ip", "link", "set", "lo", "up"], capture_output=True, text=True)
+        probe = subprocess.run(
+            ["ip", "netns", "exec", probe_ns, "tc", "qdisc", "add", "dev", "lo", "root", "netem", "delay", "1ms"],
+            capture_output=True, text=True,
+        )
+        return probe.returncode == 0
+    finally:
+        subprocess.run(["ip", "netns", "del", probe_ns], capture_output=True, text=True)
+
+
 def _require_root_netem() -> None:
     if os.geteuid() != 0:
         raise LiveSkip("must run as root (netem network namespace lab)")
     for tool in ("ip", "tc"):
         if shutil.which(tool) is None:
             raise LiveSkip(f"{tool} not installed")
+    if not _netem_usable():
+        raise LiveSkip("netem qdisc unavailable (sch_netem kernel module missing)")
 
 
 def lab_up() -> None:
@@ -200,6 +223,12 @@ def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path)
             f"coredump_dir {work}/cache\n"
         )
         conf = run.write(work / "squid.conf", squid_conf)
+        # squid drops to the unprivileged "squid" user, which must traverse the
+        # 0700 mkdtemp run root and write pid/log/swap files into the work dir.
+        # Open the chain (root o+rx, work + cache o+rwx) so it stands up as root.
+        run.root.chmod(0o755)
+        work.chmod(0o777)
+        (work / "cache").chmod(0o777)
         run.call(["squid", "-f", conf, "-z"], check=False)
         run.call(["squid", "-f", conf])
         stop = ["squid", "-f", str(conf), "-k", "shutdown"]
@@ -215,6 +244,12 @@ def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path)
             .replace("@ORIGINHOST@", origin_host)
             .replace("@ORIGINPORT@", origin_port),
         )
+        # varnishd jails the VCL compiler under the unprivileged "varnish" user,
+        # which cannot traverse the 0700 mkdtemp run root nor read the VCL. Open
+        # the path chain so the compiler can read -f (dirs o+rx, file o+r).
+        run.root.chmod(0o755)
+        work.chmod(0o755)
+        vcl.chmod(0o644)
         run.call(["varnishd", "-a", f"127.0.0.1:{port}", "-f", vcl, "-n", work / "vn", "-s", "malloc,256m"])
         stop = ["pkill", "-f", f"varnishd .*{work}/vn"]
         cache_base = f"http://127.0.0.1:{port}"

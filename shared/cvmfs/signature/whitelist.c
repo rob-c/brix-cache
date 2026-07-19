@@ -65,9 +65,19 @@ int cvmfs_whitelist_parse(const unsigned char *buf, size_t len, cvmfs_whitelist_
         size_t n = j - i;
         const unsigned char *L = buf + i;
 
-        if (n >= 15 && L[0] == 'E' && L[1] >= '0' && L[1] <= '9') {
-            /* "E<14 digits>" — but NOT a fingerprint that merely starts with 'E'
-             * (e.g. "EA:74:..."), which is disambiguated by the digit check. */
+        /* "E<14 digits>" authoritative-expiry line. Disambiguate from a
+         * FINGERPRINT that also starts with 'E' — not just "EA:74:..." (2nd char
+         * a hex letter) but ALSO "E8:49:..." whenever the signing cert's SHA-1
+         * first byte is 0xE0..0xE9 (~4% of certs). The old test looked at L[1]
+         * alone, so an E0..E9 fingerprint was swallowed here and never stored,
+         * and a perfectly valid mount then failed the trust gate with -9. A real
+         * expiry line is 'E' followed by 14 consecutive DECIMAL digits; a
+         * fingerprint breaks that run at its ':' (index 2). */
+        int is_e_expiry = (n >= 15 && L[0] == 'E');
+        for (size_t k = 1; is_e_expiry && k <= 14; k++) {
+            if (L[k] < '0' || L[k] > '9') is_e_expiry = 0;
+        }
+        if (is_e_expiry) {
             long e = parse_expiry(L + 1, n - 1);
             if (e > 0) e_expiry = e;
         } else if (lineno == 0) {

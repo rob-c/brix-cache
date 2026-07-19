@@ -279,9 +279,20 @@ def _compile_brixcvmfs(dst: Path) -> None:
             "shared/cvmfs/signature/manifest.c", "shared/cvmfs/signature/whitelist.c",
             "shared/cvmfs/signature/verify.c", "shared/cvmfs/config/repo.c",
             "shared/cvmfs/config/cvmfs_conf.c", "shared/cache/cas_store.c",
+            "shared/cvmfs/walk/walk.c",   # brixcvmfs prewarm -> cvmfs_walk_*
             "shared/net/proxy_env.c"]
-    subprocess.run(["gcc", "-Wall", "-I", "shared", *cflags, *deps, *libs,
-                    "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-o", str(dst)],
+    # brixcvmfs.c now pulls in the client net stack (net/cpool.h -> brix.h -> src
+    # wire structs, brix_cpool_* in libbrix.a), so the standalone compile needs
+    # the client/lib + src includes, the XRDPROTO_NO_NGX shim, and the prebuilt
+    # client archives — else it dies "net/cpool.h: No such file or directory".
+    archives = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a"]
+    for a in archives:
+        if not (root / a).is_file():
+            pytest.skip(f"prebuilt {a} not present (build the client first)")
+    subprocess.run(["gcc", "-Wall", "-I", "shared", "-I", "client/lib", "-I", "src",
+                    "-DXRDPROTO_NO_NGX", *cflags, *deps, *archives, *libs,
+                    "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lssl", "-pthread",
+                    "-o", str(dst)],
                    cwd=str(root), check=True)
 
 

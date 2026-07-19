@@ -195,8 +195,19 @@ def authdb_nginx(authdb_setup):
         pytest.skip(f"Dedicated authdb nginx not running on port {AUTHDB_PORT}")
 
     # SIGHUP so nginx reloads the authdb rules written by authdb_setup.
-    pidfile = os.path.join(_TEST_ROOT, "dedicated", "authdb", "logs", "nginx.pid")
-    if os.path.exists(pidfile):
+    # The registry framework writes the master pidfile under
+    # registry/authdb/logs/; the pre-migration bash layout used dedicated/authdb/
+    # logs/. Try both (registry first) — pointing at the stale bash path silently
+    # skipped the reload, so the rules never loaded and every "denied" assertion
+    # saw an empty allow-all ruleset.
+    pidfile = next(
+        (p for p in (
+            os.path.join(_TEST_ROOT, "registry", "authdb", "logs", "nginx.pid"),
+            os.path.join(_TEST_ROOT, "dedicated", "authdb", "logs", "nginx.pid"),
+        ) if os.path.exists(p)),
+        None,
+    )
+    if pidfile:
         try:
             pid = int(open(pidfile).read().strip())
             os.kill(pid, signal.SIGHUP)

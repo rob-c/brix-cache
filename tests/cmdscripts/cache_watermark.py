@@ -22,13 +22,22 @@ def objs_dir_from_nginx(nginx_bin: str = NGINX_BIN) -> Path:
 
 
 def filesystem_usage_percent(path: Path) -> int:
-    result = run(["df", "--output=pcent", str(path)])
-    if result.returncode == 0:
-        lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        if lines:
-            digits = "".join(ch for ch in lines[-1] if ch.isdigit())
-            if digits:
-                return int(digits)
+    # Must match the SERVER's watermark basis exactly, or the +/-2% margins below
+    # are meaningless. The reaper (src/fs/cache/reap_watermark.c) compares
+    # occupancy_ppm = (f_blocks - f_bavail) / f_blocks — i.e. it counts the
+    # root-reserved blocks as occupied. `df --output=pcent` reports
+    # used / (used + avail), which EXCLUDES the reserved blocks and on an ext4
+    # root-reserved filesystem runs ~3-4 points LOWER than the server's basis.
+    # Keying watermarks off df therefore makes the "calm" instance (high = used+2)
+    # sit BELOW the server's true occupancy and purge spuriously. Compute the
+    # occupancy exactly as the server does, straight from statvfs(2).
+    try:
+        vfs = os.statvfs(path)
+        if vfs.f_blocks:
+            occupancy = (vfs.f_blocks - vfs.f_bavail) / vfs.f_blocks
+            return int(round(occupancy * 100))
+    except OSError:
+        pass
     usage = shutil.disk_usage(path)
     return int((usage.used * 100) / usage.total)
 

@@ -6,6 +6,7 @@
 #include "fs/backend/sd.h"            /* Layer 3: driver-backed export open */
 #include "core/ngx_brix_module.h"
 #include "fs/backend/csi_tagstore.h"
+#include "fs/cache/cache_storage.h"  /* brix_cache_storage_decorator (composed-tier detect) */
 #include "net/ratelimit/throttle_compat.h"  /* phase-59 W3a: open-files cap */
 #include "protocols/root/response/async.h"
 #include "net/mirror/stream_wmirror.h"
@@ -344,7 +345,17 @@ brix_open_stage_preflight(brix_open_args_t *a)
 	 */
 	brix_open_resume_inplace_decide(a);
 
-	if (!a->is_write) {
+	/* Read-side directory reject (stock parity: open-for-read of a directory
+	 * returns kXR_isDirectory). SKIP it on a composed-cache tier: there the
+	 * probe resolves to the REMOTE source backend, so the "is it a directory?"
+	 * stat is a blocking SigV4/HTTP HEAD on the event loop — and when the origin
+	 * and this cache node share one worker (or any single-threaded event loop)
+	 * that HEAD deadlocks the very worker meant to answer it. The post-fill open
+	 * that reaches here is a just-filled regular object, never a directory, and a
+	 * composed tier serves objects, not directory listings, so the reject is
+	 * moot. (Legacy cache_root cache and plain posix/pblock exports keep the
+	 * probe — their backend stat is local and non-blocking.) */
+	if (!a->is_write && brix_cache_storage_decorator(conf) == NULL) {
 		brix_vfs_stat_t rst;
 		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
 		                      &rst, ctx, conf, c->pool)

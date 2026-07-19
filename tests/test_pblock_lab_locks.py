@@ -29,7 +29,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
@@ -57,6 +57,7 @@ def _lock(catalog: Path, path: str, *, off: int = 0, length: int = 0,
         conn.commit()
     finally:
         conn.close()
+    pblock_worker_own(catalog)
 
 
 def _unlock_all(catalog: Path, path: str) -> None:
@@ -66,6 +67,7 @@ def _unlock_all(catalog: Path, path: str) -> None:
         conn.commit()
     finally:
         conn.close()
+    pblock_worker_own(catalog)
 
 
 def _need_bins() -> None:

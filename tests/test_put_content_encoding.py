@@ -72,6 +72,12 @@ def ce_server(lifecycle, tmp_path):
     wroot.mkdir()
     sroot = tmp_path / "sdata"
     sroot.mkdir()
+    if os.geteuid() == 0:
+        # nginx workers drop to `nobody` under the root harness; the root-owned
+        # export trees are otherwise unwritable, so anonymous PUT fails at the
+        # staged-open with EACCES (surfaced as 403). Make them world-writable.
+        for d in (wroot, sroot):
+            os.chmod(d, 0o777)
     s3_port = free_port(HOST)
 
     ep = lifecycle.start(NginxInstanceSpec(

@@ -315,6 +315,11 @@ brix_vbr_build_pblock(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     conf.root            = e->root_canon;
     conf.busy_timeout_ms = 5000;
     conf.block_size      = e->block_size;
+    /* Never create pblock blobs/catalog.db as root — drop to an unprivileged
+     * account (the worker `user <acct>;`, else "nobody") first. Gate on the
+     * worker: a config/master-time build must NOT drop (it would strip the master
+     * of the privilege it needs to open logs and fork workers). */
+    conf.enforce_unprivileged = (ngx_process == NGX_PROCESS_WORKER);
 
     inst = brix_sd_instance_create(log, "pblock",
                                      &conf, &sderr);

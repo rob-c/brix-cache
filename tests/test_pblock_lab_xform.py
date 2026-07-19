@@ -41,7 +41,11 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveFailure, LiveRun, sha256
-from cmdscripts.pblock_live import pblock_lab_spec
+from cmdscripts.pblock_live import (
+    pblock_lab_spec,
+    pblock_worker_own,
+    pblock_worker_readable,
+)
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
@@ -66,6 +70,7 @@ def _catalog_size(root: Path, path: str) -> int:
         return int(row[0]) if row else -1
     finally:
         conn.close()
+        pblock_worker_own(root / "catalog.db")
 
 
 @pytest.mark.optin
@@ -77,6 +82,7 @@ def test_xform_crypt_roundtrip(lifecycle) -> None:
     _need_bins()
     with LiveRun("pblock_xform_crypt", None) as run:
         keyfile = run.write(run.root / "xform.key", "phase-83 lab crypt key\n")
+        pblock_worker_readable(keyfile)
         ep = lifecycle.start(pblock_lab_spec(
             "lc-pblock-xform-crypt", f"?xform=crypt:{keyfile}",
             workers=1, webdav=True))
@@ -178,6 +184,7 @@ def test_xform_config_errors_and_mismatch(lifecycle) -> None:
     # the wrong transform.
     with LiveRun("pblock_xform_shift", None) as run:
         keyfile = run.write(run.root / "k", "another key\n")
+        pblock_worker_readable(keyfile)
         ep = lifecycle.start(pblock_lab_spec("lc-pblock-xform-shift", "?xform=zstd",
                                              workers=1, webdav=True))
         url = f"http://{ep.host}:{ep.port}"

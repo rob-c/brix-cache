@@ -144,11 +144,42 @@ def gsi_tpc(lifecycle, tmp_path_factory):
         # stock source rejects the TPC open with "tpc not supported".
         # Generous rendezvous TTL: the GSI handshake + async wait can exceed a
         # short default, yielding "tpc authorization expired".
-        "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n")
+        "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
+        # Keep xrootd's runtime admin/pid dirs under the test-owned base so the
+        # `-R nobody` drop (below) can create its sockets — the default location
+        # is root-owned and unwritable to the dropped user.
+        f"all.adminpath {base / 'admin'}\n"
+        f"all.pidpath {base / 'admin'}\n")
     shutil.move(str(src_data), str(base / "gsidata"))
     _free_port(src_port)
-    src = subprocess.Popen(["xrootd", "-c", str(src_cfg), "-l", str(logs / "xrd.log"),
-                            "-n", "tpcgsisrc"],
+    argv = ["xrootd", "-c", str(src_cfg), "-l", str(logs / "xrd.log"),
+            "-n", "tpcgsisrc"]
+    # Root-harness privilege drop: stock xrootd refuses to run as superuser, so
+    # run it via `-R nobody` and pre-open every path that user must touch — the
+    # test-owned tree (a+rwX), the admin dir, and the GSI key (nobody-only 0400).
+    if os.geteuid() == 0:
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        (base / "admin").mkdir(parents=True, exist_ok=True)
+        # Open ONLY what the dropped source needs: traverse base, read the data
+        # tree + CA certdir + hostcert, write admin/log. Deliberately do NOT
+        # touch usr/ — XrdSecgsi refuses a group/world-writable proxy credential
+        # ("cannot load proxy credential"), and only the root client/nginx dest
+        # (not the -R nobody source) ever read it.
+        _run(["chmod", "a+rx", str(base)])
+        for d in (base / "gsidata", certs):
+            _run(["chmod", "-R", "a+rX", str(d)])
+        for d in (base / "admin", logs):
+            _run(["chmod", "-R", "a+rwX", str(d)])
+        hostcert = srv / "hostcert.pem"
+        if hostcert.exists():
+            _run(["chmod", "a+r", str(hostcert)])
+            _run(["chmod", "a+rx", str(srv)])
+        hostkey = srv / "hostkey.pem"
+        if hostkey.exists():
+            shutil.chown(hostkey, runas)
+            os.chmod(hostkey, 0o400)
+        argv += ["-R", runas]
+    src = subprocess.Popen(argv,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if not _wait_listen(src_port):
         src.terminate()

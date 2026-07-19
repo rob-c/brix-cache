@@ -37,6 +37,8 @@
 #include <fcntl.h>
 
 #include <netdb.h>
+#include <netinet/in.h>   /* sockaddr_in6 / in6_addr — IPv4-mapped tpc.org */
+#include <arpa/inet.h>    /* inet_ntop — XrdNetAddr-matching numeric literal */
 #include "core/compat/alloc_guard.h"
 #include "core/compat/cstr.h"
 
@@ -107,10 +109,53 @@ tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
     pid = ctx->login.pid != 0 ? ctx->login.pid : (uint32_t) ngx_pid;
 
     host[0] = '\0';
-    if (c->sockaddr != NULL
-        && getnameinfo(c->sockaddr, c->socklen, host, sizeof(host),
-                       NULL, 0, NI_NAMEREQD) != 0) {
-        host[0] = '\0';
+
+    /* Present the client host EXACTLY as the XRootD TPC source stores it in the
+     * rendezvous grant (XrdOfsTPC::genOrg -> XrdNetAddr::Name): the source pairs
+     * the destination's tpc.org against the grant with a raw strcmp
+     * (XrdOfsTPCInfo::Match), so any textual divergence leaves the grant
+     * unredeemed until it TTL-expires — the destination's pull-open then hangs on
+     * kXR_waitresp and finally fails "[3012] TPC kXR_open recv failed". Every
+     * XRootD server is IPv6 dual-stack, so it sees an IPv4 client as the
+     * IPv4-MAPPED address ::ffff:a.b.c.d and reverse-resolves THAT (which fails
+     * for non-DNS hosts like loopback -> numeric bracketed literal). brix's TPC
+     * listener is IPv4-only, so a naive getnameinfo() on the bare IPv4 resolves
+     * 127.0.0.1 -> "localhost" while the grant holds "[::ffff:127.0.0.1]". Match
+     * the source: map an IPv4 peer into ::ffff:a.b.c.d, reverse-resolve the mapped
+     * form, and fall back to its bracketed numeric literal. */
+    if (c->sockaddr != NULL) {
+        struct sockaddr_in6  mapped;
+        struct sockaddr     *sa    = c->sockaddr;
+        socklen_t            salen = c->socklen;
+
+        if (c->sockaddr->sa_family == AF_INET) {
+            const struct sockaddr_in *s4 =
+                (const struct sockaddr_in *) c->sockaddr;
+
+            ngx_memzero(&mapped, sizeof(mapped));
+            mapped.sin6_family = AF_INET6;
+            mapped.sin6_port   = s4->sin_port;
+            mapped.sin6_addr.s6_addr[10] = 0xff;
+            mapped.sin6_addr.s6_addr[11] = 0xff;
+            ngx_memcpy(&mapped.sin6_addr.s6_addr[12], &s4->sin_addr, 4);
+            sa    = (struct sockaddr *) &mapped;
+            salen = (socklen_t) sizeof(mapped);
+        }
+
+        if (getnameinfo(sa, salen, host, sizeof(host), NULL, 0,
+                        NI_NAMEREQD) != 0) {
+            host[0] = '\0';
+        }
+
+        if (host[0] == '\0' && sa->sa_family == AF_INET6) {
+            char                       numeric[INET6_ADDRSTRLEN];
+            const struct sockaddr_in6 *s6 = (const struct sockaddr_in6 *) sa;
+
+            if (inet_ntop(AF_INET6, &s6->sin6_addr, numeric,
+                          sizeof(numeric)) != NULL) {
+                (void) snprintf(host, sizeof(host), "[%s]", numeric);
+            }
+        }
     }
 
     if (host[0] == '\0' && c->addr_text.len > 0) {

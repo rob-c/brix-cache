@@ -240,6 +240,15 @@ class RegistryLauncher:
         # export the worker owns writable. No-op when unprivileged.
         if os.geteuid() == 0 and os.path.isdir(endpoint.data_root):
             self._chmod_r(endpoint.data_root, 0o777, add_only=True)
+        # The logs dir is created 0755-root by the launcher and nginx's master
+        # opens error.log there, but the `nobody` worker lazily creates NEW files
+        # in it — the unified transfer ledger's xfer_audit.log — and gets EACCES on
+        # a root-owned dir, silently disabling auditing. Open the dir for the
+        # worker so the ledger sink can be created. No-op when unprivileged.
+        if os.geteuid() == 0:
+            logs_dir = os.path.join(endpoint.prefix, "logs")
+            if os.path.isdir(logs_dir):
+                self._chmod_add(logs_dir, 0o777)
         self.nginx_test(spec)
         self._nginx(["-p", endpoint.prefix, "-c", "conf/nginx.conf"], spec=spec, env=spec.env)
         self._wait_ready(endpoint.host, endpoint.port, spec.readiness)
@@ -779,7 +788,12 @@ class RegistryLauncher:
         os.chmod(log_dir, 0o777)
         Path(log_path).write_text("", encoding="utf-8")
         shutil.chown(log_path, user)
-        pki_dir = os.environ.get("PKI_DIR")
+        # Fall back to settings.PKI_DIR (the canonical TEST_ROOT/pki root) when the
+        # env var is unset, exactly as _start_xrdhttp does for http.cadir — the
+        # fleet's start-all does not export PKI_DIR, so gating on the env var alone
+        # skipped the whole block and left hostkey.pem 0400-root, unreadable by the
+        # -R nobody GSI/HTTPS xrootd (HTTPS init: "invalid private key").
+        pki_dir = os.environ.get("PKI_DIR") or str(PKI_DIR)
         if pki_dir and os.path.isdir(pki_dir):
             for sub in (pki_dir, os.path.join(pki_dir, "ca"), os.path.join(pki_dir, "server")):
                 if os.path.isdir(sub):

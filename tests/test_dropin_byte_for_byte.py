@@ -448,9 +448,24 @@ def _start_xrootd(data_dir):
             f"all.adminpath {os.path.join(base, 'admin')}\n"
             f"all.pidpath {os.path.join(base, 'run')}\n"
             f"xrd.trace off\n")
-    subprocess.run([REF_XROOTD_BIN, "-b", "-c", cfg,
-                    "-l", os.path.join(base, "xrootd.log")],
-                   capture_output=True)
+    argv = [REF_XROOTD_BIN, "-b", "-c", cfg,
+            "-l", os.path.join(base, "xrootd.log")]
+    # Official xrootd refuses to run as superuser.  Under the root harness,
+    # launch with `-R nobody` and pre-open the paths the dropped user needs:
+    # the shared data root (localroot, read+write — shared with nginx, so
+    # a+rwX is expected here), the log dir, and the adminpath dir.  This is a
+    # PLAIN server (no GSI key), so only data + log + admin need opening.
+    if os.geteuid() == 0:
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        admin = os.path.join(base, "admin")
+        # base is the log dir (xrootd.log lives directly under it), so it must
+        # be writable, not just traversable.
+        subprocess.run(["chmod", "a+rwX", base])
+        subprocess.run(["chmod", "-R", "a+rwX", data_dir])
+        subprocess.run(["chmod", "-R", "a+rwX", admin])
+        subprocess.run(["chmod", "-R", "a+rwX", os.path.join(base, "run")])
+        argv += ["-R", runas]
+    subprocess.run(argv, capture_output=True)
     return cfg
 
 
@@ -938,6 +953,11 @@ class TestCloneOpcodeParity:
         full = os.path.join(stack_data_dir(), dst.lstrip("/"))
         with open(full, "wb") as f:
             f.write(b"\x00" * 4096)
+        # Under the root harness the servers run as `nobody`; a fresh file
+        # created by the (root) test process is mode 0644, so make it a+rw so
+        # the dropped user can open it for update.
+        if os.geteuid() == 0:
+            os.chmod(full, 0o666)
         try:
             sid, o_status, o_body = _open(n, dst, kXR_open_updt)
             assert o_status == kXR_ok, f"dst open failed: {_error_msg(o_body)}"

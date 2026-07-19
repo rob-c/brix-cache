@@ -37,6 +37,11 @@ DIVERGENCE summary (each pinned strict-xfail below):
   ownership is claimed by the mounting user; catalog uid/gid ignored).
 """
 
+# PEP 563 (deferred annotations): this module uses PEP 604 `X | None` unions in
+# function annotations, which stock EL9 Python 3.9 evaluates at def-time and
+# rejects (TypeError) without this. See TESTING.md §2.
+from __future__ import annotations
+
 import errno
 import os
 import shutil

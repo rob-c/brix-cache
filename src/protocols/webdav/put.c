@@ -18,6 +18,7 @@
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "fs/vfs/vfs.h"
+#include "fs/xfer/xfer.h"   /* brix_xfer_finish — unified transfer ledger */
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"
 #include "core/compat/cstr.h"
@@ -100,6 +101,12 @@ webdav_put_commit(ngx_http_request_t *r, const char *path,
     brix_vfs_writer_t *writer, int created)
 {
     ngx_int_t status;
+    /* A direct WebDAV PUT is a STAGE-class ingest (client stream -> local
+     * object), so it belongs in the unified transfer ledger exactly like a
+     * root:// staged write or a WebDAV TPC — the "publish" record an operator
+     * greps for. bytes = the request body length (0 for an empty PUT). */
+    size_t xfer_bytes = (r->headers_in.content_length_n > 0)
+                        ? (size_t) r->headers_in.content_length_n : 0;
 
     brix_dashboard_http_finish(r);
 
@@ -111,11 +118,16 @@ webdav_put_commit(ngx_http_request_t *r, const char *path,
         brix_log_safe_path(r->connection->log, NGX_LOG_ERR, ngx_errno,
                              "brix_webdav: staged commit failed for: \"%s\"",
                              path);
+        brix_xfer_finish(BRIX_XFER_STAGE, "in", path, NULL, xfer_bytes,
+                         BRIX_XFER_COMMIT_ERR, ngx_errno, r->connection->log);
         webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
     webdav_put_persist_checksums(r, path);   /* §8.3 */
+
+    brix_xfer_finish(BRIX_XFER_STAGE, "in", path, NULL, xfer_bytes,
+                     BRIX_XFER_OK, 0, r->connection->log);
 
     status = created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     r->headers_out.status = status;

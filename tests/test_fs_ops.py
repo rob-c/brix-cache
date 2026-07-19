@@ -254,6 +254,15 @@ class TestMv:
 # kXR_chmod
 # ---------------------------------------------------------------------------
 
+def _worker_own(path: str) -> str:
+    """Hand a root-created test file to the server's `nobody` worker so its
+    chmod(2) is owner-legal (chmod needs ownership, not a mode bit).  Best-effort;
+    a no-op unprivileged where the invoking user already owns everything."""
+    from official_interop_lib import chown_stock  # noqa: PLC0415
+    chown_stock(path)
+    return path
+
+
 class TestChmod:
 
     def test_chmod_file(self):
@@ -261,6 +270,7 @@ class TestChmod:
         path = os.path.join(DATA_DIR, "_fstest_chmod_file.txt")
         open(path, "w").write("chmod me\n")
         os.chmod(path, 0o644)
+        _worker_own(path)
         fs = anon_fs()
         # Set to 0o444 (read-only for all)
         status, _ = fs.chmod("/_fstest_chmod_file.txt",
@@ -274,6 +284,7 @@ class TestChmod:
         path = os.path.join(DATA_DIR, "_fstest_chmod_dir")
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o755)
+        _worker_own(path)
         fs = anon_fs()
         status, _ = fs.chmod("/_fstest_chmod_dir",
                               AccessMode.UR | AccessMode.UW | AccessMode.UX |
@@ -293,6 +304,7 @@ class TestChmod:
         path = os.path.join(DATA_DIR, "_fstest_chmod_gsi.txt")
         open(path, "w").write("gsi chmod\n")
         os.chmod(path, 0o644)
+        _worker_own(path)
         fs = gsi_fs()
         status, _ = fs.chmod("/_fstest_chmod_gsi.txt",
                               AccessMode.UR | AccessMode.GR | AccessMode.OR)

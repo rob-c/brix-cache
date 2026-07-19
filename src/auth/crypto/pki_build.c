@@ -312,8 +312,15 @@ brix_ca_store_cache_get(const char *key, ngx_log_t *log, const char *cadir,
         if (e->store != NULL && ngx_strcmp(e->key, key) == 0) {
             if (crl_count_out != NULL) { *crl_count_out = e->crl_count; }
             X509_STORE_up_ref(e->store);
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix_pki: reusing the CA/CRL store already built for \"%s\" "
+            /* WARN (not NOTICE): this memo is emitted at CONFIG-parse time, and
+             * nginx pins the config-parse log to WARN — a NOTICE here is silently
+             * dropped from `nginx -t` and from the startup diagnostics, so neither
+             * an operator nor a conformance test can confirm the sibling-block
+             * store reuse actually happened. brix already surfaces informational
+             * GSI config "NOTE:"s at WARN for exactly this reason (see
+             * postconfiguration.c). Low frequency (only when >1 block shares a CA). */
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                "brix_pki: NOTE: reusing the CA/CRL store already built for \"%s\" "
                 "(skipped a redundant CRL directory load)",
                 cadir ? cadir : (cafile ? cafile : "(system)"));
             return e->store;

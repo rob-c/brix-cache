@@ -106,6 +106,8 @@ def gsi_server(tmp_path_factory):
     cfg = base / "xrootd.cfg"
     cfg.write_text(
         f"xrd.port {PORT}\n"
+        f"all.adminpath {base / 'admin'}\n"
+        f"all.pidpath {base / 'admin'}\n"
         "all.export /gsidata\n"
         f"oss.localroot {base}\n"
         "xrootd.seclib libXrdSec.so\n"
@@ -116,8 +118,31 @@ def gsi_server(tmp_path_factory):
     shutil.move(str(data), str(base / "gsidata"))
 
     _free_port(PORT)
-    proc = subprocess.Popen(["xrootd", "-c", str(cfg), "-l", str(base / "x.log"),
-                             "-n", "gsitest"],
+    argv = ["xrootd", "-c", str(cfg), "-l", str(base / "x.log"), "-n", "gsitest"]
+    # Stock xrootd refuses to run as superuser, so under the root test harness we
+    # drop it to `nobody` via `-R` and pre-open ONLY the paths the dropped user
+    # touches.  The user proxy dir (usr/) is deliberately left untouched: XrdSecgsi
+    # refuses a group/world-writable proxy, and only the root client reads it.
+    if os.geteuid() == 0:
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        (base / "admin").mkdir(parents=True, exist_ok=True)
+        # `-n gsitest` makes xrootd create/write a <logdir>/gsitest instance dir.
+        (base / "gsitest").mkdir(parents=True, exist_ok=True)
+        _run(["chmod", "a+rx", str(base)])
+        for d in (base / "gsidata", certs):
+            _run(["chmod", "-R", "a+rX", str(d)])
+        for d in (base / "admin", base / "gsitest"):
+            _run(["chmod", "-R", "a+rwX", str(d)])
+        hostcert = srv / "hostcert.pem"
+        if hostcert.exists():
+            _run(["chmod", "a+r", str(hostcert)])
+            _run(["chmod", "a+rx", str(srv)])
+        hostkey = srv / "hostkey.pem"
+        if hostkey.exists():
+            shutil.chown(hostkey, runas)
+            os.chmod(hostkey, 0o400)
+        argv += ["-R", runas]
+    proc = subprocess.Popen(argv,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # Wait for the listener.
     up = False

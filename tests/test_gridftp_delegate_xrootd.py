@@ -36,6 +36,7 @@ Run:
         pytest tests/test_gridftp_delegate_xrootd.py -v -s -p no:xdist
 """
 
+import glob
 import os
 import shutil
 import subprocess
@@ -46,6 +47,7 @@ import pytest
 from settings import BIND_HOST, NGINX_BIN, PKI_DIR, free_port
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from gridftp_client_env import gsi_client_env
 
 pytestmark = [pytest.mark.slow, pytest.mark.serial,
               pytest.mark.timeout(300), pytest.mark.uses_lifecycle_harness]
@@ -107,9 +109,32 @@ class _Xrootd:
                 "xrootd.trace login auth\n")
         # No `-n <instance>`: it relocates the `-l` file into an instance
         # subdirectory, hiding the log from log_text().
+        argv = ["xrootd", "-c", cfg, "-l", self.log]
+        # Root-harness privilege drop: stock xrootd refuses to run as superuser
+        # ("Security reasons prohibit running as superuser"), so under a root
+        # harness we run it via `-R nobody` and pre-open every path that user
+        # must then touch — the exported data dir (a+rwX), the log file, and the
+        # shared GSI PKI (hostkey.pem 0400-root is unreadable by nobody, which
+        # otherwise fails GSI init and the port never opens).
+        if os.geteuid() == 0:
+            runas = os.environ.get("REF_RUNAS_USER", "nobody")
+            for d in (base, self.data):
+                _run(["chmod", "-R", "a+rwX", d])
+            open(self.log, "w").close()
+            shutil.chown(self.log, runas)
+            for sub in (PKI_DIR, CA_DIR, os.path.join(PKI_DIR, "server")):
+                if os.path.isdir(sub):
+                    _run(["chmod", "a+rx", sub])
+            for pem in (SERVER_CERT, *glob.glob(
+                    os.path.join(CA_DIR, "*.pem"))):
+                if os.path.exists(pem):
+                    _run(["chmod", "a+r", pem])
+            if os.path.exists(SERVER_KEY):
+                shutil.chown(SERVER_KEY, runas)
+                os.chmod(SERVER_KEY, 0o400)
+            argv += ["-R", runas]
         self._proc = subprocess.Popen(
-            ["xrootd", "-c", cfg, "-l", self.log],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(60):
             if _run(["bash", "-c",
                      f"ss -tln | grep -q ':{self.port} '"]).returncode == 0:
@@ -176,9 +201,7 @@ class _Gateway:
 def _guc(*args, timeout=60):
     """globus-url-copy with the grid client env and a delegating (dcpriv) data
     channel — the client forwards its proxy on the control channel."""
-    env = dict(os.environ)
-    env["X509_CERT_DIR"] = CA_DIR
-    env["X509_USER_PROXY"] = USER_PROXY
+    env = gsi_client_env(CA_DIR, USER_PROXY)
     return subprocess.run([GUC, "-dcpriv", *args],
                           capture_output=True, text=True, env=env, timeout=timeout)
 

@@ -47,38 +47,15 @@ def _tagged(path: Path) -> bool:
 
 
 def ensure_shared_pki(log_dir: Path, *, want_proxy: bool = False) -> str:
-    """Provision the shared /tmp/xrd-test PKI if missing; '' on success."""
-    proxy = Path(TEST_ROOT) / "pki" / "user" / "proxy_std.pem"
+    """Provision the shared /tmp/xrd-test PKI if missing; '' on success.
 
-    def _fresh() -> bool:
-        if not (Path(CA_CERT).is_file() and Path(SERVER_CERT).is_file()):
-            return False
-        if not want_proxy:
-            return True
-        if not proxy.is_file():
-            return False
-        check = subprocess.run(
-            ["openssl", "x509", "-in", str(proxy), "-noout", "-checkend", "300"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return check.returncode == 0
-
-    if _fresh():
-        return ""
-    result = subprocess.run(
-        ["python3", "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"],
-        cwd=REPO_ROOT / "tests",
-        env={**os.environ, "PYTHONPATH": "."},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    log_dir.mkdir(parents=True, exist_ok=True)
-    (log_dir / "pki.log").write_text(result.stdout or "")
-    if result.returncode != 0 or not _fresh():
-        return "PKI provisioning failed: " + (result.stdout or "")[-1000:]
-    return ""
+    Refreshes ONLY the proxy when the CA/hostcert already exist — a full
+    blitz_test_pki() would regenerate the CA and desync the standing fleet,
+    failing every concurrent TLS/GSI test. See live_common.refresh_shared_pki.
+    """
+    from cmdscripts.live_common import refresh_shared_pki  # noqa: PLC0415
+    ok, msg = refresh_shared_pki(log_dir, want_proxy=want_proxy)
+    return "" if ok else msg
 
 
 # ---------------------------------------------------------------------------

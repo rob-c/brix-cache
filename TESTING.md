@@ -81,6 +81,98 @@ python3 -c "import pytest, pytest_timeout, xdist, cryptography, requests, urllib
 - **`python3-xrootd`** (XRootD Python bindings, EPEL, v5.9.x) is needed by the
   fleet readiness probe and cross/differential tests.
 
+### 1a. Additional packages for full coverage (fewer skips) — installed 2026-07
+
+The §1 set gets the suite *collecting and running*; the packages below turn
+whole clusters of tests from **skipped/failed → passing** by supplying the
+optional subsystems, codecs and tools they gate on. All are EL9 RPMs except
+`crc32c` (no RPM — one pip module). Install them **before** the first
+`start-all` (the krb5 tier is stood up mid-startup — see the krb5 note).
+
+```bash
+# --- optional subsystems the live/auth lanes need ---
+sudo dnf install -y \
+    krb5-server krb5-workstation \  # KDC tooling: krb5kdc/kdb5_util/kadmin.local (server) AND kinit (workstation)
+    haproxy \                       # HA-failover map tests (test_ha_failover)
+    nghttp2 \                       # nghttpd — cvmfs HTTP/2 origin tests
+    setools-console \               # sesearch — SELinux policy tests (still self-skip w/o the RPM, see §1a note)
+    clang                           # phase-27 memory-safety compile tests
+
+# --- codec dev libs (compiled INTO the module + client codec chain) ---
+sudo dnf install -y libseccomp-devel libzstd-devel lz4 python3-lz4
+
+# --- python modules the digest/xattr/compression tests import ---
+sudo dnf install -y python3-pyxattr python3-zstandard
+python3 -m pip install crc32c          # no EL9 RPM; the ONLY pip dep in the whole setup
+
+# --- HTTP-proxy + third-party-copy + dev-header backends the feature lanes need ---
+sudo dnf install -y \
+    varnish \                       # CVMFS matrix / proxy-cache scenarios (test_cvmfs_matrix)
+    squid \                         # the canonical CVMFS HTTP forward-proxy
+    globus-gass-copy-progs \        # globus-url-copy — gsiftp/GridFTP gateway tests (test_gridftp_*)
+    xrootd-devel                    # XrdSsi + other client headers (test_ssi_wire, some unit builds)
+# CVMFS public keys (/etc/cvmfs/keys) for the live-cvmfs lane. The `wlcg` repo's
+# cvmfs-config-default ships egi.eu; cern.ch keys come from the `cernvm` repo's
+# variant — pick whichever your box's repos carry (they conflict, install one):
+sudo dnf install -y cvmfs-config-default
+```
+
+**Client tools built on demand — pre-build them so the lane doesn't skip.** A few
+tests compile a helper from `tests/c/…` or expect a `client/bin/…` binary and
+*skip* if it is absent. Build them once from the checkout:
+
+```bash
+make -C client fault-proxy        # client/bin/fault_proxy — cvmfs_live_ext + resilience TCP-fault lanes
+make -C client -j$(nproc)         # brixMount, xrdcp, xrdfs, … (also relinks after a shared/ change)
+```
+
+> **Still-missing on this box (documented, not blocking the core lane):**
+> `cern.ch` CVMFS keys (needs the `cernvm`-repo `cvmfs-config-default`, and the
+> live cvmfs tests then need network to a CERN Stratum-1); the `XrdSsi` client
+> headers (`test_ssi_wire` — not shipped by EL9 `xrootd-devel`); and the
+> `xrd-ceph-build` **docker image** for `test_ceph_live` (`docker build -f
+> tests/ceph/Dockerfile.build …`). These gate a handful of tests each and self-skip.
+
+**Two hard-won gotchas — both cost a full test cycle to diagnose:**
+
+- **krb5 needs BOTH `krb5-server` AND `krb5-workstation`.** `kdc_helpers.py`'s
+  `_REQUIRED_TOOLS` includes `kinit` (shipped by `krb5-workstation`, *not*
+  `krb5-server`), so with only the server package the krb5 tier still reports
+  `rc=3 "subsystem unavailable"` and every krb5 test skips. Install both, then
+  verify: `python3 tests/kdc_helpers.py up` should print
+  `krb5 tier: realm NGINX.TEST up (kdc :11117, keytab …)`. **Install before
+  `start-all`** — the krb5 nginx acceptor's `nginx -t` fails with
+  *"cannot read krb5 keytab … not found"* if the tier could not mint the keytab
+  during startup.
+
+- **Codec `-devel` packages must be in place BEFORE `./configure`, and enabling
+  a codec means rebuilding the WHOLE chain — not just `make`.** The vendored
+  nginx `config` auto-detects `libseccomp`/`libzstd` via `pkg-config` at
+  *configure* time and sets `-DBRIX_HAVE_SECCOMP` / `-DBRIX_HAVE_ZSTD`. If you
+  install the `-devel` after the build, a bare `make` will **not** pick them up.
+  And turning on server-side zstd desyncs the client (`xrdcp: server negotiated
+  codec 3 that this client build cannot decode`) unless the client's codec
+  library is rebuilt too — the decoders live in `shared/xrdproto/libxrdproto.a`,
+  which `make -C client` does **not** rebuild. The full incantation after
+  installing a codec `-devel`:
+
+  > The pure-Python fleet drives the **vendored static build** at
+  > `/tmp/nginx-1.28.3/objs/nginx` (`settings.NGINX_BIN` default) — NOT the RPM
+  > dynamic module of §4a. That tree is where all `configure`/`make` below run;
+  > if it does not exist yet, unpack `nginx-1.28.3` there and configure it once
+  > with the same flags. After a `config` (source-list) change, re-`./configure
+  > … --add-module=<repo>` then `make`; new `.c` files go in the repo-root
+  > `./config`.
+
+  ```bash
+  cd /tmp/nginx-1.28.3 && ./configure --with-stream --with-stream_ssl_module \
+      --with-http_ssl_module --with-http_dav_module --with-threads \
+      --add-module=/root/dev/brix-cache && make -j$(nproc)   # module: BRIX_HAVE_*
+  cd /root/dev/brix-cache
+  make -C shared/xrdproto clean && make -C shared/xrdproto -j$(nproc)  # codec_zstd.o decoder
+  make -C client        clean && make -C client        -j$(nproc)     # xrdcp/brixMount relink
+  ```
+
 ## 2. Python ≥ 3.10 vs EL9's 3.9
 
 The suite uses PEP 604 union syntax (`dict | None`) in annotations, which Python

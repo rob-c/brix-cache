@@ -567,15 +567,14 @@ def tpc_delegation_nginx(nginx: Path | None = None) -> int:
         if not os.access(run.nginx, os.X_OK):
             print("SKIP: nginx not built")
             return 0
-        proxy_fresh = (proxy_std.is_file() and subprocess.run(
-            ["openssl", "x509", "-in", proxy_std, "-noout", "-checkend", "300"],
-            capture_output=True).returncode == 0)
-        if not (ca.is_file() and sc.is_file() and proxy_fresh):
-            proc = _call([sys.executable, "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"],
-                         env_add={"PYTHONPATH": str(REPO_ROOT / "tests")})
-            if proc.returncode:
-                print(f"SKIP: PKI provisioning failed\n{proc.stderr[-2000:]}")
-                return 0
+        # Refresh only the proxy when the CA/hostcert exist — a full blitz would
+        # regenerate the CA and desync the standing fleet (05:21 CA vs new CA),
+        # breaking every concurrent GSI/TLS test. See live_common.refresh_shared_pki.
+        from cmdscripts.live_common import refresh_shared_pki  # noqa: PLC0415
+        ok, msg = refresh_shared_pki(run.root, want_proxy=True)
+        if not ok:
+            print(f"SKIP: {msg}")
+            return 0
 
         srcp, dstp = free_ports(2)
         src, dst = run.mkdir("src"), run.mkdir("dst")

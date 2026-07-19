@@ -211,6 +211,16 @@ server {
 # ============================================================================
 #
 # stream {
+#     # RECOMMENDED HARDENING (see docs/09-developer-guide/deployment-hardening.md):
+#     #   1. Run under the hardened systemd unit packaging/brix-cache.service
+#     #      (NoNewPrivileges, ProtectSystem=strict, PrivateDevices, RestrictNamespaces,
+#     #      CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_NET_BIND_SERVICE, ...).
+#     #   2. Install the SELinux subpackage (nginx-mod-brix-cache-selinux).
+#     #   3. Turn on the per-worker syscall filter below — roll out with `audit`
+#     #      once (converge the audit log), then switch to `enforce`.  NOTE: `audit`
+#     #      is log-only and provides NO containment; only `enforce` does.
+#     brix_seccomp enforce;
+#
 #     # root:// with WLCG token auth (modern default).
 #     server {
 #         listen 1094;

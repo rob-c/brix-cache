@@ -457,7 +457,10 @@ brix_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
         {
             return -1;
         }
-        return brix_imp_chmod(rel, mode & 07777);
+        /* Defense in depth: strip setuid/setgid centrally (not only in the
+         * per-protocol handlers) so no chmod caller can set S_ISUID/S_ISGID on a
+         * backend file; sticky is preserved. */
+        return brix_imp_chmod(rel, mode & 0777);
     }
 
     parentfd = brix_open_confined_parent_canon(log, root_canon, resolved,
@@ -465,7 +468,8 @@ brix_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
     if (parentfd < 0) {
         return -1;
     }
-    rc = fchmodat(parentfd, base, mode & 07777, 0) == 0 ? 0 : -1;
+    /* Strip setuid/setgid centrally (see the impersonation branch above). */
+    rc = fchmodat(parentfd, base, mode & 0777, 0) == 0 ? 0 : -1;
     saved_errno = errno;
     close(parentfd);
     errno = saved_errno;

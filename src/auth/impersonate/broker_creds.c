@@ -3,6 +3,9 @@
  * Phase-38 split of broker.c; behavior-identical.
  */
 #include "broker_internal.h"
+#include "core/seccomp/seccomp_core.h"
+
+#include <unistd.h>
 
 
 /* Broker base credentials, captured at startup; restored after each op. */
@@ -237,6 +240,37 @@ brix_imp_broker_drop_caps(ngx_log_t *log)
      * this point.  No-op when no broker user is configured. */
     if (imp_drop_to_service_user(log) != 0) {
         return -1;
+    }
+
+    /* Root-equivalent broker: install a default-allow seccomp filter that KILLs
+     * exec, ptrace, process_vm_readv/writev, mount, module load, bpf, keyctl and
+     * mknod so a memory bug in the broker cannot spawn a shell, ptrace the
+     * worker, or load a module.
+     * Best-effort: on load failure (or a build without libseccomp) the cap-drop +
+     * reserved-id floor remain the defense, so we warn and continue rather than
+     * kill impersonation entirely. */
+#if BRIX_HAVE_SECCOMP
+    {
+        unsigned nkill = 0;
+        int      src = brix_seccomp_broker_apply(NULL, NULL, &nkill);
+
+        if (src == BRIX_SECCOMP_CORE_OK) {
+            if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "impersonate broker: seccomp active (%ui dangerous syscalls killed)",
+                (ngx_uint_t) nkill);
+        } else if (src == BRIX_SECCOMP_CORE_ERR && log) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                "impersonate broker: seccomp filter failed to load (continuing "
+                "with cap-drop + reserved-id floor)");
+        }
+    }
+#endif
+
+    if (geteuid() == 0 && log) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "impersonate broker: running as root (CAP_SETUID/SETGID only) — set "
+            "brix_impersonation_broker_user to a dedicated non-root account for "
+            "defense in depth");
     }
 
     if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,

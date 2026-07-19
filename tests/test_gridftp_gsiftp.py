@@ -50,6 +50,7 @@ import pytest
 from settings import BIND_HOST, NGINX_BIN, PKI_DIR
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from gridftp_client_env import gsi_client_env
 
 # This suite stands up its own throwaway gsiftp gateway(s) through the phase-81
 # registry (LifecycleHarness) rather than launching nginx directly; the marker
@@ -127,9 +128,7 @@ def _guc(*args, timeout=60, dc="nodcau"):
                      encrypted TLS connection the server brings up with the
                      delegated user credential.
     """
-    env = dict(os.environ)
-    env["X509_CERT_DIR"] = CA_DIR
-    env["X509_USER_PROXY"] = USER_PROXY
+    env = gsi_client_env(CA_DIR, USER_PROXY)
     flag = {"nodcau": "-nodcau", "dcpriv": "-dcpriv"}[dc]
     cmd = [GUC, flag, *args]
     return subprocess.run(cmd, capture_output=True, text=True, env=env,

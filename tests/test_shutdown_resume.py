@@ -250,6 +250,11 @@ def test_upload_resume_stage_dir(lifecycle, tmp_path):
     else:
         stage = str(tmp_path / "stage")
     os.makedirs(stage, exist_ok=True)
+    if os.geteuid() == 0:
+        # Under the root harness the nginx worker drops to `nobody`; it must be
+        # able to WRITE staged partials into brix_stage_dir. A default 0755-root
+        # dir makes the staged-open fail and the client sees rc=54 NotAuthorized.
+        os.chmod(stage, 0o777)
     name = "lc-shutdown-resume-stage"
     try:
         ep = lifecycle.start(NginxInstanceSpec(
@@ -294,6 +299,10 @@ def test_stage_reaper_recovers_stranded_upload(lifecycle, tmp_path):
     stage = os.path.join(shm, f"xrd-reap-{os.getpid()}") \
         if os.path.isdir(shm) and os.access(shm, os.W_OK) else str(tmp_path / "stage")
     os.makedirs(stage, exist_ok=True)
+    if os.geteuid() == 0:
+        # `nobody` worker must write staged partials into brix_stage_dir (see
+        # test_upload_resume_stage_dir); a 0755-root dir 503/NotAuthorizes the open.
+        os.chmod(stage, 0o777)
 
     # Seed a stranded COMPLETE partial + its pending-commit marker.  The final
     # path lives under a test-owned export, so pin it as the instance data_root.

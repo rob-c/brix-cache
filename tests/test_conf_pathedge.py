@@ -625,12 +625,15 @@ def test_mv_special_name_parity(pair):
 
 def test_chmod_special_name_parity(pair):
     """chmod '/chmod[b].txt' (brackets) -> rc parity across servers."""
-    with open(os.path.join(pair["our_data"], "chmod[b].txt"), "w") as f:
+    our_target = os.path.join(pair["our_data"], "chmod[b].txt")
+    with open(our_target, "w") as f:
         f.write("c")
     off_target = os.path.join(pair["off_data"], "chmod[b].txt")
     with open(off_target, "w") as f:
         f.write("c")
-    # stock server runs as `nobody` and can only chmod files it owns
+    # BOTH servers' workers drop to `nobody` under the root harness, so each can
+    # only chmod a file it owns — chown both sides, not just the stock one.
+    L.chown_stock(our_target)
     L.chown_stock(off_target)
     o_rc, _, _ = fs(pair["our"], "chmod", "/chmod[b].txt", "rwxr-xr-x")
     f_rc, _, _ = fs(pair["off"], "chmod", "/chmod[b].txt", "rwxr-xr-x")

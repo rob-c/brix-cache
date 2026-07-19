@@ -462,7 +462,7 @@ tpc_ms_prepare_output(ngx_log_t *log, const char *tmp_path, off_t total_size)
     brix_sd_obj_t obj;
 
     /* Pre-create the output file at full size so all streams can pwrite. */
-    fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);  /* vfs-seam-allow: TPC multi-stream assembly temp (committed via rename) */
+    fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0600);  /* vfs-seam-allow: TPC multi-stream assembly temp (committed via rename); O_NOFOLLOW matches the sibling staging opens */
     if (fd < 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "brix_webdav: multi-stream: open(\"%s\") failed",

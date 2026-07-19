@@ -275,9 +275,16 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
         ssl_lines = (f"ssl_certificate {ssl_cert}; ssl_certificate_key {ssl_key};"
                      if ssl_cert else "")
         error_log = run.root / "logs/e.log"
+        # Under a root harness nginx drops workers to `nobody`, which cannot
+        # traverse the 0700 mkdtemp root nor write the root-owned cache store —
+        # the cache fill then fails EACCES and every .cvmfspublished/data GET
+        # returns 403/502. Keep workers as root (the §4b posture) so they can
+        # read/write this throwaway tree; unprivileged (euid!=0, the §5a runner)
+        # the invoking user already owns it, so no directive is injected.
+        user_line = "user root;\n" if os.geteuid() == 0 else ""
         config = run.write(
             run.root / "nginx.conf",
-            f"""daemon on; error_log {error_log} info; pid {run.root}/nginx.pid;
+            f"""{user_line}daemon on; error_log {error_log} info; pid {run.root}/nginx.pid;
 worker_processes 1; thread_pool default threads={worker_threads};
 events {{ worker_connections 256; }}
 http {{ access_log off; server {{ {listen}; {ssl_lines}

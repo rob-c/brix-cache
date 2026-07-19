@@ -151,13 +151,41 @@ def gate(lifecycle, tmp_path_factory):
         f"-gridmap:{gridmap} -d:2 -crl:0 -gmapopt:2 "
         "-dlgpxy:request -showdn:1 -exppxy:=creds\n"
         "sec.protbind * only gsi\n"
-        "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n")
+        "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
+        # Keep xrootd's runtime admin/pid dirs under the test-owned base so the
+        # `-R nobody` drop (below) can create its sockets.
+        f"all.adminpath {base / 'admin'}\n"
+        f"all.pidpath {base / 'admin'}\n")
     # xrootd -n <name> inserts the instance name as a subdir of the -l directory,
     # so `-l base/brix.log -n src` writes to base/src/brix.log.
     src_log = base / "src" / "xrootd.log"
     _run(["bash", "-c", f"fuser -k {src_port}/tcp 2>/dev/null"])
-    src = subprocess.Popen(["xrootd", "-c", str(src_cfg),
-                            "-l", str(base / "xrootd.log"), "-n", "src"],
+    argv = ["xrootd", "-c", str(src_cfg),
+            "-l", str(base / "xrootd.log"), "-n", "src"]
+    # Root-harness privilege drop: stock xrootd refuses to run as superuser, so
+    # run it via `-R nobody` and pre-open only what that user needs — traverse
+    # base, read the data tree + CA certdir + hostcert + gridmap, write admin/log,
+    # read the GSI key (nobody-only 0400). NOT usr/: XrdSecgsi rejects a
+    # group/world-writable proxy credential, which only the root client reads.
+    if os.geteuid() == 0:
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        (base / "admin").mkdir(parents=True, exist_ok=True)
+        (base / "src").mkdir(parents=True, exist_ok=True)
+        _run(["chmod", "a+rx", str(base)])
+        for d in (data, certs):
+            _run(["chmod", "-R", "a+rX", str(d)])
+        for d in (base / "admin", base / "src"):
+            _run(["chmod", "-R", "a+rwX", str(d)])
+        for f in (srv / "hostcert.pem", gridmap):
+            if f.exists():
+                _run(["chmod", "a+r", str(f)])
+        _run(["chmod", "a+rx", str(srv)])
+        hostkey = srv / "hostkey.pem"
+        if hostkey.exists():
+            shutil.chown(hostkey, runas)
+            os.chmod(hostkey, 0o400)
+        argv += ["-R", runas]
+    src = subprocess.Popen(argv,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if not _wait(src_port):
         src.terminate()
