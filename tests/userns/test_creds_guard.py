@@ -37,9 +37,15 @@ def test_reserved_id_guard_predicate():
         pytest.skip(f"nginx source tree not at {NGINX_SRC} (set TEST_NGINX_SRC)")
 
     out_bin = "/tmp/creds_guard_test.bin"
+    # idmap.c was split (phase impersonation-hardening): the reserved-id predicate
+    # brix_imp_creds_privileged() + idmap_creds_allowed()/idmap_resolve_user() now
+    # live in idmap_denylist.c, and the gridmap load/lookup in idmap_gridmap.c.
+    # Link the same self-contained trio the idmap_collapse unit uses.
     cmd = [CC, "-O2", "-D_GNU_SOURCE", "-Wall", *_inc_flags(), "-o", out_bin,
            os.path.join(HERE, "c", "creds_guard_test.c"),
-           os.path.join(IMP, "idmap.c")]
+           os.path.join(IMP, "idmap.c"),
+           os.path.join(IMP, "idmap_denylist.c"),
+           os.path.join(IMP, "idmap_gridmap.c")]
     build = subprocess.run(cmd, capture_output=True, text=True)
     assert build.returncode == 0, f"compile failed:\n{build.stderr}"
 

@@ -11,6 +11,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Iterable
@@ -91,6 +92,11 @@ class LiveRun(AbstractContextManager["LiveRun"]):
                 proc.wait(remaining)
             except subprocess.TimeoutExpired:
                 proc.kill()
+        if os.environ.get("BRIX_LIVE_KEEP_TREE"):
+            # Debug aid: preserve the ephemeral LiveRun tree (nginx configs +
+            # error/access logs) for post-mortem instead of rmtree'ing it.
+            sys.stderr.write(f"[LiveRun] KEEP_TREE: {self.root}\n")
+            return
         shutil.rmtree(self.root, ignore_errors=True)
 
     def mkdir(self, *parts: str) -> Path:
@@ -176,6 +182,16 @@ class LiveRun(AbstractContextManager["LiveRun"]):
                 cfg_text = ""
             if not re.search(r"(?m)^\s*user\s+\S", cfg_text):
                 cmd += ["-g", "user root;"]
+            # The pblock backend PERMANENTLY drops the worker to an unprivileged
+            # account (brix_pblock_drop_privilege, fail-closed) BEFORE it creates
+            # catalog.db + the block data dir — so `-g user root;` above does not
+            # keep it root. Under the root harness that account (default `nobody`)
+            # cannot traverse/write the 0700 mkdtemp LiveRun tree, so every pblock
+            # op fails and no catalog is ever born. Open the whole ephemeral tree
+            # so the dropped worker can create + own its on-disk state.
+            if "pblock" in cfg_text:
+                subprocess.run(["chmod", "-R", "a+rwX", str(self.root)],
+                               check=False)
         result = self.call(cmd, check=False)
         if result.returncode:
             raise LiveFailure(result.stderr or result.stdout or f"nginx failed to start for {config}")

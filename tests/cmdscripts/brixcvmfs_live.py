@@ -61,6 +61,19 @@ MKREPO_DEPS = [
     "shared/cvmfs/catalog/catalog.c",
 ]
 
+# phase-86: brixcvmfs pools its libcurl handles through brix_cpool (net/cpool.h).
+# The STANDALONE binary has no client archive, so it must compile the pool, its
+# brix_status dependency, and the two prebuilt XRootD name/error-mapping objects
+# that brix_status references. The brixMount umbrella pulls the same symbols in
+# transitively from client/libbrix.a (see _umbrella_link_deps), so these are
+# added only on the standalone path to avoid duplicate-symbol link errors.
+CPOOL_STANDALONE_DEPS = [
+    "client/lib/net/cpool.c",
+    "client/lib/core/types/status.c",
+    "shared/xrdproto/build/kxr_names.o",
+    "shared/xrdproto/build/error_mapping.o",
+]
+
 
 def _checks(checks: list[tuple[bool, str]]) -> int:
     for passed, message in checks:
@@ -143,6 +156,16 @@ def _build_brixcvmfs(run: LiveRun, *, no_main_frontends: list[str] | None = None
             if src not in sources:
                 sources.append(src)
         syslibs = ["-lssl", "-pthread"]
+    else:
+        # Standalone brixcvmfs: no client archive, so compile the brix_cpool
+        # stack directly and add the ngx-free proto shim + its include roots.
+        defines = ["-DXRDPROTO_NO_NGX"]
+        for inc in ("client/lib", "src"):
+            if inc not in includes:
+                includes.append(inc)
+        for src in CPOOL_STANDALONE_DEPS:
+            if src not in sources:
+                sources.append(src)
 
     args: list = ["-Wall", "-Wextra", "-Werror", "-I", "shared"]
     for include in includes:

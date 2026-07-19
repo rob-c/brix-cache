@@ -95,6 +95,22 @@ def gsi_nginx(lifecycle, tmp_path_factory):
 
     (sdata / "hello.txt").write_text("nginx-GSI-source native tpc pull\n")
 
+    # Root-posture: the source and dest nginx workers drop to `nobody`, so they
+    # cannot read the 0700-root mktemp tree nor the 0600-root private creds. Open
+    # the tree for traversal, then re-restrict every private credential and hand
+    # the keys a worker must READ (source hostkey, dest brix_certificate proxy) to
+    # `nobody`. The broad open MUST be followed by 0600 + chown: XrdSecgsi rejects
+    # a group/world-accessible proxy ("cannot load proxy credential"). Mirrors the
+    # idiom in _test_gsi_handshake_helpers.py.
+    if os.geteuid() == 0:
+        subprocess.run(["chmod", "-R", "a+rwX", str(base)], check=False)
+        for worker_key in (srv / "hostkey.pem", dproxy):
+            shutil.chown(worker_key, "nobody")
+            os.chmod(worker_key, 0o600)
+        for cred in (uproxy, usr / "userkey.pem", srv / "destkey.pem"):
+            os.chmod(cred, 0o600)   # client/root-owned — just re-close after a+rwX
+        os.chmod(certs, 0o755)
+
     src = lifecycle.start(NginxInstanceSpec(
         name="lc-tpc-gsi-nginx-source",
         template="nginx_tpc_gsi_nginx_source_src.conf",

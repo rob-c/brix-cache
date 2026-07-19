@@ -110,7 +110,11 @@ sudo dnf install -y \
     varnish \                       # CVMFS matrix / proxy-cache scenarios (test_cvmfs_matrix)
     squid \                         # the canonical CVMFS HTTP forward-proxy
     globus-gass-copy-progs \        # globus-url-copy — gsiftp/GridFTP gateway tests (test_gridftp_*)
-    xrootd-devel                    # XrdSsi + other client headers (test_ssi_wire, some unit builds)
+    xrootd-devel \                  # XrdSsi + other client headers (test_ssi_wire, some unit builds)
+    xrootd-scitokens                # libXrdAccSciTokens (ztn) — the stock-xrootd token
+                                    # backend in the forwarding matrix (test_cmd_fwd_matrix_live
+                                    # token cells); without it the origin fails "Failed to load
+                                    # ztn authentication protocol" and never binds
 # CVMFS public keys (/etc/cvmfs/keys) for the live-cvmfs lane. The `wlcg` repo's
 # cvmfs-config-default ships egi.eu; cern.ch keys come from the `cernvm` repo's
 # variant — pick whichever your box's repos carry (they conflict, install one):

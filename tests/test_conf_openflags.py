@@ -813,7 +813,9 @@ def test_open_opaque_structural_bytes_allowed(srv):
     ("\xff", "high-bit"),     # non-ASCII / mojibake / filter-evasion
     ("`", "backtick"),        # command substitution
     ("$", "dollar"),          # shell expansion
-    (";", "semicolon"),       # command chaining
+    # NOTE: ';' is NOT here — XRootD treats it as ordinary opaque VALUE content
+    # (splits the CGI on '&' only), so brix accepts it for wire parity. See the
+    # "OPAQUE SEPARATOR CONFORMANCE" block below.
     ("<", "redirect"),        # shell redirect / XML-ish
     (" ", "space"),           # header/argument splitting
     ("'", "quote"),           # quoting break-out
@@ -841,65 +843,73 @@ def test_open_opaque_injection_byte_no_opaque_clean(srv):
 
 
 # =========================================================================== #
-# L2. OPAQUE SEPARATOR CONFORMANCE — ';' is NOT an XRootD CGI separator
+# L2. OPAQUE SEPARATOR CONFORMANCE — '&' is the SOLE separator; ';' is value byte
 # ---------------------------------------------------------------------------
 # XRootD tokenises the opaque/CGI on '&' ONLY, in BOTH directions:
-#   * server: XrdOuc/XrdOucEnv.cc — the constructor scans for '&' (and '=') and
-#     nothing else; a ';' inside the string is an ordinary value byte.
+#   * server: XrdOuc/XrdOucEnv.cc — XrdOucEnv::Env scans for '&' (and '=') and
+#     nothing else; a ';' inside the string is an ordinary value byte, so
+#     "k=v;other=z" is the SINGLE pair k = "v;other=z".
 #   * client: XrdCl/XrdClURL.cc URL::SetParams() — Utils::splitString(..., "&").
-# So ';' is NEVER a delimiter on the wire. brix historically ALLOWED ';' in the
-# opaque gate under a mistaken "legacy CGI list separator" premise (HTML4's `;`
-# alt-separator, which XRootD never adopted). That widened the injection surface
-# (command-chaining metacharacter, a risk if opaque is ever spliced into a shell
-# or a forwarded request) for ZERO interop benefit. It is now rejected alongside
-# the other shell-meta/control bytes. These tests PIN that decision so a future
-# refactor cannot silently re-admit ';' — and document, via the differential
-# ampersand test, that '&' remains the sole accepted separator (full parity with
-# stock). If XRootD upstream ever adds ';' as a real separator, THESE tests are
-# the canary: revisit BRIX_OPAQUE_ALLOWED (src/protocols/root/path/opaque_validate.c).
+# So ';' is NEVER a delimiter on the wire — it is ordinary value content, and a
+# conforming server MUST accept it. brix therefore permits ';' in the opaque gate
+# (parity: rejecting it would break a legitimate "k=v;other=z" that stock accepts)
+# AND — this is the safety half — brix_opaque_schema_check splits on '&' ONLY,
+# exactly like XRootD. That closes the real risk (a ';'-based parameter-SMUGGLING
+# divergence, where brix would split a pair that XRootD keeps whole): because both
+# ends split identically, a ';' can never carve a smuggled key into its own
+# parameter. These tests PIN both halves — ';' is accepted (stock parity) and '&'
+# stays the sole separator. If a refactor ever re-adds ';' to the SPLIT set (not
+# the allow set), the smuggling differential below is the canary. See
+# src/protocols/root/path/opaque_validate.c.
 # =========================================================================== #
 @pytest.mark.parametrize("opaque,where", [
-    ("a=1;b=2",              "between pairs (the mistaken 'legacy separator' form)"),
+    ("a=1;b=2",              "between pairs — one pair a='1;b=2', NOT split"),
     ("authz=x;y",            "inside a value"),
     (";a=1",                 "leading"),
     ("a=1;",                 "trailing"),
     ("a=1;b=2;c=3",          "multiple"),
-    ("tpc.key=K;tpc.org=O",  "faux tpc rendezvous split"),
+    # Smuggling-parity: with split-on-'&'-only, "tpc.org=O" is INSIDE the authz
+    # value, never carved off as its own recognised parameter (a non-tpc first key
+    # keeps stock on the plain-open path, so the differential isolates ';').
+    ("authz=K;tpc.org=O",    "smuggled tpc.org stays in the value"),
 ])
-def test_open_opaque_semicolon_never_a_separator(srv, opaque, where):
-    """conformance/security-negative: a ';' anywhere in the opaque is rejected on
-    OURS, in EVERY position — XRootD never treats ';' as a CGI separator (splits
-    only on '&', XrdOucEnv.cc / XrdClURL.cc), so admitting it buys no interop and
-    only widens the injection surface. Guards against re-adding ';' to
-    BRIX_OPAQUE_ALLOWED."""
-    st, body = _open_our("/data.bin?" + opaque)
-    assert _rejected(st), \
-        f"OURS accepted ';' opaque ({where}): {opaque!r} (status={st})"
-    if st == kXR_error:
-        assert _errnum(body) == kXR_ArgInvalid, \
-            f"';' opaque ({where}) rejected with wrong errno {_errnum(body)}"
+def test_open_opaque_semicolon_is_value_content_not_a_separator(srv, opaque, where):
+    """conformance (differential vs stock): a ';' anywhere in the opaque is
+    ORDINARY VALUE CONTENT — XRootD splits only on '&' (XrdOucEnv.cc /
+    XrdClURL.cc), so "k=v;other=z" is one pair and a conforming server accepts it.
+    brix must match stock BYTE-FOR-BYTE here (accept + open), never reject. Guards
+    against re-removing ';' from BRIX_OPAQUE_ALLOWED (a wire-parity regression)."""
+    st_o, b_o, st_f, b_f, raw = assert_same_category(srv, "/data.bin?" + opaque, kXR_open_read)
+    assert st_o == kXR_ok, \
+        f"OURS rejected ';' value-content opaque ({where}): {opaque!r} — stock accepts it:{raw}"
+    assert len(b_o) == 4, f"OUR ';'-opaque open body not 4 bytes ({where}):{raw}"
 
 
 def test_open_opaque_ampersand_is_the_sole_separator(srv):
     """conformance (differential): a multi-key opaque separated by '&' — the ONLY
     delimiter XRootD honours — opens identically on OURS and stock. Pins '&' as
-    the accepted separator so the ';'-rejection above cannot be "fixed" by
-    loosening the whole gate; the legitimate multi-pair CGI must keep working."""
+    the accepted separator, the companion to the ';'-is-value-content tests: '&'
+    splits, ';' does not."""
     path = "/data.bin?authz=abc&xrd.cc=US&tpc.stage=1&scope=read"
     st_o, b_o, st_f, b_f, raw = assert_same_category(srv, path, kXR_open_read)
     assert st_o == kXR_ok, f"legitimate '&'-separated opaque rejected on OURS:{raw}"
     assert len(b_o) == 4, f"OUR '&'-opaque open body not 4 bytes:{raw}"
 
 
-def test_open_opaque_semicolon_rejected_is_stable_across_ops(srv):
-    """conformance: the ';' rejection is a property of the opaque GATE, not of a
-    particular open mode — it holds for a read-open and a create/write-open alike
-    (the gate runs before op dispatch). Prevents a mode-specific regression."""
+def test_open_opaque_semicolon_inert_across_ops(srv):
+    """conformance: a ';' is INERT value content in every open mode — it must not
+    change the open OUTCOME versus the identical open whose opaque uses '&'. Since
+    neither 'a' nor 'b' is a special key, the '&' form (two pairs) and the ';' form
+    (one pair a='1;b=2') must land in the SAME category for both a read-open and a
+    create/write-open. Isolates ';' semantics from file-existence / create policy,
+    and pins that ';' is never treated as a separator regardless of op mode."""
     for opts, label in ((kXR_open_read, "read"),
                         (kXR_open_read | 0x08, "new/create")):
-        st, body = _open_our("/sc_semi_%s.bin?a=1;b=2" % label, options=opts)
-        assert _rejected(st), \
-            f"OURS accepted ';' opaque on {label}-open (status={st})"
+        st_semi, _ = _open_our("/data.bin?a=1;b=2", options=opts)
+        st_amp, _ = _open_our("/data.bin?a=1&b=2", options=opts)
+        assert (st_semi == kXR_ok) == (st_amp == kXR_ok), \
+            f"';' opaque changed {label}-open outcome vs '&' opaque " \
+            f"(semi={st_semi} amp={st_amp}) — ';' is not inert value content"
 
 
 # =========================================================================== #

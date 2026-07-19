@@ -33,9 +33,15 @@
  * every endpoint that resolves a logical path, so it is shared here. */
 #define TAPE_PATH_MAX       4096
 
-/* Stage-request id as 16 random bytes rendered hex + NUL - minted by the helper in
- * tape_rest.c and sized into the POST /stage response buffer in tape_rest_ops.c. */
-#define TAPE_ID_LEN         33
+/* Externally-visible stage-request id buffer. tape_mint_id() seeds a random hex
+ * placeholder, but POST /stage OVERWRITES it with the first file's DURABLE reqid
+ * ("<seq>.<pid>@<host>") — which is the key DELETE/cancel look the record up by.
+ * It MUST therefore be sized to the on-disk reqid width (stage_request_registry
+ * SRQ_REQID_LEN = 40): sized smaller (the old 33, from the retired 16-byte-hex
+ * design) a longer-hostname reqid is truncated in the response, so the client's
+ * DELETE/cancel id no longer matches the stored key — the record is "not found",
+ * the owner check is skipped as idempotent, and a foreign principal deletes it. */
+#define TAPE_ID_LEN         40
 
 /* ---- shared helpers implemented in tape_rest.c, called by the endpoint bodies
  *      in tape_rest_ops.c. ------------------------------------------------------ */

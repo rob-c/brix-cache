@@ -172,23 +172,32 @@ typedef struct {
 } net_pin_out_t;
 
 /*
- * net_pin_first_addr — format the first permitted address into pin->buf once.
+ * net_pin_append_addr — append this permitted address to the comma-separated
+ * pin list.
  *
- * WHAT: when pin->buf is still empty, writes the numeric form of rp into it;
- *       returns NGX_OK, or NGX_ERROR (with err set) if getnameinfo fails.
- * WHY:  keeps the "pin only the first permitted address" bookkeeping out of
- *       the scan loop so the loop reads as check-then-pin.
- * HOW:  getnameinfo(NI_NUMERICHOST); no-op once pin->buf is already populated.
+ * WHAT: writes the numeric form of rp onto the end of pin->buf as
+ *       "addr" (first) or ",addr" (subsequent); returns NGX_OK, or NGX_ERROR
+ *       (with err set) if getnameinfo fails.
+ * WHY:  the caller hands the WHOLE validated set to curl via CURLOPT_RESOLVE
+ *       ("host:port:addr1,addr2"), so curl can fall back ACROSS address families
+ *       (e.g. a loopback host whose "localhost" is ::1-only in /etc/hosts but
+ *       whose server listens on 127.0.0.1 — ::1 is refused, curl then tries the
+ *       pinned IPv4) WITHOUT ever re-resolving. Pinning every permitted address
+ *       is exactly as safe as pinning one: each was policy-checked before this
+ *       call, and no independent re-resolution can smuggle a new address in.
+ * HOW:  getnameinfo(NI_NUMERICHOST) into a scratch buffer, then append with a
+ *       leading ',' when the list is non-empty. An address that would overflow
+ *       the pin buffer is SKIPPED (not truncated) — the list keeps >= 1 addr.
  */
 static ngx_int_t
-net_pin_first_addr(const struct addrinfo *rp, const char *host_buf,
+net_pin_append_addr(const struct addrinfo *rp, const char *host_buf,
     const net_pin_out_t *pin, char *err, size_t errsz)
 {
-    if (pin->buf[0] != '\0') {
-        return NGX_OK;
-    }
+    char   addr[64];   /* INET6_ADDRSTRLEN (46) + slack */
+    size_t used = ngx_strlen(pin->buf);
+    size_t alen;
 
-    if (getnameinfo(rp->ai_addr, rp->ai_addrlen, pin->buf, pin->size,
+    if (getnameinfo(rp->ai_addr, rp->ai_addrlen, addr, sizeof(addr),
                     NULL, 0, NI_NUMERICHOST) != 0)
     {
         snprintf(err, errsz, "could not format resolved address for %s",
@@ -196,19 +205,31 @@ net_pin_first_addr(const struct addrinfo *rp, const char *host_buf,
         return NGX_ERROR;
     }
 
+    alen = ngx_strlen(addr);
+    if (used + (used ? 1 : 0) + alen + 1 > pin->size) {
+        return NGX_OK;   /* buffer full — keep the addresses already pinned */
+    }
+    if (used) {
+        pin->buf[used++] = ',';
+    }
+    ngx_memcpy(pin->buf + used, addr, alen + 1);
     return NGX_OK;
 }
 
 /*
- * brix_net_target_check_dns_pin — like check_dns, but also returns the
- * numeric IP of the first permitted address so the caller can connect to that
- * exact address (DNS-rebind defence).
+ * brix_net_target_check_dns_pin — like check_dns, but also returns the numeric
+ * IPs of ALL permitted addresses (comma-separated) so the caller can connect to
+ * exactly that validated set (DNS-rebind defence) while still falling back
+ * across them.
  *
- * WHAT: validates every resolved address against policy and writes the first
- *       permitted one's numeric form into out_ip; NGX_OK / NGX_ERROR.
+ * WHAT: validates every resolved address against policy and writes the whole
+ *       permitted set's numeric forms into out_ip as "addr1,addr2"; NGX_OK /
+ *       NGX_ERROR.
  * WHY:  validating a hostname then letting a separate component re-resolve it
  *       opens a TOCTOU rebind window (DNS answers differently the 2nd time).
- *       Pinning the validated address closes that window — see loop comment.
+ *       Pinning the validated set closes that window; pinning ALL of it (not
+ *       just the first) also lets curl fall back e.g. ::1 -> 127.0.0.1 for a
+ *       dual-stack/loopback host without ever re-resolving — see loop comment.
  * HOW:  BLOCKING getaddrinfo + getnameinfo(NI_NUMERICHOST); thread-pool only.
  */
 ngx_int_t
@@ -242,9 +263,10 @@ brix_net_target_check_dns_pin(const brix_net_target_t *target,
 
     /*
      * Validate EVERY resolved address (so a multi-A record can't smuggle a
-     * prohibited address past the check) and pin the FIRST permitted one.
-     * Pinning the exact validated address is what closes the rebind window —
-     * a later independent re-resolution by the transfer agent is bypassed.
+     * prohibited address past the check) and pin ALL permitted ones (comma-
+     * joined). Pinning the exact validated set is what closes the rebind window
+     * — a later independent re-resolution by the transfer agent is bypassed —
+     * and handing curl the full set lets it fall back across address families.
      */
     for (rp = res; rp != NULL; rp = rp->ai_next) {
         if (net_addr_is_prohibited_msg(rp->ai_addr, policy, host_buf,
@@ -254,7 +276,7 @@ brix_net_target_check_dns_pin(const brix_net_target_t *target,
             return NGX_ERROR;
         }
 
-        if (net_pin_first_addr(rp, host_buf, &pin, err, errsz) != NGX_OK) {
+        if (net_pin_append_addr(rp, host_buf, &pin, err, errsz) != NGX_OK) {
             freeaddrinfo(res);
             return NGX_ERROR;
         }
