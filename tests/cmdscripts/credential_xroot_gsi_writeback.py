@@ -39,21 +39,12 @@ def proxy_is_fresh(proxy: Path) -> bool:
 
 
 def ensure_pki(base: Path) -> tuple[bool, str]:
-    required = [Path(CA_CERT), Path(SERVER_CERT), PROXY_STD]
-    if all(path.is_file() for path in required) and proxy_is_fresh(PROXY_STD):
-        return True, ""
-    result = subprocess.run(
-        ["python3", "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"],
-        cwd=REPO_ROOT / "tests",
-        env={**os.environ, "PYTHONPATH": "."},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    (base / "pki.log").write_text(result.stdout or "", encoding="utf-8")
-    if result.returncode != 0:
-        return False, "SKIP: PKI provisioning failed: " + (result.stdout or "")[-1000:]
-    return True, ""
+    # Refresh only the proxy when the CA/hostcert already exist — a full
+    # blitz_test_pki() would regenerate the CA and desync the standing fleet,
+    # failing every concurrent TLS/GSI test. See live_common.refresh_shared_pki.
+    from cmdscripts.live_common import refresh_shared_pki  # noqa: PLC0415
+    ok, msg = refresh_shared_pki(base)
+    return ok, ("SKIP: " + msg if not ok else "")
 
 
 def split_proxy(proxy: Path, cert_part: Path, key_part: Path) -> tuple[bool, str]:

@@ -957,11 +957,25 @@ extern const brix_sd_driver_t brix_sd_pblock_driver;
  * timeout used for cross-worker write contention, and the default object block
  * size (bytes) for NEW files — 0 selects PBLOCK_DEFAULT_BLOCK_SIZE (64 MiB). The
  * block size is recorded per file at creation, so retuning it only affects files
- * written afterwards. */
+ * written afterwards.
+ *
+ * `enforce_unprivileged` + `unpriv_user`: pblock writes blob files and the SQLite
+ * catalog as the worker's own uid (it has no impersonation broker and never
+ * chowns). Worker-time production builds set `enforce_unprivileged` so a worker
+ * that is (mis)configured to run as root is permanently dropped to an
+ * unprivileged account — `unpriv_user` if set, else "nobody" — BEFORE any blob/
+ * dir/DB is created, so pblock on-disk data can never be root-owned. The normal
+ * way to choose the account is the nginx `user <acct>;` directive (the worker
+ * then already runs unprivileged and the drop is a no-op); `unpriv_user` is the
+ * caller-supplied fallback account for a root worker (NULL ⇒ "nobody"). The flag
+ * is left 0 by the standalone unit test (and any master/config-time probe), which
+ * therefore never drops. */
 typedef struct {
     const char *root;
     int         busy_timeout_ms;
     int64_t     block_size;
+    const char *unpriv_user;             /* root-worker fallback; NULL/"" ⇒ "nobody" */
+    unsigned    enforce_unprivileged:1;  /* worker build ⇒ drop off root pre-write */
 } brix_sd_pblock_conf_t;
 #endif
 

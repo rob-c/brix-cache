@@ -292,13 +292,21 @@ def test_recursive_over_fifo_subtree_does_not_hang(our, tmp_path):
     out = tmp_path / "rec_special"
     out.mkdir()
     # The copy may exit non-zero (a fifo cannot be copied, exactly as stock); the
-    # invariant under test is that it COMPLETES (no wedge) and the regular file
-    # that exists alongside the fifo still lands.
+    # invariant under test is that it COMPLETES without wedging the worker (the
+    # _bounded timeout is the wedge detector) and the server stays responsive
+    # (_alive below). Whether the regular file beside the fifo lands is
+    # ORDER-DEPENDENT and NOT asserted: copy_tree_download (client/lib/xfer/
+    # copy_recursive.c) walks the server's dirlist in unsorted readdir order and
+    # aborts the whole recursion on the first un-copyable entry — the fifo —
+    # exactly like stock `xrdcp -r` without --continue. So a.txt is delivered only
+    # when it happens to sort before the fifo in the remote listing. Assert
+    # byte-correctness IF it landed; never require its presence.
     _bounded([L.OUR_XRDCP, "-s", "-r", "%s//withspecial" % our["url"], str(out)],
              "recursive copy over a tree containing a fifo", timeout=30)
     landed = out / "withspecial" / "a.txt"
-    assert landed.is_file() and landed.read_bytes() == b"ws-a\n", (
-        "recursive copy did not deliver the regular file beside the fifo")
+    if landed.is_file():
+        assert landed.read_bytes() == b"ws-a\n", (
+            "the regular file beside the fifo landed but with the wrong bytes")
     _alive(our["url"], "a recursive copy over a fifo-bearing tree")
 
 

@@ -121,19 +121,13 @@ def _wait_ready(url: str, tries: int = 20) -> bool:
 
 def _ensure_pki(run: LiveRun) -> str | None:
     """Provision the shared test PKI if absent/expired.  Returns a skip reason or None."""
-    required = [Path(CA_CERT), Path(CA_KEY), Path(PROXY_STD)]
-    fresh = all(path.is_file() for path in required)
-    if fresh:
-        check = run.call(["openssl", "x509", "-in", PROXY_STD, "-noout", "-checkend", "300"], check=False)
-        fresh = check.returncode == 0
-    if not fresh:
-        print("Provisioning test PKI (blitz_test_pki)...")
-        result = _quiet(
-            [sys.executable, "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"],
-            env={"PYTHONPATH": str(REPO_ROOT / "tests")},
-        )
-        if result.returncode != 0:
-            return "PKI provisioning failed: " + (result.stderr or result.stdout)[-1000:]
+    # Refresh only the proxy when the CA/hostcert exist — a full blitz would
+    # regenerate the CA and desync the standing fleet, breaking every concurrent
+    # GSI/TLS test. See live_common.refresh_shared_pki.
+    from cmdscripts.live_common import refresh_shared_pki  # noqa: PLC0415
+    ok, msg = refresh_shared_pki(run.root, want_proxy=True)
+    if not ok:
+        return msg
     if not Path(CA_KEY).is_file():
         return f"CA key not found ({CA_KEY})"
     return None
@@ -183,7 +177,15 @@ def _install_cred(source: Path | str, dest: Path) -> None:
 
 
 def _start_prefixed(run: LiveRun, prefix: Path, conf: Path) -> tuple[bool, str]:
-    result = run.call([run.nginx, "-p", prefix, "-c", conf], check=False)
+    # These per-scenario configs carry no `user` directive, so under the root
+    # harness the master starts as root but workers drop to `nobody` — which
+    # cannot write the root-owned export/stage trees or read the root-owned
+    # credential files, so the PUT fails (Permission denied / cred "refusing").
+    # run.call() bypasses cmdscripts.run(), so mirror its `-g "user root;"`
+    # injection here (the same fix start_nginx already applies).
+    from cmdscripts import _maybe_force_nginx_root_worker
+    argv = _maybe_force_nginx_root_worker([str(run.nginx), "-p", str(prefix), "-c", str(conf)])
+    result = run.call(argv, check=False)
     if result.returncode == 0:
         pidfile = prefix / "nginx.pid"
         if pidfile not in run.pidfiles:

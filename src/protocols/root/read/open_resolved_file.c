@@ -18,6 +18,7 @@
 #include "protocols/root/session/registry.h"
 #include "core/compat/codec_core.h"
 #include "protocols/root/protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
+#include "protocols/root/protocol/stat_flags.h"   /* brix_stat_flags_from_stat (StatGen parity) */
 #include "observability/sesslog/sesslog_ngx.h"
 
 #include <string.h>
@@ -83,16 +84,14 @@ brix_open_build_retstat(brix_open_args_t *a)
 		int have_st = (fd != NGX_INVALID_FILE) ? (fstat(fd, st) == 0) : 1;
 
 		if (have_st) {
-			int stat_flags = 0;
-			if (st->st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
-				stat_flags |= kXR_readable;
-			}
-			if (st->st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) {
-				stat_flags |= kXR_writable;
-			}
-			if (ctx->files[idx].from_cache) {
-				stat_flags |= kXR_cachersp;
-			}
+			/* Compute the wire `flags` field through the shared StatGen-mirroring
+			 * helper (readable/writable/xset + isDir/other, all euid-relative) so
+			 * the kXR_open retstat matches stock XRootD exactly — the hand-rolled
+			 * subset here dropped kXR_xset (and the type bits), so an executable
+			 * (mode-777) file's open-handle stat diverged from stock by the xset
+			 * bit. Same predicate as the plain kXR_stat path (brix_make_stat_body). */
+			int stat_flags = brix_stat_flags_from_stat(st, geteuid(), getegid(),
+				ctx->files[idx].from_cache ? kXR_cachersp : 0);
 			snprintf(statbuf, statbuf_sz, "%llu %lld %d %ld",
 					 (unsigned long long) st->st_ino,
 					 (long long) st->st_size,

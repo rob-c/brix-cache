@@ -47,23 +47,39 @@ imp_worker_drop_caps(ngx_log_t *log)
 {
     struct __user_cap_header_struct hdr;
     struct __user_cap_data_struct   data[2];
+    /* The dangerous set — always shed from the bounding set (best-effort) and,
+     * for a root worker, from permitted+effective. SETUID/SETGID are deliberately
+     * NOT here: a root worker retains them so a legitimate later identity drop
+     * (the pblock backend's off-root drop, `single`-mode squash) still works.
+     * A root worker is uid 0 regardless, so keeping SETUID adds no escalation it
+     * does not already have; a non-root worker has no caps to keep. */
     static const int kill_caps[] = {
-        CAP_SETUID, CAP_SETGID, CAP_SETPCAP, CAP_DAC_OVERRIDE,
-        CAP_DAC_READ_SEARCH, CAP_FOWNER, CAP_CHOWN, CAP_FSETID,
-        CAP_SYS_ADMIN, CAP_SYS_PTRACE, CAP_MKNOD, CAP_SETFCAP,
+        CAP_SETPCAP, CAP_DAC_OVERRIDE, CAP_DAC_READ_SEARCH, CAP_FOWNER,
+        CAP_CHOWN, CAP_FSETID, CAP_SYS_ADMIN, CAP_SYS_PTRACE, CAP_MKNOD,
+        CAP_SETFCAP,
     };
     unsigned i;
 
     (void) prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
 
-    /* Clear ALL effective + permitted + inheritable capabilities. */
     ngx_memzero(&hdr, sizeof(hdr));
     ngx_memzero(data, sizeof(data));
     hdr.version = _LINUX_CAPABILITY_VERSION_3;
     hdr.pid     = 0;
+
+    if (geteuid() == 0) {
+        /* Root worker: reduce permitted+effective to ONLY {SETUID,SETGID},
+         * shedding DAC_OVERRIDE/MKNOD/SYS_ADMIN/PTRACE/CHOWN/... — the caps a
+         * worker-code exploit would abuse (uid 0 without CAP_DAC_OVERRIDE now
+         * respects on-disk DAC). */
+        data[0].permitted = data[0].effective =
+            (1u << CAP_SETUID) | (1u << CAP_SETGID);
+    }
+    /* else: non-root worker keeps nothing (data stays zeroed). */
+
     if (syscall(SYS_capset, &hdr, data) != 0) {
         if (log) ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                               "impersonate: worker capset(clear) failed "
+                               "impersonate: worker capset failed "
                                "(continuing — worker is an unprivileged client)");
     }
     /* Best-effort bounding-set drop of the dangerous caps (needs CAP_SETPCAP). */
@@ -72,17 +88,36 @@ imp_worker_drop_caps(ngx_log_t *log)
     }
 }
 
+/* ---- brix_imp_worker_harden ----
+ *
+ * WHAT: Shed ALL worker capabilities + set NO_NEW_PRIVS, in EVERY impersonation
+ *       mode (off/single/map). Idempotent.
+ * WHY:  A worker never needs capabilities; a worker (mis)configured to run as
+ *       root must not keep CAP_DAC_OVERRIDE/CAP_MKNOD/CAP_SETUID/… — a worker-code
+ *       exploit would otherwise be root. The old code only dropped caps in `map`
+ *       mode, leaving the default posture (and HTTP-only workers) fully privileged
+ *       when the worker ran as root.
+ * HOW:  Delegates to imp_worker_drop_caps(). Called from the per-worker init
+ *       BEFORE the stream-config early-return so WebDAV/S3 (HTTP-only) workers are
+ *       hardened too, not just stream/root:// workers.
+ */
+void
+brix_imp_worker_harden(ngx_log_t *log)
+{
+    imp_worker_drop_caps(log);
+}
+
 ngx_int_t
 brix_imp_init_worker(ngx_cycle_t *cycle)
 {
     char sockbuf[256];
 
+    /* Cap-drop is now done earlier + unconditionally via brix_imp_worker_harden()
+     * (called before the stream-config early-return in ngx_stream_brix_init_process
+     * so HTTP-only workers are covered too). */
     if (imp_settings.mode != BRIX_IMP_MAP) {
-        return NGX_OK;                    /* off/single: no client */
+        return NGX_OK;                    /* off/single: no broker client */
     }
-
-    /* Shed privileged caps first — the worker is a pure broker client. */
-    imp_worker_drop_caps(cycle->log);
 
     ngx_snprintf((u_char *) sockbuf, sizeof(sockbuf), "%V%Z",
                  &imp_settings.socket);

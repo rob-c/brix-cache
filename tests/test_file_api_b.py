@@ -192,6 +192,7 @@ class TestChmod:
         p = disk(f"{PREFIX}chmod_ro.txt")
         open(p, "w").write("data")
         os.chmod(p, 0o644)
+        worker_own(p)   # nobody worker owns it so its chmod(2) is owner-legal
         fs = anon_fs()
         status, _ = fs.chmod(
             f"/{PREFIX}chmod_ro.txt",
@@ -204,6 +205,7 @@ class TestChmod:
         p = disk(f"{PREFIX}chmod_exec.sh")
         open(p, "w").write("#!/bin/sh\n")
         os.chmod(p, 0o644)
+        worker_own(p)
         fs = anon_fs()
         status, _ = fs.chmod(
             f"/{PREFIX}chmod_exec.sh",
@@ -218,6 +220,7 @@ class TestChmod:
         d = disk(f"{PREFIX}chmod_dir")
         os.makedirs(d, exist_ok=True)
         os.chmod(d, 0o755)
+        worker_own(d)
         fs = anon_fs()
         status, _ = fs.chmod(
             f"/{PREFIX}chmod_dir",
@@ -237,6 +240,7 @@ class TestChmod:
         p = disk(f"{PREFIX}chmod_stat.txt")
         open(p, "wb").write(b"data")
         os.chmod(p, 0o000)          # no permissions
+        worker_own(p)
         fs = anon_fs()
         fs.chmod(
             f"/{PREFIX}chmod_stat.txt",
@@ -250,6 +254,7 @@ class TestChmod:
         p = disk(f"{PREFIX}chmod_gsi.txt")
         open(p, "w").write("gsi chmod")
         os.chmod(p, 0o644)
+        worker_own(p)
         fs = gsi_fs()
         status, _ = fs.chmod(
             f"/{PREFIX}chmod_gsi.txt",

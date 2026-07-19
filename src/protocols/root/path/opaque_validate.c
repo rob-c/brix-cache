@@ -42,9 +42,19 @@ static const char BRIX_OPAQUE_ALLOWED[] =
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789"
     ".-_~"      /* URL unreserved */
-    "/:@"       /* path / authority */
+    "/:@[]"     /* path / authority — []  bracket an IPv6 literal host (RFC 3986
+                 * IP-literal), which XrdCl emits in a tpc.src URL for an IPv6 (or
+                 * IPv4-mapped, "[::ffff:127.0.0.1]") source; parse.c/launch.c
+                 * decompose and re-bracket it, so the bytes are legitimate and
+                 * required for native-TPC parity — not shell metacharacters here
+                 * (the opaque is parsed, never handed to a shell). */
     "%+"        /* percent-encoding, plus-as-space */
-    "=&;,?";    /* CGI structure + list separators (& and legacy ;) + nested-query */
+    "=&,?";     /* CGI structure: '&' key/val separator, '=' assignment, ',' list,
+                 * '?' nested-query. NOT ';' — XRootD splits opaque only on '&'
+                 * (XrdOucEnv.cc and XrdCl URL::SetParams both tokenize on "&"
+                 * exclusively), so ';' is never a legitimate separator on the wire;
+                 * permitting it only widened the injection surface (command
+                 * chaining) with no interop benefit. */
 
 static unsigned char brix_opaque_permit[256];
 static int           brix_opaque_permit_ready;

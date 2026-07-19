@@ -184,6 +184,12 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
      * when the queue is empty. */
     brix_init_stage_sched_timer(cycle);
 
+    /* Shed ALL worker capabilities + set NO_NEW_PRIVS in EVERY worker, BEFORE the
+     * stream-config early-return below, so HTTP-only (WebDAV/S3) workers are
+     * hardened too — not just stream/root:// workers or `map` mode. A worker never
+     * needs caps; a root-configured worker must not keep them (D-3 companion). */
+    brix_imp_worker_harden(cycle->log);
+
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
     if (cmcf == NULL) {
         return NGX_OK;

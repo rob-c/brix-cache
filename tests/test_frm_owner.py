@@ -93,6 +93,19 @@ def srv(lifecycle, tmp_path):
     jwks_path = d / "jwks.json"
     jwks_path.write_text(json.dumps(jwks))
 
+    if os.geteuid() == 0:
+        # The nginx worker drops to `nobody` and (since the worker-hardening pass
+        # that sheds CAP_DAC_OVERRIDE) can no longer write root-owned paths by
+        # capability — it must genuinely own/write the FRM control-dir + queue to
+        # stand up the process-wide stage-request registry. Without this the
+        # registry init silently fails and POST /api/v1/stage returns 503 "tape
+        # staging is not configured". Open the tree the worker traverses/writes.
+        for _p in (d, data, control):
+            try:
+                os.chmod(str(_p), 0o777)
+            except OSError:
+                pass
+
     hport = free_port(BIND_HOST)
     spec = NginxInstanceSpec(
         name="lc-frm-owner",

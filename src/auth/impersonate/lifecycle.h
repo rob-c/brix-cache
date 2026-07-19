@@ -62,6 +62,7 @@ ngx_int_t brix_imp_init_module(ngx_cycle_t *cycle);
 /* Worker, at init_process: in `map` mode, connect the broker client.  No-op
  * otherwise.  A not-yet-ready broker is a soft warning (lazy reconnect). */
 ngx_int_t brix_imp_init_worker(ngx_cycle_t *cycle);
+void brix_imp_worker_harden(ngx_log_t *log);
 
 /* ----- Per-request principal -------------------------------------- */
 

@@ -136,7 +136,7 @@ brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
      */
     open_flags = O_RDONLY | O_NOCTTY | O_CLOEXEC;
     if (shared->from_cache) {
-        fd = open(shared->path, open_flags);  /* vfs-seam-allow: separate server-managed cache-root domain (from_cache), opened as worker */
+        fd = open(shared->path, open_flags | O_NOFOLLOW);  /* vfs-seam-allow: separate server-managed cache-root domain (from_cache), opened as worker; O_NOFOLLOW so a stray symlink in the svc-owned cache tree is not followed */
     } else {
         /* shared->path is the absolute path; strip root_canon to get the
          * path relative to rootfd for openat2 RESOLVE_BENEATH. */

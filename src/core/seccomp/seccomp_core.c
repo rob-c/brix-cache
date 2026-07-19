@@ -250,6 +250,71 @@ brix_seccomp_core_apply(unsigned mode, brix_seccomp_err_fn err_fn, void *ud,
     return BRIX_SECCOMP_CORE_OK;
 }
 
+/*
+ * The broker deny set: never legitimate for the tiny openat2/setfsuid/xattr
+ * broker, and each a direct escalation primitive if a broker memory bug is
+ * turned into code execution (the CAP_SETUID broker is root-equivalent).
+ */
+static const char *const brix_seccomp_broker_deny[] = {
+    "execve", "execveat",
+    "ptrace", "process_vm_readv", "process_vm_writev",
+    "mount", "umount2", "unshare", "setns", "pivot_root", "chroot",
+    "init_module", "finit_module", "delete_module",
+    "kexec_load", "kexec_file_load",
+    "bpf", "keyctl", "add_key", "request_key",
+    "mknod", "mknodat", "reboot",
+};
+
+int
+brix_seccomp_broker_apply(brix_seccomp_err_fn err_fn, void *ud,
+    unsigned *out_deny)
+{
+    scmp_filter_ctx  ctx;
+    unsigned         i;
+    unsigned         n_deny = 0;
+    int              rc;
+
+    if (out_deny != NULL) {
+        *out_deny = 0;
+    }
+
+    /* Default ALLOW: the broker keeps every syscall it legitimately issues; only
+     * the named-dangerous set is killed.  This cannot break a forgotten broker
+     * syscall (unlike an allowlist), which is why the broker uses it. */
+    ctx = seccomp_init(SCMP_ACT_ALLOW);
+    if (ctx == NULL) {
+        if (err_fn != NULL) {
+            err_fn(ud, NULL, 0);
+        }
+        return BRIX_SECCOMP_CORE_ERR;
+    }
+
+    for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_broker_deny); i++) {
+        if (brix_seccomp_core_add(ctx, SCMP_ACT_KILL_PROCESS,
+                                  brix_seccomp_broker_deny[i], err_fn, ud,
+                                  &n_deny) != 0)
+        {
+            seccomp_release(ctx);
+            return BRIX_SECCOMP_CORE_ERR;
+        }
+    }
+
+    /* seccomp_load sets PR_SET_NO_NEW_PRIVS itself (SCMP_FLTATR_CTL_NNP). */
+    rc = seccomp_load(ctx);
+    seccomp_release(ctx);
+    if (rc != 0) {
+        if (err_fn != NULL) {
+            err_fn(ud, NULL, rc);
+        }
+        return BRIX_SECCOMP_CORE_ERR;
+    }
+
+    if (out_deny != NULL) {
+        *out_deny = n_deny;
+    }
+    return BRIX_SECCOMP_CORE_OK;
+}
+
 #else  /* !BRIX_HAVE_SECCOMP — libseccomp absent at build time */
 
 int
@@ -268,6 +333,18 @@ brix_seccomp_core_apply(unsigned mode, brix_seccomp_err_fn err_fn, void *ud,
 
     if (mode == BRIX_SECCOMP_CORE_OFF) {
         return BRIX_SECCOMP_CORE_OK;
+    }
+    return BRIX_SECCOMP_CORE_UNAVAIL;
+}
+
+int
+brix_seccomp_broker_apply(brix_seccomp_err_fn err_fn, void *ud,
+    unsigned *out_deny)
+{
+    (void) err_fn;
+    (void) ud;
+    if (out_deny != NULL) {
+        *out_deny = 0;
     }
     return BRIX_SECCOMP_CORE_UNAVAIL;
 }

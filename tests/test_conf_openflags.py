@@ -841,6 +841,68 @@ def test_open_opaque_injection_byte_no_opaque_clean(srv):
 
 
 # =========================================================================== #
+# L2. OPAQUE SEPARATOR CONFORMANCE — ';' is NOT an XRootD CGI separator
+# ---------------------------------------------------------------------------
+# XRootD tokenises the opaque/CGI on '&' ONLY, in BOTH directions:
+#   * server: XrdOuc/XrdOucEnv.cc — the constructor scans for '&' (and '=') and
+#     nothing else; a ';' inside the string is an ordinary value byte.
+#   * client: XrdCl/XrdClURL.cc URL::SetParams() — Utils::splitString(..., "&").
+# So ';' is NEVER a delimiter on the wire. brix historically ALLOWED ';' in the
+# opaque gate under a mistaken "legacy CGI list separator" premise (HTML4's `;`
+# alt-separator, which XRootD never adopted). That widened the injection surface
+# (command-chaining metacharacter, a risk if opaque is ever spliced into a shell
+# or a forwarded request) for ZERO interop benefit. It is now rejected alongside
+# the other shell-meta/control bytes. These tests PIN that decision so a future
+# refactor cannot silently re-admit ';' — and document, via the differential
+# ampersand test, that '&' remains the sole accepted separator (full parity with
+# stock). If XRootD upstream ever adds ';' as a real separator, THESE tests are
+# the canary: revisit BRIX_OPAQUE_ALLOWED (src/protocols/root/path/opaque_validate.c).
+# =========================================================================== #
+@pytest.mark.parametrize("opaque,where", [
+    ("a=1;b=2",              "between pairs (the mistaken 'legacy separator' form)"),
+    ("authz=x;y",            "inside a value"),
+    (";a=1",                 "leading"),
+    ("a=1;",                 "trailing"),
+    ("a=1;b=2;c=3",          "multiple"),
+    ("tpc.key=K;tpc.org=O",  "faux tpc rendezvous split"),
+])
+def test_open_opaque_semicolon_never_a_separator(srv, opaque, where):
+    """conformance/security-negative: a ';' anywhere in the opaque is rejected on
+    OURS, in EVERY position — XRootD never treats ';' as a CGI separator (splits
+    only on '&', XrdOucEnv.cc / XrdClURL.cc), so admitting it buys no interop and
+    only widens the injection surface. Guards against re-adding ';' to
+    BRIX_OPAQUE_ALLOWED."""
+    st, body = _open_our("/data.bin?" + opaque)
+    assert _rejected(st), \
+        f"OURS accepted ';' opaque ({where}): {opaque!r} (status={st})"
+    if st == kXR_error:
+        assert _errnum(body) == kXR_ArgInvalid, \
+            f"';' opaque ({where}) rejected with wrong errno {_errnum(body)}"
+
+
+def test_open_opaque_ampersand_is_the_sole_separator(srv):
+    """conformance (differential): a multi-key opaque separated by '&' — the ONLY
+    delimiter XRootD honours — opens identically on OURS and stock. Pins '&' as
+    the accepted separator so the ';'-rejection above cannot be "fixed" by
+    loosening the whole gate; the legitimate multi-pair CGI must keep working."""
+    path = "/data.bin?authz=abc&xrd.cc=US&tpc.stage=1&scope=read"
+    st_o, b_o, st_f, b_f, raw = assert_same_category(srv, path, kXR_open_read)
+    assert st_o == kXR_ok, f"legitimate '&'-separated opaque rejected on OURS:{raw}"
+    assert len(b_o) == 4, f"OUR '&'-opaque open body not 4 bytes:{raw}"
+
+
+def test_open_opaque_semicolon_rejected_is_stable_across_ops(srv):
+    """conformance: the ';' rejection is a property of the opaque GATE, not of a
+    particular open mode — it holds for a read-open and a create/write-open alike
+    (the gate runs before op dispatch). Prevents a mode-specific regression."""
+    for opts, label in ((kXR_open_read, "read"),
+                        (kXR_open_read | 0x08, "new/create")):
+        st, body = _open_our("/sc_semi_%s.bin?a=1;b=2" % label, options=opts)
+        assert _rejected(st), \
+            f"OURS accepted ';' opaque on {label}-open (status={st})"
+
+
+# =========================================================================== #
 # M. MALFORMED PATHS — embedded NUL / oversized rejected (parity, both error)
 # =========================================================================== #
 def test_open_embedded_nul_rejected_parity(srv):

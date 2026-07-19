@@ -53,11 +53,26 @@ tests/c/run_mu_unit.sh                              # idmap collapse guards (no 
 | F3 | `test_mu_stage_laundering.py` | service-cred stage laundering | green (regression) |
 | F4 | `test_mu_prepare_authz.py` | prepare/stage noerrs bypass | green (regression) |
 | F5 | `test_mu_cross_protocol.py` | cross-protocol poisoning + S3 scope | green (regression); S3 single-key noted |
-| F6 | `test_mu_impersonation_e2e.py` + `c/idmap_collapse_test.c` | uid collapse + setfsuid ownership | green |
+| F6 | `c/idmap_collapse_test.c` (mapping) + `test_impersonation_gridmap_root.py` (setfsuid ownership) | uid collapse + real setfsuid ownership | mapping green; runtime ownership covered by the host-root gridmap suite (see note) |
 | F7 | `test_mu_decision_cache.py` | decision-cache identity isolation | green |
 | F8 | `test_mu_revocation.py` | revocation after fill | green (regression) |
 | F9 | `test_mu_writeback_attr.py` | write-back attribution + S3 parity | green (regression); S3 single-key noted |
 | — | `test_mu_cache_serve_authz.py` | no-root cache-HIT enforcement smoke | green |
+
+> **F6 note (runtime setfsuid ownership).** `test_mu_impersonation_e2e.py` targets
+> `ports.MU.ROOT_CACHE`/`ROOT_DIRECT`, but the phase-81 registry rewrite
+> (`89d38fd4`) and the earlier config-template overhaul (`66efecd0`, which deleted
+> `configs/multiuser/root_cache.conf`/`root_direct.conf` — the only templates with
+> `brix_impersonation map`) left `mu_authz_lib/fleet.py`'s `_SERVERS` starting only
+> `*_noimp.conf` servers. Those two impersonation-ON ports are never bound, so the
+> e2e writes to a dead port (it fails under `sudo`, or false-passes on the
+> collapse case where both measurements fail identically). Real
+> **host-root setfsuid byte-ownership** — a token/X.509 identity mapped via a real
+> grid-mapfile to a real local account, asserting the written file's on-disk
+> `st_uid`/`st_gid` — is now covered directly by
+> `tests/test_impersonation_gridmap_root.py` (run under `sudo`). Reviving the MU
+> impersonation fleet (re-adding a `map`-mode server to `_SERVERS`) is tracked
+> separately.
 
 ## The harness
 

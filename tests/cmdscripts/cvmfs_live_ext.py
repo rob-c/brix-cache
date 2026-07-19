@@ -1250,7 +1250,13 @@ http {{ access_log off; server {{
 }} }}
 """)
         # config-time geo selection report goes to the launch stderr — capture it
-        started = run.call([run.nginx, "-c", config, "-p", run.root], check=False)
+        # with a direct launch (not start_nginx). As root that means we must add
+        # the `user root;` that start_nginx would inject, else workers drop to
+        # `nobody` and cannot write the 0700 mkdtemp cache store (fill -> EACCES).
+        launch = [run.nginx, "-c", config, "-p", run.root]
+        if os.geteuid() == 0:
+            launch += ["-g", "user root;"]
+        started = run.call(launch, check=False)
         start_err = run.write(logs / "start.err", started.stderr or "")
         if started.returncode:
             raise LiveFailure(started.stderr or started.stdout or "nginx failed to start")

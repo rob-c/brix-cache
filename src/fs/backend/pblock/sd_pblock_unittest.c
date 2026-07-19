@@ -1056,7 +1056,7 @@ test_lab_fault_inject(void)
 {
     char                  root[] = "/tmp/pb_lab.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};   /* zero enforce_unprivileged: never drop in the unit test */
     char                  buf[32];
     int                   err = 0;
     brix_sd_obj_t        *o;
@@ -1100,7 +1100,7 @@ test_lab_gate_closed(void)
 {
     char                  root[] = "/tmp/pb_laboff.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     char                  buf[32];
     int                   err = 0;
     brix_sd_obj_t        *o;
@@ -1134,7 +1134,7 @@ test_lab_caps_mask(void)
 {
     char                  root[] = "/tmp/pb_caps.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
 
     CHECK(mkdtemp(root) != NULL, "mkdtemp");
     lab_write_sidecar(root, "lab=1&caps=-sendfile");
@@ -1219,7 +1219,7 @@ test_lab_enumerate(void)
 {
     char                  root[] = "/tmp/pb_enum.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     enum_probe_t          p;
     int                   walk_files = 0;
     int64_t               walk_bytes = 0;
@@ -1410,7 +1410,7 @@ test_dedup_refs(void)
 {
     char                  root[] = "/tmp/pb_dedup.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     char                  ba[PBLOCK_BLOB_ID_CAP], bb[PBLOCK_BLOB_ID_CAP];
     char                  buf[64];
     /* 10 bytes over a 4-byte stripe ⇒ 3 blocks: byte-verify walks real blocks. */
@@ -1499,7 +1499,7 @@ test_dedup_forged_hash(void)
 {
     char                  root[] = "/tmp/pb_forge.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     char                  bvictim[PBLOCK_BLOB_ID_CAP];
     char                  battack[PBLOCK_BLOB_ID_CAP];
     char                  hash[64];
@@ -1580,7 +1580,7 @@ test_dedup_gate_closed(void)
 {
     char                  root[] = "/tmp/pb_dedupoff.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     char                  ba[PBLOCK_BLOB_ID_CAP], bb[PBLOCK_BLOB_ID_CAP];
     char                  buf[64];
 
@@ -1618,7 +1618,7 @@ test_snapshot(void)
 {
     char                  root[] = "/tmp/pb_snap.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     char                  buf[64];
 
     CHECK(mkdtemp(root) != NULL, "mkdtemp");
@@ -1697,7 +1697,7 @@ test_versioning(void)
 {
     char                  root[] = "/tmp/pb_ver.XXXXXX";
     brix_sd_instance_t    inst = {0};
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     char                  a0[PBLOCK_BLOB_ID_CAP], b1[PBLOCK_BLOB_ID_CAP];
     char                  c2[PBLOCK_BLOB_ID_CAP], g0[PBLOCK_BLOB_ID_CAP];
     char                  buf[64];
@@ -1785,7 +1785,7 @@ int
 main(void)
 {
     char                    root[] = "/tmp/pb_ut.XXXXXX";
-    brix_sd_pblock_conf_t conf;
+    brix_sd_pblock_conf_t conf = {0};
     brix_sd_instance_t    inst = {0};
 
     D = &brix_sd_pblock_driver;

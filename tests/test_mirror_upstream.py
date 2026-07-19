@@ -107,9 +107,19 @@ def _start_xrootd(name, port, data_dir, checksum):
             f"all.adminpath {os.path.join(base, 'admin')}\n"
             f"all.pidpath {os.path.join(base, 'run')}\n"
             f"xrd.trace off\n")
-    subprocess.run([REF_XROOTD_BIN, "-b", "-c", cfg,
-                    "-l", os.path.join(base, "xrootd.log")],
-                   capture_output=True)
+    argv = [REF_XROOTD_BIN, "-b", "-c", cfg,
+            "-l", os.path.join(base, "xrootd.log")]
+    if os.geteuid() == 0:
+        # Official xrootd refuses to run as superuser; drop to an unprivileged
+        # user and pre-open the dirs it will need (localroot rw, adminpath,
+        # pidpath, log dir) so the dropped user can still operate.
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        subprocess.run(["chmod", "a+rx", _DIR])
+        subprocess.run(["chmod", "-R", "a+rwX", data_dir])  # localroot rw
+        # base holds adminpath, pidpath and the log — all must be rwX for nobody
+        subprocess.run(["chmod", "-R", "a+rwX", base])
+        argv += ["-R", runas]
+    subprocess.run(argv, capture_output=True)
     return cfg
 
 

@@ -71,6 +71,12 @@ def find_sec_lib():
     return None
 
 
+def _chmod(argv):
+    """Run a chmod (best-effort); tolerate missing paths so pre-open of an
+    absent optional path never aborts server startup."""
+    subprocess.run(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def free_port():
     """An ephemeral TCP port currently free on loopback."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -283,9 +289,32 @@ class XrootdGsi:
             ))
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
+        argv = [BRIX_BIN, "-c", self.cfg, "-l", self.log]
+        # Stock xrootd refuses to run as superuser ("Security reasons prohibit
+        # running as superuser; program is terminating." -> exit 8), so under a
+        # root test harness drop it to `nobody` via `-R` and pre-open ONLY the
+        # paths the dropped user must touch: the traversal path down to our tree,
+        # the data root (read + traverse — a+rwX), the admin/pid/log dirs it
+        # writes into, the CA + host cert it reads, and the host key (which
+        # XrdSecgsi refuses group/world-writable, so chown it to `nobody` 0400 —
+        # the root-run nginx master still reads it, root bypassing DAC).
+        if os.geteuid() == 0:
+            runas = os.environ.get("REF_RUNAS_USER", "nobody")
+            _chmod(["chmod", "a+rx", PREFIX, self.prefix])
+            _chmod(["chmod", "-R", "a+rwX", self.data, self.admin,
+                    self.run, self.logs])
+            for d in (os.path.dirname(CA_DIR), CA_DIR,
+                      os.path.dirname(SERVER_CERT)):
+                _chmod(["chmod", "a+rx", d])
+            _chmod(["chmod", "-R", "a+rX", CA_DIR])
+            if os.path.isfile(SERVER_CERT):
+                _chmod(["chmod", "a+r", SERVER_CERT])
+            if os.path.isfile(SERVER_KEY):
+                shutil.chown(SERVER_KEY, runas)
+                os.chmod(SERVER_KEY, 0o400)
+            argv += ["-R", runas]
         self.proc = subprocess.Popen(
-            [BRIX_BIN, "-c", self.cfg, "-l", self.log],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
+            argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
         )
         _wait_port(self.port, proc=self.proc)
         self._wait_gsi_ready()

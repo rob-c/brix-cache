@@ -47,4 +47,18 @@ typedef void (*brix_seccomp_err_fn)(void *ud, const char *name, int rc);
 int brix_seccomp_core_apply(unsigned mode, brix_seccomp_err_fn err_fn, void *ud,
     unsigned *out_allow, unsigned *out_deny);
 
+/*
+ * Broker filter — a DEFAULT-ALLOW filter that hard-KILLs a small,
+ * never-legitimate set (execve/execveat, ptrace, process_vm_readv/writev,
+ * mount/umount2/unshare/setns/pivot_root/chroot, module load/unload, kexec,
+ * bpf, keyctl/add_key/request_key, mknod/mknodat, reboot). Installed on the
+ * root-equivalent impersonation broker AFTER its cap-drop. Default-allow (not an
+ * allowlist) so the broker's own openat2/setfsuid/xattr/rename path cannot be
+ * broken by a forgotten syscall, while a code-exec exploit still cannot spawn a
+ * shell, ptrace the worker, load a module, or read another process's memory.
+ * Returns BRIX_SECCOMP_CORE_OK/ERR/UNAVAIL; *out_deny gets the killed-rule count.
+ */
+int brix_seccomp_broker_apply(brix_seccomp_err_fn err_fn, void *ud,
+    unsigned *out_deny);
+
 #endif /* BRIX_CORE_SECCOMP_CORE_H */

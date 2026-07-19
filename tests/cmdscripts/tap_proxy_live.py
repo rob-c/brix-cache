@@ -450,6 +450,11 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
         return _skip("fusermount not installed")
     if not Path("/dev/fuse").exists():
         return _skip("/dev/fuse not available")
+    # brixcvmfs now links the prebuilt client static libs; without them the
+    # standalone build can't resolve the connection stack — skip, don't hard-fail.
+    for lib in ("client/libbrix.a", "shared/xrdproto/libxrdproto.a"):
+        if not (REPO_ROOT / lib).exists():
+            return _skip(f"{lib} not built (run make -C client lib && make -C shared/xrdproto)")
 
     repo = "test.cern.ch"
     expect = "Hello from a LIVE CVMFS-brix mount!"
@@ -469,9 +474,18 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                       "shared/cvmfs/catalog/catalog.c", "-lsqlite3", "-lcrypto", "-lz"]),
             (harness, ["gcc", "-Wall", "-Wextra", "-Werror", "-I", "shared", "-o", str(harness),
                        "tests/cvmfs/proxy_tunnel_harness.c", "shared/net/proxy_connect.c"]),
-            (brixcvmfs, ["gcc", "-Wall", "-Wextra", "-Werror", "-I", "shared", *fuse_cflags.stdout.split(),
+            # brixcvmfs.c now pulls in the client/lib connection stack
+            # (net/cpool.h -> client/lib/brix.h -> src wire structs; uses
+            # brix_cpool_*), so the standalone build needs the same include roots
+            # and static libs the canonical client/Makefile brixMount recipe uses:
+            # -Iclient/lib -Isrc -DXRDPROTO_NO_NGX + libbrix.a + libxrdproto.a.
+            (brixcvmfs, ["gcc", "-Wall", "-Wextra", "-Werror",
+                         "-I", "shared", "-I", "client/lib", "-I", "src",
+                         "-DXRDPROTO_NO_NGX", *fuse_cflags.stdout.split(),
                          "-o", str(brixcvmfs), "client/apps/fs/brixcvmfs.c", *CVMFS_CORE,
-                         *fuse_libs.stdout.split(), "-lcurl", "-lsqlite3", "-lcrypto", "-lz"]),
+                         "client/libbrix.a", "shared/xrdproto/libxrdproto.a",
+                         *fuse_libs.stdout.split(), "-lcurl", "-lsqlite3", "-lcrypto", "-lz",
+                         *BRIX_CONN_LDLIBS]),
         ]
         for target, argv in builds:
             result = run.call(argv, cwd=REPO_ROOT, check=False)

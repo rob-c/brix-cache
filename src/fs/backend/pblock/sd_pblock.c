@@ -54,7 +54,9 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <limits.h>
+#include <pwd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,6 +70,80 @@
  * and the split-out vtable-slot prototypes live in sd_pblock_internal.h; this
  * file keeps the instance + object lifecycle and the driver descriptor. */
 
+/* ---- brix_pblock_drop_privilege ------------------------------------------
+ *
+ * WHAT: Guarantee the calling (worker) process is unprivileged before pblock
+ *       creates any on-disk state, by permanently dropping to `want_user`
+ *       (default "nobody"). Returns 0 on success or when already unprivileged,
+ *       -1 (caller must fail closed) if a root worker cannot be dropped.
+ *
+ * WHY:  pblock writes blob files (0600), block dirs (0700) and the SQLite
+ *       catalog.db as the worker's OWN uid — it has no impersonation broker and
+ *       never chowns (per-principal ownership is synthetic, in the catalog only).
+ *       So a worker that runs as root (an explicit `user root;`, or any config
+ *       that fails to drop) would create every blob/dir/DB owned by root — a
+ *       privilege-escape foothold letting a client's data land as root. This
+ *       backstop makes pblock on-disk data never owned by root (or the account
+ *       that launched nginx), independent of the `user` directive.
+ *
+ * HOW:  1. euid != 0 → already unprivileged; nothing to do (the normal case,
+ *          including impersonation `map` where the worker is a service account).
+ *          This also makes the function idempotent: after the first drop every
+ *          later call in the worker short-circuits here.
+ *       2. Resolve `want_user` (else "nobody"); refuse a uid/gid-0 target.
+ *       3. setgroups({gid}) → setgid → setuid — permanent (real+eff+saved).
+ *       4. Re-read getuid/geteuid; FAIL CLOSED if either is still 0.
+ *       5. Warn (fires only on the one transition). Diagnostics go to stderr,
+ *          which nginx redirects into the worker error_log; this file is ngx-free
+ *          (shared with the standalone unit test) so it cannot call ngx_log_*.
+ */
+static int
+brix_pblock_drop_privilege(const char *want_user)
+{
+    const char    *acct;
+    struct passwd *pw;
+    gid_t          gid;
+
+    if (geteuid() != 0) {
+        return 0;
+    }
+
+    acct = (want_user != NULL && want_user[0] != '\0') ? want_user : "nobody";
+    errno = 0;
+    pw = getpwnam(acct);
+    if (pw == NULL) {
+        fprintf(stderr, "pblock: refusing to run as root — unprivileged account "
+                        "\"%s\" not found (set brix_pblock_unprivileged_user)\n",
+                        acct);
+        return -1;
+    }
+    if (pw->pw_uid == 0 || pw->pw_gid == 0) {
+        fprintf(stderr, "pblock: refusing to drop to \"%s\" — it is a uid/gid 0 "
+                        "account\n", acct);
+        return -1;
+    }
+
+    gid = pw->pw_gid;
+    if (setgroups(1, &gid) != 0 || setgid(gid) != 0 || setuid(pw->pw_uid) != 0) {
+        fprintf(stderr, "pblock: FAILED to drop root to \"%s\": %s — refusing to "
+                        "serve (blobs/catalog.db must never be root-owned)\n",
+                        acct, strerror(errno));
+        return -1;
+    }
+    if (getuid() == 0 || geteuid() == 0) {
+        fprintf(stderr, "pblock: privilege drop to \"%s\" did not stick — "
+                        "refusing to serve\n", acct);
+        return -1;
+    }
+
+    fprintf(stderr, "pblock: worker was running as root; dropped to \"%s\" "
+                    "(uid=%ld) so blobs and catalog.db are never root-owned — set "
+                    "the nginx 'user <acct>;' directive to run the worker (and own "
+                    "pblock data) as a chosen account instead\n",
+                    acct, (long) pw->pw_uid);
+    return 0;
+}
+
 /* ---- instance lifecycle --------------------------------------------------- */
 
 static ngx_int_t
@@ -79,6 +155,17 @@ sd_pblock_init(brix_sd_instance_t *inst, void *driver_conf)
 
     if (conf == NULL || conf->root == NULL) {
         errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    /* Never create pblock on-disk state (dirs/blobs/catalog.db) as root: a
+     * worker-time production build sets enforce_unprivileged, which drops a root
+     * worker to an unprivileged account here — BEFORE the pblock_mkdir_p below.
+     * Fail closed if the drop is impossible. */
+    if (conf->enforce_unprivileged
+        && brix_pblock_drop_privilege(conf->unpriv_user) != 0)
+    {
+        errno = EPERM;
         return NGX_ERROR;
     }
 

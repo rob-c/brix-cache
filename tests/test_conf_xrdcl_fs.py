@@ -133,11 +133,16 @@ def _mk_scratch(pair, name, builder):
             _rmtree(d)
         os.makedirs(d, exist_ok=True)
         builder(d)
-        # The stock server runs as `nobody`; give it ownership of its scratch
-        # subtree so chmod/chown parity is owner-legal (root cause #2), exactly
-        # as the root-run server owns its own tree.
-        if tag == "off":
-            L.chown_stock(d)
+        # BOTH servers run their workers as `nobody` (nginx's compiled-in default
+        # user; the stock xrootd via its -R nobody drop). chmod(2)/chown(2) require
+        # OWNERSHIP, not a mode bit, so a nobody worker can only mutate a
+        # nobody-owned file. The scratch is created here by the root pytest process,
+        # so unless we hand it to `nobody` the worker gets EPERM and parity with
+        # stock diverges — this was the whole "27 chmod failures under root" cluster.
+        # Give BOTH scratch subtrees to `nobody` (best-effort; a no-op unprivileged,
+        # where the invoking user already owns everything) so the two nobody workers
+        # enforce identical ownership/permission semantics.
+        L.chown_stock(d)
     return logical
 
 

@@ -103,6 +103,18 @@ def disk(name: str) -> str:
     return os.path.join(DATA_DIR, name.lstrip("/"))
 
 
+def worker_own(path: str) -> str:
+    """Hand a freshly-created test artefact to the server's `nobody` worker so the
+    worker can chmod/chown it.  chmod(2) requires OWNERSHIP, not a mode bit — a
+    root-created file is root-owned, and the fleet's nobody worker gets EPERM
+    trying to chmod it (this is the whole "chmod fails under root" cluster).
+    Best-effort and a no-op unprivileged (the invoking user already owns it).
+    Returns ``path`` so it can wrap a creation expression."""
+    from official_interop_lib import chown_stock  # noqa: PLC0415
+    chown_stock(path)
+    return path
+
+
 def md5(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
 

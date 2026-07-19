@@ -24,7 +24,7 @@ import time
 import pytest
 
 from cmdscripts.live_common import LiveRun, random_file, sha256
-from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
+from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
@@ -37,6 +37,7 @@ def _sql(catalog: Path, *stmts: tuple) -> None:
         conn.commit()
     finally:
         conn.close()
+    pblock_worker_own(catalog)
 
 
 def _ctl_set(catalog: Path, key: str, value: str) -> None:
@@ -67,6 +68,7 @@ def _residency(catalog: Path, path: str) -> int | None:
                            (path,)).fetchone()
     finally:
         conn.close()
+    pblock_worker_own(catalog)
     return int(row[0]) if row is not None else None
 
 

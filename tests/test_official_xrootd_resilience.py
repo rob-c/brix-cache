@@ -109,14 +109,25 @@ def server(tmp_path_factory):
         f"xrd.network nodnr\n"
     )
     log = root / "xrootd.log"
-    proc = subprocess.Popen([XROOTD, "-c", str(cfg), "-l", str(log)],
+    argv = [XROOTD, "-c", str(cfg), "-l", str(log)]
+    if os.geteuid() == 0:
+        # Official xrootd refuses to run as superuser. Drop to an unprivileged
+        # account with -R, and pre-open the paths that account must reach: the
+        # localroot data tree (readable), the adminpath/pidpath dir (writable),
+        # and the log dir (writable). Server is PLAIN (no GSI key) so that's all.
+        runas = os.environ.get("REF_RUNAS_USER", "nobody")
+        subprocess.run(["chmod", "-R", "a+rwX", str(root)])       # localroot + log dir
+        subprocess.run(["chmod", "-R", "a+rwX", str(admin)])      # adminpath / pidpath
+        argv += ["-R", runas]
+    proc = subprocess.Popen(argv,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         for _ in range(50):
             if _port_up(port):
                 break
             if proc.poll() is not None:
-                pytest.skip(f"xrootd failed to start:\n{log.read_text()[-600:]}")
+                tail = log.read_text()[-600:] if log.exists() else "(no log written)"
+                pytest.skip(f"xrootd failed to start:\n{tail}")
             time.sleep(0.2)
         else:
             pytest.skip("xrootd did not start listening in time")
