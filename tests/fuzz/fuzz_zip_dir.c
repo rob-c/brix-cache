@@ -10,10 +10,12 @@
  *       the Phase-B safe_size.h allocation hardening; this target ensures that
  *       hardening holds against arbitrary hostile archives.
  *
- * HOW:  Unity build — zip_kernel.c, sd_posix.c (XRDPROTO_NO_NGX), and zip_dir.c
- *       are #included directly so the ngx-shim macros below apply to every TU
- *       without touching any source file or requiring -include flags. The build
- *       command is a single clang line with -lz.
+ * HOW:  Unity build — zip_kernel.c, sd_posix.c + sd_posix_io.c (XRDPROTO_NO_NGX),
+ *       and zip_dir.c are #included directly so the ngx-shim macros below apply
+ *       to every TU without touching any source file or requiring -include flags.
+ *       sd_posix.c holds the driver descriptor; its raw fd byte ops were split
+ *       into sd_posix_io.c, so both must be pulled in to resolve the vtable. The
+ *       build command is a single clang line with -lz.
  *
  *       On BRIX_ZIP_OK the fuzzer also calls brix_zip_extract_full so the
  *       zlib inflate path is reachable. The output buffer is capped at 1 MiB to
@@ -56,7 +58,8 @@
  * standard behaviour), so zip_dir.c's "../fs/backend/sd.h" and
  * sd_posix.c's "../sd.h" find the right files without any -I flag. */
 #include "../../src/protocols/root/zip/zip_kernel.c"           /* pure-C kernel, no nginx    */
-#include "../../src/fs/backend/posix/sd_posix.c" /* POSIX vtable (ngx-free parts) */
+#include "../../src/fs/backend/posix/sd_posix.c"    /* POSIX driver descriptor       */
+#include "../../src/fs/backend/posix/sd_posix_io.c" /* raw fd byte ops (split-out)   */
 #include "../../src/protocols/root/zip/zip_dir.c"              /* TU under test              */
 
 /* Public header (already pulled in by zip_dir.c, but named here for clarity). */

@@ -42,6 +42,17 @@ XRDFS_BIN = shutil.which(os.environ.get("TEST_XRDFS_BIN", "xrdfs"))
 XRDCP_BIN = shutil.which(os.environ.get("TEST_XRDCP_BIN", "xrdcp"))
 CURL_BIN = shutil.which("curl")
 
+# The mesh's reference managers/data nodes are the *stock* xrootd/cmsd daemons
+# (BRIX_BIN/CMSD_BIN above resolve from PATH by design — interop testing).  The
+# SSS keytab admin, however, is our own clean-room tool: it ships as
+# ``xrdsssadmin-brix`` (the ``-brix`` suffix keeps the brix client RPM
+# co-installable with the stock xrootd *server* package, which owns
+# /usr/bin/xrdsssadmin) and carries its own CLI, distinct from the stock tool's.
+# Resolve it from the in-tree client build — like test_native_sss.py and the
+# other SSS suites — NOT via PATH, where only the incompatible stock binary lives.
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CLIENT_DIR = os.path.join(REPO, "client")
+
 # Where the harness drops the mesh's generated configs/data/logs.
 MESH_DIR = os.environ.get("CMS_MESH_DIR", "/tmp/xrd-test/cms-mesh")
 
@@ -140,7 +151,8 @@ MANAGER_PORTS = [PORTS[k] for k in (
 
 # NOTE: "sss_mgr" is intentionally absent from READY_PROBES below — its data
 # node is refused registration by design (fail-closed sss), so a locate probe
-# would never succeed.  Its listener is still gated via MANAGER_PORTS.
+# would never succeed.  Its listener is liveness-gated via MANAGER_PORTS, but
+# only when the box can actually mint the sss keytab — see expected_manager_ports.
 
 # (manager_port, namespace_path) readiness probes: a successful locate -> redirect
 # proves that topology's data node(s) have registered and the manager will serve
@@ -184,6 +196,46 @@ def wait_port(port, up=True, tries=80, delay=0.25):
             return True
         time.sleep(delay)
     return False
+
+
+def wait_managers_up(ports, timeout=8.0, poll=0.2):
+    """Return the count of ``ports`` that opened within ``timeout`` seconds.
+
+    Bring-up liveness gate for the manager front doors.  A serial
+    ``sum(wait_port(p) for p)`` is O(N × per-port budget): one manager that
+    never binds (e.g. ``sss_mgr``, whose data node is refused by design, or a
+    genuinely misconfigured node) burns that port's whole budget alone while the
+    17 healthy managers already bound in the first round.  Poll every still-shut
+    port together each round and stop the instant they are all up — so the gate
+    costs the SLOWEST healthy manager (~1-2 s), not the sum, and a permanent
+    laggard caps the wait at ``timeout`` instead of ``budget × laggards``."""
+    deadline = time.time() + timeout
+    remaining = list(ports)
+    opened = 0
+    while remaining:
+        remaining = [p for p in remaining if not port_open(p)]
+        opened = len(ports) - len(remaining)
+        if not remaining or time.time() >= deadline:
+            break
+        time.sleep(poll)
+    return opened
+
+
+def expected_manager_ports():
+    """``MANAGER_PORTS`` minus any topology this environment cannot launch.
+
+    The sss fail-closed manager (``sss_mgr``) is only launched when
+    ``xrdsssadmin-brix`` could mint its cmsd keytab — ``build_all`` skips it
+    otherwise (``gen_sss_keytab`` returns ``None``).  ``build_all`` runs before
+    this gate and builds/resolves the tool on demand, so whether it resolves now
+    (:func:`_find_sssadmin`, a no-build lookup across the dev tree and PATH) is
+    the reliable proxy for "sss_mgr was started".  Where it never resolves its
+    front door never binds and waiting for it is dead time; drop it here so the
+    liveness gate blocks only on managers that came up."""
+    ports = list(MANAGER_PORTS)
+    if _find_sssadmin() is None:
+        ports = [p for p in ports if p != PORTS["sss_mgr"]]
+    return ports
 
 
 def md5_file(path):
@@ -309,20 +361,64 @@ def cfg_manager(data_port, cms_port):
                   BIND_HOST=BIND_HOST, DATA_PORT=data_port, CMS_PORT=cms_port)
 
 
-XRDSSSADMIN_BIN = shutil.which("xrdsssadmin-brix")
+# In-tree build location (dev checkout).  In the RPM-installed test layout
+# (/usr/share/brix/tests) there is no source client/ tree; the brix-cache-tests
+# package pulls brix-cache-client, so the very same tool is on PATH as
+# /usr/bin/xrdsssadmin-brix — hence the PATH fallback in the resolver below.
+XRDSSSADMIN_BIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
+
+
+def _find_sssadmin():
+    """Locate ``xrdsssadmin-brix`` WITHOUT building it, or return ``None``.
+
+    Resolution order mirrors how the tool actually reaches a running box:
+    an explicit ``TEST_XRDSSSADMIN_BIN`` override (parity with the other
+    ``TEST_*_BIN`` knobs), then the in-tree build (dev checkout), then the
+    RPM-installed ``xrdsssadmin-brix`` on PATH (brix-cache-client)."""
+    override = os.environ.get("TEST_XRDSSSADMIN_BIN")
+    if override:
+        return override if os.path.exists(override) else None
+    if os.path.exists(XRDSSSADMIN_BIN):
+        return XRDSSSADMIN_BIN
+    return shutil.which("xrdsssadmin-brix")
+
+
+def _ensure_sssadmin():
+    """Return a usable ``xrdsssadmin-brix``, building it on demand, or ``None``.
+
+    Prefers an already-resolvable binary (:func:`_find_sssadmin`); failing that,
+    compiles it into ``client/bin`` in a dev checkout — mirroring the SSS pytest
+    fixtures (test_native_sss.py et al.) so the fail-closed sss_mgr topology can
+    launch even where the client tools were not pre-built.  Returns ``None`` when
+    it is absent and cannot be built (no client/ tree, or no C compiler)."""
+    found = _find_sssadmin()
+    if found is not None:
+        return found
+    if not os.path.isdir(CLIENT_DIR):
+        return None
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        return None
+    subprocess.run(["make", "-C", CLIENT_DIR, "xrdsssadmin-brix"],
+                   capture_output=True, text=True)
+    return XRDSSSADMIN_BIN if os.path.exists(XRDSSSADMIN_BIN) else None
 
 
 def gen_sss_keytab(path):
-    """Create an SSS keytab via xrdsssadmin.  The tool emits the same text
-    format nginx's keytab parser reads, so one file works for both sides.
-    `-n 1` keeps the key id within int64 range (nginx parses it with strtoll).
-    Returns the path, or None if xrdsssadmin is unavailable."""
-    if XRDSSSADMIN_BIN is None or os.path.exists(path):
-        return path if os.path.exists(path) else None
+    """Mint an SSS keytab for the fail-closed sss_mgr via ``xrdsssadmin-brix``.
+
+    The tool writes the same keytab text format nginx's SSS parser reads, so the
+    one file serves both the cmsd registration handshake and nginx.  ``--id 1``
+    keeps the key id within int64 range (nginx parses it with strtoll).  Returns
+    the keytab path, or ``None`` if the tool is unavailable/unbuildable."""
+    if os.path.exists(path):
+        return path
+    sssadmin = _ensure_sssadmin()
+    if sssadmin is None:
+        return None
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    subprocess.run([XRDSSSADMIN_BIN, "-n", "1", "-k", "cmskey",
-                    "-u", "cmsnode", "-g", "cms", "add", path],
-                   input="y\n", capture_output=True, text=True, check=False)
+    subprocess.run([sssadmin, "-k", path, "add", "--id", "1",
+                    "--user", "cmsnode", "--group", "cms", "--name", "cmsnode"],
+                   capture_output=True, text=True, check=False)
     if os.path.exists(path):
         os.chmod(path, 0o600)
         return path
@@ -363,14 +459,19 @@ def cfg_dual(root_port, https_port, root, cms_mgr, paths, cert, key, tmpbase):
 
 def xrdfs_locate(mgr_port, path, timeout=15, retries=4):
     last = (1, "", "")
-    for _ in range(retries):
+    for attempt in range(retries):
         r = subprocess.run([XRDFS_BIN, f"{HOST}:{mgr_port}", "locate", path],
                            capture_output=True, text=True, timeout=timeout,
                            env=_XRD_ENV)
         last = (r.returncode, r.stdout.strip(), r.stderr.strip())
         if r.returncode == 0:
             return last
-        time.sleep(2)
+        # Back off only BETWEEN attempts — sleeping after the final failed try
+        # just adds dead time before returning failure.  This matters on the
+        # readiness hot path: _probe_ready calls with retries=1, so the trailing
+        # sleep was pure per-round overhead on every still-forming topology.
+        if attempt < retries - 1:
+            time.sleep(2)
     return last
 
 
@@ -707,6 +808,17 @@ def stop_all():
 # registers) rather than blocking once for a long time.
 _READY_PROBE_TIMEOUT = 3      # seconds per individual xrdfs locate
 _READY_POLL_INTERVAL = 0.3    # seconds between rounds
+# Fail-fast on stalled topologies: once the manager front doors are up (gated
+# separately by wait_managers_up), the healthy data nodes register almost at
+# once — every reachable topology redirects on the first probe round (~3 s, one
+# locate timeout).  A node that is genuinely stuck (misconfig / refused
+# registration, e.g. the known-broken prm topology) never registers, so without
+# a stall gate its single probe burns the whole `timeout`.
+# Once we have probed at least `_READY_MIN_WAIT` (past real formation) AND seen
+# zero newly-registered topologies for `_READY_STALL`, the remaining probes are
+# stuck rather than slow — stop rather than block out the full ceiling.
+_READY_MIN_WAIT = 4           # always probe at least this long before bailing
+_READY_STALL = 6              # seconds of zero progress ⇒ laggards declared stuck
 
 
 def _probe_ready(probe):
@@ -738,12 +850,24 @@ def wait_ready(timeout=120):
     short, re-issued probes that each catch their cluster as it registers."""
     pending = list(READY_PROBES)
     total = len(pending)
-    deadline = time.time() + timeout
+    start = time.time()
+    deadline = start + timeout
+    last_progress = start
     with ThreadPoolExecutor(max_workers=max(len(pending), 1)) as pool:
         while pending:
             ready = pool.map(_probe_ready, pending)
-            pending = [p for p, ok in zip(pending, ready) if not ok]
-            if not pending or time.time() >= deadline:
+            still = [p for p, ok in zip(pending, ready) if not ok]
+            if len(still) < len(pending):
+                last_progress = time.time()   # a topology just registered
+            pending = still
+            now = time.time()
+            if not pending or now >= deadline:
+                break
+            # A steadily-forming cluster keeps shrinking `pending`, refreshing
+            # last_progress, so it never trips this; only a truly stuck laggard
+            # (no progress past real formation) bails early instead of blocking
+            # the whole `timeout`.
+            if now - start >= _READY_MIN_WAIT and now - last_progress >= _READY_STALL:
                 break
             time.sleep(_READY_POLL_INTERVAL)
     return total - len(pending), total, pending

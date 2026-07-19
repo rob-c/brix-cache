@@ -316,20 +316,26 @@ def cfg_manager(data_port, cms_port):
     )
 
 
+# The remote suite runs in the RPM-installed container, so the clean-room
+# xrdsssadmin-brix (brix-cache-client) is on PATH at /usr/bin/xrdsssadmin-brix.
 XRDSSSADMIN_BIN = shutil.which("xrdsssadmin-brix")
 
 
 def gen_sss_keytab(path):
-    """Create an SSS keytab via xrdsssadmin.  The tool emits the same text
-    format nginx's keytab parser reads, so one file works for both sides.
-    `-n 1` keeps the key id within int64 range (nginx parses it with strtoll).
-    Returns the path, or None if xrdsssadmin is unavailable."""
-    if XRDSSSADMIN_BIN is None or os.path.exists(path):
-        return path if os.path.exists(path) else None
+    """Mint an SSS keytab for the fail-closed sss_mgr via ``xrdsssadmin-brix``.
+
+    The tool writes the same keytab text format nginx's SSS parser reads, so the
+    one file serves both the cmsd registration handshake and nginx.  ``--id 1``
+    keeps the key id within int64 range (nginx parses it with strtoll).  Returns
+    the keytab path, or ``None`` if the tool is unavailable."""
+    if os.path.exists(path):
+        return path
+    if XRDSSSADMIN_BIN is None:
+        return None
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    subprocess.run([XRDSSSADMIN_BIN, "-n", "1", "-k", "cmskey",
-                    "-u", "cmsnode", "-g", "cms", "add", path],
-                   input="y\n", capture_output=True, text=True, check=False)
+    subprocess.run([XRDSSSADMIN_BIN, "-k", path, "add", "--id", "1",
+                    "--user", "cmsnode", "--group", "cms", "--name", "cmsnode"],
+                   capture_output=True, text=True, check=False)
     if os.path.exists(path):
         os.chmod(path, 0o600)
         return path
