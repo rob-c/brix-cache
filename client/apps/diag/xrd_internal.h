@@ -82,8 +82,8 @@ typedef struct {
 
 /* xrd.c */
 int is_fs_verb(const char *s);
-void usage(void);
-void exec_tool(const char *tool, char **argv);
+void usage(const char *prog);
+void exec_tool(const char *prefix, const char *tool, char **argv);
 char * map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch);
 
 /* xrd_battery.c */

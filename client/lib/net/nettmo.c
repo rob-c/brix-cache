@@ -88,6 +88,26 @@ brix_tmo_io_ms(void)
                       "io_timeout_ms", XRDC_TMO_IO_DEFAULT_MS);
 }
 
+/* Slow-drip completion deadline. Default 0 = DISABLED (unresolved sentinel and
+ * "off" coincide, so this re-checks env/xrdrc until a setter or a positive value
+ * pins it — cheap, and the read path is not hot enough to matter). */
+static atomic_int g_stall_ms = 0;
+
+int
+brix_tmo_stall_ms(void)
+{
+    return resolve_ms(&g_stall_ms, "XRDC_STALL_DEADLINE_MS",
+                      "stall_deadline_ms", 0 /* off by default */);
+}
+
+void
+brix_tmo_set_stall_ms(int ms)
+{
+    if (ms > 0) {
+        atomic_store_explicit(&g_stall_ms, ms, memory_order_relaxed);
+    }
+}
+
 void
 brix_tmo_set_connect_ms(int ms)
 {

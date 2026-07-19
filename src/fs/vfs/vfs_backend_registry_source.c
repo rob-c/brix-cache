@@ -229,6 +229,7 @@ brix_vbr_build_http(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     /* §14/C-3: verify the https origin against the operator-configured CA
      * (file or hashed dir); "" ⇒ system bundle (public-CA origin). */
     cfg.ca_path      = (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL;
+    cfg.put_checksum  = e->origin_put_checksum;   /* #12 origin-enforced PUT integrity */
     cfg.failover_note = brix_vfs_http_failover_note;   /* T16 */
     cfg.health_note   = brix_vfs_http_health_note;
     /* phase-68 T11: the remaining pipe-separated failover origins */
@@ -286,6 +287,7 @@ brix_vbr_build_s3(brix_vfs_backend_entry_t *e, ngx_log_t *log)
                 (u_char *) (e->origin_s3_region[0] != '\0'
                             ? e->origin_s3_region : "us-east-1"),
                 sizeof(cfg.region));
+    cfg.put_checksum = e->origin_put_checksum;   /* #12: origin-enforced PUT integrity */
 
     inst = brix_sd_remote_create(&cfg, log);
     if (inst == NULL) {

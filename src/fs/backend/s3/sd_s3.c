@@ -140,10 +140,62 @@ sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
         f->transport->resp_free(&resp);
         return -1;
     }
+
+    /* Hostile / broken in-path integrity guards.  A ranged GET must come back as
+     * a 206 whose Content-Range starts exactly at the byte we asked for.  Any
+     * other shape means an in-path box (or a non-compliant origin) shifted the
+     * range, replied with the whole object, or emptied the body — and blindly
+     * copying that lands the WRONG bytes at `off`, or truncates the object, a
+     * silent corruption the TCP checksum cannot catch.  Fail the read (EIO) so
+     * the copy loop aborts rather than committing bad data.  These are the exact
+     * failure modes of a flaky NIC / meddling middlebox on an uncooperative
+     * network, so the check is unconditional, not gated behind a knob. */
+    if (resp.status == 200 && off != 0) {
+        /* Range ignored: a 200 body starts at object offset 0, not `off`, so it
+         * cannot be positioned at `off` without corrupting the read. */
+        sd_s3_set_err(errbuf, errcap,
+            "s3 GET %s: origin ignored Range (200 for bytes=%lld-) - refusing to "
+            "position a whole-object body at offset %lld",
+            f->key, (long long) off, (long long) off);
+        f->transport->resp_free(&resp);
+        return -1;
+    }
+    if (resp.status == 206) {
+        char      cr[128];
+        long long cr_start = -1;
+
+        if (f->transport->resp_header(&resp, "Content-Range", cr, sizeof(cr)) == 0
+            && (sscanf(cr, "bytes %lld-", &cr_start) != 1
+                || cr_start != (long long) off))
+        {
+            sd_s3_set_err(errbuf, errcap,
+                "s3 GET %s: Content-Range \"%.80s\" does not start at requested "
+                "offset %lld - refusing a misaligned/mangled range",
+                f->key, cr, (long long) off);
+            f->transport->resp_free(&resp);
+            return -1;
+        }
+    }
+
     body = f->transport->resp_body(&resp, &body_len);
     if (body == NULL || body_len == 0) {
+        /* A well-formed but empty body at an offset the object provably extends
+         * past is NOT EOF — it is a truncated / emptied response a broken in-path
+         * box can forge (curl sees a complete zero-length body, so the transport
+         * layer cannot catch it).  Treat it as a fault so the fill aborts instead
+         * of silently truncating the object down to `off` bytes. */
+        int at_eof = (f->obj_size >= 0)
+                     ? (off >= f->obj_size)
+                     : (resp.status == 200);
         f->transport->resp_free(&resp);
-        return 0;   /* EOF / empty range */
+        if (!at_eof) {
+            sd_s3_set_err(errbuf, errcap,
+                "s3 GET %s: empty body at offset %lld before object end "
+                "(size %lld) - treating as a truncated response, not EOF",
+                f->key, (long long) off, (long long) f->obj_size);
+            return -1;
+        }
+        return 0;   /* genuine EOF / empty object */
     }
     copied = (body_len < n_capped) ? (ssize_t) body_len : (ssize_t) n_capped;
     memcpy(buf, body, (size_t) copied);

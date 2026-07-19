@@ -1,8 +1,8 @@
 """
 test_xrootdfs_resilience.py — M6: network-resilience tests for xrootdfs.
 
-WHAT: Mounts the async FUSE driver THROUGH an in-repo TCP fault-proxy
-      (tests/c/fault_proxy.c, no root) and asserts that file transfers survive the
+WHAT: Mounts the async FUSE driver THROUGH the in-repo TCP fault proxy
+      (brix-fault-proxy, no root) and asserts that file transfers survive the
       conditions of a bad link — high latency, a mid-transfer connection drop, and a
       short outage window — byte-exact and with NO EIO surfaced to the application.
 WHY:  Proves the async core's reconnect (M2) + file-handle resumption (M3) end-to-
@@ -31,8 +31,7 @@ pytestmark = pytest.mark.timeout(180)
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XROOTDFS = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
-FAULT_PROXY_SRC = os.path.join(REPO, "tests", "c", "fault_proxy.c")
-FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "fault_proxy")
+FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "brix-fault-proxy")
 
 _FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
 
@@ -71,12 +70,11 @@ def built():
                           capture_output=True, text=True, timeout=240)
     if proc.returncode != 0 or not os.path.exists(XROOTDFS):
         pytest.skip(f"xrootdfs build failed:\n{proc.stdout}\n{proc.stderr}")
-    # the fault proxy (standalone)
-    cc = shutil.which("cc") or shutil.which("gcc")
-    proc = subprocess.run([cc, "-O2", "-pthread", FAULT_PROXY_SRC, "-o", FAULT_PROXY],
+    # the fault proxy (standalone, shipped as brix-fault-proxy)
+    proc = subprocess.run(["make", "-C", CLIENT_DIR, "brix-fault-proxy"],
                           capture_output=True, text=True, timeout=60)
-    if proc.returncode != 0:
-        pytest.skip(f"fault_proxy build failed:\n{proc.stderr}")
+    if proc.returncode != 0 or not os.path.exists(FAULT_PROXY):
+        pytest.skip(f"brix-fault-proxy build failed:\n{proc.stdout}\n{proc.stderr}")
     if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
         pytest.skip("anon server not running")
     return True

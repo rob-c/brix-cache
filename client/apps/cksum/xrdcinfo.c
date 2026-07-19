@@ -12,6 +12,7 @@
  */
 
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -438,13 +439,15 @@ brix_xrdcinfo_main(int argc, char **argv)
     if (argc >= 2) {
         if (strcmp(argv[1], "--version") == 0) {
             /* version.h included at file top (see include block below) */
-            printf("xrdcinfo (BriX-Cache client) %s\n", brix_client_version());
+            printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+                   brix_client_version());
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
-            printf("usage: xrdcinfo [--xattr] <path>\n"
-                   "  dump a proxy-cache .cinfo / xmeta xattr as JSON\n"
-                   BRIX_USAGE_FOOTER("xrdcinfo"));
+            printf("usage: %s [--xattr] <path>\n"
+                   "  dump a proxy-cache .cinfo / xmeta xattr as JSON\n",
+                   brix_prog_base(argv[0]));
+            brix_usage_footer(stdout, argv[0]);
             return 0;
         }
     }
@@ -457,7 +460,7 @@ brix_xrdcinfo_main(int argc, char **argv)
         }
     }
     if (path == NULL) {
-        fprintf(stderr, "usage: xrdcinfo [--xattr] <path>\n");
+        fprintf(stderr, "usage: %s [--xattr] <path>\n", brix_prog_base(argv[0]));
         return 4;
     }
 

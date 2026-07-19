@@ -4,6 +4,7 @@
  */
 #include "xrdcp_internal.h"
 #include "core/version.h"
+#include "core/progname.h"  /* brix_prog_base(): argv[0]-derived identity + footer */
 
 #define XRDCP_PARSE_EXIT_OK 100
 
@@ -112,10 +113,10 @@ typedef struct {
  *      sharing one text definition.
  */
 static void
-usage_fp(FILE *out)
+usage_fp(FILE *out, const char *prog)
 {
     fprintf(out,
-        "usage: xrdcp [opts] <src>... <dst>\n"
+        "usage: %s [opts] <src>... <dst>\n"
         "  src/dst is root://host[:port]//path, a web URL, a local path, or '-'\n"
         "  web schemes (GET/PUT): davs:// http(s):// dav:// s3:// s3s://\n"
         "  web->web (e.g. davs://a/f s3://b/k) relays through a local temp file\n"
@@ -170,14 +171,15 @@ usage_fp(FILE *out)
         "  --wire-trace[=N]  decode every frame to stderr (N>=2 adds a hexdump)\n"
         "  --timing       print per-opcode RTT at the end\n"
         "  -V, --version  print version and exit\n"
-        "  -h, --help     this help\n"
-        BRIX_USAGE_FOOTER("xrdcp"));
+        "  -h, --help     this help\n",
+        brix_prog_base(prog));
+    brix_usage_footer(out, prog);
 }
 
 void
-usage(void)
+usage(const char *prog)
 {
-    usage_fp(stderr);
+    usage_fp(stderr, prog);
 }
 
 
@@ -574,11 +576,37 @@ xrdcp_finalize_journal(xrdcp_opts_t *o)
 }
 
 
+/*
+ * WHAT: Fold the resilience posture (--max-stall / --no-retry / $XRDC_MAX_STALL_MS)
+ *       from the shared brix_opts (o->conn) into the brix_copy_opts (o->copt).
+ * WHY:  Those knobs are parsed/seeded into brix_opts by brix_opts_parse_arg and
+ *       brix_opts_init, but the copy pump's give-up window is read from
+ *       brix_copy_opts via copy_stall_ms().  Without this bridge the documented
+ *       flag/env were silently no-ops for the transfer window — a hostile-network
+ *       operator who set --max-stall to bound a slow-drip stall still got the 60 s
+ *       default, so a tripped-deadline read would re-handshake for a full minute.
+ * HOW:  no_retry (explicit fail-fast) dominates; otherwise a positive window is
+ *       copied across.  conn is the sole parse target, so this is the one place
+ *       the posture is mirrored — copt is never written by a flag handler directly.
+ */
+static void
+finalize_resilience_posture(xrdcp_opts_t *o)
+{
+    if (o->conn->no_retry) {
+        o->copt->no_retry = 1;
+    } else if (o->conn->max_stall_ms > 0) {
+        o->copt->max_stall_ms = o->conn->max_stall_ms;
+    }
+}
+
+
 static int
-validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l)
+validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l, const char *prog)
 {
     static char dstbuf[XRDC_PATH_MAX];
     int rc;
+
+    finalize_resilience_posture(o);
 
     rc = xrdcp_validate_flag_matrix(o->copt, o->sync_mode, o->verify);
     if (rc != 0) {
@@ -587,7 +615,7 @@ validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l)
 
     /* Need a destination (the last positional) and at least one source. */
     if (l->pos.n < 1) {
-        usage();
+        usage(prog);
         return 50;
     }
     brix_alias_resolve(l->pos.items[l->pos.n - 1], dstbuf, sizeof(dstbuf)); /* ~/.xrdrc */
@@ -606,7 +634,7 @@ validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l)
     }
     if (l->srcs.n == 0) {
         fprintf(stderr, "xrdcp: no source given\n");
-        usage();
+        usage(prog);
         return 50;
     }
 
@@ -682,7 +710,7 @@ xrdcp_parse_manifest_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i
 
 
 static int
-xrdcp_parse_sync_check(brix_copy_opts *opts, const char *mode)
+xrdcp_parse_sync_check(brix_copy_opts *opts, const char *mode, const char *prog)
 {
     if (strcmp(mode, "size") == 0) {
         opts->sync_cmp = XRDC_SYNC_SIZE;
@@ -700,7 +728,7 @@ xrdcp_parse_sync_check(brix_copy_opts *opts, const char *mode)
         return 1;
     }
     fprintf(stderr, "xrdcp: --sync-check needs size|mtime|cksum[:algo]\n");
-    usage();
+    usage(prog);
     return 50;
 }
 
@@ -731,7 +759,7 @@ xrdcp_parse_sync_filter_option(xrdcp_cli_state *s, int argc, char **argv, size_t
 
     if (strcmp(a, "--sync") == 0) { s->o->sync_mode = 1; return 1; }
     if (strcmp(a, "--sync-check") == 0 && *i + 1 < (size_t) argc) {
-        int rc = xrdcp_parse_sync_check(s->o->copt, argv[++(*i)]);
+        int rc = xrdcp_parse_sync_check(s->o->copt, argv[++(*i)], argv[0]);
         s->o->sync_mode = 1;
         return rc;
     }
@@ -785,18 +813,17 @@ xrdcp_parse_transport_option(xrdcp_cli_state *s, int argc, char **argv, size_t *
         o->streams = atoi(argv[++(*i)]);
         return 1;
     }
-    if (strcmp(a, "--max-stall") == 0 && *i + 1 < (size_t) argc) {
-        int v = atoi(argv[++(*i)]);
-        if (v > 0) { o->max_stall_ms = v; o->no_retry = 0; }
-        else       { o->no_retry = 1; }
-        return 1;
-    }
+    /* --max-stall / --no-retry are parsed by brix_opts_parse_arg into the shared
+     * brix_opts (s->o->conn) — which runs first in xrdcp_parse_option — and are
+     * folded into copt by finalize_resilience_posture().  Do NOT duplicate the
+     * flag here: a second handler is unreachable dead code and a second source of
+     * truth for the give-up window. */
     if (strncmp(a, "--io-uring=", 11) == 0) {
         int v = brix_cli_parse_io_uring(a + 11);
         if (v < 0) {
             fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
                     a + 11);
-            usage();
+            usage(argv[0]);
             return 50;
         }
         o->io_uring = v;
@@ -808,7 +835,7 @@ xrdcp_parse_transport_option(xrdcp_cli_state *s, int argc, char **argv, size_t *
         if (v < 0) {
             fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
                     m);
-            usage();
+            usage(argv[0]);
             return 50;
         }
         o->io_uring = v;
@@ -819,7 +846,7 @@ xrdcp_parse_transport_option(xrdcp_cli_state *s, int argc, char **argv, size_t *
 
 
 static int
-xrdcp_parse_tpc_mode(brix_copy_opts *opts, const char *mode)
+xrdcp_parse_tpc_mode(brix_copy_opts *opts, const char *mode, const char *prog)
 {
     if (strcmp(mode, "first") == 0) {
         opts->tpc_mode = XRDC_TPC_FIRST;
@@ -834,7 +861,7 @@ xrdcp_parse_tpc_mode(brix_copy_opts *opts, const char *mode)
         return 1;
     }
     fprintf(stderr, "xrdcp: --tpc needs first|only|delegate\n");
-    usage();
+    usage(prog);
     return 50;
 }
 
@@ -846,7 +873,7 @@ xrdcp_parse_remote_auth_option(xrdcp_cli_state *s, int argc, char **argv, size_t
     brix_copy_opts *o = s->o->copt;
 
     if (strcmp(a, "--tpc") == 0 && *i + 1 < (size_t) argc) {
-        return xrdcp_parse_tpc_mode(o, argv[++(*i)]);
+        return xrdcp_parse_tpc_mode(o, argv[++(*i)], argv[0]);
     }
     if (strcmp(a, "--tpc-token-mode") == 0 && *i + 1 < (size_t) argc) {
         o->tpc_token_mode = argv[++(*i)];
@@ -880,7 +907,7 @@ xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     int pr = brix_opts_parse_arg(s->o->conn, argc, argv, &oi);
     int rc;
 
-    if (pr == 2) { usage_fp(stdout); return 2; }
+    if (pr == 2) { usage_fp(stdout, argv[0]); return 2; }
     if (pr) { *i = (size_t) oi; return 1; }
     rc = xrdcp_parse_basic_option(s, argc, argv, i);
     if (rc) { return rc; }
@@ -895,13 +922,14 @@ xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     rc = xrdcp_parse_remote_auth_option(s, argc, argv, i);
     if (rc) { return rc; }
     if (strcmp(argv[*i], "-V") == 0) {
-        printf("xrdcp (BriX-Cache client) %s\n", brix_client_version());
+        printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+               brix_client_version());
         return 2;
     }
-    if (strcmp(argv[*i], "-h") == 0) { usage(); return 2; }
+    if (strcmp(argv[*i], "-h") == 0) { usage(argv[0]); return 2; }
 
     fprintf(stderr, "xrdcp: unknown option '%s'\n", argv[*i]);
-    usage();
+    usage(argv[0]);
     return 50;
 }
 
@@ -959,7 +987,7 @@ parse_and_validate_args(int argc, char **argv, xrdcp_opts_t *o, xrdcp_lists_t *l
     o->copt->includes   = (const char *const *) l->incl.items;
     o->copt->n_includes = l->incl.n;
 
-    return validate_and_finalize_args(o, l);
+    return validate_and_finalize_args(o, l, argv[0]);
 }
 
 
@@ -1355,8 +1383,7 @@ main(int argc, char **argv)
     int            rc = 0;
 
     memset(&opts, 0, sizeof(opts));
-    memset(&conn, 0, sizeof(conn));
-    conn.verify_host = 1;
+    brix_opts_init(&conn);   /* verify_host=1 + seed $XRDC_MAX_STALL_MS resilience */
 
     memset(&o, 0, sizeof(o));
     memset(&l, 0, sizeof(l));

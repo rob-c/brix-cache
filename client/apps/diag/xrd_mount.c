@@ -3,6 +3,7 @@
  * Phase-38 split of xrd.c; behavior-identical.
  */
 #include "xrd_internal.h"
+#include "core/progname.h"  /* brix_prog_prefix(): exec the brix-<driver> sibling */
 
 
 /* `xrd login [--oidc-account N] [--read] [-v]` — acquire/refresh a bearer token
@@ -464,6 +465,7 @@ int
 xrd_mount(int argc, char **argv)
 {
     const char *driver = "xrootdfs";
+    const char *pfx    = brix_prog_prefix(brix_prog_base(argv[0]));
     int         i = 2, list = 0, legacy = 0, rc;
     char      **nv;
     char        endpoint[XRDC_PATH_MAX];
@@ -488,7 +490,7 @@ xrd_mount(int argc, char **argv)
         fprintf(stderr, "xrd: out of memory\n");
         return 51;
     }
-    exec_tool(driver, nv);   /* does not return on success */
+    exec_tool(pfx, driver, nv);   /* does not return on success */
     return 127;              /* unreachable (exec_tool _exit's on failure) */
 }
 

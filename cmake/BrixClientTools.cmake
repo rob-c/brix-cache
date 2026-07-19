@@ -15,7 +15,7 @@
 #   * the DESTDIR-aware install hook (client/Makefile install-bin).
 #
 # Requires from the parent scope: REPO_ROOT, NPROC, BRIX_BUILD_CEPH_TOOLS,
-# CMAKE_INSTALL_PREFIX, CMAKE_INSTALL_FULL_LIBDIR.
+# BRIX_BUILD_COMPAT, CMAKE_INSTALL_PREFIX, CMAKE_INSTALL_FULL_LIBDIR.
 # ==========================================================================
 
 # --------------------------------------------------------------------------
@@ -132,11 +132,46 @@ if(BRIX_BUILD_CEPH_TOOLS)
     endif()
 endif()
 
+# --------------------------------------------------------------------------
+# Compat flavour (opt-in) — the SAME name-agnostic binaries surfaced under a
+# "brix-" prefix via the Makefile `compat` target (in-tree client/bin/brix-*
+# symlinks; the tools self-ID from argv[0]). Mirrors the Makefile so CI and the
+# tests/test_client_compat_naming.py checks have client/bin/brix-* to run.
+# --------------------------------------------------------------------------
+if(BRIX_BUILD_COMPAT)
+    add_custom_target(brix-client-compat
+        COMMAND make -C "${REPO_ROOT}/client" compat -j${NPROC} ${_client_make_flags}
+        COMMENT "Producing brix- prefixed compat tool links (client/bin/brix-*)"
+        USES_TERMINAL VERBATIM)
+    add_dependencies(brix-client-compat brix-client-tools)
+    # compat's ceph links depend on the ceph binaries existing first.
+    if(BRIX_BUILD_CEPH_TOOLS)
+        add_dependencies(brix-client-compat brix-ceph-tools)
+    endif()
+
+    # Assert the prefixed core set exists — the compat mirror of the core-tools
+    # POST_BUILD check above (same guarantee, brix- names).
+    set(_brix_core_compat_bins "")
+    foreach(_b IN LISTS _brix_core_bins)
+        list(APPEND _brix_core_compat_bins "brix-${_b}")
+    endforeach()
+    add_custom_command(TARGET brix-client-compat POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DBIN_DIR=${REPO_ROOT}/client/bin
+            "-DEXPECTED=${_brix_core_compat_bins}"
+            -DLABEL=compat client tools
+            -P ${CMAKE_CURRENT_LIST_DIR}/BrixVerifyBins.cmake
+        VERBATIM)
+endif()
+
 # Aggregate — this is what ends up in `make all`.
 add_custom_target(brix-client ALL)
 add_dependencies(brix-client brix-client-tools)
 if(BRIX_BUILD_CEPH_TOOLS)
     add_dependencies(brix-client brix-ceph-tools)
+endif()
+if(BRIX_BUILD_COMPAT)
+    add_dependencies(brix-client brix-client-compat)
 endif()
 
 # --------------------------------------------------------------------------

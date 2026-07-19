@@ -72,6 +72,10 @@ typedef struct {
                                     read fails over to an alternate endpoint
                                     (driver is ngx-free; the owner injects
                                     its metric hook). NULL = no accounting. */
+    int                            put_checksum; /* #12: when set, the staged
+                                    commit PUT carries Content-MD5 (base64 MD5 of
+                                    the whole object) so the origin validates the
+                                    body and rejects a wire-corrupted upload. */
     void                         (*health_note)(const char *host, int port,
                                     int healthy);  /* endpoint health-state
                                     TRANSITION (EWMA hysteresis: degraded at

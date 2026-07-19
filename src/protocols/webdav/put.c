@@ -101,6 +101,7 @@ webdav_put_commit(ngx_http_request_t *r, const char *path,
     brix_vfs_writer_t *writer, int created)
 {
     ngx_int_t status;
+    ngx_int_t vrc;
     /* A direct WebDAV PUT is a STAGE-class ingest (client stream -> local
      * object), so it belongs in the unified transfer ledger exactly like a
      * root:// staged write or a WebDAV TPC — the "publish" record an operator
@@ -109,6 +110,20 @@ webdav_put_commit(ngx_http_request_t *r, const char *path,
                         ? (size_t) r->headers_in.content_length_n : 0;
 
     brix_dashboard_http_finish(r);
+
+    /* Client->server body integrity: if the PUT asserted an ingest digest,
+     * verify it over the staged bytes and refuse the commit on mismatch (or, under
+     * require_digest, when none was supplied) — never publish poisoned bytes. */
+    vrc = webdav_put_verify_ingest_digest(r,
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module),
+        writer, path);
+    if (vrc != NGX_OK) {
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, 0,
+            "brix_webdav: PUT ingest digest rejected for: \"%s\"", path);
+        brix_vfs_writer_abort(writer);
+        webdav_metrics_finalize_request(r, (ngx_uint_t) vrc);
+        return;
+    }
 
     /* Atomically publish the staged temp onto the final path (an empty PUT
      * commits an empty file), folding the verify read-back when the export opts

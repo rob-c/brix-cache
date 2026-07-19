@@ -379,6 +379,25 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 		return rc;       /* framing violation: error sent, drop the link. */
 	}
 
+	/* INVARIANT 1 / hostile-network integrity: kXR_writev carries NO per-segment
+	 * CRC (like plain kXR_write, unlike kXR_pgwrite). brix_require_pgwrite refuses
+	 * a data-carrying vector so clients must use the checksummed pgwrite path; the
+	 * all-zero-length vector already returned NGX_DONE above, so any vector reaching
+	 * here carries data. */
+	{
+		ngx_stream_brix_srv_conf_t *rconf = ngx_stream_get_module_srv_conf(
+		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+
+		if (rconf->common.require_pgwrite) {
+			brix_log_access(ctx, c, "WRITEV", "-", "-", 0, kXR_Unsupported,
+							  "cleartext writev refused; use pgwrite "
+							  "(brix_require_pgwrite)", 0);
+			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
+			return brix_send_error(ctx, c, kXR_Unsupported,
+			    "cleartext writev refused; use pgwrite (brix_require_pgwrite)");
+		}
+	}
+
 	rc = writev_validate_handles(ctx, c, wl, n_segs);
 	if (rc != NGX_OK) {
 		return rc;

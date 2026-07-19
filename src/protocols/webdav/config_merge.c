@@ -18,7 +18,6 @@
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "auth/token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
-#include "proxy_internal.h"
 #include "net/mirror/http_mirror.h"
 #include "core/config/config.h"
 #include "fs/path/path.h"                  /* brix_finalize_{authdb,vo}_rules */
@@ -104,6 +103,7 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
         brix_integrity_set_xattr_format(conf->checksum_xattr_format);
     }
     ngx_conf_merge_value(conf->dig_enable, prev->dig_enable, 0);
+    ngx_conf_merge_value(conf->require_digest, prev->require_digest, 0);
     ngx_conf_merge_ptr_value(conf->dig_exports, prev->dig_exports, NULL);
     ngx_conf_merge_str_value(conf->dig_auth_file, prev->dig_auth_file, "");
     ngx_conf_merge_value(conf->delegation_endpoint,

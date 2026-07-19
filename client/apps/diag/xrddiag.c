@@ -5,6 +5,7 @@
 #include "diag_internal.h"
 #include "cli/jsonout.h"
 #include "core/version.h"
+#include "core/progname.h"  /* brix_prog_*(): argv[0] identity + brix- strip */
 #include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-subcommand sites */
 #include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 #include <stddef.h>         /* offsetof(): option-descriptor field slots */
@@ -595,10 +596,11 @@ js_count(const char *json, const char *key)
  * WHY: --help (WS-2) goes to stdout; no-arg / unknown-subcommand goes to stderr.
  */
 static void
-usage_fp(FILE *out)
+usage_fp(FILE *out, const char *prog)
 {
+    prog = brix_prog_base(prog);   /* display the invoked name, not a path */
     fprintf(out,
-        "usage: xrddiag <subcommand> [opts] <url> [...]\n"
+        "usage: %s <subcommand> [opts] <url> [...]\n"
         "  subcommands:\n"
         "    check    <url> [--json]               protocol-correctness probes\n"
         "    bench    <url> [-S N] [--sweep]       timed download (single vs streams; knee)\n"
@@ -629,14 +631,15 @@ usage_fp(FILE *out)
         "  capture a session with: xrdcp/xrdfs --capture <file.xrdcap> ...\n"
         "  opts: --tls --notlsok --noverifyhost --auth <gsi|ztn|unix>\n"
         "        --wire-trace[=N] --timing --probe-timeout <ms>\n"
-        "        --version  print version and exit\n"
-        BRIX_USAGE_FOOTER("xrddiag"));
+        "        --version  print version and exit\n",
+        prog);
+    brix_usage_footer(out, prog);
 }
 
 void
-usage(void)
+usage(const char *prog)
 {
-    usage_fp(stderr);
+    usage_fp(stderr, prog);
 }
 
 
@@ -777,7 +780,7 @@ dx_parse_argv(diag_args *a, int argc, char **argv, dx_pos_t *pos, int *rc)
         if (p[0] == '-' && p[1] != '\0' && strcmp(p, "-") != 0) {
             int pr = brix_opts_parse_arg(&a->conn, argc, argv, &i);
             if (pr == 2) {         /* --help */
-                usage_fp(stdout);
+                usage_fp(stdout, argv[0]);
                 *rc = 0;
                 return 1;
             }
@@ -786,7 +789,7 @@ dx_parse_argv(diag_args *a, int argc, char **argv, dx_pos_t *pos, int *rc)
             }
             if (dx_opt_parse(a, argc, argv, &i) != 0) {
                 fprintf(stderr, "xrddiag: unknown option '%s'\n", p);
-                usage();
+                usage(argv[0]);
                 *rc = 50;
                 return 1;
             }
@@ -818,12 +821,16 @@ dx_parse_argv(diag_args *a, int argc, char **argv, dx_pos_t *pos, int *rc)
 static int
 dx_personality_route(int argc, char **argv, int *rc)
 {
-    const char *base = strrchr(argv[0], '/');
+    /* strip any co-install "brix-" prefix so brix-xrdqstats still routes to the
+     * xrdqstats personality (busybox dispatch on basename(argv[0])). */
+    const char *base = brix_prog_strip_compat(brix_prog_base(argv[0]));
 
-    base = base != NULL ? base + 1 : argv[0];
+    /* The bare-name personalities carry a -brix suffix in the stock package
+     * (wait41-brix); the compat package spells them brix-wait41, which strips to
+     * the bare "wait41". Accept both so either install layout routes correctly. */
     if (strcmp(base, "xrdqstats") == 0) { *rc = brix_qstats_main(argc, argv); return 1; }
-    if (strcmp(base, "wait41-brix") == 0)   { *rc = brix_wait41_main(argc, argv); return 1; }
-    if (strcmp(base, "mpxstats-brix") == 0) { *rc = brix_mpxstats_main(argc, argv); return 1; }
+    if (strcmp(base, "wait41-brix") == 0   || strcmp(base, "wait41") == 0)   { *rc = brix_wait41_main(argc, argv); return 1; }
+    if (strcmp(base, "mpxstats-brix") == 0 || strcmp(base, "mpxstats") == 0) { *rc = brix_mpxstats_main(argc, argv); return 1; }
     if (argc >= 2) {
         if (strcmp(argv[1], "qstats") == 0)   { *rc = brix_qstats_main(argc - 1, argv + 1); return 1; }
         if (strcmp(argv[1], "wait41") == 0)   { *rc = brix_wait41_main(argc - 1, argv + 1); return 1; }
@@ -868,7 +875,7 @@ static const dx_cmd_t DX_CMDS[] = {
  *       brix_suggest for the did-you-mean hint, then usage to stderr.
  */
 static int
-dx_unknown_sub(const char *sub)
+dx_unknown_sub(const char *sub, const char *prog)
 {
     static const char *const XRDDIAG_CMDS[] = {
         "remote-doctor", "watch", "check", "bench", "metabench",
@@ -881,7 +888,7 @@ dx_unknown_sub(const char *sub)
     if (suggestion != NULL) {
         brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
     }
-    usage();
+    usage(prog);
     return 50;
 }
 
@@ -893,7 +900,7 @@ dx_unknown_sub(const char *sub)
  *       did-you-mean reporter.
  */
 static int
-dx_dispatch(const char *sub, const diag_args *a)
+dx_dispatch(const char *sub, const diag_args *a, const char *prog)
 {
     size_t k;
 
@@ -902,7 +909,7 @@ dx_dispatch(const char *sub, const diag_args *a)
             return DX_CMDS[k].fn(a);
         }
     }
-    return dx_unknown_sub(sub);
+    return dx_unknown_sub(sub, prog);
 }
 
 
@@ -918,20 +925,21 @@ main(int argc, char **argv)
         return rc;
     }
     if (argc < 2) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     sub = argv[1];
     if (strcmp(sub, "--version") == 0) {
-        printf("xrddiag (BriX-Cache client) %s\n", brix_client_version());
+        printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+               brix_client_version());
         return 0;
     }
     if (strcmp(sub, "-h") == 0) {
-        usage();            /* -h → stderr (C1 — keep existing behavior) */
+        usage(argv[0]);     /* -h → stderr (C1 — keep existing behavior) */
         return 0;
     }
     if (strcmp(sub, "--help") == 0) {
-        usage_fp(stdout);   /* --help → stdout (WS-2) */
+        usage_fp(stdout, argv[0]);   /* --help → stdout (WS-2) */
         return 0;
     }
 
@@ -947,7 +955,7 @@ main(int argc, char **argv)
     }
 
     if (pos.n < 1) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     a.url = pos.v[0];
@@ -959,5 +967,5 @@ main(int argc, char **argv)
     }
     a.nurls = pos.n;
 
-    return dx_dispatch(sub, &a);
+    return dx_dispatch(sub, &a, argv[0]);
 }

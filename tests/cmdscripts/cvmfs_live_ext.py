@@ -1494,7 +1494,7 @@ def brix_all(nginx: Path | None = None) -> int:
 
 
 # ---------------------------------------------------------------------------
-# faultproxy-bench — cvmfs-brix vs stock cvmfs2 through client/bin/fault_proxy
+# faultproxy-bench — cvmfs-brix vs stock cvmfs2 through client/bin/brix-fault-proxy
 # ---------------------------------------------------------------------------
 
 def _fault_proxy_ctl(port: int, command: str) -> None:
@@ -1517,10 +1517,10 @@ def faultproxy_bench(nginx: Path | None = None) -> int:
     mode = os.environ.get("MODE", "lossy")
     rates = os.environ.get("RATES", "0 1 5 15").split()
     nfiles = int(os.environ.get("NFILES", "15"))
-    fault_proxy = REPO_ROOT / "client/bin/fault_proxy"
+    fault_proxy = REPO_ROOT / "client/bin/brix-fault-proxy"
     brix = Path("/tmp/brixcvmfs")
 
-    _require(os.access(fault_proxy, os.X_OK), f"fault_proxy not built ({fault_proxy})")
+    _require(os.access(fault_proxy, os.X_OK), f"brix-fault-proxy not built ({fault_proxy})")
     _require(shutil.which("cvmfs2"), "no stock cvmfs2")
     _require(shutil.which("fusermount3") or shutil.which("fusermount"), "no fusermount")
     _require(os.access(brix, os.X_OK), "build /tmp/brixcvmfs first")
@@ -1582,7 +1582,7 @@ def faultproxy_bench(nginx: Path | None = None) -> int:
                 rows.append((rate, brix_res, stock_res))
                 print(f"{rate:<7} | {_bench_cell(brix_ok, brix_res, ngot):<26} | "
                       f"{_bench_cell(stock_ok, stock_res, ngot):<26}")
-            print(f"\n(REAL fault_proxy {mode} via {s1host} -> {repo}; {ngot} files; both COLD cache)")
+            print(f"\n(REAL brix-fault-proxy {mode} via {s1host} -> {repo}; {ngot} files; both COLD cache)")
         _fault_proxy_ctl(ctl_port, "clear")
 
         rate0 = next((row for row in rows if row[0] == "0"), None)

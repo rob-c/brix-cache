@@ -3,7 +3,7 @@ test_compression_fuse_resilience.py — phase-42 W4 inline read compression thro
 the async FUSE driver, including network-fault resilience.
 
 WHAT: Mounts xrootdfs with `--compress zstd` THROUGH the in-repo TCP fault
-      proxy (tests/c/fault_proxy.c, no root) against the anon root:// server and
+      proxy (brix-fault-proxy, no root) against the anon root:// server and
       asserts that compressed reads are byte-exact (a) on a clean link, (b) across
       a mid-read connection RESET, and (c) across a short outage window.
 WHY:  This is the one path the rest of the suite does not cover: the ASYNC client
@@ -39,8 +39,7 @@ pytestmark = pytest.mark.timeout(180)
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XROOTDFS = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
-FAULT_PROXY_SRC = os.path.join(REPO, "tests", "c", "fault_proxy.c")
-FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "fault_proxy")
+FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "brix-fault-proxy")
 ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 SIZE = 8 * 1024 * 1024
@@ -93,11 +92,10 @@ def built():
                           capture_output=True, text=True, timeout=240)
     if proc.returncode != 0 or not os.path.exists(XROOTDFS):
         pytest.skip(f"xrootdfs build failed:\n{proc.stdout}\n{proc.stderr}")
-    cc = shutil.which("cc") or shutil.which("gcc")
-    proc = subprocess.run([cc, "-O2", "-pthread", FAULT_PROXY_SRC, "-o", FAULT_PROXY],
+    proc = subprocess.run(["make", "-C", CLIENT_DIR, "brix-fault-proxy"],
                           capture_output=True, text=True, timeout=60)
-    if proc.returncode != 0:
-        pytest.skip(f"fault_proxy build failed:\n{proc.stderr}")
+    if proc.returncode != 0 or not os.path.exists(FAULT_PROXY):
+        pytest.skip(f"brix-fault-proxy build failed:\n{proc.stdout}\n{proc.stderr}")
     if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
         pytest.skip("anon server not running")
     return True

@@ -27,7 +27,7 @@
  * list so a reload re-registers cleanly. */
 void
 brix_vfs_backend_config_http(const char *root_canon, const char *host,
-    int port, int tls, const char *base_path)
+    int port, int tls, const char *base_path, int put_checksum)
 {
     brix_vfs_backend_entry_t *e;
 
@@ -47,6 +47,7 @@ brix_vfs_backend_config_http(const char *root_canon, const char *host,
     e->origin_tls  = tls;
     ngx_cpystrn((u_char *) e->origin_path, (u_char *) (base_path ? base_path : ""),
                 sizeof(e->origin_path));
+    e->origin_put_checksum = put_checksum ? 1 : 0;   /* #12 */
     e->n_http_extra = 0;                       /* reload resets the T11 list */
     e->inst = NULL;                            /* rebuilt on next resolve */
 }
@@ -146,6 +147,16 @@ vfs_parse_http_origin(ngx_conf_t *cf, u_char *seg, size_t segn,
     path    = (slash < hn) ? (const char *) (h + slash) : "";
     pathlen = (slash < hn) ? hn - slash : 0;
 
+    /* Trim an optional "?opt=val" query suffix (e.g. ?put_checksum=1, #12) off the
+     * URL base so the write-target path stays clean; the list parser scans the raw
+     * segment for the option itself. */
+    {
+        size_t q;
+        for (q = 0; q < pathlen; q++) {
+            if (path[q] == '?') { pathlen = q; break; }
+        }
+    }
+
     if (vfs_http_origin_host_port(cf, h, hplen, out->tls, out) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -224,6 +235,11 @@ vfs_parse_http_origin_list(ngx_conf_t *cf, const char *root_canon,
         u_char *seg = sb->data;
         u_char *end = sb->data + sb->len;
         int     first = 1;
+        /* #12: opt-in origin-enforced body integrity. "...?put_checksum=1" makes the
+         * commit PUT (endpoint 0, the write target) carry Content-MD5 so the origin
+         * validates the bytes and rejects a wire-corrupted upload. Off by default:
+         * an origin that ignores Content-MD5 stays working untouched. */
+        int     put_checksum = (ngx_strstr(sb->data, "put_checksum=1") != NULL);
 
         while (seg < end) {
             u_char *pipe = ngx_strlchr(seg, end, '|');
@@ -244,7 +260,7 @@ vfs_parse_http_origin_list(ngx_conf_t *cf, const char *root_canon,
             if (first) {
                 brix_vfs_backend_config_http(root_canon, parsed.host,
                                                parsed.port, parsed.tls,
-                                               parsed.base);
+                                               parsed.base, put_checksum);
                 first = 0;
             } else if (vfs_backend_add_http_endpoint(cf, root_canon, &parsed)
                        != NGX_OK)

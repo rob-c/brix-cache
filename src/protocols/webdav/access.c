@@ -622,11 +622,6 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    /* Upstream proxy mode: auth is done; proxy content handler takes over. */
-    if (conf->upstream_proxy) {
-        return NGX_OK;
-    }
-
     /* Write-method gate — the GLOBAL allow_write check runs BEFORE the token
      * scope check below (INVARIANT 3). */
     if (webdav_is_write_method(r) && !conf->common.allow_write) {

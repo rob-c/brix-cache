@@ -36,6 +36,9 @@ typedef struct {
     const brix_s3_transport_t *transport;   /* injected HTTP transport */
     void                        *tctx;        /* transport context */
     int                          timeout_ms;
+    int                          put_checksum; /* #12: sign+send x-amz-checksum-crc32
+                                                * on PUT/UploadPart (origin-enforced
+                                                * body integrity). 0 = UNSIGNED. */
 } sd_s3_open_params;
 
 /* Open an object for READ. Returns a handle, or NULL with a message in errbuf. */

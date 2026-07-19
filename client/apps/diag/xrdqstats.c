@@ -9,6 +9,7 @@
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -26,13 +27,13 @@ brix_qstats_main(int argc, char **argv)
     /* --help / --version before main loop. */
     if (argc >= 2) {
         if (strcmp(argv[1], "--version") == 0) {
-            printf("%s (BriX-Cache client) %s\n", argv[0], brix_client_version());
+            printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+                   brix_client_version());
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
-            printf("usage: %s [-c config-key | -s path] host[:port]\n"
-                   BRIX_USAGE_FOOTER("xrdqstats"),
-                   argv[0]);
+            printf("usage: %s [-c config-key | -s path] host[:port]\n", brix_prog_base(argv[0]));
+            brix_usage_footer(stdout, argv[0]);
             return 0;
         }
     }
@@ -44,16 +45,15 @@ brix_qstats_main(int argc, char **argv)
             infotype = kXR_Qspace; args = argv[++i];
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             /* Recognise -h/--help at any position (not just argv[1]). */
-            printf("usage: %s [-c config-key | -s path] host[:port]\n"
-                   BRIX_USAGE_FOOTER("xrdqstats"),
-                   argv[0]);
+            printf("usage: %s [-c config-key | -s path] host[:port]\n", brix_prog_base(argv[0]));
+            brix_usage_footer(stdout, argv[0]);
             return 0;
         } else {
             endpoint = argv[i];
         }
     }
     if (endpoint == NULL) {
-        fprintf(stderr, "usage: %s [-c config-key | -s path] host[:port]\n", argv[0]);
+        fprintf(stderr, "usage: %s [-c config-key | -s path] host[:port]\n", brix_prog_base(argv[0]));
         return 50;
     }
 

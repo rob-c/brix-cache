@@ -118,9 +118,9 @@ decode_pages(const uint8_t *pg, uint32_t pglen, int64_t file_off,
 }
 
 
-ssize_t
-brix_file_pgread(brix_conn *c, brix_file *f, int64_t offset, void *buf,
-                 size_t len, brix_status *st)
+static ssize_t
+file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
+                   size_t len, brix_status *st)
 {
     ClientPgReadRequest req;
     uint16_t            sid;
@@ -178,6 +178,19 @@ brix_file_pgread(brix_conn *c, brix_file *f, int64_t offset, void *buf,
         }
     }
     return (ssize_t) total;
+}
+
+/* Slow-drip guard around the whole paged read (spans every kXR_status frame +
+ * its page-data read_full). See brix_file_read()'s wrapper. */
+ssize_t
+brix_file_pgread(brix_conn *c, brix_file *f, int64_t offset, void *buf,
+                 size_t len, brix_status *st)
+{
+    ssize_t rc;
+    brix_io_stall_arm(&c->io);
+    rc = file_pgread_frames(c, f, offset, buf, len, st);
+    brix_io_stall_disarm(&c->io);
+    return rc;
 }
 
 

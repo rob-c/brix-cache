@@ -29,7 +29,6 @@ extern ngx_http_module_t ngx_http_brix_webdav_module_ctx;
 /* module_directives.c */
 char * webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char * webdav_conf_dig_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char * webdav_conf_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr);
 ngx_int_t webdav_open_file_cache_arg(ngx_str_t *arg, ngx_int_t *max, time_t *inactive, ngx_flag_t *off);
 char * webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 

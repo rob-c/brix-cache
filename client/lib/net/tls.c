@@ -54,12 +54,42 @@ wait_io(int fd, short events, int timeout_ms)
     return pr;
 }
 
+/* Clamp the idle timeout to a whole-operation deadline; see read_wait_ms in
+ * sock.c for the rationale (slow-drip guard). -1 = deadline passed. */
+static int
+tls_read_wait_ms(int timeout_ms, uint64_t deadline_ns)
+{
+    if (deadline_ns == 0) {
+        return timeout_ms;
+    }
+    {
+        uint64_t now = brix_mono_ns();
+        int64_t  rem_ms;
+
+        if (now >= deadline_ns) {
+            return -1;
+        }
+        rem_ms = (int64_t) ((deadline_ns - now) / 1000000ULL);
+        if (rem_ms <= 0) {
+            return -1;
+        }
+        if (timeout_ms > 0 && (int64_t) timeout_ms < rem_ms) {
+            return timeout_ms;
+        }
+        return (int) rem_ms;
+    }
+}
+
 int
 brix_tls_read(brix_io *io, void *buf, size_t n, brix_status *st)
 {
     SSL     *ssl = (SSL *) io->ssl;
     uint8_t *p   = (uint8_t *) buf;
     size_t   got = 0;
+    /* Shared absolute cutoff for the whole logical operation (armed once by
+     * brix_io_stall_arm), so a multi-record TLS read shares one budget rather
+     * than re-arming per record. 0 = disabled. */
+    uint64_t deadline_ns = io->stall_deadline_ns;
 
     while (got < n) {
         size_t nread = 0;
@@ -79,8 +109,25 @@ brix_tls_read(brix_io *io, void *buf, size_t n, brix_status *st)
         err = SSL_get_error(ssl, 0);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
             short ev = (err == SSL_ERROR_WANT_READ) ? POLLIN : POLLOUT;
-            int   pr = wait_io(io->fd, ev, io->timeout_ms);
+            int   wait_ms = tls_read_wait_ms(io->timeout_ms, deadline_ns);
+            int   pr;
+
+            if (wait_ms < 0) {
+                brix_status_set(st, XRDC_ESOCK, ETIMEDOUT,
+                                "TLS read exceeded slow-drip deadline "
+                                "(%d ms, got %zu/%zu bytes)",
+                                io->stall_deadline_ms, got, n);
+                return -1;
+            }
+            pr = wait_io(io->fd, ev, wait_ms);
             if (pr == 0) {
+                if (deadline_ns != 0 && brix_mono_ns() >= deadline_ns) {
+                    brix_status_set(st, XRDC_ESOCK, ETIMEDOUT,
+                                    "TLS read exceeded slow-drip deadline "
+                                    "(%d ms, got %zu/%zu bytes)",
+                                    io->stall_deadline_ms, got, n);
+                    return -1;
+                }
                 brix_status_set(st, XRDC_ESOCK, ETIMEDOUT, "TLS read timed out");
                 return -1;
             }

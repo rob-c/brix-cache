@@ -608,7 +608,6 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_methods.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_tpc.h \
                       $ngx_addon_dir/src/protocols/webdav/tpc_user_proxy.h \
-                      $ngx_addon_dir/src/protocols/webdav/webdav_proxy.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_path.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_metrics.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_auth.h \
@@ -638,7 +637,6 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                         $ngx_addon_dir/src/fs/cache/open.h \
                         $ngx_addon_dir/src/protocols/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/core/compat/time.h \
-                        $ngx_addon_dir/src/protocols/webdav/proxy_internal.h \
                         $ngx_addon_dir/src/protocols/webdav/proxy_pool.h \
                         $ngx_addon_dir/src/protocols/webdav/tpc_cred_internal.h \
                         $ngx_addon_dir/src/tpc/common/auth.h \
@@ -1491,10 +1489,6 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_copy.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_push.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_pull.c \
-                  $ngx_addon_dir/src/protocols/webdav/proxy_config.c \
-                  $ngx_addon_dir/src/protocols/webdav/proxy_request.c \
-                  $ngx_addon_dir/src/protocols/webdav/proxy_response.c \
-                  $ngx_addon_dir/src/protocols/webdav/proxy.c \
                   $ngx_addon_dir/src/protocols/webdav/proxy_pool.c \
                   $ngx_addon_dir/src/net/mirror/http_mirror.c \
                   $ngx_addon_dir/src/net/mirror/http_mirror_request.c \

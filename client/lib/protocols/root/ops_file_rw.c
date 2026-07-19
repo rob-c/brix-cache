@@ -60,9 +60,9 @@ brix_inflate_frame(uint8_t codec, const uint8_t *comp, size_t comp_len,
 }
 
 
-ssize_t
-brix_file_read(brix_conn *c, brix_file *f, int64_t offset, void *buf, size_t len,
-               brix_status *st)
+static ssize_t
+file_read_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
+                 size_t len, brix_status *st)
 {
     ClientReadRequest req;
     uint16_t          sid, status;
@@ -150,6 +150,22 @@ brix_file_read(brix_conn *c, brix_file *f, int64_t offset, void *buf, size_t len
         free(comp);
         return plain;
     }
+}
+
+/* Slow-drip guard: arm the whole-logical-read completion budget around the frame
+ * loop so it spans EVERY response frame (a server that splits the read into many
+ * small frames cannot keep each one under a per-frame timeout). Disarm on exit so
+ * no stale cutoff bleeds into the next op. A no-op unless XRDC_STALL_DEADLINE_MS
+ * is set. See brix_io_stall_arm(). */
+ssize_t
+brix_file_read(brix_conn *c, brix_file *f, int64_t offset, void *buf, size_t len,
+               brix_status *st)
+{
+    ssize_t rc;
+    brix_io_stall_arm(&c->io);
+    rc = file_read_frames(c, f, offset, buf, len, st);
+    brix_io_stall_disarm(&c->io);
+    return rc;
 }
 
 
@@ -395,9 +411,9 @@ brix_readv_scatter(const uint8_t *acc, size_t acc_len,
  * possibly split across kXR_oksofar frames. We accumulate the whole reply, then walk
  * the segments in request order into each seg.buf. Returns total bytes read.
  */
-ssize_t
-brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
-                size_t nseg, brix_status *st)
+static ssize_t
+file_readv_frames(brix_conn *c, brix_file *f, brix_readv_seg *segs,
+                  size_t nseg, brix_status *st)
 {
     ClientRequestHdr req;
     uint8_t         *payload;
@@ -439,6 +455,19 @@ brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
     total = brix_readv_scatter(acc, acc_len, segs, nseg, st);
     free(acc);
     return total;
+}
+
+/* Slow-drip guard around the whole scatter-gather reply (accumulate spans many
+ * frames). See brix_file_read()'s wrapper. */
+ssize_t
+brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
+                size_t nseg, brix_status *st)
+{
+    ssize_t rc;
+    brix_io_stall_arm(&c->io);
+    rc = file_readv_frames(c, f, segs, nseg, st);
+    brix_io_stall_disarm(&c->io);
+    return rc;
 }
 
 

@@ -47,7 +47,7 @@ void brix_vfs_backend_config_xroot(const char *root_canon, const char *host,
  * read-only HTTP(S) source (`host`:`port`, TLS iff `tls`, URL base `base_path`),
  * served through the sd_http driver over the shared libcurl transport. */
 void brix_vfs_backend_config_http(const char *root_canon, const char *host,
-    int port, int tls, const char *base_path);
+    int port, int tls, const char *base_path, int put_checksum);
 
 /* Record (at config time) that the export rooted at `root_canon` is backed by
  * an S3 source (`host`:`port`, TLS iff `tls`, path-style `bucket`), served
@@ -57,7 +57,7 @@ void brix_vfs_backend_config_http(const char *root_canon, const char *host,
  * through the whole-object staged path (.staged_* → single PUT or MPU) and
  * deletes through .unlink (phase-71/phase-80). */
 void brix_vfs_backend_config_s3(const char *root_canon, const char *host,
-    int port, int tls, const char *bucket);
+    int port, int tls, const char *bucket, int put_checksum);
 
 /* Register the export's `storage_backend` config value, dispatching on its form:
  * a "root://host:port" / "roots://host:port" URL → a remote root:// primary

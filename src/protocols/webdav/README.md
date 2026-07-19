@@ -110,16 +110,18 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `tpc_cred_parse.c` | Parse the OAuth2 token JSON response (`access_token`) into an `r->pool` string (bounded). |
 | `tpc_config.h`, `tpc_cred.h`, `tpc_cred_internal.h` | TPC config struct, credential-mode enum/API, and internal-only constants. |
 
-### Upstream proxy mode
+### Dynamic backend pool (admin API)
+
+The WebDAV reverse-proxy transport (`brix_webdav_proxy*` — the nginx-upstream
+request/response relay in `proxy.c`/`proxy_request.c`/`proxy_response.c`/
+`proxy_config.c`) was **retired**: the directives were removed and the code
+deleted (it carried an unresolved load-dependent heap defect in the upstream
+response parse and had no live callers). Only the SHM pool table survives, as a
+standalone data structure behind the REST admin API.
 
 | File | Responsibility |
 |------|----------------|
-| `proxy.c` | `webdav_proxy_handler` — entry point; creates the nginx upstream, wires lifecycle callbacks, selects a backend (static array or dynamic SHM pool). |
-| `proxy_request.c` | Build the backend request: rewrite `Destination:` public→internal URL, strip hop-by-hop headers, apply auth policy (anonymous/forward/static-token). |
-| `proxy_response.c` | Upstream response callbacks: parse status line then header loop, relay to client. |
-| `proxy_config.c` | Parse the proxy-URL list into resolved `brix_webdav_backend_t[]` (multi-backend, round-robin + passive health); legacy single-backend aliased to `backend[0]`. |
 | `proxy_pool.c` / `proxy_pool.h` | Phase 23 dynamic SHM backend pool: runtime add/remove/drain/undrain via the REST admin API, weighted round-robin skipping DRAINING/DEAD, atomic `in_flight` for safe draining. |
-| `proxy_internal.h` | Proxy-mode-only header: `webdav_proxy_ctx_t`, `brix_webdav_backend_t`, and the six upstream lifecycle prototypes. |
 
 ### XrdHttp protocol extension
 
@@ -137,9 +139,8 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
   (enable, root, `root_canon`, `allow_write`, thread pool) and adds GSI/CA
   fields + cached `ca_store`, bearer-token (JWKS/issuer/audience/macaroon
   secret + grace key), CORS, LOCK policy, optional read-through `cache_root`,
-  HTTP-TPC + SSRF policy + OAuth2 delegation, upstream proxy (static and dynamic
-  pool), token-cache/rate-limit SHM handles, OIDC introspection, traffic mirror,
-  and advanced rate-limit rules.
+  HTTP-TPC + SSRF policy + OAuth2 delegation, token-cache/rate-limit SHM handles,
+  OIDC introspection, traffic mirror, and advanced rate-limit rules.
 - **`ngx_http_brix_webdav_req_ctx_t`** (`webdav.h`) — per-request context
   (`r->pool`). **Its first member is `xrdhttp_req_ctx_t xrdhttp`** so a pointer
   to this struct can be cast to `xrdhttp_req_ctx_t *` (C11 §6.7.2.1p15). Carries
@@ -156,10 +157,8 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 - **`xrdhttp_req_ctx_t`** (`xrdhttp.h`) — XrdHttp signals: proto version, client
   UUID/app, want-cksum, opaque blob, tpc.src/dst/key/token, request UUID echo,
   wait/retry, streaming-Digest adler32 accumulator.
-- **`brix_webdav_backend_t` / `brix_proxy_be_table_t` / `webdav_proxy_ctx_t`**
-  (`proxy_internal.h`, `proxy_pool.h`) — static resolved backend (with passive
-  health counters), the SHM dynamic-pool table + entries, and the per-request
-  proxy state.
+- **`brix_proxy_be_table_t` / `brix_proxy_be_entry_t`** (`proxy_pool.h`) — the
+  SHM dynamic-pool table + entries manipulated by the REST admin API.
 - **`tpc_ms_progress_t`** (`webdav.h`) — atomic per-stream byte counters shared
   between the curl thread and the marker poll timer during 202-streaming TPC.
 

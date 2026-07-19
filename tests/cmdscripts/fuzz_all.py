@@ -46,6 +46,30 @@ BUILD_ARGS = {
         "-o",
         "fuzz_zip_dir",
     ],
+    "fuzz_jwt_json": [
+        "clang",
+        *SAN,
+        "-I",
+        "../../src",
+        "-I",
+        "../../src/auth/token",
+        "fuzz_jwt_json.c",
+        "../../src/auth/token/json.c",
+        "-ljansson",
+        "-o",
+        "fuzz_jwt_json",
+    ],
+    "fuzz_urlcodec": [
+        "clang",
+        *SAN,
+        "-I",
+        "../../src",
+        "fuzz_urlcodec.c",
+        "../../src/core/compat/uri.c",
+        "../../src/core/compat/hex.c",
+        "-o",
+        "fuzz_urlcodec",
+    ],
 }
 
 

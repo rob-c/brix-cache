@@ -183,6 +183,20 @@ _xrdceph_cephfs_to_striper() {
   COMPREPLY=()
 }
 
+_brixfaultproxy() {
+  local opts="--listen --target --control --bind --insecure-bind --max-conns
+    --seed --script --quiet --latency --jitter --chunk --drip --rate --lossy
+    --reorder --corrupt --dup --truncate-at --fail-nth --heal-after --hang
+    --block --help --version -l -t -c -b -q -h -V"
+  _brix_opts_filter "$opts" && return
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  case "$prev" in
+    --bind|-b)  COMPREPLY=($(compgen -W "127.0.0.1 ::1 0.0.0.0" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --script)   COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+  esac
+  COMPREPLY=()
+}
+
 _xrdrados_rescue() {
   if [[ $COMP_CWORD -eq 2 ]]; then
     COMPREPLY=($(compgen -W "ls stat get cp" -- "${COMP_WORDS[COMP_CWORD]}"))
@@ -210,6 +224,7 @@ complete -F _xrdsssadmin xrdsssadmin-brix
 complete -F _xrootdfs xrootdfs
 complete -F _brixmount brixMount
 complete -F _xrdstorascan xrdstorascan
+complete -F _brixfaultproxy brix-fault-proxy
 complete -F _xrdceph_striper_migrate xrdceph_striper_migrate xrdceph_striper_migrate.py
 complete -F _xrdceph_cephfs_to_striper xrdceph_cephfs_to_striper xrdceph_cephfs_to_striper.py
 complete -F _xrdrados_rescue xrdrados_rescue

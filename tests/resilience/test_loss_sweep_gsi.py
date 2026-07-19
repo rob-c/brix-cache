@@ -12,7 +12,7 @@ WHY:  keeps the dedicated harness exercised by the suite without paying for the
       that the synchronous `xrdfs cat` CLI does not reconnect mid-read — the
       resilient path is the FUSE driver (see test_xrootdfs_resilience.py).
 
-HOW:  client -> fault_proxy -> {nginx|xrootd}, on ports 13901/13902, isolated
+HOW:  client -> brix-fault-proxy -> {nginx|xrootd}, on ports 13901/13902, isolated
       from the main suite (11094-12126).  Skips cleanly when the official
       xrootd, the repo's nginx, the fault proxy, or libXrdSec is unavailable.
 
@@ -40,7 +40,7 @@ def _why_skip():
     if servers.BRIX_BIN is None:
         return "official `xrootd` not installed"
     if not os.path.isfile(servers.FAULT_PROXY):
-        return f"fault_proxy not built: {servers.FAULT_PROXY}"
+        return f"brix-fault-proxy not built: {servers.FAULT_PROXY}"
     if servers.find_sec_lib() is None:
         return "libXrdSec not found"
     return None

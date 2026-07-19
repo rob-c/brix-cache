@@ -16,6 +16,7 @@
  */
 #include "brix.h"
 #include "core/version.h"
+#include "core/progname.h"  /* brix_prog_*(): argv[0] identity + brix- strip */
 #include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-subcommand sites */
 #include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
@@ -43,14 +44,6 @@ static const cksum_tool CKSUM_TOOLS[] = {
     { "adler32",    "adler32", XRDC_CK_ADLER32, 1 },
 };
 
-static const char *
-tool_basename(const char *path)
-{
-    const char *slash = strrchr(path, '/');
-
-    return slash != NULL ? slash + 1 : path;
-}
-
 /* Run the personality named `name`; -1 = no such personality. */
 static int
 dispatch(const char *name, int argc, char **argv)
@@ -61,8 +54,8 @@ dispatch(const char *name, int argc, char **argv)
         const cksum_tool *t = &CKSUM_TOOLS[i];
 
         if (strcmp(name, t->name) == 0) {
-            return brix_cli_cksum_main(argv[0], t->algo_name, t->algo,
-                                       argc == 2 ? argv[1] : NULL,
+            return brix_cli_cksum_main(brix_prog_base(argv[0]), t->algo_name,
+                                       t->algo, argc == 2 ? argv[1] : NULL,
                                        t->err_exit);
         }
     }
@@ -84,25 +77,28 @@ dispatch(const char *name, int argc, char **argv)
 int
 main(int argc, char **argv)
 {
-    int rc;
+    const char *prog = brix_prog_base(argv[0]);
+    int         rc;
 
-    rc = dispatch(tool_basename(argv[0]), argc, argv);
+    /* strip any co-install "brix-" prefix so brix-xrdadler32 still matches the
+     * xrdadler32 personality (busybox dispatch on basename(argv[0])). */
+    rc = dispatch(brix_prog_strip_compat(prog), argc, argv);
     if (rc >= 0) {
         return rc;
     }
     /* bare `xrdcksum <sub> …`: shift so the personality sees its own name */
     if (argc >= 2) {
         if (strcmp(argv[1], "--version") == 0) {
-            printf("xrdcksum (BriX-Cache client) %s\n", brix_client_version());
+            printf("%s (BriX-Cache client) %s\n", prog, brix_client_version());
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
-            printf("usage: xrdcksum <crc32c|crc64|adler32|verify|info|tree|check> "
+            printf("usage: %s <crc32c|crc64|adler32|verify|info|tree|check> "
                    "[args...]\n"
                    "       (or invoke via the xrdcrc32c/xrdcrc64/xrdadler32/"
                    "xrdckverify/xrdcinfo symlinks)\n"
-                   "       <sub> --help  prints per-subcommand usage\n"
-                   BRIX_USAGE_FOOTER("xrdcksum"));
+                   "       <sub> --help  prints per-subcommand usage\n", prog);
+            brix_usage_footer(stdout, prog);
             return 0;
         }
         rc = dispatch(argv[1], argc - 1, argv + 1);
@@ -127,10 +123,10 @@ main(int argc, char **argv)
         const char *arg      = (argc > 1) ? argv[1] : NULL;
         const char *suggestion = brix_suggest(arg, CKSUM_CMDS);
         fprintf(stderr,
-            "usage: xrdcksum <crc32c|crc64|adler32|verify|info|tree|check> "
+            "usage: %s <crc32c|crc64|adler32|verify|info|tree|check> "
             "[args...]\n"
             "       (or invoke via the xrdcrc32c/xrdcrc64/xrdadler32/"
-            "xrdckverify/xrdcinfo symlinks)\n");
+            "xrdckverify/xrdcinfo symlinks)\n", prog);
         if (suggestion != NULL && arg != NULL) {
             brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
         }

@@ -71,6 +71,13 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
      * the absolute backstop, large enough never to clip a real transfer. */
     ngx_conf_merge_uint_value(conf->tpc_max_transfer_secs,
                               prev->tpc_max_transfer_secs, 86400);
+    /* Hostile-network completion/integrity gates for the native TPC pull, both
+     * default off (a size mismatch always fails regardless; these only govern the
+     * "no size" and "verify content checksum" postures). */
+    ngx_conf_merge_value(conf->tpc_require_source_size,
+                         prev->tpc_require_source_size, 0);
+    ngx_conf_merge_value(conf->tpc_verify_checksum,
+                         prev->tpc_verify_checksum, 0);
     ngx_conf_merge_value(conf->tpc_transfer_max_age,
                          prev->tpc_transfer_max_age, 0);
     /* Phase 39 (WS5): publish the abandoned-slot reaper age to the shared TPC

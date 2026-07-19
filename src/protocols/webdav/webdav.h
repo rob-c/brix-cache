@@ -92,12 +92,6 @@ typedef enum {
     WEBDAV_AUTH_REQUIRED,
 } webdav_auth_t;
 
-typedef enum {
-    WEBDAV_PROXY_AUTH_ANONYMOUS,  /* strip Authorization from forwarded request */
-    WEBDAV_PROXY_AUTH_FORWARD,    /* pass Authorization header through unchanged */
-    WEBDAV_PROXY_AUTH_TOKEN,      /* replace Authorization with static Bearer token */
-} webdav_proxy_auth_t;
-
 /* --- WebDAV xattr-based lock entry --- */
 
 typedef struct {
@@ -324,11 +318,9 @@ extern const ngx_uint_t brix_webdav_operations_count;
 
 /* HTTP third-party-copy (TPC): multi-stream cap + shared progress struct, curl
  * pull/push/multi workers, 202-marker streaming, the COPY dispatcher, and the
- * OAuth2/OIDC credential-delegation helpers — split into webdav_tpc.h.  WebDAV
- * reverse-proxy mode is split into webdav_proxy.h.  Both included after the
- * shared request/config types. */
+ * OAuth2/OIDC credential-delegation helpers — split into webdav_tpc.h,
+ * included after the shared request/config types. */
 #include "webdav_tpc.h"
-#include "webdav_proxy.h"
 
 /* Operation capability table (operation_table.c) */
 #include "core/compat/protocol_caps.h"

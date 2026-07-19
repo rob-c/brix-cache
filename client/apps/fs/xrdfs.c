@@ -4,6 +4,7 @@
  */
 #include "xrdfs_internal.h"
 #include "core/version.h"
+#include "core/progname.h"  /* brix_prog_base(): argv[0]-derived identity + footer */
 #include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-command sites */
 #include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
@@ -153,7 +154,8 @@ dispatch_builtin(char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
 /* Run one tokenized command. cwd/cwdsz hold the mutable working directory (for
  * the REPL's cd/pwd). Returns a shell code; sets *quit when asked to leave. */
 int
-dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
+dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit,
+         const char *prog)
 {
     const xrdfs_cmd *cmd;
 
@@ -171,8 +173,8 @@ dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
     }
     /* <cmd> --help: print the one-line synopsis for this command. */
     if (ntok >= 2 && strcmp(tok[1], "--help") == 0) {
-        printf("usage: xrdfs <endpoint> %s\n", cmd->help);
-        printf(BRIX_USAGE_FOOTER("xrdfs"));
+        printf("usage: %s <endpoint> %s\n", brix_prog_base(prog), cmd->help);
+        brix_usage_footer(stdout, prog);
         return 0;
     }
     return cmd->fn(c, cwd, ntok, tok);
@@ -199,7 +201,7 @@ tokenize(char *line, char **tok, int maxtok)
 
 
 int
-repl(brix_conn *c, const char *host, int port)
+repl(brix_conn *c, const char *host, int port, const char *prog)
 {
     char    cwd[XRDC_PATH_MAX] = "/";
     char   *line = NULL;
@@ -220,7 +222,7 @@ repl(brix_conn *c, const char *host, int port)
             break;   /* EOF */
         }
         ntok = tokenize(line, tok, XRDFS_MAXTOK);
-        last = dispatch(c, cwd, sizeof(cwd), ntok, tok, &quit);
+        last = dispatch(c, cwd, sizeof(cwd), ntok, tok, &quit, prog);
         if (quit) {
             break;
         }
@@ -237,10 +239,10 @@ repl(brix_conn *c, const char *host, int port)
  * WHY: --help (WS-2) goes to stdout; no-arg / parse-error goes to stderr.
  */
 static void
-usage_fp(FILE *out)
+usage_fp(FILE *out, const char *prog)
 {
     fprintf(out,
-        "usage: xrdfs [opts] host[:port]|root[s]://host[:port]|http[s]|dav[s]://host/path [command [args]]\n"
+        "usage: %s [opts] host[:port]|root[s]://host[:port]|http[s]|dav[s]://host/path [command [args]]\n"
         "  with no command, drops into an interactive shell (root:// only).\n"
         "  opts:\n"
         "    --tls --notlsok --noverifyhost   in-protocol TLS controls\n"
@@ -253,14 +255,15 @@ usage_fp(FILE *out)
         "    truncate cat head tail wc grep hexdump dd upload download cmp cksum\n"
         "    xattr readv writev locate query statvfs prepare stage evict explain\n"
         "      (cd/pwd/help/exit in the shell)\n"
-        "    (<cmd> --help prints per-command usage)\n"
-        BRIX_USAGE_FOOTER("xrdfs"));
+        "    (<cmd> --help prints per-command usage)\n",
+        brix_prog_base(prog));
+    brix_usage_footer(out, prog);
 }
 
 void
-usage(void)
+usage(const char *prog)
 {
-    usage_fp(stderr);
+    usage_fp(stderr, prog);
 }
 
 
@@ -286,18 +289,19 @@ typedef struct {
  * HOW:  --version/--help go to stdout (WS-2), -h keeps its stderr usage (C1).
  */
 static int
-opt_early_exit(const char *a)
+opt_early_exit(const char *a, const char *prog)
 {
     if (strcmp(a, "--version") == 0) {
-        printf("xrdfs (BriX-Cache client) %s\n", brix_client_version());
+        printf("%s (BriX-Cache client) %s\n", brix_prog_base(prog),
+               brix_client_version());
         return 1;
     }
     if (strcmp(a, "--help") == 0) {
-        usage_fp(stdout);    /* --help → stdout (WS-2) */
+        usage_fp(stdout, prog);    /* --help → stdout (WS-2) */
         return 1;
     }
     if (strcmp(a, "-h") == 0) {
-        usage();             /* -h keeps existing stderr behavior (C1) */
+        usage(prog);               /* -h keeps existing stderr behavior (C1) */
         return 1;
     }
     return 0;
@@ -377,7 +381,7 @@ parse_global_opts(int argc, char **argv, brix_opts *opts, xrdfs_optscan *sc)
         if (opt_apply_flag(argc, argv, opts, sc)) {
             continue;
         }
-        if (opt_early_exit(argv[sc->argi])) {
+        if (opt_early_exit(argv[sc->argi], argv[0])) {
             sc->done = 1; sc->exit_code = 0;
             return;
         }
@@ -441,7 +445,8 @@ run_web_endpoint(const char *endpoint, const brix_opts *opts,
  *       nargs<=0 selects the REPL. opts is passed in; a private cwd is used.
  */
 static int
-run_root_endpoint(const char *endpoint, brix_opts *opts, int nargs, char **args)
+run_root_endpoint(const char *endpoint, brix_opts *opts, int nargs, char **args,
+                  const char *prog)
 {
     brix_url    u;
     brix_conn   c;
@@ -460,9 +465,9 @@ run_root_endpoint(const char *endpoint, brix_opts *opts, int nargs, char **args)
     }
 
     if (nargs <= 0) {
-        rc = repl(&c, u.host, u.port);   /* no command → interactive shell */
+        rc = repl(&c, u.host, u.port, prog);   /* no command → interactive shell */
     } else {
-        rc = dispatch(&c, cwd, sizeof(cwd), nargs, args, NULL);
+        rc = dispatch(&c, cwd, sizeof(cwd), nargs, args, NULL, prog);
     }
 
     brix_close(&c);
@@ -486,7 +491,7 @@ main(int argc, char **argv)
         return sc.exit_code;
     }
 
-    if (sc.argi >= argc) { usage(); return 50; }
+    if (sc.argi >= argc) { usage(argv[0]); return 50; }
     endpoint = argv[sc.argi++];
 
     /* http(s)/WebDAV endpoint: no root:// session (read-only metadata). */
@@ -495,5 +500,6 @@ main(int argc, char **argv)
                                 argc - sc.argi, &argv[sc.argi]);
     }
 
-    return run_root_endpoint(endpoint, &opts, argc - sc.argi, &argv[sc.argi]);
+    return run_root_endpoint(endpoint, &opts, argc - sc.argi, &argv[sc.argi],
+                             argv[0]);
 }

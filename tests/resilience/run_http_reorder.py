@@ -15,7 +15,7 @@ Clients:  repo = ./client/bin/xrdcp http://   ;   curl = /usr/bin/curl
 Servers:  nginx  = this repo's module, http{} location brix_webdav (anonymous)
           xrootd = official daemon, xrd.protocol XrdHttp (plain http, anonymous)
 
-client -> fault_proxy(reorder pct/ms) -> {nginx|xrootd}.  Byte-exact (md5) checked.
+client -> brix-fault-proxy(reorder pct/ms) -> {nginx|xrootd}.  Byte-exact (md5) checked.
 
 Run (from repo root):
   PYTHONPATH=tests python3 tests/resilience/run_http_reorder.py \

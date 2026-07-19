@@ -14,14 +14,14 @@ WHAT: for each server (this repo's nginx module, and the official xrootd daemon)
                  milliseconds. This is the faithful application-layer signature of
                  out-of-order PACKET delivery on a TCP stream (TCP reassembles in
                  order below us, so real reordering only ever shows up to the app as
-                 variable latency — see tests/c/fault_proxy.c NOTE). Use this to
+                 variable latency — see client/apps/diag/brix_fault_proxy.c NOTE). Use this to
                  measure how the client fares under reordering/jitter conditions.
         both   — apply loss AND jitter at the level (a lossy, reordering link).
 
 WHY:  re-runs the resilience comparison with the *current* client against both
       backends, on dedicated ports isolated from the main test suite.
 
-HOW:  client -> fault_proxy(<fault> level) -> {nginx|xrootd}.  Both servers are
+HOW:  client -> brix-fault-proxy(<fault> level) -> {nginx|xrootd}.  Both servers are
       brought up self-contained by tests/resilience/servers.py.  Results are
       written as per-rep CSV and printed as a per-cell summary table.
 

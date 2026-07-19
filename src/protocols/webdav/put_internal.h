@@ -28,6 +28,12 @@ typedef enum {
 
 void webdav_put_persist_checksums(ngx_http_request_t *r, const char *path);
 
+/* Verify a client-asserted ingest digest (Digest/Content-MD5) over the staged
+ * bytes before commit; NGX_OK to proceed, or an HTTP status (>=400) to reject. */
+ngx_int_t webdav_put_verify_ingest_digest(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, brix_vfs_writer_t *writer,
+    const char *path);
+
 webdav_put_step_t webdav_put_precheck(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, char *path, int *created);
 

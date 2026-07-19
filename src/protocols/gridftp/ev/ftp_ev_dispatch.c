@@ -170,6 +170,17 @@ brix_ftp_ev_dispatch(ftp_ev_t *fc, char *line)
         return brix_ftp_ev_reply(fc,
             "504 Only file structure (STRU F) supported\r\n");
     } else if (strcasecmp(verb, "ALLO") == 0) {
+        /* ALLO <bytes> [R <recsize>] (RFC 959): the leading integer is the size
+         * of the file about to be stored.  Record it (one-shot, consumed by the
+         * next STOR) so brix_gridftp_require_allo_size can hold the transfer to
+         * exactly that many bytes — the only completeness signal a stream-mode
+         * STOR has, since a bare connection close is indistinguishable from a
+         * mid-flight truncation.  A malformed/negative size leaves it unset (the
+         * ACK stays lenient, matching historical behaviour). */
+        char      *endp = NULL;
+        long long  sz   = strtoll(arg, &endp, 10);
+        fc->allo_size = (arg[0] != '\0' && endp != arg && sz >= 0)
+                      ? (off_t) sz : -1;
         return brix_ftp_ev_reply(fc, "200 ALLO ok\r\n");
     } else if (strcasecmp(verb, "REST") == 0) {
         char      *endp = NULL;

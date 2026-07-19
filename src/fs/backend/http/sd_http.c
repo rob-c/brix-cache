@@ -157,6 +157,7 @@ brix_sd_http_create(const brix_sd_http_cfg_t *cfg, ngx_log_t *log)
      * process error log via sd_http_live_log() instead. */
     is->log        = log;
     is->cur_ep     = -1;
+    is->put_checksum = cfg->put_checksum ? 1 : 0;   /* #12 outbound integrity */
     if (cfg->bearer_token != NULL && cfg->bearer_token[0] != '\0') {
         snprintf(is->auth_hdr, sizeof(is->auth_hdr),
                  "Authorization: Bearer %s\r\n", cfg->bearer_token);

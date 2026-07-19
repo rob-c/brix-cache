@@ -22,6 +22,7 @@
 #include "core/compat/crypto.h"
 #include "core/compat/host_split.h"   /* shared host:port parse (libxrdproto) */
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -251,21 +252,23 @@ do_map(const char *url, const brix_opts *co, int verify)
 }
 
 static void
-usage_fp(FILE *out)
+usage_fp(FILE *out, const char *prog)
 {
+    prog = brix_prog_base(prog);   /* display the invoked name, not a path */
     fprintf(out,
-        "usage: xrdmapc [opts] root[s]://host[:port][//path] [--verify]\n"
+        "usage: %s [opts] root[s]://host[:port][//path] [--verify]\n"
         "  lists the data servers holding <path> (default /), with r/w + space.\n"
         "  --verify        probe each holder; flag GHOST (advertised, not serving)\n"
         "  opts: --tls --notlsok --noverifyhost --auth <gsi|ztn|krb5|sss|unix>\n"
-        "        --version  print version and exit\n"
-        BRIX_USAGE_FOOTER("xrdmapc"));
+        "        --version  print version and exit\n",
+        prog);
+    brix_usage_footer(out, prog);
 }
 
 static void
-usage(void)
+usage(const char *prog)
 {
-    usage_fp(stderr);
+    usage_fp(stderr, prog);
 }
 
 int
@@ -285,10 +288,10 @@ main(int argc, char **argv)
                 verify = 1;
             } else {
                 int pr = brix_opts_parse_arg(&co, argc, argv, &i);
-                if (pr == 2) { usage_fp(stdout); return 0; }  /* --help */
+                if (pr == 2) { usage_fp(stdout, argv[0]); return 0; }  /* --help */
                 if (pr)      { /* common conn flag, already handled */ }
-                else if (strcmp(a, "-h") == 0) { usage(); return 0; }  /* C1 */
-                else { fprintf(stderr, "xrdmapc: unknown option '%s'\n", a); usage(); return 50; }
+                else if (strcmp(a, "-h") == 0) { usage(argv[0]); return 0; }  /* C1 */
+                else { fprintf(stderr, "xrdmapc: unknown option '%s'\n", a); usage(argv[0]); return 50; }
             }
         } else if (url == NULL) {
             url = a;
@@ -298,7 +301,7 @@ main(int argc, char **argv)
         }
     }
     if (url == NULL) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     return do_map(url, &co, verify);

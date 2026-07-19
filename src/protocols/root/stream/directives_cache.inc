@@ -223,6 +223,20 @@
      * caching is the tier grammar's brix_cache_slice_size (same 1 MiB-multiple
      * validation), served by the composed sd_cache partial path (§6.5). */
 
+    /* Checksum-on-fill policy for the read-through cache: off (trust the
+     * transfer), best-effort (verify when the origin advertises a digest, fail
+     * closed on mismatch), require (a usable origin digest is mandatory — an
+     * unverifiable fill does not publish). Writes common.cache_verify_mode, which
+     * runtime_server_backend maps into the tier's brix_cache_policy_t.verify; the
+     * root-plane fill spine carries the xroot kXR_Qcksum origin-digest hook that
+     * gives best-effort/require teeth. */
+    { ngx_string("brix_cache_verify"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.cache_verify_mode),
+      &brix_cache_verify_modes },
+
     /* POSIX extended regular expression matched against the path basename.
      * Matching files are admitted to cache even if they exceed the size limit. */
     { ngx_string("brix_cache_include_regex"),

@@ -102,6 +102,7 @@ void s3_put_finalize_empty_ok(ngx_http_request_t *r);
 void s3_put_finalize_ok(ngx_http_request_t *r, size_t body_bytes, ngx_uint_t body_mode);
 void s3_put_finalize_bad_digest(ngx_http_request_t *r);
 void s3_put_finalize_invalid_request(ngx_http_request_t *r);
+void s3_put_finalize_invalid_digest(ngx_http_request_t *r);
 void s3_put_finalize_codec_error(ngx_http_request_t *r, ngx_int_t status);
 int s3_put_checksum_failed(ngx_http_request_t *r, const char *fs_path, const char *root_canon);
 void s3_put_finalize_client_error(ngx_http_request_t *r, int status, const char *code, const char *message);

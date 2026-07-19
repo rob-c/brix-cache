@@ -45,6 +45,10 @@ typedef struct {
     char                         secret_key[256];
     char                         region[64];
     int                          timeout_ms;
+    int                          put_checksum;    /* #12: sign+send x-amz-checksum-crc32
+                                                   * on every PUT/UploadPart so the origin
+                                                   * rejects a corrupted body (BadDigest).
+                                                   * 0 = UNSIGNED-PAYLOAD (stock). */
     const brix_s3_transport_t *transport;        /* injected by the cache */
     void                        *tctx;
 } brix_sd_remote_cfg_t;

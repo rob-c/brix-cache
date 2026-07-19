@@ -140,10 +140,7 @@ brix_close_pgw_gate(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     uint32_t  left;
     char      emsg[64];
 
-    if (!ctx->files[idx].pgw_fob_enabled) {
-        return NGX_DECLINED;
-    }
-    left = brix_pgw_fob_count(&ctx->files[idx]);
+    left = brix_pgw_fob_commit_blocked(&ctx->files[idx]);
     if (left == 0) {
         return NGX_DECLINED;
     }

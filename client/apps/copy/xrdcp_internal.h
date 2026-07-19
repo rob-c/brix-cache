@@ -58,7 +58,7 @@ typedef struct {
 
 
 /* xrdcp.c */
-void usage(void);
+void usage(const char *prog);
 int str_append(char ***list, size_t *n, size_t *cap, const char *s);
 void str_free(char **list, size_t n);
 void merge_alias_auth(const char *arg, brix_copy_opts *o);

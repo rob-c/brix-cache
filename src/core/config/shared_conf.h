@@ -205,6 +205,16 @@ typedef struct {
                                              * (root:// staged, WebDAV/S3 PUT). Off by
                                              * default; never applies to partial/
                                              * ranged (REST/Content-Range) writes.  */
+    ngx_flag_t          require_pgwrite;    /* brix_require_pgwrite on|off: refuse a
+                                             * cleartext kXR_write / kXR_writev that
+                                             * carries data on a writable root:// file
+                                             * handle (kXR_Unsupported), forcing clients
+                                             * onto the per-page-CRC32c kXR_pgwrite path
+                                             * so a hostile-network bit-flip is caught
+                                             * on the wire (plain write has no CRC).
+                                             * Off by default (plain write is the stock
+                                             * upload op); SSI accumulation and
+                                             * zero-length no-ops are exempt.          */
     ngx_flag_t          read_only;          /* hard read-only switch: when on, the
                                              * finaliser forces allow_write off so
                                              * EVERY write op is rejected at the
@@ -280,6 +290,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->enable             = NGX_CONF_UNSET;
     conf->allow_write        = NGX_CONF_UNSET;
     conf->verify_write       = NGX_CONF_UNSET;
+    conf->require_pgwrite    = NGX_CONF_UNSET;
     conf->read_only          = NGX_CONF_UNSET;
     conf->compress           = NGX_CONF_UNSET;
     conf->strict_security    = NGX_CONF_UNSET;
@@ -546,6 +557,7 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     }
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_value(conf->verify_write, prev->verify_write, 0);
+    ngx_conf_merge_value(conf->require_pgwrite, prev->require_pgwrite, 0);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
     ngx_conf_merge_value(conf->compress, prev->compress, 0);
     ngx_conf_merge_value(conf->strict_security, prev->strict_security, 0);

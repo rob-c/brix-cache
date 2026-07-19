@@ -31,7 +31,7 @@
  * uploads go through the staged path. */
 void
 brix_vfs_backend_config_s3(const char *root_canon, const char *host,
-    int port, int tls, const char *bucket)
+    int port, int tls, const char *bucket, int put_checksum)
 {
     brix_vfs_backend_entry_t *e;
 
@@ -52,6 +52,7 @@ brix_vfs_backend_config_s3(const char *root_canon, const char *host,
     e->origin_tls  = tls;
     ngx_cpystrn((u_char *) e->origin_path, (u_char *) bucket,
                 sizeof(e->origin_path));   /* origin_path carries the bucket */
+    e->origin_put_checksum = put_checksum ? 1 : 0;   /* #12 */
     e->inst = NULL;                            /* rebuilt on next resolve */
 }
 
@@ -154,6 +155,14 @@ vfs_parse_s3_url(ngx_conf_t *cf, const ngx_str_t *sb, vfs_origin_parse_t *out)
         path++;
         path_len--;
     }
+    /* Trim an optional "?opt=val" query suffix (e.g. ?put_checksum=1, #12) so the
+     * bucket name stays clean; the caller scans the raw URL for the option. */
+    {
+        size_t q;
+        for (q = 0; q < path_len; q++) {
+            if (path[q] == '?') { path_len = q; break; }
+        }
+    }
     if (host_len == 0 || host_len >= out->host_cap || path_len == 0
         || path_len >= out->base_cap)
     {
@@ -197,8 +206,16 @@ vfs_parse_s3_origin(ngx_conf_t *cf, const char *root_canon, const ngx_str_t *sb)
         return NGX_ERROR;
     }
 
-    brix_vfs_backend_config_s3(root_canon, parsed.host, parsed.port, 0,
-                               parsed.base);
+    /* #12: opt-in origin-enforced body integrity. "s3://host/bucket?put_checksum=1"
+     * makes every PUT/UploadPart carry a signed x-amz-checksum-crc32 so the origin
+     * validates the bytes and rejects a wire-corrupted upload with 400 BadDigest —
+     * the outbound-leg analogue of the ingest Content-MD5 gate (#7). Off by default
+     * (UNSIGNED-PAYLOAD): unknown-header-rejecting origins stay working untouched. */
+    {
+        int put_checksum = (ngx_strstr(sb->data, "put_checksum=1") != NULL);
+        brix_vfs_backend_config_s3(root_canon, parsed.host, parsed.port, 0,
+                                   parsed.base, put_checksum);
+    }
     return NGX_OK;
 
 }

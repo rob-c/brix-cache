@@ -4,7 +4,7 @@ server, through an on-the-wire fault injector.
 
 WHAT: Mounts THIS codebase's clean-room FUSE driver (client/xrootdfs, built on
       libbrix — no libXrdCl) against the OFFICIAL `xrootd` daemon, with the
-      in-repo TCP fault proxy (tests/c/fault_proxy.c) spliced in between, and
+      in-repo TCP fault proxy (brix-fault-proxy) spliced in between, and
       asserts that a file reads back byte-exact under a matrix of wire faults:
       latency, tiny segmentation, sustained packet loss (incl. 12%), single and
       repeated mid-transfer connection drops, and a multi-second outage — plus
@@ -16,7 +16,7 @@ WHY:  Two guarantees at once:
         (b) RESILIENCE — it survives a misbehaving inline firewall (drops/loss/
             hangs) and recovers transparently rather than surfacing EIO.
 
-HOW:  client  ->  fault_proxy  ->  official xrootd
+HOW:  client  ->  brix-fault-proxy  ->  official xrootd
       Faults are toggled over the proxy's control port mid-read.
 
 Skips cleanly when the official `xrootd`, /dev/fuse, or fusermount3 is absent.
@@ -38,7 +38,7 @@ import pytest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 AIO = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
-FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "fault_proxy")
+FAULT_PROXY = os.path.join(CLIENT_DIR, "bin", "brix-fault-proxy")
 
 XROOTD = shutil.which("xrootd")
 _FUSE_OK = os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
@@ -142,16 +142,16 @@ def server(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def mount(server, tmp_path_factory):
-    """fault_proxy in front of the server + this repo's xrootdfs mounted on it.
+    """brix-fault-proxy in front of the server + this repo's xrootdfs mounted on it.
     Yields (mountfile_path, ctl) where ctl(cmd) drives the fault levers."""
     if not _FUSE_OK:
         pytest.skip("no /dev/fuse or fusermount3")
     # Build the FUSE driver + fault proxy (best-effort; skip if the link can't be
     # satisfied in this environment).
-    subprocess.run(["make", "xrootdfs", "fault-proxy"], cwd=CLIENT_DIR, env=ENV,
+    subprocess.run(["make", "xrootdfs", "brix-fault-proxy"], cwd=CLIENT_DIR, env=ENV,
                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
     if not (os.path.exists(AIO) and os.path.exists(FAULT_PROXY)):
-        pytest.skip("xrootdfs / fault_proxy not built")
+        pytest.skip("xrootdfs / brix-fault-proxy not built")
 
     listen, ctlp = _free_port(), _free_port()
     mnt = tmp_path_factory.mktemp("mnt")

@@ -440,10 +440,26 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 	/* Whole-object staged-commit adapter (phase-70): a staged write handle has no
 	 * random-write fd — append the decoded plaintext to the staged handle (which
 	 * enforces sequential offsets) and reply with the mandatory kXR_status frame.
-	 * A CSE bad-page list cannot arise here (bad pages take the accept-then-correct
-	 * path above, which needs a real fd); a staged upload is a clean sequential
-	 * stream, so any decoded buffer is committed as-is. */
+	 *
+	 * A staged handle is sequential append-only, so the kXR_pgwrite accept-then-
+	 * correct (CSE) protocol is impossible here: a page that fails CRC32c can
+	 * never be re-sent to its (now-passed) offset.  pgwrite_decode_collect has
+	 * already registered any bad page in the Fob (so close/sync stay fail-closed
+	 * — INVARIANT 1), but we must NOT append the corrupt bytes and answer a clean
+	 * status: the client would never learn to resend and would only discover the
+	 * corruption as a mystifying kXR_ChkSumErr at close.  Fail the write now with
+	 * an actionable checksum error so the client restarts the upload. */
 	if (ctx->files[st.idx].writer != NULL) {
+		char write_detail[64];
+
+		if (st.bad_count > 0) {
+			pgw_fmt_detail(write_detail, sizeof(write_detail), st.offset,
+			               st.dlen);
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_WRITE, "WRITE",
+			                  ctx->files[st.idx].path, write_detail,
+			                  kXR_ChkSumErr,
+			                  "pgwrite checksum error on staged handle");
+		}
 		if (brix_staged_append(ctx, c, st.idx, st.offset, st.flat,
 		                         st.flat_sz, &rc) != NGX_OK) {
 			return rc;   /* error already sent (sequential-append / IO) */

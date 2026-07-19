@@ -1,0 +1,286 @@
+.TH BRIX-FAULT-PROXY 1 "2026-07-19" "brix client" "User Commands"
+.SH NAME
+brix\-fault\-proxy \- root\-free TCP fault\-injection proxy for resilience testing
+.SH SYNOPSIS
+.B brix\-fault\-proxy
+\fB\-\-listen\fR \fIPORT\fR \fB\-\-target\fR \fIHOST\fR:\fIPORT\fR [\fB\-\-target\fR ...] \fB\-\-control\fR \fIPORT\fR [\fIOPTIONS\fR]
+.br
+.B brix\-fault\-proxy
+\fILISTEN_PORT\fR \fITARGET_HOST\fR \fITARGET_PORT\fR \fICONTROL_PORT\fR
+.SH DESCRIPTION
+.B brix\-fault\-proxy
+relays a TCP stream from a local listen port to an upstream
+.IR HOST : PORT
+and injects network faults on demand \(em latency, jitter, partial writes,
+slow\-drip pacing, bandwidth caps, packet\-loss resets, in\-band payload
+corruption, chunk duplication, deterministic mid\-transfer truncation, connection
+black\-holes, and full outages.
+It is a small, dependency\-free "toxiproxy\-lite" that can be spliced in front of
+any brix, XRootD, or HTTP endpoint to prove a client survives a degraded \(em or
+actively hostile \(em network,
+.B without root:
+unlike
+.BR tc / netem
+(which needs CAP_NET_ADMIN) it is pure userspace sockets.
+.PP
+Faults are set two ways: at startup with the initial\-fault option flags below,
+and live \(em while traffic flows \(em by writing newline\-terminated commands to
+the control port.
+Each lever is off (0) by default.
+.SS Directionality
+Every byte\-level lever is per\-direction.
+.B up
+is the client\(->upstream path (request / upload);
+.B down
+is the upstream\(->client path (response / download).
+A control command with no direction token applies to
+.BR both ;
+append
+.BR up ,
+.BR down ,
+or
+.B both
+to target one way (for example \fBcorrupt 0.01 down\fR).
+.PP
+The second, positional, form is an equivalent shorthand accepted only when none
+of \fB\-\-listen\fR, \fB\-\-target\fR, or \fB\-\-control\fR is given.
+.SH OPTIONS
+.SS Endpoints
+.TP
+.BI \-\-listen " PORT" "\fR, \fB\-l " PORT
+Local port to accept client connections on.
+.TP
+.BI \-\-target " HOST:PORT" "\fR, \fB\-t " HOST:PORT
+Upstream endpoint to relay to.
+May be given more than once (or as a comma\-separated list) to build a pool that
+is used round\-robin, with per\-connection failover to the remaining targets when
+a dial fails.
+.TP
+.BI \-\-control " PORT" "\fR, \fB\-c " PORT
+Control port for live fault commands.
+.TP
+.BI \-\-bind " ADDR" "\fR, \fB\-b " ADDR
+Address to bind the listen and control sockets to (default \fB127.0.0.1\fR).
+Accepts an IPv4 or IPv6 literal.
+.TP
+.B \-\-insecure\-bind
+Permit a non\-loopback \fB\-\-bind\fR.
+The control port is unauthenticated, so widening it beyond loopback is refused
+unless this flag is given; when it is, a warning is printed.
+.TP
+.BI \-\-max\-conns " N"
+Cap the number of concurrently relayed connections; further connections are
+refused while at the cap (0 = unlimited).
+.TP
+.BI \-\-seed " N"
+Seed the per\-connection fault RNG so probabilistic levers (lossy, reorder,
+corrupt, dup) are reproducible run to run.
+.TP
+.BI \-\-script " FILE"
+Replay a timeline of \fB<seconds> <command>\fR lines: each command is applied at
+its offset (in seconds) from startup.
+Blank lines and \fB#\fR comments are ignored.
+.TP
+.BR \-\-quiet ", " \-q
+Suppress the startup banner.
+.SS Initial fault levers
+These set a lever at startup; each is also settable live over the control port.
+.TP
+.BI \-\-latency " MS"
+Delay every forwarded chunk by \fIMS\fR milliseconds (a high\-RTT link).
+.TP
+.BI \-\-jitter " MS"
+Delay every chunk by a uniform\-random 0..\fIMS\fR ms \(em the application\-layer
+signature of reordered IP packets on a TCP stream.
+.TP
+.BI \-\-chunk " BYTES"
+Split every forwarded write into \fBBYTES\fR\-sized segments (with egress
+TCP_NODELAY) so the peer sees genuine partial reads / split PDUs.
+.TP
+.BI \-\-drip " 'BYTES MS'"
+Forward \fIBYTES\fR, sleep \fIMS\fR, repeat \(em a slow, low\-speed stream.
+.TP
+.BI \-\-rate " KBPS"
+Pace the stream to a ceiling of \fIKBPS\fR kilobytes per second (a bandwidth\-cap
+slow link).
+.TP
+.BI \-\-lossy " PCT"
+Sever the connection with probability \fIPCT\fR% per chunk (an
+application\-visible reset).
+\fIPCT\fR is a float honoured to 1 ppm.
+.TP
+.BI \-\-reorder " 'PCT [MS]'"
+Hold back \fIPCT\fR% of chunks by \fIMS\fR ms (default 50) while later chunks
+pass, so a fraction arrives late relative to its neighbours.
+.TP
+.BI \-\-corrupt " PCT"
+Flip a random bit in \fIPCT\fR% of forwarded bytes \(em an on\-path (MITM)
+tamper that a checksum\-verifying peer must detect.
+.TP
+.BI \-\-dup " PCT"
+Deliver \fIPCT\fR% of chunks twice (a duplicate\-delivery idempotency probe).
+.TP
+.BI \-\-truncate\-at " BYTES"
+Sever each connection once \fIBYTES\fR have flowed in the affected direction \(em
+a deterministic mid\-transfer cut (for example a download that dies at 50%).
+.TP
+.BI \-\-fail\-nth " N"
+Fail exactly the \fIN\fRth accepted connection and pass all others \(em a
+deterministic single\-failure retry probe.
+.TP
+.BI \-\-heal\-after " MS"
+Auto\-clear every lever \fIMS\fR ms after it is set (a transient fault window).
+.TP
+.B \-\-hang
+Start as a black hole: accept connections but never relay, holding the client
+open until it gives up.
+.TP
+.B \-\-block
+Start blocked: refuse connections (an outage) until an
+.B unblock
+control command.
+.SS Information
+.TP
+.BR \-\-help ", " \-h
+Print help and exit.
+.TP
+.BR \-\-version ", " \-V
+Print version and exit.
+.SH CONTROL COMMANDS
+Connect to the control port and write one command, terminated by a newline; the
+proxy replies with \fBok\fR, a \fBstatus\fR line, or an error.
+Append \fBup\fR, \fBdown\fR, or \fBboth\fR to any byte\-level lever to target one
+direction.
+.TP
+.B latency \fIMS\fR [\fIDIR\fR]
+Delay every forwarded chunk by \fIMS\fR ms.
+.TP
+.B jitter \fIMS\fR [\fIDIR\fR]
+Delay every chunk by a random 0..\fIMS\fR ms.
+.TP
+.B chunk \fIBYTES\fR [\fIDIR\fR]
+Split forwarded writes into \fIBYTES\fR\-sized segments.
+.TP
+.B drip \fIBYTES\fR \fIMS\fR [\fIDIR\fR]
+Forward \fIBYTES\fR then sleep \fIMS\fR ms, repeatedly.
+.TP
+.B rate \fIKBPS\fR [\fIDIR\fR]
+Pace the stream to \fIKBPS\fR kilobytes per second.
+.TP
+.B lossy \fIPCT\fR [\fIDIR\fR]
+Sever the stream with probability \fIPCT\fR% per chunk.
+.TP
+.B reorder \fIPCT\fR [\fIMS\fR] [\fIDIR\fR]
+Hold back \fIPCT\fR% of chunks by \fIMS\fR ms (default 50).
+.TP
+.B corrupt \fIPCT\fR [\fIDIR\fR]
+Flip a bit in \fIPCT\fR% of forwarded bytes.
+.TP
+.B dup \fIPCT\fR [\fIDIR\fR]
+Deliver \fIPCT\fR% of chunks twice.
+.TP
+.B truncate\-at \fIBYTES\fR [\fIDIR\fR]
+Sever each connection after \fIBYTES\fR have flowed in the direction.
+.TP
+.B fail\-nth \fIN\fR
+Fail exactly the \fIN\fRth accepted connection.
+.TP
+.B heal\-after \fIMS\fR
+Clear every lever \fIMS\fR ms from now.
+.TP
+.B one\-shot
+Self\-heal (clear all levers) the instant the next sever or truncate fires.
+.TP
+.B abortive \fI0|1\fR
+Select abortive RST (1) versus graceful FIN (0) for automatic severs.
+.TP
+.B drop
+Graceful\-FIN sever every live connection now.
+.TP
+.B reset
+Abortive\-RST sever every live connection now (and use RST for later
+lossy/truncate severs).
+.TP
+.B half\-close
+FIN the client\(->upstream path on live connections while the upstream\(->client
+path keeps flowing (a half\-open probe).
+.TP
+.B hang
+Make newly accepted connections black\-hole (accept but never relay).
+.TP
+.B unhang
+Resume relaying newly accepted connections.
+.TP
+.B block
+Drop live connections and refuse new ones (an outage window).
+.TP
+.B unblock
+Resume accepting connections.
+.TP
+.B clear
+Reset every lever, unblock, and unhang.
+.TP
+.B status
+Report the current lever state and the traffic / fault counters (connections,
+active, bytes each way, severs, corruptions, duplications, refusals).
+.SH SECURITY
+The control port is
+.B unauthenticated:
+anyone who can reach it can pull the fault levers and reset live connections.
+Both the listen and control sockets therefore bind to
+.B loopback
+by default.
+Widening the bind address with
+.B \-\-bind
+is refused unless
+.B \-\-insecure\-bind
+is also given, and even then prints a warning.
+Never expose the control port to an untrusted network.
+.SH LOSS, CORRUPTION, AND REORDERING MODEL
+Packet loss is modelled as a connection sever, not as byte drops: removing bytes
+from an already\-ACKed TCP stream would corrupt it rather than emulate loss
+(which lives below TCP).
+For the same reason true out\-of\-order packet delivery cannot be emulated by
+reordering bytes \(em TCP reassembles segments in order below the proxy, so the
+peer only ever sees the in\-order stream.
+What IP reordering actually does to a TCP application is add variable latency,
+which is exactly what
+.B jitter
+and
+.B reorder
+inject, faithfully and without root.
+By contrast
+.B corrupt
+.I is
+a real in\-band byte mutation \(em what an active on\-path attacker (or a flaky
+NIC past the TCP checksum) does, and precisely what an application\-layer
+checksum exists to catch.
+.SH EXAMPLES
+.nf
+# Relay to an upstream cache, control on 11941
+brix\-fault\-proxy \-\-listen 11940 \-\-target cache.example:1094 \-\-control 11941
+
+# Start with 50 ms latency already applied
+brix\-fault\-proxy \-l 11940 \-t cache.example:1094 \-c 11941 \-\-latency 50
+
+# Round\-robin over two upstreams with per\-connection failover
+brix\-fault\-proxy \-l 11940 \-t a.example:1094 \-t b.example:1094 \-c 11941
+
+# Positional shorthand
+brix\-fault\-proxy 11940 cache.example 1094 11941
+
+# Tamper the download path only (MITM bit\-flips) live
+printf 'corrupt 0.01 down\\n' | nc \-q1 127.0.0.1 11941
+
+# Deterministically cut every download at 5 MiB
+printf 'truncate\-at 5242880 down\\n' | nc \-q1 127.0.0.1 11941
+.fi
+.SH EXIT STATUS
+0 on a clean terminal action (\fB\-\-help\fR / \fB\-\-version\fR) or normal exit.
+1 on a runtime failure (a listen/control bind failed).
+2 on a command\-line error.
+.SH SEE ALSO
+.BR xrdcp (1),
+.BR xrdfs (1),
+.BR xrootdfs (1),
+.BR brix\-env (7)

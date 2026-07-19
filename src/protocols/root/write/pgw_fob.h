@@ -42,6 +42,13 @@ int brix_pgw_fob_has(const brix_file_t *f, int64_t off, uint32_t dlen);
 /* Number of pages currently uncorrected (0 == clean → close may proceed). */
 uint32_t brix_pgw_fob_count(const brix_file_t *f);
 
+/* Commit gate (INVARIANT 1): the number of uncorrected pgwrite checksum errors
+ * that must block a publish/commit of this handle, or 0 when the handle is clean
+ * (or the Fob was never armed).  Consulted by BOTH the kXR_close gate and the
+ * kXR_sync staged-commit path so a staged/POSC object is never published while
+ * known-corrupt pages remain — the two commit points must never drift apart. */
+uint32_t brix_pgw_fob_commit_blocked(const brix_file_t *f);
+
 /* Clear the registry (handle teardown). */
 void brix_pgw_fob_reset(brix_file_t *f);
 

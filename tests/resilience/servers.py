@@ -5,7 +5,7 @@ fault-injection / wire-loss resilience testing.
 WHAT: launch and tear down a dedicated nginx (root://+GSI) and a dedicated
       official `xrootd` daemon (root://+GSI) on a unique high port block, each
       with its own data root, plus the in-repo TCP fault proxy
-      (client/bin/fault_proxy) spliced in front of either one.
+      (client/bin/brix-fault-proxy) spliced in front of either one.
 
 WHY:  the shared manage_test_servers.sh fleet squats 11094-12126, is flaky to
       bring up, and must not be perturbed by loss sweeps.  Resilience runs need
@@ -35,7 +35,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 CLIENT_BIN = os.path.join(REPO, "client", "bin")
 XRDFS = os.path.join(CLIENT_BIN, "xrdfs")
 XRDCP = os.path.join(CLIENT_BIN, "xrdcp")
-FAULT_PROXY = os.path.join(CLIENT_BIN, "fault_proxy")
+FAULT_PROXY = os.path.join(CLIENT_BIN, "brix-fault-proxy")
 
 # Dedicated prefix + port block, both overridable but defaulting well clear of
 # the main suite (which lives in 11094-12126 under /tmp/xrd-test).
@@ -171,7 +171,7 @@ class NginxGsi:
     load_module line is needed.  The harness renders the committed
     ``nginx_resilience_gsi.conf`` template on an auto-assigned port with its own
     export tree; ``.data`` (the export root) and ``.port`` keep the surface the
-    resilience harness and fault-proxy expect."""
+    resilience harness and brix-fault-proxy expect."""
 
     def __init__(self, port=None):
         self._port = port
@@ -226,6 +226,77 @@ class NginxAnon:
             port=self._port,
             protocol="root",
             readiness="tcp",
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
+class NginxWebdavAnon:
+    """A dedicated nginx serving WebDAV/HTTP with NO authentication
+    (`brix_webdav_auth none`) on its own port and data root — the write-direction
+    analogue of NginxAnon, for tests that exercise the PUT ingest gateway
+    (client->server body integrity) with a fault proxy in the path.  ``.port`` and
+    ``.data`` (the export root) mirror the NginxAnon surface."""
+
+    def __init__(self, port=None, extra_directives=""):
+        self._port = port
+        self._extra = extra_directives
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-webdav-anon",
+            template="nginx_resilience_webdav_anon.conf",
+            port=self._port,
+            protocol="http",
+            readiness="tcp",
+            template_values={"EXTRA_DIRECTIVES": self._extra},
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
+class NginxS3Anon:
+    """A dedicated nginx serving the S3 object API with NO authentication (no
+    SigV4) on its own port and data root — the S3 analogue of NginxWebdavAnon, for
+    tests that exercise the S3 PutObject ingest gateway (client->server body
+    integrity, e.g. Content-MD5) with a fault proxy in the path.  Objects live
+    under the ``resilbucket`` bucket; ``.port`` and ``.data`` (the export root)
+    mirror the NginxAnon surface."""
+
+    bucket = "resilbucket"
+
+    def __init__(self, port=None, extra_directives=""):
+        self._port = port
+        self._extra = extra_directives
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-s3-anon",
+            template="nginx_resilience_s3_anon.conf",
+            port=self._port,
+            protocol="http",
+            readiness="tcp",
+            template_values={"EXTRA_DIRECTIVES": self._extra},
         ))
         self.port = endpoint.port
         self.data = endpoint.data_root
@@ -355,7 +426,7 @@ all.export / r/w
 all.adminpath {admin}
 all.pidpath   {run}
 xrd.trace off
-"""
+{extra}"""
 
 OFFICIAL_XRDFS = shutil.which("xrdfs")
 
@@ -365,9 +436,16 @@ class XrootdAnon:
     (default unix/host) on its own port and data root — the official-server side of
     a client/server comparison, apples-to-apples with NginxAnon."""
 
-    def __init__(self, port=None):
+    def __init__(self, port=None, chksum=None):
+        # chksum: e.g. "adler32" to advertise an in-band digest via
+        # `xrootd.chksum` (kXR_Qcksum), so a downstream brix-cache with
+        # brix_cache_verify best-effort|require has an origin digest to check the
+        # staged bytes against.  None (default) → NO digest advertised, exactly
+        # like a bare anonymous origin, so `require` has nothing to verify and
+        # must fail closed.
+        self.chksum = chksum
         self.port = port or free_port()
-        self.prefix = os.path.join(PREFIX, "brix_anon")
+        self.prefix = os.path.join(PREFIX, "brix_anon_ck" if chksum else "brix_anon")
         self.data = os.path.join(self.prefix, "data")
         self.admin = os.path.join(self.prefix, "admin")
         self.run = os.path.join(self.prefix, "run")
@@ -382,8 +460,11 @@ class XrootdAnon:
         for d in (self.data, self.admin, self.run, self.logs):
             os.makedirs(d, exist_ok=True)
         with open(self.cfg, "w") as fh:
+            extra = ("xrootd.chksum max 2 {}\n".format(self.chksum)
+                     if self.chksum else "")
             fh.write(_BRIX_ANON_CFG.format(
-                port=self.port, data=self.data, admin=self.admin, run=self.run))
+                port=self.port, data=self.data, admin=self.admin, run=self.run,
+                extra=extra))
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
         self.proc = subprocess.Popen(
@@ -424,12 +505,13 @@ class XrootdAnon:
 # --- fault proxy --------------------------------------------------------------
 
 class FaultProxy:
-    """The in-repo TCP fault injector (client/bin/fault_proxy) spliced in front
-    of a target server.  Listen + control ports are ephemeral so concurrent or
-    repeated runs never collide.
+    """The in-repo TCP fault injector (client/bin/brix-fault-proxy) spliced in
+    front of a target server.  Listen + control ports are ephemeral so concurrent
+    or repeated runs never collide.
 
-    Faults are toggled over the control port; see tests/c/fault_proxy.c for the
-    full lever set.  set_loss(pct) maps to `lossy <pct>` (per-chunk probability
+    Faults are toggled over the control port; see the lever list in
+    client/apps/diag/brix_fault_proxy.c (or `brix-fault-proxy --help`) for the
+    full set.  set_loss(pct) maps to `lossy <pct>` (per-chunk probability
     of severing the stream — application-visible wire loss); set_jitter(ms) maps
     to `jitter <ms>` (per-chunk uniform-random 0..ms delay — the faithful app-layer
     signature of out-of-order packet delivery on a TCP stream)."""
@@ -443,7 +525,7 @@ class FaultProxy:
 
     def __enter__(self):
         if not os.path.isfile(FAULT_PROXY):
-            raise RuntimeError(f"fault_proxy not built: {FAULT_PROXY}")
+            raise RuntimeError(f"brix-fault-proxy not built: {FAULT_PROXY}")
         self.proc = subprocess.Popen(
             [FAULT_PROXY, str(self.listen), self.target_host,
              str(self.target_port), str(self.control)],
@@ -454,13 +536,33 @@ class FaultProxy:
         return self
 
     def ctl(self, cmd):
+        # `status` returns a multi-lever + counters line (hundreds of bytes); read
+        # generously so counter assertions never see a truncated reply.
         with socket.create_connection(("127.0.0.1", self.control), timeout=3) as s:
             s.sendall((cmd + "\n").encode())
-            return s.recv(256).decode(errors="replace").strip()
+            return s.recv(4096).decode(errors="replace").strip()
 
     def set_loss(self, pct):
         # `pct` may be fractional (sub-percent); the proxy honours parts-per-million.
         return self.ctl(f"lossy {pct:g}") if pct > 0 else self.ctl("clear")
+
+    def set_corrupt(self, pct, direction="down"):
+        """`corrupt <pct> <dir>`: flip a random bit in pct% of forwarded bytes —
+        a real in-band (MITM / flaky-NIC-past-the-TCP-checksum) byte mutation that
+        an application-layer checksum must catch.  `direction` is up (client->server),
+        down (server->client, the response/download payload — the default), or both.
+        pct may be fractional (ppm resolution); pct=0 clears all faults."""
+        return (self.ctl(f"corrupt {pct:g} {direction}")
+                if pct > 0 else self.ctl("clear"))
+
+    def set_truncate(self, nbytes, direction="down"):
+        """`truncate-at <nbytes> <dir>`: sever each connection once nbytes have
+        flowed in the given direction — a deterministic mid-transfer cut."""
+        return (self.ctl(f"truncate-at {int(nbytes)} {direction}")
+                if nbytes > 0 else self.ctl("clear"))
+
+    def clear(self):
+        return self.ctl("clear")
 
     def set_jitter(self, ms):
         return self.ctl(f"jitter {int(ms)}") if ms > 0 else self.ctl("clear")
@@ -472,6 +574,16 @@ class FaultProxy:
         clears all faults."""
         return (self.ctl(f"reorder {pct:g} {int(delay_ms)}")
                 if pct > 0 else self.ctl("clear"))
+
+    def set_drip(self, nbytes, ms, direction="down"):
+        """`drip <bytes> <ms> [dir]`: forward `nbytes` bytes, sleep `ms`, repeat —
+        a pathologically slow but *never-idle-long-enough-to-trip-a-poll-timeout*
+        trickle.  This is the signature of a firewall/middlebox that keeps a
+        connection technically alive while starving it: the classic slow-drip
+        (Slowloris-style) resource-exhaustion attack against a client that re-arms
+        its read timeout every poll.  `nbytes<=0` clears all faults."""
+        return (self.ctl(f"drip {int(nbytes)} {int(ms)} {direction}")
+                if nbytes > 0 else self.ctl("clear"))
 
     def url(self, path="/"):
         return f"root://127.0.0.1:{self.listen}/"

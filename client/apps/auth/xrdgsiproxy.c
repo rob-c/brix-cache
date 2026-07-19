@@ -11,6 +11,7 @@
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,21 +32,23 @@ parse_valid(const char *s)
 }
 
 static void
-usage_fp(FILE *out)
+usage_fp(FILE *out, const char *prog)
 {
+    prog = brix_prog_base(prog);   /* display the invoked name, not a path */
     fprintf(out,
-        "usage: xrdgsiproxy <init|info|destroy> [opts]\n"
+        "usage: %s <init|info|destroy> [opts]\n"
         "  init    [-valid/--valid H[:M]] [-cert/--cert FILE] [-key/--key FILE]\n"
         "          [-out/--out FILE] [-bits/--bits N]\n"
         "  info    [-file/--file FILE]\n"
-        "  destroy [-file/--file FILE]\n"
-        BRIX_USAGE_FOOTER("xrdgsiproxy"));
+        "  destroy [-file/--file FILE]\n",
+        prog);
+    brix_usage_footer(out, prog);
 }
 
 static void
-usage(void)
+usage(const char *prog)
 {
-    usage_fp(stderr);
+    usage_fp(stderr, prog);
 }
 
 /* Cursor over the argument vector shared by every option parser. */
@@ -128,7 +131,7 @@ cmd_init(int argc, char **argv, brix_status *st)
     int             rc;
 
     if (!init_parse_opts(argc, argv, &o)) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     rc = brix_proxy_create(&o, st);
@@ -173,7 +176,7 @@ cmd_info(int argc, char **argv, brix_status *st)
     int         rc;
 
     if (!file_parse_opts(argc, argv, &file)) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     rc = brix_proxy_info(file, stdout, st);
@@ -201,7 +204,7 @@ cmd_destroy(int argc, char **argv, brix_status *st)
     int         rc;
 
     if (!file_parse_opts(argc, argv, &file)) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     rc = brix_proxy_destroy(file, st);
@@ -249,16 +252,17 @@ main(int argc, char **argv)
     const char  *cmd;
     cmd_fn       fn;
 
-    if (argc < 2) { usage(); return 50; }
+    if (argc < 2) { usage(argv[0]); return 50; }
     cmd = argv[1];
 
     /* --help / --version as the first argument. */
     if (strcmp(cmd, "--version") == 0) {
-        printf("xrdgsiproxy (BriX-Cache client) %s\n", brix_client_version());
+        printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+               brix_client_version());
         return 0;
     }
     if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0) {
-        usage_fp(stdout);
+        usage_fp(stdout, argv[0]);
         return 0;
     }
 
@@ -267,7 +271,7 @@ main(int argc, char **argv)
 
     fn = cmd_lookup(cmd);
     if (fn == NULL) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     return fn(argc, argv, &st);

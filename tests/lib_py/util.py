@@ -65,6 +65,33 @@ def pids_on_port(port: int | str) -> list[int]:
     return []
 
 
+_CLK_TCK = os.sysconf("SC_CLK_TCK")
+
+
+def process_age(pid: int) -> float | None:
+    """Seconds the process ``pid`` has been alive, or ``None`` if it is gone.
+
+    Read from ``/proc/<pid>/stat`` field 22 (``starttime``, in clock ticks
+    since boot) against ``/proc/uptime`` — no ``ps`` fork, and immune to PID
+    reuse within the read because a vanished/replaced pid surfaces as an
+    ``OSError``/parse miss rather than a stale age.  The ``comm`` field can
+    contain spaces and parentheses, so split *after* its final ``)``.
+    """
+    try:
+        with open(f"/proc/{pid}/stat", "r") as fh:
+            data = fh.read()
+        with open("/proc/uptime", "r") as fh:
+            uptime = float(fh.read().split()[0])
+    except (OSError, ValueError):
+        return None
+    try:
+        after_comm = data[data.rindex(")") + 2:].split()
+        starttime = int(after_comm[19])  # field 22, 0-based past state
+    except (ValueError, IndexError):
+        return None
+    return uptime - starttime / _CLK_TCK
+
+
 def kill_pid_list(pids: list[int]) -> None:
     for pid in pids:
         try:
