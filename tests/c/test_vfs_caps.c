@@ -24,6 +24,13 @@
 const brix_sd_driver_t brix_sd_posix_driver;
 const brix_sd_driver_t brix_sd_block_driver;
 const brix_sd_driver_t brix_sd_pblock_driver;
+/* When sd_registry.o is built with BRIX_HAVE_CEPH (ceph-devel present on the
+ * build host), its registration table also references the two ceph drivers.
+ * Stub them unconditionally: harmless where sd_registry.o has no ceph refs,
+ * required where it does — and avoids dragging librados/libcephfs into a pure
+ * capability-logic unit test. */
+const brix_sd_driver_t brix_sd_ceph_driver;
+const brix_sd_driver_t brix_sd_cephfs_ro_driver;
 
 /* sd_registry's instance-create path (unreached by this test) pulls these two
  * nginx pool symbols; stub them so the object links standalone. */

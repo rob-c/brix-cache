@@ -26,10 +26,12 @@
  * HOW:  A 256-entry permit table, built once from an explicit allow string, is
  *       consulted per byte. Permitted = URL-unreserved (alnum . - _ ~),
  *       path/authority (/ : @), percent-encoding (% +), and CGI structure
- *       (= & ; , ?). ';' is the legacy CGI pair separator (equivalent to '&');
- *       stock XRootD accepts "k=v;other=z", so rejecting it would break parity
- *       and is not an injection concern here — the opaque is parsed, never handed
- *       to a shell. Everything else — 0x00-0x1F, 0x7F, 0x80-0xFF, and the printable
+ *       (= & ; , ?). ';' is ORDINARY VALUE CONTENT, not a separator: XRootD
+ *       tokenizes the opaque on '&' only, so "k=v;other=z" is the single pair
+ *       k="v;other=z". brix mirrors that (brix_opaque_schema_check splits on '&'
+ *       only), so accepting ';' keeps wire parity with zero smuggling gap — a
+ *       ';' can never split a smuggled key off as its own parameter. Everything
+ *       else — 0x00-0x1F, 0x7F, 0x80-0xFF, and the printable
  *       metacharacters space ! " # $ ' ( ) * < > [ \ ] ^ ` { | } — is rejected.
  *       Pure C, no nginx/libc string deps: safe to call from the wire edge.
  */
@@ -49,12 +51,14 @@ static const char BRIX_OPAQUE_ALLOWED[] =
                  * required for native-TPC parity — not shell metacharacters here
                  * (the opaque is parsed, never handed to a shell). */
     "%+"        /* percent-encoding, plus-as-space */
-    "=&,?";     /* CGI structure: '&' key/val separator, '=' assignment, ',' list,
-                 * '?' nested-query. NOT ';' — XRootD splits opaque only on '&'
-                 * (XrdOucEnv.cc and XrdCl URL::SetParams both tokenize on "&"
-                 * exclusively), so ';' is never a legitimate separator on the wire;
-                 * permitting it only widened the injection surface (command
-                 * chaining) with no interop benefit. */
+    "=&,?;";    /* CGI structure: '&' is the SOLE key/val separator, '=' assignment,
+                 * ',' list, '?' nested-query. ';' is permitted as ORDINARY VALUE
+                 * CONTENT — XRootD tokenizes the opaque on '&' only (XrdOucEnv.cc
+                 * scans for '&'; XrdCl URL::SetParams likewise), so "k=v;other=z" is
+                 * the single pair k="v;other=z". Rejecting ';' would break that
+                 * parity; the parameter-smuggling risk is closed the correct way
+                 * instead — brix_opaque_schema_check (below) splits on '&' ONLY, so
+                 * brix and XRootD always resolve the identical set of pairs. */
 
 static unsigned char brix_opaque_permit[256];
 static int           brix_opaque_permit_ready;
@@ -280,7 +284,11 @@ brix_opaque_schema_check(const char *opaque, char *keybuf, size_t keybuf_len)
         int         verdict;
 
         for (i = 0; i < remaining; i++) {
-            if (seg[i] == '&' || seg[i] == ';') {   /* '&' and legacy ';' both split */
+            if (seg[i] == '&') {   /* '&' is the SOLE separator — XRootD parity
+                                    * (XrdOucEnv splits the opaque on '&' only). A
+                                    * ';' stays inside the value, so brix and XRootD
+                                    * resolve the identical pairs and a ';'-smuggled
+                                    * key is never split off as its own parameter. */
                 amp = seg + i;
                 break;
             }

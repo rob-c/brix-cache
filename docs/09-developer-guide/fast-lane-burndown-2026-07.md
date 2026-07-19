@@ -162,22 +162,47 @@ protocol. Every one was settled by reading the XRootD 5.8.4 source
 doubt about wire behaviour, read `XrdOuc`/`XrdCl`/`XrdOfs`/`XrdXrootd` — do not
 assume.**
 
-### 3.1 opaque `;` was wrongly allowed → injection surface
+### 3.1 opaque `;` — parameter-smuggling divergence (fixed the RIGHT way)
 
-- **File:** `src/protocols/root/path/opaque_validate.c` (`BRIX_OPAQUE_ALLOWED`).
-- **Cause:** brix permitted `;` under a mistaken "legacy CGI list separator"
-  premise. **XRootD splits the opaque on `&` ONLY** — server-side
-  `XrdOuc/XrdOucEnv.cc` (constructor scans for `&`/`=`) and client-side
-  `XrdCl/XrdClURL.cc` `URL::SetParams()` (`splitString(…, "&")`). `;` is never a
-  delimiter, so allowing it bought zero interop and widened the
-  command-chaining injection surface.
-- **Fix:** removed `;` from the allow-set (now rejected like the other
-  shell-meta bytes).
-- **Regression guard:** new conformance block in `test_conf_openflags.py`
-  (`test_open_opaque_semicolon_never_a_separator` × 6 positions,
-  `test_open_opaque_ampersand_is_the_sole_separator`,
-  `test_open_opaque_semicolon_rejected_is_stable_across_ops`). These are the
-  **canary** if XRootD upstream ever adopts `;`.
+> **Correction (this section was initially fixed the WRONG way).** The first
+> attempt *rejected* any opaque containing `;` and shipped in commit `f36eb208`.
+> That was a **backwards-compat regression** and is corrected here. Kept in full
+> as a cautionary example of exactly the trap this doc exists to prevent: reading
+> half the XRootD source and stopping at a conclusion that "sounds secure."
+
+- **File:** `src/protocols/root/path/opaque_validate.c` — `BRIX_OPAQUE_ALLOWED`
+  (the byte-gate) **and** `brix_opaque_schema_check` (the pair splitter).
+- **The real bug:** brix's *schema splitter* tokenised the opaque on `&` **or**
+  `;`, while **XRootD splits on `&` ONLY** — server-side `XrdOuc/XrdOucEnv.cc`
+  (`XrdOucEnv::Env` scans for `&`, a value runs `while (*vdp && *vdp != '&')`)
+  and client-side `XrdCl/XrdClURL.cc` `URL::SetParams()` (`splitString(…, "&")`).
+  So `k=v;other=z` is the single pair `k = "v;other=z"` to XRootD, but brix split
+  it into TWO pairs — a genuine **parameter-smuggling** divergence (a client
+  could hide a second `authz`/`tpc.*` key behind a `;` that XRootD keeps inside
+  the value but brix honours separately).
+- **The WRONG fix (regression):** removing `;` from `BRIX_OPAQUE_ALLOWED` made
+  brix *reject* `k=v;other=z` outright — which **stock XRootD accepts**. It broke
+  wire parity (`test_conf_pathedge::test_opaque_cat_returns_content[…;…]`) for
+  zero real gain: `;` is not a wire-level command separator, the opaque is
+  parsed and never handed to a shell.
+- **The RIGHT fix (XRootD parity):** `;` is **ordinary value content** — so (a)
+  keep `;` in `BRIX_OPAQUE_ALLOWED` (accept it, like stock), and (b) make
+  `brix_opaque_schema_check` split on `&` **ONLY**. Now brix and XRootD resolve
+  the *identical* set of pairs, which closes the smuggling divergence **and**
+  preserves compat. The safety property lives in the *splitter*, not a
+  reject-list.
+- **Lesson:** when brix's parsing diverges from XRootD, the fix is almost always
+  "match XRootD's parsing," not "reject the input." Rejecting a byte stock
+  accepts is a compat regression by construction. Read the *whole* tokeniser
+  (both the `while` scan loop AND what it treats as a value byte), not just the
+  separator set.
+- **Regression guard:** conformance block in `test_conf_openflags.py` —
+  `test_open_opaque_semicolon_is_value_content_not_a_separator` × 6 (each asserts
+  byte-for-byte parity with the stock server via `assert_same_category`, incl. a
+  `authz=K;tpc.org=O` smuggling case where the `tpc.org` must stay *inside* the
+  value), `test_open_opaque_ampersand_is_the_sole_separator`, and
+  `test_open_opaque_semicolon_inert_across_ops` (the `;` form and the `&` form of
+  a neutral opaque must land in the same category in read and create modes).
 
 ### 3.2 native TPC pull hung — `tpc.org` host string mismatch
 

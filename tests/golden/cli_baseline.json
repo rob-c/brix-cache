@@ -35,7 +35,7 @@
   "noarg:brixMount": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "073fb0aa448817d02eed5712859d43403fd5fa184cb05dec3550bfdb61472008"
+    "stderr_sha": "57d716c171ef646344dfd6b525d09330e6431c8e697239641a5e59a80a2ba869"
   },
   "noarg:fault_proxy": {
     "exit": 2,

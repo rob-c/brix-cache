@@ -257,7 +257,22 @@ class ForwardHarness:
 
     # -- node spawners ------------------------------------------------------
     def _start_nginx(self, d: Path, conf: Path, label: str) -> bool:
-        proc = _call([self.run.nginx, "-p", d, "-c", conf], env_drop=("NGINX",))
+        cmd: list[str | Path] = [self.run.nginx, "-p", d, "-c", conf]
+        # Root harness: nginx drops workers to `nobody`, which cannot traverse the
+        # 0700 mkdtemp LiveRun tree — so the confined-ops open of the export root
+        # fails EACCES ("cannot open export root for kernel-confined path
+        # operations"), the node never serves, and a TPC pull to it just times out
+        # (rc=51). Keep the worker as root (the invoking user already owns the
+        # ephemeral tree, so this is not a privilege leak). Skip if the config
+        # already pins `user` (nginx forbids a duplicate `user` from `-g`).
+        if os.geteuid() == 0:
+            try:
+                has_user = re.search(r"(?m)^\s*user\s+\S", Path(conf).read_text(errors="ignore"))
+            except OSError:
+                has_user = None
+            if not has_user:
+                cmd += ["-g", "user root;"]
+        proc = _call(cmd, env_drop=("NGINX",))
         if proc.returncode:
             print(f"  (start failed for {label}: {proc.stderr.strip()})", file=sys.stderr)
             return False
@@ -371,10 +386,20 @@ default_user = fwduser
         cache = d / "scitok_cache"
         shutil.rmtree(cache, ignore_errors=True)
         cache.mkdir()
+        # Stock xrootd refuses to run as superuser ("Security reasons prohibit
+        # running as superuser"), so under the root harness it never binds and the
+        # brix front's backend connect is refused (kXR 3012 / "exhausted all
+        # endpoints"). Drop it to `nobody` and open the node tree so that account
+        # can traverse in, read the config, and write its data/admin/run/log/cache.
+        xrd_runas: list[str] = []
+        if os.geteuid() == 0:
+            xrd_runas = ["-R", "nobody"]
+            subprocess.run(["chmod", "a+rx", str(self.run.root)], check=False)
+            subprocess.run(["chmod", "-R", "a+rwX", str(d)], check=False)
         proc = self.run.spawn(["bwrap", "--dev-bind", "/", "/",
                                "--bind", bundle, real_bundle,
                                "--setenv", "XDG_CACHE_HOME", cache,
-                               XROOTD_BIN, "-c", cfg, "-l", log])
+                               XROOTD_BIN, *xrd_runas, "-c", cfg, "-l", log])
         pidfile = d / "bwrap.pid"
         pidfile.write_text(str(proc.pid))
         self.node_pidfiles.append(pidfile)
@@ -450,7 +475,16 @@ pss.setopt DebugLevel 0
         if cred == "token":
             return log if self.spawn_bwrap_xrootd(d, cfg, log, port) else None
 
-        _call([XROOTD_BIN, "-c", cfg, "-l", log, "-b"])
+        # Stock xrootd refuses to run as superuser, so under the root harness drop
+        # it to `nobody` and open the node tree (traverse in + write data/admin/run/
+        # log). Without this the origin never binds and the brix front's backend
+        # connect is refused (kXR 3012) — every gsi two-hop cell fails put_ok=0.
+        xrd_runas: list[str] = []
+        if os.geteuid() == 0:
+            xrd_runas = ["-R", "nobody"]
+            subprocess.run(["chmod", "a+rx", str(self.run.root)], check=False)
+            subprocess.run(["chmod", "-R", "a+rwX", str(d)], check=False)
+        _call([XROOTD_BIN, *xrd_runas, "-c", cfg, "-l", log, "-b"])
         for _ in range(20):
             pids = sorted((d / "run").glob("*.pid"))
             if pids:
@@ -1251,8 +1285,15 @@ stream {{ server {{
     brix_transparent_proxy 127.0.0.1:{origin_port};
 }} }}
 """)
+        # Root harness: these configs pin no `user`, so nginx drops workers to
+        # `nobody`, which cannot traverse the 0700 mkdtemp tree — the export's
+        # confined-ops open EACCESes and the node never serves. Keep the worker
+        # root (the invoking user owns the ephemeral tree). This direct launch
+        # bypasses ForwardHarness._start_nginx, so the injection is repeated here.
+        root_g = ["-g", "user root;"] if os.geteuid() == 0 else []
         for prefix, conf, port in ((origin, origin_conf, origin_port), (relay, relay_conf, relay_port)):
-            result = _call([run.nginx, "-p", prefix, "-c", conf], env_drop=("NGINX",))
+            result = _call([run.nginx, "-p", prefix, "-c", conf, *root_g],
+                           env_drop=("NGINX",))
             if result.returncode:
                 print(f"start failed: {result.stderr.strip()}")
                 return 2

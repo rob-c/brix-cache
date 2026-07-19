@@ -710,7 +710,14 @@ def test_stat_full_surface_agrees(fs_our, fs_off, path):
     so, sio = _stat(fs_our, path)
     sf, sif = _stat(fs_off, path)
     assert _status_tuple(so) == _status_tuple(sf)
-    assert sio.size == sif.size
+    if path in FILE_PATHS:
+        # Only regular files have a cross-server-stable byte size. A DIRECTORY's
+        # size is the ext4 on-disk directory block allocation, which depends on
+        # the entry count of THAT export (OURS root holds different entries than
+        # the stock interop export, and both churn as parallel tests create/delete
+        # files) — so 32768 vs 28672 for "/" is expected divergence, not a stat
+        # bug. The isDir flag + status parity below still pin the surface.
+        assert sio.size == sif.size
     assert sio.flags == sif.flags
     assert _decode_flags(sio.flags) == _decode_flags(sif.flags)
     assert _id_is_clean_int(sio.id) and _id_is_clean_int(sif.id)
