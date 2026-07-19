@@ -67,6 +67,13 @@ tools/*
 !tools/git-hooks/
 !tools/clangd/
 !tools/gen-docs.sh
+# pblock-fsck: the Phase-83 pblock consistency oracle — built and executed by
+# the pblock lab tests (test_pblock_lab_*.py), so CI/other clones need it.
+!tools/pblock-fsck/
+# add_registry_markers: the codemod that writes the per-test
+# @pytest.mark.registry_server declarations the fleet-declaration gate enforces
+# (its output is committed across the test tree; the tool that regenerates it is not scratch).
+!tools/add_registry_markers.py
 .aider*
 
 .rpmbuild/
@@ -93,6 +100,8 @@ xrootd-session-hijack-poc/
 tests/fuzz/fuzz_b64url
 tests/fuzz/fuzz_safe_size
 tests/fuzz/fuzz_zip_dir
+tests/fuzz/fuzz_jwt_json
+tests/fuzz/fuzz_urlcodec
 k8s-tests/remote-suite/tests/fuzz/fuzz_b64url
 k8s-tests/remote-suite/tests/fuzz/fuzz_safe_size
 k8s-tests/remote-suite/tests/fuzz/fuzz_zip_dir
