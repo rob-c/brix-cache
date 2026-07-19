@@ -138,10 +138,26 @@ ev_stor_read(ngx_event_t *rev)
             return;
         }
         if (n == 0) {
-            /* Client closed the data channel → EOF.  Commit runs the read-back
-             * verify (and unlinks a mismatch); a NULL writer skips abort in
-             * finish. */
-            ngx_int_t rc = brix_vfs_writer_commit(dc->writer);
+            /* Client closed the data channel → EOF.  In stream mode a bare close
+             * is the *only* completion signal, so it is indistinguishable from a
+             * mid-flight truncation (a hostile middlebox dropping the connection).
+             * When the client declared the size via ALLO and the operator opted
+             * into brix_gridftp_require_allo_size, hold the transfer to exactly
+             * that many bytes: a short (or over-long) delivery fails 550 rather
+             * than committing a truncated object as complete.  The clean prefix
+             * is left in place (unlike the MODE E declared-complete-but-holed
+             * case) so a REST-resume can continue from dc->off. */
+            ngx_int_t rc;
+
+            if (dc->fc->conf->require_allo_size && dc->allo_size >= 0
+                && dc->off != dc->allo_size)
+            {
+                brix_ftp_ev_data_finish(dc, NGX_ERROR);
+                return;
+            }
+            /* Commit runs the read-back verify (and unlinks a mismatch); a NULL
+             * writer skips abort in finish. */
+            rc = brix_vfs_writer_commit(dc->writer);
             dc->writer = NULL;
             brix_ftp_ev_data_finish(dc, rc);
             return;
@@ -315,7 +331,10 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
     off_t        start   = 0;
     unsigned     flags   = 0;
     int          verify  = 0;
+    off_t        allo    = fc->allo_size;         /* one-shot, per this command */
     ftp_ev_dc_t *dc;
+
+    fc->allo_size = -1;                           /* consume ALLO unconditionally */
 
     if (writing && !fc->conf->allow_write) {
         return brix_ftp_ev_reply(fc,
@@ -380,6 +399,9 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
     dc->off     = start;
     dc->flags   = flags;
     dc->verify  = verify;
+    /* ALLO completeness enforcement is stream-mode STOR only: MODE E validates
+     * completeness structurally (gapless tiling), and RETR/APPE have no ALLO. */
+    dc->allo_size = (op == FTP_EV_OP_STOR && !fc->mode_e) ? allo : -1;
     dc->mode_e  = fc->mode_e;
     dc->eb_eof_total = -1;               /* set by the EOF block (MODE E STOR)    */
     dc->ls_mode = (op == FTP_EV_OP_LIST) ? FTP_EV_LS_LONG

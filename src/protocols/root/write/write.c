@@ -210,6 +210,50 @@ brix_write_finalize_sync(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
+ * brix_write_require_pgwrite — hostile-network wire-integrity gate for the
+ * cleartext native write ops (kXR_write, kXR_writev).
+ *
+ * WHAT: When brix_require_pgwrite is on, refuses a cleartext data write on a
+ *   writable file handle with kXR_Unsupported, so the deployment forces clients
+ *   onto the per-page-CRC32c kXR_pgwrite path. Returns 1 (handled — the error
+ *   reply is sent and *rc holds its return) or 0 (write proceeds; *rc untouched).
+ * WHY:  Plain kXR_write/kXR_writev carry NO checksum (INVARIANT 1 only covers
+ *   pgwrite), so a byte a hostile middlebox flips past the TCP checksum is
+ *   committed undetected; brix_verify_write is a storage read-back, not a wire
+ *   check. This is the native-write analogue of brix_webdav_require_digest /
+ *   brix_gridftp_require_allo_size — a fail-closed integrity posture for
+ *   deployments whose clients already speak pgwrite.
+ * HOW:  Exempt the two payload-free cases so the knob never breaks control
+ *   traffic: an SSI handle (accumulates a request body, not a file write) and a
+ *   zero-length write (a valid no-op with nothing to corrupt). Everything else on
+ *   a writable handle carries data and is refused.
+ */
+ngx_int_t
+brix_write_require_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+						   size_t wlen, const char *op, ngx_int_t *rc)
+{
+	ngx_stream_brix_srv_conf_t *conf;
+
+	conf = ngx_stream_get_module_srv_conf(
+	    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+
+	if (!conf->common.require_pgwrite || wlen == 0
+	    || ctx->files[idx].ssi != NULL)
+	{
+		return 0;
+	}
+
+	brix_log_access(ctx, c, op, ctx->files[idx].path, "-", 0,
+					  kXR_Unsupported,
+					  "cleartext write refused; use pgwrite "
+					  "(brix_require_pgwrite)", 0);
+	BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
+	*rc = brix_send_error(ctx, c, kXR_Unsupported,
+	    "cleartext write refused; use pgwrite (brix_require_pgwrite)");
+	return 1;
+}
+
+/*
  * brix_handle_write — handle kXR_write: write the request payload to an
  * open file at the specified offset.
  *
@@ -247,6 +291,16 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 
 	if (!brix_validate_write_handle(ctx, c, idx, "WRITE",
 									  BRIX_OP_WRITE, &rc)) {
+		return rc;
+	}
+
+	/* INVARIANT 1 / hostile-network integrity: a cleartext kXR_write carries NO
+	 * per-page CRC32c (unlike kXR_pgwrite), so a wire bit-flip past the TCP
+	 * checksum is committed undetected. brix_require_pgwrite lets a deployment
+	 * refuse cleartext data writes on a file handle, forcing clients onto the
+	 * checksummed pgwrite path. SSI (request accumulation, not a file write) and
+	 * zero-length no-ops carry no data to protect and stay exempt. */
+	if (brix_write_require_pgwrite(ctx, c, idx, wlen, "WRITE", &rc)) {
 		return rc;
 	}
 

@@ -245,9 +245,10 @@ int do_tree(brix_conn *c, const char *cwd, int argc, char **argv);
 const xrdfs_cmd * find_command(const char *name);
 
 /* xrdfs.c */
-int dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit);
+int dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit,
+             const char *prog);
 int tokenize(char *line, char **tok, int maxtok);
-int repl(brix_conn *c, const char *host, int port);
-void usage(void);
+int repl(brix_conn *c, const char *host, int port, const char *prog);
+void usage(const char *prog);
 
 #endif /* BRIX_XRDFS_INTERNAL_H */

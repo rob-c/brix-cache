@@ -20,10 +20,10 @@ WHY:  apples-to-apples (anonymous, same file, same fault proxy, same loss grid)
       comparison of how the repo's native client + module hold up under wire loss
       versus the stock XRootD client + server.
 
-HOW:  client -> fault_proxy(lossy pct) -> {nginx|xrootd}. Both servers come up once
+HOW:  client -> brix-fault-proxy(lossy pct) -> {nginx|xrootd}. Both servers come up once
       (anonymous) under /tmp/xrd-resilience; identical content is seeded into both.
       The fault proxy severs the TCP stream with <pct>% probability per 64 KB chunk
-      (application-visible reset — see tests/c/fault_proxy.c). Each copy is bounded
+      (application-visible reset — see client/apps/diag/brix_fault_proxy.c). Each copy is bounded
       by a wall-clock --timeout; a client that can't finish is recorded as a failure.
 
 NOTE: the two clients have different built-in recovery windows (repo: XRDC_MAX_STALL_MS,

@@ -43,6 +43,7 @@ set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 option(BRIX_BUILD_MODULES    "Build the nginx dynamic modules"           ON)
 option(BRIX_BUILD_CLIENT     "Build the native client tools (client/)"   ON)
 option(BRIX_BUILD_CEPH_TOOLS "Build the Ceph migration/rescue tools"     ON)
+option(BRIX_BUILD_COMPAT     "Also produce brix- prefixed compat tools"  OFF)
 
 # Default the install prefix to /usr (not /usr/local) so `make install` lands on
 # the RPM's client-tool paths (/usr/bin, /usr/lib64). Only forced when the user

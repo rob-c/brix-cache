@@ -5,6 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "fs/cache/cache_internal.h"
 #include "wrts_journal.h"
+#include "pgw_fob.h"                 /* kXR_pgwrite CSE close/sync commit gate */
 
 /*
  * brix_handle_sync — sync an open file by handle through the VFS core.
@@ -48,6 +49,22 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 	 * commit is idempotent so a later kXR_close is a no-op. */
 	if (ctx->files[idx].writer != NULL) {
 		int cerr = 0;
+
+		/* INVARIANT 1: the kXR_pgwrite CSE close gate (brix_close_pgw_gate)
+		 * refuses to publish a handle that still holds pages that failed CRC32c.
+		 * A staged commit is an EARLY publish, so it must consult the very same
+		 * Fob gate — otherwise a client could pgwrite a corrupt page (registered
+		 * in the Fob, accept-then-correct) and then kXR_sync to publish the poison
+		 * as complete, sidestepping the close gate entirely. Fail closed. */
+		uint32_t bad = brix_pgw_fob_commit_blocked(&ctx->files[idx]);
+		if (bad > 0) {
+			char emsg[64];
+
+			snprintf(emsg, sizeof(emsg), "%u uncorrected checksum error%s",
+			         bad, bad == 1 ? "" : "s");
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_SYNC, "SYNC",
+							  ctx->files[idx].path, "-", kXR_ChkSumErr, emsg);
+		}
 
 		if (brix_staged_commit_handle(ctx, idx, &cerr) != NGX_OK) {
 			BRIX_RETURN_ERR(ctx, c, BRIX_OP_SYNC, "SYNC",

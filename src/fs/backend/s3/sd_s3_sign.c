@@ -97,22 +97,50 @@ sd_s3_sha256_hex(const void *data, size_t len, char *out /* >=65 */)
     brix_hex_encode(d, 32, out);
 }
 
-/* sd_s3_sign — build the SigV4 x-amz-date / content-sha256 / Authorization header
- * block for `method` on this object (payload = UNSIGNED-PAYLOAD). Ported from
- * xrdc_s3_sign_v4_q; all kernels are shared. 0 / -1. */
+/* sd_s3_sign_ex — build the SigV4 x-amz-date / content-sha256 / Authorization
+ * header block for `method` on this object (payload = UNSIGNED-PAYLOAD), OPTIONALLY
+ * folding one extra signed header `ck_name: ck_val` into the canonical request,
+ * the SignedHeaders list, and the emitted header block. Used to attach an
+ * origin-verifiable body checksum (x-amz-checksum-crc32, base64) on PUT /
+ * UploadPart so the origin itself rejects a wire-corrupted body with BadDigest
+ * (brix_backend_put_checksum, fault-hardening #12). ck_name MUST be a lowercase
+ * header token that sorts AFTER "host" and BEFORE "x-amz-content-sha256"
+ * (x-amz-checksum-* satisfies this) so the fixed canonical ordering below holds.
+ * ck_name==NULL reproduces the plain three-header signature byte-for-byte.
+ * Ported from xrdc_s3_sign_v4_q; all kernels are shared. 0 / -1. */
 int
-sd_s3_sign(const sd_s3_file *f, const char *method, const char *canon_qs,
-           char *hdrs, size_t hdrsz)
+sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs,
+              const char *ck_name, const char *ck_val, char *hdrs, size_t hdrsz)
 {
     const char *payload_hex = "UNSIGNED-PAYLOAD";
     char        host[300];
     char        amzdate[20], datestamp[12];
     char        canon_hex[65], sighex[65];
     char        canon[8192], scope[160], sts[640], enc_uri[2048];
+    char        ck_canon[256], ck_signed[64], ck_emit[256];
     uint8_t     k4[32], sig[32];
     int         cn;
 
     if (canon_qs == NULL) { canon_qs = ""; }
+    if (ck_name != NULL && (ck_val == NULL || ck_val[0] == '\0')) {
+        return -1;                       /* header requested but no value */
+    }
+
+    /* The one optional header is emitted into three renderings: the canonical
+     * "name:value\n" line (folded in sorted order between host and
+     * x-amz-content-sha256), its SignedHeaders token, and the wire header line.
+     * Absent → all three empty, leaving the plain signature unchanged. */
+    if (ck_name != NULL) {
+        cn = snprintf(ck_canon, sizeof(ck_canon), "%s:%s\n", ck_name, ck_val);
+        if (cn < 0 || (size_t) cn >= sizeof(ck_canon)) { return -1; }
+        cn = snprintf(ck_signed, sizeof(ck_signed), "%s;", ck_name);
+        if (cn < 0 || (size_t) cn >= sizeof(ck_signed)) { return -1; }
+        cn = snprintf(ck_emit, sizeof(ck_emit), "%s: %s\r\n", ck_name, ck_val);
+        if (cn < 0 || (size_t) cn >= sizeof(ck_emit)) { return -1; }
+    } else {
+        ck_canon[0] = ck_signed[0] = ck_emit[0] = '\0';
+    }
+
     brix_format_host_port(f->host, (uint16_t) f->port, host, sizeof(host));
     sd_s3_utc_now(amzdate, datestamp);
 
@@ -121,9 +149,10 @@ sd_s3_sign(const sd_s3_file *f, const char *method, const char *canon_qs,
         return -1;
     }
     cn = snprintf(canon, sizeof(canon),
-             "%s\n%s\n%s\nhost:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n\n"
-             "host;x-amz-content-sha256;x-amz-date\n%s",
-             method, enc_uri, canon_qs, host, payload_hex, amzdate, payload_hex);
+             "%s\n%s\n%s\nhost:%s\n%sx-amz-content-sha256:%s\nx-amz-date:%s\n\n"
+             "host;%sx-amz-content-sha256;x-amz-date\n%s",
+             method, enc_uri, canon_qs, host, ck_canon, payload_hex, amzdate,
+             ck_signed, payload_hex);
     if (cn < 0 || (size_t) cn >= sizeof(canon)) {
         return -1;
     }
@@ -148,14 +177,23 @@ sd_s3_sign(const sd_s3_file *f, const char *method, const char *canon_qs,
     brix_hex_encode(sig, 32, sighex);
 
     cn = snprintf(hdrs, hdrsz,
-             "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n"
+             "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n%s"
              "Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, "
-             "SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=%s\r\n",
-             amzdate, payload_hex, f->ak, scope, sighex);
+             "SignedHeaders=host;%sx-amz-content-sha256;x-amz-date, Signature=%s\r\n",
+             amzdate, payload_hex, ck_emit, f->ak, scope, ck_signed, sighex);
     if (cn < 0 || (size_t) cn >= hdrsz) {
         return -1;
     }
     return 0;
+}
+
+/* Plain three-header signature (no body checksum) — the shape every read /
+ * metadata / delete path uses. Thin wrapper over sd_s3_sign_ex. */
+int
+sd_s3_sign(const sd_s3_file *f, const char *method, const char *canon_qs,
+           char *hdrs, size_t hdrsz)
+{
+    return sd_s3_sign_ex(f, method, canon_qs, NULL, NULL, hdrs, hdrsz);
 }
 
 /* Map a non-2xx HTTP status to -1 with a diagnostic; returns -1 always. Sets

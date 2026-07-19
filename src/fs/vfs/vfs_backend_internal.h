@@ -55,6 +55,10 @@ typedef struct {
     char                  origin_s3_access_key[256]; /* §14 S3 SigV4: access-key id */
     char                  origin_s3_secret_key[256]; /* §14 S3 SigV4: secret key    */
     char                  origin_s3_region[64];      /* §14 S3 SigV4: region scope  */
+    int                   origin_put_checksum;       /* #12: s3://...?put_checksum=1 —
+                                                       * sign+send x-amz-checksum-crc32 on
+                                                       * every PUT so the origin rejects a
+                                                       * wire-corrupted upload (BadDigest) */
     char                  origin_sss_keytab[1024];   /* §14 SSS: shared-secret keytab*/
     int                   staging;       /* xroot: stage local + promote on commit */
     /* ceph backend: the export's namespace + data live in a RADOS pool (no local

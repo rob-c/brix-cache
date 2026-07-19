@@ -28,6 +28,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <openssl/evp.h>         /* #12: MD5 + base64 for the Content-MD5 PUT header */
+
+/* #12 outbound integrity: base64(MD5(buf,len)) → out[25] ("" on failure). The
+ * classic RFC 1864 Content-MD5 the origin re-computes over the received body and
+ * rejects on mismatch (400/412) — the outbound analogue of the ingest
+ * s3_content_md5_verify gate. ngx-free (this backend layer builds into
+ * libxrdproto): OpenSSL EVP only, no ngx_* / ngx pool. */
+static void
+sd_http_content_md5(const void *buf, size_t len, char out[25])
+{
+    unsigned char md[EVP_MAX_MD_SIZE];
+    unsigned int  mdlen = 0;
+
+    out[0] = '\0';
+    if (EVP_Digest(buf, len, md, &mdlen, EVP_md5(), NULL) != 1 || mdlen != 16) {
+        return;
+    }
+    EVP_EncodeBlock((unsigned char *) out, md, 16);   /* 16 → 24 chars + NUL */
+}
 
 /* Per-staged-write state: HTTP has no streaming PUT through this transport, so the
  * object is buffered and PUT whole at commit (a remote stage/cache store of typical
@@ -177,6 +196,8 @@ sd_http_staged_commit(brix_sd_staged_t *h, int noreplace)
     brix_s3_resp_t      resp;
     char                  errbuf[256];
     const char           *auth_hdr;
+    const char           *hdrs;
+    char                  hdr_block[SD_HTTP_AUTH_MAX + 64];
     int                   rq;
     ngx_int_t             rc = NGX_OK;
 
@@ -192,16 +213,35 @@ sd_http_staged_commit(brix_sd_staged_t *h, int noreplace)
      * request_cred-capable transport. */
     auth_hdr = ss->auth_hdr[0] ? ss->auth_hdr
                                : (is->auth_hdr[0] ? is->auth_hdr : NULL);
+
+    /* #12 outbound integrity: when put_checksum is on, prepend a Content-MD5 line
+     * (base64 MD5 of the whole staged object) to the header block so the origin
+     * re-computes it over the received body and rejects a wire-corrupted PUT with
+     * 400/412 rather than silently committing poison. The transport splits this
+     * CRLF block into request headers (s3o_build_slist). Off ⇒ the auth header
+     * passes through unchanged (byte-frozen prior behaviour). */
+    hdrs = auth_hdr;
+    if (is->put_checksum) {
+        char md5b64[25];
+
+        sd_http_content_md5(ss->buf, ss->len, md5b64);
+        if (md5b64[0] != '\0') {
+            snprintf(hdr_block, sizeof(hdr_block), "Content-MD5: %s\r\n%s",
+                     md5b64, auth_hdr ? auth_hdr : "");
+            hdrs = hdr_block;
+        }
+    }
+
     if (ss->cert_pem[0] != '\0' && is->transport->request_cred != NULL) {
         rq = is->transport->request_cred(is->tctx, is->eps[0].host,
                                is->eps[0].port, is->eps[0].tls, "PUT",
-                               ss->path, auth_hdr, ss->buf, ss->len,
+                               ss->path, hdrs, ss->buf, ss->len,
                                is->timeout_ms, ss->cert_pem, &resp,
                                errbuf, sizeof(errbuf));
     } else {
         rq = is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
                                is->eps[0].tls, "PUT",
-                               ss->path, auth_hdr,
+                               ss->path, hdrs,
                                ss->buf, ss->len, is->timeout_ms, &resp,
                                errbuf, sizeof(errbuf));
     }

@@ -333,7 +333,7 @@ void watch_sleep(int seconds);
 int do_watch(const diag_args *a);
 
 /* xrddiag.c */
-void usage(void);
+void usage(const char *prog);
 
 /* Absorbed micro-tools (multi-call personalities; see xrddiag.c main).
  * xrdqstats.c / wait41.c / mpxstats.c — former standalone binaries, now

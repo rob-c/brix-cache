@@ -9,6 +9,7 @@
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "net/manager/health_check.h"  /* BRIX_HC_TYPE_* */
 #include "auth/crypto/store_policy.h"  /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* */
+#include "fs/cache/verify.h"           /* BRIX_CACHE_VERIFY_* */
 #include "module_enums.h"
 
 /* [brix_signing_policy on|off|require] — Globus signing_policy enforcement. */
@@ -108,6 +109,20 @@ ngx_conf_enum_t brix_io_uring_modes[] = {
     { ngx_string("on"),   BRIX_IO_URING_ON   },
     { ngx_string("auto"), BRIX_IO_URING_AUTO },
     { ngx_null_string,    0                    }
+};
+
+/* [brix_cache_verify off|best-effort|require] — checksum-on-fill policy for the
+ * read-through cache (stream/root plane). Unlike the HTTP plane (off|cvmfs-cas
+ * only), the root-plane fill carries the origin-digest hook (xroot kXR_Qcksum),
+ * so best-effort/require have teeth here: the staged bytes are checked against
+ * the origin's advertised digest before publish. Writes common.cache_verify_mode
+ * (the field runtime_server_backend maps into brix_cache_policy_t.verify) — NOT
+ * the legacy xcf->cache_verify that fed the retired fetch.c engine. */
+ngx_conf_enum_t brix_cache_verify_modes[] = {
+    { ngx_string("off"),         BRIX_CACHE_VERIFY_OFF        },
+    { ngx_string("best-effort"), BRIX_CACHE_VERIFY_BESTEFFORT },
+    { ngx_string("require"),     BRIX_CACHE_VERIFY_REQUIRE    },
+    { ngx_null_string,           0                            }
 };
 
 /* D-3: per-worker seccomp-BPF syscall filter mode (default off; audit is the

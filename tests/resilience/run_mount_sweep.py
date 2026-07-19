@@ -22,7 +22,7 @@ WHY:  measures how the resilient FUSE driver copes with each condition. Under lo
       bounded by its --max-stall window — so the headline numbers are the success
       rate (does it recover at all?) and the time cost of recovery as loss climbs.
 
-HOW:  client (FUSE) -> fault_proxy(<fault>) -> nginx (root://), on dedicated ports
+HOW:  client (FUSE) -> brix-fault-proxy(<fault>) -> nginx (root://), on dedicated ports
       under /tmp/xrd-resilience, isolated from the main suite. The mount comes up
       on a CLEAN link, then the fault is engaged for the I/O (mirrors
       tests/test_xrootdfs_resilience.py), then cleared and unmounted. Each op runs
@@ -204,7 +204,7 @@ def main():
     if not os.path.isfile(XROOTDFS):
         sys.exit(f"xrootdfs not built: {XROOTDFS}  (make -C client xrootdfs)")
     if not os.path.isfile(servers.FAULT_PROXY):
-        sys.exit(f"fault_proxy not built: {servers.FAULT_PROXY}")
+        sys.exit(f"brix-fault-proxy not built: {servers.FAULT_PROXY}")
     if not os.path.isfile(servers.NGINX_BIN):
         sys.exit(f"nginx not built: {servers.NGINX_BIN}")
 

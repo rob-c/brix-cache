@@ -64,6 +64,7 @@ sd_remote_s3_params(const brix_sd_remote_cfg_t *cfg, const char *objpath,
     p->transport  = cfg->transport;
     p->tctx       = cfg->tctx;
     p->timeout_ms = cfg->timeout_ms;
+    p->put_checksum = cfg->put_checksum;   /* #12: origin-enforced body integrity */
 }
 
 /* ---- sd_remote_cred_gate — classify a per-user credential (P80.3) ---------

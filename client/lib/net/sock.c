@@ -264,6 +264,35 @@ brix_tcp_connect(const char *host, int port, int timeout_ms, brix_status *st)
     return fd;
 }
 
+/* Per-poll wait for a read_full loop that also honours a whole-operation
+ * completion deadline. `deadline_ns` is 0 when the stall guard is disabled; then
+ * the wait is just the idle `timeout_ms`. Otherwise the wait is clamped to the
+ * time left before the deadline, and a zero/negative remainder means the drip
+ * guard has fired (reported as a distinct slow-drip timeout by the caller). */
+static int
+read_wait_ms(int timeout_ms, uint64_t deadline_ns)
+{
+    if (deadline_ns == 0) {
+        return timeout_ms;
+    }
+    {
+        uint64_t now = brix_mono_ns();
+        int64_t  rem_ms;
+
+        if (now >= deadline_ns) {
+            return -1;   /* deadline already passed → slow-drip abort */
+        }
+        rem_ms = (int64_t) ((deadline_ns - now) / 1000000ULL);
+        if (rem_ms <= 0) {
+            return -1;
+        }
+        if (timeout_ms > 0 && (int64_t) timeout_ms < rem_ms) {
+            return timeout_ms;
+        }
+        return (int) rem_ms;
+    }
+}
+
 static int
 plain_read_full(brix_io *io, void *buf, size_t n, brix_status *st)
 {
@@ -271,11 +300,25 @@ plain_read_full(brix_io *io, void *buf, size_t n, brix_status *st)
     int      timeout_ms = io->timeout_ms;
     uint8_t *p          = (uint8_t *) buf;
     size_t   got        = 0;
+    /* Shared absolute cutoff for the whole logical operation (armed by
+     * brix_io_stall_arm around a multi-frame read), NOT recomputed per call —
+     * that is what makes the budget span all of a read's response frames
+     * instead of resetting on each one. 0 = disabled. */
+    uint64_t deadline_ns = io->stall_deadline_ns;
 
     while (got < n) {
         struct pollfd pfd;
         ssize_t       r;
         int           pr;
+        int           wait_ms = read_wait_ms(timeout_ms, deadline_ns);
+
+        if (wait_ms < 0) {
+            brix_status_set(st, XRDC_ESOCK, ETIMEDOUT,
+                            "read exceeded slow-drip deadline "
+                            "(%d ms, got %zu/%zu bytes)",
+                            io->stall_deadline_ms, got, n);
+            return -1;
+        }
 
         pfd.fd = fd;
         pfd.events = POLLIN;
@@ -288,10 +331,19 @@ plain_read_full(brix_io *io, void *buf, size_t n, brix_status *st)
                                 "transfer cancelled (signal)");
                 return -1;
             }
-            pr = poll(&pfd, 1, timeout_ms);
+            pr = poll(&pfd, 1, wait_ms);
         } while (pr < 0 && errno == EINTR);
 
         if (pr == 0) {
+            /* A zero return under an active deadline whose clamp shortened the
+             * wait is the drip guard firing, not an idle-timeout. */
+            if (deadline_ns != 0 && brix_mono_ns() >= deadline_ns) {
+                brix_status_set(st, XRDC_ESOCK, ETIMEDOUT,
+                                "read exceeded slow-drip deadline "
+                                "(%d ms, got %zu/%zu bytes)",
+                                io->stall_deadline_ms, got, n);
+                return -1;
+            }
             brix_status_set(st, XRDC_ESOCK, ETIMEDOUT, "read timed out");
             return -1;
         }
@@ -382,6 +434,24 @@ note_io_failure(brix_io *io, int rc, const brix_status *st)
     if (rc < 0 && st->kxr == XRDC_ESOCK && st->sys_errno != EINTR) {
         brix_netpref_note_wire_error(fd_family(io->fd));
     }
+}
+
+void
+brix_io_stall_arm(brix_io *io)
+{
+    /* Idempotent: only the OUTERMOST arm sets the cutoff, so a logical read that
+     * brackets many read_full calls shares one budget and a nested arm cannot
+     * shorten (reset) it. Disabled (ms<=0) or already armed → no-op. */
+    if (io->stall_deadline_ms > 0 && io->stall_deadline_ns == 0) {
+        io->stall_deadline_ns =
+            brix_mono_ns() + (uint64_t) io->stall_deadline_ms * 1000000ULL;
+    }
+}
+
+void
+brix_io_stall_disarm(brix_io *io)
+{
+    io->stall_deadline_ns = 0;
 }
 
 int

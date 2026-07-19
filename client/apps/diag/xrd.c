@@ -4,6 +4,7 @@
  */
 #include "xrd_internal.h"
 #include "core/version.h"
+#include "core/progname.h"  /* brix_prog_*(): argv[0]-derived identity + exec prefix */
 #include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-command sites */
 #include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
@@ -36,10 +37,10 @@ is_fs_verb(const char *s)
  * WHY: --help (WS-2) goes to stdout; no-arg / unknown-command goes to stderr.
  */
 static void
-usage_fp(FILE *out)
+usage_fp(FILE *out, const char *prog)
 {
     fprintf(out,
-        "usage: xrd <command> [args]\n"
+        "usage: %s <command> [args]\n"
         "  the unified XRootD/WLCG toolkit front-end (~/.xrdrc aliases work everywhere)\n\n"
         "  transfer:\n"
         "    xrd cp [opts] <src>... <dst>     copy (-> xrdcp; supports -r -j --sync --from ...)\n"
@@ -77,38 +78,65 @@ usage_fp(FILE *out)
         "    xrd mount [--legacy] <endpoint> <mountpoint> [fuse-opts]   mount via xrootdfs (--legacy: simple driver)\n"
         "    xrd mount | xrd mounts            list active XRootD FUSE mounts\n"
         "    xrd unmount [-z] <mountpoint>     unmount (fusermount3/fusermount/umount)\n\n"
-        "    xrd version | help\n"
-        BRIX_USAGE_FOOTER("xrd"));
+        "    xrd version | help\n",
+        brix_prog_base(prog));
+    brix_usage_footer(out, prog);
 }
 
 void
-usage(void)
+usage(const char *prog)
 {
-    usage_fp(stderr);
+    usage_fp(stderr, prog);
 }
 
 
-/* Exec `tool` (found next to this binary, else via PATH) with argv. Does not return
- * on success. */
+/* try_exec_dir — execv `<dir>/<name>` if it exists and is executable (no-op on
+ * a NULL dir or a too-long/absent path). Returns only on failure. */
+static void
+try_exec_dir(const char *dir, const char *name, char **argv)
+{
+    char path[PATH_MAX];
+
+    if (dir != NULL
+        && (size_t) snprintf(path, sizeof(path), "%s/%s", dir, name) < sizeof(path)
+        && access(path, X_OK) == 0) {
+        execv(path, argv);
+    }
+}
+
+/*
+ * Exec sibling `tool` (found next to this binary, else via $PATH), honouring the
+ * co-install prefix: invoked as brix-xrd, prefer the brix-<tool> sibling and fall
+ * back to the stock name (so the umbrella works whether or not the compat package
+ * is installed). argv[0] is rewritten to the name actually exec'd so the child
+ * self-identifies correctly. Does not return on success.
+ */
 void
-exec_tool(const char *tool, char **argv)
+exec_tool(const char *prefix, const char *tool, char **argv)
 {
     char    self[PATH_MAX];
-    ssize_t n = readlink("/proc/self/exe", self, sizeof(self) - 1);
+    char    dirbuf[PATH_MAX];
+    char    prefixed[256];
+    char   *dir = NULL;
+    ssize_t n   = readlink("/proc/self/exe", self, sizeof(self) - 1);
 
     if (n > 0) {
-        char  dirbuf[PATH_MAX];
-        char  path[PATH_MAX];
-        char *dir;
         self[n] = '\0';
         snprintf(dirbuf, sizeof(dirbuf), "%s", self);
         dir = dirname(dirbuf);
-        if ((size_t) snprintf(path, sizeof(path), "%s/%s", dir, tool) < sizeof(path)
-            && access(path, X_OK) == 0) {
-            execv(path, argv);
-        }
     }
-    execvp(tool, argv);   /* fall back to $PATH */
+    /* Prefixed sibling first (brix-<tool>): next to this binary, then $PATH. */
+    if (prefix != NULL && prefix[0] != '\0'
+        && (size_t) snprintf(prefixed, sizeof(prefixed), "%s%s", prefix, tool)
+               < sizeof(prefixed)) {
+        argv[0] = prefixed;               /* child self-IDs as brix-<tool> */
+        try_exec_dir(dir, prefixed, argv);
+        execvp(prefixed, argv);
+    }
+    /* Stock name fallback: next to this binary, then $PATH. */
+    argv[0] = (char *) tool;
+    try_exec_dir(dir, tool, argv);
+    execvp(tool, argv);
     fprintf(stderr, "xrd: cannot run %s: %s\n", tool, strerror(errno));
     _exit(127);
 }
@@ -148,8 +176,9 @@ map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch)
 static int
 cmd_version(int argc, char **argv)
 {
-    (void) argc; (void) argv;
-    printf("xrd (BriX-Cache client) %s\n", brix_client_version());
+    (void) argc;
+    printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+           brix_client_version());
     return 0;
 }
 
@@ -162,8 +191,8 @@ cmd_version(int argc, char **argv)
 static int
 cmd_usage_stderr(int argc, char **argv)
 {
-    (void) argc; (void) argv;
-    usage();           /* -h → stderr (C1) */
+    (void) argc;
+    usage(argv[0]);    /* -h → stderr (C1) */
     return 0;
 }
 
@@ -176,8 +205,8 @@ cmd_usage_stderr(int argc, char **argv)
 static int
 cmd_help(int argc, char **argv)
 {
-    (void) argc; (void) argv;
-    usage_fp(stdout);  /* --help/help → stdout (WS-2) */
+    (void) argc;
+    usage_fp(stdout, argv[0]);  /* --help/help → stdout (WS-2) */
     return 0;
 }
 
@@ -190,9 +219,10 @@ cmd_help(int argc, char **argv)
 static int
 cmd_cp(int argc, char **argv)
 {
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     (void) argc;
     argv[1] = (char *) "xrdcp";
-    exec_tool("xrdcp", &argv[1]);
+    exec_tool(pfx, "xrdcp", &argv[1]);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -205,6 +235,7 @@ cmd_cp(int argc, char **argv)
 static int
 cmd_get(int argc, char **argv)
 {
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     char *nv[5];
     int   k = 0;
 
@@ -213,7 +244,7 @@ cmd_get(int argc, char **argv)
     nv[k++] = argv[2];
     nv[k++] = (argc >= 4) ? argv[3] : (char *) ".";
     nv[k] = NULL;
-    exec_tool("xrdcp", nv);
+    exec_tool(pfx, "xrdcp", nv);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -226,6 +257,7 @@ cmd_get(int argc, char **argv)
 static int
 cmd_put(int argc, char **argv)
 {
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     char *nv[4];
 
     if (argc < 4) { fprintf(stderr, "xrd put: needs <localfile> <url>\n"); return 50; }
@@ -233,7 +265,7 @@ cmd_put(int argc, char **argv)
     nv[1] = argv[2];
     nv[2] = argv[3];
     nv[3] = NULL;
-    exec_tool("xrdcp", nv);
+    exec_tool(pfx, "xrdcp", nv);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -246,9 +278,10 @@ cmd_put(int argc, char **argv)
 static int
 cmd_diag(int argc, char **argv)
 {
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     (void) argc;
     argv[1] = (char *) "xrddiag";
-    exec_tool("xrddiag", &argv[1]);
+    exec_tool(pfx, "xrddiag", &argv[1]);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -261,9 +294,10 @@ cmd_diag(int argc, char **argv)
 static int
 cmd_replicas(int argc, char **argv)
 {
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     (void) argc;
     argv[1] = (char *) "xrdmapc";
-    exec_tool("xrdmapc", &argv[1]);
+    exec_tool(pfx, "xrdmapc", &argv[1]);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -278,6 +312,7 @@ cmd_replicas(int argc, char **argv)
 static int
 cmd_sync(int argc, char **argv)
 {
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     char **nv;
     int    k = 0, j;
 
@@ -292,7 +327,7 @@ cmd_sync(int argc, char **argv)
     nv[k++] = (char *) "--sync";
     for (j = 2; j < argc; j++) { nv[k++] = argv[j]; }
     nv[k] = NULL;
-    exec_tool("xrdcp", nv);
+    exec_tool(pfx, "xrdcp", nv);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -322,9 +357,10 @@ cmd_mounts(int argc, char **argv)
 static int
 cmd_storascan(int argc, char **argv)
 {
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     (void) argc;
     argv[0] = (char *) "xrdstorascan";
-    exec_tool("xrdstorascan", argv);
+    exec_tool(pfx, "xrdstorascan", argv);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -472,6 +508,7 @@ static int
 cmd_fs_verb(int argc, char **argv)
 {
     const char *cmd = argv[1];
+    const char *pfx = brix_prog_prefix(brix_prog_base(argv[0]));
     fs_split_t  sp;
     char      **nv;
     int         i, k = 0, split;
@@ -500,7 +537,7 @@ cmd_fs_verb(int argc, char **argv)
         }
     }
     nv[k] = NULL;
-    exec_tool("xrdfs", nv);
+    exec_tool(pfx, "xrdfs", nv);
     return 127;   /* unreachable: exec_tool does not return */
 }
 
@@ -547,7 +584,7 @@ main(int argc, char **argv)
     int         i;
 
     if (argc < 2) {
-        usage();
+        usage(argv[0]);
         return 50;
     }
     cmd = argv[1];
@@ -563,6 +600,6 @@ main(int argc, char **argv)
     }
 
     report_unknown_command(cmd);
-    usage();
+    usage(argv[0]);
     return 50;
 }

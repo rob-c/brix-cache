@@ -17,6 +17,9 @@
 #include "core/compat/sigv4.h"         /* brix_sigv4_signing_key */
 #include "core/compat/uri.h"           /* brix_http_urlencode */
 #include "core/compat/host_format.h"   /* brix_format_host_port */
+#include "core/compat/crc32_ieee.h"    /* brix_crc32_ieee (AWS crc32 = IEEE) */
+
+#include <openssl/evp.h>               /* EVP_EncodeBlock (ngx-free base64) */
 
 #include <errno.h>
 #include <stdarg.h>
@@ -29,6 +32,19 @@
                          * helper is module-only, absent from libxrdproto). */
 
 /* ---- write path: single PUT + multipart upload ----------------------- */
+
+/* sd_s3_ck_crc32 — render the AWS x-amz-checksum-crc32 value for a body: base64
+ * of the 4 big-endian bytes of CRC-32/IEEE (the algorithm AWS/MinIO/radosgw
+ * validate for that header). out must hold >= 9 bytes (8 chars + NUL). #12. */
+static void
+sd_s3_ck_crc32(const void *buf, size_t len, char out[9])
+{
+    uint32_t crc = brix_crc32_ieee((const uint8_t *) buf, len);
+    uint8_t  be[4] = { (uint8_t) (crc >> 24), (uint8_t) (crc >> 16),
+                       (uint8_t) (crc >> 8),  (uint8_t) crc };
+    /* EVP_EncodeBlock writes exactly 8 base64 chars + NUL for a 4-byte input. */
+    EVP_EncodeBlock((unsigned char *) out, be, 4);
+}
 
 /* Extract <tag>…</tag> text from an XML body into out[outsz]. 0 / -1. */
 static int
@@ -92,9 +108,22 @@ sd_s3_mpu_upload_part(sd_s3_file *f, int part_num, const void *data, size_t len,
         sd_s3_set_err(errbuf, errcap, "s3 mpu: canon_qs too long");
         return -1;
     }
-    if (sd_s3_sign(f, "PUT", qs, auth, sizeof(auth)) != 0) {
-        sd_s3_set_err(errbuf, errcap, "s3 UploadPart: sign failed");
-        return -1;
+    {
+        char ck[9];
+        int  sr;
+        /* #12: per-part origin-enforced integrity — each UploadPart carries its
+         * own signed x-amz-checksum-crc32 (S3 validates parts individually). */
+        if (f->put_checksum) {
+            sd_s3_ck_crc32(data, len, ck);
+            sr = sd_s3_sign_ex(f, "PUT", qs, "x-amz-checksum-crc32", ck,
+                               auth, sizeof(auth));
+        } else {
+            sr = sd_s3_sign(f, "PUT", qs, auth, sizeof(auth));
+        }
+        if (sr != 0) {
+            sd_s3_set_err(errbuf, errcap, "s3 UploadPart: sign failed");
+            return -1;
+        }
     }
     if (f->transport->request(f->tctx, f->host, f->port, f->tls, "PUT", wire,
                               auth, data, len, f->timeout_ms, &resp,
@@ -288,7 +317,8 @@ sd_s3_open_write(const sd_s3_open_params *p, int64_t expected_size,
     if (f == NULL) {
         return NULL;
     }
-    f->is_write  = 1;
+    f->is_write     = 1;
+    f->put_checksum = p->put_checksum;   /* #12: origin-enforced body integrity */
     f->part_size = (part_size > 0) ? part_size : (64LL * 1024 * 1024);
 
     if (expected_size <= f->part_size) {
@@ -443,8 +473,19 @@ sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap)
     /* single PUT of the whole buffer */
     {
         char             auth[SD_S3_AUTH_HDRS_CAP];
+        char             ck[9];
         brix_s3_resp_t resp;
-        if (sd_s3_sign(f, "PUT", "", auth, sizeof(auth)) != 0) {
+        int              sr;
+        /* #12: attach a signed x-amz-checksum-crc32 so the origin validates the
+         * body and rejects a wire-corrupted PUT with 400 BadDigest. */
+        if (f->put_checksum) {
+            sd_s3_ck_crc32(f->put_buf, f->put_len, ck);
+            sr = sd_s3_sign_ex(f, "PUT", "", "x-amz-checksum-crc32", ck,
+                               auth, sizeof(auth));
+        } else {
+            sr = sd_s3_sign(f, "PUT", "", auth, sizeof(auth));
+        }
+        if (sr != 0) {
             sd_s3_set_err(errbuf, errcap, "s3 PUT: sign failed");
             return -1;
         }

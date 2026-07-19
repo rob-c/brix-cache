@@ -137,6 +137,10 @@ typedef struct {
     brix_sess_t *sess;      /* outbound lifecycle audit session */
     brix_sess_xfer_t sess_xfer; /* source-side transfer audit record */
     size_t    bytes_written;/* source bytes copied into dst_fd */
+    uint64_t  src_size;     /* authoritative source size from kXR_stat, when known;
+                             * the pull's completion signal (bytes_written must
+                             * match it) instead of the forgeable zero-byte-read EOF */
+    int       src_size_known; /* 1 = src_size was obtained from the source's stat */
     char      err_msg[512]; /* human-readable error detail for logging */
     ngx_uint_t pmark_exp;   /* SciTags experiment id for the outbound flow,    */
     ngx_uint_t pmark_act;   /* and activity id; 0 = not marked (resolved on the */

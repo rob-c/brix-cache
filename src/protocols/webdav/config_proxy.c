@@ -1,18 +1,16 @@
 /*
- * config_proxy.c - WebDAV token-load + upstream-proxy + traffic-mirror merge cluster.
+ * config_proxy.c - WebDAV token-load + traffic-mirror merge cluster.
  *
  * WHAT: the merge-time helpers that load JWKS/multi-issuer token config
- *   (webdav_merge_auth_token_conf), resolve the upstream-proxy backends whether
- *   dynamic-pool or static (webdav_merge_upstream_conf and its helpers), and merge
- *   the Phase-24 traffic-mirror settings then emit the per-endpoint startup summary
- *   (webdav_merge_mirror_and_summary).
- * WHY: split VERBATIM out of config.c to keep each translation unit under the
- *   file-size gate; behaviour is unchanged. The three entrypoints called by the
- *   merge glue in config.c (webdav_merge_auth_token_conf, webdav_merge_upstream_conf,
- *   webdav_merge_mirror_and_summary) are declared in config_internal.h, as are the
- *   summary helpers (webdav_summary_is_new / webdav_log_endpoint_summary) they call
- *   back into.
- * HOW: pure move — same includes, same helpers, same control flow as before.
+ *   (webdav_merge_auth_token_conf) and merge the Phase-24 traffic-mirror settings
+ *   then emit the per-endpoint startup summary (webdav_merge_mirror_and_summary).
+ * WHY: split out of config.c to keep each translation unit under the file-size
+ *   gate. The two entrypoints called by the merge glue in config.c
+ *   (webdav_merge_auth_token_conf, webdav_merge_mirror_and_summary) are declared
+ *   in config_internal.h, as are the summary helpers (webdav_summary_is_new /
+ *   webdav_log_endpoint_summary) they call back into.
+ * NOTE: the WebDAV reverse-proxy transport (brix_webdav_proxy*) was retired; its
+ *   merge helpers were removed with it.
  */
 
 #include "webdav.h"
@@ -20,7 +18,6 @@
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "auth/token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
-#include "proxy_internal.h"
 #include "net/mirror/http_mirror.h"
 #include "core/config/config.h"
 #include "fs/path/path.h"                  /* brix_finalize_{authdb,vo}_rules */
@@ -89,128 +86,6 @@ webdav_merge_auth_token_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *pr
     }
 
 
-    return NGX_CONF_OK;
-}
-
-static char *
-webdav_validate_proxy_token(ngx_conf_t *cf,
-    ngx_http_brix_webdav_loc_conf_t *conf)
-{
-    if (conf->upstream_auth == WEBDAV_PROXY_AUTH_TOKEN
-        && conf->upstream_auth_token.len == 0)
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "brix_webdav_proxy_auth token requires a"
-                           " non-empty token value");
-        return NGX_CONF_ERROR;
-    }
-    return NGX_CONF_OK;
-}
-
-static char *
-webdav_setup_dynamic_proxy_pool(ngx_conf_t *cf,
-    ngx_http_brix_webdav_loc_conf_t *prev,
-    ngx_http_brix_webdav_loc_conf_t *conf)
-{
-    if (webdav_proxy_pool_setup(cf, conf, prev) != NGX_OK) {
-        return NGX_CONF_ERROR;
-    }
-    return webdav_validate_proxy_token(cf, conf);
-}
-
-static void
-webdav_try_inherit_static_backends(ngx_http_brix_webdav_loc_conf_t *prev,
-    ngx_http_brix_webdav_loc_conf_t *conf)
-{
-    if (conf->upstream_urls == NULL && prev->upstream_urls != NULL) {
-        conf->upstream_urls = prev->upstream_urls;
-    }
-    if (conf->upstream_url.len == 0 && prev->upstream_url.len > 0) {
-        conf->upstream_url = prev->upstream_url;
-    }
-    if (prev->upstream_backends == NULL
-        || conf->upstream_urls != prev->upstream_urls
-        || prev->upstream_url.len != conf->upstream_url.len
-        || (conf->upstream_url.len > 0
-            && ngx_memcmp(prev->upstream_url.data, conf->upstream_url.data,
-                          conf->upstream_url.len) != 0))
-    {
-        return;
-    }
-    conf->upstream_backends  = prev->upstream_backends;
-    conf->upstream_resolved  = prev->upstream_resolved;
-    conf->upstream_host      = prev->upstream_host;
-    conf->upstream_url_base  = prev->upstream_url_base;
-    conf->upstream_ssl       = prev->upstream_ssl;
-    conf->upstream_conf      = prev->upstream_conf;
-#if (NGX_HTTP_SSL)
-    conf->upstream_ssl_ctx   = prev->upstream_ssl_ctx;
-#endif
-}
-
-static char *
-webdav_build_static_proxy_backends(ngx_conf_t *cf,
-    ngx_http_brix_webdav_loc_conf_t *prev,
-    ngx_http_brix_webdav_loc_conf_t *conf)
-{
-    static ngx_str_t  webdav_proxy_hide_headers[] = {
-        ngx_null_string
-    };
-    ngx_hash_init_t   hh;
-
-    webdav_try_inherit_static_backends(prev, conf);
-    if (conf->upstream_backends != NULL) {
-        return webdav_validate_proxy_token(cf, conf);
-    }
-
-    if (webdav_proxy_build_backends(cf, conf) != NGX_OK) {
-        return NGX_CONF_ERROR;
-    }
-
-    hh.max_size     = 512;
-    hh.bucket_size  = ngx_align(64, ngx_cacheline_size);
-    hh.name         = "webdav_proxy_hide_headers_hash";
-    hh.pool         = cf->pool;
-    hh.temp_pool    = NULL;
-    if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream_conf,
-            &prev->upstream_conf, webdav_proxy_hide_headers, &hh) != NGX_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
-    return webdav_validate_proxy_token(cf, conf);
-}
-
-char *
-webdav_merge_upstream_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
-    ngx_http_brix_webdav_loc_conf_t *conf)
-{
-    ngx_conf_merge_value(conf->upstream_proxy, prev->upstream_proxy, 0);
-    ngx_conf_merge_str_value(conf->upstream_url, prev->upstream_url, "");
-    ngx_conf_merge_uint_value(conf->upstream_auth, prev->upstream_auth,
-                              WEBDAV_PROXY_AUTH_ANONYMOUS);
-    ngx_conf_merge_str_value(conf->upstream_auth_token,
-                             prev->upstream_auth_token, "");
-    ngx_conf_merge_msec_value(conf->upstream_conf.connect_timeout,
-                              prev->upstream_conf.connect_timeout, 0);
-    ngx_conf_merge_msec_value(conf->upstream_conf.send_timeout,
-                              prev->upstream_conf.send_timeout, 0);
-    ngx_conf_merge_msec_value(conf->upstream_conf.read_timeout,
-                              prev->upstream_conf.read_timeout, 0);
-    ngx_conf_merge_uint_value(conf->upstream_max_fails,
-                              prev->upstream_max_fails, 3);
-    ngx_conf_merge_msec_value(conf->upstream_fail_timeout,
-                              prev->upstream_fail_timeout, 30000);
-    ngx_conf_merge_value(conf->proxy_pool_enabled, prev->proxy_pool_enabled, 0);
-
-    if (!conf->upstream_proxy) {
-        return NGX_CONF_OK;
-    }
-    if (conf->proxy_pool_enabled) {
-        return webdav_setup_dynamic_proxy_pool(cf, prev, conf);
-    }
-    if (conf->upstream_backends == NULL) {
-        return webdav_build_static_proxy_backends(cf, prev, conf);
-    }
     return NGX_CONF_OK;
 }
 

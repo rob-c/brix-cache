@@ -171,30 +171,6 @@ typedef struct {
     ngx_flag_t              open_file_cache_errors;
     ngx_flag_t              open_file_cache_events;
 
-    /* --- Upstream HTTP(S) proxy --- */
-    ngx_flag_t                    upstream_proxy;      /* brix_webdav_proxy on/off */
-    ngx_str_t                     upstream_url;        /* brix_webdav_proxy_upstream URL */
-    ngx_str_t                     upstream_host;       /* host[:port] for Host: header */
-    ngx_str_t                     upstream_url_base;   /* scheme://host:port */
-    ngx_uint_t                    upstream_auth;       /* webdav_proxy_auth_t */
-    ngx_str_t                     upstream_auth_token; /* Bearer token value (TOKEN mode) */
-    ngx_flag_t                    upstream_ssl;        /* 1 if https:// upstream */
-    ngx_http_upstream_conf_t      upstream_conf;       /* timeouts, buffer_size, etc. */
-    ngx_http_upstream_resolved_t *upstream_resolved;   /* pre-resolved address (backend[0]) */
-#if (NGX_HTTP_SSL)
-    ngx_ssl_t                    *upstream_ssl_ctx;    /* SSL context for https upstream */
-#endif
-
-    /* ---- Phase 21 Step D: multi-backend proxy (round-robin + health) ---- */
-    ngx_array_t                  *upstream_urls;       /* ngx_str_t[] from the directive */
-    ngx_array_t                  *upstream_backends;   /* brix_webdav_backend_t[] */
-    ngx_atomic_t                  upstream_rr;         /* per-worker round-robin cursor */
-    ngx_uint_t                    upstream_max_fails;  /* [brix_webdav_proxy_max_fails N] */
-    ngx_msec_t                    upstream_fail_timeout; /* [..._proxy_fail_timeout Ns] */
-
-    /* ---- Phase 23: dynamic SHM backend pool (runtime add/remove/drain) ---- */
-    ngx_flag_t                    proxy_pool_enabled;  /* [brix_webdav_proxy_dynamic on] */
-
     /* ---- Phase 20: shared-memory caches & rate limiting ---- */
     brix_kv_t                  *token_cache_kv; /* [brix_token_cache zone=]
                                                      JWT validation cache (L2/SHM); NULL = off */
@@ -237,6 +213,13 @@ typedef struct {
      * sender's CC governs download throughput, and BBR ignores the spurious loss
      * signals packet reordering induces. [brix_tcp_congestion] */
     ngx_str_t                 tcp_congestion;
+
+    /* Client->server PUT ingest integrity: when on, a PUT that carries no usable
+     * ingest digest (RFC-3230 Digest / legacy Content-MD5) is refused, for
+     * deployments that decline writes they cannot verify.  Default off.  A digest
+     * that IS present is always verified over the staged bytes before commit,
+     * regardless of this flag.  Placed last to keep the struct's ABI stable. */
+    ngx_flag_t                require_digest;
 } ngx_http_brix_webdav_loc_conf_t;
 
 #endif /* NGX_HTTP_BRIX_WEBDAV_LOC_CONF_H */

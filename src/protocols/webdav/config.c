@@ -13,7 +13,6 @@
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "auth/token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
-#include "proxy_internal.h"
 #include "net/mirror/http_mirror.h"
 #include "core/config/config.h"
 #include "fs/path/path.h"                  /* brix_finalize_{authdb,vo}_rules */
@@ -140,6 +139,7 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->token_clock_skew = NGX_CONF_UNSET;
     conf->macaroon_max_validity = NGX_CONF_UNSET;
     conf->dig_enable = NGX_CONF_UNSET;
+    conf->require_digest = NGX_CONF_UNSET;
     conf->delegation_endpoint = NGX_CONF_UNSET;
     conf->dig_exports = NGX_CONF_UNSET_PTR;
     conf->authdb_rules = NGX_CONF_UNSET_PTR;   /* created on first brix_webdav_authdb */
@@ -152,25 +152,6 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->open_file_cache_errors = NGX_CONF_UNSET;
     conf->open_file_cache_events = NGX_CONF_UNSET;
     ngx_http_brix_webdav_tpc_create_loc_conf(conf);
-
-    conf->upstream_proxy    = NGX_CONF_UNSET;
-    conf->proxy_pool_enabled = NGX_CONF_UNSET;
-    conf->upstream_auth     = (ngx_uint_t) NGX_CONF_UNSET_UINT;
-    conf->upstream_resolved = NULL;
-    conf->upstream_conf.connect_timeout = NGX_CONF_UNSET_MSEC;
-    conf->upstream_conf.send_timeout    = NGX_CONF_UNSET_MSEC;
-    conf->upstream_conf.read_timeout    = NGX_CONF_UNSET_MSEC;
-    /* Required by ngx_http_upstream_hide_headers_hash() (built in merge); an
-     * uninitialised hide_headers_hash makes nginx divide by zero in
-     * ngx_http_upstream_process_headers on the first backend response. */
-    conf->upstream_conf.hide_headers = NGX_CONF_UNSET_PTR;
-    conf->upstream_conf.pass_headers = NGX_CONF_UNSET_PTR;
-
-    /* Phase 21 Step D: multi-backend proxy. */
-    conf->upstream_urls          = NULL;
-    conf->upstream_backends      = NULL;
-    conf->upstream_max_fails     = NGX_CONF_UNSET_UINT;
-    conf->upstream_fail_timeout  = NGX_CONF_UNSET_MSEC;
 
     /* Phase 20 caches/limits: kv == NULL means disabled (pcalloc zeroed). */
     conf->token_cache_kv   = NULL;
@@ -285,12 +266,6 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
             "brix:   third-party copy (TPC COPY) enabled");
     }
-    if (conf->upstream_proxy) {
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "brix:   mode: proxy — forwards to backend \"%V\"",
-            &conf->upstream_url);
-    }
-
     webdav_log_endpoint_warnings(cf, conf, has_x509, has_token, has_pwd);
 }
 
@@ -320,7 +295,7 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
      * webdav_validate_auth_paths() — a single audit point, not a second warning
      * here. */
     if (conf->auth == WEBDAV_AUTH_REQUIRED && !has_x509 && !has_token
-        && !has_pwd && !conf->upstream_proxy)
+        && !has_pwd)
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: auth is required but no x509 CA, token JWKS or "
@@ -344,9 +319,6 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
         return NGX_CONF_ERROR;
     }
     if (webdav_merge_auth_token_conf(cf, prev, conf) != NGX_CONF_OK) {
-        return NGX_CONF_ERROR;
-    }
-    if (webdav_merge_upstream_conf(cf, prev, conf) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
     if (webdav_merge_mirror_and_summary(cf, prev, conf) != NGX_CONF_OK) {

@@ -277,7 +277,8 @@ brix_ftp_ev_handler(ngx_stream_session_t *s)
     fc->c       = c;
     fc->conf    = conf;
     fc->state   = FTP_EV_ST_CMD;
-    fc->pasv_fd = -1;
+    fc->pasv_fd   = -1;
+    fc->allo_size = -1;                        /* no ALLO declared yet         */
     fc->prot    = 'C';
     fc->cwd[0]  = '/';
     fc->cwd[1]  = '\0';

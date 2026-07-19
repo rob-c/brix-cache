@@ -580,7 +580,16 @@ origin_cksum_split(const u_char *body, char *alg_out, size_t alg_sz,
  * origin with no checksum or a wire hiccup must NOT fail an otherwise-complete
  * fill (data is already on disk) — on ANY failure it restores t's error state
  * and returns 0 with out->alg emptied, so the caller treats it as "no origin
- * digest" and the verify policy decides. */
+ * digest" and the verify policy decides.
+ *
+ * WAITRESP: a real origin usually does NOT have the digest cached at fill time —
+ * it computes it on demand and PARKS the query with kXR_waitresp, then delivers
+ * the answer as an unsolicited kXR_attn(kXR_asynresp) frame (exactly what a stock
+ * XRootD client absorbs transparently). We follow that handshake for a bounded
+ * number of hops so the common lazy-checksum origin still yields a digest for
+ * verify=require, while a hostile origin that streams frames forever cannot wedge
+ * the fill thread — each recv is bounded by the origin socket timeout and the hop
+ * count caps the exchange. Unrelated async pushes (kXR_asyncms) are skipped. */
 int
 brix_cache_origin_query_checksum(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const brix_cache_cksum_out_t *out)
@@ -589,6 +598,7 @@ brix_cache_origin_query_checksum(brix_cache_fill_t *t,
     uint32_t  dlen;
     u_char   *body;
     int       saved_result, saved_xrd;
+    int       hops;
 
     if (out->alg_sz > 0) {
         out->alg[0] = '\0';
@@ -606,23 +616,70 @@ brix_cache_origin_query_checksum(brix_cache_fill_t *t,
         return 0;
     }
 
-    body = NULL;
-    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 512) != 0) {
-        t->result    = saved_result;
-        t->xrd_error = saved_xrd;
+    for (hops = 0; hops < 8; hops++) {
+        body = NULL;
+        if (brix_cache_read_response(t, oc, &status, &body, &dlen, 512) != 0) {
+            t->result    = saved_result;
+            t->xrd_error = saved_xrd;
+            return 0;
+        }
+
+        if (status == kXR_waitresp) {
+            free(body);      /* body = advised seconds; the answer frame follows */
+            continue;
+        }
+
+        if (status == kXR_attn) {
+            /* kXR_attn asynresp body layout (opcodes.h):
+             *   actnum[4] reserved[4] ServerResponseHdr[8] response[inner_dlen] */
+            uint32_t  actnum;
+            uint16_t  inner_status;
+            uint32_t  inner_dlen;
+
+            if (body == NULL || dlen < 16) {
+                free(body);
+                return 0;
+            }
+            actnum = xrd_get_u32_be(body);
+            if (actnum != (uint32_t) kXR_asynresp) {
+                free(body);                 /* asyncms / other push — keep going */
+                continue;
+            }
+            xrd_resp_hdr_unpack(body + 8, NULL, &inner_status, &inner_dlen);
+            if (inner_status != kXR_ok || inner_dlen == 0
+                || (size_t) 16 + inner_dlen > (size_t) dlen)
+            {
+                free(body);                 /* deferred result was not a digest */
+                return 0;
+            }
+            /* NUL-terminate the inner payload before the split (read_response
+             * over-allocated dlen+1, and 16+inner_dlen <= dlen, so this index is
+             * in bounds). */
+            body[16 + inner_dlen] = '\0';
+            origin_cksum_split(body + 16, out->alg, out->alg_sz,
+                               out->hex, out->hex_sz);
+            free(body);
+            return 0;
+        }
+
+        if (status == kXR_ok) {
+            if (body == NULL || dlen == 0) {
+                free(body);
+                return 0;
+            }
+            /* body is NUL-terminated "<algo> <hexvalue>". */
+            origin_cksum_split(body, out->alg, out->alg_sz,
+                               out->hex, out->hex_sz);
+            free(body);
+            return 0;
+        }
+
+        /* kXR_error or any other status: origin has no usable checksum. */
+        free(body);
         return 0;
     }
 
-    if (status != kXR_ok || body == NULL || dlen == 0) {
-        free(body);                             /* origin has no checksum */
-        return 0;
-    }
-
-    /* body is NUL-terminated "<algo> <hexvalue>". */
-    origin_cksum_split(body, out->alg, out->alg_sz, out->hex, out->hex_sz);
-
-    free(body);
-    return 0;
+    return 0;   /* too many hops — treat as no origin digest (verify decides) */
 }
 
 

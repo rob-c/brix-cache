@@ -102,9 +102,10 @@ client runtime into a deployment.
 | `xrdsssadmin-brix` | Manage SSS keytabs | Creates/lists/deletes shared-secret entries with mode-0600 keytab writes. |
 | `xrootdfs` | Network-resilient FUSE filesystem | Async/pipelined mount over `root://` or http(s)/WebDAV with reconnect, retry, heartbeat, and open-file resumption. A `--legacy` flag selects a simple synchronous fallback mode (root:// only). |
 | `libxrdposix_preload.so` | LD_PRELOAD read path for legacy POSIX tools | Maps paths under `$BRIX_VMP` to a `root://` export through `libxrdc`; first cut is read-oriented. |
+| `brix-fault-proxy` | Root-free TCP fault-injection proxy | Relays a TCP stream to an upstream and injects per-direction latency, jitter, partial writes, bandwidth caps, resets, **payload corruption**, duplication, deterministic mid-transfer truncation, connection black-holes, and outages — set at startup or live over an (unauthenticated, loopback-by-default) control port, with live traffic/fault counters. Standalone; no `libXrdCl`/`libbrix`. See [Network Resilience](#network-resilience). |
 
 Test and development binaries also exist under `client/tests` or the build
-output: `aio_smoke`, `aio_resil`, `aio_mfile`, and `fault_proxy`.
+output: `aio_smoke`, `aio_resil`, and `aio_mfile`.
 
 ## `xrdcp`
 
@@ -329,6 +330,68 @@ resets, or hangs connections half-open. Several layers cooperate:
 
 Tighten `--connect-timeout` / `XRDC_CONNECT_TIMEOUT_MS` when a known-bad firewall
 makes the handshake hang, so failures are detected and retried in seconds.
+
+### `brix-fault-proxy` — the fault injector
+
+The resilience above is proven with `brix-fault-proxy`, a small, dependency-free
+TCP proxy that reproduces a hostile network **without root** — unlike `tc`/`netem`
+(which needs `CAP_NET_ADMIN`), it is pure userspace sockets. Splice it in front of
+any `root://`, HTTP, or WebDAV endpoint, point the client at the proxy, and pull
+fault levers either at startup or live over a control port while traffic flows:
+
+```
+# Relay to an upstream cache; control plane on 11941
+brix-fault-proxy --listen 11940 --target cache.example:1094 --control 11941
+
+# Or the positional shorthand: LISTEN TARGET_HOST TARGET_PORT CONTROL
+brix-fault-proxy 11940 cache.example 1094 11941
+
+# Tamper the download path only (MITM bit-flips), live mid-transfer
+printf 'corrupt 0.01 down\n' | nc -q1 127.0.0.1 11941
+```
+
+**Directionality.** Every byte-level lever is per-direction: `up` = client→upstream
+(request/upload), `down` = upstream→client (response/download). A command with no
+direction token applies to both; append `up`, `down`, or `both` to target one way.
+
+Levers (each off by default; set with the matching `--flag` at startup or as a
+newline command on the control port):
+
+- **Timing / bandwidth:** `latency <ms>`, `jitter <ms>`, `chunk <bytes>` (force
+  partial reads / split PDUs), `drip <bytes> <ms>` (slow stream), `rate <kbps>`
+  (bandwidth ceiling).
+- **Loss / tamper:** `lossy <pct>` (sever = application-visible reset),
+  `reorder <pct> [ms]` (hold a fraction of chunks back), `corrupt <pct>` (flip a
+  bit in that % of bytes — a real MITM tamper a checksum must catch),
+  `dup <pct>` (deliver a chunk twice).
+- **Deterministic triggers:** `truncate-at <bytes>` (cut a transfer at an exact
+  offset — e.g. a download dying at 50%), `fail-nth <n>` (fail exactly the Nth
+  connection), `heal-after <ms>` (transient fault window), `one-shot` (self-heal
+  the instant a sever fires).
+- **Connection control:** `drop` (graceful-FIN sever), `reset` (abortive-RST sever),
+  `half-close` (FIN one direction, keep the other), `hang`/`unhang` (accept-but-
+  black-hole), `block`/`unblock` (outage), `clear`, `status` (levers **plus live
+  traffic/fault counters** — connections, bytes each way, severs, corruptions).
+
+Startup flags mirror these, plus `--seed N` (reproducible probabilistic faults),
+`--max-conns N` (concurrency cap), `--script FILE` (replay a `<seconds> <command>`
+timeline), and repeatable/comma-listed `--target` for round-robin with
+per-connection failover. `--bind` accepts IPv4 or IPv6 literals.
+
+Two modelling choices matter. Packet **loss** is a connection *sever*, not byte
+drops: removing bytes from an already-ACKed TCP stream would corrupt it rather
+than emulate loss (which lives below TCP). True out-of-order **packet** delivery
+likewise can't be emulated by reordering bytes — TCP reassembles segments in
+order below the proxy — so what IP reordering does to an application, added
+variable latency, is what `jitter`/`reorder` inject. `corrupt`, by contrast, **is**
+a real in-band byte mutation — exactly what an on-path attacker (or a flaky NIC
+past the TCP checksum) does, and what an application-layer checksum exists to catch.
+
+**Security.** The control port is *unauthenticated* — anyone who can reach it can
+pull the levers and reset live connections. Both sockets therefore bind to
+`127.0.0.1` by default; a non-loopback `--bind` is refused unless `--insecure-bind`
+is also given (and even then warns). Never expose the control port to an untrusted
+network. Full reference: `brix-fault-proxy --help` and `man brix-fault-proxy`.
 
 ## Environment Variables
 

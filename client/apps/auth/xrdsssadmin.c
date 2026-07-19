@@ -16,6 +16,7 @@
 #include "brix.h"
 #include "auth/sss/sss_keytab.h"
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -27,10 +28,10 @@
 #include <openssl/rand.h>
 
 static void
-usage_fp(FILE *out)
+usage_fp(FILE *out, const char *prog)
 {
     fprintf(out,
-        "usage: xrdsssadmin-brix [-k/--keytab keytab] <command> [opts]\n"
+        "usage: %s [-k/--keytab keytab] <command> [opts]\n"
         "  commands:\n"
         "    add        mint a new random key and append it\n"
         "    install    same as add (creates the keytab if absent)\n"
@@ -42,14 +43,15 @@ usage_fp(FILE *out)
         "    --lifetime DAYS                 --keylen BYTES (default 32)\n"
         "  -k, --keytab defaults to $XRDC_SSS_KEYTAB / $XrdSecSSSKT / $XrdSecsssKT /\n"
         "               ~/.xrd/sss.keytab\n"
-        "  --version  print version and exit\n"
-        BRIX_USAGE_FOOTER("xrdsssadmin-brix"));
+        "  --version  print version and exit\n",
+        brix_prog_base(prog));
+    brix_usage_footer(out, prog);
 }
 
 static void
-usage(void)
+usage(const char *prog)
 {
-    usage_fp(stderr);
+    usage_fp(stderr, prog);
 }
 
 /* Load the keytab, tolerating a not-yet-existing file (treated as empty). */
@@ -366,12 +368,12 @@ parse_opts(int argc, char **argv, cli_opts_t *o, int *stop)
         if (s != NULL && i + 1 < argc) {
             apply_opt(o, s, argv[++i]);
         } else if (strcmp(a, "-h") == 0) {
-            usage(); *stop = 1; return 0;  /* C1 */
+            usage(argv[0]); *stop = 1; return 0;  /* C1 */
         } else if (a[0] != '-' && o->cmd == NULL) {
             o->cmd = a;
         } else {
             fprintf(stderr, "xrdsssadmin-brix: unexpected arg '%s'\n", a);
-            usage(); *stop = 1; return 2;
+            usage(argv[0]); *stop = 1; return 2;
         }
     }
     return 0;
@@ -388,7 +390,7 @@ parse_opts(int argc, char **argv, cli_opts_t *o, int *stop)
  *        unknown-command error + usage and return 2 (unchanged behavior).
  */
 static int
-dispatch_cmd(const cli_opts_t *o, const char *keytab)
+dispatch_cmd(const cli_opts_t *o, const char *keytab, const char *prog)
 {
     add_args_t add = o->add;
     add.want_id = o->id;
@@ -403,7 +405,7 @@ dispatch_cmd(const cli_opts_t *o, const char *keytab)
         return cmd_del(keytab, o->id);
     }
     fprintf(stderr, "xrdsssadmin-brix: unknown command '%s'\n", o->cmd);
-    usage();
+    usage(prog);
     return 2;
 }
 
@@ -417,11 +419,12 @@ main(int argc, char **argv)
     /* --help / --version before loop (not on shared parser). */
     if (argc >= 2) {
         if (strcmp(argv[1], "--version") == 0) {
-            printf("xrdsssadmin-brix (BriX-Cache client) %s\n", brix_client_version());
+            printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+                   brix_client_version());
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0) {
-            usage_fp(stdout);
+            usage_fp(stdout, argv[0]);
             return 0;
         }
     }
@@ -432,7 +435,7 @@ main(int argc, char **argv)
     }
 
     if (o.cmd == NULL) {
-        usage();
+        usage(argv[0]);
         return 2;
     }
     if (o.keytab == NULL) {
@@ -440,5 +443,5 @@ main(int argc, char **argv)
         o.keytab = kt;
     }
 
-    return dispatch_cmd(&o, o.keytab);
+    return dispatch_cmd(&o, o.keytab, argv[0]);
 }

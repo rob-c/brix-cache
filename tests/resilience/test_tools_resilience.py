@@ -10,7 +10,7 @@ WHY:  proves the resilient seam (client/lib/resilient.c) reaches all tools:
       streaming via brix_rfile, metadata via the baked brix_roundtrip_resilient /
       brix_with_resilience, xrdcp via its own copy.c loop.
 
-HOW:  client -> fault_proxy(lossy) -> dedicated nginx (GSI, port 13901), isolated
+HOW:  client -> brix-fault-proxy(lossy) -> dedicated nginx (GSI, port 13901), isolated
       from the main suite. Metadata ops are tiny (few frames) so a high loss rate
       is used to make a sever likely; streaming uses a moderate rate. A wide
       window is given since each recovery pays a re-handshake.
@@ -40,7 +40,7 @@ def _why_skip():
     if not os.path.isfile(servers.NGINX_BIN):
         return f"nginx not built: {servers.NGINX_BIN}"
     if not os.path.isfile(servers.FAULT_PROXY):
-        return f"fault_proxy not built: {servers.FAULT_PROXY}"
+        return f"brix-fault-proxy not built: {servers.FAULT_PROXY}"
     if not os.path.isfile(servers.XRDCP):
         return f"xrdcp not built: {servers.XRDCP}"
     return None

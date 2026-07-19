@@ -148,9 +148,9 @@ LIBEXECDIR ?= $(PREFIX)/libexec/brix
 
 # All compiled executables land under bin/ (keeps the source tree clean — the whole
 # dir is git-ignored). Libraries (.a/.so/.pc) stay in the build root. The bare names
-# (xrd, xrdcp, fault-proxy, …) remain valid `make` targets via phony aliases below,
-# so `make xrdcp` / `make -C client fault-proxy` keep working; the artifact is
-# bin/<name>.
+# (xrd, xrdcp, brix-fault-proxy, …) remain valid `make` targets via phony aliases
+# below, so `make xrdcp` / `make -C client brix-fault-proxy` keep working; the
+# artifact is bin/<name>.
 BINDIR := bin
 
 # Every binary is a thin front-end: apps/<family>/<name>.o + the client lib + libxrdproto.
@@ -167,6 +167,12 @@ BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
 CKSUM_LINKS := xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo
 DIAG_LINKS  := xrdqstats wait41-brix mpxstats-brix
 LINK_EXES   := $(addprefix $(BINDIR)/,$(CKSUM_LINKS) $(DIAG_LINKS))
+
+# brix-fault-proxy: a shipped, first-class tool but STANDALONE — it links no
+# client lib (pure pthread + sockets), so it can't ride the BIN_EXES static-
+# pattern link rule. It has its own build rule (below) and its own install line,
+# yet is built by default (`all`), installed, and carries a man page + completion.
+STANDALONE_EXES := $(BINDIR)/brix-fault-proxy
 
 # §14.4: the FUSE mount + the LD_PRELOAD POSIX shim are built only when libfuse3
 # is present. They are NOT in BINS (they need extra flags / a separate link rule).
@@ -209,6 +215,40 @@ OPT_EXES += $(CEPH_EXES)
 CEPH_TOOL_NAMES := xrdrados_rescue xrdcephfs_rescue xrdceph_migrate \
                    xrdceph_striper_migrate xrdceph_cephfs_to_striper
 
+# ---------------------------------------------------------------------------
+# brix-cache-client-compat: the SAME name-agnostic binaries, presented under a
+# "brix-" prefix so they co-install with the official xrootd client tools
+# (which own /usr/bin/xrdcp, xrdfs, …). Each tool self-identifies from argv[0]
+# (lib/core/progname.h), so a prefixed install name — or a symlink — needs no
+# second compile: this is the git/busybox model, one build, zero drift.
+#
+# compat_name maps a stock tool/man base name to its compat spelling: drop a
+# trailing "-brix" (the suffix existed only to dodge a stock /usr/bin name, which
+# the prefix now does), then ensure exactly one leading "brix-". Idempotent for
+# names already carrying the prefix (brix-fault-proxy, brix-env stay verbatim).
+# The literal "brix-" is deliberately not a knob: it must match the compile-time
+# BRIX_COMPAT_PREFIX in lib/core/progname.h that the tools strip at run time to
+# route personalities, so a configurable prefix would only ever build broken.
+compat_name = $(patsubst brix-brix-%,brix-%,brix-$(patsubst %-brix,%,$(1)))
+
+# src-bin-name:compat-install-name pairs (real binary copies; FUSE excluded — the
+# FUSE mounts are never prefixed). brix-fault-proxy is intentionally NOT here: it
+# is a brix-original tool that already carries the prefix and collides with no
+# stock name, so the base brix-cache-client package owns it — duplicating it in
+# compat would add nothing.
+COMPAT_BIN_PAIRS  := $(foreach b,$(BINS),$(b):$(call compat_name,$(b)))
+# Multi-call personality link names under the prefix (targets: the compat
+# dispatchers brix-xrdcksum / brix-xrddiag). Dispatch strips "brix-" at run time.
+COMPAT_CKSUM_LINKS := $(foreach l,$(CKSUM_LINKS),$(call compat_name,$(l)))
+COMPAT_DIAG_LINKS  := $(foreach l,$(DIAG_LINKS),$(call compat_name,$(l)))
+# Ceph operator tools (only those actually built are installed — see the -e guard).
+COMPAT_CEPH_PAIRS  := $(foreach c,$(CEPH_TOOL_NAMES),$(c):$(call compat_name,$(c)))
+# Bash-completion recipients (non-FUSE base tools; personalities inherit nothing
+# extra, matching install-completions).
+COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsiproxy \
+                             xrddiag xrdmapc xrdgsitest xrdsssadmin-brix xrdstorascan \
+                             $(CEPH_TOOL_NAMES),$(call compat_name,$(n)))
+
 # phase-69: apps regrouped into tool-family subdirs — each CLI's translation units
 # are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
 # entries). The single link rule below expands these via .SECONDEXPANSION.
@@ -229,8 +269,8 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin install-man install-completions install-automount example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
-all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES)
+.PHONY: all proto clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
+all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
 # this, GNU make auto-deletes them after `make all`, so a later `make <tool>` must
@@ -457,16 +497,21 @@ aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
 	@echo " + built $(BINDIR)/aio_waitresp (no libXrdCl/libXrdSec*)"
 
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
-.PHONY: aio-mfile fault-proxy
+.PHONY: aio-mfile brix-fault-proxy
 aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) ../tests/c/aio_mfile.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_mfile
 	@echo " + built $(BINDIR)/aio_mfile (no libXrdCl/libXrdSec*)"
 
-# M6 root-free TCP fault-injection proxy (latency/drop/outage) for the resilience
-# pytest. Standalone — no libbrix needed.
-fault-proxy: ../tests/c/fault_proxy.c | $(BINDIR)
-	$(CC) -std=c11 -O2 -pthread ../tests/c/fault_proxy.c -o $(BINDIR)/fault_proxy
-	@echo " + built $(BINDIR)/fault_proxy"
+# brix-fault-proxy — root-free TCP fault-injection proxy ("toxiproxy-lite") for
+# the resilience suites and field debugging. A first-class shipped tool, but
+# STANDALONE (links no libbrix — pure pthread + sockets), so it gets its own rule
+# rather than riding the BIN_EXES pattern. Compiled with the house hardening
+# flags; pulls only lib/core/version.h for --version. Bare name `make
+# brix-fault-proxy` builds the artifact via the phony alias above.
+brix-fault-proxy: $(BINDIR)/brix-fault-proxy
+$(BINDIR)/brix-fault-proxy: apps/diag/brix_fault_proxy.c lib/core/version.h | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/diag/brix_fault_proxy.c -o $@
+	@echo " + built $@ (standalone; no libbrix)"
 
 # IPv6→IPv4 auto-downgrade test (netpref.c) + its getaddrinfo LD_PRELOAD shim.
 # Run: ./bin/netfb_test state ; LD_PRELOAD=./bin/gai_shim.so ./bin/netfb_test connect
@@ -537,10 +582,10 @@ install: lib
 
 # Install the CLI binaries, optional FUSE/preload artifacts, completions, and
 # all man pages (build them first).
-install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) install-completions
+install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES) install-completions
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1 \
 	           $(DESTDIR)$(PREFIX)/share/man/man7 $(DESTDIR)$(LIBDIR)
-	install -m755 $(BIN_EXES) $(DESTDIR)$(PREFIX)/bin/
+	install -m755 $(BIN_EXES) $(STANDALONE_EXES) $(DESTDIR)$(PREFIX)/bin/
 	for l in $(CKSUM_LINKS); do ln -sf xrdcksum $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for e in $(OPT_EXES); do [ -f $$e ] && install -m755 $$e $(DESTDIR)$(PREFIX)/bin/ || true; done
@@ -572,12 +617,86 @@ install-completions:
 	install -d $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
 	           $(DESTDIR)$(PREFIX)/share/zsh/site-functions
 	for n in xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrootdfs \
+	         brix-fault-proxy \
 	         xrdceph_striper_migrate xrdceph_cephfs_to_striper xrdrados_rescue xrdcephfs_rescue xrdceph_migrate; do \
 		install -m644 completions/brix-tools.bash \
 			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \
 	done
 	install -m644 completions/_brix-client \
 		$(DESTDIR)$(PREFIX)/share/zsh/site-functions/_brix-client
+
+# ---------------------------------------------------------------------------
+# brix-cache-client-compat build target: materialise the "brix-"-prefixed names
+# as in-tree symlinks to the real, name-agnostic binaries. This is the official
+# build target CI / the compat tests use to invoke the prefixed tools without a
+# second compile (the binaries derive their identity from argv[0]). FUSE mounts
+# are never prefixed.
+compat: all
+	@for p in $(COMPAT_BIN_PAIRS); do \
+		src=$${p%%:*}; dst=$${p##*:}; \
+		[ "$$src" = "$$dst" ] || ln -sf $$src $(BINDIR)/$$dst; \
+	done
+	@for l in $(COMPAT_CKSUM_LINKS); do ln -sf xrdcksum $(BINDIR)/$$l; done
+	@for l in $(COMPAT_DIAG_LINKS);  do ln -sf xrddiag  $(BINDIR)/$$l; done
+	@for p in $(COMPAT_CEPH_PAIRS); do \
+		src=$${p%%:*}; dst=$${p##*:}; \
+		[ -e $(BINDIR)/$$src ] && ln -sf $$src $(BINDIR)/$$dst || true; \
+	done
+
+# ---------------------------------------------------------------------------
+# Install the compat flavour: the SAME binaries under "brix-" names, prefixed
+# multi-call personality symlinks (whose targets are the prefixed dispatchers),
+# prefixed man pages (with the .so redirect stubs retargeted), and prefixed bash
+# completions. Paths are disjoint from install-bin (the prefix guarantees it), so
+# both packages' files coexist in one buildroot. FUSE artifacts are excluded.
+install-compat: $(BIN_EXES) $(OPT_EXES)
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1 \
+	           $(DESTDIR)$(PREFIX)/share/man/man7 \
+	           $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
+	           $(DESTDIR)$(PREFIX)/share/zsh/site-functions
+	# Real CLI + standalone binaries under their brix- names.
+	@for p in $(COMPAT_BIN_PAIRS); do \
+		src=$${p%%:*}; dst=$${p##*:}; \
+		echo "install -m755 $(BINDIR)/$$src -> bin/$$dst"; \
+		install -m755 $(BINDIR)/$$src $(DESTDIR)$(PREFIX)/bin/$$dst; \
+	done
+	# Multi-call personality symlinks -> the prefixed dispatchers.
+	@for l in $(COMPAT_CKSUM_LINKS); do \
+		ln -sf $(call compat_name,xrdcksum) $(DESTDIR)$(PREFIX)/bin/$$l; done
+	@for l in $(COMPAT_DIAG_LINKS); do \
+		ln -sf $(call compat_name,xrddiag) $(DESTDIR)$(PREFIX)/bin/$$l; done
+	# Ceph operator binaries (only those built) under their brix- names.
+	@for p in $(COMPAT_CEPH_PAIRS); do \
+		src=$${p%%:*}; dst=$${p##*:}; \
+		if [ -f $(BINDIR)/$$src ]; then \
+			install -m755 $(BINDIR)/$$src $(DESTDIR)$(PREFIX)/bin/$$dst; fi; \
+	done
+	# Man pages under brix- names; FUSE pages skipped, .so redirect stubs retargeted.
+	@for m in man/*.1; do \
+		base=$$(basename $$m .1); \
+		case "$$base" in brixMount|xrootdfs|brix-fault-proxy) continue;; esac; \
+		cn=$${base%-brix}; case "$$cn" in brix-*) : ;; *) cn=brix-$$cn;; esac; \
+		if head -1 $$m | grep -q '^\.so '; then \
+			sed -e 's#man1/xrdcksum\.1#man1/brix-xrdcksum.1#' \
+			    -e 's#man1/xrddiag\.1#man1/brix-xrddiag.1#' \
+			    $$m > $(DESTDIR)$(PREFIX)/share/man/man1/$$cn.1; \
+			chmod 644 $(DESTDIR)$(PREFIX)/share/man/man1/$$cn.1; \
+		else \
+			install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/$$cn.1; \
+		fi; \
+	done
+	# brix-env(7) is already prefix-conforming and shared verbatim (its name does
+	# not collide with any stock page), so ship it under the compat package too.
+	install -m644 man/brix-env.7 $(DESTDIR)$(PREFIX)/share/man/man7/brix-env.7
+	# Bash completions under the brix- names.
+	@for n in $(COMPAT_COMPLETION_NAMES); do \
+		install -m644 completions/brix-tools.bash \
+			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \
+	done
+	# zsh: one family file, installed under a compat-distinct name (no overlap
+	# with brix-cache-client's _brix-client).
+	install -m644 completions/_brix-client \
+		$(DESTDIR)$(PREFIX)/share/zsh/site-functions/_brix-client-compat
 
 # ---------------------------------------------------------------------------
 # Install the CVMFS automount stack (helpers + autofs map + default config/keys

@@ -21,7 +21,27 @@ struct brix_cred_store;
 typedef struct {
     int            fd;
     struct ssl_st *ssl;       /* NULL = cleartext; non-NULL = TLS active */
-    int            timeout_ms;
+    int            timeout_ms; /* per-poll IDLE timeout (re-armed each wait)   */
+    int            stall_deadline_ms; /* whole-LOGICAL-OPERATION completion budget
+                                       * (ms), 0 = disabled. The per-poll timeout
+                                       * above only catches a fully idle peer; a
+                                       * peer that dribbles a byte just under each
+                                       * timeout keeps a read alive forever, and a
+                                       * server that returns a read as many small
+                                       * frames keeps each individual read_full
+                                       * under a per-call budget too (slow-drip).
+                                       * So the budget is armed ONCE around a whole
+                                       * logical read (all its frames + header/body
+                                       * reads) via brix_io_stall_arm(); every
+                                       * read_full then shares the one absolute
+                                       * cutoff below. Opt-in (default off) so
+                                       * slow-but-steady links are never cut. */
+    uint64_t       stall_deadline_ns; /* absolute brix_mono_ns() cutoff for the
+                                       * currently-armed logical operation; 0 =
+                                       * inactive. Set by brix_io_stall_arm(),
+                                       * cleared by brix_io_stall_disarm(). Shared
+                                       * by every read_full in the operation so the
+                                       * budget spans frames, not one frame. */
 } brix_io;
 
 /* Connection options (auth + TLS), supplied by the CLI. NULL ⇒ secure defaults
@@ -167,6 +187,15 @@ void brix_sock_tune(int fd);
 int brix_read_full(brix_io *io, void *buf, size_t n, brix_status *st);
 int brix_write_full(brix_io *io, const void *buf, size_t n, brix_status *st);
 
+/* Slow-drip guard: arm/disarm the whole-logical-operation completion deadline
+ * around one read op (all its response frames). brix_io_stall_arm() sets the
+ * absolute cutoff from io->stall_deadline_ms IF it is > 0 and not already armed
+ * (idempotent, so nested arms share the outer budget); a no-op when disabled.
+ * brix_io_stall_disarm() clears it — a caller MUST disarm before returning so a
+ * stale cutoff never bounds the next operation on this connection. */
+void brix_io_stall_arm(brix_io *io);
+void brix_io_stall_disarm(brix_io *io);
+
 /* ---- netpref.c — process-wide IPv6→IPv4 auto-downgrade (dual-stack hosts) ---- */
 /* getaddrinfo family hint: AF_UNSPEC normally, AF_INET once the session has
  * demoted to IPv4-only after observing a broken IPv6 path. */
@@ -199,9 +228,17 @@ int  brix_tmo_connect_ms(void);
 /* Steady-state per-operation read/write cap, ms. Default 30000; override via the
  * setter or the XRDC_IO_TIMEOUT_MS env var (EXPANDED). */
 int  brix_tmo_io_ms(void);
+/* Whole-operation completion deadline for a single read_full, ms. Default 0
+ * (DISABLED — the per-op io timeout stays the only bound, unchanged behaviour).
+ * Override via the setter or the XRDC_STALL_DEADLINE_MS env var. When > 0 it
+ * bounds a slow-drip peer that keeps a read alive by dribbling a byte just under
+ * each idle timeout: a read_full that cannot complete inside this budget fails
+ * ETIMEDOUT. Opt-in because a slow-but-steady link must not be falsely cut. */
+int  brix_tmo_stall_ms(void);
 /* CLI overrides (ignored when ms <= 0); take precedence over env + default. */
 void brix_tmo_set_connect_ms(int ms);
 void brix_tmo_set_io_ms(int ms);
+void brix_tmo_set_stall_ms(int ms);
 /* Backoff for retry `attempt` (0-based): exponential 100ms<<attempt capped at 5s
  * plus xorshift jitter in [0, base/2]. *seed carries the jitter PRNG state. */
 unsigned brix_backoff_delay_ms(unsigned attempt, uint64_t *seed);

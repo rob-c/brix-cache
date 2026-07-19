@@ -167,10 +167,24 @@
 >   by pulling the split TU into the `#include` set. All three build + fuzz clean. Corpus
 >   auto-grow-back deferred (needs a git-write bot).
 >
+> - **C-1 · Fuzz the unauthenticated auth parsers** — IN PROGRESS (2 harnesses landed).
+>   (a) JWT/JWKS JSON: `tests/fuzz/fuzz_jwt_json.c` drives all five
+>   `src/auth/token/json.c` helpers with hostile bytes as the pre-auth JWT/JWKS document
+>   (out-cap, per-item [256] array truncation, fractional-NumericDate, exact aud match,
+>   member probe), ~1.5 M runs clean. (b) Shared HTTP percent-codec:
+>   `tests/fuzz/fuzz_urlcodec.c` drives `brix_http_urldecode`/`urlencode`
+>   (`src/core/compat/uri.c`) — the byte core under S3 SigV4 canonicalisation, WebDAV
+>   query parsing, and XrdHttp paths — with undersized-dst/malformed-`%HH`/round-trip
+>   cases, ~950 K runs clean. Both wired into the B-3 `fuzz.yml` lane. Remaining targets
+>   (GSI ASN.1, SSS frames, macaroon, top-level SigV4 canonicaliser) are nginx-coupled
+>   and need a pure `(data,len)` entry carved from their TUs first (a production refactor
+>   kept out of the additive fuzz work).
+>
 > Deferred (need an ASan lane, new CI, or new directives/process): A-2 (blocked on B-2 —
 > static-inspection pass 2026-07-18 cleared all three named suspects), B-1 (analyzer
 > workflows exist; blocking-flip needs a pinned CI toolchain baseline), B-2 (ASan lane),
-> C-1, C-2 (fuzz reach — attach to the new B-3 lane).
+> remaining C-1 targets + C-2 (framing fuzz — need pure-entry refactors; attach to the
+> new B-3 lane).
 
 ---
 
@@ -374,11 +388,36 @@ proxy/redirect suites unchanged.
 
 ---
 
-## A-2 · Fix the WebDAV-proxy → stock-XrdHttp heap corruption
+## A-2 · WebDAV-proxy → stock-XrdHttp heap corruption
 
 | Severity | Effort | Type | Confidence |
 |---|---|---|---|
-| **HIGH** | M | BUG | NEEDS-REPRO (open bug `hybrid_mesh_webdav_proxy_xrdhttp_crash`) |
+| ~~HIGH~~ **RESOLVED — surface retired** | — | BUG | CLOSED (transport deleted 2026-07-20) |
+
+> **Resolution (2026-07-20) — surface retired, not patched.** The crash lived in
+> the WebDAV **reverse-proxy transport** (`brix_webdav_proxy` /
+> `brix_webdav_proxy_upstream` — nginx-upstream request/response relay). That
+> transport had already been **retired** in the legacy-proxy cleanup: the
+> directives were removed and the enabling flag `upstream_proxy` could no longer
+> be set by any config, so `proxy_response.c`'s `webdav_proxy_process_header`
+> (the crash site) was **unreachable dead code**. The live sibling on the
+> reachable path — `mirror_process_header` (`http_mirror_request.c`) — uses the
+> hardened *discard-headers* parse (`continue` on `NGX_OK`) and never performs
+> the delimiter NUL-write, so there is no equivalent live OOB.
+>
+> Rather than leave a latent, never-root-caused heap defect as a footgun that a
+> future revival could resurrect, the dead transport was **deleted** (2026-07-20):
+> `proxy.c`, `proxy_response.c`, `proxy_request.c`, `proxy_config.c`,
+> `proxy_internal.h`, `webdav_proxy.h` removed; the `upstream_*` loc-conf fields,
+> the two orphaned setters (`webdav_conf_proxy_auth` / `_upstream`), the
+> `webdav_merge_upstream_conf` merge, and the `upstream_proxy` gates in
+> `dispatch.c` / `access.c` / `ratelimit_http.c` excised. `proxy_pool.c` (the SHM
+> pool behind the REST admin API) was kept. Verified: clean `-Werror`+ASan build;
+> `nginx -t` accepts a valid WebDAV config; **`brix_webdav_proxy` now fails with
+> "unknown directive"** — the surface cannot be re-enabled via config.
+>
+> The original repro/inspection record is preserved below for archaeology; **B-2
+> (ASan lane) is no longer a dependency for this item.**
 
 **Evidence:** `[R13]`.
 
@@ -877,11 +916,11 @@ Wire parsing is already well-bounded — per-opcode `dlen` caps *before* allocat
 `[R44]` with a 256 MiB total cap `[R45]`, signed-`rlen` trap `[R46]`. The gap is fuzz
 *reach* into the auth parsers, and one recurring logic-bug class.
 
-## C-1 · Fuzz the unauthenticated auth parsers
+## C-1 · Fuzz the unauthenticated auth parsers — 🔶 IN PROGRESS (JWT-JSON + shared percent-codec landed 2026-07-18)
 
 | Severity | Effort | Type | Confidence |
 |---|---|---|---|
-| **HIGH** | L | COVERAGE | CONFIRMED (no harness exists) |
+| **HIGH** | L | COVERAGE | CONFIRMED (2 harnesses landed: JWT-JSON, percent-codec) |
 
 **Why first.** They parse attacker-controlled bytes **before** authentication — the
 highest-value remote surface (T1), several hand-rolled.
@@ -890,15 +929,35 @@ highest-value remote surface (T1), several hand-rolled.
 1. **GSI / X.509 ASN.1 from wire** — `parse_x509_signed.c` sizes a decrypt blob from
    `EVP_PKEY_size()` on an **attacker-supplied** pubkey `[R36]`; plus
    `parse_x509_unsigned.c`, `parse_crypto_helpers.c`.
-2. **JWT custom JSON parser** — `json.c` (hand-rolled) `[R37]`, `b64url.c`.
+2. ✅ **JWT JSON claim/key extraction** — `json.c` `[R37]`, `b64url.c` *(b64url already
+   fuzzed by `fuzz_b64url`)*. **LANDED:** `tests/fuzz/fuzz_jwt_json.c` drives all five
+   `json.c` helpers (`json_get_string` out-cap, `json_get_string_array` per-item [256]
+   truncation, `json_get_int64` fractional-NumericDate, `json_string_or_array_contains`,
+   `json_has_member`) with hostile bytes as the JWT/JWKS document, seeded from realistic
+   claim/JWKS/`aud`-array/`crit` corpora; ASan+UBSan-clean over ~1.5 M runs. *Correction
+   to the plan text: `json.c` is jansson-backed (thin bounds-checking wrappers), not a
+   hand-rolled parser — the harness exercises those wrapper bounds and jansson itself.*
 3. **SSS credential frames** — `auth_request.c` `[R38]` (the phase-79 bug lived here),
    `auth_crypto_helpers.c`.
 4. **Macaroon parse** — `macaroon_parse.c` `[R39]`, `macaroon_caveats.c`.
 5. **S3 SigV4 canonicalization** — `auth_sigv4_canonical.c` `[R40]`, `auth_sigv4_parse.c`.
+   **PARTIAL:** the shared percent-codec beneath the canonicaliser — `brix_http_urldecode`
+   / `brix_http_urlencode` (`src/core/compat/uri.c`), the byte-handling core the SigV4
+   canonical query string, WebDAV query parsing, and XrdHttp paths all run on
+   pre-auth — is now fuzzed by `tests/fuzz/fuzz_urlcodec.c` (undersized-dst overflow
+   guard + malformed-`%HH` + `+`-to-space + round-trip encode), ASan+UBSan-clean over
+   ~950 K runs, wired into the B-3 lane. The higher-level `build_canonical_qs()` in
+   `auth_sigv4_canonical.c` still hard-includes `s3.h` (→ `ngx_http.h`), so harnessing
+   the full canonicaliser needs its handful of `ngx_flag_t`/`ngx_memcpy`/`ngx_strcmp`
+   uses decoupled from the full nginx header first.
 
 **Fix.** One libFuzzer harness per target under `tests/fuzz/`, seeded from real corpora
 (capture valid frames from the existing suites), run under ASan+UBSan in the B-2/B-3
-lane. Land incrementally, GSI ASN.1 and JWT JSON first.
+lane. Land incrementally, GSI ASN.1 and JWT JSON first. *Remaining targets (1, 3, 4, and
+the top-level SigV4 canonicaliser in 5): GSI ASN.1 and SSS frames are heavily
+nginx-coupled (15–28 `ngx_` refs, take `ngx_connection_t*`/`brix_ctx_t*`) and need a
+pure `(data,len)` entry carved out of their TUs before they can be harnessed standalone
+— a production-source refactor deliberately kept out of the additive fuzz-lane work.*
 
 **Test / acceptance.** Each harness builds, runs clean on its seed corpus in CI, and is
 wired into the nightly job. Any crash becomes a regression test.
@@ -1726,7 +1785,7 @@ Copy-paste starting points. Fleet/log conventions per CLAUDE.md
 | **B-1** | Open a throwaway PR with a deliberate NULL-deref → both analyzer gates go red; revert → green. Never hand-edit `[R31]` to silence |
 | **B-2** | New lane builds `-fsanitize=address,undefined`; `ASAN_OPTIONS=abort_on_error=1:detect_leaks=1`; goes red on the A-2 repro (joint acceptance) |
 | **B-3** | ✅ wired: `.github/workflows/fuzz.yml` runs all three via `python3 -m cmdscripts.fuzz_all` (PR smoke 60s, nightly 600s). Local: `PHASE81_RUN_FUZZ_PORT=1 pytest tests/test_cmd_fuzz_all.py` |
-| **C-1** | Per new harness: `clang -O1 -g -fsanitize=fuzzer,address,undefined <harness>.c -o <t>` then run against a seed corpus captured from the live auth suites |
+| **C-1** | ✅ 2 harnesses in the `fuzz.yml` lane: `fuzz_jwt_json.c` (+`json.c -ljansson`, `corpus_jwt_json/`) and `fuzz_urlcodec.c` (+`uri.c`+`hex.c`, `corpus_urlcodec/`). Per remaining harness: `clang -O1 -g -fsanitize=fuzzer,address,undefined <harness>.c -o <t>` against a seed corpus captured from the live auth suites |
 | **C-3** | `grep -rn "return NGX_OK" src/auth src/protocols/**/auth_* ` and prove each success path gates on the verdict, not an intermediate step `[R47]` |
 | **D-3** | `brix_seccomp audit` → drive the full suite → collect the audit-logged syscall set → author the allowlist → `brix_seccomp enforce` → suite must stay green; `execve` from a worker must be killed |
 | **D-6** | Build a directory tree deeper than `max_depth`; `brix_vfs_copytree`/remove must prune cleanly (no stack overflow) — confirm both route through `vfs_walk_dir` `[R52]` |

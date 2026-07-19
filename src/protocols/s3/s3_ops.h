@@ -127,6 +127,12 @@ s3_cksum_result_t s3_put_trailer_checksum_apply(ngx_http_request_t *r,
     const char *fs_path, const char *root_canon, const char *algo_token,
     const char *value);
 
+/* Verify a classic Content-MD5 (RFC 1864) over the just-committed object; same
+ * result contract as s3_put_checksum_apply (MISMATCH → BadDigest, CONFLICT →
+ * malformed/InvalidDigest, OK when absent or verified). */
+s3_cksum_result_t s3_content_md5_verify(ngx_http_request_t *r,
+    const char *fs_path, const char *root_canon);
+
 /* GET/HEAD echo: always emits a cached crc64nvme; with x-amz-checksum-mode:
  * ENABLED also emits every other cached algorithm. */
 void s3_echo_object_checksums(ngx_http_request_t *r, int fd, const char *path);

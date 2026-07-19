@@ -38,7 +38,7 @@
 
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        24%{?dist}
+Release:        25%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -145,9 +145,38 @@ Native command-line XRootD clients built clean-room on the in-tree protocol
 core (libbrix + libxrdproto) with NO libXrdCl / libXrdSec dependency:
 xrdcp, xrdfs, xrd, xrdcksum and checksum personalities, xrdqstats, xrdprep,
 xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats-brix,
-xrdsssadmin-brix and wait41-brix, plus the libbrixposix_preload.so LD_PRELOAD
-POSIX shim.  The FUSE mounts live in the brix-xrootdfs-fuse and
+xrdsssadmin-brix and wait41-brix, plus brix-fault-proxy (a root-free TCP
+fault-injection proxy for resilience testing) and the libbrixposix_preload.so
+LD_PRELOAD POSIX shim.  The FUSE mounts live in the brix-xrootdfs-fuse and
 brix-cvmfs-fuse subpackages (installed by default via weak deps).
+
+# ---------------------------------------------------------------------------
+# Subpackage 2c: brix-cache-client-compat — the SAME name-agnostic client
+# binaries as brix-cache-client, presented under a "brix-" prefix (brix-xrdcp,
+# brix-xrdfs, …) so they CO-INSTALL with the official xrootd-client tools that
+# own the bare /usr/bin/xrdcp, xrdfs, … names.  One compile serves both flavours
+# (git/busybox model): every tool derives its display name, multi-call
+# personality, and sibling-exec target from argv[0] at run time, so no output
+# ever prints a stock name when invoked under its brix- alias.
+#
+# Additive and independent: no Conflicts/Obsoletes against the official tools
+# (the prefix makes the paths disjoint) and no dependency on brix-cache-client —
+# the package is self-contained (ships its own brix-*.1 pages and brix-env(7)).
+# ---------------------------------------------------------------------------
+%package -n brix-cache-client-compat
+Summary:        BriX-Cache native XRootD client tools under a brix- prefix (co-installable)
+
+%description -n brix-cache-client-compat
+The brix-cache-client tool set installed under a "brix-" prefix so it
+co-exists with the official xrootd-client package on one host: brix-xrdcp,
+brix-xrdfs, brix-xrd, brix-xrdcksum (and the checksum personalities
+brix-xrdadler32/brix-xrdcrc32c/brix-xrdcrc64), brix-xrdqstats, brix-wait41,
+brix-mpxstats, brix-xrdprep, brix-xrdgsiproxy, brix-xrddiag, brix-xrdmapc,
+brix-xrdgsitest, brix-xrdsssadmin and brix-xrdstorascan.  The binaries are
+byte-identical to brix-cache-client's; each self-identifies from argv[0], so
+usage/version/man output names the brix- alias, never the stock tool.  The
+Ceph operator tools ship prefixed in the brix-tools-compat subpackage; the
+FUSE mounts are never prefixed and stay in brix-xrootdfs-fuse/brix-cvmfs-fuse.
 
 # ---------------------------------------------------------------------------
 # Subpackage 2a: the xrootdfs FUSE mount (root:// filesystem client)
@@ -300,6 +329,28 @@ xrdrados_rescue, xrdcephfs_rescue, and xrdceph_migrate. Source of truth:
 client/apps/ceph/ (build: make -C client ceph-tools).
 
 # ---------------------------------------------------------------------------
+# Subpackage 4b: brix-tools-compat — the brix-tools Ceph/CephFS operator
+# binaries under the "brix-" prefix (brix-xrdceph_migrate, brix-xrdrados_rescue,
+# …), co-installable with any stock-named equivalents.  Kept separate from
+# brix-cache-client-compat for the same reason brix-tools is separate from
+# brix-cache-client: only these binaries link the Ceph client libraries, so the
+# rados/cephfs runtime deps stay off the plain client package.
+# ---------------------------------------------------------------------------
+%package -n brix-tools-compat
+Summary:        BriX-Cache XrdCeph/CephFS operator tools under a brix- prefix (co-installable)
+Requires:       librados2%{?_isa}
+Requires:       libradosstriper1%{?_isa}
+Requires:       libcephfs2%{?_isa}
+
+%description -n brix-tools-compat
+The compiled brix-tools Ceph/CephFS migration + rescue operators installed
+under a "brix-" prefix so they co-install with any stock-named counterparts:
+brix-xrdceph_striper_migrate, brix-xrdceph_cephfs_to_striper,
+brix-xrdrados_rescue, brix-xrdcephfs_rescue and brix-xrdceph_migrate.  Each
+self-identifies from argv[0].  The pure-Python migration variants are not
+prefixed and remain in brix-tools.
+
+# ---------------------------------------------------------------------------
 # Subpackage 5: SELinux policy module (targeted)
 # ---------------------------------------------------------------------------
 %if %{with selinux}
@@ -424,6 +475,16 @@ make -C client install-bin \
     PREFIX=%{_prefix} \
     LIBDIR=%{_libdir}
 
+# --- brix- prefixed client tools (brix-cache-client-compat + brix-tools-compat) ---
+# The SAME name-agnostic binaries under a "brix-" prefix, staged into paths
+# disjoint from install-bin above (the prefix guarantees it), so both flavours
+# coexist in one buildroot.  brix-env(7) is installed by both targets as a
+# byte-identical copy — RPM permits shared ownership of identical files.
+make -C client install-compat \
+    DESTDIR=%{buildroot} \
+    PREFIX=%{_prefix} \
+    LIBDIR=%{_libdir}
+
 # --- CVMFS automount stack + default config/keys ---
 # One canonical file list, maintained in the client Makefile (also used by the
 # portable deploy/cvmfs/install-automount.sh path for non-RPM hosts).
@@ -534,6 +595,7 @@ fi
 %{_bindir}/mpxstats-brix
 %{_bindir}/xrdsssadmin-brix
 %{_bindir}/xrdstorascan
+%{_bindir}/brix-fault-proxy
 %{_libdir}/libbrixposix_preload.so
 %{_mandir}/man1/mpxstats-brix.1*
 %{_mandir}/man1/wait41-brix.1*
@@ -554,6 +616,7 @@ fi
 %{_mandir}/man1/xrdqstats.1*
 %{_mandir}/man1/xrdsssadmin-brix.1*
 %{_mandir}/man1/xrdstorascan.1*
+%{_mandir}/man1/brix-fault-proxy.1*
 %{_mandir}/man7/brix-env.7*
 %{_datadir}/bash-completion/completions/xrd
 %{_datadir}/bash-completion/completions/xrdcp
@@ -564,6 +627,7 @@ fi
 %{_datadir}/bash-completion/completions/xrdgsiproxy
 %{_datadir}/bash-completion/completions/xrdsssadmin-brix
 %{_datadir}/bash-completion/completions/xrdstorascan
+%{_datadir}/bash-completion/completions/brix-fault-proxy
 %{_datadir}/zsh/site-functions/_brix-client
 
 %files -n brix-xrootdfs-fuse
@@ -650,6 +714,81 @@ fi
 %{_datadir}/bash-completion/completions/xrdcephfs_rescue
 %{_datadir}/bash-completion/completions/xrdceph_migrate
 
+%files -n brix-cache-client-compat
+%license LICENSE
+%{_bindir}/brix-xrd
+%{_bindir}/brix-xrdfs
+%{_bindir}/brix-xrdcp
+%{_bindir}/brix-xrdcksum
+%{_bindir}/brix-xrdcrc32c
+%{_bindir}/brix-xrdcrc64
+%{_bindir}/brix-xrdadler32
+%{_bindir}/brix-xrdckverify
+%{_bindir}/brix-xrdcinfo
+%{_bindir}/brix-xrdqstats
+%{_bindir}/brix-wait41
+%{_bindir}/brix-xrdprep
+%{_bindir}/brix-xrdgsiproxy
+%{_bindir}/brix-xrddiag
+%{_bindir}/brix-xrdmapc
+%{_bindir}/brix-xrdgsitest
+%{_bindir}/brix-mpxstats
+%{_bindir}/brix-xrdsssadmin
+%{_bindir}/brix-xrdstorascan
+%{_mandir}/man1/brix-mpxstats.1*
+%{_mandir}/man1/brix-wait41.1*
+%{_mandir}/man1/brix-xrd.1*
+%{_mandir}/man1/brix-xrdadler32.1*
+%{_mandir}/man1/brix-xrdcinfo.1*
+%{_mandir}/man1/brix-xrdcksum.1*
+%{_mandir}/man1/brix-xrdckverify.1*
+%{_mandir}/man1/brix-xrdcp.1*
+%{_mandir}/man1/brix-xrdcrc32c.1*
+%{_mandir}/man1/brix-xrdcrc64.1*
+%{_mandir}/man1/brix-xrddiag.1*
+%{_mandir}/man1/brix-xrdfs.1*
+%{_mandir}/man1/brix-xrdgsiproxy.1*
+%{_mandir}/man1/brix-xrdgsitest.1*
+%{_mandir}/man1/brix-xrdmapc.1*
+%{_mandir}/man1/brix-xrdprep.1*
+%{_mandir}/man1/brix-xrdqstats.1*
+%{_mandir}/man1/brix-xrdsssadmin.1*
+%{_mandir}/man1/brix-xrdstorascan.1*
+# brix-env(7): identical content to brix-cache-client's copy; RPM permits two
+# packages to own the same file when byte-identical, so either package alone
+# satisfies the "man brix-env" footer reference.
+%{_mandir}/man7/brix-env.7*
+%{_datadir}/bash-completion/completions/brix-xrd
+%{_datadir}/bash-completion/completions/brix-xrdcp
+%{_datadir}/bash-completion/completions/brix-xrdfs
+%{_datadir}/bash-completion/completions/brix-xrddiag
+%{_datadir}/bash-completion/completions/brix-xrdcksum
+%{_datadir}/bash-completion/completions/brix-xrdprep
+%{_datadir}/bash-completion/completions/brix-xrdgsiproxy
+%{_datadir}/bash-completion/completions/brix-xrdgsitest
+%{_datadir}/bash-completion/completions/brix-xrdmapc
+%{_datadir}/bash-completion/completions/brix-xrdsssadmin
+%{_datadir}/bash-completion/completions/brix-xrdstorascan
+%{_datadir}/zsh/site-functions/_brix-client-compat
+
+%files -n brix-tools-compat
+%license LICENSE
+%{_bindir}/brix-xrdceph_striper_migrate
+%{_bindir}/brix-xrdceph_cephfs_to_striper
+%{_bindir}/brix-xrdrados_rescue
+%{_bindir}/brix-xrdcephfs_rescue
+%{_bindir}/brix-xrdceph_migrate
+%{_mandir}/man1/brix-xrdceph_cephfs_to_striper.1*
+%{_mandir}/man1/brix-xrdceph_migrate.1*
+%{_mandir}/man1/brix-xrdceph_striper_migrate.1*
+%{_mandir}/man1/brix-xrdcephfs_rescue.1*
+%{_mandir}/man1/brix-xrdrados_rescue.1*
+%{_datadir}/bash-completion/completions/brix-xrdceph_striper_migrate
+%{_datadir}/bash-completion/completions/brix-xrdceph_cephfs_to_striper
+%{_datadir}/bash-completion/completions/brix-xrdrados_rescue
+%{_datadir}/bash-completion/completions/brix-xrdcephfs_rescue
+%{_datadir}/bash-completion/completions/brix-xrdceph_migrate
+
 %if %{with selinux}
 %files selinux
 %license LICENSE
@@ -659,6 +798,21 @@ fi
 %endif
 
 %changelog
+* Sun Jul 19 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-25
+- New co-installable subpackages brix-cache-client-compat and brix-tools-compat:
+  the SAME native client + Ceph-operator binaries as brix-cache-client /
+  brix-tools, installed under a "brix-" prefix (brix-xrdcp, brix-xrdfs,
+  brix-xrdceph_migrate, ...) so a host can carry both the official
+  xrootd-client tools and the brix tools side-by-side with no /usr/bin path
+  collisions.
+- One name-agnostic compile serves both flavours: every tool derives its
+  display name, multi-call personality, and sibling-exec target from argv[0]
+  at run time, so usage/version/man output always names the brix- alias, never
+  the stock tool.  Additive and independent -- no Conflicts/Obsoletes and no
+  dependency on the base packages; the compat tools ship their own brix-*.1
+  man pages and share brix-env(7) as a byte-identical copy.  FUSE mounts are
+  never prefixed and stay in brix-xrootdfs-fuse/brix-cvmfs-fuse.
+
 * Fri Jul 17 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-24
 - New subpackage brix-cvmfs-automount: the native `brixMount autofs` umbrella
   automounts /cvmfs on first access (children mount in a farm under

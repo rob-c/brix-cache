@@ -61,6 +61,10 @@ typedef struct {
                                     time log; the registry builds instances
                                     with the cycle log, which outlives any
                                     request/connection). */
+    int                          put_checksum; /* #12: send Content-MD5 on the
+                                    commit PUT so the origin validates the body
+                                    and rejects a wire-corrupted upload (the
+                                    outbound analogue of ingest s3_content_md5) */
     int                          cur_ep;      /* index of the endpoint that
                                     answered the last successful request, -1 =
                                     none yet. Written by fill threads without

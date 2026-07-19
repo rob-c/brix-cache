@@ -311,6 +311,95 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
 }
 
 /*
+ * s3_content_md5_verify — classic Content-MD5 (RFC 1864) ingest integrity.
+ *
+ * WHAT: When a PutObject carries Content-MD5 (base64 of the object's 128-bit MD5),
+ *   S3's contract requires the server verify the stored object against it and
+ *   answer 400 BadDigest on mismatch (400 InvalidDigest when the header is
+ *   malformed).  Runs post-commit over the just-published object, the same
+ *   read-back + unlink-on-mismatch model as s3_put_checksum_apply.
+ *
+ * WHY: brix authenticates SigV4 with a hard-coded UNSIGNED-PAYLOAD canonical
+ *   request (auth_sigv4_verify_crypto.c) — the body is never folded into the
+ *   signature — and the x-amz-checksum-* form is the only integrity header that
+ *   was verified.  A client that asserted the historically dominant Content-MD5
+ *   (boto3/aws-cli/many HEP tools) had it silently ignored, so a body a hostile
+ *   middlebox flipped past the TCP checksum was committed and served as good.
+ *   A real (non-UNSIGNED) x-amz-content-sha256 stays out of scope: brix signs
+ *   UNSIGNED-PAYLOAD and the dominant XrdClS3 client never sends a payload hash.
+ *
+ * Returns:
+ *   S3_CKSUM_OK       — verified, or no Content-MD5 present (nothing to check)
+ *   S3_CKSUM_MISMATCH — value did not match the stored bytes (object removed)
+ *   S3_CKSUM_CONFLICT — malformed Content-MD5 (not base64 / not 16 bytes; removed)
+ *   S3_CKSUM_ERROR    — our own compute failed (object stands, unverified)
+ */
+s3_cksum_result_t
+s3_content_md5_verify(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon)
+{
+    ngx_table_elt_t       *hdr;
+    ngx_table_elt_t       *ce;
+    ngx_str_t              src, dst;
+    u_char                 raw[24];   /* MD5 is 16; base64-decoded upper bound   */
+    u_char                 exp_hex[32];
+    brix_vfs_file_t       *fh;
+    brix_integrity_info_t  info;
+    brix_integrity_opts_t  o;
+    ngx_int_t              rc;
+
+    hdr = brix_http_find_header(r, "Content-MD5", sizeof("Content-MD5") - 1);
+    if (hdr == NULL || hdr->value.len == 0) {
+        return S3_CKSUM_OK;                 /* no assertion to verify */
+    }
+
+    /* A decoded body cannot match an MD5 the client took over the encoded bytes —
+     * skip, matching the verify-on-write / WebDAV-ingest limitation. */
+    ce = brix_http_find_header(r, "Content-Encoding",
+                               sizeof("Content-Encoding") - 1);
+    if (ce != NULL && ce->value.len > 0) {
+        return S3_CKSUM_OK;
+    }
+
+    /* base64 → exactly 16 raw MD5 bytes; anything else is a malformed header.  A
+     * malformed integrity assertion must not leave the object behind (AWS rejects
+     * pre-store; we are post-commit, so remove it), mirroring the ambiguous
+     * x-amz-checksum selection path. */
+    src = hdr->value;
+    if (ngx_base64_decoded_length(src.len) > sizeof(raw)) {
+        s3_cksum_vfs_unlink(r, fs_path, root_canon);
+        return S3_CKSUM_CONFLICT;           /* absurdly long — not a Content-MD5 */
+    }
+    dst.data = raw;
+    if (ngx_decode_base64(&dst, &src) != NGX_OK || dst.len != 16) {
+        s3_cksum_vfs_unlink(r, fs_path, root_canon);
+        return S3_CKSUM_CONFLICT;
+    }
+    (void) ngx_hex_dump(exp_hex, raw, 16);  /* 32 lowercase hex chars */
+
+    fh = s3_cksum_vfs_open(r, fs_path, root_canon);
+    if (fh == NULL) {
+        return S3_CKSUM_ERROR;
+    }
+    ngx_memzero(&o, sizeof(o));
+    o.require_regular_file = 1;             /* hash the stored bytes fresh */
+    rc = brix_integrity_get_fd(r->connection->log, brix_vfs_file_fd(fh), NULL,
+                               fs_path, "md5", &o, &info);
+    brix_vfs_close(fh, r->connection->log);
+    if (rc != NGX_OK) {
+        return S3_CKSUM_ERROR;              /* object stands, unverified */
+    }
+
+    if (ngx_strlen(info.hex) != sizeof(exp_hex)
+        || ngx_strncasecmp((u_char *) info.hex, exp_hex, sizeof(exp_hex)) != 0)
+    {
+        s3_cksum_vfs_unlink(r, fs_path, root_canon);
+        return S3_CKSUM_MISMATCH;
+    }
+    return S3_CKSUM_OK;
+}
+
+/*
  * s3_put_trailer_checksum_apply — verify+echo a checksum carried in an
  * aws-chunked trailer (phase-43 W0).  Unlike the header path, the algorithm and
  * value come from the decoded stream's trailer line rather than a request

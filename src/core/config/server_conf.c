@@ -205,6 +205,8 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     conf->cns_mode          = NGX_CONF_UNSET_UINT;
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
     conf->tpc_max_transfer_secs = NGX_CONF_UNSET_UINT;
+    conf->tpc_require_source_size = NGX_CONF_UNSET;
+    conf->tpc_verify_checksum = NGX_CONF_UNSET;
     conf->tpc_outbound_tls  = NGX_CONF_UNSET;
     conf->tpc_delegate      = NGX_CONF_UNSET;
     conf->tpc_outbound_passthrough = NGX_CONF_UNSET;

@@ -39,8 +39,30 @@ typedef struct {
     ngx_flag_t   verify_write;           /* brix_gridftp_verify_write on|off:  */
                                          /*   read each STOR back through the  */
                                          /*   driver and CRC-check it (default */
-                                         /*   off — doubles read I/O)          */
+                                         /*   off — doubles read I/O). STORAGE- */
+                                         /*   persistence check, not wire: CKSM */
+                                         /*   is the client-side wire check.   */
     char         root_canon[PATH_MAX];   /* realpath(export); confinement root */
+
+    /* Passive-mode data-port range (brix_gridftp_pasv_port_range <lo> <hi>).
+     * Deployment knob for firewalled sites: an FTP data connection lands on a
+     * server-chosen port the peer must reach, so behind a firewall the admin
+     * must pin PASV/EPSV to a pre-opened range (globus GLOBUS_TCP_PORT_RANGE /
+     * vsftpd pasv_min_port..pasv_max_port). 0/0 (default) = ephemeral: the
+     * kernel picks any port, which is un-firewallable on the hostile networks
+     * this must deploy into. Both inclusive, 1..65535, lo <= hi. */
+    ngx_int_t    pasv_port_lo;
+    ngx_int_t    pasv_port_hi;
+
+    /* brix_gridftp_require_allo_size on|off (default off): in stream-mode STOR a
+     * bare data-channel close is the only completion signal, so a mid-flight
+     * truncation is indistinguishable from a complete transfer. When on, a STOR
+     * preceded by ALLO <size> must deliver exactly <size> bytes or it fails 550
+     * (never a truncated object committed as complete). Off by default because
+     * RFC 959 permits ALLO as an advisory reservation, so strict equality is
+     * opt-in for deployments whose clients (globus-url-copy/FTS) send the exact
+     * file size. A STOR with no preceding ALLO is unaffected either way. */
+    ngx_flag_t   require_allo_size;
 
     /* Per-request backend delegation: forward the gsiftp client's control-channel-
      * delegated X.509 proxy to the storage backend so the upstream authenticates

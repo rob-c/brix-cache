@@ -22,6 +22,7 @@
 #include "brix_net.h"
 #include "brix_ops.h"
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -45,13 +46,13 @@
 /*
  * usage_fp — print xrdstorascan usage to the given stream.
  * WHY: --help (WS-2) must go to stdout; no-arg / unknown-mode goes to stderr.
- *      Returns rc so callers can write `return usage_fp(stderr, SX_USAGE)`.
+ *      Returns rc so callers can write `return usage_fp(stderr, prog, SX_USAGE)`.
  */
 static int
-usage_fp(FILE *out, int rc)
+usage_fp(FILE *out, const char *prog, int rc)
 {
     fprintf(out,
-        "usage: xrdstorascan <mode> <url> [options]\n"
+        "usage: %s <mode> <url> [options]\n"
         "\n"
         "  verify <url> [--algo NAME] [-q]\n"
         "      End-to-end verify ONE file: download it, recompute the checksum,\n"
@@ -70,15 +71,16 @@ usage_fp(FILE *out, int rc)
         "      http(s):// dashboard base; auth via --password or $XRDSTORASCAN_PASSWORD.\n"
         "      verify/compare exit 1 when a mismatch (bit-rot) is found.\n"
         "\n"
-        "  (inspect / inventory / drift / health require later server phases.)\n"
-        BRIX_USAGE_FOOTER("xrdstorascan"));
+        "  (inspect / inventory / drift / health require later server phases.)\n",
+        prog);
+    brix_usage_footer(out, prog);
     return rc;
 }
 
 static int
-usage(int rc)
+usage(const char *prog, int rc)
 {
-    return usage_fp(stderr, rc);
+    return usage_fp(stderr, prog, rc);
 }
 
 /* ---- shared ---------------------------------------------------------------- */
@@ -188,14 +190,15 @@ verify_download_tmp(brix_conn *c, const char *path, brix_status *st)
  * HOW: one printf of the frozen usage text; returns SX_OK for the caller.
  */
 static int
-verify_help(void)
+verify_help(const char *prog)
 {
-    printf("usage: xrdstorascan verify <url> [--algo NAME] [-q]\n"
+    printf("usage: %s verify <url> [--algo NAME] [-q]\n"
            "    End-to-end verify ONE file: download it, recompute the\n"
            "    checksum, compare to the server's recorded value.\n"
            "    (--algo default adler32)\n"
-           "    exit: 0 match, 1 mismatch, 2 no recorded checksum, 3 error\n"
-           BRIX_USAGE_FOOTER("xrdstorascan"));
+           "    exit: 0 match, 1 mismatch, 2 no recorded checksum, 3 error\n",
+           prog);
+    brix_usage_footer(stdout, prog);
     return SX_OK;
 }
 
@@ -207,7 +210,7 @@ verify_help(void)
  */
 static int
 verify_parse_args(int argc, char **argv, const char **url,
-                  const char **algo, int *quiet)
+                  const char **algo, int *quiet, const char *prog)
 {
     int i;
 
@@ -219,15 +222,15 @@ verify_parse_args(int argc, char **argv, const char **url,
         if (strcmp(a, "-q") == 0 || strcmp(a, "--quiet") == 0) {
             *quiet = 1;
         } else if (a[0] == '-') {
-            return usage(SX_USAGE);
+            return usage(prog, SX_USAGE);
         } else if (*url == NULL) {
             *url = a;
         } else {
-            return usage(SX_USAGE);
+            return usage(prog, SX_USAGE);
         }
     }
     if (*url == NULL) {
-        return usage(SX_USAGE);
+        return usage(prog, SX_USAGE);
     }
     return SX_OK;
 }
@@ -264,7 +267,7 @@ verify_compute_wire_hex(brix_conn *c, const char *path,
 }
 
 static int
-cmd_verify(int argc, char **argv)
+cmd_verify(int argc, char **argv, const char *prog)
 {
     const char     *url = NULL;
     const char     *algo = "adler32";
@@ -279,9 +282,9 @@ cmd_verify(int argc, char **argv)
     storascan_cks_status verdict;
 
     if (argc >= 1 && strcmp(argv[0], "--help") == 0) {
-        return verify_help();
+        return verify_help(prog);
     }
-    rc = verify_parse_args(argc, argv, &url, &algo, &quiet);
+    rc = verify_parse_args(argc, argv, &url, &algo, &quiet, prog);
     if (rc != SX_OK) {
         return rc;
     }
@@ -679,15 +682,16 @@ typedef struct {
  * HOW: one printf of the frozen usage text; returns SX_OK for the caller.
  */
 static int
-bench_help(void)
+bench_help(const char *prog)
 {
-    printf("usage: xrdstorascan bench <url> [--op read]\n"
+    printf("usage: %s bench <url> [--op read]\n"
            "                         [--block SZ[,SZ...]] [--parallel N[,N...]]\n"
            "                         [--duration S | --count N]\n"
            "                         [--pattern seq|random] [--json]\n"
            "    Throughput/latency sweep against the gateway. SZ accepts K/M/G.\n"
-           "    defaults: --block 1M,4M --parallel 1,8 --duration 5 --pattern seq\n"
-           BRIX_USAGE_FOOTER("xrdstorascan"));
+           "    defaults: --block 1M,4M --parallel 1,8 --duration 5 --pattern seq\n",
+           prog);
+    brix_usage_footer(stdout, prog);
     return SX_OK;
 }
 
@@ -699,7 +703,7 @@ bench_help(void)
  *      URL; unknown options print usage → SX_USAGE.
  */
 static int
-bench_parse_args(int argc, char **argv, bench_args_t *ba)
+bench_parse_args(int argc, char **argv, bench_args_t *ba, const char *prog)
 {
     const char *v;
     int         i;
@@ -723,11 +727,11 @@ bench_parse_args(int argc, char **argv, bench_args_t *ba)
         } else if (strcmp(a, "--json") == 0) {
             ba->json = 1;
         } else if (a[0] == '-') {
-            return usage(SX_USAGE);
+            return usage(prog, SX_USAGE);
         } else if (ba->url == NULL) {
             ba->url = a;
         } else {
-            return usage(SX_USAGE);
+            return usage(prog, SX_USAGE);
         }
     }
     return SX_OK;
@@ -740,10 +744,10 @@ bench_parse_args(int argc, char **argv, bench_args_t *ba)
  *      --block/--parallel strings into blocks[]/pars[] via parse_list.
  */
 static int
-bench_validate_args(bench_args_t *ba)
+bench_validate_args(bench_args_t *ba, const char *prog)
 {
     if (ba->url == NULL) {
-        return usage(SX_USAGE);
+        return usage(prog, SX_USAGE);
     }
     if (strcmp(ba->pattern, "seq") != 0 && strcmp(ba->pattern, "random") != 0) {
         fprintf(stderr, "xrdstorascan: --pattern must be seq or random\n");
@@ -826,7 +830,7 @@ bench_run_matrix(const bench_args_t *ba, const brix_url *u, int64_t fsize)
 }
 
 static int
-cmd_bench(int argc, char **argv)
+cmd_bench(int argc, char **argv, const char *prog)
 {
     bench_args_t  ba;
     int           rc;
@@ -838,7 +842,7 @@ cmd_bench(int argc, char **argv)
     /* --help as the first subcommand arg → print bench usage to stdout
      * and exit cleanly (WS-2). */
     if (argc >= 1 && strcmp(argv[0], "--help") == 0) {
-        return bench_help();
+        return bench_help(prog);
     }
 
     memset(&ba, 0, sizeof(ba));
@@ -847,11 +851,11 @@ cmd_bench(int argc, char **argv)
     ba.pattern = "seq";
     ba.duration_s = 5;
 
-    rc = bench_parse_args(argc, argv, &ba);
+    rc = bench_parse_args(argc, argv, &ba, prog);
     if (rc != SX_OK) {
         return rc;
     }
-    rc = bench_validate_args(&ba);
+    rc = bench_validate_args(&ba, prog);
     if (rc != SX_OK) {
         return rc;
     }
@@ -1277,7 +1281,7 @@ scan_fetch(const char *mode, const scan_ep *ep, const scan_args_t *sa,
 }
 
 static int
-cmd_scan(const char *mode, int argc, char **argv)
+cmd_scan(const char *mode, int argc, char **argv, const char *prog)
 {
     scan_args_t    sa = { NULL, "/", "adler32", NULL, 0, 0, 0 };
     scan_ep        ep;
@@ -1292,17 +1296,17 @@ cmd_scan(const char *mode, int argc, char **argv)
     /* --help as the first subcommand arg → print this mode's usage to stdout
      * and exit cleanly (WS-2). */
     if (argc >= 1 && strcmp(argv[0], "--help") == 0) {
-        printf("usage: xrdstorascan %s <dashboard-url> [--path P] [--algo A]\n"
+        printf("usage: %s %s <dashboard-url> [--path P] [--algo A]\n"
                "                    [--password PW] [--insecure] [--json|--summary]\n"
                "    Server-side scan over the /brix/api/v1/scan admin endpoint.\n"
-               "    auth via --password or $XRDSTORASCAN_PASSWORD\n"
-               BRIX_USAGE_FOOTER("xrdstorascan"),
-               mode);
+               "    auth via --password or $XRDSTORASCAN_PASSWORD\n",
+               prog, mode);
+        brix_usage_footer(stdout, prog);
         return SX_OK;
     }
 
     if (scan_parse_scan_args(argc, argv, &sa) != 0 || sa.url == NULL) {
-        return usage(SX_USAGE);
+        return usage(prog, SX_USAGE);
     }
     if (scan_parse_url(sa.url, &ep) != 0) {
         fprintf(stderr, "xrdstorascan: %s needs an http(s):// dashboard URL\n", mode);
@@ -1341,8 +1345,10 @@ cmd_scan(const char *mode, int argc, char **argv)
 int
 main(int argc, char **argv)
 {
+    const char *prog = brix_prog_base(argv[0]);   /* self-ID from argv[0] */
+
     if (argc < 2) {
-        return usage(SX_USAGE);
+        return usage(prog, SX_USAGE);
     }
     /* `verify` routes by URL scheme: an http(s):// dashboard URL → the
      * server-engine verify; a root:// URL → the client-side end-to-end check. */
@@ -1350,12 +1356,12 @@ main(int argc, char **argv)
         if (argc >= 3 && (strncmp(argv[2], "http://", 7) == 0
                           || strncmp(argv[2], "https://", 8) == 0))
         {
-            return cmd_scan("verify", argc - 2, argv + 2);
+            return cmd_scan("verify", argc - 2, argv + 2, prog);
         }
-        return cmd_verify(argc - 2, argv + 2);
+        return cmd_verify(argc - 2, argv + 2, prog);
     }
     if (strcmp(argv[1], "bench") == 0) {
-        return cmd_bench(argc - 2, argv + 2);
+        return cmd_bench(argc - 2, argv + 2, prog);
     }
     {
         /* Server-engine scan modes routed straight to cmd_scan. */
@@ -1367,20 +1373,21 @@ main(int argc, char **argv)
 
         for (m = 0; scan_modes[m] != NULL; m++) {
             if (strcmp(argv[1], scan_modes[m]) == 0) {
-                return cmd_scan(argv[1], argc - 2, argv + 2);
+                return cmd_scan(argv[1], argc - 2, argv + 2, prog);
             }
         }
     }
     if (strcmp(argv[1], "--version") == 0) {
-        printf("xrdstorascan (BriX-Cache client) %s\n", brix_client_version());
+        printf("%s (BriX-Cache client) %s\n", prog,
+               brix_client_version());
         return SX_OK;
     }
     if (strcmp(argv[1], "--help") == 0) {
-        return usage_fp(stdout, SX_OK);    /* --help → stdout (WS-2) */
+        return usage_fp(stdout, prog, SX_OK);    /* --help → stdout (WS-2) */
     }
     if (strcmp(argv[1], "-h") == 0) {
-        return usage(SX_OK);               /* -h → stderr (C1) */
+        return usage(prog, SX_OK);               /* -h → stderr (C1) */
     }
     fprintf(stderr, "xrdstorascan: unknown mode '%s'\n", argv[1]);
-    return usage(SX_USAGE);
+    return usage(prog, SX_USAGE);
 }

@@ -26,7 +26,31 @@ tpc_pull_from_source(brix_tpc_pull_t *t, int fd)
         return -1;
     }
 
+    /*
+     * Capture the source's authoritative size BEFORE streaming so the stream
+     * loop can distinguish a complete pull from a stopped/truncated one (its only
+     * in-band EOF signal — a zero-byte read — is forgeable). A stat socket/framing
+     * failure aborts (handle already open, so close it); an errored/size-less stat
+     * is not fatal here (policy is weighed in tpc_stream_to_dst).
+     */
+    if (tpc_stat_source(t, fd) != 0) {
+        tpc_close_source(t, fd, fhandle);
+        return -1;
+    }
+
     rc = tpc_stream_to_dst(t, fd, fhandle);
+
+    /*
+     * Opt-in post-copy integrity: only on a fully-streamed, size-verified file do
+     * we query and compare the source checksum. A mismatch turns success into a
+     * fail-closed error so the caller unlinks the poisoned destination.
+     */
+    if (rc == 0 && t->conf != NULL && t->conf->tpc_verify_checksum) {
+        rc = tpc_verify_source_checksum(t, fd);
+        if (rc != 0) {
+            t->result = NGX_ERROR;
+        }
+    }
 
     tpc_close_source(t, fd, fhandle);
     return rc;

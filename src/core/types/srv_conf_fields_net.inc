@@ -73,6 +73,21 @@
                                        (no per-frame syscall).  Bounds a slow-drip
                                        remote that keeps resetting the per-recv
                                        SO_RCVTIMEO idle timer.  0 = no cap. */
+    ngx_flag_t  tpc_require_source_size; /* [brix_tpc_require_source_size on|off] —
+                                       hostile-network completion gate. A source
+                                       size mismatch (bytes_written != kXR_stat size)
+                                       ALWAYS fails the pull; this knob additionally
+                                       refuses a pull whose source will not declare a
+                                       size at all (stat error / unparseable). Default
+                                       off: an unknown size proceeds unverified. */
+    ngx_flag_t  tpc_verify_checksum; /* [brix_tpc_verify_checksum on|off] — opt-in
+                                       post-copy integrity: kXR_query(kXR_Qcksum) the
+                                       source, recompute the same algorithm over the
+                                       written destination, fail closed on mismatch or
+                                       when the source cannot supply a checksum.
+                                       Default off (a bit-flip in transit commits
+                                       silently otherwise — native-TPC analogue of the
+                                       backend put_checksum egress gate). */
     ngx_flag_t  tpc_outbound_tls;   /* [brix_tpc_outbound_tls on|off] — phase-57
                                        §F5: advertise kXR_ableTLS on the TPC pull and
                                        perform an in-protocol TLS upgrade when the

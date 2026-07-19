@@ -109,6 +109,12 @@ brix_pgw_fob_count(const brix_file_t *f)
     return f->pgw_fob_count;
 }
 
+uint32_t
+brix_pgw_fob_commit_blocked(const brix_file_t *f)
+{
+    return f->pgw_fob_enabled ? f->pgw_fob_count : 0;
+}
+
 void
 brix_pgw_fob_reset(brix_file_t *f)
 {

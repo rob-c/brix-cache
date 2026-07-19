@@ -61,6 +61,12 @@ struct sd_s3_file {
     int64_t                      mpu_write_off;
     void                        *part_buf;
     size_t                       part_buf_len;
+
+    /* #12: when set, every PUT / UploadPart carries a signed x-amz-checksum-crc32
+     * of its body so the ORIGIN validates the bytes and rejects a wire-corrupted
+     * upload with 400 BadDigest (brix_backend_put_checksum). Off ⇒ UNSIGNED-PAYLOAD
+     * with no body integrity — the stock behaviour. */
+    int                          put_checksum;
 };
 
 /* ---- SigV4 signing + error mapping (sd_s3.c), shared by every path --------- */
@@ -69,6 +75,8 @@ void sd_s3_utc_now(char amzdate[20], char datestamp[12]);
 void sd_s3_sha256_hex(const void *data, size_t len, char *out /* >=65 */);
 int  sd_s3_sign(const sd_s3_file *f, const char *method, const char *canon_qs,
          char *hdrs, size_t hdrsz);
+int  sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs,
+         const char *ck_name, const char *ck_val, char *hdrs, size_t hdrsz);
 int  sd_s3_status_err(int status, const char *op, const char *key,
          char *errbuf, size_t errcap);
 

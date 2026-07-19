@@ -11,6 +11,7 @@
 #include <stdio.h>      /* sscanf for PORT */
 #include <stdlib.h>     /* strtoul for EPRT */
 #include <unistd.h>     /* close() */
+#include <errno.h>      /* EADDRINUSE/EADDRNOTAVAIL — passive-range bind walk */
 
 /*
  * ftp_ev_data.c — non-blocking data-channel lifecycle for the event engine.
@@ -79,16 +80,49 @@ ev_do_pasv(ftp_ev_t *fc, int extended)
     ngx_memzero(&bindaddr, sizeof(bindaddr));
     bindaddr.sin_family = AF_INET;
     bindaddr.sin_addr   = local.sin_addr;      /* same host as control       */
-    bindaddr.sin_port   = 0;                   /* ephemeral                  */
 
-    /* Backlog spans a full MODE E stream fan-out (globus opens all parallel
-     * data connections at once), matching the sync engine. */
-    if (bind(fd, (struct sockaddr *) &bindaddr, sizeof(bindaddr)) != 0
-        || listen(fd, BRIX_FTP_EV_DATA_BACKLOG) != 0
-        || getsockname(fd, (struct sockaddr *) &bindaddr, &blen) != 0)
-    {
-        (void) close(fd);
-        return brix_ftp_ev_reply(fc, "425 Cannot open passive connection\r\n");
+    /* Bind the listener. With a configured passive range (brix_gridftp_pasv_port_range)
+     * we walk it and take the first free port so the peer only ever has to reach a
+     * firewall-opened window; unset (lo == 0) keeps the kernel-ephemeral bind. A
+     * fully-occupied range fails the transfer (rather than falling back to a
+     * random, un-firewalled port) so a locked-down deployment stays predictable. */
+    if (fc->conf->pasv_port_lo > 0) {
+        ngx_int_t p;
+        int       bound = 0;
+
+        for (p = fc->conf->pasv_port_lo; p <= fc->conf->pasv_port_hi; p++) {
+            bindaddr.sin_port = htons((unsigned short) p);
+            if (bind(fd, (struct sockaddr *) &bindaddr, sizeof(bindaddr)) == 0) {
+                bound = 1;
+                break;
+            }
+            if (errno != EADDRINUSE && errno != EADDRNOTAVAIL) {
+                break;   /* a non-contention error won't clear on the next port */
+            }
+        }
+        if (!bound) {
+            (void) close(fd);
+            return brix_ftp_ev_reply(fc,
+                "425 No free passive port in configured range\r\n");
+        }
+        if (listen(fd, BRIX_FTP_EV_DATA_BACKLOG) != 0
+            || getsockname(fd, (struct sockaddr *) &bindaddr, &blen) != 0)
+        {
+            (void) close(fd);
+            return brix_ftp_ev_reply(fc, "425 Cannot open passive connection\r\n");
+        }
+    } else {
+        bindaddr.sin_port = 0;                 /* ephemeral                  */
+
+        /* Backlog spans a full MODE E stream fan-out (globus opens all parallel
+         * data connections at once), matching the sync engine. */
+        if (bind(fd, (struct sockaddr *) &bindaddr, sizeof(bindaddr)) != 0
+            || listen(fd, BRIX_FTP_EV_DATA_BACKLOG) != 0
+            || getsockname(fd, (struct sockaddr *) &bindaddr, &blen) != 0)
+        {
+            (void) close(fd);
+            return brix_ftp_ev_reply(fc, "425 Cannot open passive connection\r\n");
+        }
     }
 
     fc->pasv_fd = fd;

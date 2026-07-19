@@ -15,6 +15,7 @@
  */
 #include "brix.h"
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -31,9 +32,9 @@ usage_fp(FILE *out, const char *prog, int rc)
         "    --algo N   verify only algorithm N (adler32, crc32c, crc64, "
         "crc64nvme, md5)\n"
         "    -q         quiet: print only on mismatch or error\n"
-        "  exit: 0 ok, 1 mismatch, 2 no recorded checksum, 3 error\n"
-        BRIX_USAGE_FOOTER("xrdckverify"),
-        prog);
+        "  exit: 0 ok, 1 mismatch, 2 no recorded checksum, 3 error\n",
+        brix_prog_base(prog));
+    brix_usage_footer(out, prog);
     return rc;
 }
 
@@ -68,7 +69,8 @@ ckv_handle_early_flags(int argc, char **argv, int *exit_code)
         return 0;
     }
     if (strcmp(argv[1], "--version") == 0) {
-        printf("%s (BriX-Cache client) %s\n", argv[0], brix_client_version());
+        printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+               brix_client_version());
         *exit_code = 0;
         return 1;
     }

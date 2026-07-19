@@ -502,11 +502,6 @@ webdav_dispatch_inner(ngx_http_request_t *r)
         return rc;
     }
 
-    /* Upstream proxy mode: access handler ran auth; delegate transport. */
-    if (conf->upstream_proxy) {
-        return webdav_metrics_return(r, webdav_proxy_handler(r));
-    }
-
     rc = webdav_dispatch_method(r, conf);
     if (rc != NGX_DECLINED) {
         return rc;

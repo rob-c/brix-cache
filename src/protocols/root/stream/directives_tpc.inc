@@ -116,6 +116,24 @@
       offsetof(ngx_stream_brix_srv_conf_t, tpc_max_transfer_secs),
       NULL },
 
+    /* Hostile-network completion gate: refuse a native TPC pull whose source will
+     * not declare a size (a size mismatch already always fails). Default off. */
+    { ngx_string("brix_tpc_require_source_size"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tpc_require_source_size),
+      NULL },
+
+    /* Opt-in post-copy integrity: query the source checksum and compare it to the
+     * written destination, failing closed on mismatch. Default off. */
+    { ngx_string("brix_tpc_verify_checksum"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tpc_verify_checksum),
+      NULL },
+
     /* Phase 39 (WS5): abandoned-TPC-slot reaper age in seconds (0 = disabled). */
     { ngx_string("brix_tpc_transfer_max_age"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -192,6 +210,17 @@
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, common.verify_write),
+      NULL },
+
+    /* Wire-integrity gate for native uploads: when on, a cleartext kXR_write /
+     * kXR_writev carrying data on a writable file handle is refused
+     * (kXR_Unsupported), forcing clients onto the per-page-CRC32c kXR_pgwrite
+     * path. Off by default (plain write is the stock upload op). */
+    { ngx_string("brix_require_pgwrite"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.require_pgwrite),
       NULL },
 
     /* Hard read-only: when on, forces allow_write off so all writes are rejected

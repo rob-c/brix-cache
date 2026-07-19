@@ -267,6 +267,44 @@ brix_ftp_ev_eb_teardown(ftp_ev_dc_t *dc)
 }
 
 
+/* A completed MODE E reassembly must tile the object gaplessly from offset 0.
+ * Every accepted block was overlap-checked, so the sorted ranges only ever touch
+ * (hi == next.lo) or leave a gap — they never cross.  A gap means the sink holds a
+ * region the sender never delivered: a corrupted/forged EBLOCK offset (an in-path
+ * bit-flip of the 17-byte header past the TCP checksum), or a stream that emitted
+ * its EOD without covering its share.  Committing then would publish a file with
+ * silently zero-filled holes as "complete" — the MODE E analogue of a truncated
+ * cache object accepted as whole.  Require exactly one coalesced range
+ * [0, high-water) whose length equals the bytes actually received. */
+static int
+ev_eb_ranges_contiguous(ftp_ev_dc_t *dc)
+{
+    size_t  n = dc->eb_nranges, i, merged;
+
+    if (n == 0) {
+        return dc->eb_received == 0;      /* empty object: valid iff zero bytes   */
+    }
+    ngx_memcpy(dc->eb_scratch, dc->eb_ranges, n * sizeof(ftp_eb_range_t));
+    ngx_qsort(dc->eb_scratch, n, sizeof(ftp_eb_range_t), ev_eb_range_cmp);
+
+    merged = 0;
+    for (i = 1; i < n; i++) {
+        if (dc->eb_scratch[i].lo <= dc->eb_scratch[merged].hi) {
+            if (dc->eb_scratch[i].hi > dc->eb_scratch[merged].hi) {
+                dc->eb_scratch[merged].hi = dc->eb_scratch[i].hi;
+            }
+        } else {
+            dc->eb_scratch[++merged] = dc->eb_scratch[i];   /* a hole opens here   */
+        }
+    }
+    merged++;                             /* count, not top index                 */
+
+    return merged == 1
+        && dc->eb_scratch[0].lo == 0
+        && dc->eb_scratch[0].hi == dc->eb_received;
+}
+
+
 /* Retire a finished stream, then complete the transfer once every declared EOD
  * has been seen (commit runs the whole-object read-back verify). */
 static void
@@ -277,7 +315,26 @@ ev_eb_child_done(ftp_ev_eb_conn_t *ch)
     ev_eb_child_close(ch);
 
     if (dc->eb_eof_total >= 0 && dc->eb_eod_seen >= dc->eb_eof_total) {
-        ngx_int_t rc = brix_vfs_writer_commit(dc->writer);
+        ngx_int_t rc;
+
+        if (!ev_eb_ranges_contiguous(dc)) {
+            /* Every declared EOD is in, yet the tiling has a hole: the client
+             * asserted the object is complete, so this partial is not an
+             * interrupted transfer awaiting a range-resume — it is a finished,
+             * holed poison (a forged/corrupted EBLOCK offset, or a short sender).
+             * The in-place random writer would otherwise leave the zero-filled
+             * object at the final path; abort it and unlink so nothing is
+             * published, then fail the transfer (550). */
+            brix_vfs_ctx_t vctx;
+
+            brix_vfs_writer_abort(dc->writer);
+            dc->writer = NULL;
+            brix_ftp_ev_vfs_ctx(dc->fc, dc->abs, &vctx);
+            (void) brix_vfs_unlink(&vctx);
+            brix_ftp_ev_data_finish(dc, NGX_ERROR);
+            return;
+        }
+        rc = brix_vfs_writer_commit(dc->writer);
         dc->writer = NULL;                        /* finish must not abort it   */
         brix_ftp_ev_data_finish(dc, rc);          /* closes listener + resumes  */
     }

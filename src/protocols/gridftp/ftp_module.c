@@ -30,6 +30,9 @@ brix_ftp_create_conf(ngx_conf_t *cf)
     conf->allow_write  = NGX_CONF_UNSET;
     conf->verify_write = NGX_CONF_UNSET;
     conf->gsi          = NGX_CONF_UNSET;
+    conf->pasv_port_lo = NGX_CONF_UNSET;
+    conf->pasv_port_hi = NGX_CONF_UNSET;
+    conf->require_allo_size = NGX_CONF_UNSET;
     /* export / root_canon / cert paths zero-initialised by pcalloc. */
 
     return conf;
@@ -215,6 +218,9 @@ brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_value(conf->verify_write, prev->verify_write, 0);
     ngx_conf_merge_value(conf->gsi,         prev->gsi,         0);
+    ngx_conf_merge_value(conf->pasv_port_lo, prev->pasv_port_lo, 0);
+    ngx_conf_merge_value(conf->pasv_port_hi, prev->pasv_port_hi, 0);
+    ngx_conf_merge_value(conf->require_allo_size, prev->require_allo_size, 0);
     ngx_conf_merge_str_value(conf->export,  prev->export,      "");
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
     ngx_conf_merge_str_value(conf->storage_credential,
@@ -354,6 +360,45 @@ brix_ftp_set_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 }
 
 
+/* brix_ftp_set_pasv_range — parse `brix_gridftp_pasv_port_range <lo> <hi>` into
+ * the inclusive passive-data-port window.  Both must be valid TCP ports and
+ * lo <= hi; a well-formed but empty/inverted range is a config error rather than
+ * a silent fall-back to ephemeral, so a firewalled deployment cannot boot with a
+ * range that would still hand out un-openable ports. */
+static char *
+brix_ftp_set_pasv_range(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
+{
+    ngx_stream_brix_ftp_srv_conf_t *conf = conf_ptr;
+    ngx_str_t                      *value = cf->args->elts;
+    ngx_int_t                       lo, hi;
+
+    (void) cmd;
+
+    if (conf->pasv_port_lo != NGX_CONF_UNSET) {
+        return "is duplicate";
+    }
+    lo = ngx_atoi(value[1].data, value[1].len);
+    hi = ngx_atoi(value[2].data, value[2].len);
+    if (lo == NGX_ERROR || hi == NGX_ERROR
+        || lo < 1 || lo > 65535 || hi < 1 || hi > 65535)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_gridftp_pasv_port_range: each bound must be a TCP port "
+            "1..65535 (got \"%V\" \"%V\")", &value[1], &value[2]);
+        return NGX_CONF_ERROR;
+    }
+    if (lo > hi) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_gridftp_pasv_port_range: low bound %i exceeds high bound %i",
+            lo, hi);
+        return NGX_CONF_ERROR;
+    }
+    conf->pasv_port_lo = lo;
+    conf->pasv_port_hi = hi;
+    return NGX_CONF_OK;
+}
+
+
 static ngx_command_t  brix_ftp_commands[] = {
 
     { ngx_string("brix_gridftp"),
@@ -398,14 +443,40 @@ static ngx_command_t  brix_ftp_commands[] = {
       NULL },
 
     /* After each STOR, re-read the object through the storage driver and
-     * CRC-check it against what was written; a mismatch fails the transfer and
-     * unlinks the object. Off by default (doubles read I/O per upload). Backend-
-     * agnostic — the trustworthy end-to-end check for an object backend. */
+     * CRC-check it against the bytes that were written; a mismatch fails the
+     * transfer and unlinks the object. Off by default (doubles read I/O per
+     * upload). This is a STORAGE-persistence check — it proves the driver
+     * persisted exactly the bytes it received (catching an object backend that
+     * routes a write short/empty), NOT a wire-integrity check: the CRC is seeded
+     * from the received bytes, so a byte the network corrupted in flight is
+     * accumulated, written, read back, and matches. Wire integrity is the
+     * client's CKSM after transfer (compared against its local digest). */
     { ngx_string("brix_gridftp_verify_write"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_ftp_srv_conf_t, verify_write),
+      NULL },
+
+    /* Pin PASV/EPSV data ports to a firewall-opened inclusive range so the
+     * gateway is reachable from behind a NAT/firewall on a locked-down network.
+     * Unset = ephemeral (kernel-chosen), which cannot be firewalled. */
+    { ngx_string("brix_gridftp_pasv_port_range"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_ftp_set_pasv_range,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Hold a stream-mode STOR preceded by ALLO <size> to exactly that many bytes,
+     * so a truncated upload (a hostile middlebox dropping the data connection —
+     * otherwise indistinguishable from a clean EOF) fails 550 instead of
+     * committing a short object as complete. Default off (ALLO is RFC-advisory). */
+    { ngx_string("brix_gridftp_require_allo_size"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_ftp_srv_conf_t, require_allo_size),
       NULL },
 
     { ngx_string("brix_gridftp_gsi"),

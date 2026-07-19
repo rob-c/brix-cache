@@ -16,6 +16,7 @@
  */
 #include "brix.h"
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -108,15 +109,17 @@ report(const char *source)
  * usage_fp — print mpxstats usage to the given stream.
  * WHY: --help goes to stdout (WS-2); -h keeps the legacy stderr path (C1).
  *      Both now include the footer. Returns rc so callers can write
- *      `return usage_fp(stderr, 0)`.
+ *      `return usage_fp(stderr, prog, 0)`.
  */
 static int
-usage_fp(FILE *out, int rc)
+usage_fp(FILE *out, const char *prog, int rc)
 {
+    prog = brix_prog_base(prog);   /* display the invoked name, not a path */
     fprintf(out,
-        "usage: mpxstats-brix [host | -] [--metrics-port N]\n"
-        "  no host (or '-') reads a /metrics blob from stdin\n"
-        BRIX_USAGE_FOOTER("mpxstats-brix"));
+        "usage: %s [host | -] [--metrics-port N]\n"
+        "  no host (or '-') reads a /metrics blob from stdin\n",
+        prog);
+    brix_usage_footer(out, prog);
     return rc;
 }
 
@@ -131,11 +134,12 @@ brix_mpxstats_main(int argc, char **argv)
     /* --help / --version before main loop. */
     if (argc >= 2) {
         if (strcmp(argv[1], "--version") == 0) {
-            printf("%s (BriX-Cache client) %s\n", argv[0], brix_client_version());
+            printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+                   brix_client_version());
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0) {
-            return usage_fp(stdout, 0);
+            return usage_fp(stdout, argv[0], 0);
         }
     }
 
@@ -145,10 +149,10 @@ brix_mpxstats_main(int argc, char **argv)
             metrics_port = atoi(argv[++i]);
         } else if (strcmp(a, "-h") == 0) {
             /* -h keeps the legacy stderr path (C1); footer now included. */
-            return usage_fp(stderr, 0);
+            return usage_fp(stderr, argv[0], 0);
         } else if (strcmp(a, "--help") == 0) {
             /* Recognise --help at any position (not just argv[1]). */
-            return usage_fp(stdout, 0);
+            return usage_fp(stdout, argv[0], 0);
         } else if (host == NULL) {
             host = a;
         }

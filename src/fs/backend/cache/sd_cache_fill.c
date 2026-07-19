@@ -30,10 +30,13 @@
 #include "observability/metrics/metrics_macros.h"
 #include "fs/cache/cstore.h"
 #include "fs/backend/http/sd_http.h"    /* per-upstream fill attribution     */
+#include "fs/backend/xroot/sd_xroot.h"  /* brix_sd_xroot_query_checksum      */
 #include "fs/path/path.h"               /* brix_sanitize_log_string          */
 #include "net/guard/guard.h"            /* signal=cvmfs_tamper audit line    */
+#include "core/compat/checksum.h"       /* brix_checksum_hex_name_fd         */
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -66,7 +69,11 @@ typedef struct {
     brix_sd_stat_t      snap;      /* source size/mtime/mode snapshot         */
     u_char             *buf;       /* SD_CACHE_CHUNK move buffer              */
     off_t               off;       /* bytes pumped so far                     */
-    int                 verified;  /* cvmfs-cas digest verified (phase-68)    */
+    int                 verified;  /* cvmfs-cas / origin-digest verified      */
+    char                origin_alg[16];  /* origin-advertised digest algorithm
+                                          * (kXR_Qcksum), captured while the
+                                          * source object is still open        */
+    char                origin_hex[129]; /* origin-advertised digest hex       */
     struct timespec     t0;        /* T16: per-upstream fill duration         */
 } sd_cache_fill_state_t;
 
@@ -209,6 +216,32 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
             return NGX_ERROR;
         }
         if (r == 0) {
+            /* Clean EOF. If the source declared its size, an EOF short of that
+             * size is a TRUNCATED transfer — the origin (or an in-path actor)
+             * cut the fill mid-stream. Committing fs->off bytes as a whole-file
+             * COMPLETE object would poison the cache with a permanently-short
+             * copy served as a valid hit to every subsequent client. Fail
+             * closed exactly like a mid-fill read error: release everything,
+             * serve a bounded stale copy if one exists, else EIO so the next
+             * read refetches. A size-unknown source (snap.size <= 0, e.g. an
+             * HTTP origin with no Content-Length) has no lower bound to check
+             * against, so a clean EOF is the only completion signal available. */
+            if (fs->snap.size > 0 && fs->off < fs->snap.size) {
+                ngx_log_error(NGX_LOG_ERR, st->log, 0,
+                    "sd_cache: origin truncated fill for \"%s\" at %O of %O "
+                    "bytes - not caching the short object", key,
+                    (off_t) fs->off, (off_t) fs->snap.size);
+                free(fs->buf);
+                brix_cstore_fill_abort(fs->staged);
+                brix_sd_obj_release(fs->so);
+                if (!fs->from_cold && !fs->from_peer
+                    && sd_cache_stale_serve_ok(st, key))
+                {
+                    return NGX_DONE;    /* bounded stale-if-error (phase-68) */
+                }
+                errno = EIO;
+                return NGX_ERROR;
+            }
             break;
         }
         if (brix_cstore_fill_write(fs->staged, fs->buf, (size_t) r,
@@ -226,6 +259,19 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
     }
     free(fs->buf);
     fs->buf = NULL;
+    /* Capture the origin's advertised content digest BEFORE releasing the source
+     * object — the query needs a live, open object. Only the xroot source offers
+     * an in-band digest (kXR_Qcksum); other backends (http/s3/posix) leave alg/hex
+     * empty and the verify phase decides best-effort/require on that. Skipped
+     * entirely unless a digest-verify policy is in force, so an OFF/CVMFS-CAS fill
+     * pays no round-trip. Mirrors the fetch.c commit-then-verify pattern. */
+    if ((st->policy.verify == BRIX_CACHE_VERIFY_BESTEFFORT
+         || st->policy.verify == BRIX_CACHE_VERIFY_REQUIRE)
+        && ngx_strcmp(brix_sd_backend_name(fs->src), "xroot") == 0)
+    {
+        brix_sd_xroot_query_checksum(fs->so, fs->origin_alg,
+            sizeof(fs->origin_alg), fs->origin_hex, sizeof(fs->origin_hex));
+    }
     brix_sd_obj_release(fs->so);
     fs->so = NULL;
     return NGX_OK;
@@ -341,6 +387,109 @@ cache_fill_verify_reject(sd_cache_inst_state *st, const char *key,
     return NGX_ERROR;
 }
 
+/* Case-insensitive equality of two hex digests. Origins vary in hex case
+ * (XRootD lowercases; some HTTP Digest headers upper-case), so a byte-exact
+ * strcmp would false-mismatch identical digests. */
+static int
+sd_cache_hex_ieq(const char *a, const char *b)
+{
+    for (; *a && *b; a++, b++) {
+        if (ngx_tolower((u_char) *a) != ngx_tolower((u_char) *b)) {
+            return 0;
+        }
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+/* Verify the staged bytes against the origin-advertised digest (best-effort /
+ * require policy). Called only when a digest-verify mode is in force and the
+ * CAS/manifest gates did not apply.
+ *
+ * The origin digest was captured in the pump (fs->origin_alg/hex); here we
+ * digest the staged part with the SAME algorithm and compare.
+ *
+ *   - digest matches            -> fs->verified = 1, NGX_OK (commit)
+ *   - digest MISMATCH           -> quarantine + tamper signal, NGX_ERROR
+ *   - no origin digest / unknown algorithm:
+ *         REQUIRE  -> fail closed (EIO) — an unverifiable object must not cache
+ *         BEST-EFFORT -> NGX_OK (commit; nothing to check against)
+ *
+ * On every fail-closed path the staged fill is aborted so nothing publishes. */
+static ngx_int_t
+cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
+    sd_cache_fill_state_t *fs, const char *pp)
+{
+    int        require = (st->policy.verify == BRIX_CACHE_VERIFY_REQUIRE);
+    char       hex[129];
+    char       norm[32];
+    ngx_int_t  rc;
+    int        fd;
+
+    if (fs->origin_alg[0] == '\0' || fs->origin_hex[0] == '\0') {
+        if (require) {
+            ngx_log_error(NGX_LOG_ERR, st->log, 0,
+                "sd_cache: verify=require but the origin advertised no usable "
+                "digest for \"%s\" - refusing to cache unverifiable bytes", key);
+            brix_cstore_fill_abort(fs->staged);
+            errno = EIO;
+            return NGX_ERROR;
+        }
+        return NGX_OK;                 /* best-effort: nothing to verify against */
+    }
+    if (pp == NULL) {
+        ngx_log_error(NGX_LOG_ERR, st->log, 0,
+            "sd_cache: cannot locate the staged part to verify \"%s\" - "
+            "failing the fill closed", key);
+        brix_cstore_fill_abort(fs->staged);
+        errno = EIO;
+        return NGX_ERROR;
+    }
+
+    fd = open(pp, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY);
+    if (fd < 0) {
+        ngx_log_error(NGX_LOG_ERR, st->log, errno,
+            "sd_cache: verify open of staged part failed for \"%s\"", key);
+        brix_cstore_fill_abort(fs->staged);
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    rc = brix_checksum_hex_name_fd(fs->origin_alg, fd, pp, st->log,
+                                   hex, sizeof(hex), norm, sizeof(norm));
+    close(fd);
+
+    if (rc == NGX_DECLINED) {
+        /* We do not implement the algorithm the origin advertised. */
+        if (require) {
+            ngx_log_error(NGX_LOG_ERR, st->log, 0,
+                "sd_cache: verify=require but origin algorithm \"%s\" is "
+                "unsupported for \"%s\" - failing closed", fs->origin_alg, key);
+            brix_cstore_fill_abort(fs->staged);
+            errno = EIO;
+            return NGX_ERROR;
+        }
+        return NGX_OK;                 /* best-effort: cannot check, commit */
+    }
+    if (rc != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, st->log, errno,
+            "sd_cache: verify checksum computation failed for \"%s\" - "
+            "failing closed", key);
+        brix_cstore_fill_abort(fs->staged);
+        errno = EIO;
+        return NGX_ERROR;
+    }
+
+    if (!sd_cache_hex_ieq(hex, fs->origin_hex)) {
+        ngx_log_error(NGX_LOG_ERR, st->log, 0,
+            "sd_cache: origin-digest MISMATCH for \"%s\" (%s: origin=%s local=%s)"
+            " - quarantining and failing the fill", key,
+            norm[0] ? norm : fs->origin_alg, fs->origin_hex, hex);
+        return cache_fill_verify_reject(st, key, fs, pp);
+    }
+
+    fs->verified = 1;
+    return NGX_OK;
+}
+
 /* Digest- and signature-verify the staged bytes before the commit publishes
  * them.
  *
@@ -367,10 +516,10 @@ cache_fill_verify(sd_cache_inst_state *st, const char *key,
     brix_cache_verify_result_e   vr;
 
     fs->verified = 0;
-    if (st->policy.verify != BRIX_CACHE_VERIFY_CVMFS_CAS
+    if (st->policy.verify == BRIX_CACHE_VERIFY_OFF
         && st->policy.cvmfs_master_pub == NULL)
     {
-        return NGX_OK;
+        return NGX_OK;                 /* verification disabled — commit as-is */
     }
     pp = (fs->staged->inst->driver->staged_path != NULL)
        ? fs->staged->inst->driver->staged_path(fs->staged) : NULL;
@@ -405,6 +554,14 @@ cache_fill_verify(sd_cache_inst_state *st, const char *key,
             errno = EIO;
             return NGX_ERROR;
         }
+    }
+
+    /* best-effort / require: compare the staged bytes against the origin's
+     * advertised digest (captured in the pump). OFF/CVMFS-CAS never reach here. */
+    if (st->policy.verify == BRIX_CACHE_VERIFY_BESTEFFORT
+        || st->policy.verify == BRIX_CACHE_VERIFY_REQUIRE)
+    {
+        return cache_fill_verify_origin(st, key, fs, pp);
     }
     return NGX_OK;
 }

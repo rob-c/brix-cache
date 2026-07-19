@@ -248,6 +248,23 @@ s3_put_finalize_invalid_request(ngx_http_request_t *r)
 
 
 /*
+ * s3_put_finalize_invalid_digest — reject a PUT whose Content-MD5 header was
+ * malformed (not base64, or not a 16-byte MD5). The object was already removed
+ * by s3_content_md5_verify; send the AWS-canonical 400 InvalidDigest.
+ */
+void
+s3_put_finalize_invalid_digest(ngx_http_request_t *r)
+{
+    brix_dashboard_http_error(r, "s3 malformed content-md5");
+    brix_dashboard_http_finish(r);
+    (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidDigest",
+        "The Content-MD5 you specified is not valid.");
+    s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT,
+                                       NGX_HTTP_BAD_REQUEST);
+}
+
+
+/*
  * s3_put_finalize_codec_error — reject a PUT whose Content-Encoding could not be
  * decoded (phase-42 W1).  Maps the decoder's HTTP status to a clean S3 XML error
  * instead of a blanket 500: a bomb-guard trip → 413 EntityTooLarge, an
@@ -286,6 +303,22 @@ int
 s3_put_checksum_failed(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon)
 {
+    /* Classic Content-MD5 (RFC 1864) first: S3's contract requires the server
+     * verify the stored object against a supplied Content-MD5 and answer
+     * 400 BadDigest on mismatch (400 InvalidDigest when malformed).  brix
+     * otherwise committed whatever bytes arrived, so a corrupted body carrying an
+     * honest Content-MD5 was published silently. */
+    switch (s3_content_md5_verify(r, fs_path, root_canon)) {
+    case S3_CKSUM_MISMATCH:
+        s3_put_finalize_bad_digest(r);
+        return 1;
+    case S3_CKSUM_CONFLICT:                 /* malformed Content-MD5 header */
+        s3_put_finalize_invalid_digest(r);
+        return 1;
+    default:
+        break;                              /* OK / absent / ERROR — proceed */
+    }
+
     switch (s3_put_checksum_apply(r, fs_path, root_canon)) {
     case S3_CKSUM_MISMATCH:
         s3_put_finalize_bad_digest(r);

@@ -28,8 +28,9 @@ that brings itself up and tears itself down.
 
 ## Prerequisites
 
-- `client/bin/xrdfs` and `client/bin/fault_proxy` built (`make -C client xrdfs`;
-  `cc -O2 -pthread tests/c/fault_proxy.c -o client/bin/fault_proxy`).
+- `client/bin/xrdfs` and `client/bin/brix-fault-proxy` built
+  (`make -C client xrdfs brix-fault-proxy` — brix-fault-proxy is also built by a
+  bare `make -C client`, as a first-class shipped tool).
 - The module's nginx at `/tmp/nginx-1.28.3/objs/nginx` (override `RESIL_NGINX_BIN`).
 - Official `xrootd` on `PATH` and `libXrdSec-5.so` present (for the GSI reference server).
 
@@ -67,8 +68,9 @@ Selecting the test file by name skips the main-suite fleet (the file is in
 The proxy's `lossy <pct>` lever **severs the TCP connection** with `<pct>%`
 probability per forwarded chunk — an *application-visible reset*, harsher than
 packet-level loss (where TCP would retransmit transparently). See
-`tests/c/fault_proxy.c` for the full lever set (`latency`, `chunk`, `drip`,
-`lossy`, `jitter`, `drop`, `block`).
+`brix-fault-proxy --help` (source `client/apps/diag/brix_fault_proxy.c`) for the
+full lever set (`latency`, `chunk`, `drip`, `lossy`, `jitter`, `reorder`, `drop`,
+`block`).
 
 ## What the `jitter` lever models (out-of-order delivery)
 

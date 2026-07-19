@@ -7,6 +7,14 @@
 /* kXR_write — write bytes from payload to an open file at a given offset. */
 ngx_int_t brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c);
 
+/* brix_require_pgwrite wire-integrity gate for the cleartext native write ops.
+ * When the knob is on, refuses a data-carrying kXR_write / kXR_writev on a
+ * writable handle with kXR_Unsupported (SSI + zero-length exempt), forcing the
+ * per-page-CRC32c pgwrite path. Returns 1 (rejected — reply sent, *rc set) or 0
+ * (proceed). Shared by write.c and writev.c. */
+ngx_int_t brix_write_require_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c,
+    int idx, size_t wlen, const char *op, ngx_int_t *rc);
+
 /* Phase-42 W5 — inline write decompression for kXR_write.  Invoked from
  * brix_handle_write() ONLY when ctx->files[idx].write_codec != IDENTITY (an
  * opt-in handle opened for write with "?xrootd.compress=").  Decompresses the

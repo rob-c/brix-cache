@@ -10,6 +10,7 @@
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/version.h"
+#include "core/progname.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,9 +80,9 @@ xrdprep_print_help(const char *argv0)
            "  -w, --wmode     write-mode hint\n"
            "  -f, --fresh     invalidate cached copy\n"
            "  -e, --evict     evict from disk cache\n"
-           "  -p, --priority <prty>  priority 0-3 (default 0)\n"
-           BRIX_USAGE_FOOTER("xrdprep"),
-           argv0);
+           "  -p, --priority <prty>  priority 0-3 (default 0)\n",
+           brix_prog_base(argv0));
+    brix_usage_footer(stdout, argv0);
 }
 
 /* ---- Handle --version / --help / -h before normal parsing ----
@@ -106,7 +107,8 @@ xrdprep_handle_meta_flags(int argc, char **argv)
         return -1;
     }
     if (strcmp(argv[1], "--version") == 0) {
-        printf("xrdprep (BriX-Cache client) %s\n", brix_client_version());
+        printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+               brix_client_version());
         return 0;
     }
     if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
@@ -247,7 +249,7 @@ main(int argc, char **argv)
     if (args.endpoint == NULL || args.np == 0) {
         fprintf(stderr,
                 "usage: %s [-s|-c|-w|-f|-e] [-p prty] host[:port] <path>...\n",
-                argv[0]);
+                brix_prog_base(argv[0]));
         return 50;
     }
 

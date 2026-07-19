@@ -1,10 +1,12 @@
 #include "tpc/engine/tpc_internal.h"
 #include "protocols/root/protocol/frame_hdr.h"   /* xrd_error_body_decode (shared kXR_error codec) */
+#include "core/compat/checksum.h"                /* brix_checksum_hex_name_fd — dst-side verify */
 #include "source_internal.h"
 
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>   /* strcasecmp — case-insensitive hex compare */
 #include <errno.h>
 #include <limits.h>
 #include <unistd.h>
@@ -270,6 +272,34 @@ tpc_stream_to_dst(brix_tpc_pull_t *t, int fd, const u_char *fhandle)
         offset += got_this_req;
     }
 
+    /*
+     * Completion gate (hostile-network truncation fix): the loop's only in-band
+     * EOF signal is a zero-byte read reply, which a truncating middlebox or a
+     * source that dies mid-stream can produce (or forge) — so "the reads stopped"
+     * is NOT proof the whole file arrived. Verify the delivered byte count against
+     * the source's authoritative size (captured by tpc_stat_source before the
+     * loop). A mismatch is unambiguous truncation and ALWAYS fails the pull; the
+     * caller unlinks the partial destination so it is never committed as complete.
+     * When the source would not declare a size, brix_tpc_require_source_size
+     * decides whether an unverifiable pull is refused or proceeds (default).
+     */
+    if (t->src_size_known) {
+        if ((uint64_t) t->bytes_written != t->src_size) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC pull truncated: wrote %llu of %llu source bytes",
+                     (unsigned long long) t->bytes_written,
+                     (unsigned long long) t->src_size);
+            t->xrd_error = kXR_IOError;
+            return -1;
+        }
+    } else if (t->conf != NULL && t->conf->tpc_require_source_size) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC pull: source declared no size and "
+                 "brix_tpc_require_source_size is on");
+        t->xrd_error = kXR_ServerError;
+        return -1;
+    }
+
     if (tpc_stream_sync_dst(t) != 0) {
         return -1;
     }
@@ -279,6 +309,224 @@ tpc_stream_to_dst(brix_tpc_pull_t *t, int fd, const u_char *fhandle)
     return 0;
 }
 
+
+/*
+ * tpc_stat_parse_size — WHAT: read the size (2nd whitespace token) out of an
+ * XRootD kXR_stat reply body "id size flags mtime". WHY: the size is the pull's
+ * authoritative completion target; the surrounding tokens are irrelevant here.
+ * HOW: skip token 0 (id), then strtoull the leading digits of token 1. Returns 0
+ * with *size set, or -1 if there is no numeric second token.
+ */
+static int
+tpc_stat_parse_size(const char *body, uint64_t *size)
+{
+    const char         *p = body;
+    char               *end;
+    unsigned long long  v;
+
+    while (*p == ' ') {
+        p++;
+    }
+    while (*p != '\0' && *p != ' ') {           /* skip token 0 (id) */
+        p++;
+    }
+    while (*p == ' ') {
+        p++;
+    }
+    if (*p < '0' || *p > '9') {
+        return -1;
+    }
+    errno = 0;
+    v = strtoull(p, &end, 10);
+    if (end == p || errno != 0) {
+        return -1;
+    }
+    *size = (uint64_t) v;
+    return 0;
+}
+
+/*
+ * tpc_stat_source — kXR_stat the remote source by path to capture its
+ * authoritative size (the pull's real completion signal). See source_internal.h.
+ * A distinct streamid tag (4) separates the reply from open(2)/read(3)/close(2).
+ * A source that errors the stat, or returns an unparseable body, leaves
+ * src_size_known=0 — only a socket/framing failure aborts the pull here.
+ */
+int
+tpc_stat_source(brix_tpc_pull_t *t, int fd)
+{
+    u_char             req[sizeof(ClientStatRequest) + PATH_MAX];
+    ClientStatRequest  streq;
+    size_t             pathlen = strlen(t->src_path);
+    size_t             total   = sizeof(ClientStatRequest) + pathlen;
+    uint16_t           status;
+    uint32_t           dlen;
+    u_char            *body = NULL;
+
+    t->src_size       = 0;
+    t->src_size_known = 0;
+
+    if (total > sizeof(req)) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC src path too long for stat");
+        t->xrd_error = kXR_ArgTooLong;
+        return -1;
+    }
+
+    ngx_memzero(&streq, sizeof(streq));
+    streq.streamid[1] = 4;                       /* distinct tag: stat replies */
+    streq.requestid   = htons(kXR_stat);
+    streq.dlen        = htonl((kXR_int32) pathlen);
+    ngx_memcpy(req, &streq, sizeof(streq));
+    ngx_memcpy(req + sizeof(streq), t->src_path, pathlen);
+
+    if (tpc_send_all(t, fd, req, total) != 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_stat send failed");
+        t->xrd_error = kXR_IOError;
+        return -1;
+    }
+    if (tpc_recv_response(t, fd, &status, &body, &dlen) != 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg), "TPC kXR_stat recv failed");
+        t->xrd_error = kXR_IOError;
+        return -1;
+    }
+
+    if (status == kXR_ok && body != NULL
+        && tpc_stat_parse_size((const char *) body, &t->src_size) == 0)
+    {
+        t->src_size_known = 1;
+    }
+    free(body);
+    return 0;
+}
+
+/*
+ * tpc_verify_source_checksum — opt-in post-copy integrity for the TPC pull.
+ * kXR_query(kXR_Qcksum) the source (distinct streamid tag 5), parse the
+ * "<alg> <hex>" reply, recompute the same algorithm over the written destination
+ * with brix_checksum_hex_name_fd, and fail closed (kXR_ChkSumErr) on any of:
+ * source cannot supply a checksum, malformed reply, an algorithm brix cannot
+ * compute, a destination read failure, or a digest mismatch. See
+ * source_internal.h.
+ */
+int
+tpc_verify_source_checksum(brix_tpc_pull_t *t, int fd)
+{
+    u_char              req[sizeof(ClientQueryRequest) + PATH_MAX];
+    ClientQueryRequest  qreq;
+    size_t              pathlen = strlen(t->src_path);
+    size_t              total   = sizeof(ClientQueryRequest) + pathlen;
+    uint16_t            status;
+    uint32_t            dlen;
+    u_char             *body = NULL;
+    const char         *sp;
+    size_t              alglen, vlen;
+    char                alg[32];
+    char                src_hex[2 * EVP_MAX_MD_SIZE + 1];
+    char                local_hex[2 * EVP_MAX_MD_SIZE + 1];
+    char                normalized[32];
+    ngx_log_t          *log = (t->c != NULL) ? t->c->log : ngx_cycle->log;
+
+    if (total > sizeof(req)) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC src path too long for checksum query");
+        t->xrd_error = kXR_ArgTooLong;
+        return -1;
+    }
+
+    ngx_memzero(&qreq, sizeof(qreq));
+    qreq.streamid[1] = 5;                        /* distinct tag: query replies */
+    qreq.requestid   = htons(kXR_query);
+    qreq.infotype    = htons(kXR_Qcksum);
+    qreq.dlen        = htonl((kXR_int32) pathlen);
+    ngx_memcpy(req, &qreq, sizeof(qreq));
+    ngx_memcpy(req + sizeof(qreq), t->src_path, pathlen);
+
+    if (tpc_send_all(t, fd, req, total) != 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum query send failed");
+        t->xrd_error = kXR_IOError;
+        return -1;
+    }
+    if (tpc_recv_response(t, fd, &status, &body, &dlen) != 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum query recv failed");
+        t->xrd_error = kXR_IOError;
+        return -1;
+    }
+
+    /* Fail closed: the operator required verification and the source gave us no
+     * checksum to verify against. Reply body is "<alg> <hex>". */
+    if (status != kXR_ok || body == NULL) {
+        free(body);
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum verify: source supplied no checksum");
+        t->xrd_error = kXR_ChkSumErr;
+        return -1;
+    }
+
+    sp = strchr((const char *) body, ' ');
+    if (sp == NULL) {
+        free(body);
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum verify: malformed source checksum reply");
+        t->xrd_error = kXR_ChkSumErr;
+        return -1;
+    }
+    alglen = (size_t) (sp - (const char *) body);
+    if (alglen == 0 || alglen >= sizeof(alg)) {
+        free(body);
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum verify: bad source checksum type");
+        t->xrd_error = kXR_ChkSumErr;
+        return -1;
+    }
+    ngx_memcpy(alg, body, alglen);
+    alg[alglen] = '\0';
+
+    /* value = token after the space, trimmed of trailing whitespace/CRLF. */
+    sp++;
+    while (*sp == ' ') {
+        sp++;
+    }
+    vlen = 0;
+    while (sp[vlen] != '\0' && sp[vlen] != ' '
+           && sp[vlen] != '\n' && sp[vlen] != '\r')
+    {
+        vlen++;
+    }
+    if (vlen == 0 || vlen >= sizeof(src_hex)) {
+        free(body);
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum verify: bad source checksum value");
+        t->xrd_error = kXR_ChkSumErr;
+        return -1;
+    }
+    ngx_memcpy(src_hex, sp, vlen);
+    src_hex[vlen] = '\0';
+    free(body);
+
+    /* Recompute the SAME algorithm over the destination and compare. */
+    if (brix_checksum_hex_name_fd(alg, t->dst_fd, t->dst_path, log,
+                                  local_hex, sizeof(local_hex),
+                                  normalized, sizeof(normalized)) != NGX_OK)
+    {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum verify: cannot compute %s on destination", alg);
+        t->xrd_error = kXR_ChkSumErr;
+        return -1;
+    }
+
+    if (strcasecmp(local_hex, src_hex) != 0) {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC checksum mismatch: source %s=%s destination=%s",
+                 alg, src_hex, local_hex);
+        t->xrd_error = kXR_ChkSumErr;
+        return -1;
+    }
+
+    return 0;
+}
 
 /*
  * tpc_close_source — best-effort kXR_close of the origin fhandle. Called on both

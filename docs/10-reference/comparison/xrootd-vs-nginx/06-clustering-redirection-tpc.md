@@ -516,9 +516,12 @@ Capabilities (`src/net/proxy/`, memory: proxy enhancements / phase 2-3):
 For completeness, one more outbound path exists (see also the HTTP comparison
 page): `src/net/upstream/` (described under [Redirection](#confirming-with-the-data-server-srcupstream))
 is the narrow redirector-confirmation client, **not** a transparent proxy.
-The dedicated WebDAV reverse-proxy (`brix_webdav_proxy`, `src/protocols/webdav/proxy.c`)
-was removed after the relay path to stock XrdHttp backends proved unstable — those
-directives are no longer available.
+The dedicated WebDAV reverse-proxy (`brix_webdav_proxy`, formerly
+`src/protocols/webdav/proxy.c`) was removed after the relay path to stock XrdHttp
+backends proved unstable (a load-dependent heap corruption in the upstream
+response parse). The directives were retired first, then the now-dead transport
+code was **deleted** (2026-07-20) so the latent defect cannot be resurrected;
+`brix_webdav_proxy` is rejected as an unknown directive.
 
 ## Traffic mirroring (nginx-forward)
 

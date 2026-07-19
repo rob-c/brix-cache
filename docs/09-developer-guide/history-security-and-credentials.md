@@ -1083,6 +1083,47 @@ config — that is a deliberate opt-in feature decision (a
   argument for the gate: an un-run harness is not a harness. LESSON: any unity-build
   test target that `#include`s a driver `.c` must be re-checked whenever that driver is
   file-split — the vtable references outlive the file that defined its members.
+- **FINDING-FUZZ-C1-JWT-1 / hyper-hardening C-1 target 2 (JWT-JSON fuzz harness landed,
+  2026-07-18):** the token layer parses the JWT header + claim set and the JWKS key
+  document as JSON **before** the signature is checked (the parse has to run to find
+  `alg`/`kid`/`aud`/`exp`), so `src/auth/token/json.c` is a pre-auth,
+  remote-attacker-reachable parser (T1) with no fuzz harness. Added
+  `tests/fuzz/fuzz_jwt_json.c`, a standalone libFuzzer target that feeds arbitrary bytes
+  as the JSON document to all five helpers — `json_get_string` (the `out_max-1` copy
+  cap), `json_get_string_array` (fixed `[256]` per-item truncation), `json_get_int64`
+  (fractional-NumericDate branch), `json_string_or_array_contains` (RFC 7519 §4.1.3
+  string-or-array `aud`), `json_has_member` (RFC 7515 §4.1.11 `crit`) — under
+  ASan+UBSan, seeded from realistic flat-claims / `aud`-array+`crit` / JWKS-key /
+  empty-object / truncated corpora. Clean over ~1.5 M runs (97 edges). Links
+  `src/auth/token/json.c` + `-ljansson`; wired into `cmdscripts.fuzz_all` and thus the
+  B-3 `fuzz.yml` lane (CI installs `libjansson-dev`). **Correction to the C-1 plan
+  text:** `json.c` is *jansson-backed* (thin bounds-checking wrappers), not the
+  hand-rolled parser the plan predates — the harness still exercises the wrapper bounds
+  (the part BriX owns) plus jansson itself on hostile input, which is the reachable
+  surface. Remaining C-1 targets (GSI/X.509 ASN.1, SSS frames, macaroon, SigV4) each
+  need a pure `(data,len)` entry factored out of their nginx-coupled TUs before they can
+  be harnessed the same way.
+- **FINDING-FUZZ-C1-URLCODEC-1 / hyper-hardening C-1 target 5 partial (percent-codec fuzz
+  harness landed, 2026-07-18):** the S3 SigV4 canonicaliser (`auth_sigv4_canonical.c`)
+  is the plan's C-1 target 5, but its top-level `build_canonical_qs()` hard-includes
+  `s3.h` (→ `ngx_http.h`), so it can't be harnessed standalone without a production
+  refactor. Its byte-handling *core*, however, is the shared HTTP percent-codec
+  `brix_http_urldecode`/`brix_http_urlencode` in `src/core/compat/uri.c` — pure C, no
+  nginx deps — which is also the decoder under WebDAV query-parameter parsing and XrdHttp
+  path handling, all pre-auth attacker-reachable (T1). Added `tests/fuzz/fuzz_urlcodec.c`:
+  feeds fuzz bytes through `brix_http_urldecode` with a **deliberately-undersized**
+  destination (so the `di+1 >= dst_sz` overflow guard is the hottest path — the decode
+  must truncate cleanly, never overrun) across both decode-flag combinations
+  (`REJECT_NUL`/`PLUS_TO_SPACE`), then round-trips through `brix_http_urlencode` at both
+  a worst-case-3× buffer and an exact-size short buffer. Seeded from typical /
+  malformed-escape / plus-to-space / lone-`%` / SigV4-shaped corpora; ASan+UBSan-clean
+  over ~950 K runs. Links `uri.c` + `hex.c` (libc only, no extra CI deps); wired into
+  `cmdscripts.fuzz_all` → the B-3 `fuzz.yml` lane. HARNESS GOTCHA caught in review: the
+  short-encode leg must use its **own exact-size** allocation — passing a size larger
+  than the buffer to `urlencode` is a harness-induced OOB (false ASan positive), not a
+  code bug; fixed to a `malloc(dst_sz)` buffer sized to exactly the length passed. The
+  full canonicaliser (sort + emit) still needs `s3.h` decoupled from
+  `auth_sigv4_canonical.c` before it can be harnessed on top of this codec.
 - **Weak-symbol credential-store linkage (found+fixed 2026-06-26 via the
   clientconf suite):** `xrdc_cred_store_new` (`client/lib/cred.c`)
   registers credential handlers (x509/bearer/sss/krb5/s3keys) through

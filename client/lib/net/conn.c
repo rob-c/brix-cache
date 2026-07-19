@@ -339,8 +339,11 @@ brix_bringup_ex(brix_conn *c, int want_login, brix_status *st)
     c->diag.phase_ns[3] = brix_mono_ns();   /* login + auth done */
 
     /* Session is up: switch from the short bring-up cap to the steady-state I/O
-     * timeout so a legitimately long read/write is not cut off. */
-    c->io.timeout_ms = brix_tmo_io_ms();
+     * timeout so a legitimately long read/write is not cut off. Also arm the
+     * opt-in slow-drip completion deadline (0 = disabled) now that bulk reads
+     * begin — a dribbling peer cannot hold a steady-state read open past it. */
+    c->io.timeout_ms        = brix_tmo_io_ms();
+    c->io.stall_deadline_ms = brix_tmo_stall_ms();
     return 0;
 }
 
@@ -363,7 +366,8 @@ brix_bind(brix_conn *sec, const brix_conn *primary, brix_status *st)
      * SAME target but SKIPS kXR_login; the server inherits identity from the
      * primary's session via kXR_bind{sessid}. (src/protocols/root/session/bind.c) */
     memset(sec, 0, sizeof(*sec));
-    sec->io.timeout_ms = primary->io.timeout_ms;
+    sec->io.timeout_ms        = primary->io.timeout_ms;
+    sec->io.stall_deadline_ms = primary->io.stall_deadline_ms;
     sec->opts          = primary->opts;
     sec->want_tls      = primary->want_tls;
     sec->tls_strict    = primary->tls_strict;

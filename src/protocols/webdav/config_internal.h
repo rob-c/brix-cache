@@ -37,9 +37,6 @@ char *webdav_validate_webdav_enabled(ngx_conf_t *cf,
 char *webdav_merge_auth_token_conf(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_http_brix_webdav_loc_conf_t *conf);
-char *webdav_merge_upstream_conf(ngx_conf_t *cf,
-    ngx_http_brix_webdav_loc_conf_t *prev,
-    ngx_http_brix_webdav_loc_conf_t *conf);
 char *webdav_merge_mirror_and_summary(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_http_brix_webdav_loc_conf_t *conf);

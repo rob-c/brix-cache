@@ -99,6 +99,8 @@ typedef struct {
     int     mode_e;                          /* 1 = MODE E extended-block      */
     int     parallelism;                     /* OPTS RETR Parallelism hint     */
     off_t   rest_off;                        /* REST restart offset (one-shot) */
+    off_t   allo_size;                       /* ALLO declared file size, -1 =  */
+                                             /*   unset (one-shot, per STOR)   */
     char    rnfr[PATH_MAX];                  /* RNFR source awaiting RNTO      */
     int     rnfr_set;
 
@@ -154,6 +156,7 @@ struct ftp_ev_dc_s {
     ngx_pool_t        *dpool;       /* per-transfer pool for the TLS conn    */
     off_t              off;         /* current file offset                   */
     off_t              size;        /* RETR total size                       */
+    off_t              allo_size;   /* STOR: ALLO-declared file size, -1 off */
     unsigned           flags;       /* writer open flags (TRUNC)            */
     int                verify;      /* writer read-back verify (whole STOR)  */
 
