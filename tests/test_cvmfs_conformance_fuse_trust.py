@@ -374,8 +374,23 @@ _CVMFS_CORE = [
     "shared/cvmfs/grammar/classify.c", "shared/cvmfs/signature/manifest.c",
     "shared/cvmfs/signature/whitelist.c", "shared/cvmfs/signature/verify.c",
     "shared/cvmfs/config/repo.c", "shared/cvmfs/config/cvmfs_conf.c",
-    "shared/cache/cas_store.c", "shared/net/proxy_env.c",
+    "shared/cvmfs/walk/walk.c", "shared/cache/cas_store.c", "shared/net/proxy_env.c",
 ]
+
+# Since phase-86 brixcvmfs.c fetches through the pooled brix_cpool
+# (client/lib/net/cpool.c), so it transitively includes client/lib/brix.h and
+# the whole client lib. Mirror the client Makefile: include client/lib + src,
+# add the rw seam + prefetch walk, and LINK the prebuilt libbrix.a /
+# libxrdproto.a rather than re-listing every lib .c. Requires `make -C client`
+# to have produced those archives (the fuse suites need brixMount built anyway).
+_CLIENT_ARCHIVES = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a"]
+_EXTRA_LIBS = [
+    "-lcurl", "-lsqlite3", "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto",
+    "-lcom_err", "-lzstd", "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2",
+    "-l:liblz4.so.1", "-luring", "-lpthread",
+]
+
+_BUILD_ERR = ""   # last compile failure, surfaced in the skip reason
 
 
 def _repo_root() -> str:
@@ -384,21 +399,30 @@ def _repo_root() -> str:
 
 def _build_brixcvmfs() -> str | None:
     """Compile the standalone brixcvmfs --check binary; None if deps missing."""
+    global _BUILD_ERR
     root = _repo_root()
     if shutil.which("pkg-config") is None:
+        _BUILD_ERR = "pkg-config not found"
         return None
     if subprocess.run(["pkg-config", "--exists", "fuse3"]).returncode != 0:
+        _BUILD_ERR = "pkg-config: fuse3 not present"
+        return None
+    missing = [a for a in _CLIENT_ARCHIVES if not os.path.isfile(os.path.join(root, a))]
+    if missing:
+        _BUILD_ERR = f"prebuilt archive(s) missing: {missing} — run `make -C client`"
         return None
     out = os.path.join(_workdir("ft_bin."), "brixcvmfs")
     cflags = subprocess.run(["pkg-config", "--cflags", "fuse3"],
                             capture_output=True, text=True).stdout.split()
     libs = subprocess.run(["pkg-config", "--libs", "fuse3"],
                           capture_output=True, text=True).stdout.split()
-    argv = ["gcc", "-O1", "-I", "shared", *cflags,
-            "client/apps/fs/brixcvmfs.c", *_CVMFS_CORE, *libs,
-            "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-o", out]
+    argv = ["gcc", "-O1", "-I", "client/lib", "-I", "src", "-I", "shared",
+            "-DXRDPROTO_NO_NGX", *cflags,
+            "client/apps/fs/brixcvmfs.c", "client/apps/fs/brixcvmfs_rw.c",
+            *_CVMFS_CORE, *_CLIENT_ARCHIVES, *libs, *_EXTRA_LIBS, "-o", out]
     r = subprocess.run(argv, cwd=root, capture_output=True, text=True)
     if r.returncode != 0:
+        _BUILD_ERR = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "gcc failed"
         return None
     return out
 
@@ -408,7 +432,7 @@ def matrix() -> dict[str, tuple[int, str, str]]:
     """Run every registered --check tamper case concurrently; yield {cid: result}."""
     binary = _build_brixcvmfs()
     if binary is None:
-        pytest.skip("cannot build brixcvmfs --check binary (fuse3/toolchain missing)")
+        pytest.skip(f"cannot build brixcvmfs --check binary: {_BUILD_ERR}")
     os.environ["BRIXCVMFS_BIN"] = binary
 
     results: dict[str, tuple[int, str, str]] = {}

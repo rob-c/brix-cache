@@ -37,8 +37,14 @@ def main(argv):
     lib.stop_all()              # clean any stale instances first
     lib.build_all()
 
-    # First wait for the manager front doors to bind (cheap liveness gate)...
-    up = sum(1 for p in lib.MANAGER_PORTS if lib.wait_port(p))
+    # First wait for the manager front doors to bind (cheap liveness gate).
+    # Poll all front doors together and stop when they are up: a permanent
+    # laggard (a misconfig) caps the gate at its timeout instead of serially
+    # burning a full per-port budget on it.  expected_manager_ports() drops
+    # topologies this box cannot launch (e.g. sss without xrdsssadmin-brix) so the
+    # gate never blocks on a manager that was never started.
+    managers = lib.expected_manager_ports()
+    up = lib.wait_managers_up(managers)
 
     # ...then actively probe each topology until its manager redirects a known
     # path.  A redirect proves the data node registered and selection works, so
@@ -48,7 +54,7 @@ def main(argv):
         names = ", ".join(f"{m}{p}" for m, p in pending)
         print(f"cms-mesh: WARNING {total - ready}/{total} probes never "
               f"redirected: {names}", file=sys.stderr)
-    print(f"cms-mesh: started ({up}/{len(lib.MANAGER_PORTS)} managers listening, "
+    print(f"cms-mesh: started ({up}/{len(managers)} managers listening, "
           f"{ready}/{total} topologies ready)")
     return 0
 

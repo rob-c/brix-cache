@@ -216,10 +216,16 @@ NGINX_JWKS_REFRESH_PORT = int(
     os.environ.get("TEST_NGINX_JWKS_REFRESH_PORT", "11115")
 )
 
-# XrdHttp protocol ports — reference xrootd daemon with XrdHttp module enabled.
-# These are used for davs:// conformance tests against the official server.
+# XrdHttp davs:// endpoint.  The reference xrootd daemon opens a *single* TLS
+# listener via `xrd.protocol XrdHttp:{HTTP_PORT}` (see configs/xrootd_xrdhttp.conf
+# and the fleet spec in fleet_specs.py), so https:// and davs:// are the same
+# port as XRDHTTP_HTTP_PORT — they are one server, not two.  Derive the default
+# from XRDHTTP_HTTP_PORT rather than hard-coding a second "11113" literal: two
+# independent literals silently drift the moment someone exports only
+# TEST_XRDHTTP_HTTP_PORT, pointing test_xrdhttp_auth's davs URL at a dead port
+# while nothing listens there.  Kept as a named alias for davs call-site clarity.
 XRDHTTP_HTTPS_PORT = int(
-    os.environ.get("TEST_XRDHTTP_HTTPS_PORT", "11113")
+    os.environ.get("TEST_XRDHTTP_HTTPS_PORT", str(XRDHTTP_HTTP_PORT))
 )
 
 WEBDAV_AUTH_CACHE_MANUAL_PORT = int(

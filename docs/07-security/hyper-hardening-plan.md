@@ -159,7 +159,18 @@
 >   On the RHEL-9 build host (gcc 11.5) the first is accepted, the second gracefully
 >   skipped. Verified via the configure log + a clean module rebuild.
 >
-> Deferred (need an ASan lane, new CI, or new directives/process): A-2, B-*, C-*.
+> - **B-3 · CI-drive the libFuzzer harnesses** — LANDED. `.github/workflows/fuzz.yml`:
+>   blocking PR/push smoke (`FUZZ_TIME=60`) + nightly cron soak (600s) over the three
+>   `tests/fuzz/` harnesses via the existing `cmdscripts.fuzz_all` runner. Standing up the
+>   gate exposed and fixed a rotted harness: `fuzz_zip_dir` had stopped building after a
+>   `sd_posix.c`→`sd_posix_io.c` file-split left its unity-build vtable unresolved — fixed
+>   by pulling the split TU into the `#include` set. All three build + fuzz clean. Corpus
+>   auto-grow-back deferred (needs a git-write bot).
+>
+> Deferred (need an ASan lane, new CI, or new directives/process): A-2 (blocked on B-2 —
+> static-inspection pass 2026-07-18 cleared all three named suspects), B-1 (analyzer
+> workflows exist; blocking-flip needs a pinned CI toolchain baseline), B-2 (ASan lane),
+> C-1, C-2 (fuzz reach — attach to the new B-3 lane).
 
 ---
 
@@ -385,6 +396,25 @@ a potentially shapeable write primitive reachable from attacker-influenced input
 **Root cause.** Unknown until reproduced. Top suspects: (a) a length/offset computed
 from a backend header used to size or index the accumulator; (b) a lifetime bug where
 the body buffer is realloc'd/freed while a pointer into it stays live.
+
+**Static-inspection pass (2026-07-18).** All three response-path accumulators named
+as suspects were read and audited clean — no inspectable OOB write or use-after-free:
+- `webdav_proxy_process_header` (`proxy_response.c:94`) is a faithful copy of stock
+  nginx `ngx_http_proxy_process_header`; the two `data[len] = '\0'` NUL writes land on
+  the delimiter byte the parser already consumed inside `u->buffer` (same invariant
+  stock relies on), and the status-line copy (`:71`) is an exact-length
+  `ngx_pnalloc`+`ngx_memcpy`.
+- `xrdhttp_digest_body_filter` (`xrdhttp_tpc.c:197`) only *reads* the body (adler32 over
+  each in-memory buf); the trailer alloc `sizeof("adler32=")-1 + 8 + 1 = 17` exactly
+  fits `ngx_sprintf(v, "adler32=%08xD", …)`.
+- `xrdhttp_add_checksum_header` (`xrdhttp_tpc.c:141`) writes only via bounded
+  `brix_integrity_format_http_digest(&info, hdr_value, sizeof(hdr_value))` /
+  `brix_sanitize_log_string(..., sizeof(safe_alg))`.
+
+Confirms the plan's premise: this is a **load-dependent** corruption (~8/100, real
+XrdHttp shape only) that inspection alone will not localise — it must be caught in the
+act under ASan. **Remains blocked on B-2**; no guess-fix will be applied (a larger
+buffer or speculative bound would violate "must be *found*" and mask the real defect).
 
 **Fix (method, not guess — this one must be *found*).**
 1. Bring up the hybrid mesh under ASan (build `SANITIZE=1`, `manage_test_servers.sh
@@ -786,7 +816,7 @@ PR latency is unacceptable, but keep it blocking on cron.
 
 ---
 
-## B-3 · CI-drive (and grow) the libFuzzer harnesses
+## B-3 · CI-drive (and grow) the libFuzzer harnesses — ✅ LANDED (smoke + nightly lane, 2026-07-18)
 
 | Severity | Effort | Type | Confidence |
 |---|---|---|---|
@@ -794,21 +824,45 @@ PR latency is unacceptable, but keep it blocking on cron.
 
 **Evidence:** `[R34][R35]`.
 
-**Current behaviour.** Three harnesses exist with corpora — `fuzz_zip_dir`,
+**What landed.** `.github/workflows/fuzz.yml` — a **blocking** PR/push smoke that
+builds all three harnesses `clang -fsanitize=fuzzer,address,undefined` and replays
+their committed corpora (`FUZZ_TIME=60` each), plus a nightly cron soak
+(`FUZZ_TIME=600`). Driven by the existing `python3 -m cmdscripts.fuzz_all` runner so
+CI and local `PHASE81_RUN_FUZZ_PORT=1 pytest test_cmd_fuzz_all.py` share one build
+path. Unlike `fanalyzer.yml` this lane is blocking, not advisory: the harnesses are
+self-contained deterministic clang builds with no version-sensitive baseline, so a
+finding is a real reproducible fault.
+
+**Harness rot found & fixed in the same change.** Standing up the lane immediately
+surfaced why "run them in CI" mattered: `fuzz_zip_dir` no longer **built**. A
+concurrent file-split had carved the raw fd byte ops out of `sd_posix.c` into
+`sd_posix_io.c`, so the harness's unity build (`#include "…/sd_posix.c"`) left the
+`brix_sd_posix_driver` vtable's `sd_posix_pread/…/fstat` slots unresolved at link.
+Fix: add `#include "…/sd_posix_io.c"` to the unity build (the ns ops stay compiled
+out under `XRDPROTO_NO_NGX`). All three harnesses now build + fuzz clean. This is the
+canonical argument for the gate — an un-run harness silently rotted.
+
+**Current behaviour (pre-landing).** Three harnesses exist with corpora — `fuzz_zip_dir`,
 `fuzz_b64url`, `fuzz_safe_size` `[R34]` — built `clang -fsanitize=fuzzer,address,
 undefined`; the README states the real attack surface is the wire parsers `[R35]`.
-Nothing runs them in CI.
+Nothing ran them in CI.
 
 **Fix.**
-1. CI **fuzz smoke**: each harness ~60s against its committed corpus on every PR; any
-   new crash/leak fails.
-2. **Nightly** longer run with corpus minimization committed back so coverage compounds.
-3. This same lane hosts the *new* C-1/C-2 harnesses.
+1. ✅ CI **fuzz smoke**: each harness ~60s against its committed corpus on every PR; any
+   new crash/leak fails. — *done (`fuzz.yml`, blocking).*
+2. ⏳ **Nightly** longer run — *done (600s cron)*; corpus minimization **committed back**
+   so coverage compounds is **deferred**: it needs a write-back bot (a CI job that
+   `git commit`s minimized corpora), which is a git-write automation to add under its own
+   review, not folded into the scaffold.
+3. This same lane hosts the *new* C-1/C-2 harnesses as they land.
 
 **Test.** A seeded crashing input in a scratch harness fails the smoke; removing it
-passes.
+passes. *(Verified live: the pre-existing `fuzz_zip_dir` link break is exactly the
+"harness stopped working" failure mode the smoke now catches — it was red before the
+`sd_posix_io.c` unity-build fix, green after.)*
 
-**Acceptance.** Three harnesses run in CI; corpora are version-controlled and grow.
+**Acceptance.** Three harnesses run in CI; corpora are version-controlled *(corpus
+auto-grow-back deferred, see Fix 2)*.
 
 **Effort breakdown.** Smoke job ~0.5d · nightly + corpus-commit ~0.5d.
 
@@ -1671,7 +1725,7 @@ Copy-paste starting points. Fleet/log conventions per CLAUDE.md
 | **A-6** | Fake OCSP responder returning a 1 GiB body → worker memory must stay bounded; nonce-stripped replay → deny under hard-fail |
 | **B-1** | Open a throwaway PR with a deliberate NULL-deref → both analyzer gates go red; revert → green. Never hand-edit `[R31]` to silence |
 | **B-2** | New lane builds `-fsanitize=address,undefined`; `ASAN_OPTIONS=abort_on_error=1:detect_leaks=1`; goes red on the A-2 repro (joint acceptance) |
-| **B-3** | `cd tests/fuzz && ./fuzz_b64url -runs=100000 corpus_b64url` (repeat for `fuzz_safe_size`, `fuzz_zip_dir`); wire the same into CI smoke |
+| **B-3** | ✅ wired: `.github/workflows/fuzz.yml` runs all three via `python3 -m cmdscripts.fuzz_all` (PR smoke 60s, nightly 600s). Local: `PHASE81_RUN_FUZZ_PORT=1 pytest tests/test_cmd_fuzz_all.py` |
 | **C-1** | Per new harness: `clang -O1 -g -fsanitize=fuzzer,address,undefined <harness>.c -o <t>` then run against a seed corpus captured from the live auth suites |
 | **C-3** | `grep -rn "return NGX_OK" src/auth src/protocols/**/auth_* ` and prove each success path gates on the verdict, not an intermediate step `[R47]` |
 | **D-3** | `brix_seccomp audit` → drive the full suite → collect the audit-logged syscall set → author the allowlist → `brix_seccomp enforce` → suite must stay green; `execve` from a worker must be killed |

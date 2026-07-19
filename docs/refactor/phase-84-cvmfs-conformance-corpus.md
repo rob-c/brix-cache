@@ -377,6 +377,24 @@ mid-body sever still ends in a clean EIO, never bad bytes).
 Item 11 (origin connection reuse) landed 2026-07-18 — persistent curl easy
 handle in `brixcvmfs.c`, reuse test un-pinned; full refresh_failover suite 87/87.
 
+**Redirect / scheme confinement (`brixcvmfs.c` transport, 2026-07-19):**
+`CURLOPT_FOLLOWLOCATION` was on with no protocol restriction and no redirect
+cap, so a poisoned mirror or a DPI middlebox could answer any CAS fetch with a
+3xx to `file:///etc/passwd`, an internal metadata IP (169.254.169.254), `scp://`,
+`gopher://`, … and libcurl would chase it. Content is CAS-hash-verified so a
+*wrong body* is caught, but that is no defence against the redirect's SSRF /
+local-file-read **side effect** (libcurl actually opening the resource). Now
+confined: `CURLOPT_PROTOCOLS` + `CURLOPT_REDIR_PROTOCOLS` = `HTTP|HTTPS`
+(bitmask form for alma8-era libcurl portability), `CURLOPT_MAXREDIRS=4` so a
+redirect loop can't wedge the mount, and `SSL_VERIFYPEER=1`/`VERIFYHOST=2` made
+explicit so `-o tls` fails closed against an intercepting proxy. Tests
+(`fuse_refresh_failover::TestRedirectConfinement`, new `redirect:`/
+`redirect_host:` fault modes in `LocalOrigin`): file:// redirect to a
+**valid-content** bait file is still refused (proves the scheme block, not the
+hash backstop); a self-referential redirect loop fails with EIO in <30s (not a
+hang); a legitimate cross-host http→http mirror redirect is still followed to a
+byte-exact success. Suite 91/91.
+
 **Build gotcha (mixed-epoch shared objects → phantom -5 refusals):** `client/`'s
 `make clean` does not remove `../shared/cvmfs/**/*.o`, and after the
 `cvmfs_whitelist_t`/manifest struct growth (body-binding `signed_hash`, whitelist
@@ -386,3 +404,16 @@ header epoch against fresh `verify.o`/`client.o`. Result: garbage
 verify) even though every suite that compiles per-fixture binaries stayed green.
 If brixMount starts refusing pristine forges after a struct change, `rm -f
 shared/cvmfs/*/*.{o,d}` and relink before suspecting the crypto.
+
+**Trust-suite standalone-compile fix (2026-07-19):** the phase-86 `brix_cpool`
+pooling migration made `brixcvmfs.c` `#include "net/cpool.h"`, which silently broke
+the trust suite's from-source `--check` binary — all 64 `test_cvmfs_conformance_fuse_trust`
+cases began SKIPPING with "cannot build brixcvmfs --check binary". A trust/tamper
+security suite that mis-runs as a no-op is a hole in itself, so it was repaired rather
+than left skipping: `_build_brixcvmfs` now adds `-I client/lib -I src`, compiles
+`brixcvmfs_rw.c` + `shared/cvmfs/walk/walk.c`, and links `client/libbrix.a` +
+`shared/xrdproto/libxrdproto.a` plus the full transitive lib set, with an
+archive-existence guard and captured `_BUILD_ERR` so a genuine link failure surfaces in
+the skip reason instead of hiding behind a generic "unsupported". Restored to 64/64
+(confirmed on a clean serial rerun, 160s); the occasional lone `clean` -9 under the
+12-worker pool is the free_port TOCTOU load-flake, not a verify failure.

@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from typing import Sequence
 
@@ -111,23 +112,100 @@ class RegistryLauncher:
     def start_registered(self, specs: Sequence[NginxInstanceSpec] | None = None) -> dict:
         selected = list(specs) if specs is not None else registered_specs()
         manifest = self.write_controller_manifest(selected)
-        for spec in selected:
-            if "critical" in spec.tags:
-                # Main nginx / main reference xrootd: a failure here is fatal —
-                # the suite cannot run without them, so let it propagate.
-                self.start(spec)
-                continue
-            # Non-critical fleet members mirror bash `start_x || true`: an
-            # optional-daemon skip (missing libs/tooling) or a transient start
-            # failure must not abort the whole start-all. Log and press on.
-            try:
-                self.start(spec)
-            except (Exception, pytest.skip.Exception) as exc:  # noqa: BLE001
-                sys.stderr.write(
-                    f"\n[registry] non-critical spec '{spec.name}' did not start "
-                    f"({type(exc).__name__}: {exc}); continuing.\n"
-                )
+        workers = self._start_workers()
+        if workers <= 1:
+            for spec in selected:
+                self._start_guarded(spec)
+            return manifest
+        # Bring-up is dominated by per-instance subprocess spawns (nginx -t,
+        # nginx/xrootd fork) and TCP readiness polls — all GIL-releasing I/O, so
+        # threads overlap it cleanly. Fan out one dependency LEVEL at a time with
+        # a barrier between levels: every spec's `requires` are fully ready before
+        # it launches. The DAG is shallow (backends → dependents), so the barrier
+        # cost is a few levels, not a serialization of the whole fleet.
+        for level in self._dependency_levels(selected):
+            self._start_level(level, workers)
         return manifest
+
+    def _start_guarded(self, spec: NginxInstanceSpec) -> None:
+        if "critical" in spec.tags:
+            # Main nginx / main reference xrootd: a failure here is fatal — the
+            # suite cannot run without them, so let it propagate.
+            self.start(spec)
+            return
+        # Non-critical fleet members mirror bash `start_x || true`: an
+        # optional-daemon skip (missing libs/tooling) or a transient start
+        # failure must not abort the whole start-all. Log and press on.
+        try:
+            self.start(spec)
+        except (Exception, pytest.skip.Exception) as exc:  # noqa: BLE001
+            sys.stderr.write(
+                f"\n[registry] non-critical spec '{spec.name}' did not start "
+                f"({type(exc).__name__}: {exc}); continuing.\n"
+            )
+
+    def _start_level(self, level: Sequence[NginxInstanceSpec], workers: int) -> None:
+        # Each worker only ever `list.append`s to self._owned / assigns a distinct
+        # key into self._xrootd_procs/_external_stops — both GIL-atomic in CPython,
+        # so no extra lock is needed. Critical failures still propagate: a raised
+        # future re-raises here, aborting the whole start (critical specs live at
+        # level 0, so nothing dependent has launched yet).
+        with ThreadPoolExecutor(max_workers=min(workers, len(level))) as pool:
+            futures = {pool.submit(self.start, spec): spec for spec in level}
+            for future in as_completed(futures):
+                spec = futures[future]
+                try:
+                    future.result()
+                except (Exception, pytest.skip.Exception) as exc:  # noqa: BLE001
+                    if "critical" in spec.tags:
+                        raise
+                    sys.stderr.write(
+                        f"\n[registry] non-critical spec '{spec.name}' did not start "
+                        f"({type(exc).__name__}: {exc}); continuing.\n"
+                    )
+
+    @staticmethod
+    def _start_workers() -> int:
+        # Tunable via env; default oversubscribes cores since most of each start
+        # is spent waiting on subprocesses and readiness polls, not on CPU. 1
+        # forces the legacy sequential path (useful for deterministic debugging).
+        raw = os.environ.get("BRIX_FLEET_START_WORKERS")
+        if raw:
+            try:
+                return max(1, int(raw))
+            except ValueError:
+                pass
+        return min(16, ((os.cpu_count() or 4) * 2))
+
+    @staticmethod
+    def _dependency_levels(
+        selected: Sequence[NginxInstanceSpec],
+    ) -> list[list[NginxInstanceSpec]]:
+        # Partition specs into dependency levels: level N holds specs whose deepest
+        # `requires` chain (restricted to specs present in this selection) is N.
+        # Required names absent from the selection (e.g. subset boot) are treated
+        # as already-satisfied and don't add depth. Original selection order is
+        # preserved within each level for deterministic launch ordering.
+        by_name = {spec.name: spec for spec in selected}
+        depth_memo: dict[str, int] = {}
+
+        def depth(name: str, seen: frozenset[str] = frozenset()) -> int:
+            if name in depth_memo:
+                return depth_memo[name]
+            spec = by_name.get(name)
+            reqs = [
+                r
+                for r in (getattr(spec, "requires", ()) or ())
+                if r in by_name and r not in seen
+            ]
+            value = 0 if not reqs else 1 + max(depth(r, seen | {name}) for r in reqs)
+            depth_memo[name] = value
+            return value
+
+        levels: dict[int, list[NginxInstanceSpec]] = {}
+        for spec in selected:
+            levels.setdefault(depth(spec.name), []).append(spec)
+        return [levels[key] for key in sorted(levels)]
 
     def stop_registered(self, specs: Sequence[NginxInstanceSpec] | None = None) -> None:
         selected = list(specs) if specs is not None else registered_specs()

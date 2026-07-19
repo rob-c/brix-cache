@@ -65,6 +65,8 @@ P_BLIND = 13417
 P_PROXY_ORIGIN, P_PROXY_A = 13418, 13419
 P_PROXY_B = 13405          # reused after the failover classes have torn down
 P_OPTS = 13406             # reused after the failover classes have torn down
+P_REDIR = 13420
+P_REDIR_MIRROR = 13421
 
 _PROXY_VARS = ("http_proxy", "https_proxy", "all_proxy", "no_proxy",
                "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")
@@ -172,6 +174,24 @@ def _make_handler(origin):
                 return
             if mode == "http500":
                 return self._reply(500, b"origin error")
+            if mode and mode.startswith("redirect_host:"):
+                # 302 to another host:port PRESERVING the request path — a
+                # legitimate mirror redirect (http->http, allowed).
+                loc = f"http://{mode[len('redirect_host:'):]}{self.path}"
+                self.send_response(302)
+                self.send_header("Location", loc)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            if mode and mode.startswith("redirect:"):
+                # 3xx to an attacker-chosen Location. Encodes the target in the
+                # fault string ("redirect:file:///path" / "redirect:/self/loop").
+                # Exercises the client's redirect/scheme confinement.
+                self.send_response(302)
+                self.send_header("Location", mode[len("redirect:"):])
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
 
             full = origin.webroot / self.path.lstrip("/")
             if not full.is_file():
@@ -1141,6 +1161,109 @@ class TestRangeResume:
 
     def test_range_blind_recovers_once_sever_lifted(self, scn):
         assert scn["small_after"] == scn["small"]
+
+
+# ============================================================================
+# Redirect / scheme confinement — a poisoned mirror or DPI middlebox answers a
+# CAS fetch with a 3xx.  The client confines redirects to HTTP(S) (never a
+# local file:// or an internal-service scheme), bounds the chain length so a
+# redirect loop can't wedge the mount, yet still follows a legitimate HTTP
+# mirror redirect.  Guards CURLOPT_{PROTOCOLS,REDIR_PROTOCOLS,MAXREDIRS}.
+# ============================================================================
+
+@pytest.mark.timeout(120)
+class TestRedirectConfinement:
+    SECRET = b"redirect-confinement-probe-payload\n"
+
+    @pytest.fixture(scope="class")
+    def scn(self, tmp_path_factory):
+        tmp = tmp_path_factory.mktemp("redir")
+        forge, web, pub = _forge(tmp, tree={"secret.bin": File(self.SECRET)})
+        needle = cas_needle(self.SECRET)
+
+        # A LOCAL file holding the CORRECT stored (zlib) object bytes.  If the
+        # client ever followed a file:// redirect, libcurl would read this, the
+        # CAS hash would MATCH, and the read would succeed — so a *failed* read
+        # here can only mean the file:// scheme was refused up front.  This is
+        # what makes the test prove confinement rather than the hash backstop.
+        bait = tmp / "bait.cas"
+        bait.write_bytes(zlib.compress(self.SECRET))
+
+        origin = LocalOrigin(P_REDIR, web).start()
+        mirror = LocalOrigin(P_REDIR_MIRROR, web).start()
+        obs = {}
+        try:
+            with conf_mount(REPO, pub, server_env=_url(P_REDIR), retries=1) as (mnt, _):
+                assert os.path.ismount(mnt), "mount failed"
+
+                # -- security-neg: object fetch redirected to file:// ----------
+                origin.set_fault(f"redirect:file://{bait}", 99, path_re=needle)
+                t0 = time.monotonic()
+                try:
+                    (mnt / "secret.bin").read_bytes()
+                    obs["file_errno"] = 0
+                except OSError as e:
+                    obs["file_errno"] = e.errno
+                obs["file_secs"] = time.monotonic() - t0
+                origin.clear_faults()
+                time.sleep(2.5)                       # failed-route blacklist lapses
+
+                # -- bound: self-referential redirect loop ---------------------
+                # Location keeps the needle in the path, so every follow re-fires
+                # the fault → an unbounded loop unless MAXREDIRS caps it.
+                origin.set_fault(f"redirect:/cvmfs/{REPO}/data/{needle}", 999,
+                                 path_re=needle)
+                t0 = time.monotonic()
+                try:
+                    (mnt / "secret.bin").read_bytes()
+                    obs["loop_errno"] = 0
+                except OSError as e:
+                    obs["loop_errno"] = e.errno
+                obs["loop_secs"] = time.monotonic() - t0
+                origin.clear_faults()
+
+            # -- success: legitimate http->http mirror redirect ---------------
+            # Fresh mount: the abuse cases above blacklisted the primary route,
+            # which would otherwise mask the redirect under a failover error.
+            with conf_mount(REPO, pub, server_env=_url(P_REDIR), retries=1) as (mnt, _):
+                assert os.path.ismount(mnt), "mount failed"
+                origin.set_fault(f"redirect_host:127.0.0.1:{P_REDIR_MIRROR}", 1,
+                                 path_re=needle)
+                try:
+                    obs["mirror_bytes"] = (mnt / "secret.bin").read_bytes()
+                    obs["mirror_errno"] = 0
+                except OSError as e:
+                    obs["mirror_bytes"] = None
+                    obs["mirror_errno"] = e.errno
+                obs["mirror_hits"] = mirror.requests(needle)
+                origin.clear_faults()
+            yield obs
+        finally:
+            origin.stop()
+            mirror.stop()
+            forge.close()
+
+    def test_file_scheme_redirect_refused(self, scn):
+        # bait file has valid content, so a followed file:// would SUCCEED —
+        # the read must instead fail, proving the scheme was blocked.
+        import errno
+        assert scn["file_errno"] == errno.EIO
+
+    def test_file_scheme_redirect_fails_promptly(self, scn):
+        # confinement rejects at the redirect, so no wait on a local read either
+        assert scn["file_secs"] < 30
+
+    def test_redirect_loop_bounded_not_hung(self, scn):
+        import errno
+        assert scn["loop_errno"] == errno.EIO
+        assert scn["loop_secs"] < 30          # MAXREDIRS cap, not a wedge
+
+    def test_legitimate_http_mirror_redirect_followed(self, scn):
+        # http->http cross-host redirect is allowed; the mirror served it and
+        # the bytes are exact — confinement did not over-block real redirects.
+        assert scn["mirror_errno"] == 0
+        assert scn["mirror_bytes"] == self.SECRET
+        assert len(scn["mirror_hits"]) >= 1
 
 
 # ============================================================================

@@ -131,6 +131,24 @@ static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
     curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(c, CURLOPT_FAILONERROR, 1L);         /* HTTP >=400 → error */
     curl_easy_setopt(c, CURLOPT_TCP_KEEPALIVE, 1L);
+    /* Confine the transport to HTTP(S) for BOTH the first request and every
+     * redirect it follows. A poisoned mirror or a DPI middlebox can answer any
+     * request with a 3xx to file:///etc/passwd, an internal metadata IP
+     * (169.254.169.254), scp://, gopher://, … — FOLLOWLOCATION would chase it.
+     * The CAS layer hash-verifies content so a wrong body is caught, but that is
+     * no help if the redirect makes libcurl read a LOCAL file or poke an
+     * internal service in the first place: confine the scheme up front and cap
+     * the chain so a redirect loop can't wedge the mount either. Bitmask form
+     * (not the 7.85+ *_STR opts) for alma8-era libcurl portability. */
+    curl_easy_setopt(c, CURLOPT_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
+    curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
+    curl_easy_setopt(c, CURLOPT_MAXREDIRS, 4L);
+    /* TLS is defence-in-depth here (CVMFS content self-authenticates), but when
+     * a user asks for -o tls we must fail CLOSED against a MITM / intercepting
+     * DPI proxy rather than silently accept a forged cert. This restates
+     * libcurl's own default so a future edit can't quietly relax it. */
+    curl_easy_setopt(c, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(c, CURLOPT_SSL_VERIFYHOST, 2L);
     /* Reused handle: set these unconditionally so a prior request's resume
      * offset / freshness flags can never leak into this one. */
     curl_easy_setopt(c, CURLOPT_RESUME_FROM_LARGE, (curl_off_t) start);

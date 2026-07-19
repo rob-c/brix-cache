@@ -1059,6 +1059,30 @@ config — that is a deliberate opt-in feature decision (a
   its own tests can inject a synthetic tree. Verified: `tests/test_source_guards.py`
   (real tree clean, sanctioned setter passes, rogue-proxy setter refused). References
   `[R81]` in the hyper-hardening plan.
+- **FINDING-FUZZ-LANE-1 / hyper-hardening B-3 (CI fuzz lane landed + a rotted harness
+  found, 2026-07-18):** three libFuzzer harnesses live under `tests/fuzz/`
+  (`fuzz_zip_dir` = ZIP central-directory walk, `fuzz_b64url` = JWT base64url,
+  `fuzz_safe_size` = allocation-size guards) with committed corpora and a
+  `cmdscripts.fuzz_all` runner, but **nothing ran them in CI** — so nobody noticed one
+  had stopped building. `fuzz_zip_dir` is a unity build that `#include`s
+  `src/fs/backend/posix/sd_posix.c`; a concurrent refactor split the raw fd byte ops
+  (`sd_posix_pread/_pwrite/_preadv/_preadv2/_copy_range/_read_sendfile_fd/_ftruncate/
+  _fsync/_fstat`) out into `sd_posix_io.c`, leaving the `brix_sd_posix_driver` vtable's
+  io slots unresolved at link — the harness had been silently un-buildable since the
+  split. **Fix:** add `#include "…/posix/sd_posix_io.c"` to the harness's unity-build
+  set (the namespace ops in `sd_posix_ns.c` stay compiled out under `XRDPROTO_NO_NGX`,
+  so only the io TU is needed); all three harnesses now build + fuzz clean. **Gate:**
+  `.github/workflows/fuzz.yml` — a **blocking** PR/push smoke (`FUZZ_TIME=60` per
+  harness) plus a nightly cron soak (`600s`), both driven through the existing
+  `python3 -m cmdscripts.fuzz_all` runner so CI and the local
+  `PHASE81_RUN_FUZZ_PORT=1 pytest tests/test_cmd_fuzz_all.py` share one build path. This
+  lane is blocking (unlike the advisory `fanalyzer.yml`) because the harnesses are
+  self-contained deterministic clang builds with no version-sensitive baseline. Corpus
+  minimize-and-commit-back (so coverage compounds across runs) is deferred — it needs a
+  git-write CI bot, to be added under its own review. The rot-then-catch is itself the
+  argument for the gate: an un-run harness is not a harness. LESSON: any unity-build
+  test target that `#include`s a driver `.c` must be re-checked whenever that driver is
+  file-split — the vtable references outlive the file that defined its members.
 - **Weak-symbol credential-store linkage (found+fixed 2026-06-26 via the
   clientconf suite):** `xrdc_cred_store_new` (`client/lib/cred.c`)
   registers credential handlers (x509/bearer/sss/krb5/s3keys) through

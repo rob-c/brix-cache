@@ -1,0 +1,41 @@
+# libFuzzer smoke + nightly (hyper-hardening B-3).
+#
+# The three harnesses under tests/fuzz/ (fuzz_zip_dir, fuzz_b64url,
+# fuzz_safe_size) build with clang -fsanitize=fuzzer,address,undefined and
+# replay their committed corpora. Until this lane existed nothing ran them in
+# CI, so a harness could silently rot (fuzz_zip_dir did: a sd_posix.c file-split
+# left its unity build unlinkable — fixed 2026-07-18 when this lane was added).
+#
+# BLOCKING on PRs — the harnesses are self-contained deterministic clang builds
+# with no baseline to drift, so a crash/leak here is a real, reproducible fault,
+# not toolchain noise (contrast fanalyzer.yml, which is advisory precisely
+# because its baseline is GCC-version-sensitive). Each harness runs the fast
+# FUZZ_TIME the runner honours; the nightly cron runs the same targets longer.
+#
+# Corpus growth (minimized corpora committed back to compound coverage) and the
+# planned C-1/C-2 wire/auth-parser harnesses attach to this same lane as they
+# land — see docs/07-security/hyper-hardening-plan.md B-3/C-1/C-2.
+name: fuzz
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *'
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang zlib1g-dev libssl-dev
+      - name: Run libFuzzer harnesses
+        working-directory: tests
+        env:
+          # Longer soak on the nightly cron; fast smoke on PR/push.
+          FUZZ_TIME: ${{ github.event_name == 'schedule' && '600' || '60' }}
+        run: python3 -m cmdscripts.fuzz_all
