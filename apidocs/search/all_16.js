@@ -89,7 +89,7 @@ var searchData=
   ['net_5fparse_5fplain_5fhost_86',['net_parse_plain_host',['../net__target__parse_8c.html#a36a016ce5d4106e2faa85c9a12779f0c',1,'net_target_parse.c']]],
   ['net_5fparse_5fport_5fdigits_87',['net_parse_port_digits',['../net__target__parse_8c.html#ad606bf4a92396cc3e39312101291d0ca',1,'net_target_parse.c']]],
   ['net_5fparse_5fscheme_88',['net_parse_scheme',['../net__target__parse_8c.html#a0a9cc1f961c0551310d3c57bbcb804f7',1,'net_target_parse.c']]],
-  ['net_5fpin_5ffirst_5faddr_89',['net_pin_first_addr',['../net__target__dns_8c.html#afeca72fdf81121ee9ca38cf8db625e4f',1,'net_target_dns.c']]],
+  ['net_5fpin_5fappend_5faddr_89',['net_pin_append_addr',['../net__target__dns_8c.html#a4be20b7e0230d14b62903112d40d588f',1,'net_target_dns.c']]],
   ['net_5fpin_5fout_5ft_90',['net_pin_out_t',['../structnet__pin__out__t.html',1,'']]],
   ['net_5fresolve_5fhost_91',['net_resolve_host',['../net__target__dns_8c.html#aedbe639a61206d35b0d8f247928a9097',1,'net_target_dns.c']]],
   ['net_5ftarget_2ec_92',['net_target.c',['../net__target_8c.html',1,'']]],

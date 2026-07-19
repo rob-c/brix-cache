@@ -282,118 +282,141 @@ $(document).ready(function(){initNavTree('net__target__dns_8c_source.html',''); 
 </div>
 <div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span> </div>
 <div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="comment"> * net_pin_first_addr — format the first permitted address into pin-&gt;buf once.</span></div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span><span class="comment"> * WHAT: when pin-&gt;buf is still empty, writes the numeric form of rp into it;</span></div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="comment"> *       returns NGX_OK, or NGX_ERROR (with err set) if getnameinfo fails.</span></div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span><span class="comment"> * WHY:  keeps the &quot;pin only the first permitted address&quot; bookkeeping out of</span></div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><span class="comment"> *       the scan loop so the loop reads as check-then-pin.</span></div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="comment"> * HOW:  getnameinfo(NI_NUMERICHOST); no-op once pin-&gt;buf is already populated.</span></div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00184" data-start="{" data-end="}">
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno"><a class="line" href="net__target__dns_8c.html#afeca72fdf81121ee9ca38cf8db625e4f">  184</a></span><a class="code hl_function" href="net__target__dns_8c.html#afeca72fdf81121ee9ca38cf8db625e4f">net_pin_first_addr</a>(<span class="keyword">const</span> <span class="keyword">struct</span> addrinfo *rp, <span class="keyword">const</span> <span class="keywordtype">char</span> *host_buf,</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structnet__pin__out__t.html">net_pin_out_t</a> *pin, <span class="keywordtype">char</span> *err, <span class="keywordtype">size_t</span> errsz)</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>{</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    <span class="keywordflow">if</span> (pin-&gt;<a class="code hl_variable" href="structnet__pin__out__t.html#abafddd377a5b71d47e5448fddf0d7e13">buf</a>[0] != <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    }</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span> </div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordflow">if</span> (getnameinfo(rp-&gt;ai_addr, rp-&gt;ai_addrlen, pin-&gt;<a class="code hl_variable" href="structnet__pin__out__t.html#abafddd377a5b71d47e5448fddf0d7e13">buf</a>, pin-&gt;<a class="code hl_variable" href="structnet__pin__out__t.html#ad7214a0f9440cb6724e8cb46f9333fc0">size</a>,</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                    NULL, 0, NI_NUMERICHOST) != 0)</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    {</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        snprintf(err, errsz, <span class="stringliteral">&quot;could not format resolved address for %s&quot;</span>,</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>                 host_buf);</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>    }</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span> </div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>}</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="comment"> * net_pin_append_addr — append this permitted address to the comma-separated</span></div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span><span class="comment"> * pin list.</span></div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="comment"> * WHAT: writes the numeric form of rp onto the end of pin-&gt;buf as</span></div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span><span class="comment"> *       &quot;addr&quot; (first) or &quot;,addr&quot; (subsequent); returns NGX_OK, or NGX_ERROR</span></div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span><span class="comment"> *       (with err set) if getnameinfo fails.</span></div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="comment"> * WHY:  the caller hands the WHOLE validated set to curl via CURLOPT_RESOLVE</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment"> *       (&quot;host:port:addr1,addr2&quot;), so curl can fall back ACROSS address families</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment"> *       (e.g. a loopback host whose &quot;localhost&quot; is ::1-only in /etc/hosts but</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="comment"> *       whose server listens on 127.0.0.1 — ::1 is refused, curl then tries the</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="comment"> *       pinned IPv4) WITHOUT ever re-resolving. Pinning every permitted address</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="comment"> *       is exactly as safe as pinning one: each was policy-checked before this</span></div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span><span class="comment"> *       call, and no independent re-resolution can smuggle a new address in.</span></div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span><span class="comment"> * HOW:  getnameinfo(NI_NUMERICHOST) into a scratch buffer, then append with a</span></div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span><span class="comment"> *       leading &#39;,&#39; when the list is non-empty. An address that would overflow</span></div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="comment"> *       the pin buffer is SKIPPED (not truncated) — the list keeps &gt;= 1 addr.</span></div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00193" data-start="{" data-end="}">
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno"><a class="line" href="net__target__dns_8c.html#a4be20b7e0230d14b62903112d40d588f">  193</a></span><a class="code hl_function" href="net__target__dns_8c.html#a4be20b7e0230d14b62903112d40d588f">net_pin_append_addr</a>(<span class="keyword">const</span> <span class="keyword">struct</span> addrinfo *rp, <span class="keyword">const</span> <span class="keywordtype">char</span> *host_buf,</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structnet__pin__out__t.html">net_pin_out_t</a> *pin, <span class="keywordtype">char</span> *err, <span class="keywordtype">size_t</span> errsz)</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>{</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="keywordtype">char</span>   addr[64];   <span class="comment">/* INET6_ADDRSTRLEN (46) + slack */</span></div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>    <span class="keywordtype">size_t</span> used = ngx_strlen(pin-&gt;<a class="code hl_variable" href="structnet__pin__out__t.html#abafddd377a5b71d47e5448fddf0d7e13">buf</a>);</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    <span class="keywordtype">size_t</span> alen;</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span> </div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    <span class="keywordflow">if</span> (getnameinfo(rp-&gt;ai_addr, rp-&gt;ai_addrlen, addr, <span class="keyword">sizeof</span>(addr),</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>                    NULL, 0, NI_NUMERICHOST) != 0)</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    {</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>        snprintf(err, errsz, <span class="stringliteral">&quot;could not format resolved address for %s&quot;</span>,</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>                 host_buf);</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    }</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span> </div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    alen = ngx_strlen(addr);</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    <span class="keywordflow">if</span> (used + (used ? 1 : 0) + alen + 1 &gt; pin-&gt;<a class="code hl_variable" href="structnet__pin__out__t.html#ad7214a0f9440cb6724e8cb46f9333fc0">size</a>) {</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>        <span class="keywordflow">return</span> NGX_OK;   <span class="comment">/* buffer full — keep the addresses already pinned */</span></div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    }</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="keywordflow">if</span> (used) {</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>        pin-&gt;<a class="code hl_variable" href="structnet__pin__out__t.html#abafddd377a5b71d47e5448fddf0d7e13">buf</a>[used++] = <span class="charliteral">&#39;,&#39;</span>;</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    }</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pin-&gt;<a class="code hl_variable" href="structnet__pin__out__t.html#abafddd377a5b71d47e5448fddf0d7e13">buf</a> + used, addr, alen + 1);</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>}</div>
 </div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span> </div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="comment"> * brix_net_target_check_dns_pin — like check_dns, but also returns the</span></div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><span class="comment"> * numeric IP of the first permitted address so the caller can connect to that</span></div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span><span class="comment"> * exact address (DNS-rebind defence).</span></div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="comment"> * WHAT: validates every resolved address against policy and writes the first</span></div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="comment"> *       permitted one&#39;s numeric form into out_ip; NGX_OK / NGX_ERROR.</span></div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span><span class="comment"> * WHY:  validating a hostname then letting a separate component re-resolve it</span></div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span><span class="comment"> *       opens a TOCTOU rebind window (DNS answers differently the 2nd time).</span></div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span><span class="comment"> *       Pinning the validated address closes that window — see loop comment.</span></div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span><span class="comment"> * HOW:  BLOCKING getaddrinfo + getnameinfo(NI_NUMERICHOST); thread-pool only.</span></div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00215" data-start="{" data-end="}">
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno"><a class="line" href="net__target_8h.html#ab1170a9cdab1354585eabb4882412d8f">  215</a></span><a class="code hl_function" href="net__target__dns_8c.html#ab1170a9cdab1354585eabb4882412d8f">brix_net_target_check_dns_pin</a>(<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__net__target__t.html">brix_net_target_t</a> *target,</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__net__target__policy__t.html">brix_net_target_policy_t</a> *policy,</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    <span class="keywordtype">char</span> *out_ip, <span class="keywordtype">size_t</span> out_ipsz,</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    <span class="keywordtype">char</span> *err, <span class="keywordtype">size_t</span> errsz)</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>{</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>    <span class="keyword">struct </span>addrinfo  *res, *rp;</div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    <span class="keywordtype">char</span>              host_buf[256];</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    <a class="code hl_struct" href="structnet__pin__out__t.html">net_pin_out_t</a>     pin = { out_ip, out_ipsz };</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span> </div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <span class="keywordflow">if</span> (out_ip == NULL || out_ipsz == 0) {</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>        snprintf(err, errsz, <span class="stringliteral">&quot;no pin buffer&quot;</span>);</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    }</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    out_ip[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span> </div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    <span class="keywordflow">if</span> (target-&gt;<a class="code hl_variable" href="structbrix__net__target__t.html#a25fcc1011a47950e138738563631860f">host</a>.len == 0</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>        || <a class="code hl_function" href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a>(host_buf, <span class="keyword">sizeof</span>(host_buf), &amp;target-&gt;<a class="code hl_variable" href="structbrix__net__target__t.html#a25fcc1011a47950e138738563631860f">host</a>) == NULL)</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    {</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        snprintf(err, errsz, <span class="stringliteral">&quot;target host is empty or too long&quot;</span>);</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    }</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span> </div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="net__target__dns_8c.html#aedbe639a61206d35b0d8f247928a9097">net_resolve_host</a>(host_buf, <a class="code hl_function" href="net__target__dns_8c.html#a93256ffb4feaeb536876f8ca061b9690">net_default_port</a>(target, policy),</div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>                         &amp;res, err, errsz) != NGX_OK)</div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    {</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    }</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span> </div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span><span class="comment">     * Validate EVERY resolved address (so a multi-A record can&#39;t smuggle a</span></div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span><span class="comment">     * prohibited address past the check) and pin the FIRST permitted one.</span></div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span><span class="comment">     * Pinning the exact validated address is what closes the rebind window —</span></div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span><span class="comment">     * a later independent re-resolution by the transfer agent is bypassed.</span></div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="keywordflow">for</span> (rp = res; rp != NULL; rp = rp-&gt;ai_next) {</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net__target__dns_8c.html#a80dfbdc8f7fbbc6e239f91d7ce50dcd6">net_addr_is_prohibited_msg</a>(rp-&gt;ai_addr, policy, host_buf,</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>                                       err, errsz))</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>        {</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>            freeaddrinfo(res);</div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>        }</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span> </div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net__target__dns_8c.html#afeca72fdf81121ee9ca38cf8db625e4f">net_pin_first_addr</a>(rp, host_buf, &amp;pin, err, errsz) != NGX_OK) {</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>            freeaddrinfo(res);</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>        }</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    }</div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    freeaddrinfo(res);</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span> </div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    <span class="keywordflow">if</span> (out_ip[0] == <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>        snprintf(err, errsz, <span class="stringliteral">&quot;no addresses resolved for %s&quot;</span>, host_buf);</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    }</div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span> </div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>}</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span> </div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment"> * brix_net_target_check_dns_pin — like check_dns, but also returns the numeric</span></div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment"> * IPs of ALL permitted addresses (comma-separated) so the caller can connect to</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="comment"> * exactly that validated set (DNS-rebind defence) while still falling back</span></div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span><span class="comment"> * across them.</span></div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment"> * WHAT: validates every resolved address against policy and writes the whole</span></div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment"> *       permitted set&#39;s numeric forms into out_ip as &quot;addr1,addr2&quot;; NGX_OK /</span></div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span><span class="comment"> *       NGX_ERROR.</span></div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="comment"> * WHY:  validating a hostname then letting a separate component re-resolve it</span></div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="comment"> *       opens a TOCTOU rebind window (DNS answers differently the 2nd time).</span></div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span><span class="comment"> *       Pinning the validated set closes that window; pinning ALL of it (not</span></div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="comment"> *       just the first) also lets curl fall back e.g. ::1 -&gt; 127.0.0.1 for a</span></div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span><span class="comment"> *       dual-stack/loopback host without ever re-resolving — see loop comment.</span></div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span><span class="comment"> * HOW:  BLOCKING getaddrinfo + getnameinfo(NI_NUMERICHOST); thread-pool only.</span></div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00236" data-start="{" data-end="}">
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno"><a class="line" href="net__target_8h.html#ab1170a9cdab1354585eabb4882412d8f">  236</a></span><a class="code hl_function" href="net__target__dns_8c.html#ab1170a9cdab1354585eabb4882412d8f">brix_net_target_check_dns_pin</a>(<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__net__target__t.html">brix_net_target_t</a> *target,</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__net__target__policy__t.html">brix_net_target_policy_t</a> *policy,</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <span class="keywordtype">char</span> *out_ip, <span class="keywordtype">size_t</span> out_ipsz,</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    <span class="keywordtype">char</span> *err, <span class="keywordtype">size_t</span> errsz)</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>{</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <span class="keyword">struct </span>addrinfo  *res, *rp;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    <span class="keywordtype">char</span>              host_buf[256];</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    <a class="code hl_struct" href="structnet__pin__out__t.html">net_pin_out_t</a>     pin = { out_ip, out_ipsz };</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span> </div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    <span class="keywordflow">if</span> (out_ip == NULL || out_ipsz == 0) {</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        snprintf(err, errsz, <span class="stringliteral">&quot;no pin buffer&quot;</span>);</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    }</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    out_ip[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span> </div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    <span class="keywordflow">if</span> (target-&gt;<a class="code hl_variable" href="structbrix__net__target__t.html#a25fcc1011a47950e138738563631860f">host</a>.len == 0</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>        || <a class="code hl_function" href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a>(host_buf, <span class="keyword">sizeof</span>(host_buf), &amp;target-&gt;<a class="code hl_variable" href="structbrix__net__target__t.html#a25fcc1011a47950e138738563631860f">host</a>) == NULL)</div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    {</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>        snprintf(err, errsz, <span class="stringliteral">&quot;target host is empty or too long&quot;</span>);</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    }</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span> </div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="net__target__dns_8c.html#aedbe639a61206d35b0d8f247928a9097">net_resolve_host</a>(host_buf, <a class="code hl_function" href="net__target__dns_8c.html#a93256ffb4feaeb536876f8ca061b9690">net_default_port</a>(target, policy),</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>                         &amp;res, err, errsz) != NGX_OK)</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    {</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    }</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span> </div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span><span class="comment">     * Validate EVERY resolved address (so a multi-A record can&#39;t smuggle a</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment">     * prohibited address past the check) and pin ALL permitted ones (comma-</span></div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment">     * joined). Pinning the exact validated set is what closes the rebind window</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span><span class="comment">     * — a later independent re-resolution by the transfer agent is bypassed —</span></div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span><span class="comment">     * and handing curl the full set lets it fall back across address families.</span></div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    <span class="keywordflow">for</span> (rp = res; rp != NULL; rp = rp-&gt;ai_next) {</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net__target__dns_8c.html#a80dfbdc8f7fbbc6e239f91d7ce50dcd6">net_addr_is_prohibited_msg</a>(rp-&gt;ai_addr, policy, host_buf,</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>                                       err, errsz))</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>        {</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>            freeaddrinfo(res);</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>        }</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span> </div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net__target__dns_8c.html#a4be20b7e0230d14b62903112d40d588f">net_pin_append_addr</a>(rp, host_buf, &amp;pin, err, errsz) != NGX_OK) {</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>            freeaddrinfo(res);</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>        }</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>    }</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span> </div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    freeaddrinfo(res);</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span> </div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    <span class="keywordflow">if</span> (out_ip[0] == <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>        snprintf(err, errsz, <span class="stringliteral">&quot;no addresses resolved for %s&quot;</span>, host_buf);</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>    }</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span> </div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>}</div>
 </div>
 <div class="ttc" id="acstr_8h_html"><div class="ttname"><a href="cstr_8h.html">cstr.h</a></div></div>
 <div class="ttc" id="acstr_8h_html_a9bb0256bbf38e5c7dfe426ed3a218409"><div class="ttname"><a href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a></div><div class="ttdeci">static const char * brix_str_cbuf(char *buf, size_t bufsize, const ngx_str_t *s)</div><div class="ttdef"><b>Definition</b> <a href="cstr_8h_source.html#l00043">cstr.h:43</a></div></div>
 <div class="ttc" id="anet__target_8c_html_ac41f3e4c6e0fb6e84827cd31060c3edb"><div class="ttname"><a href="net__target_8c.html#ac41f3e4c6e0fb6e84827cd31060c3edb">net_addr_check</a></div><div class="ttdeci">int net_addr_check(const struct sockaddr *sa, ngx_flag_t allow_local, ngx_flag_t allow_private)</div><div class="ttdef"><b>Definition</b> <a href="net__target_8c_source.html#l00109">net_target.c:109</a></div></div>
 <div class="ttc" id="anet__target_8h_html"><div class="ttname"><a href="net__target_8h.html">net_target.h</a></div></div>
 <div class="ttc" id="anet__target__dns_8c_html_a4a65b30eb8e5d26f408cf711b5596f05"><div class="ttname"><a href="net__target__dns_8c.html#a4a65b30eb8e5d26f408cf711b5596f05">brix_net_target_check_dns</a></div><div class="ttdeci">ngx_int_t brix_net_target_check_dns(const brix_net_target_t *target, const brix_net_target_policy_t *policy, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00121">net_target_dns.c:121</a></div></div>
+<div class="ttc" id="anet__target__dns_8c_html_a4be20b7e0230d14b62903112d40d588f"><div class="ttname"><a href="net__target__dns_8c.html#a4be20b7e0230d14b62903112d40d588f">net_pin_append_addr</a></div><div class="ttdeci">static ngx_int_t net_pin_append_addr(const struct addrinfo *rp, const char *host_buf, const net_pin_out_t *pin, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00193">net_target_dns.c:193</a></div></div>
 <div class="ttc" id="anet__target__dns_8c_html_a80dfbdc8f7fbbc6e239f91d7ce50dcd6"><div class="ttname"><a href="net__target__dns_8c.html#a80dfbdc8f7fbbc6e239f91d7ce50dcd6">net_addr_is_prohibited_msg</a></div><div class="ttdeci">static int net_addr_is_prohibited_msg(const struct sockaddr *sa, const brix_net_target_policy_t *policy, const char *host_buf, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00090">net_target_dns.c:90</a></div></div>
 <div class="ttc" id="anet__target__dns_8c_html_a93256ffb4feaeb536876f8ca061b9690"><div class="ttname"><a href="net__target__dns_8c.html#a93256ffb4feaeb536876f8ca061b9690">net_default_port</a></div><div class="ttdeci">static uint16_t net_default_port(const brix_net_target_t *target, const brix_net_target_policy_t *policy)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00034">net_target_dns.c:34</a></div></div>
-<div class="ttc" id="anet__target__dns_8c_html_ab1170a9cdab1354585eabb4882412d8f"><div class="ttname"><a href="net__target__dns_8c.html#ab1170a9cdab1354585eabb4882412d8f">brix_net_target_check_dns_pin</a></div><div class="ttdeci">ngx_int_t brix_net_target_check_dns_pin(const brix_net_target_t *target, const brix_net_target_policy_t *policy, char *out_ip, size_t out_ipsz, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00215">net_target_dns.c:215</a></div></div>
+<div class="ttc" id="anet__target__dns_8c_html_ab1170a9cdab1354585eabb4882412d8f"><div class="ttname"><a href="net__target__dns_8c.html#ab1170a9cdab1354585eabb4882412d8f">brix_net_target_check_dns_pin</a></div><div class="ttdeci">ngx_int_t brix_net_target_check_dns_pin(const brix_net_target_t *target, const brix_net_target_policy_t *policy, char *out_ip, size_t out_ipsz, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00236">net_target_dns.c:236</a></div></div>
 <div class="ttc" id="anet__target__dns_8c_html_aedbe639a61206d35b0d8f247928a9097"><div class="ttname"><a href="net__target__dns_8c.html#aedbe639a61206d35b0d8f247928a9097">net_resolve_host</a></div><div class="ttdeci">static ngx_int_t net_resolve_host(const char *host_buf, uint16_t port, struct addrinfo **out_res, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00059">net_target_dns.c:59</a></div></div>
-<div class="ttc" id="anet__target__dns_8c_html_afeca72fdf81121ee9ca38cf8db625e4f"><div class="ttname"><a href="net__target__dns_8c.html#afeca72fdf81121ee9ca38cf8db625e4f">net_pin_first_addr</a></div><div class="ttdeci">static ngx_int_t net_pin_first_addr(const struct addrinfo *rp, const char *host_buf, const net_pin_out_t *pin, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00184">net_target_dns.c:184</a></div></div>
 <div class="ttc" id="anet__target__internal_8h_html"><div class="ttname"><a href="net__target__internal_8h.html">net_target_internal.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="astructbrix__net__target__policy__t_html"><div class="ttname"><a href="structbrix__net__target__policy__t.html">brix_net_target_policy_t</a></div><div class="ttdef"><b>Definition</b> <a href="net__target_8h_source.html#l00049">net_target.h:49</a></div></div>
 <div class="ttc" id="astructbrix__net__target__policy__t_html_a227994444162f7fb8e49db450dfcaa96"><div class="ttname"><a href="structbrix__net__target__policy__t.html#a227994444162f7fb8e49db450dfcaa96">brix_net_target_policy_t::require_https</a></div><div class="ttdeci">ngx_flag_t require_https</div><div class="ttdef"><b>Definition</b> <a href="net__target_8h_source.html#l00050">net_target.h:50</a></div></div>
 <div class="ttc" id="astructbrix__net__target__policy__t_html_a28867d32e669360bfa1d94cb8ee04e6e"><div class="ttname"><a href="structbrix__net__target__policy__t.html#a28867d32e669360bfa1d94cb8ee04e6e">brix_net_target_policy_t::default_https_port</a></div><div class="ttdeci">uint16_t default_https_port</div><div class="ttdef"><b>Definition</b> <a href="net__target_8h_source.html#l00054">net_target.h:54</a></div></div>
