@@ -248,7 +248,7 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
          * only, in the worst case, miss an existing lock for a caller who is
          * about to be denied by the write path anyway. */
         if (errno == ENODATA || errno == ENOATTR || errno == ENOENT
-            || errno == ENOTSUP || errno == EOPNOTSUPP
+            || errno == ENOTSUP || errno == EOPNOTSUPP || errno == ENOSYS
             || errno == EACCES || errno == EPERM)
         {
             return NGX_DECLINED;
@@ -271,7 +271,7 @@ webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path)
 
     if (brix_vfs_removexattr(&vctx, WEBDAV_LOCK_XATTR_KEY) != NGX_OK) {
         if (errno == ENODATA || errno == ENOATTR || errno == ENOENT
-            || errno == ENOTSUP || errno == EOPNOTSUPP)
+            || errno == ENOTSUP || errno == EOPNOTSUPP || errno == ENOSYS)
         {
             return NGX_OK;   /* idempotent (incl. backends without xattr) */
         }

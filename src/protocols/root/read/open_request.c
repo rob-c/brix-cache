@@ -132,8 +132,18 @@ brix_open_read_probe(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
             return 0;
         }
 
-        if (brix_sd_stat_maybe_cred(sd, key, &sst,
-                use_cred ? &ucred : NULL) != NGX_OK) {
+        /* With a forwarded user cred, dispatch on the leaf instance so
+         * brix_sd_stat_maybe_cred finds the leaf driver's stat_cred slot
+         * (mirrors vfs_stat.c): the stage/cache decorators relay stat through
+         * the PLAIN slot only, so probing the TOP instance with a resolved
+         * user cred under fallback=deny hits the forwarder's
+         * cred-would-be-dropped refusal (EACCES, no wire I/O) and a
+         * stage-composed https/xroot origin spuriously reported every
+         * existing file as absent → kXR_NotFound on read-open. Without a
+         * cred the TOP instance must answer: a cache decorator's stat serves
+         * warm hits from cinfo even when the origin object is gone. */
+        if (brix_sd_stat_maybe_cred(use_cred ? brix_vfs_ns_leaf(sd) : sd,
+                key, &sst, use_cred ? &ucred : NULL) != NGX_OK) {
             brix_sd_ucred_wipe(&ustore);   /* secret consumed; erase (A-4/T4) */
             return 0;
         }

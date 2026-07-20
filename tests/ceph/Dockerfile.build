@@ -54,5 +54,10 @@ RUN test -f /usr/include/rados/librados.h \
  && gcc /tmp/t.c -lrados -o /tmp/t \
  && echo "librados-devel OK (BRIX_HAVE_CEPH will be detected)"
 
+# Sanity: the XRootD client must be baked in -- the live suite's export smoke
+# drives the server through xrdcp/xrdfs, and a runtime backfill is at the mercy
+# of mirror-sync windows (see test_ceph_live._ensure_xrootd_client).
+RUN xrdcp --version && command -v xrdfs
+
 WORKDIR /work
 ENTRYPOINT ["/bin/bash"]

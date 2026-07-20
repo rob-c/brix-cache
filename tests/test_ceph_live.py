@@ -47,6 +47,7 @@ shell harness). Tear them down with CEPH_LAB_TEARDOWN=1, or manually:
 
 import os
 import subprocess
+import time
 
 import pytest
 
@@ -77,18 +78,43 @@ def _work_container_built() -> bool:
 
 
 def _ensure_xrootd_client() -> None:
-    """Backfill xrdcp/xrdfs into the work container if the image predates them."""
+    """Backfill xrdcp/xrdfs into the work container if the image predates them.
+
+    Newer xrd-ceph-build images bake the client in (Dockerfile.build asserts
+    it), so this is normally a no-op. The dnf path only runs against an older
+    image, and its dominant failure mode is a CentOS Stream mirror-sync window
+    (repomd.xml checksum mismatch / "All mirrors were tried"), which is
+    transient -- so retry with fresh metadata and keep the real dnf error for
+    the assertion instead of discarding it.
+    """
     have = subprocess.run(
         ["docker", "exec", WORK, "bash", "-lc", "command -v xrdcp && command -v xrdfs"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     ).returncode == 0
     if have:
         return
-    installed = subprocess.run(
-        ["docker", "exec", WORK, "dnf", "-y", "install", "xrootd-client"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    attempts = 3
+    last = None
+    for attempt in range(attempts):
+        if attempt:
+            time.sleep(30)
+            # Stale/partial metadata from the failed attempt would just re-fail;
+            # start the retry from a clean slate.
+            subprocess.run(
+                ["docker", "exec", WORK, "dnf", "clean", "metadata"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        last = subprocess.run(
+            ["docker", "exec", WORK, "dnf", "-y", "install", "xrootd-client"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        if last.returncode == 0:
+            return
+    tail = "\n".join(last.stdout.splitlines()[-15:])
+    raise AssertionError(
+        f"failed to install xrootd-client in work container "
+        f"after {attempts} attempts; last dnf output:\n{tail}"
     )
-    assert installed.returncode == 0, "failed to install xrootd-client in work container"
 
 
 @pytest.fixture(scope="session")
