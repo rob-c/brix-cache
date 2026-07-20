@@ -32,6 +32,7 @@ spawns throwaway stock-xrootd and nginx servers on a private port band.  Skips
 cleanly when the stock tools are not installed.
 """
 
+import fcntl
 import os
 import re
 import shutil
@@ -77,8 +78,17 @@ def _have(*tools):
     return all(shutil.which(t) or os.path.exists(t) for t in tools)
 
 
-def _run(cmd, **kw):
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kw)
+def _run(cmd, timeout=120, **kw):
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                          **kw)
+
+
+# RSA keygen is an unbounded prime search: a 4096-bit `openssl req -newkey` that
+# takes ~5s idle can blow well past 120s on a CPU-saturated 12-worker lane.  A
+# timeout on keygen should mean "wedged", never "slow" — so every command that
+# generates or consumes a fresh RSA key gets this generous ceiling instead of
+# the default 120s.
+_KEYGEN_TIMEOUT = 600
 
 
 def _big(path, n_bytes, seed=b"GSI-handshake-payload-"):
@@ -208,8 +218,8 @@ def _terminate(proc):
 # --------------------------------------------------------------------------- #
 # PKI provisioning — trusted CA, untrusted CA, host cert, proxies
 # --------------------------------------------------------------------------- #
-def _osl(*a):
-    r = _run(["openssl", *a])
+def _osl(*a, timeout=120):
+    r = _run(["openssl", *a], timeout=timeout)
     assert r.returncode == 0, f"openssl {a[0]} failed: {r.stderr}"
 
 
@@ -221,14 +231,15 @@ def _ca_hash_link(ca_pem, certs_dir):
 def _make_ca(path, subj, bits=2048):
     key, pem = os.path.join(path, "ca.key"), os.path.join(path, "ca.pem")
     _osl("req", "-x509", "-nodes", "-newkey", f"rsa:{bits}", "-days", "2",
-         "-subj", subj, "-keyout", key, "-out", pem)
+         "-subj", subj, "-keyout", key, "-out", pem,
+         timeout=_KEYGEN_TIMEOUT)
     return key, pem
 
 
 def _signed(ca_key, ca_pem, cn, key, cert, base, bits=2048):
     csr = os.path.join(base, os.path.basename(key) + ".csr")
     _osl("req", "-nodes", "-newkey", f"rsa:{bits}", "-subj", f"/O=XrdTest/CN={cn}",
-         "-keyout", key, "-out", csr)
+         "-keyout", key, "-out", csr, timeout=_KEYGEN_TIMEOUT)
     _osl("x509", "-req", "-in", csr, "-CA", ca_pem, "-CAkey", ca_key,
          "-CAcreateserial", "-days", "2", "-out", cert)
 
@@ -240,7 +251,7 @@ def _mint_proxy(eec_cert, eec_key, out, certs, env):
     # already set to `certs` in `env`; the param is kept for that contract.
     _run(["xrdgsiproxy", "init", "-cert", eec_cert, "-key", eec_key,
           "-out", out, "-valid", "1:00"],
-         input="\n\n", env=env)
+         input="\n\n", env=env, timeout=_KEYGEN_TIMEOUT)
     return os.path.exists(out)
 
 
@@ -620,32 +631,109 @@ def nginx_root_sigver(pki):
         harness.close()
 
 
+# --------------------------------------------------------------------------- #
+# RSA-4096 PKI cache — three 4096-bit keygens (~seconds idle, unbounded under a
+# CPU-saturated 12-worker lane) used to run on EVERY module import, and one slow
+# prime search past the subprocess timeout errored the whole TestRsa4096 class.
+# The long-lived material (CA + host + user EEC, all `-days 2`) is generated
+# once and cached in a stable location OUTSIDE every rotated tree (never under
+# TMPDIR / pytest basetemp / /tmp/xrd-test — concurrent sessions rotate+rm those
+# roots), guarded by a cross-process flock so concurrent workers generate once.
+# Only the short-lived proxy (xrdgsiproxy -valid 1:00) is minted fresh per run.
+# --------------------------------------------------------------------------- #
+_PKI_CACHE_ROOT = "/tmp/brix-gsi-pki-cache"
+_PKI_CACHE_TAG = "rsa4096-v1"          # bump on any layout/parameter change
+
+
+def _pki_cache_paths(cache):
+    return {
+        "ca_key": os.path.join(cache, "ca.key"),
+        "ca": os.path.join(cache, "ca.pem"),
+        "certs": os.path.join(cache, "certs"),
+        "hostkey": os.path.join(cache, "server", "hostkey.pem"),
+        "hostcert": os.path.join(cache, "server", "hostcert.pem"),
+        "userkey": os.path.join(cache, "user", "userkey.pem"),
+        "usercert": os.path.join(cache, "user", "usercert.pem"),
+    }
+
+
+def _pki_cache_valid(cache, fqdn):
+    """True iff the cached RSA-4096 material is safe to reuse: complete, each
+    cert chains to the cached CA and is INSIDE its validity window in both
+    directions (`openssl verify` rejects not-yet-valid certs — a WSL2 clock
+    step backwards can leave a cached notBefore in the future), has >= 1h of
+    life left (headroom for the run), each key matches its cert, and the host
+    cert was issued for THIS host's fqdn."""
+    p = _pki_cache_paths(cache)
+    if not all(os.path.exists(v) for k, v in p.items() if k != "certs"):
+        return False
+    for cert in (p["ca"], p["hostcert"], p["usercert"]):
+        if _run(["openssl", "x509", "-in", cert, "-noout",
+                 "-checkend", "3600"]).returncode != 0:
+            return False
+    for cert in (p["hostcert"], p["usercert"]):
+        if _run(["openssl", "verify", "-CAfile", p["ca"],
+                 cert]).returncode != 0:
+            return False
+    for cert, key in ((p["hostcert"], p["hostkey"]),
+                      (p["usercert"], p["userkey"])):
+        cpub = _run(["openssl", "x509", "-in", cert, "-noout", "-pubkey"]).stdout
+        kpub = _run(["openssl", "pkey", "-in", key, "-pubout"]).stdout
+        if not cpub or cpub != kpub:
+            return False
+    subj = _run(["openssl", "x509", "-in", p["hostcert"], "-noout",
+                 "-subject"]).stdout
+    return fqdn in subj
+
+
+def _rsa4096_cached_pki(fqdn):
+    """Return the validated RSA-4096 cache dir, (re)generating it under an
+    exclusive cross-process flock so N concurrent workers pay the three
+    4096-bit keygens exactly once.  Any validation failure (expired, clock-
+    skewed, truncated, wrong host) regenerates from scratch — into a temp dir
+    swapped in whole, so a reader never sees a half-written cache."""
+    os.makedirs(_PKI_CACHE_ROOT, exist_ok=True)
+    cache = os.path.join(_PKI_CACHE_ROOT, _PKI_CACHE_TAG)
+    with open(os.path.join(_PKI_CACHE_ROOT,
+                           f".{_PKI_CACHE_TAG}.lock"), "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        if _pki_cache_valid(cache, fqdn):
+            return cache
+        tmp = f"{cache}.tmp.{os.getpid()}"
+        shutil.rmtree(tmp, ignore_errors=True)
+        p = _pki_cache_paths(tmp)
+        for d in (p["certs"], os.path.dirname(p["hostkey"]),
+                  os.path.dirname(p["userkey"])):
+            os.makedirs(d, exist_ok=True)
+        ck, cp = _make_ca(tmp, "/O=XrdTest/CN=XrdTest 4096 CA", bits=4096)
+        _ca_hash_link(cp, p["certs"])
+        _signed(ck, cp, fqdn, p["hostkey"], p["hostcert"], tmp, bits=4096)
+        _signed(ck, cp, "Test User 4096", p["userkey"], p["usercert"], tmp,
+                bits=4096)
+        os.chmod(p["userkey"], 0o600)
+        # The fleet runs with umask 000; clamp the CA dir like pki() does so
+        # XrdCl's TLS init never rejects it as "excessive access rights".
+        os.chmod(p["certs"], 0o755)
+        shutil.rmtree(cache, ignore_errors=True)
+        os.rename(tmp, cache)
+        return cache
+
+
 @pytest.fixture(scope="module")
-def rsa4096(pki):
+def rsa4096(pki, tmp_path_factory):
     """A parallel RSA-4096 PKI (CA + host + user proxy) so the handshake's RSA
-    sign/recover (chunked by key-size) is exercised at a larger modulus."""
-    base = os.path.join(pki["base"], "rsa4096")
-    certs = os.path.join(base, "certs")
-    usr = os.path.join(base, "user")
-    srv = os.path.join(base, "server")
-    for d in (certs, usr, srv):
-        os.makedirs(d, exist_ok=True)
-    ck, cp = _make_ca(base, "/O=XrdTest/CN=XrdTest 4096 CA", bits=4096)
-    _ca_hash_link(cp, certs)
-    _signed(ck, cp, pki["fqdn"], os.path.join(srv, "hostkey.pem"),
-            os.path.join(srv, "hostcert.pem"), base, bits=4096)
-    _signed(ck, cp, "Test User 4096", os.path.join(usr, "userkey.pem"),
-            os.path.join(usr, "usercert.pem"), base, bits=4096)
-    os.chmod(os.path.join(usr, "userkey.pem"), 0o600)
-    env = dict(os.environ, X509_CERT_DIR=certs,
-               X509_USER_PROXY=os.path.join(usr, "proxy.pem"))
-    assert _mint_proxy(os.path.join(usr, "usercert.pem"),
-                       os.path.join(usr, "userkey.pem"),
-                       os.path.join(usr, "proxy.pem"), certs, env), \
+    sign/recover (chunked by key-size) is exercised at a larger modulus.
+
+    The long-lived material comes from the cross-run cache above; only the
+    short-lived (1h) proxy is minted fresh, into this run's private tmp."""
+    p = _pki_cache_paths(_rsa4096_cached_pki(pki["fqdn"]))
+    proxy = os.path.join(str(tmp_path_factory.mktemp("rsa4096proxy")),
+                         "proxy.pem")
+    env = dict(os.environ, X509_CERT_DIR=p["certs"], X509_USER_PROXY=proxy)
+    assert _mint_proxy(p["usercert"], p["userkey"], proxy, p["certs"], env), \
         "could not mint the RSA-4096 proxy"
-    yield {"certs": certs, "ca": cp, "env": env,
-           "hostcert": os.path.join(srv, "hostcert.pem"),
-           "hostkey": os.path.join(srv, "hostkey.pem")}
+    yield {"certs": p["certs"], "ca": p["ca"], "env": env,
+           "hostcert": p["hostcert"], "hostkey": p["hostkey"]}
 
 
 @pytest.fixture(scope="module")

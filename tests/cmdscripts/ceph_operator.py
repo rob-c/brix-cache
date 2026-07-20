@@ -254,9 +254,16 @@ pkill -9 nginx 2>/dev/null; sleep 1
 # under $RUN; without it the module build's default prefix (/usr/local/nginx) is
 # never created (no `make install`) and `nginx -t` dies on mkdir(proxy_temp).
 rm -rf "$RUN"; mkdir -p "$RUN/tmp" "$RUN/logs" /export
+# Workers de-escalate unconditionally (always-on brix worker drop): a root
+# master's workers land on a confined account, which must still be able to
+# read the Ceph conf/keyring and write the export + temp dirs. Provision a
+# dedicated non-root account rather than serving as "nobody".
+id -u xrdsmoke >/dev/null 2>&1 || useradd -r -M -s /sbin/nologin xrdsmoke
+chmod a+r /etc/ceph/ceph.conf /etc/ceph/*.keyring 2>/dev/null
+chown -R xrdsmoke "$RUN" /export
 cat > "$RUN/nginx.conf" <<EOF
 daemon on;
-user root;
+user xrdsmoke;
 worker_processes 1;
 error_log $RUN/error.log info;
 pid $RUN/nginx.pid;

@@ -70,9 +70,29 @@ def _uid():
     return uuid.uuid4().hex[:12]
 
 
+# Under a parallel (-n 12) run the single-worker nginx occasionally severs a
+# brand-new TLS connection during the handshake (SSLEOFError before any HTTP
+# bytes are exchanged).  urllib3 counts handshake SSLErrors against the
+# "other"/"connect" buckets, so retrying there is method-independent and
+# cannot replay a request.  read=0 keeps mid-request failures fail-fast:
+# a PUT whose response was lost is never resent (a silent replay would turn
+# a 201 into a 204 and break setup assertions).
+_RETRY = urllib3.util.retry.Retry(
+    total=2, connect=2, read=0, status=0, other=2, backoff_factor=0.2
+)
+
+
+def _mount_retry(s):
+    """Mount the pre-request retry policy on both schemes of a Session."""
+    adapter = requests.adapters.HTTPAdapter(max_retries=_RETRY)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    return s
+
+
 def _s():
     """requests.Session with read+write bearer token."""
-    s = requests.Session()
+    s = _mount_retry(requests.Session())
     s.headers["Authorization"] = f"Bearer {_RW_TOKEN}"
     s.verify = False
     return s
@@ -80,7 +100,7 @@ def _s():
 
 def _sa():
     """requests.Session WITHOUT any credentials (anonymous TLS)."""
-    s = requests.Session()
+    s = _mount_retry(requests.Session())
     s.verify = False
     return s
 

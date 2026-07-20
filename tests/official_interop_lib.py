@@ -90,8 +90,9 @@ FLEET_OFF_PORT = _FLEET_OFF_PORT
 # these paths per xdist worker therefore desyncs seeding from what those
 # servers serve (every seeded file becomes kXR_NotFound). Cross-worker safety
 # on the shared trees comes from the machinery below instead: _seed_file is
-# create-once, _wipe_stale_working_files is age-gated to this process's
-# import, listing differentials use a per-worker lroot_<tag> dir, and
+# create-once, _wipe_stale_working_files AND reset_to_seeded_tree are
+# age-gated by _entry_is_stale (this process's import time plus an absolute
+# freshness floor), listing differentials use a per-worker lroot_<tag> dir, and
 # harmonize_perms/chown_stock stat-and-skip so a concurrent re-seed never
 # bumps ctime under a running stat-parity test.
 FLEET_OUR_DATA = os.path.join(TEST_ROOT, "data-interop-our")
@@ -317,6 +318,44 @@ _SEEDED_TOPLEVEL = {
 
 _wiped_roots = set()     # once-per-process guard, keyed by absolute data root
 
+# Absolute freshness floor for BOTH shared-tree deleters below. The
+# mtime-vs-_IMPORT_TIME gate alone is not race-free on this host: xdist worker
+# processes capture _IMPORT_TIME seconds apart, and the WSL2 RT kernel's tsc
+# clocksource steps the host clock BACKWARDS by 2.7s/27s (see
+# wsl2_clock_backwards_steps / fast-lane-burndown §5.9) — so a file another
+# worker created "just now" can carry an mtime slightly BEFORE this worker's
+# import and would be judged a prior-run leftover. Any entry modified within
+# this window of NOW is therefore always treated as live, regardless of the
+# import-time comparison. 60s covers two 27s steps plus worker import skew
+# while keeping the quick-rerun leftover window (a prior run's final-minute
+# files surviving into an immediate rerun) small.
+_LIVE_FILE_GUARD_S = 60.0
+
+
+def _entry_is_stale(path):
+    """True iff the top-level entry at ``path`` is a PRIOR-run leftover that a
+    shared-tree deleter may remove; False means it must be preserved.
+
+    lstat: judge staleness by the entry itself (a symlink's own age), never
+    follow it, so a dangling/rich-tree link can't crash the walk. Two keep
+    conditions, both required to fail before deletion is allowed:
+      * mtime >= _IMPORT_TIME  — created during this run (possibly by a
+        concurrent xdist worker);
+      * younger than _LIVE_FILE_GUARD_S — absolute floor that keeps a
+        just-created file safe even when clock steps / worker import skew push
+        its mtime behind this process's _IMPORT_TIME.
+    An unstattable entry (racing teardown) is reported live: deleting on an
+    unknown age is exactly the failure mode this predicate exists to prevent."""
+    try:
+        mtime = os.lstat(path).st_mtime
+    except OSError:
+        return False
+    if mtime >= _IMPORT_TIME:
+        return False                      # created this run — keep
+    if time.time() - mtime < _LIVE_FILE_GUARD_S:
+        return False                      # too young to trust the import gate
+    return True
+
 
 def _wipe_stale_working_files(root):
     """Remove PRIOR-run working files from one data root, preserving the seeded
@@ -339,23 +378,13 @@ def _wipe_stale_working_files(root):
         if name in _SEEDED_TOPLEVEL:
             continue
         p = os.path.join(root, name)
-        try:
-            # lstat: judge staleness by the entry itself (a symlink's own age),
-            # never follow it, so a dangling/rich-tree link can't crash the walk.
-            #
-            # Threshold is _IMPORT_TIME exactly (no slack). Each conf file runs in
-            # its OWN pytest process, so a prior file's process has fully exited —
-            # and every file it created is therefore strictly OLDER than this
-            # process's import — before this one imports. A negative margin would
-            # instead PROTECT the previous file's just-written leftovers (created
-            # <margin seconds ago), leaking its asymmetric root files into this
-            # file's `ls /` differentials (cross-file contamination). Files THIS
-            # process creates are written after import (import precedes any test),
-            # so their mtime is > _IMPORT_TIME and they are always kept — which is
-            # also what keeps a concurrent xdist worker's in-flight files safe.
-            if os.lstat(p).st_mtime >= _IMPORT_TIME:
-                continue                      # created this run — keep
-        except OSError:
+        # Staleness gate lives in _entry_is_stale (shared with
+        # reset_to_seeded_tree): mtime-vs-_IMPORT_TIME plus the absolute
+        # _LIVE_FILE_GUARD_S floor. Files THIS process creates are written
+        # after import (import precedes any test), so they are always kept —
+        # which is also what keeps a concurrent xdist worker's in-flight files
+        # safe.
+        if not _entry_is_stale(p):
             continue
         try:
             if os.path.islink(p) or os.path.isfile(p):
@@ -367,12 +396,22 @@ def _wipe_stale_working_files(root):
 
 
 def reset_to_seeded_tree(*roots):
-    """Remove non-seeded top-level artefacts and restore deterministic fixtures.
+    """Remove PRIOR-RUN non-seeded top-level artefacts and restore the
+    deterministic fixtures.
 
     This is for tests that intentionally enumerate or recursively copy the
     entire interop export. Those tests need a stable root even when they run late
     in a long serial suite after other conformance modules have created working
     files, FIFOs, symlinks, or restricted directories in the shared fleet tree.
+
+    Deletion is gated by the SAME staleness predicate as
+    _wipe_stale_working_files (_entry_is_stale). The unconditional form was the
+    round-11 mid-lane file-vanishing bug: the whole-tree xrdcp test calling this
+    on the shared FLEET_*_DATA roots deleted every OTHER xdist worker's
+    in-flight working file in one shot (three simultaneous 3011/FileNotFound
+    failures on gw6/gw7/gw8). A concurrent worker's this-run files are plain
+    regular files and are harmless to a recursive enumeration, so preserving
+    them costs nothing; only genuinely stale prior-run hazards are removed.
     """
     for root in roots:
         try:
@@ -383,6 +422,9 @@ def reset_to_seeded_tree(*roots):
             if name in _SEEDED_TOPLEVEL:
                 continue
             path = os.path.join(root, name)
+            if not _entry_is_stale(path):
+                continue                  # this run's (possibly another
+                                          # worker's) live file — keep
             try:
                 if os.path.islink(path) or os.path.isfile(path):
                     os.remove(path)
