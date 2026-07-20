@@ -153,3 +153,47 @@ def test_conftest_fixture_specs_surfaces_dedicated_and_drops_backbone():
 def test_unparseable_source_is_survived_not_raised():
     assert fd.analyze_source("def broken(:\n") == []
     assert fd.conftest_fixture_specs("def broken(:\n") == frozenset()
+    assert fd.module_autouse_specs("def broken(:\n") == frozenset()
+
+
+def test_module_autouse_specs_surfaces_the_undeclarable_dependency():
+    """An autouse fixture binds every test in the module to its server without
+    any test naming it, so the boot set must learn it from the fixture itself."""
+    ded_const, ded_spec = _a_dedicated_const()
+    src = textwrap.dedent(f"""
+        import pytest
+        from settings import {ded_const}
+        @pytest.fixture(scope="session", autouse=True)
+        def module_env():
+            wait_port({ded_const})
+    """)
+    assert ded_spec in fd.module_autouse_specs(src)
+
+
+def test_module_autouse_specs_ignores_non_autouse_fixtures():
+    ded_const, ded_spec = _a_dedicated_const()
+    src = textwrap.dedent(f"""
+        import pytest
+        from settings import {ded_const}
+        @pytest.fixture(scope="session")
+        def opt_in_env():
+            wait_port({ded_const})
+        @pytest.fixture(autouse=False)
+        def explicit_off():
+            wait_port({ded_const})
+    """)
+    assert fd.module_autouse_specs(src) == frozenset()
+    # ...while the broader fixture surface still sees them for subset boot.
+    assert ded_spec in fd.conftest_fixture_specs(src)
+
+
+def test_module_autouse_specs_drops_backbone_references():
+    bb_const, bb_spec = _a_backbone_const()
+    src = textwrap.dedent(f"""
+        import pytest
+        from settings import {bb_const}
+        @pytest.fixture(autouse=True)
+        def core_env():
+            wait_port({bb_const})
+    """)
+    assert bb_spec not in fd.module_autouse_specs(src)

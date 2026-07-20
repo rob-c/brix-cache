@@ -82,15 +82,12 @@ def _is_fixture(node) -> bool:
     return False
 
 
-def conftest_fixture_specs(source: str) -> frozenset[str]:
-    """Dedicated specs reached through a conftest's session fixtures.
+def _fixture_reachable_specs(source: str, is_root) -> frozenset[str]:
+    """Dedicated specs reachable from every fixture ``is_root`` accepts.
 
-    A test whose file names no port constant can still touch a fleet server
-    through a shared fixture (``test_env``, ``ref_xrootd``) that references the
-    port itself.  Those fixtures are session infrastructure, so the boot must
-    keep their servers up even under subset selection.  This returns the
-    *dedicated* (non-backbone) specs any fixture in ``source`` references,
-    transitively through the helpers and fixtures it in turn requests.
+    Resolves each root fixture's settings-constant references transitively
+    through the helpers and fixtures it in turn calls or requests, then maps
+    the constants to owning specs and drops the always-on backbone.
 
     Note: this deliberately over-approximates — a kitchen-sink fixture that
     merely builds a URL lookup table pulls in every port it lists — which is the
@@ -120,10 +117,51 @@ def conftest_fixture_specs(source: str) -> frozenset[str]:
         return consts
 
     specs: set[str] = set()
-    for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_fixture(node):
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and is_root(node):
             specs |= _const_specs(resolve(node.name, set()))
     return frozenset(specs) - backbone_specs()
+
+
+def conftest_fixture_specs(source: str) -> frozenset[str]:
+    """Dedicated specs reached through a conftest's session fixtures.
+
+    A test whose file names no port constant can still touch a fleet server
+    through a shared fixture (``test_env``, ``ref_xrootd``) that references the
+    port itself.  Those fixtures are session infrastructure, so the boot must
+    keep their servers up even under subset selection.
+    """
+    return _fixture_reachable_specs(source, _is_fixture)
+
+
+def _is_autouse_fixture(node) -> bool:
+    """True when a def carries ``@pytest.fixture(..., autouse=True)``."""
+    for dec in node.decorator_list:
+        if not isinstance(dec, ast.Call):
+            continue
+        target = dec.func
+        if not ((isinstance(target, ast.Attribute) and target.attr == "fixture")
+                or (isinstance(target, ast.Name) and target.id == "fixture")):
+            continue
+        for kw in dec.keywords:
+            if (kw.arg == "autouse" and isinstance(kw.value, ast.Constant)
+                    and kw.value.value is True):
+                return True
+    return False
+
+
+def module_autouse_specs(source: str) -> frozenset[str]:
+    """Dedicated specs an ``autouse`` fixture in a test module depends on.
+
+    An autouse fixture makes every collected test in its module (or class)
+    depend on the servers it touches, yet no test names the fixture as a
+    parameter — so per-test attribution cannot see the dependency and a subset
+    boot built purely from declarations would omit the spec, erroring the whole
+    module at the fixture's port wait.  The boot set unions these in for every
+    module a subset collects from (the gate itself is unaffected: declarations
+    still describe what the *test* uses).
+    """
+    return _fixture_reachable_specs(source, _is_autouse_fixture)
 
 
 def _settings_bindings(tree: ast.AST) -> tuple[set[str], set[str]]:

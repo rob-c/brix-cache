@@ -191,3 +191,126 @@ brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     OPENSSL_cleanse(rbuf, sizeof(rbuf));
     return NGX_CONF_OK;
 }
+
+
+/* Dedicated admin-API rate-limit zone: one segment shared by every dashboard
+ * location.  Per-IP nodes are ~200 bytes, so 128 KiB holds hundreds of client
+ * IPs with LRU eviction beyond that — ample for an operator-facing surface. */
+#define BRIX_ADMIN_RL_ZONE_SIZE  (128 * 1024)
+
+
+/*
+ * ---- Directive setter for `brix_admin_rate_limit` ----
+ *
+ * WHAT: Parses `brix_admin_rate_limit off` (disable the throttle) or
+ *       `brix_admin_rate_limit <writes/min> [<reads/min>]` into the loc-conf
+ *       per-minute fields.  Returns NGX_CONF_OK or a config-error string.
+ *
+ * WHY:  The admin API must not be a DoS vector, but sites legitimately poll it
+ *       hard under load — so the limits are operator-tunable per method class,
+ *       with a value of 0 meaning "unlimited" for that class.
+ *
+ * HOW:  1. Reject a duplicate declaration.
+ *       2. A single literal "off" arg clears the enable flag and returns.
+ *       3. Parse the mandatory writes/min; parse reads/min when present
+ *          (absent leaves it UNSET so the merge default applies).
+ */
+char *
+brix_admin_set_rate_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
+    ngx_str_t  *value = cf->args->elts;
+    ngx_int_t   per_min;
+
+    (void) cmd;
+
+    if (lcf->admin_rl_enable != NGX_CONF_UNSET) {
+        return "is duplicate";
+    }
+
+    if (value[1].len == 3 && ngx_strncmp(value[1].data, "off", 3) == 0) {
+        if (cf->args->nelts != 2) {
+            return "\"off\" takes no further arguments";
+        }
+        lcf->admin_rl_enable = 0;
+        return NGX_CONF_OK;
+    }
+
+    per_min = ngx_atoi(value[1].data, value[1].len);
+    if (per_min == NGX_ERROR) {
+        return "first argument must be \"off\" or write requests/minute";
+    }
+    lcf->admin_rl_write_pm = (ngx_uint_t) per_min;
+
+    if (cf->args->nelts == 3) {
+        per_min = ngx_atoi(value[2].data, value[2].len);
+        if (per_min == NGX_ERROR) {
+            return "second argument must be read requests/minute";
+        }
+        lcf->admin_rl_read_pm = (ngx_uint_t) per_min;
+    }
+
+    lcf->admin_rl_enable = 1;
+    return NGX_CONF_OK;
+}
+
+
+/*
+ * ---- Build one per-IP admin throttle rule ----
+ *
+ * WHAT: Fills `rule` as a per-IP leaky-bucket request-rate rule draining at
+ *       `per_min` requests/minute against `zone`.  per_min == 0 leaves
+ *       req_rate 0, which brix_rl_check treats as "no limit".
+ *
+ * WHY:  The read and write rules differ only in their per-minute value; one
+ *       builder keeps the fixed-point conversion and burst policy in one place.
+ *
+ * HOW:  1. Zero the rule and bind zone + IP key dimension.
+ *       2. Convert requests/minute to the limiter's req/s × BRIX_RL_REQ_SCALE
+ *          fixed point.
+ *       3. Grant a burst of a quarter-minute's traffic (min 10) so bursty but
+ *          legitimate clients (dashboard page loads, scripted sweeps) are not
+ *          clipped by the steady-state rate.
+ */
+static void
+admin_rl_build_rule(brix_rl_rule_t *rule, ngx_uint_t per_min,
+    brix_rl_zone_t *zone)
+{
+    ngx_memzero(rule, sizeof(*rule));
+    rule->key_type = BRIX_RL_KEY_IP;
+    rule->zone     = zone;
+    rule->req_rate = per_min * BRIX_RL_REQ_SCALE / 60;
+    rule->req_burst = per_min / 4 > 10 ? per_min / 4 : 10;
+}
+
+
+/*
+ * ---- Finalize the admin API throttle at config merge time ----
+ *
+ * WHAT: Declares (or re-attaches) the dedicated "brix_admin_api" SHM zone and
+ *       builds the read/write per-IP rules from the merged per-minute values.
+ *       Returns NGX_OK, or NGX_ERROR when the zone cannot be created.
+ *
+ * WHY:  The throttle is on by default with no configuration, so the zone must
+ *       be provisioned by the module itself rather than by an operator
+ *       `brix_rate_limit_zone` declaration; brix_rl_zone_add is idempotent, so
+ *       multiple dashboard locations share the one segment.
+ *
+ * HOW:  1. brix_rl_zone_add the fixed-name zone (reuses an existing handle).
+ *       2. Build the write and read rules bound to that zone.
+ */
+ngx_int_t
+brix_admin_rl_finalize(ngx_conf_t *cf, ngx_http_brix_dashboard_loc_conf_t *lcf)
+{
+    static ngx_str_t  zone_name = ngx_string("brix_admin_api");
+    brix_rl_zone_t *zone = NULL;
+
+    if (brix_rl_zone_add(cf, &zone_name, BRIX_ADMIN_RL_ZONE_SIZE, &zone)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    admin_rl_build_rule(&lcf->admin_rl_write, lcf->admin_rl_write_pm, zone);
+    admin_rl_build_rule(&lcf->admin_rl_read, lcf->admin_rl_read_pm, zone);
+    return NGX_OK;
+}

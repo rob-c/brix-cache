@@ -29,16 +29,25 @@
 
 /* Shared observe tail for the value-returning ops (get/list): translate a
  * helper return (>=0 ok, -1 errno) into an OP_XATTR metric + access-log line and
- * return the count unchanged (errno preserved on error). */
+ * return the count unchanged (errno preserved on error). ENODATA is observed as
+ * a clean zero-byte lookup, not an error: optional-attribute probes (S3
+ * usermeta/tagging on GET, WebDAV dead props) routinely miss, and logging each
+ * miss as a failed op:"xattr" line put error lines on every served GET. The
+ * caller still sees -1/ENODATA unchanged. */
 static ssize_t
 brix_vfs_xattr_observe_count(const brix_vfs_ctx_t *ctx, const char *path,
     ssize_t n, ngx_msec_t start)
 {
     int saved_errno = (n < 0) ? errno : 0;
+    int absent_ok = (n >= 0) || saved_errno == ENODATA;
 
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL,
                               (n > 0) ? (size_t) n : 0,
-                              (n < 0) ? NGX_ERROR : NGX_OK, saved_errno, start);
+                              absent_ok ? NGX_OK : NGX_ERROR,
+                              absent_ok ? 0 : saved_errno, start);
+    if (n < 0) {
+        errno = saved_errno;
+    }
     return n;
 }
 

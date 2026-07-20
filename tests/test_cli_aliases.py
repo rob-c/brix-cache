@@ -19,6 +19,7 @@ import os
 import re
 import socket
 import subprocess
+import uuid
 
 import pytest
 
@@ -193,42 +194,62 @@ def _xrdfs(*args: str, timeout: int = 15):
     return _run("xrdfs", *args, timeout=timeout)
 
 
-def test_ls_human_alias_live():
-    """xrdfs ls -h and ls --human produce identical stdout+exit on the fleet root."""
+@pytest.fixture(scope="module")
+def alias_dir(tmp_path_factory):
+    """A private server-side directory with stable contents for the enumeration
+    alias tests (ls/du/tree). The fleet root is shared by every concurrent xdist
+    worker, so its listing can change BETWEEN the short-flag and long-flag
+    invocations — the equivalence check must run over a tree only this module
+    touches."""
     _skip_no_fleet()
     url = f"{_TEST_HOST}:{_ANON_PORT}"
-    rc_s, out_s, _ = _xrdfs(url, "ls", "-h", "/")
-    rc_l, out_l, _ = _xrdfs(url, "ls", "--human", "/")
+    name = f"/cli_alias_{uuid.uuid4().hex}"
+    for sub in ("sub_a", "sub_b"):
+        rc, _, err = _xrdfs(url, "mkdir", "-p", f"{name}/{sub}")
+        assert rc == 0, f"mkdir {name}/{sub} failed: {err}"
+    src = tmp_path_factory.mktemp("alias") / "leaf.bin"
+    src.write_bytes(b"alias-bytes" * 16)
+    rc, _, err = _run("xrdcp", "-f", str(src), f"root://{url}/{name}/leaf.bin")
+    assert rc == 0, f"seed upload failed: {err}"
+    yield url, name
+    _xrdfs(url, "rm", f"{name}/leaf.bin")
+    for sub in ("sub_b", "sub_a"):
+        _xrdfs(url, "rmdir", f"{name}/{sub}")
+    _xrdfs(url, "rmdir", name)
+
+
+def test_ls_human_alias_live(alias_dir):
+    """xrdfs ls -h and ls --human produce identical stdout+exit."""
+    url, path = alias_dir
+    rc_s, out_s, _ = _xrdfs(url, "ls", "-h", path)
+    rc_l, out_l, _ = _xrdfs(url, "ls", "--human", path)
     assert rc_s == rc_l, f"ls -h exited {rc_s}, ls --human exited {rc_l}"
     assert out_s == out_l, "ls -h and ls --human produced different output"
 
 
-def test_du_human_alias_live():
-    """xrdfs du -h and du --human produce identical stdout+exit on the fleet root."""
-    _skip_no_fleet()
-    url = f"{_TEST_HOST}:{_ANON_PORT}"
-    rc_s, out_s, _ = _xrdfs(url, "du", "-h", "/")
-    rc_l, out_l, _ = _xrdfs(url, "du", "--human", "/")
+def test_du_human_alias_live(alias_dir):
+    """xrdfs du -h and du --human produce identical stdout+exit."""
+    url, path = alias_dir
+    rc_s, out_s, _ = _xrdfs(url, "du", "-h", path)
+    rc_l, out_l, _ = _xrdfs(url, "du", "--human", path)
     assert rc_s == rc_l, f"du -h exited {rc_s}, du --human exited {rc_l}"
     assert out_s == out_l, "du -h and du --human produced different output"
 
 
-def test_tree_dirs_only_alias_live():
-    """xrdfs tree -d and tree --dirs-only produce identical output on the fleet root."""
-    _skip_no_fleet()
-    url = f"{_TEST_HOST}:{_ANON_PORT}"
-    rc_s, out_s, _ = _xrdfs(url, "tree", "-d", "-L", "1", "/")
-    rc_l, out_l, _ = _xrdfs(url, "tree", "--dirs-only", "--depth", "1", "/")
+def test_tree_dirs_only_alias_live(alias_dir):
+    """xrdfs tree -d and tree --dirs-only produce identical output."""
+    url, path = alias_dir
+    rc_s, out_s, _ = _xrdfs(url, "tree", "-d", "-L", "1", path)
+    rc_l, out_l, _ = _xrdfs(url, "tree", "--dirs-only", "--depth", "1", path)
     assert rc_s == rc_l, f"tree -d exited {rc_s}, tree --dirs-only exited {rc_l}"
     assert out_s == out_l, "tree -d and tree --dirs-only produced different output"
 
 
-def test_tree_depth_alias_live():
+def test_tree_depth_alias_live(alias_dir):
     """xrdfs tree -L 1 and tree --depth 1 produce identical output."""
-    _skip_no_fleet()
-    url = f"{_TEST_HOST}:{_ANON_PORT}"
-    rc_s, out_s, _ = _xrdfs(url, "tree", "-L", "1", "/")
-    rc_l, out_l, _ = _xrdfs(url, "tree", "--depth", "1", "/")
+    url, path = alias_dir
+    rc_s, out_s, _ = _xrdfs(url, "tree", "-L", "1", path)
+    rc_l, out_l, _ = _xrdfs(url, "tree", "--depth", "1", path)
     assert rc_s == rc_l, f"tree -L exited {rc_s}, tree --depth exited {rc_l}"
     assert out_s == out_l, "tree -L and tree --depth produced different output"
 

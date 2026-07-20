@@ -19,6 +19,7 @@
 
 #include "dashboard.h"
 #include "observability/metrics/metrics.h"
+#include "net/ratelimit/ratelimit.h"   /* brix_rl_rule_t (admin API throttle) */
 
 /* The nginx HTTP module object - defined in module.c */
 extern ngx_module_t ngx_http_brix_dashboard_module;
@@ -50,6 +51,20 @@ typedef struct {
     ngx_array_t *admin_proxy_allow; /* ngx_str_t[] allowed dynamic-proxy backend hosts;
                                      * [brix_admin_proxy_allow <host>...] (W6/E1).
                                      * NULL = unrestricted (back-compat).               */
+
+    /* ---- admin API per-IP throttle (phase-23 "Rate limiting" item) ----
+     * [brix_admin_rate_limit off | <writes/min> [<reads/min>]] — generous
+     * defaults (120 writes/min, 1200 reads/min per source IP) so heavy
+     * legitimate querying keeps working while a runaway client cannot DoS the
+     * admin surface or exhaust the registry SHM.  A per-minute value of 0
+     * makes that method class unlimited.  The rules are built once in
+     * merge_loc_conf (zone resolved there); zone == NULL means "never
+     * finalized" and the gate passes everything through. */
+    ngx_flag_t      admin_rl_enable;    /* off | on (default on)                */
+    ngx_uint_t      admin_rl_write_pm;  /* POST/PUT/DELETE requests/min per IP  */
+    ngx_uint_t      admin_rl_read_pm;   /* GET/HEAD requests/min per IP         */
+    brix_rl_rule_t  admin_rl_write;     /* per-IP leaky-bucket rule (writes)    */
+    brix_rl_rule_t  admin_rl_read;      /* per-IP leaky-bucket rule (reads)     */
 
     /* ---- admin file browser (/xrootd/api/v1/files + /download) ---- */
     ngx_str_t   browse_root;        /* [brix_dashboard_browse_root <path>] — root the

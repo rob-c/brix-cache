@@ -54,10 +54,14 @@ PORT_BLOCKS = {
 
 # The canonical map occupies [_CANON_LO, _CANON_HI); we tile that span across a wide
 # range and hand each session one free tile, so concurrent sessions (multiple devs,
-# CI shards, agent runs on one host) get fully disjoint windows.
+# CI shards, agent runs on one host) get fully disjoint windows.  Each tile carries
+# one extra port past the block span: a lock port this process binds and HOLDS, so
+# claiming a tile is atomic across processes (12 xdist workers starting at once
+# must never probe the same tile "free" and both settle on it).
 _CANON_LO = min(PORT_BLOCKS.values())
 _CANON_HI = max(PORT_BLOCKS.values()) + 20
-_TILE = _CANON_HI - _CANON_LO
+_TILE = (_CANON_HI - _CANON_LO) + 1
+_TILE_LOCK: socket.socket | None = None   # held for process lifetime on purpose
 # Stay below the OS ephemeral range (typically 32768+) so a tile never fights
 # outbound connections' auto-assigned ports.
 _N_TILES = (32768 - _CANON_LO) // _TILE
@@ -66,32 +70,44 @@ _N_TILES = (32768 - _CANON_LO) // _TILE
 _SYSRAND = random.SystemRandom()
 
 
-def _tile_free(tile_lo: int) -> bool:
-    """True iff a spread of sentinel ports across the tile can be bound right now
-    (i.e. no other session's listeners occupy it)."""
-    for d in (0, _TILE // 3, 2 * _TILE // 3, _TILE - 1):
+def _claim_tile(tile_lo: int) -> bool:
+    """Atomically claim the tile by binding and HOLDING its lock port (the extra
+    port past the block span), then probe a spread of sentinel ports transiently
+    to skip tiles occupied by listeners that don't use the lock protocol.  Bind
+    is atomic across processes: of two workers racing for a tile, exactly one
+    wins the lock port and the loser moves on."""
+    global _TILE_LOCK
+    lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        lock.bind(("127.0.0.1", tile_lo + _TILE - 1))
+    except OSError:
+        lock.close()
+        return False
+    for d in (0, _TILE // 3, 2 * _TILE // 3, _TILE - 2):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             s.bind(("127.0.0.1", tile_lo + d))
         except OSError:
+            lock.close()
             return False
         finally:
             s.close()
+    _TILE_LOCK = lock
     return True
 
 
 def _pick_session_offset() -> int:
-    """Choose a per-session offset (a multiple of _TILE) into a currently-free tile.
-    Tiles are disjoint, so two sessions either land in different tiles or the loser
-    re-probes; overlap is impossible. `CVMFS_CONFORMANCE_PORT_BASE` pins tile 0's
-    absolute base for CI/debugging."""
+    """Choose a per-process offset (a multiple of _TILE) into a tile claimed via
+    its lock port. Tiles are disjoint and the claim is atomic, so concurrent
+    processes (xdist workers, other sessions on the host) can never share one.
+    `CVMFS_CONFORMANCE_PORT_BASE` pins tile 0's absolute base for CI/debugging."""
     env = os.environ.get("CVMFS_CONFORMANCE_PORT_BASE")
     if env:
         return int(env) - _CANON_LO
     order = list(range(_N_TILES))
     _SYSRAND.shuffle(order)
     for t in order:
-        if _tile_free(_CANON_LO + t * _TILE):
+        if _claim_tile(_CANON_LO + t * _TILE):
             return t * _TILE
     return 0                                        # all tiles busy: fall back to canonical
 

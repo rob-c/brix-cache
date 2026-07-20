@@ -37,11 +37,18 @@ source files exist and are registered. The main gap vs. the plan is the admin-AP
 
 ### Pending / not done
 
-- **Admin-API rate limiting (Security Design):** ⛔ **not implemented.** There is no
-  per-source-IP throttle on `POST`/`DELETE`/`PUT` admin requests (`api_admin.c`
-  contains no rate-limit logic). The endpoints rely on the CIDR allowlist + bearer
-  secret for protection. If a throttle is wanted, wire the Phase-20/25 rate limiter
-  into `xrootd_admin_dispatch()`.
+- **Admin-API rate limiting (Security Design):** ✅ **implemented (2026-07-20).**
+  `brix_admin_dispatch()` now runs a per-source-IP leaky-bucket gate between auth
+  and routing, reusing the Phase-25 `brix_rl_*` machinery against a dedicated
+  built-in `brix_admin_api` SHM zone (128 KiB, module-provisioned — no operator
+  zone declaration needed). Reads (GET/HEAD) and writes (POST/PUT/DELETE) get
+  separate generous buckets — default 1200 reads/min and 120 writes/min per IP —
+  so heavy legitimate querying under load keeps working while a runaway client
+  cannot DoS the surface. Throttled requests get 429 + `Retry-After` and an
+  `admin_audit` `result=throttled` line. Tunable/disableable via
+  `brix_admin_rate_limit off | <writes/min> [<reads/min>]` (0 = unlimited for
+  that class). Tests: `tests/test_admin_rate_limit.py` (5). See § Rate limiting
+  below for the full record.
 - **Force-remove semantics:** the drain → poll-`in_flight` → DELETE workflow is
   supported, but verify whether `DELETE` of a backend with `in_flight > 0` hard-fails
   (409) or removes regardless — the `xrootd_proxy_pool_in_flight()` helper exists for
@@ -680,13 +687,31 @@ attacker-controlled servers.
 
 ### Rate limiting
 
-> **Status: ⛔ NOT implemented.** No per-IP throttle exists on the admin write
-> endpoints (`api_admin.c` has no rate-limit logic); protection currently relies on
-> the CIDR allowlist + bearer secret (Step A). The design below is the path to add
-> it — wiring the Phase-20/25 rate limiter into `xrootd_admin_dispatch()`.
+> **Status: ✅ IMPLEMENTED (2026-07-20).** `admin_rate_gate()` in `api_admin.c`
+> sits between `brix_admin_check_auth()` and the route table in
+> `brix_admin_dispatch()` — after auth so an unauthenticated flood (already
+> answered 403) can neither consume bucket capacity nor lock out the operator,
+> and before routing so a throttled request never reads a body or touches SHM.
+> It reuses the Phase-25 leaky-bucket helpers (`brix_rl_zone_add` /
+> `brix_rl_check`) against a dedicated module-provisioned `brix_admin_api` zone
+> (128 KiB). Per source IP, GET/HEAD charge an `admr:<ip>` bucket and
+> POST/PUT/DELETE an `admw:<ip>` bucket, so extensive read querying under load
+> and the write cap never starve each other. Defaults are deliberately more
+> generous than the original sketch below (120 writes/min, 1200 reads/min,
+> burst = ¼ minute of traffic, floor 10): DoS protection without clipping
+> legitimate automation. Throttled requests receive 429 + `Retry-After`
+> (`brix_rl_check` guarantees wait ≥ 1 s) and an audit line
+> (`action=ratelimit … result=throttled`); `brix_rl_check` fails open on SHM
+> trouble, so the gate can only deny by policy. Operator knob (loc-conf, on by
+> default): `brix_admin_rate_limit off | <writes/min> [<reads/min>]`, 0 =
+> unlimited for that class. Tests: `tests/test_admin_rate_limit.py` — reads
+> under load pass, write flood → 429 + Retry-After + audit while reads survive,
+> unauth flood consumes no bucket, `off` disables, garbage argument rejected at
+> parse time.
 
-The admin API must not be a DoS vector for SHM exhaustion. Apply a simple rate
-limit: max 60 POST/DELETE/PUT requests per minute per source IP, enforced by a small
+Original design sketch (superseded by the above — kept for context): the admin
+API must not be a DoS vector for SHM exhaustion. Apply a simple rate limit: max
+60 POST/DELETE/PUT requests per minute per source IP, enforced by a small
 per-IP counter array in a dedicated SHM zone (reuse Phase 20 KV rate-limit
 mechanism, or a simpler fixed-size array keyed by IPv4/6 address hash).
 

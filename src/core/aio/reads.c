@@ -28,6 +28,25 @@
  */
 
 
+/*
+ * brix_read_io_failure_log — forensic detail for a failed buffered read.
+ * One line per failure with everything the watch item needs: which path
+ * failed, the fd and what it currently refers to, the request geometry, and
+ * the worker-side errno (io_errno == 0 means the error arrived without one —
+ * itself a finding).
+ */
+void
+brix_read_io_failure_log(ngx_log_t *log, const char *who, int fd,
+    off_t offset, size_t rlen, int io_errno)
+{
+    ngx_log_error(NGX_LOG_ERR, log, 0,
+                  "brix: %s read failed: fd=%d off=%O len=%uz io_errno=%d "
+                  "(%s) fd_kind=%s",
+                  who, fd, offset, rlen, io_errno,
+                  io_errno ? strerror(io_errno) : "-", brix_fd_kind(fd));
+}
+
+
 /*                                                                      */
 /* BRIX_READ_WINDOW is served as a sequence of kXR_oksofar wire chunks */
 
@@ -49,6 +68,9 @@ brix_read_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t       got;
 
     if (nread < 0) {
+        brix_read_io_failure_log(c->log, "windowed", ctx->rd.win_fd,
+                                   ctx->rd.win_offset, ctx->rd.win_remaining,
+                                   io_errno);
         ctx->rd.win_active = 0;
         ctx->state = XRD_ST_REQ_HEADER;
         ctx->recv.hdr_pos = 0;
@@ -173,6 +195,19 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
                 t->streamid[1] = ctx->rd.win_streamid[1];
                 t->nread = 0;
                 t->io_errno = 0;
+                /*
+                 * The task struct is shared with the single-shot buffered path
+                 * (read_post_aio), so csi/obj still hold the LAST read's handle
+                 * state.  The worker routes the pread through t->obj's driver
+                 * (which carries its own fd) whenever obj.driver != NULL, so a
+                 * stale obj sends this window to the previous handle's fd —
+                 * wrong file if the number was recycled, EBADF if closed or
+                 * write-only — and a stale csi is a dangling pointer once that
+                 * handle closed.  Rebind both to the windowed read's own handle
+                 * on every post.
+                 */
+                t->csi = ctx->files[ctx->rd.win_idx].csi;
+                t->obj = ctx->files[ctx->rd.win_idx].sd_obj;
                 brix_task_bind(task, brix_read_aio_thread,
                                  brix_read_aio_done);
                 (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool,
@@ -198,6 +233,10 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
             brix_vfs_job_read_init(&job, ctx->rd.win_fd,
                                       ctx->rd.win_offset, want, databuf,
                                       want, 0);
+            /* Same handle binding as the posted task above: verify CSI pages
+             * and route driver-backed handles through their storage object. */
+            job.csi = ctx->files[ctx->rd.win_idx].csi;
+            brix_vfs_job_set_obj(&job, &ctx->files[ctx->rd.win_idx].sd_obj);
             brix_vfs_io_execute(&job);
             nread = job.nio;
             if (brix_read_window_emit(ctx, c, nread, job.io_errno)
@@ -305,6 +344,8 @@ brix_read_aio_done(ngx_event_t *ev)
     }
 
     if (t->nread < 0) {
+        brix_read_io_failure_log(c->log, "read-aio", t->fd, t->offset,
+                                   t->rlen, t->io_errno);
         ctx->state = XRD_ST_REQ_HEADER;
         ctx->recv.hdr_pos = 0;
         brix_release_read_buffer(ctx, c, t->databuf);

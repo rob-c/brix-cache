@@ -131,7 +131,14 @@ def _xrdcp_get(src: str, dst: str, timeout: int = 60) -> subprocess.CompletedPro
 
 
 def _orphaned_handles() -> int:
-    """Count TIME_WAIT and CLOSE_WAIT TCP connections to our HA ports."""
+    """Count CLOSE_WAIT TCP connections on our HA ports.
+
+    CLOSE_WAIT is the leak signal: the peer closed and our process still
+    holds the descriptor.  TIME_WAIT deliberately does NOT count — it holds
+    no fd (kernel-only state, lingering ~60s whenever our side closes
+    first), so any earlier test on these shared ports would trip a
+    TIME_WAIT-based check for a minute afterwards.
+    """
     xrd_ports = {HA_HAPROXY_PORT, HA_NGINX1_PORT, HA_NGINX2_PORT}
     count = 0
     try:
@@ -143,8 +150,7 @@ def _orphaned_handles() -> int:
                 local_hex = parts[1].split(":")[1]
                 state = parts[3]
                 local_port = int(local_hex, 16)
-                # States: 06=TIME_WAIT, 08=CLOSE_WAIT
-                if local_port in xrd_ports and state in ("06", "08"):
+                if local_port in xrd_ports and state == "08":  # CLOSE_WAIT
                     count += 1
     except FileNotFoundError:
         pass
@@ -220,9 +226,10 @@ class TestHAHandleLeaks:
                         reason="/proc/net/tcp not available (not Linux)")
     @pytest.mark.registry_servers("ha-haproxy", "ha-nginx1", "ha-nginx2")
     def test_no_orphaned_handles_after_100_operations(self, ha_cluster, tmp_path):
-        """After 100 xrdcp reads through HAProxy, no TIME_WAIT/CLOSE_WAIT sockets remain
-        for our ports.  Each xrdcp creates one TCP connection; they should all be
-        closed cleanly (Section 5A / roadmap Section 14.4).
+        """After 100 xrdcp reads through HAProxy, no CLOSE_WAIT sockets remain
+        for our ports.  Each xrdcp creates one TCP connection; a CLOSE_WAIT
+        left behind means the server still holds the fd after the client
+        closed (Section 5A / roadmap Section 14.4).
         """
         payload = os.urandom(4096)
         name = f"ha_leak_{uuid.uuid4().hex[:8]}.bin"

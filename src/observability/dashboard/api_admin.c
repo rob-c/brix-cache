@@ -586,6 +586,68 @@ admin_route_proxy(ngx_http_request_t *r, int *matched)
 typedef ngx_int_t (*admin_route_fn)(ngx_http_request_t *r, int *matched);
 
 
+/*
+ * ---- Per-IP admin API rate gate (phase-23 "Rate limiting" item) ----
+ *
+ * WHAT: Charge this request against the source IP's read or write leaky bucket.
+ *       Sets *throttled and returns the finalized 429 response status when the
+ *       bucket overflows; leaves *throttled 0 and returns NGX_OK to proceed.
+ *
+ * WHY:  An authorized-but-runaway client (looping script, stuck orchestrator)
+ *       must not be able to monopolize the admin surface or churn the registry
+ *       SHM.  Reads and writes get separate generous buckets so extensive
+ *       legitimate querying under load never starves — or is starved by — the
+ *       mutating traffic the phase-23 design caps.  Runs AFTER auth, so an
+ *       unauthenticated flood (already answered 403) can neither fill the zone
+ *       nor lock out the real operator.
+ *
+ * HOW:  1. Pass through when the throttle is off or was never finalized
+ *          (write.zone == NULL) — brix_rl_check itself fails open on SHM
+ *          trouble, so the gate can only ever deny by policy.
+ *       2. Classify the method: GET/HEAD -> read rule, else write rule, with
+ *          distinct key prefixes so the two buckets never share a node.
+ *       3. brix_rl_check the "adm[rw]:<ip>" key; NGX_OK proceeds.
+ *       4. On NGX_AGAIN set Retry-After (HTTP throttle convention), audit the
+ *          event, and send the 429 JSON error.
+ */
+static ngx_int_t
+admin_rate_gate(ngx_http_request_t *r,
+    ngx_http_brix_dashboard_loc_conf_t *conf, int *throttled)
+{
+    brix_rl_rule_t *rule;
+    int               is_read;
+    char              key[BRIX_RL_KEY_LEN];
+    uint32_t          wait_sec = 0;
+
+    *throttled = 0;
+    if (conf == NULL || !conf->admin_rl_enable
+        || conf->admin_rl_write.zone == NULL)
+    {
+        return NGX_OK;
+    }
+
+    is_read = (r->method & (NGX_HTTP_GET | NGX_HTTP_HEAD)) != 0;
+    rule = is_read ? &conf->admin_rl_read : &conf->admin_rl_write;
+
+    ngx_snprintf((u_char *) key, sizeof(key), "%s:%V%Z",
+                 is_read ? "admr" : "admw", &r->connection->addr_text);
+    key[sizeof(key) - 1] = '\0';
+
+    if (brix_rl_check(rule, key, &wait_sec) != NGX_AGAIN) {
+        return NGX_OK;
+    }
+
+    *throttled = 1;
+    if (wait_sec > 0) {
+        char retry[NGX_INT_T_LEN + 1];
+        ngx_snprintf((u_char *) retry, sizeof(retry), "%uD%Z", wait_sec);
+        (void) brix_http_set_header(r, "Retry-After", retry, NULL);
+    }
+    admin_audit(r, "ratelimit", is_read ? "read" : "write", "throttled");
+    return admin_send_error(r, NGX_HTTP_TOO_MANY_REQUESTS, "rate_limited");
+}
+
+
 ngx_int_t
 brix_admin_dispatch(ngx_http_request_t *r)
 {
@@ -602,6 +664,17 @@ brix_admin_dispatch(ngx_http_request_t *r)
     if (brix_admin_check_auth(r, conf) != BRIX_ADMIN_AUTH_OK) {
         admin_audit(r, "auth", NULL, "forbidden");
         return admin_send_error(r, NGX_HTTP_FORBIDDEN, "forbidden");
+    }
+
+    /* Per-IP throttle sits between auth and routing: it therefore runs before
+     * any body read or SHM mutation, and only authorized traffic can consume
+     * bucket capacity. */
+    {
+        int       throttled = 0;
+        ngx_int_t rc = admin_rate_gate(r, conf, &throttled);
+        if (throttled) {
+            return rc;
+        }
     }
 
     for (i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {

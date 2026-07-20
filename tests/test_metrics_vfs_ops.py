@@ -70,6 +70,44 @@ def test_putobject_books_write_op_on_staged_commit():
     assert _op_ok(snap, "write") >= 1
 
 
+def test_served_get_books_no_error_xattr():
+    """A served GET probes the optional usermeta/tagging xattrs; an absent
+    attribute (ENODATA) is an expected negative lookup and must book
+    op="xattr",status="ok" — NOT status="other" (the pre-fix quirk: every
+    served GET logged a failed xattr line)."""
+    requests.put(_obj("vfsop_get_plain.bin"), data=b"plain", timeout=10)
+    snap = Snapshot()
+    r = requests.get(_obj("vfsop_get_plain.bin"), timeout=10)
+    assert r.status_code == 200, r.status_code
+    after = fetch()
+    assert snap.delta(OP_METRIC, {"proto": "s3", "op": "xattr",
+                                  "status": "other"}, after=after) == 0
+    assert _op_ok(snap, "xattr", after=after) >= 1
+
+
+def test_get_with_usermeta_roundtrips_and_books_ok_xattr():
+    """The metadata-present probe path: x-amz-meta-* set on PUT is echoed on
+    GET and the usermeta load books op="xattr",status="ok"."""
+    requests.put(_obj("vfsop_get_meta.bin"), data=b"meta", timeout=10,
+                 headers={"x-amz-meta-flavor": "umami"})
+    snap = Snapshot()
+    r = requests.get(_obj("vfsop_get_meta.bin"), timeout=10)
+    assert r.status_code == 200, r.status_code
+    assert r.headers.get("x-amz-meta-flavor") == "umami"
+    assert _op_ok(snap, "xattr") >= 1
+
+
+def test_get_tagging_missing_object_books_no_ok_xattr():
+    """?tagging on a missing object fails before any xattr probe: 404 and no
+    op="xattr",status="ok" advance (real failures must stay visible — only the
+    expected-absent ENODATA probe is reclassified as ok)."""
+    snap = Snapshot()
+    r = requests.get(_obj("vfsop_no_such_object.bin") + "?tagging", timeout=10)
+    assert r.status_code == 404, r.status_code
+    after = fetch()
+    assert _op_ok(snap, "xattr", after=after) == 0
+
+
 def test_copy_missing_source_books_no_ok_copy():
     """A CopyObject whose source does not exist must 404 and must NOT book an
     op="copy",status="ok" (the confined copy fails before any data move)."""

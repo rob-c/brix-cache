@@ -20,14 +20,16 @@ expected verdict derived from the standard — not from what the code happens to
 do. The clause registry (`tests/clauses/`) forges **559 clause rows** and drives
 each one through three independent surfaces:
 
-- a **C oracle** (`tests/c/run_x509_oracle.sh`) that compiles the real
+- a **C oracle** (the `x509_oracle` runner in `tests/cmdscripts/c_auth_units.py`,
+  Python port of the retired `run_x509_oracle.sh`) that compiles the real
   verification cores (`signing_policy.c` + `store_policy.c` + `brix_store_configure`)
   and replays every clause against forged fixtures, asserting the manifest verdict;
 - a **live `davs://` fleet** (`tests/test_wlcg_conformance_matrix.py`) that replays
   every WebDAV-surface clause on the wire against a pre-stood
   `ConformanceFleet`, proving the production `auth_cert.c → brix_gsi_verify_chain`
   path reaches the same verdict the oracle validates in bulk;
-- a **differential** (`tests/run_x509_differential.sh`) that replays the same
+- a **differential** (`tests/cmdscripts/x509_differential.py`, Python port of
+  the retired `run_x509_differential.sh`) that replays the same
   matrix against our module *and* stock XRootD, asserting ours matches the spec
   and recording XRootD's divergences.
 
@@ -193,8 +195,10 @@ Counting the **51 major clause/area rows** in the master matrix above:
 
 ## How the suite is organized
 
-- **C oracle** — [`tests/c/run_x509_oracle.sh`](../../../tests/c/run_x509_oracle.sh):
-  forges the full clause matrix into fixtures, compiles the real cores
+- **C oracle** — the `x509_oracle` runner in
+  [`tests/cmdscripts/c_auth_units.py`](../../../tests/cmdscripts/c_auth_units.py)
+  (pytest wrapper `tests/test_c_auth_units.py`; Python port of the retired
+  `run_x509_oracle.sh`): forges the full clause matrix into fixtures, compiles the real cores
   (`signing_policy.c` + `store_policy.c` + `brix_store_configure`) into
   `tests/c/x509_oracle.c` under `-Wall -Wextra -Werror`, and asserts every
   clause verdict matches the manifest. Exit 0 = full conformance. This is the bulk
@@ -204,8 +208,9 @@ Counting the **51 major clause/area rows** in the master matrix above:
   (one server per config-group over the shared multi-CA directory), proving the
   production `auth_cert.c → brix_gsi_verify_chain` path reaches the manifest
   verdict on the wire. Marked `slow`.
-- **Differential** — [`tests/run_x509_differential.sh`](../../../tests/run_x509_differential.sh)
-  (opt-in `TEST_X509_DIFF=1`): replays the matrix against our module and stock
+- **Differential** — [`tests/cmdscripts/x509_differential.py`](../../../tests/cmdscripts/x509_differential.py)
+  (pytest wrapper `tests/test_cmd_x509_differential.py`; Python port of the
+  retired `run_x509_differential.sh`; opt-in `TEST_X509_DIFF=1`): replays the matrix against our module and stock
   XRootD, asserts ours == spec, and records XRootD's divergence cells into
   `docs/10-reference/wlcg-x509-differential-findings.md`. The XRootD leg is
   best-effort (records "unavailable" rather than failing when no driveable

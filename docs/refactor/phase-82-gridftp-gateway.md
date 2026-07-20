@@ -1301,6 +1301,14 @@ runners are gone).
   **Still pending (each its own focused pass, per the staged plan):**
   P82.5 hardening (evil-actor MODE E offset attacks) + k8s lab.
 
+  > **Update:** the MODE E offset-attack class is guarded in the event engine —
+  > `ftp_ev_mode_e.c` overlap/overflow-checks every accepted block
+  > (`ftp_eb_range_overlaps`, transfer aborted on violation), gated by
+  > `test_gridftp_mode_e_truncation.py` (interior-hole/out-of-order cases) and
+  > the `test_gridftp_evil.py`/`test_gridftp_gsi_evil.py` suites. The **k8s
+  > interop lab** (globus-url-copy/gfal2/VOMS container matrix) remains the
+  > genuinely-open item.
+
 ### P82.6 — pblock storage-backend hook + pre-auth gate (landed 2026-07-17)
 
 Two items, both green, zero new `objs/nginx` growth of note:

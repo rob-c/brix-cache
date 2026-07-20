@@ -296,6 +296,19 @@ def mu_unit(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     )
 
 
+def fd_kind(base: Path) -> tuple[bool, str]:
+    return _compile_and_run(
+        base / "fd_kind_test",
+        [
+            "-O",
+            "-Wall",
+            "-Wextra",
+            str(TEST_C / "fd_kind_test.c"),
+            str(REPO_ROOT / "src/core/aio/fd_kind.c"),
+        ],
+    )
+
+
 def stage_reconcile(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     obj = _need_obj(ngx_src, "objs/addon/xfer/stage_engine.o")
     journal = _need_obj(ngx_src, "objs/addon/xfer/stage_engine_journal.o")
@@ -432,7 +445,7 @@ def sreq_compat(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]
 
 
 def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
-    names = ["sd_remote.o", "sd_s3.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o"]
+    names = ["sd_remote.o", "sd_s3.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -453,6 +466,7 @@ RUNNERS = {
     "delegation_store": delegation_store,
     "pblock": pblock,
     "mu_unit": mu_unit,
+    "fd_kind": fd_kind,
     "stage_reconcile": stage_reconcile,
     "compression": compression,
     "sreq_compat": sreq_compat,

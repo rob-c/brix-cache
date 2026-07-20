@@ -489,7 +489,8 @@ def test_implementation_plan_feature_gaps_are_closed():
     _assert_markers(
         "src/protocols/webdav/dispatch.c",
         [
-            "webdav_metrics_return(r, webdav_proxy_handler(r))",
+            # webdav_proxy_handler retired with the reverse-proxy transport
+            # (A-2 surface retirement); dispatch goes straight to the handlers.
             "webdav_metrics_return(r, webdav_handle_get(r))",
             "webdav_metrics_return(r, webdav_handle_delete(r))",
             "webdav_metrics_return(r, webdav_handle_mkcol(r))",

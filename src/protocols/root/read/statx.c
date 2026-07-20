@@ -7,6 +7,7 @@
 #include "core/ngx_brix_module.h"
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
 #include "fs/path/beneath.h"
+#include "auth/authz/auth_gate.h"     /* brix_authz_check — xrdacc-aware */
 #include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include "core/compat/alloc_guard.h"
 
@@ -121,14 +122,19 @@ brix_statx_symlink_fallback_stat(brix_ctx_t *ctx,
  *        single statx path.
  * WHY:   W4 — STATX must refuse exactly what a single STAT op would refuse.
  *        STATX previously skipped the authdb check, so an authdb-denied path
- *        could leak real metadata via the batched stat.
+ *        could leak real metadata via the batched stat.  The authdb tier goes
+ *        through brix_authz_check (not bare brix_check_authdb) so the xrdacc
+ *        engine applies here exactly as it does to single STAT via
+ *        brix_auth_gate — a per-path predicate cannot use the gate itself
+ *        (it sends a wire error; statx must abort the batch instead).
  * HOW:   Returns NGX_OK when all three checks pass, NGX_ERROR on any denial.
  */
 static ngx_int_t
 brix_statx_path_authorized(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
     ngx_connection_t *c, const char *full_path, const char *reqpath_buf)
 {
-    if (brix_check_authdb(ctx, full_path, BRIX_AUTH_LOOKUP) != NGX_OK
+    if (brix_authz_check(ctx, c, conf, reqpath_buf, full_path, "STATX",
+                           BRIX_AUTH_LOOKUP, BRIX_AOP_ANY) != NGX_OK
         || brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
                                         ctx->identity) != NGX_OK
         || brix_check_token_scope(ctx, reqpath_buf, 0) != NGX_OK)

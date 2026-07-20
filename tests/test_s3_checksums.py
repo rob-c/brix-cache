@@ -61,8 +61,11 @@ def _key(s3_url):
 
 def _find_audit_line(token, kind="stage", timeout=5.0):
     """Poll every xfer_audit.log under the test root for a line with token+kind."""
-    audit = set(glob.glob(os.path.join(TEST_ROOT, "**", "xfer_audit.log"),
-                          recursive=True))
+    # Ledger sinks live in the session logs dir and each registry spec's logs
+    # dir; never glob TEST_ROOT/** — TEST_ROOT/tmp holds live-test FUSE mounts
+    # and walking into one hangs the test.
+    audit = set(glob.glob(os.path.join(TEST_ROOT, "registry", "*", "logs",
+                                       "xfer_audit.log")))
     audit.add(os.path.join(TEST_ROOT, "logs", "xfer_audit.log"))
     deadline = time.time() + timeout
     while time.time() < deadline:

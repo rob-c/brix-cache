@@ -18,6 +18,7 @@ class NginxInstanceSpec:
     template: str
     port: int | None = None
     protocol: str = "root"
+    host: str | None = None  # endpoint/readiness address; None = settings.HOST
     data_root: str | None = None
     extra_ports: dict[str, int] = field(default_factory=dict)
     env: dict[str, str] = field(default_factory=dict)
@@ -57,6 +58,7 @@ class ServerEndpoint:
     def url(self) -> str:
         if self.port is None:
             return ""
+        host = f"[{self.host}]" if ":" in self.host else self.host
         scheme = {
             "root": "root",
             "roots": "roots",
@@ -65,7 +67,7 @@ class ServerEndpoint:
             "s3": "http",
         }.get(self.protocol, self.protocol)
         suffix = "/" if scheme in {"root", "roots"} else ""
-        return f"{scheme}://{self.host}:{self.port}{suffix}"
+        return f"{scheme}://{host}:{self.port}{suffix}"
 
 
 _SPECS: dict[str, NginxInstanceSpec] = {}
@@ -263,7 +265,7 @@ def endpoint_for(spec: NginxInstanceSpec) -> ServerEndpoint:
             _RESERVED_PORTS[spec.name] = port
     return ServerEndpoint(
         name=spec.name,
-        host=HOST,
+        host=spec.host or HOST,
         port=port,
         protocol=spec.protocol,
         data_root=data_root,

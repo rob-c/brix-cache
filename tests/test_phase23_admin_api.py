@@ -88,9 +88,13 @@ def test_proxy_pool_api_present():
                "brix_proxy_pool_remove", "brix_proxy_pool_snapshot",
                "brix_proxy_pool_dec_in_flight"):
         assert fn in p, fn
-    # proxy.c branches on the dynamic pool; finalize releases in_flight.
-    assert "brix_proxy_pool_select" in _read("src/protocols/webdav/proxy.c")
-    assert "brix_proxy_pool_dec_in_flight" in _read("src/protocols/webdav/proxy_response.c")
+    # The reverse-proxy transport (proxy.c/proxy_response.c) was deleted in the
+    # A-2 surface retirement; the pool survives behind the REST admin API.
+    admin = _read("src/observability/dashboard/api_admin_proxy.c")
+    for fn in ("brix_proxy_pool_add", "brix_proxy_pool_remove",
+               "brix_proxy_pool_drain", "brix_proxy_pool_undrain",
+               "brix_proxy_pool_snapshot"):
+        assert fn in admin, fn
 
 
 def test_directives_registered():

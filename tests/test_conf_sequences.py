@@ -1035,12 +1035,15 @@ def test_write_sync_advances_mtime(srv):
     payload = det_bytes(4096, seed=28)
     for who, url in both(srv):
         wire = uniq(f"seq_mt_{who}.bin")
-        # seed the file out-of-band with an OLD mtime
+        # Seed the file out-of-band, then let >1s elapse so a write+sync must
+        # land in a LATER integer second than the creation mtime.  Never
+        # backdate the mtime below "now": _wipe_stale_working_files judges
+        # staleness by mtime vs each worker's import time, so a backdated
+        # fixture looks like a prior run's leftover and a concurrent xdist
+        # worker's janitor deletes it mid-test.
         disk = disk_for(srv, url, wire)
         with open(disk, "wb") as f:
             f.write(det_bytes(64, seed=99))
-        old = time.time() - 120
-        os.utime(disk, (old, old))
         before = int(os.stat(disk).st_mtime)
         time.sleep(1.1)
         s = _session(url)

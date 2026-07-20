@@ -180,11 +180,14 @@
 >   and need a pure `(data,len)` entry carved from their TUs first (a production refactor
 >   kept out of the additive fuzz work).
 >
-> Deferred (need an ASan lane, new CI, or new directives/process): A-2 (blocked on B-2 —
-> static-inspection pass 2026-07-18 cleared all three named suspects), B-1 (analyzer
+> Deferred (need an ASan lane, new CI, or new directives/process): B-1 (analyzer
 > workflows exist; blocking-flip needs a pinned CI toolchain baseline), B-2 (ASan lane),
 > remaining C-1 targets + C-2 (framing fuzz — need pure-entry refactors; attach to the
 > new B-3 lane).
+>
+> A-2 is no longer deferred: RESOLVED 2026-07-20 by surface retirement (the dead
+> WebDAV reverse-proxy transport was deleted) — see § A-2 Resolution below; B-2
+> is no longer a dependency for it.
 
 ---
 
@@ -826,8 +829,10 @@ scoped-compile logic ~0.5d.
 
 **Current behaviour.** Runtime wiring exists — `manage_test_servers.sh` sets
 `ASAN_OPTIONS`/`UBSAN_OPTIONS` and expects a `SANITIZE=1` build `[R32]`, plus a race
-harness `[R33]` — but **no CI job runs any of it**. The remotely-reachable heap
-corruption A-2 sits open precisely because nothing exercises the code under ASan.
+harness `[R33]` — but **no CI job runs any of it**. (When this was written, the
+heap corruption A-2 sat open precisely because nothing exercised the code under
+ASan; A-2 has since been resolved by surface retirement — 2026-07-20 — but the
+missing sanitizer lane remains the systemic gap this item closes.)
 
 **Fix.**
 1. Add a CI lane building `-fsanitize=address,undefined`, running the **fast tier** on
@@ -1665,7 +1670,7 @@ before the fix lands.
 | Item | CWE | Indicative CVSS v3.1 | Base | Detect today? |
 |---|---|---|---|---|
 | **A-1** upstream TLS no-verify | CWE-295 Improper Cert Validation | `AV:N/AC:H/PR:N/UI:N/S:C/C:H/I:H/A:N` | **7.4 High** | ✅ (`test_upstream_tls_verify.py`) |
-| **A-2** WebDAV-proxy heap corruption | CWE-787 Out-of-bounds Write | `AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H` | **7.5 High** | ❌ (no ASan lane → B-2) |
+| **A-2** WebDAV-proxy heap corruption | CWE-787 Out-of-bounds Write | `AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H` | **7.5 High** | ✅ resolved — surface retired 2026-07-20 (dead transport deleted; § A-2) |
 | **A-3** S3 ACL existence oracle | CWE-204 / CWE-639 | `AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N` | **4.3 Med** | ✅ done |
 | **A-4** secret not zeroized | CWE-226 Sensitive Info in Reused Resource | `AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N` | **4.7 Med** | ✅ (`test_ucred_zeroization.py`) |
 | **A-5** cred temp file in `/tmp` | CWE-377 Insecure Temp File | `AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:N/A:N` | **4.7 Med** | ✅ (`test_cred_stage.c` + `test_tpc_token_exchange_staging.py`) |

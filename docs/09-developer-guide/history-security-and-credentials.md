@@ -21,18 +21,36 @@ plan docs cited inline below.
 
 ---
 
-## OPEN ITEM — native TPC over GSI vs. push-model sources
+## RESOLVED (2026-07-19) — native TPC over GSI vs. stock `ofs.tpc` sources
 
-**Status as of last check (2026-06-26): mostly fixed, one gap remains open.**
-Native server-side third-party-copy over GSI **works** nginx↔nginx and against
-any pull-capable source (EOS, dCache, anything that sends the `kXR_attn`
-asynresp). It **still does not work against a stock `ofs.tpc`-PGM (push-model)
-source** — full detail and current gate list in the `native_tpc_gsi_broken`
-Claude memory entry and [`phase-57-tpc-delegation-zip-locks.md`](../refactor/phase-57-tpc-delegation-zip-locks.md).
+**Status: CLOSED — live-verified 2026-07-20.** Native server-side third-party-copy
+over GSI now works nginx↔nginx, against pull-capable sources (EOS, dCache,
+anything that sends the `kXR_attn` asynresp), **and against a stock
+`ofs.tpc`-PGM source** with `xrdcp --tpc only` (no client fallback). Gate:
+`tests/test_tpc_gsi_stock_source_only.py` (stock GSI source + nginx dest,
+`--tpc only`, byte-exact; source log shows both the client's and the
+destination's GSI logins). All five TPC-GSI gates green on 2026-07-20.
 
-### Repro / how to re-verify before assuming still broken
+**The "push-model source limitation" theory was WRONG.** A stock source never
+pushes: `ofs.tpc pgm` is inert in the source role (the pgm only runs on a
+*destination*). Stock TPC is always destination-pulls. What actually happened
+(`XrdOfsTPCAuth::Get`): when the destination's pull-open facts don't exact-match
+the client-registered authorization, the stock source **parks the open as a
+pending authorization** (`SFS_STARTED` → `kXR_waitresp`) and only answers via
+`kXR_attn` if a matching client origin-open arrives later — so a fact mismatch
+looks exactly like "source never sends the attn". The mismatched fact was the
+`tpc.org` host string; the fix (commit `f36eb208`, 2026-07-19) reproduces
+`XrdNetAddr::Name()`/`XrdOfsTPC::genOrg` exactly (IPv4-mapped reverse-resolve) in
+`tpc_build_origin_id` (`src/tpc/engine/launch_prepare.c`) — full analysis in
+[`fast-lane-burndown-2026-07.md` §3.2](fast-lane-burndown-2026-07.md).
+Historical detail below and in
+[`phase-57-tpc-delegation-zip-locks.md`](../refactor/phase-57-tpc-delegation-zip-locks.md).
 
-- Gate tests: `tests/test_tpc_gsi_nginx_source.py` (nginx↔nginx, real bytes),
+### Gate tests
+
+- `tests/test_tpc_gsi_stock_source_only.py` — the closing interop gate: stock
+  GSI source, nginx dest, `xrdcp --tpc only`, byte-exact server-side pull.
+- `tests/test_tpc_gsi_nginx_source.py` (nginx↔nginx, real bytes),
   `tests/test_tpc_gsi_outbound.py` (`--tpc first` no-regression case),
   `tests/test_tpc_async_open.py` (async-open resolution against an in-process
   mock source), `tests/test_gsi_handshake.py` (115 cases),
@@ -47,14 +65,15 @@ Claude memory entry and [`phase-57-tpc-delegation-zip-locks.md`](../refactor/pha
   [`lessons-tpc-vfs.md` §1](lessons-tpc-vfs.md#1-the-biggest-meta-lesson-build-the-gate-before-the-feature)
   for the full diagram.
 
-### Root cause of the remaining gap
+### Root cause of the final gap (superseded diagnosis, corrected 2026-07)
 
-A push-model source (`ofs.tpc ttl 300 300 pgm ...`) pushes bytes and never
-lets the destination pull, i.e. it never sends the `kXR_attn`/asynresp the
-destination's async-open resolver (`tpc_open_resolve`, F8) waits on. This is
-a **source-side configuration/model limitation**, not a destination bug —
-`--tpc first` against such a source correctly falls back to client-mediated
-copy within the destination's bounded ~15s wait.
+The 2026-06-26 diagnosis blamed a "push-model source" that "never sends the
+`kXR_attn`". That was wrong (see the resolution block above): the stock source
+was *parking* the destination's pull-open as a pending authorization because the
+destination's `tpc.org` host string failed `XrdOfsTPCInfo::Match`'s raw
+`strcmp` against the client-registered grant. Once `tpc_build_origin_id`
+reproduced `XrdNetAddr::Name()` semantics (f36eb208), the match succeeds
+immediately and the pull proceeds synchronously — no attn needed at all.
 
 ### What was fixed to get this far (2026-06-25/26, 3 passes)
 
@@ -389,17 +408,21 @@ proxy mode that slot holds a different struct (`webdav_proxy_ctx_t`) —
 garbage-pointer crash in `xrootd_rl_conc_release`; both ratelimit handlers
 now skip proxied locations.
 
-**STILL OPEN, not fixed:** `xrootd_webdav_proxy` relaying a **stock** XrdHttp
-backend's response intermittently heap-corrupts, surfacing as a delayed
-SIGSEGV in `SSL_free` during nginx's keepalive-close path
-(`ngx_ssl_shutdown` → `ngx_http_close_connection` →
-`ngx_http_keepalive_handler`), correlated with "upstream sent invalid header
-line" errors and an ~8/100 502 rate under concurrent load. Scoped to the
-WebDAV HTTP proxy response/header parsing (`src/webdav/proxy_response.c` or
-`proxy_request.c`); does not affect root://, S3, direct WebDAV, or the
-handoff path above. Not yet root-caused — needs an ASan build
-(`SANITIZE=1`) and a focused repro (an `xrootd_webdav_proxy` in front of a
-real stock XrdHttp endpoint under concurrent load) rather than a guess-fix.
+**RESOLVED by surface retirement (2026-07-20):** `xrootd_webdav_proxy`
+relaying a **stock** XrdHttp backend's response intermittently heap-corrupted,
+surfacing as a delayed SIGSEGV in `SSL_free` during nginx's keepalive-close
+path, correlated with "upstream sent invalid header line" errors and an
+~8/100 502 rate under concurrent load. The corruption lived in the WebDAV
+reverse-proxy transport's upstream response parse
+(`proxy_response.c::webdav_proxy_process_header`) — which by then was
+**dead code**: the `brix_webdav_proxy`/`_upstream` directives had already
+been retired in the legacy-proxy cleanup, so `upstream_proxy` could never be
+set. The entire dead transport was deleted (proxy.c / proxy_response.c /
+proxy_request.c / proxy_config.c + headers, `upstream_*` loc-conf fields and
+gates); the live twin `mirror_process_header` uses the hardened
+discard-headers parse and has no equivalent OOB. This was hyper-hardening
+item A-2 — full resolution record in
+`docs/07-security/hyper-hardening-plan.md` § A-2.
 
 ### Phase 65 (2026-07-02): generic bad-actor MITM guard
 
@@ -1190,7 +1213,7 @@ config — that is a deliberate opt-in feature decision (a
 | Per-user backend credentials (Ph 1–3) | Implemented, tested, reviewed ready-to-merge — check current git log for merge status | `src/fs/backend/ucred.c`, `src/fs/vfs/vfs_cred.c`, `brix_sd_cred_t` (`sd.h`) | See dedicated section below. |
 | Credential-forwarding matrix (normal access) | Done — 16 PASS/4 GAP/4 SKIP, gaps are upstream stock limitations | `tests/lib/fwd_matrix.sh`, ports 21960-21999 | See narrative above. |
 | TPC credential forwarding | Done, default-on | `brix_tpc_outbound_passthrough`, `brix_webdav_tpc_credential_forward` | Opportunistic-by-default per Rob's decision. |
-| Native TPC over GSI | Mostly fixed, one source-model gap open | `src/tpc/`, `src/gsi/gsi_core.c` | **See OPEN ITEM at top of this doc.** |
+| Native TPC over GSI | RESOLVED 2026-07-19 (incl. stock `ofs.tpc` sources) | `src/tpc/`, `src/gsi/gsi_core.c` | **See RESOLVED item at top of this doc.** |
 | X.509 proxy delegation (F6) | Code-complete, e2e unverified | `xrootd_tpc_delegate` directive | Needs a real grid host to fully verify; WSL2 rig can't complete the `usedDNS` check. |
 | GSI signed-DH (server) | Done, stock-verified both directions | `xrootd_gsi_signed_dh off\|auto\|require` | 220 tests, 0 skips. |
 | GSI cipher negotiation (WS-A) | Done, stock-verified | `xrootd_gsi_ciphers` | Bare cipher names on the wire — no IV-length suffix. |
@@ -1383,8 +1406,8 @@ scattered per-suite:
   lost after actually succeeding — that outcome is success, not failure;
   the fix accepts `rc==0 OR ItExists` and checks the real state with a
   post-stat.
-- **`xrdcp --tpc first` is not a valid TPC gate** — see the OPEN ITEM
-  section and `lessons-tpc-vfs.md` §1. Use `--tpc only` whenever you need
+- **`xrdcp --tpc first` is not a valid TPC gate** — see the RESOLVED
+  native-TPC item at the top of this doc and `lessons-tpc-vfs.md` §1. Use `--tpc only` whenever you need
   the test to actually fail when server-side TPC breaks.
 - **`race_shim.c`** (an `LD_PRELOAD` worker-gated syscall delay) is the
   standing tool for deterministic AIO-race testing; `tests/valgrind/` is

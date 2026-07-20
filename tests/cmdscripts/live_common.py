@@ -26,6 +26,14 @@ class LiveFailure(RuntimeError):
 
 _FROZEN_NGINX: Path | None = None
 
+# Literal /tmp, NOT tempfile.gettempdir(): the test lane exports
+# TMPDIR=/tmp/xrd-test/tmp, which pytest's basetemp garbage-rotation
+# rm -rf's mid-session — a frozen copy under it vanishes under a running
+# lane (seen live: every LifecycleHarness nginx exec failing rc=1).
+# Module-level so tests can point the freeze at a private root instead of
+# colliding with (and ETXTBSY-ing against) this process's real frozen binary.
+_FREEZE_ROOT = Path("/tmp")
+
 
 def freeze_nginx(src: str | Path) -> Path:
     """Return a private, immutable copy of the nginx binary.
@@ -45,7 +53,7 @@ def freeze_nginx(src: str | Path) -> Path:
     src = Path(src)
     if not src.exists():
         return src
-    frozen = Path(tempfile.gettempdir()) / f"brix-live-nginx-{os.getpid()}" / "nginx"
+    frozen = _FREEZE_ROOT / f"brix-live-nginx-{os.getpid()}" / "nginx"
     frozen.parent.mkdir(parents=True, exist_ok=True)
     for _ in range(6):
         try:
@@ -59,6 +67,55 @@ def freeze_nginx(src: str | Path) -> Path:
             pass  # source mid-relink (EACCES/ETXTBSY/short read) — retry
         time.sleep(0.5)
     return src
+
+
+def _fuse_mounts_under(prefix: str) -> list[str]:
+    try:
+        lines = Path("/proc/mounts").read_text().splitlines()
+    except OSError:
+        return []
+    points = []
+    for line in lines:
+        fields = line.split()
+        if len(fields) >= 3 and fields[2].startswith("fuse") and fields[1].startswith(prefix):
+            points.append(fields[1])
+    return points
+
+
+def _reap_fuse_mounts(root: Path) -> None:
+    """Tear down any FUSE mount left under root, whatever killed its scenario.
+
+    A run that dies mid-mount (pytest-timeout, crash) leaves a daemonized
+    cvmfs2/brixcvmfs mount behind that process cleanup can't reach, and the
+    first rmtree to walk into the dead mount — ours here, or the whole
+    session teardown sweeping /tmp/xrd-test — hangs forever in the kernel's
+    FUSE wait.  Lazy unmount alone is not enough: in-flight requests stay
+    wedged until the daemon dies, so kill every process still referencing
+    the ephemeral tree as well."""
+    prefix = f"{str(root).rstrip('/')}/"
+    points = _fuse_mounts_under(prefix)
+    if not points:
+        return
+    fusermount = shutil.which("fusermount3") or shutil.which("fusermount")
+    for point in points:
+        if fusermount:
+            subprocess.run([fusermount, "-uz", point], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, check=False)
+    survey = subprocess.run(["pgrep", "-f", prefix], stdout=subprocess.PIPE,
+                            text=True, check=False)
+    for pid_text in survey.stdout.split():
+        try:
+            pid = int(pid_text)
+        except ValueError:
+            continue
+        if pid != os.getpid():
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+    deadline = time.monotonic() + 3
+    while _fuse_mounts_under(prefix) and time.monotonic() < deadline:
+        time.sleep(0.1)
 
 
 class LiveRun(AbstractContextManager["LiveRun"]):
@@ -92,6 +149,7 @@ class LiveRun(AbstractContextManager["LiveRun"]):
                 proc.wait(remaining)
             except subprocess.TimeoutExpired:
                 proc.kill()
+        _reap_fuse_mounts(self.root)
         if os.environ.get("BRIX_LIVE_KEEP_TREE"):
             # Debug aid: preserve the ephemeral LiveRun tree (nginx configs +
             # error/access logs) for post-mortem instead of rmtree'ing it.

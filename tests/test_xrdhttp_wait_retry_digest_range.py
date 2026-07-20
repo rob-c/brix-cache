@@ -50,6 +50,7 @@ Implementation cross-checks (so assertions match real behaviour, not guesses):
 Run: PYTHONPATH=tests pytest tests/test_xrdhttp_wait_retry_digest_range.py -v
 """
 
+import fcntl
 import hashlib
 import os
 import socket
@@ -95,6 +96,28 @@ DATA_NAME = "range_digest.bin"
 DATA_BYTES = bytes((i * 37 + 11) & 0xFF for i in range(50000))
 ADLER32_HEX = "%08x" % (zlib.adler32(DATA_BYTES) & 0xFFFFFFFF)
 MD5_HEX = hashlib.md5(DATA_BYTES).hexdigest()
+
+
+@pytest.fixture(autouse=True)
+def _rate_budget_mutex():
+    """Serialize this module's tests across pytest-xdist workers.
+
+    The dedicated xrdhttp-digest server enforces a per-IP rate rule (2r/s
+    burst=2) and every worker arrives from 127.0.0.1, so the leaky bucket is
+    ONE shared budget for the whole run. Under `--dist load` the module's
+    tests land on several workers at once and drain it continuously — seen
+    live as all-429 responses even straight after _sleep_off_throttle().
+    Holding this cross-process flock for the duration of each test gives it
+    the bucket to itself; the _sleep_off_throttle() every test starts with
+    then genuinely refills it."""
+    lock_path = os.path.join(os.path.dirname(DATA_DIR), "xrdhttp-digest.rate.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o666)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 # ---------------------------------------------------------------------------
