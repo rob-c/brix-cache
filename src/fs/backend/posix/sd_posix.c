@@ -282,6 +282,7 @@ const brix_sd_driver_t brix_sd_posix_driver = {
     .stat = sd_posix_stat,
     .unlink = sd_posix_unlink,
     .mkdir = sd_posix_mkdir,
+    .setattr = sd_posix_setattr,
     .rename = sd_posix_rename,
     .server_copy = sd_posix_server_copy,
     .opendir = sd_posix_opendir,

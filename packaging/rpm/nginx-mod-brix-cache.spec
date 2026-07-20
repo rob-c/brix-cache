@@ -515,6 +515,19 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 # in %%files so brix-cache-client keeps the generic client surface while
 # brix-tools owns the Ceph/CephFS operator surface.
 
+# Dedicated, non-root service account for the per-request impersonation broker.
+# The broker only ever needs CAP_SETUID/CAP_SETGID (retained via the systemd
+# CapabilityBoundingSet); running it as this account instead of root means its
+# idle state, NSS lookups and path handling are unprivileged, and it owns nothing
+# in any export.  Referenced from brix-cache.conf.example via
+# `brix_impersonation_broker_user brix-broker;`.  Idempotent; a no-op on upgrade.
+%pre
+getent group brix-broker >/dev/null || groupadd -r brix-broker
+getent passwd brix-broker >/dev/null || \
+    useradd -r -g brix-broker -M -d /nonexistent -s /usr/sbin/nologin \
+            -c "BriX-Cache impersonation broker (non-root)" brix-broker
+exit 0
+
 %if %{with selinux}
 %pre selinux
 %selinux_relabel_pre -s %{selinuxtype}

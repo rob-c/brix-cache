@@ -271,6 +271,12 @@ typedef struct {
     brix_pmark_conf_t pmark;              /* SciTags packet-marking config — see
                                              * src/pmark/pmark.h. Shared by every
                                              * protocol; init/merge below.          */
+    ngx_uint_t        seccomp;            /* brix_seccomp mode (off/audit/enforce)
+                                             * for HTTP (WebDAV/S3/cvmfs) servers;
+                                             * a record only — the effective mode is
+                                             * the process-global brix_seccomp_worker_mode
+                                             * (strictest across ALL brix servers,
+                                             * incl. stream), 0=OFF via pcalloc.     */
 } ngx_http_brix_shared_conf_t;
 
 /*
@@ -406,25 +412,46 @@ brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
  * every shared merge (per server/location), so a broken path is shouted per
  * context; the healthy path prints nothing and costs one stat().
  */
+/* Resolved POST-de-escalation worker identity (defined in
+ * src/auth/impersonate/lifecycle_worker.c; contract in lifecycle.h). Workers
+ * are force-dropped to brix_worker_user/nobody when root-capable, so dirs
+ * provisioned for them must be owned by THAT identity, not raw ccf->user. */
+ngx_int_t brix_imp_worker_runtime_ids(ngx_uid_t conf_uid, ngx_gid_t conf_gid,
+    uid_t *uid_out, gid_t *gid_out);
+
+/* The uid/gid worker-writable provisioned dirs must be handed to: the runtime
+ * worker identity when the master runs as root, else the invoking user. */
+static inline void
+brix_shared_worker_dir_ids(ngx_conf_t *cf, uid_t *uid_out, gid_t *gid_out)
+{
+    ngx_core_conf_t *ccf = (ngx_core_conf_t *)
+                               ngx_get_conf(cf->cycle->conf_ctx, ngx_core_module);
+
+    *uid_out = geteuid();
+    *gid_out = (gid_t) -1;
+    if (geteuid() == 0) {
+        (void) brix_imp_worker_runtime_ids(
+            (ccf != NULL) ? ccf->user  : (ngx_uid_t) NGX_CONF_UNSET_UINT,
+            (ccf != NULL) ? (ngx_gid_t) ccf->group
+                          : (ngx_gid_t) NGX_CONF_UNSET_UINT,
+            uid_out, gid_out);      /* on failure the invoking-root ids stay */
+    }
+}
+
 static inline void
 brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
 {
     struct stat       st;
     const char       *path;
     uid_t             want_uid;
-    ngx_core_conf_t  *ccf;
+    gid_t             want_gid;
 
     if (dir == NULL || dir->len == 0) {
         return;                 /* explicit "" = per-user store disabled */
     }
 
     path = (const char *) dir->data;    /* conf tokens are NUL-terminated */
-    ccf  = (ngx_core_conf_t *)
-               ngx_get_conf(cf->cycle->conf_ctx, ngx_core_module);
-    want_uid = (geteuid() == 0
-                && ccf != NULL
-                && ccf->user != (ngx_uid_t) NGX_CONF_UNSET_UINT)
-             ? (uid_t) ccf->user : geteuid();
+    brix_shared_worker_dir_ids(cf, &want_uid, &want_gid);
 
     if (stat(path, &st) != 0) {
         if (errno != ENOENT) {
@@ -451,11 +478,11 @@ brix_shared_credential_dir_ensure(ngx_conf_t *cf, const ngx_str_t *dir)
         }
 
         /* The master parses config as root but the workers write the store
-         * as the `user` directive's uid — hand the fresh directory to them,
-         * exactly as ngx_create_paths does for the temp paths. */
+         * as the RUNTIME worker identity (the `user` account, or the
+         * de-escalation target for a root-capable worker) — hand the fresh
+         * directory to them, as ngx_create_paths does for the temp paths. */
         if (geteuid() == 0 && st.st_uid != want_uid
-            && chown(path, want_uid,
-                     (ccf != NULL) ? (gid_t) ccf->group : (gid_t) -1) != 0)
+            && chown(path, want_uid, want_gid) != 0)
         {
             ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
                 "brix: cannot chown credential store \"%s\" to the worker "
@@ -636,7 +663,11 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     if (conf->cache_peers == NULL) {
         conf->cache_peers = prev->cache_peers;
     }
-    ngx_conf_merge_value(conf->stage_enable, prev->stage_enable, 0);
+    /* stage_enable keeps UNSET through the merge: brix_tier_register_stores
+     * must tell "never configured" (may auto-provision the default gateway
+     * stage store under /tmp/staging) apart from an explicit "brix_stage off"
+     * opt-out. Its only reader tests == 1, so UNSET still means off. */
+    ngx_conf_merge_value(conf->stage_enable, prev->stage_enable, NGX_CONF_UNSET);
     ngx_conf_merge_str_value(conf->stage_store, prev->stage_store, "");
     if (conf->stage_store_args == NULL) {
         conf->stage_store_args = prev->stage_store_args;

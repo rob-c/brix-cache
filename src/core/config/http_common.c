@@ -1,6 +1,9 @@
 /* http_common.c — see http_common.h for the WHAT/WHY/HOW. */
 #include "core/config/http_common.h"
 #include "core/config/tier_directives.h"
+#include "core/seccomp/seccomp.h"            /* brix_conf_set_seccomp */
+#include "auth/impersonate/lifecycle.h"      /* brix_conf_set_worker_user */
+#include "protocols/root/stream/module_enums.h" /* brix_seccomp_modes */
 #include "fs/cache/verify.h"               /* brix_cache_verify_mode_e */
 #include "fs/backend/sd.h"                 /* BRIX_CRED_* (phase-70 §4) */
 
@@ -152,6 +155,37 @@ static ngx_command_t  brix_http_common_commands[] = {
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.storage_backend),
+      NULL },
+
+    /* Per-worker seccomp-BPF syscall filter for HTTP (WebDAV/S3/cvmfs) servers —
+     * off|audit|enforce.  Process-global: the strictest value across ALL brix
+     * servers (stream + http) is installed once per worker, so HTTP-only workers
+     * are filtered too (not just stream/root:// workers). */
+    { ngx_string("brix_seccomp"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      brix_conf_set_seccomp,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.seccomp),
+      &brix_seccomp_modes },
+
+    /* Opt out of the enforce execve/execveat KILL (default off) for WebDAV
+     * HTTP-TPC OIDC delegation and similar fork+exec helpers.  ptrace/process_vm_*
+     * stay killed.  Process-global (strictest across stream+http; ratchets on). */
+    { ngx_string("brix_seccomp_allow_exec"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      brix_conf_set_seccomp_allow_exec,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Confined account a root-capable worker is force-dropped to at init (default
+     * "nobody" + a warning). Process-global; covers HTTP-only (WebDAV/S3) workers
+     * too. See brix_imp_worker_deescalate. */
+    { ngx_string("brix_worker_user"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      brix_conf_set_worker_user,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
       NULL },
 
     { ngx_string("brix_storage_credential"),
