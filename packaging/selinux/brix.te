@@ -94,6 +94,50 @@ allow httpd_t brix_cache_t:file map;
 allow httpd_t self:capability { setuid setgid chown fowner fsetid dac_override dac_read_search };
 allow httpd_t self:process setcap;
 
+########################################
+#
+# Broker/worker domain split — DESIGN NOTE (not yet active; see below)
+#
+# Goal: run the root-equivalent impersonation broker in its OWN domain
+# (brix_broker_t) that holds { setuid setgid } + the confined-FS ops, while the
+# unprivileged workers keep a tightened httpd_t that does NOT hold setuid or
+# dac_override — so a worker compromise is contained by MAC from doing what the
+# broker does.
+#
+# Blocker: the broker is a DOUBLE-FORK of the nginx master (src/auth/impersonate/
+# lifecycle_broker.c) and never execve()s.  SELinux automatic domain transitions
+# fire on exec (type_transition ... :process), so a fork-only broker stays in the
+# parent domain (httpd_t).  A dynamic transition (setcon(3)) is also unavailable
+# here: dyntransition requires the target type be `typebounds`-bounded by the
+# source (a strict SUBSET of its permissions), but brix_broker_t must retain
+# setuid — a permission we WANT removed from the worker — so it cannot be bounded
+# by a tightened httpd_t.
+#
+# The clean fix therefore requires a code change: spawn the broker by execve()ing
+# a dedicated entrypoint (a tiny brix-broker binary, or nginx re-exec with a
+# broker flag), which lets SELinux type_transition httpd_t --brix_broker_exec_t-->
+# brix_broker_t on exec.  Once that lands, activate the block below and drop
+# `setuid`/`dac_override` from the httpd_t capability set above.
+#
+#   type brix_broker_t;
+#   type brix_broker_exec_t;
+#   files_type(brix_broker_exec_t)
+#   domain_type(brix_broker_t)
+#   domain_entry_file(brix_broker_t, brix_broker_exec_t)
+#   domtrans_pattern(httpd_t, brix_broker_exec_t, brix_broker_t)
+#   allow brix_broker_t self:capability { setuid setgid };
+#   allow brix_broker_t self:process setcap;
+#   manage_files_pattern(brix_broker_t, brix_var_lib_t, brix_var_lib_t)
+#   # ... plus the confined open/stat/rename/xattr file perms on brix_var_lib_t.
+#   # Then above:  allow httpd_t self:capability { chown fowner fsetid dac_read_search };
+#   #              (setuid/setgid/dac_override removed — only the broker holds them.)
+#
+# Until then, master + workers + broker share httpd_t; the runtime worker/broker
+# asymmetry is enforced at the DAC/capability layer instead (the worker sheds
+# every cap incl. setuid+dac_override at init — src/auth/impersonate/
+# lifecycle_worker.c imp_worker_drop_caps; the broker keeps only setuid+setgid and
+# is seccomp-confined — broker_creds.c).
+
 # Grid credentials: hostcert/hostkey, IGTF CA store, CRLs, VOMS lsc/vomsdir —
 # /etc/grid-security is labelled cert_t by brix.fc.
 miscfiles_read_generic_certs(httpd_t)

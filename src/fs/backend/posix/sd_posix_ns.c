@@ -96,6 +96,50 @@ sd_posix_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
         brix_ns_delete(inst->log, st->root_canon, abspath, &opts));
 }
 
+/* WHAT: Apply a metadata mutation (mode / times / owner) to `path`, kernel-
+ *       confined under the export root.
+ * WHY:  The setattr slot was unimplemented for the default POSIX driver, so a
+ *       tier decorator's metadata fixup (sd_stage hydration forcing the write
+ *       spool owner-rw, sd_cache's forward) silently no-opped on a posix
+ *       store; kXR_setattr parity for driver-backed exports needs it too.
+ * HOW:  Root-relative key -> absolute path (the unlink/mkdir convention), then
+ *       the existing confined helpers: brix_chmod_confined_canon for set_mode,
+ *       brix_setattr_confined_canon for set_times/set_owner. First failure
+ *       returns NGX_ERROR with errno left set. */
+ngx_int_t
+sd_posix_setattr(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr)
+{
+    sd_posix_state_t *st = inst->state;
+    char              abspath[PATH_MAX];
+
+    if ((size_t) snprintf(abspath, sizeof(abspath), "%s%s",
+                          st->root_canon, path) >= sizeof(abspath))
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    if (attr->set_mode
+        && brix_chmod_confined_canon(inst->log, st->root_canon, abspath,
+                                       attr->mode & 07777) != 0)
+    {
+        return NGX_ERROR;
+    }
+    if (attr->set_times || attr->set_owner) {
+        struct timespec times[2];
+
+        times[0] = attr->atime;
+        times[1] = attr->mtime;
+        if (brix_setattr_confined_canon(inst->log, st->root_canon, abspath,
+                attr->set_times ? 1 : 0, times,
+                attr->set_owner ? 1 : 0, attr->uid, attr->gid) != 0)
+        {
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 sd_posix_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {

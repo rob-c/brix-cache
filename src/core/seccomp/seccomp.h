@@ -35,6 +35,42 @@
  * not be built and loaded — the caller MUST fail the worker on NGX_ERROR rather
  * than serve unfiltered.
  */
-ngx_int_t brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode);
+ngx_int_t brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode,
+    ngx_uint_t allow_exec);
+
+/*
+ * Process-global "allow execve under enforce" flag (0/1), set by
+ * `brix_seccomp_allow_exec on`.  When 1, an ENFORCE filter allowlists
+ * execve/execveat (so OIDC token fetch / native-TPC token-exchange / the
+ * kXR_prepare hook can fork+exec) while STILL killing ptrace/process_vm_*.
+ */
+extern ngx_uint_t brix_seccomp_allow_exec;
+
+/* Custom setter for `brix_seccomp_allow_exec on|off` (stream + http tables). */
+char *brix_conf_set_seccomp_allow_exec(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
+/*
+ * The process-global effective seccomp mode (strictest across ALL brix servers,
+ * stream + http). Set by brix_conf_set_seccomp() at config parse; read by
+ * brix_seccomp_install_once().
+ */
+extern ngx_uint_t brix_seccomp_worker_mode;
+
+/*
+ * Custom setter for the `brix_seccomp` directive (registered in BOTH the stream
+ * and the shared http directive tables). Parses off|audit|enforce into the
+ * per-conf field AND bumps brix_seccomp_worker_mode to the strictest requested.
+ */
+char *brix_conf_set_seccomp(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
+/*
+ * Install brix_seccomp_worker_mode on the calling worker, exactly once (idempotent
+ * per worker). Called at the end of the brix init_process that runs for this
+ * worker — stream for stream/mixed configs, webdav for HTTP-only configs — so
+ * WebDAV/S3-only workers are filtered too. Returns NGX_ERROR (fail closed) when an
+ * audit/enforce filter was requested but could not be built.
+ */
+ngx_int_t brix_seccomp_install_once(ngx_cycle_t *cycle);
 
 #endif /* BRIX_CORE_SECCOMP_H */

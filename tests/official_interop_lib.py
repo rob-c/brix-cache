@@ -457,6 +457,30 @@ def chown_stock(*paths):
             _one(path)
 
 
+def worker_reachable(*dirs):
+    """Make each directory usable by the de-escalated `nobody` worker.
+
+    Since the always-on worker privilege drop (brix_imp_worker_deescalate), a
+    root-launched worker serves as `nobody`.  Test dirs created under pytest's
+    tmp_path sit below root-0700 `pytest-of-root/pytest-N` parents, so the
+    worker cannot even TRAVERSE to them, let alone write.  chown_stock each
+    leaf to `nobody`, then add o+x/g+x up the parent chain to /tmp so the
+    worker can reach it (traversal only — no read bit added).  Best-effort,
+    no-op unprivileged."""
+    for d in dirs:
+        chown_stock(str(d))
+    for d in dirs:
+        p = os.path.abspath(str(d))
+        while p not in ("/", "/tmp"):
+            try:
+                mode = os.stat(p).st_mode & 0o7777
+                if mode & 0o011 != 0o011:
+                    os.chmod(p, mode | 0o011)
+            except OSError:
+                break
+            p = os.path.dirname(p)
+
+
 def harmonize_perms(*roots):
     """Make the kXR readable/writable/xset stat flags AGREE across the pair, and
     grant the stock server (which runs as `nobody`) the access it needs.

@@ -45,7 +45,7 @@ struct probe {
  * The parent reports how the child terminated.
  */
 static struct probe
-run_probe(unsigned mode, int (*body)(void))
+run_probe(unsigned mode, unsigned allow_exec, int (*body)(void))
 {
     struct probe out;
     pid_t pid;
@@ -58,7 +58,7 @@ run_probe(unsigned mode, int (*body)(void))
 
     if (pid == 0) {
         /* Child: load the real filter, then exercise it. */
-        if (brix_seccomp_core_apply(mode, NULL, NULL, NULL, NULL)
+        if (brix_seccomp_core_apply(mode, allow_exec, NULL, NULL, NULL, NULL)
             != BRIX_SECCOMP_CORE_OK)
         {
             _exit(CX_APPLYFAIL);
@@ -121,7 +121,7 @@ body_chroot(void)
 static void
 test_enforce_allows_getpid(void)
 {
-    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, body_getpid);
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, 0, body_getpid);
     assert(!p.signalled);
     assert(p.code == CX_SURVIVED);
     printf("ok enforce_allows_getpid\n");
@@ -131,7 +131,7 @@ test_enforce_allows_getpid(void)
 static void
 test_enforce_kills_execve(void)
 {
-    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, body_execve);
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, 0, body_execve);
     assert(p.signalled);
     assert(p.sig == SIGSYS);
     printf("ok enforce_kills_execve\n");
@@ -141,10 +141,31 @@ test_enforce_kills_execve(void)
 static void
 test_enforce_kills_ptrace(void)
 {
-    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, body_ptrace);
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, 0, body_ptrace);
     assert(p.signalled);
     assert(p.sig == SIGSYS);
     printf("ok enforce_kills_ptrace\n");
+}
+
+/* allow_exec: enforce + allow_exec lets execve RUN (not killed) — for sites that
+ * fork+exec OIDC/TPC/prepare helpers. */
+static void
+test_enforce_allow_exec_permits_execve(void)
+{
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, 1, body_execve);
+    assert(!p.signalled);   /* execve was allowlisted, not SIGSYS-killed */
+    printf("ok enforce_allow_exec_permits_execve\n");
+}
+
+/* allow_exec must NOT relax the HARD set: ptrace is still killed even with
+ * allow_exec=1 (the broker stays protected from a worker-code hijack). */
+static void
+test_allow_exec_still_kills_ptrace(void)
+{
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, 1, body_ptrace);
+    assert(p.signalled);
+    assert(p.sig == SIGSYS);
+    printf("ok allow_exec_still_kills_ptrace\n");
 }
 
 /* error/fail-safe: a non-allowlisted, non-dangerous syscall is EPERM'd, not
@@ -152,7 +173,7 @@ test_enforce_kills_ptrace(void)
 static void
 test_enforce_eperms_chroot(void)
 {
-    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, body_chroot);
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_ENFORCE, 0, body_chroot);
     assert(!p.signalled);
     assert(p.code == CX_EPERM);
     printf("ok enforce_eperms_chroot\n");
@@ -162,7 +183,7 @@ test_enforce_eperms_chroot(void)
 static void
 test_audit_never_kills(void)
 {
-    struct probe p = run_probe(BRIX_SECCOMP_CORE_AUDIT, body_execve);
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_AUDIT, 0, body_execve);
     assert(!p.signalled);
     printf("ok audit_never_kills\n");
 }
@@ -171,7 +192,7 @@ test_audit_never_kills(void)
 static void
 test_off_is_noop(void)
 {
-    struct probe p = run_probe(BRIX_SECCOMP_CORE_OFF, body_getpid);
+    struct probe p = run_probe(BRIX_SECCOMP_CORE_OFF, 0, body_getpid);
     assert(!p.signalled);
     assert(p.code == CX_SURVIVED);
     printf("ok off_is_noop\n");
@@ -191,7 +212,7 @@ test_counts_reported(void)
     pid = fork();
     assert(pid >= 0);
     if (pid == 0) {
-        int rc = brix_seccomp_core_apply(BRIX_SECCOMP_CORE_ENFORCE, NULL, NULL,
+        int rc = brix_seccomp_core_apply(BRIX_SECCOMP_CORE_ENFORCE, 0, NULL, NULL,
                                          &n_allow, &n_deny);
         if (rc != BRIX_SECCOMP_CORE_OK) {
             _exit(1);
@@ -211,6 +232,8 @@ main(void)
     test_enforce_allows_getpid();
     test_enforce_kills_execve();
     test_enforce_kills_ptrace();
+    test_enforce_allow_exec_permits_execve();
+    test_allow_exec_still_kills_ptrace();
     test_enforce_eperms_chroot();
     test_audit_never_kills();
     test_counts_reported();
