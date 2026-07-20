@@ -222,7 +222,12 @@ assume.**
   bracketed numeric literal — reproducing `XrdNetAddr::Name()` /
   `XrdOfsTPC::genOrg`. Strictly *more* conformant; unchanged for DNS-named hosts.
 - **11/12 `test_root_tpc` now pass.** (The last, `tpc_gsi_nginx_source`, is the
-  separate brix-*source* key-rendezvous path — still open.)
+  separate brix-*source* key-rendezvous path — green again as of 2026-07-20.)
+- **This fix also closed the long-open "native TPC vs stock `ofs.tpc` source"
+  item** (the "push-model limitation" theory was a misdiagnosis of the parked
+  unmatched grant): `xrdcp --tpc only` from a stock GSI source now completes as
+  a genuine server-side pull. Gate: `tests/test_tpc_gsi_stock_source_only.py`;
+  resolution record: `history-security-and-credentials.md` (top).
 
 ### 3.3 open-handle stat dropped `kXR_xset` — hand-rolled retstat flags
 
@@ -355,22 +360,356 @@ When adding or debugging a fast-lane test **on a root host**:
 
 ---
 
+## 5.5 Round 6 (2026-07-20, single-pass — retry ladder removed): the cross-worker shared-state sweep
+
+The operator retry ladder was deleted on request (`operator_runtime._pytest_lane`
+is now one `pytest` invocation; a first-run failure is final). The first
+single-pass run surfaced **21 failures / 7604 passed** — and after root-causing,
+**every diagnosed failure was one bug class: shared mutable state raced across
+pytest-xdist workers.** The load-flakes the retry pass used to launder were
+never noise; they were real isolation bugs in the test infrastructure. Fix
+catalogue:
+
+- **Recursive glob into a live FUSE mount** (3 tests: `test_xfer_ledger` ×2,
+  `test_s3_checksums` stage-audit). `glob(TEST_ROOT/**/xfer_audit.log,
+  recursive=True)` walked into a concurrent live-test's CDN-backed cvmfs bench
+  mount under `TEST_ROOT/tmp` and hung until the 30s timeout. Audit sinks only
+  ever live at `TEST_ROOT/logs/` and `TEST_ROOT/registry/*/logs/` — the globs
+  are now those two patterns, with a comment banning `TEST_ROOT/**` forever.
+- **Conformance port-tile claim race** (8 tests: `test_cvmfs_qos` ×5,
+  `test_cvmfs_transcode` ×3). `cvmfs/conformance_common._tile_free` probed
+  tile ports with transient binds — a TOCTOU window 12 workers raced, so two
+  workers settled on the SAME tile → port collisions → `ConnectionReset`
+  storms. Now `_claim_tile()` binds and **holds** a per-tile lock port
+  (`_TILE-1` offset, outside every block span) for the process lifetime —
+  claims are atomic. Pinned by `tests/test_cvmfs_conformance_tiles.py`.
+- **Shared interop data trees** (`test_conf_rename_b` ×2,
+  `test_conf_client2` stat CTime parity). `start_pair()` was already
+  per-worker for servers/ports but both workers still exported the SAME
+  `data-interop-{our,off}` trees: fixed-name working files (`/rn_chain_a.bin`)
+  raced, and another worker's `harmonize_perms`/`chown_stock` re-run bumped
+  ctime mid-parity-check (chmod/chown bump ctime even when values are
+  unchanged). Fixes: data roots are now keyed by `PYTEST_XDIST_WORKER`
+  (`data-interop-our-gw3`), and the perm/owner harmonizers skip files already
+  at target. Pinned by `tests/test_interop_lib_isolation.py`.
+
+  > **SUPERSEDED (round 7, §5.6):** the per-worker data-root keying was WRONG
+  > and was reverted. `data-interop-{our,off}` are a **fleet contract** — the
+  > standing interop pair and six conf modules hard-wire those exact paths, so
+  > suffixing desynced seeding from serving and produced 184 kXR 3011 failures.
+  > The idempotent harmonizers (the actual fix for the ctime race) remain.
+- **Enumerating the shared fleet root** (`test_cli_aliases` tree/ls/du alias
+  equivalence). Two invocations of the same listing can straddle another
+  worker's file creation. The four enumeration tests now run over a private
+  server-side `cli_alias_<uuid>` directory seeded by a module fixture.
+- **One JWKS file, four mutating tests** (`test_token_jwks_refresh`). The
+  class rotates/corrupts/restores the dedicated server's single JWKS assuming
+  strict in-order execution; `--dist load` scatters the class across workers
+  (seen live: a concurrent worker's restore made the old key valid again mid
+  rejection-test). Each test now takes a cross-process `flock`
+  (`_jwks_mutation_lock`) and re-baselines the key material itself —
+  order- and worker-independent.
+- **One per-IP rate bucket, whole-module hammering**
+  (`test_xrdhttp_wait_retry_digest_range` ×3). The xrdhttp-digest server's
+  2r/s per-IP bucket is a single budget for every worker (all arrive from
+  127.0.0.1); concurrent tests drained it continuously → all-429. An autouse
+  cross-process flock (`_rate_budget_mutex`) gives each test the bucket to
+  itself.
+- **C-harness compile under lane load** (`test_c_regression_units
+  [delegation_store]`). ~10s compile+run alone; under 12-way CPU contention it
+  blew the suite-wide 30s signal timeout. Marked `@pytest.mark.timeout(120)`.
+- **Watch item (unreproduced):** `test_xrootd.py::TestGSI::test_gsi_anon_same_data`
+  failed once with `kXR_IOError (3007) Illegal seek` (ESPIPE) reading
+  `/random.bin` on the anon endpoint. No ESPIPE emit site exists on the
+  sendfile path; suspects are an fd-recycle race feeding `pread` a
+  non-seekable fd, or a stale `errno` strerror'd in
+  `read_finish_buffered()` when `nread<0` arrives with `io_errno==0`.
+  200 concurrent 5 MB reads did not reproduce it. If it recurs, instrument
+  `read_sync_fill`/AIO done-path to log `job.io_errno` vs `errno`.
+
+**The recurring shape** (pin next to §5's checklist): *any* fixture resource a
+test mutates — a data tree, a key file, a rate budget, a port range, a listing
+being compared across two calls — must be either (a) keyed per-worker
+(`PYTEST_XDIST_WORKER` in path/port math), or (b) serialized with a
+cross-process `flock` **plus per-test re-baselining** so order never matters,
+or (c) replaced with a test-private namespace (`uuid` dir). Sleeping "long
+enough" is never one of the options.
+
+Infra note for whoever runs the suites by hand: never run two pytest sessions
+concurrently against the same `/tmp/xrd-test` — one session's teardown wipes
+the shared registry/basetemp under the other (symptoms: `INTERNALERROR: failed
+to make path absolute`, fleet bind-storms from orphaned masterless nginx
+workers). Recovery: `pkill -9 nginx`, then `manage_test_servers start-all`.
+
+---
+
+## 5.6 Round 7 (2026-07-20): 234 failures decomposed to three causes — two self-inflicted-or-external, one instrumented
+
+Round 7 (first full lane after the §5.5 sweep) came back **207 failed / 27
+errors** — alarming, but the decomposition was clean:
+
+- **184 conf-suite failures = the §5.5 per-worker interop keying, i.e. our own
+  previous fix.** Suffixing `FLEET_OUR_DATA`/`FLEET_OFF_DATA` with the xdist
+  worker id made each worker seed `data-interop-our-gw3/…` while the standing
+  fleet pair (whose `nginx_interop.conf` hard-codes
+  `${TEST_ROOT}/data-interop-our`) and the six raw-wire conf modules
+  (openflags, sessions, sessions_b, dirlist, prepfattr, prepfattr_b — fixed
+  `FLEET_OUR_PORT`/`FLEET_OFF_PORT`) kept serving the unsuffixed trees →
+  every open answered kXR 3011. **Reverted** to the unsuffixed paths, now
+  documented in `official_interop_lib.py` as a FLEET CONTRACT with the list of
+  hard-wired consumers; cross-worker safety instead rests on the machinery that
+  already existed: `_seed_file` create-once (atomic tmp+replace, skip-if-
+  present), the age-gated stale-file wipe, per-worker `lroot_<tag>` listing
+  dirs, and the §5.5 idempotent harmonizers. Re-pinned by the rewritten
+  `tests/test_interop_lib_isolation.py`. Lesson: **a "shared mutable state"
+  diagnosis does not automatically license per-worker keying — first check
+  whether the path is a contract some fixed server config also encodes.**
+- **~50 failures/errors (27 errors + ~23 failures across credential_dir,
+  fleet_ports, xrdhttp, https_webdav, cache_write_through, frm, dropin,
+  manager_mode, brix_fault_proxy) = the concurrent-build EACCES storm.**
+  `exec /tmp/nginx-1.28.3/objs/nginx` → `EACCES` on every mid-lane launch;
+  the binary's mtime proved another session's `make` relinked it during the
+  run. Cascade anatomy: `ldd` against the half-written binary silently
+  dropped the krb5 detection → krb5-kdc/krb5 specs vanished from the fleet
+  registry → dependent servers never booted → connection-refused walls. All
+  ~50 pass in a quiet window. **Durable shield:** every test-side nginx exec
+  now routes through `freeze_nginx()` — `server_launcher._nginx_bin()` (used
+  by both `launch_detached_daemon` and `_nginx()`) and
+  `fleet_specs._nginx_has_krb5()` take a per-process validated frozen copy
+  (`/tmp/brix-live-nginx-<pid>/`, `-v`-checked, retried, atexit-cleaned) so an
+  external relink can no longer corrupt a running lane. Pinned by 4 new tests
+  in `tests/test_live_common.py` (incl. "never cache a broken binary").
+- **1 = the §5.5 GSI watch item, recurred with a NEW errno.**
+  `test_gsi_tls` 5 MB copy failed `kXR_IOError (3007) Bad file descriptor`
+  (round 6 was ESPIPE) — pattern-matches an fd closed/recycled under an
+  in-flight windowed read. Not reproduced on rerun. **Instrumented instead of
+  guessed:** new `brix_fd_kind()` (`src/core/aio/fd_kind.c`, C-unit
+  `fd_kind` in the regression harness) + `brix_read_io_failure_log()` now fire
+  at all three buffered-read error sites (`brix_read_window_emit`,
+  `brix_read_aio_done`, `read_finish_buffered`), logging
+  `fd/off/len/io_errno/strerror/fd_kind` — the next occurrence self-reports
+  whether the fd is `stale`/`socket`/`fifo` (recycle race) or `regular` with
+  `io_errno=0` (stale-errno strerror). Watch item stays OPEN until it recurs
+  with forensics attached.
+
+---
+
+## 5.7 Round 8 (2026-07-20): the shield itself became the bug — 110 red from one wiped directory
+
+Round 8 came back **36 failed / 74 errors / 7532 passed** — and ~108 of the
+110 were ONE cause: **the round-7 frozen-binary shield put its copy inside the
+blast radius it was meant to escape.** `freeze_nginx()` used
+`tempfile.gettempdir()`, which honours the lane's `TMPDIR=/tmp/xrd-test/tmp` —
+the same tree pytest's basetemp garbage-rotation `rm -rf`'s mid-session. The
+frozen copy vanished under the running lane and every subsequent
+LifecycleHarness nginx exec failed. Two stacked fixes:
+
+- **`_FREEZE_ROOT = Path("/tmp")`** (module constant in
+  `cmdscripts/live_common.py`) — the freeze target is literal `/tmp`, never
+  derived from `TMPDIR`. Tests patch the constant to a private root; without
+  that they ETXTBSY against (and would clobber) the pytest process's own real
+  frozen binary.
+- **`RegistryCommandFailure` un-frozen.** It was `@dataclass(frozen=True)` on
+  a `RuntimeError` — Python assigns `exc.__traceback__` on re-raise
+  (contextlib `__exit__`, `raise … from`), a frozen dataclass blocks that,
+  and every real launch failure was MASKED by
+  `dataclasses.FrozenInstanceError`. Exception dataclasses must never be
+  frozen.
+
+Both pinned in `tests/test_live_common.py` (freeze-root default, TMPDIR
+independence, re-raise round-trip). Lesson pair: **a durable artifact must
+live outside every rotated/It-gets-wiped tree (TMPDIR, basetemp, TEST_ROOT)**,
+and **never make an exception class immutable**.
+
+The remaining 2 were the GSI watch item again — `test_gsi_tls` 5 MB reads,
+back to ESPIPE (`[3007] Illegal seek`), same worker, back-to-back, this time
+on the GSI+TLS server. The instrumented forensic line was live in the binary,
+but the lane's session teardown (`TEST_OWN_FLEET=1` → `rmtree(TEST_ROOT)`)
+destroyed the server logs before they were read. 120 quiet-fleet reruns did
+not reproduce — load-coupled. Round 9 runs with a sidecar watcher that
+continuously copies the GSI servers' logs out of `TEST_ROOT` so the next
+occurrence's `fd_kind=` line survives teardown.
+
+---
+
+## 5.8 Round 9 (2026-07-20): the ESPIPE/EBADF ghost caught — windowed pump served the PREVIOUS handle's storage object
+
+Round 9: **5 failed / 0 errors / 7632 passed.** Three of the five were one
+real C bug — the load-coupled `[3007]` read failure stalked since round 6 —
+finally root-caused by running the main nginx as strace's child and
+correlating fd lifecycles across the worker and thread-pool traces.
+
+**The bug.** `brix_read_window_pump` (src/core/aio/reads.c) shares ONE
+reusable AIO task struct per session with the single-shot buffered path
+(`read_post_aio`, read_buffered.c). The buffered path sets `t->csi`/`t->obj`
+per post; the pump set neither. The VFS worker routes the pread through
+`t->obj`'s driver whenever `obj.driver != NULL` — and the driver object
+carries **its own fd**, so `t->fd` (which the pump DID set correctly) is
+ignored. Every windowed read after a buffered read on the same connection
+therefore executed against the *previous* read handle's storage object:
+
+- previous fd still open on the same file → correct bytes by luck;
+- fd number recycled to another file → **silently serves the wrong file**
+  (cross-connection data bleed — the integrity/confidentiality failure mode);
+- fd number recycled to an O_WRONLY staging temp (`.xrdresume.*.part`) or
+  closed → `pread` EBADF → `kXR_IOError` on the wire (the observed 3007).
+
+`t->csi` was likewise stale — a dangling pointer to the closed handle's freed
+CSI record (the trace showed a `openat("<heap garbage>.cinfo")` probe from a
+thread: a live UAF, not just a wrong fd).
+
+**Why it hid for so long.** Single-connection runs are immune: the fresh open
+almost always gets the just-freed lowest fd number back, so the stale obj
+points at the right file. It needs ≥2 concurrent connections churning
+open/close on one worker so another connection's open (data file or
+upload-resume temp) grabs the number in the gap. 475 single-connection cycles
+clean; 4-6 concurrent repro processes failed within 1-3 cycles. The
+"windowed read failed fd=N" forensic line logged `ctx->rd.win_fd` — the
+*fresh* fd — while the syscall used the stale obj's fd, which sent the
+investigation down a false "fd closed under the handle" path until the strace
+showed the executed fd differing from the logged one.
+
+**Fix** (reads.c, both pump paths): rebind `t->csi`/`t->obj` (and the inline
+fallback's `job.csi`/`job` obj) from `ctx->files[ctx->rd.win_idx]` on every
+window post. pgread/readv/qcksum already rebound per post — the pump was the
+sole offender. Verified: 6 concurrent repro processes × 240 s with per-process
+payloads and full content verification = ~1,400 cycles clean (pre-fix: dead in
+1-3 cycles); regression trio in
+`tests/test_windowed_read_handle_binding.py` (concurrent churn byte-exact ·
+clean-error + connection survival · cross-file bleed security-neg).
+
+**Lessons.**
+- A shared/reusable task struct is a *union of every poster's fields*: any
+  poster that skips a field inherits the previous poster's value. When adding
+  a field (here: the phase-55 driver seam's `obj`), grep EVERY site that
+  posts the struct, not just the one you're extending.
+- When a forensic log field and the syscall trace disagree, the log is
+  printing different state than the executor consumed — that disagreement IS
+  the clue, not noise.
+- strace filters must include `openat2` in this codebase (confined VFS opens
+  are invisible to plain `openat` filters), and `preadv2` if warm-probe reads
+  matter.
+- Identical payloads in a repro mask wrong-file reads; always salt per
+  connection and verify content, not just status.
+
+The remaining 2 round-9 failures were test-side and are now FIXED (verified
+green): `test_conf_sequences::test_write_sync_advances_mtime` (the stale-file
+janitor wiped the backdated-mtime fixture — backdate removed, integer-second
+sleep suffices) and
+`test_brix_fault_proxy::test_fail_nth_fails_only_that_connection` (`conns`
+read before the proxy had accepted+counted `_wait_port`'s probe connection —
+added a settle loop).
+
+---
+
+## 5.9 Round 10 (2026-07-20): 18F/10E — the host clock was jumping backwards every 27 s
+
+Round 10 (`operator_runtime suite --fast`, 12 workers, 7822 items, 27 min):
+**18 failed, 10 errors, 7624 passed**. Worse than round 9 — but the whole
+delta decomposed into TWO environmental pathologies plus THREE real test/config
+defects, all now fixed or root-caused:
+
+### Environmental pathology 1 — the wall clock steps BACKWARDS ~2.7 s every ~27 s
+
+Proof chain:
+- `test_rate_limit_throttles` asserted `elapsed > 0.8` and measured
+  **`-0.77 s`** — negative wall-clock elapsed is not a flake, it is a stepped
+  clock.
+- `journalctl`: `systemd-journald: Time jumped backwards, rotating.` every
+  27–28 s continuously (since at least Jul 19 22:20).
+- Direct measurement (wall-vs-monotonic offset sampling): steps of −2.7 s,
+  −0.8 s, −1.9 s inside one 35 s window; **net −5.4 s of wall time lost in
+  35 s** — the guest clock gains ~10 % and Hyper-V host sync yanks it back.
+- Cause: clocksource is `tsc` under the custom WSL2 RT kernel
+  (6.18.6-WSL2-RT-STABLE+) with bad calibration. Fix (needs root, reverts on
+  reboot):
+  `echo hyperv_clocksource_tsc_page > /sys/devices/system/clocksource/clocksource0/current_clocksource`
+
+Casualties (all re-run green in isolation, 7/7): negative-elapsed assert
+(`test_brix_fault_proxy::test_rate_limit_throttles`), token freshness both
+directions (`test_token_security` expired token accepted 201 — server clock
+stepped back past `exp`; `test_cvmfs_qos` fresh token 401 — `iat` landed in
+the future), GSI auth (`test_tpc_delegation`, `test_cmd_pblock_live
+[pblock-meta-gsi]` — cert/token validity windows), and the **janitor
+amplifier**: after a backward step, files written post-step have
+`mtime < _IMPORT_TIME` of every worker, so `_wipe_stale_working_files`
+deletes ACTIVE working files (`test_native_xrdcp_xrdfs_b::test_m9_mv`
+NotFound mid-test, `test_tape_rest` locality NONE = file gone,
+`test_conf_rename` stock-side src gone).
+
+### Environmental pathology 2 — I/O stall window ~15:50 (Ceph demo-cluster startup)
+
+The opt-out Ceph docker lab boots its demo cluster mid-run (OSD mkfs = heavy
+fsync on WSL2). During a ~2 min window every blocking syscall crawled: gw3's
+two client-tools `make` fixtures exceeded the 30 s pytest timeout (krb5 1 +
+sss module fixture cached-error replay ×9 = the 10 ERRORs; the make is a
+1.4 s no-op normally and the binaries were never rebuilt), gw11's `cc`
+(`test_cvmfs_driver_units`), gw9's 60 s xrdcp (`test_ha_failover`), and one
+TLS handshake severed mid-stall (`test_https_webdav_token_status_codes`
+SSLEOFError). All re-run green in isolation (12/12).
+
+### Real defects fixed this round (all verified green)
+
+1. **Admin API per-IP rate limit vs the suite itself** (7 failures:
+   `test_ipv6_cms_redirect` TestAdminBracketStrip ×6 +
+   `test_ipv6_admin_ratelimit_metrics`, all `429 rate_limited`). The
+   limiter (landed 2026-07-20, on by default, 120 writes/min keyed
+   `admw:<ip>`) shares ONE bucket across all 12 xdist workers because every
+   test client is `::1`/`127.0.0.1`. Fix: `brix_admin_rate_limit off;` in
+   every fleet template's dashboard location (12 templates / 19 blocks) —
+   EXCEPT `nginx_admin_ratelimit.conf`, whose `{RL_LINE}` placeholder is the
+   limiter test's own knob (`test_admin_rate_limit.py` still green).
+   Lesson: any new on-by-default per-IP guard will throttle a same-host test
+   fleet; the fleet templates must opt out explicitly on day one.
+2. **`test_conf_rename::test_rename_preserves_mtime`** backdated its fixture
+   to 2020 in the shared interop root → janitor food (same class as the
+   round-9 `test_write_sync_advances_mtime`). Fix: distinctive FUTURE stamp
+   (`st_mtime + 7200`) — mtime-preservation is still proven, and future
+   stamps are janitor-immune. Sweep confirmed no other test backdates
+   mtimes inside `FLEET_OUR_DATA`/`FLEET_OFF_DATA`.
+3. **`test_ha_failover` counted TIME_WAIT as a "handle leak"** (flaked to
+   `1 orphaned` in isolation). TIME_WAIT holds no fd — it is kernel-only
+   state lingering ~60 s whenever our side closes first, so ANY earlier test
+   on those shared ports trips it. Fix: count CLOSE_WAIT only (the state
+   where the peer closed and our process still holds the descriptor). Full
+   file green.
+
+**Round-11 precondition:** switch the clocksource (command above) before the
+next full run — with the clock stepping backwards every 27 s, timing/token/
+mtime-sensitive tests fail probabilistically regardless of code health.
+
+---
+
 ## 6. Remaining open items (not fixed — real, documented)
 
-- **FRM stage ownership not enforced** (`test_frm_owner`, 2 tests): a foreign
-  principal gets `204` instead of `403` deleting another's stage request. A real
-  `brix_stage_request_owner_check` bug, **un-masked** once the 503 (§2.2) was
-  fixed. Next target.
-- **`tpc_gsi_nginx_source`** (1): brix-*source* GSI key-rendezvous path
-  (`src/protocols/root/read/open_tpc.c` `brix_tpc_key_consume`), distinct from
-  the §3.2 destination fix.
-- **`test_cmd_*` GSI/pblock live-scenario cluster** (`pblock_live` 5,
-  `tpc_fwd_live` 3, `brixcvmfs_live` 3, `fwd_matrix_live` 2): feature-specific,
-  worth a focused pass.
-- Cosmetic: the s3 origin logs `op:"xattr"` for a served GET (`status:"other"`)
-  — a metric-label quirk, not a data bug.
+- **`brixcvmfs_live` 3** (CVMFS leg of the former `test_cmd_*` cluster): still
+  unverified, worth a focused pass.
 
-**Fixed after the first draft of this doc** (kept here as a pointer): the
+**Fixed after the first draft of this doc** (kept here as a pointer):
+
+- ~~`test_cmd_*` GSI/pblock live-scenario cluster (`pblock_live` 5,
+  `tpc_fwd_live` 3, `fwd_matrix_live` 2)~~ — re-verified 2026-07-20: all 13
+  non-CVMFS scenarios now exit 0 standalone (`python3 -m cmdscripts.pblock_live
+  <s>` etc.); the earlier failures were cured by the §2.2 worker-ownership
+  fixes (`pblock_worker_own`), the §2.4 `-g "user root;"` injection, and the
+  TPC `tpc.org` host-string fix (f36eb208). Pytest wrappers confirmed green
+  the same day: 15 passed, 1 xpassed (`fwd-brix-brix` xfail now xpasses).
+- ~~Cosmetic: the s3 origin logs `op:"xattr"` for a served GET
+  (`status:"other"`)~~ — fixed 2026-07-20: the served-GET usermeta/tagging
+  probes hit `ENODATA` on objects with no optional attrs, and
+  `brix_vfs_xattr_observe_count` (`src/fs/vfs/vfs_xattr.c`) booked that
+  expected-absent probe as a failed op. It now observes ENODATA as a clean
+  zero-byte `status:"ok"` (caller still sees `-1`/`ENODATA`; real errors
+  still book as failures). Tests: `tests/test_metrics_vfs_ops.py` (3 new,
+  7/7 green).
+FRM stage ownership (FINDING-FRM-1) — `brix_stage_request_owner_check`
+(`src/fs/xfer/stage_request_registry_query.c`) now gates DELETE and
+body-less POST `/cancel` on the Tape REST API (403 for a foreign principal,
+fail-open only for anonymous callers / owner-less records / absent reqids — no
+enumeration oracle); regression suite `tests/test_frm_owner.py` (5 tests,
+re-verified green 2026-07-20). Also:
+`tpc_gsi_nginx_source` (the brix-*source* GSI key-rendezvous path, distinct from
+the §3.2 destination fix) — green again as of 2026-07-20 (§3.2). Also: the
 `shutdown_resume` upload-stage perms (§2.2), the `gsi-store-memo` observability
 (§2.7), and the `cvmfs` trust-gate `-9` whitelist-parser bug (§3.5) were all
 subsequently root-caused and fixed — see those sections. The `cvmfs` conformance

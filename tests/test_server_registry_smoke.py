@@ -260,3 +260,36 @@ def test_registry_settings_exports_phase_env_knobs():
     assert isinstance(settings.REGISTRY_START, bool)
     assert isinstance(settings.REGISTRY_KEEP_LOGS, bool)
     assert settings.REGISTRY_PORT_BASE is None or isinstance(settings.REGISTRY_PORT_BASE, str)
+
+
+def test_endpoint_honours_spec_host_and_brackets_ipv6_url():
+    """A spec that declares a host gets it verbatim on the endpoint (this is
+    the address the readiness probe dials) and IPv6 literals are bracketed in
+    the URL."""
+    spec = NginxInstanceSpec(name="v6-probe-smoke", template="unused.conf",
+                             port=19321, host="::1")
+    endpoint = endpoint_for(spec)
+    assert endpoint.host == "::1"
+    assert endpoint.url == "root://[::1]:19321/"
+
+
+def test_endpoint_defaults_to_settings_host_without_spec_host():
+    """No declared host -> settings.HOST, unbracketed (the pre-existing
+    contract for the v4 fleet must not shift)."""
+    spec = NginxInstanceSpec(name="v4-probe-smoke", template="unused.conf",
+                             port=19322)
+    endpoint = endpoint_for(spec)
+    assert endpoint.host == settings.HOST
+    assert endpoint.url == f"root://{settings.HOST}:19322/"
+
+
+def test_ipv6_fleet_specs_declare_host6():
+    """Every [::1]-tier fleet spec must carry host=HOST6 — a 127.0.0.1 TCP
+    probe against a v6-only listener can never succeed, so a missing host
+    silently reports the instance as failed-to-start every boot."""
+    from fleet_specs import dedicated_specs
+
+    v6 = [s for s in dedicated_specs() if s.name.startswith("ipv6-")]
+    assert len(v6) >= 6, "ipv6 tier missing from the fleet catalogue"
+    wrong = [s.name for s in v6 if s.host != settings.HOST6]
+    assert not wrong, f"ipv6 specs probing the wrong family: {wrong}"

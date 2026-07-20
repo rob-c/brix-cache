@@ -101,10 +101,20 @@ def _wait_port(port: int, label: str = "", timeout: float = 20.0, host: str = HO
     pytest.fail(f"Port {port} ({label}) not ready after {timeout}s")
 
 
-def _wait_for_redirect(redir_port: int, path: str, expected_ds_port: int,
+def _wait_for_redirect(redir_port, path, expected_ds_ports,
                        timeout: float = 25.0, host: str = HOST):
     """Connect to redir_port, send kXR_locate for path, retry until we get
-    a kXR_redirect (4004) pointing at expected_ds_port, or timeout."""
+    a kXR_redirect (4004) pointing at one of expected_ds_ports, or timeout.
+
+    expected_ds_ports may be a single port or a collection: multi-server
+    clusters must accept ANY registered data server — selection tie-breaks
+    by registration order, so insisting on one specific server races the
+    fleet's parallel bring-up.
+    """
+    if isinstance(expected_ds_ports, int):
+        expected_ds_ports = {expected_ds_ports}
+    else:
+        expected_ds_ports = set(expected_ds_ports)
     deadline = time.monotonic() + timeout
     last_status = None
     while time.monotonic() < deadline:
@@ -115,7 +125,7 @@ def _wait_for_redirect(redir_port: int, path: str, expected_ds_port: int,
                 last_status = status
                 if status == 4004 and len(body) >= 4:
                     redirect_port = struct.unpack(">I", body[:4])[0]
-                    if redirect_port == expected_ds_port:
+                    if redirect_port in expected_ds_ports:
                         return
             finally:
                 sock.close()
@@ -123,12 +133,12 @@ def _wait_for_redirect(redir_port: int, path: str, expected_ds_port: int,
             pass
         time.sleep(0.5)
     pytest.fail(
-        f"Redirector on {redir_port} never redirected {path!r} to port "
-        f"{expected_ds_port} within {timeout}s (last status={last_status})"
+        f"Redirector on {redir_port} never redirected {path!r} to any of "
+        f"{sorted(expected_ds_ports)} within {timeout}s (last status={last_status})"
     )
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def manager_nginx():
     """Use the pre-launched dedicated manager nginx at MANAGER_PORT.
 
@@ -619,7 +629,8 @@ def cluster_multi_server():
     Path(CLUSTER_MS_DS2_DATA_ROOT, "shared.txt").write_text("server 2 copy")
 
     _wait_port(CLUSTER_MS_REDIR_PORT, "cluster-ms-redir")
-    _wait_for_redirect(CLUSTER_MS_REDIR_PORT, "/shared.txt", CLUSTER_MS_DS1_PORT)
+    _wait_for_redirect(CLUSTER_MS_REDIR_PORT, "/shared.txt",
+                       (CLUSTER_MS_DS1_PORT, CLUSTER_MS_DS2_PORT))
 
     yield {
         "redir_port": CLUSTER_MS_REDIR_PORT,
@@ -945,14 +956,26 @@ class TestCmsSelectWake:
 
     @pytest.mark.registry_server("cluster-select")
     def test_locate_wakes_on_cms_select(self, cms_select):
-        """kXR_locate must return kXR_redirect to the port advertised by kYR_select."""
+        """kXR_locate must return kXR_redirect to the port advertised by kYR_select.
+
+        Until the persistent link to the parent CMS stub is established,
+        locate_try_cms_parent's send fails and locate falls through to the
+        NotFound path (kXR_error) by design — so retry through the warm-up
+        window rather than judging the first response.
+        """
         c = cms_select
 
-        sock = _cluster_handshake_login(HOST, c["redir_port"])
-        sock.settimeout(15)  # generous — allows for CMS round-trip
-        _cluster_send_locate(sock, "/cms-select-test/file.dat")
-        status, body = _cluster_read_response(sock)
-        sock.close()
+        deadline = time.monotonic() + 25.0
+        status, body = None, b""
+        while time.monotonic() < deadline:
+            sock = _cluster_handshake_login(HOST, c["redir_port"])
+            sock.settimeout(15)  # generous — allows for CMS round-trip
+            _cluster_send_locate(sock, "/cms-select-test/file.dat")
+            status, body = _cluster_read_response(sock)
+            sock.close()
+            if status == kXR_redirect:
+                break
+            time.sleep(0.5)
 
         assert status == kXR_redirect, (
             f"expected kXR_redirect after kYR_select, got {status}"

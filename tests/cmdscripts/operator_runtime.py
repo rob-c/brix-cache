@@ -142,17 +142,10 @@ CLIENTCONF = [
 ]
 
 
-def _pytest_lane(selection: list[str], main: list[str], common: list[str], *, pr: bool = False) -> bool:
-    if _run_stream([sys.executable, "-m", "pytest", *selection, *main, *common]) == 0:
-        return True
-    reruns = [[*selection, "--lf", "-p", "no:xdist", *common]] if pr else [
-        [*selection, "--lf", "-n", "2", "--dist", "load", *common],
-        [*selection, "--lf", "-p", "no:xdist", *common],
-    ]
-    for args in reruns:
-        if _run_stream([sys.executable, "-m", "pytest", *args]) == 0:
-            return True
-    return False
+def _pytest_lane(selection: list[str], main: list[str], common: list[str]) -> bool:
+    # Single pass, no retry ladder: a first-run failure is the signal to fix,
+    # not something to launder through --lf reruns.
+    return _run_stream([sys.executable, "-m", "pytest", *selection, *main, *common]) == 0
 
 
 def run_suite(argv: list[str]) -> int:
@@ -177,12 +170,12 @@ def run_suite(argv: list[str]) -> int:
     rc = 0
 
     if ns.fast:
-        ok = _pytest_lane([tests_root, *ignore, "-m", "not slow and not serial"], ["-n", str(ns.n), "--dist", "load"], common, pr=True)
+        ok = _pytest_lane([tests_root, *ignore, "-m", "not slow and not serial"], ["-n", str(ns.n), "--dist", "load"], common)
         return 0 if ok else 1
     if ns.pr:
-        if not _pytest_lane([tests_root, *ignore, "-m", "not slow and not serial"], ["-n", str(ns.n), "--dist", "load"], common, pr=True):
+        if not _pytest_lane([tests_root, *ignore, "-m", "not slow and not serial"], ["-n", str(ns.n), "--dist", "load"], common):
             rc = 1
-        if not _pytest_lane([tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial and not slow"], ["-p", "no:xdist"], common, pr=True):
+        if not _pytest_lane([tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial and not slow"], ["-p", "no:xdist"], common):
             rc = 1
         return rc
     if ns.nightly:

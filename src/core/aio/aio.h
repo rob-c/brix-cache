@@ -304,6 +304,16 @@ void brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
  */
 /* kXR_read completion: builds the data chain from brix_read_aio_t. */
 void brix_read_aio_done(ngx_event_t *ev);
+
+/*
+ * Failed-read forensics (fast-lane ESPIPE/EBADF watch item): classify what an
+ * fd refers to right now ("regular"/"socket"/"fifo"/"dir"/"other", or "stale"
+ * when fstat fails), and the one-line failure logger the buffered/windowed/AIO
+ * read error paths call with the request geometry + worker errno.
+ */
+const char *brix_fd_kind(int fd);
+void brix_read_io_failure_log(ngx_log_t *log, const char *who, int fd,
+    off_t offset, size_t rlen, int io_errno);
 /* kXR_write completion (brix_write_aio_t).  Frees t->payload_to_free
  * unconditionally (even on the destroyed path) since the worker owns that
  * detached copy; a short write is reported as a hard kXR_IOError. */

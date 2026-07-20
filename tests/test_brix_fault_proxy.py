@@ -360,7 +360,17 @@ def test_fail_nth_fails_only_that_connection(bfp):
     try:
         # The startup port probe already consumed some connection ids; target the
         # 2nd connection *after* the current count so the arithmetic is exact.
+        # The probe's TCP connect returning (inside _spawn) does not mean the
+        # proxy has ACCEPTED and counted it yet — read conns only once the
+        # counter has stopped moving, or fail-nth lands one connection early.
         base = _stat_int(ctl, "conns")
+        settle_end = time.time() + 2.0
+        while time.time() < settle_end:
+            time.sleep(0.05)
+            now = _stat_int(ctl, "conns")
+            if now == base:
+                break
+            base = now
         _ctl(ctl, f"fail-nth {base + 2}")
 
         def roundtrip():

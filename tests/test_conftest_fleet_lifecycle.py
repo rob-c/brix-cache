@@ -77,6 +77,148 @@ def test_remote_mode_never_attaches(fleet_decision_env, monkeypatch):
     assert conftest._external_fleet_attached() is False
 
 
+class _Options:
+    def __init__(self, numprocesses=None, collectonly=False):
+        self.numprocesses = numprocesses
+        self.collectonly = collectonly
+
+
+class _Config:
+    """Minimal stand-in for pytest's Config as pytest_collection_finish sees it:
+    no ``workerinput`` attribute (controller), an ``option`` namespace, and the
+    positional ``args`` that _selected_tests_do_not_need_server() inspects."""
+
+    def __init__(self, numprocesses=None, collectonly=False):
+        self.option = _Options(numprocesses=numprocesses, collectonly=collectonly)
+        self.args = ["test_read.py"]
+
+
+class _Session:
+    def __init__(self, config, items):
+        self.config = config
+        self.items = items
+
+
+@pytest.fixture
+def collection_finish_env(fleet_decision_env, monkeypatch):
+    """Hermetic pytest_collection_finish harness: no fleet running (this session
+    owns the lifecycle), env knobs cleared, subset computation and fleet start
+    stubbed out.  Yields the recorder list of _start_all_resilient() calls."""
+    fleet_decision_env(fleet_running=False)
+    monkeypatch.delenv("TEST_SKIP_SERVER_SETUP", raising=False)
+    monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
+    monkeypatch.setattr(conftest, "REMOTE_SERVER", False, raising=False)
+    started = []
+    monkeypatch.setattr(conftest, "_start_all_resilient", started.append)
+    monkeypatch.setattr(conftest, "_specs_to_boot", lambda items: ["subset-spec"])
+    return started
+
+
+def test_collection_finish_boots_the_declared_subset(collection_finish_env):
+    """Owning controller, serial run: the post-collection hook computes the
+    declared union, records it on config for teardown, and starts exactly it."""
+    session = _Session(_Config(), items=[object()])
+    conftest.pytest_collection_finish(session)
+    assert collection_finish_env == [["subset-spec"]]
+    assert session.config._nginx_xrootd_selected_registry_specs == ["subset-spec"]
+
+
+def test_collection_finish_never_starts_when_attached(
+    collection_finish_env, fleet_decision_env
+):
+    """Attach mode (an external fleet is up) must not start — or later stop —
+    anything: lifecycle belongs to whoever launched the fleet."""
+    fleet_decision_env(fleet_running=True)
+    conftest.pytest_collection_finish(_Session(_Config(), items=[object()]))
+    assert collection_finish_env == []
+
+
+def test_collection_finish_defers_to_sessionstart_under_xdist(collection_finish_env):
+    """With -n the controller never collects, so the hook must not double-start
+    the fleet pytest_sessionstart already booted in full."""
+    conftest.pytest_collection_finish(
+        _Session(_Config(numprocesses=4), items=[object()])
+    )
+    assert collection_finish_env == []
+
+
+def test_collection_finish_skips_collect_only_and_empty_sessions(
+    collection_finish_env,
+):
+    conftest.pytest_collection_finish(
+        _Session(_Config(collectonly=True), items=[object()])
+    )
+    conftest.pytest_collection_finish(_Session(_Config(), items=[]))
+    assert collection_finish_env == []
+
+
+def test_subset_boot_is_the_default(monkeypatch):
+    """_specs_to_boot returns the declared union unless REGISTRY_SUBSET_BOOT=0."""
+    monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
+    monkeypatch.setattr(conftest, "_always_on_specs", lambda: {"backbone"})
+    seen = {}
+
+    def fake_selected(items, always_on=()):
+        seen["always_on"] = set(always_on)
+        return ["declared-union"]
+
+    monkeypatch.setattr(conftest, "selected_specs", fake_selected)
+    assert conftest._specs_to_boot([]) == ["declared-union"]
+    assert seen["always_on"] == {"backbone"}
+
+
+def test_subset_boot_opt_out_restores_full_fleet(monkeypatch):
+    import server_registry
+
+    monkeypatch.setenv("REGISTRY_SUBSET_BOOT", "0")
+    monkeypatch.setattr(server_registry, "registered_specs", lambda: ["every-spec"])
+    monkeypatch.setattr(
+        conftest, "selected_specs",
+        lambda *a, **k: pytest.fail("subset path must not run when opted out"),
+    )
+    assert conftest._specs_to_boot([]) == ["every-spec"]
+
+
+def test_subset_boot_unions_module_autouse_specs(monkeypatch, tmp_path):
+    """A module autouse fixture's server can't be declared by any test (nothing
+    takes it as a parameter), so _specs_to_boot must union it in per collected
+    module (REGISTRY_MIGRATION.md § blind spot)."""
+    import fleet_declares
+    import fleet_ports
+
+    ded_spec = next(
+        s for s in sorted(fleet_ports.CONST_TO_SPEC.values())
+        if s not in fleet_declares.backbone_specs()
+    )
+    ded_const = next(
+        c for c, s in sorted(fleet_ports.CONST_TO_SPEC.items()) if s == ded_spec
+    )
+    mod = tmp_path / "test_autouse_mod.py"
+    mod.write_text(
+        "import pytest\n"
+        f"from settings import {ded_const}\n"
+        '@pytest.fixture(scope="session", autouse=True)\n'
+        "def module_env():\n"
+        f"    wait_port({ded_const})\n"
+    )
+
+    class _Item:
+        fspath = str(mod)
+
+    monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
+    monkeypatch.setattr(conftest, "_always_on_specs", lambda: {"backbone"})
+    seen = {}
+
+    def fake_selected(items, always_on=()):
+        seen["always_on"] = set(always_on)
+        return sorted(always_on)
+
+    monkeypatch.setattr(conftest, "selected_specs", fake_selected)
+    conftest._specs_to_boot([_Item()])
+    assert ded_spec in seen["always_on"]
+    assert "backbone" in seen["always_on"]
+
+
 def test_decision_is_memoized(fleet_decision_env):
     """Only one probe per process: the first decision is cached so we neither
     re-probe nor re-print the attach notice on the teardown call."""

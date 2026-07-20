@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -116,6 +117,36 @@ def xrdcp_put(port: int, source: Path, dest: str, xrdcp: Path = XRDCP) -> subpro
     return run([str(xrdcp), "-f", str(source), f"root://127.0.0.1:{port}//{dest}"])
 
 
+def wait_listening(ports: list[int], timeout: float = 10.0) -> bool:
+    deadline = time.monotonic() + timeout
+    for port in ports:
+        while True:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                    break
+            except OSError:
+                if time.monotonic() > deadline:
+                    return False
+                time.sleep(0.1)
+    return True
+
+
+def _log_tail(prefix: Path, lines: int = 8) -> str:
+    try:
+        text = (prefix / "logs" / "e.log").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "<no log>"
+    return " | ".join(text.strip().splitlines()[-lines:])
+
+
+def _put_diag(put: subprocess.CompletedProcess, origin: Path, writer: Path) -> str:
+    return (
+        f" [xrdcp rc={put.returncode} stderr={(put.stderr or '').strip()[-300:]!r}"
+        f" origin_log: {_log_tail(origin)}"
+        f" writer_log: {_log_tail(writer)}]"
+    )
+
+
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> list[tuple[bool, str]]:
     if not os.access(xrdcp, os.X_OK):
         return [(True, "SKIP native xrdcp not built")]
@@ -151,25 +182,35 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> l
         started.append(prefix)
 
     try:
-        time.sleep(1)
+        if not wait_listening([origin_port, writer_port, negative_port]):
+            return [(False, "ad-hoc servers never started listening"
+                     f" [origin_log: {_log_tail(origin)} writer_log: {_log_tail(writer)}]")]
         results: list[tuple[bool, str]] = []
         small_put = xrdcp_put(writer_port, small, "w.bin", xrdcp)
+        small_ok = (
+            small_put.returncode == 0
+            and (origin / "root" / "w.bin").exists()
+            and (origin / "root" / "w.bin").read_bytes() == small.read_bytes()
+        )
         results.append(
             (
-                small_put.returncode == 0
-                and (origin / "root" / "w.bin").exists()
-                and (origin / "root" / "w.bin").read_bytes() == small.read_bytes(),
-                "flushed byte-exact to token origin (ztn write-back)",
+                small_ok,
+                "flushed byte-exact to token origin (ztn write-back)"
+                + ("" if small_ok else _put_diag(small_put, origin, writer)),
             )
         )
 
         big_put = xrdcp_put(writer_port, big, "wbig.bin", xrdcp)
+        big_ok = (
+            big_put.returncode == 0
+            and (origin / "root" / "wbig.bin").exists()
+            and (origin / "root" / "wbig.bin").read_bytes() == big.read_bytes()
+        )
         results.append(
             (
-                big_put.returncode == 0
-                and (origin / "root" / "wbig.bin").exists()
-                and (origin / "root" / "wbig.bin").read_bytes() == big.read_bytes(),
-                "multi-chunk ztn write-back byte-exact",
+                big_ok,
+                "multi-chunk ztn write-back byte-exact"
+                + ("" if big_ok else _put_diag(big_put, origin, writer)),
             )
         )
 

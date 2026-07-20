@@ -344,7 +344,11 @@ def _setup_session():
     """Shared session setup logic.
 
     In REMOTE mode: verify the server is reachable; skip all local lifecycle.
-    In LOCAL mode: wipe data dirs, regenerate PKI, start servers.
+    In LOCAL mode: wipe data dirs, regenerate PKI, seed data, prep session
+    artifacts.  The fleet itself starts AFTER collection
+    (pytest_collection_finish), when the declared-server subset is known —
+    except under xdist, where the controller never collects and boots the full
+    fleet from pytest_sessionstart instead.
     """
     import subprocess
 
@@ -454,9 +458,6 @@ def _setup_session():
     import fleet_prep  # noqa: PLC0415 — pure-Python session artifact generator
     fleet_prep.prepare()
 
-    specs = getattr(_pytest_config, "_nginx_xrootd_selected_registry_specs", None)
-    _start_all_resilient(specs)
-
 
 def _reap_leaked_test_servers():
     """Kill any nginx/xrootd/krb5kdc whose command line references a test path.
@@ -472,7 +473,7 @@ def _reap_leaked_test_servers():
     import signal
 
     markers = (str(TEST_ROOT), "/tmp/xrd", "/tmp/hsproto")
-    for exe in ("nginx", "xrootd", "krb5kdc", "kadmind"):
+    for exe in ("nginx", "xrootd", "krb5kdc", "kadmind", "haproxy"):
         try:
             out = subprocess.run(
                 ["pgrep", "-x", exe], capture_output=True, text=True
@@ -551,6 +552,17 @@ def _start_all_resilient(specs=None):
     )
 
 
+def _xdist_requested(config) -> bool:
+    """True when this run was invoked with pytest-xdist parallelism (-n).
+
+    Under xdist the controller never collects — the workers do — so the
+    post-collection subset-boot hook (pytest_collection_finish) cannot see the
+    item list there.  The controller boots the full fleet up front instead;
+    parallel runs are the full-suite lane, where the subset is ~everything
+    anyway."""
+    return bool(getattr(config.option, "numprocesses", None))
+
+
 def pytest_sessionstart(session):
     # xdist workers inherit the environment from the controller which has already
     # called start-all (and wiped the tree).  Running it again from every worker
@@ -590,6 +602,8 @@ def pytest_sessionstart(session):
             _seed_canonical_data()
         return
     _setup_session()
+    if _xdist_requested(session.config):
+        _start_all_resilient(None)
 
 
 def pytest_configure(config):
@@ -676,8 +690,9 @@ def _is_slow_module(name):
 # Hard-fails collection by default now that the tree is fully declared; set
 # REGISTRY_STRICT_DECLARATIONS=0 to downgrade to a report-only warning (writes
 # tests/.registry_declare_report.txt) while migrating a batch of new tests.
-# Booting the *declared union* rather than all ~120 specs is a separate opt-in
-# (REGISTRY_SUBSET_BOOT=1, see _specs_to_boot) — the default still boots all.
+# Because the tree is fully declared, the fleet boots only the *declared union*
+# by default rather than all ~120 specs; REGISTRY_SUBSET_BOOT=0 restores the
+# historical boot-everything behavior (see _specs_to_boot).
 _STRICT_DECLARATIONS = os.environ.get("REGISTRY_STRICT_DECLARATIONS", "1") != "0"
 _declare_usage_cache: dict = {}
 _always_on_cache = None
@@ -704,15 +719,39 @@ def _always_on_specs() -> set:
 def _specs_to_boot(items):
     """The spec set the session fleet should launch.
 
-    Default: every registered spec (identical to pre-declaration behavior — zero
-    risk to the full suite / CI).  Opt in to declared-union subset booting with
-    ``REGISTRY_SUBSET_BOOT=1``: boot the always-on set plus the dependency closure
-    of every server the collected tests declare, and nothing else — so a
-    single-file run starts only what that file needs."""
-    if os.environ.get("REGISTRY_SUBSET_BOOT") == "1":
-        return selected_specs(items, always_on=_always_on_specs())
-    from server_registry import registered_specs
-    return registered_specs()
+    Default: the *declared union* — the always-on set plus the dependency
+    closure of every server the collected tests declare, and nothing else — so
+    a single-file run starts only what that file needs.  Set
+    ``REGISTRY_SUBSET_BOOT=0`` to boot every registered spec (the historical
+    pre-declaration behavior; xdist runs also boot everything, from
+    pytest_sessionstart, because their controller never collects)."""
+    if os.environ.get("REGISTRY_SUBSET_BOOT", "1") == "0":
+        from server_registry import registered_specs
+        return registered_specs()
+    return selected_specs(
+        items, always_on=_always_on_specs() | _autouse_specs_for(items))
+
+
+def _autouse_specs_for(items) -> set:
+    """Dedicated specs required by autouse fixtures in the collected modules.
+
+    Autouse fixtures bind every test in their module to a server without any
+    test naming it as a parameter, so per-test declarations can't cover them
+    (see REGISTRY_MIGRATION.md § blind spot); the boot set must union them in
+    per collected module."""
+    specs: set = set()
+    for path in {str(item.fspath) for item in items}:
+        cached = _declare_usage_cache.get(("autouse", path))
+        if cached is None:
+            try:
+                with open(path, encoding="utf-8", errors="ignore") as fh:
+                    source = fh.read()
+            except OSError:
+                source = ""
+            cached = set(fleet_declares.module_autouse_specs(source))
+            _declare_usage_cache[("autouse", path)] = cached
+        specs |= cached
+    return specs
 
 
 def _module_test_usage(fspath):
@@ -864,7 +903,29 @@ def pytest_collection_modifyitems(config, items):
         items[:] = other_items + cms_items
     _register_fleet()
     _enforce_server_declarations(config, items)
-    config._nginx_xrootd_selected_registry_specs = _specs_to_boot(items)
+
+
+def pytest_collection_finish(session):
+    """Start the session fleet once collection has settled.
+
+    Runs after every ``pytest_collection_modifyitems`` (including the mark
+    plugin's ``-m``/``-k`` deselection), so ``session.items`` is the final test
+    set and the declared-union subset is exact.  Controller-only and only when
+    this session owns the local lifecycle; xdist runs never reach the start
+    here — their controller boots the full fleet from ``pytest_sessionstart``
+    because it does not collect.  ``--collect-only`` starts nothing."""
+    config = session.config
+    if hasattr(config, "workerinput") or _xdist_requested(config):
+        return
+    if getattr(config.option, "collectonly", False):
+        return
+    if REMOTE_SERVER or _should_skip_local_lifecycle(config):
+        return
+    if not session.items:
+        return
+    specs = _specs_to_boot(session.items)
+    config._nginx_xrootd_selected_registry_specs = specs
+    _start_all_resilient(specs)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -895,25 +956,6 @@ def pytest_sessionfinish(session, exitstatus):
     except OSError:
         pass
     shutil.rmtree(TEST_ROOT, ignore_errors=True)
-
-
-@pytest.fixture(scope="session")
-def _test_session_setup():
-    """Session-scoped fixture that ensures servers are running.
-
-    In remote mode: verifies connectivity; does not start/stop any process.
-    In local mode: starts servers and tears them down when the session ends.
-    """
-    _setup_session()
-    yield
-    if REMOTE_SERVER or _external_fleet_attached():
-        return
-
-    try:
-        specs = getattr(_pytest_config, "_nginx_xrootd_selected_registry_specs", None)
-        RegistryLauncher(os.path.dirname(__file__)).stop_registered(specs)
-    except Exception:
-        pass
 
 
 @pytest.fixture(scope="session")

@@ -174,6 +174,7 @@ def _ded(
     env: dict[str, str] | None = None,
     requires: tuple[str, ...] = (),
     reason: str = "",
+    host: str | None = None,
 ) -> NginxInstanceSpec:
     """A fixed-role nginx from bash ``start_dedicated_nginx``.
 
@@ -188,6 +189,7 @@ def _ded(
         template=template,
         port=port,
         protocol="root",
+        host=host,
         data_root=_data(f"data-{name}"),
         readiness="tcp",
         env=dict(env or {}),
@@ -249,8 +251,13 @@ def _nginx_has_krb5() -> bool:
     """
     if not os.path.exists(S.NGINX_BIN):
         return False
+    # Probe the launcher's frozen copy, never the live build-tree binary: ldd
+    # on objs/nginx caught mid-relink by a concurrent make reads a half-written
+    # file, the gate flips False, and the krb5 specs silently vanish from the
+    # registry (seen live as test_fleet_ports' unknown-spec-name failure).
+    from server_launcher import _nginx_bin  # noqa: PLC0415 — lazy, avoids cycle
     try:
-        out = subprocess.run(["ldd", S.NGINX_BIN], capture_output=True, text=True).stdout
+        out = subprocess.run(["ldd", _nginx_bin()], capture_output=True, text=True).stdout
     except OSError:
         return False
     return "libkrb5.so" in out
@@ -411,12 +418,14 @@ def dedicated_specs() -> list[NginxInstanceSpec]:
              env={"NGINX_S3_PORT": str(S.COMPRESS_S3_PORT)}),
         _ded("interop-our", "nginx_interop.conf", S.INTEROP_OUR_PORT),
         # --- IPv6 roles (all listen on [::1]) ---------------------------------
-        _ded("ipv6-stream", "nginx_ipv6_stream.conf", S.IPV6_STREAM_PORT),
-        _ded("ipv6-mgr", "nginx_ipv6_mgr.conf", S.IPV6_MGR_PORT),
-        _ded("ipv6-webdav", "nginx_ipv6_webdav.conf", S.IPV6_WEBDAV_PORT),
-        _ded("ipv6-s3", "nginx_ipv6_s3.conf", S.IPV6_S3_PORT),
-        _ded("ipv6-upstream", "nginx_ipv6_upstream.conf", S.IPV6_UPSTREAM_PORT),
-        _ded("ipv6-proxy", "nginx_ipv6_proxy.conf", S.IPV6_PROXY_PORT),
+        # The [::1] tier binds v6-only; the readiness probe must dial HOST6,
+        # not settings.HOST, or every boot reports these as failed-to-start.
+        _ded("ipv6-stream", "nginx_ipv6_stream.conf", S.IPV6_STREAM_PORT, host=S.HOST6),
+        _ded("ipv6-mgr", "nginx_ipv6_mgr.conf", S.IPV6_MGR_PORT, host=S.HOST6),
+        _ded("ipv6-webdav", "nginx_ipv6_webdav.conf", S.IPV6_WEBDAV_PORT, host=S.HOST6),
+        _ded("ipv6-s3", "nginx_ipv6_s3.conf", S.IPV6_S3_PORT, host=S.HOST6),
+        _ded("ipv6-upstream", "nginx_ipv6_upstream.conf", S.IPV6_UPSTREAM_PORT, host=S.HOST6),
+        _ded("ipv6-proxy", "nginx_ipv6_proxy.conf", S.IPV6_PROXY_PORT, host=S.HOST6),
         # --- CRL roles --------------------------------------------------------
         _ded("crl", "nginx_crl.conf", S.CRL_PORT,
              env={"NGINX_WEBDAV_PORT": str(S.WEBDAV_CRL_PORT)}),

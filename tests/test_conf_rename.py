@@ -339,7 +339,11 @@ def test_rename_preserves_mtime(srv):
     src = "/rn_mtime_src.bin"
     dst = "/rn_mtime_dst.bin"
     write_disk(srv, src, "mtimebytes")
-    fixed = 1_600_000_000
+    # A distinctive FUTURE stamp, never one in the past: the shared interop
+    # roots are patrolled by _wipe_stale_working_files, which deletes entries
+    # whose mtime predates a concurrent worker's import time — a backdated
+    # fixture is wiped mid-test under xdist.
+    fixed = int(os.stat(our_disk(srv, src)).st_mtime) + 7200
     os.utime(our_disk(srv, src), (fixed, fixed))
     os.utime(off_disk(srv, src), (fixed, fixed))
     rc_o, rc_f, raw = assert_mv_parity(srv, src, dst, src, dst)

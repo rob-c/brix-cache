@@ -167,7 +167,7 @@ def crl_file():
     return CRL_PEM
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def crl_nginx(crl_file):
     """Use the suite-level nginx with CRL checking enabled."""
     if not _wait_for_port(HOST, WEBDAV_CRL_PORT):
@@ -179,7 +179,7 @@ def crl_nginx(crl_file):
     }
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def crl_dir_nginx(crl_file):
     """Use the suite-level nginx with brix_crl pointing at a directory."""
     os.makedirs(CRL_DIR_CRLS, exist_ok=True)
@@ -198,7 +198,7 @@ def crl_dir_nginx(crl_file):
     }
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def crl_reload_nginx(crl_file):
     """Use the suite-level nginx with CRL reload enabled.
 

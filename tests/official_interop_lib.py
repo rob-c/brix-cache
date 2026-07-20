@@ -82,6 +82,18 @@ except Exception:                                 # pragma: no cover - pre-merge
 
 FLEET_OUR_PORT = _FLEET_OUR_PORT
 FLEET_OFF_PORT = _FLEET_OFF_PORT
+# SHARED data roots — these paths are a FLEET CONTRACT, not a library choice.
+# The standing fleet pair (nginx_interop.conf "interop-our" + the stock
+# "interop-off" xrootd backend in fleet_specs) exports exactly these two
+# directories, and several conf modules (openflags, sessions, sessions_b,
+# dirlist, prepfattr*) raw-wire straight to the fixed FLEET_*_PORTs. Keying
+# these paths per xdist worker therefore desyncs seeding from what those
+# servers serve (every seeded file becomes kXR_NotFound). Cross-worker safety
+# on the shared trees comes from the machinery below instead: _seed_file is
+# create-once, _wipe_stale_working_files is age-gated to this process's
+# import, listing differentials use a per-worker lroot_<tag> dir, and
+# harmonize_perms/chown_stock stat-and-skip so a concurrent re-seed never
+# bumps ctime under a running stat-parity test.
 FLEET_OUR_DATA = os.path.join(TEST_ROOT, "data-interop-our")
 FLEET_OFF_DATA = os.path.join(TEST_ROOT, "data-interop-off")
 
@@ -416,6 +428,16 @@ def chown_stock(*paths):
 
     def _one(p):
         try:
+            # Skip when already owned: chown always bumps ctime even when the
+            # ids are unchanged, and the trees are shared across xdist workers —
+            # a redundant chown here makes another worker's stat parity checks
+            # (M/CTime) flap mid-test.
+            st = os.stat(p, follow_symlinks=False)
+            if st.st_uid == uid and st.st_gid == gid:
+                return
+        except OSError:
+            pass
+        try:
             os.chown(p, uid, gid, follow_symlinks=False)
         except (OSError, NotImplementedError):
             try:
@@ -458,7 +480,12 @@ def harmonize_perms(*roots):
                 return
             m = os.stat(p).st_mode
             owner = (m >> 6) & 0o7
-            os.chmod(p, (owner << 6) | (owner << 3) | owner)
+            mirrored = (owner << 6) | (owner << 3) | owner
+            # Skip when already mirrored: chmod bumps ctime even when the mode
+            # is unchanged, and re-runs from other xdist workers' start_pair()
+            # would flap M/CTime under concurrent stat-parity tests.
+            if (m & 0o777) != mirrored:
+                os.chmod(p, mirrored)
         except OSError:
             pass
 

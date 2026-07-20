@@ -156,6 +156,8 @@ BRIX_CORE_SOURCES = [
     "shared/cvmfs/grammar/classify.c", "shared/cvmfs/signature/manifest.c", "shared/cvmfs/signature/whitelist.c",
     "shared/cvmfs/signature/verify.c", "shared/cvmfs/config/repo.c", "shared/cvmfs/config/cvmfs_conf.c",
     "shared/cvmfs/walk/walk.c", "shared/cache/cas_store.c", "shared/net/proxy_env.c",
+    "client/lib/net/cpool.c", "client/lib/core/types/status.c",
+    "src/core/compat/kxr_names.c", "src/core/compat/error_mapping.c",
 ]
 
 
@@ -170,7 +172,8 @@ def _ensure_brixcvmfs(run: LiveRun) -> Path:
     _require(flags.returncode == 0 and libs.returncode == 0, "fuse3 development files unavailable")
     binary = run.root / "brixcvmfs"
     built = run.call(
-        ["gcc", "-Wall", "-Wextra", "-Werror", "-I", "shared", *flags.stdout.split(),
+        ["gcc", "-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "client/lib",
+         "-I", "src", "-DXRDPROTO_NO_NGX", *flags.stdout.split(),
          "-o", binary, "client/apps/fs/brixcvmfs.c", *BRIX_CORE_SOURCES,
          *libs.stdout.split(), "-lcurl", "-lsqlite3", "-lcrypto", "-lz"],
         cwd=REPO_ROOT, check=False,
@@ -211,15 +214,30 @@ def _umount_wait(run: LiveRun, mnt: Path) -> None:
     time.sleep(1)
 
 
-def _enumerate_files(run: LiveRun, mnt: Path, nfiles: int) -> list[str]:
-    found = run.call(["find", mnt, "-maxdepth", "6", "-type", "f", "-size", "-64k"], check=False)
-    files = []
+def _enumerate_files(run: LiveRun, mnt: Path, nfiles: int,
+                     deadline_s: float = 300.0) -> list[str]:
+    # Stream find and kill it once nfiles are collected: a COMPLETE depth-6
+    # walk of a big live repo (cms.cern.ch) over the CDN takes far longer than
+    # the test timeout, while the first nfiles small files arrive in seconds.
+    proc = subprocess.Popen(
+        ["find", str(mnt), "-maxdepth", "6", "-type", "f", "-size", "-64k"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+    )
+    files: list[str] = []
     prefix = f"{mnt}/"
-    for line in found.stdout.splitlines():
-        if line.startswith(prefix):
-            files.append(line[len(prefix):])
-        if len(files) >= nfiles:
-            break
+    deadline = time.monotonic() + deadline_s
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            line = line.rstrip("\n")
+            if line.startswith(prefix):
+                files.append(line[len(prefix):])
+            if len(files) >= nfiles or time.monotonic() > deadline:
+                break
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
     return files
 
 

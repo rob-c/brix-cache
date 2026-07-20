@@ -27,7 +27,13 @@ import requests
 
 from settings import TEST_ROOT, NGINX_ANON_PORT, HOST
 
-AUDIT_GLOB = os.path.join(TEST_ROOT, "**", "xfer_audit.log")
+# Ledger sinks live in the session logs dir and each registry spec's logs dir.
+# Never glob TEST_ROOT/** recursively: TEST_ROOT/tmp holds live-test ephemeral
+# trees including CDN-backed FUSE mounts, and walking into one hangs the test.
+AUDIT_GLOBS = (
+    os.path.join(TEST_ROOT, "logs", "xfer_audit.log"),
+    os.path.join(TEST_ROOT, "registry", "*", "logs", "xfer_audit.log"),
+)
 AUDIT_DEFAULT = os.path.join(TEST_ROOT, "logs", "xfer_audit.log")
 
 
@@ -39,7 +45,7 @@ def base_url(test_env):
 def _audit_lines():
     """All audit lines from every xfer_audit.log under the test root."""
     lines = []
-    paths = set(glob.glob(AUDIT_GLOB, recursive=True)) | {AUDIT_DEFAULT}
+    paths = {p for pattern in AUDIT_GLOBS for p in glob.glob(pattern)} | {AUDIT_DEFAULT}
     for p in paths:
         try:
             with open(p, "r", errors="replace") as fh:

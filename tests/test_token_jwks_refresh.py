@@ -18,6 +18,7 @@ Run:
     PYTHONPATH=tests pytest tests/test_token_jwks_refresh.py -v
 """
 
+import fcntl
 import json
 import os
 import socket
@@ -25,6 +26,7 @@ import struct
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 
 import pytest
 
@@ -172,10 +174,12 @@ def jwks_refresh_server():
     if not os.path.exists(issuer.key_path) or not os.path.exists(issuer.jwks_path):
         pytest.skip("dedicated JWKS refresh token material is not initialized")
 
-    # Re-init keys to flush any stale state from a previous test run's key rotation.
-    # Wait one refresh interval so nginx picks up the restored JWKS before tests run.
-    issuer.init_keys()
-    time.sleep(WAIT_AFTER_TOUCH)
+    # Re-init keys to flush any stale state from a previous test run's key
+    # rotation, under the cross-worker mutation lock so this baseline reset
+    # never lands mid-way through another xdist worker's rotation test.
+    with _jwks_mutation_lock(token_dir):
+        issuer.init_keys()
+        time.sleep(WAIT_AFTER_TOUCH)
 
     port = NGINX_JWKS_REFRESH_PORT
     if not _wait_for_port(HOST, port):
@@ -252,6 +256,28 @@ def _make_rotated_issuer(token_dir):
     return rotated_issuer, new_jwks
 
 
+@contextmanager
+def _jwks_mutation_lock(jwks_dir):
+    """Serialize JWKS mutations across pytest-xdist workers.
+
+    The dedicated jwks-refresh server has ONE jwks file and every test in this
+    module rotates/corrupts/restores it. Under `--dist load` the class's tests
+    scatter across worker processes, so without a cross-process mutex one
+    worker's restore lands mid-way through another's rotation assertion (seen
+    live: old-key token accepted after rotation because a concurrent worker
+    had just restored the original JWKS). Each test takes this flock and
+    re-baselines the file itself, making the tests order- and
+    worker-independent."""
+    lock_path = os.path.join(jwks_dir, ".jwks.mutation.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o666)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def _overwrite_jwks(dest_path, new_jwks_content):
     """Write new JWKS content to dest_path with an mtime bump."""
     # Write to a temp file then rename to ensure atomic update
@@ -278,7 +304,12 @@ class TestJwksHotRefresh:
     def test_original_key_accepted_before_rotation(self, jwks_refresh_server):
         """Baseline: token signed with original key is accepted at startup."""
         srv = jwks_refresh_server
-        ok, status = _try_auth(srv["host"], srv["port"], srv["issuer"])
+        with _jwks_mutation_lock(srv["jwks_dir"]):
+            # Re-baseline: a concurrent worker's rotation test may have swapped
+            # the shared JWKS since this worker's fixture ran.
+            srv["issuer"].init_keys()
+            time.sleep(WAIT_AFTER_TOUCH)
+            ok, status = _try_auth(srv["host"], srv["port"], srv["issuer"])
         assert ok, (
             f"token auth with original key failed (status={status})"
         )
@@ -287,15 +318,16 @@ class TestJwksHotRefresh:
     def test_jwks_hot_refresh_new_key(self, jwks_refresh_server):
         """Token signed with rotated key is accepted after refresh interval fires."""
         srv = jwks_refresh_server
-        rotated, new_jwks = _make_rotated_issuer(srv["jwks_dir"])
+        with _jwks_mutation_lock(srv["jwks_dir"]):
+            rotated, new_jwks = _make_rotated_issuer(srv["jwks_dir"])
 
-        # Rotate: overwrite JWKS with new key
-        _overwrite_jwks(srv["jwks_path"], new_jwks)
+            # Rotate: overwrite JWKS with new key
+            _overwrite_jwks(srv["jwks_path"], new_jwks)
 
-        # Wait for the refresh timer to fire (interval + margin)
-        time.sleep(WAIT_AFTER_TOUCH)
+            # Wait for the refresh timer to fire (interval + margin)
+            time.sleep(WAIT_AFTER_TOUCH)
 
-        ok, status = _try_auth(srv["host"], srv["port"], rotated)
+            ok, status = _try_auth(srv["host"], srv["port"], rotated)
         assert ok, (
             f"token with rotated key should be accepted after refresh "
             f"(status={status}); check {srv['log_dir']}/error.log"
@@ -307,27 +339,27 @@ class TestJwksHotRefresh:
     def test_jwks_keeps_old_keys_on_parse_error(self, jwks_refresh_server):
         """Corrupted JWKS file: old keys remain valid; no crash or lock-up."""
         srv = jwks_refresh_server
-        # First restore the original key (tests may run in sequence)
-        with open(srv["jwks_path"], "w") as f:
-            json.dump(
-                {"keys": [{"kty": "BROKEN_JWKS_CONTENT_FOR_TEST"}]},
-                f,
-            )
-        # Bump mtime so refresh picks it up
-        t = time.time() + 1
-        os.utime(srv["jwks_path"], (t, t))
+        with _jwks_mutation_lock(srv["jwks_dir"]):
+            with open(srv["jwks_path"], "w") as f:
+                json.dump(
+                    {"keys": [{"kty": "BROKEN_JWKS_CONTENT_FOR_TEST"}]},
+                    f,
+                )
+            # Bump mtime so refresh picks it up
+            t = time.time() + 1
+            os.utime(srv["jwks_path"], (t, t))
 
-        # Wait for the timer to attempt the reload
-        time.sleep(WAIT_AFTER_TOUCH)
+            # Wait for the timer to attempt the reload
+            time.sleep(WAIT_AFTER_TOUCH)
 
-        # Restore original key (so subsequent tests aren't affected)
-        original_ti = srv["issuer"]
-        original_ti.init_keys()
+            # Restore original key (so subsequent tests aren't affected)
+            original_ti = srv["issuer"]
+            original_ti.init_keys()
 
-        # After restoring good JWKS, wait for another reload cycle
-        time.sleep(WAIT_AFTER_TOUCH)
+            # After restoring good JWKS, wait for another reload cycle
+            time.sleep(WAIT_AFTER_TOUCH)
 
-        ok, status = _try_auth(srv["host"], srv["port"], original_ti)
+            ok, status = _try_auth(srv["host"], srv["port"], original_ti)
         assert ok, (
             f"after corrupted JWKS, original key should still work once "
             f"good JWKS is restored (status={status})"
@@ -341,15 +373,22 @@ class TestJwksHotRefresh:
         srv = jwks_refresh_server
         original_issuer = srv["issuer"]
 
-        # Rotate to a brand-new key (issuer object will hold original key)
-        rotated, new_jwks = _make_rotated_issuer(srv["jwks_dir"])
-        _overwrite_jwks(srv["jwks_path"], new_jwks)
+        with _jwks_mutation_lock(srv["jwks_dir"]):
+            # Re-baseline so `original_issuer`'s in-memory key matches the file
+            # before rotating away from it (a concurrent worker may have left a
+            # different key in place).
+            original_issuer.init_keys()
+            time.sleep(WAIT_AFTER_TOUCH)
 
-        # Wait for the timer to pick up the new JWKS
-        time.sleep(WAIT_AFTER_TOUCH)
+            # Rotate to a brand-new key (issuer object will hold original key)
+            rotated, new_jwks = _make_rotated_issuer(srv["jwks_dir"])
+            _overwrite_jwks(srv["jwks_path"], new_jwks)
 
-        # Token signed with the OLD key should now be rejected
-        ok, status = _try_auth(srv["host"], srv["port"], original_issuer)
+            # Wait for the timer to pick up the new JWKS
+            time.sleep(WAIT_AFTER_TOUCH)
+
+            # Token signed with the OLD key should now be rejected
+            ok, status = _try_auth(srv["host"], srv["port"], original_issuer)
         assert not ok, (
             f"token with OLD key should be rejected after JWKS rotation "
             f"(status={status})"

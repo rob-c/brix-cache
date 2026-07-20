@@ -27,5 +27,13 @@ char *brix_admin_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_admin_set_proxy_allow(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+char *brix_admin_set_rate_limit(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
+/* Resolve the dedicated admin SHM zone and build the per-IP read/write throttle
+ * rules from the merged per-minute values; called from merge_loc_conf when the
+ * dashboard is enabled and the throttle is not "off". */
+ngx_int_t brix_admin_rl_finalize(ngx_conf_t *cf,
+    ngx_http_brix_dashboard_loc_conf_t *lcf);
 
 #endif /* BRIX_DASHBOARD_API_ADMIN_H */

@@ -338,3 +338,54 @@ had no log line.
 
 Phase 18 closes the last known gap in the stream protocol handler consistency:
 every path-based auth check now goes through `xrootd_auth_gate()`.
+
+---
+
+## Resolution — final ruling on the three residual sites (2026-07-20)
+
+The phase-88 open-work audit (§3.4) flagged three files still carrying inline
+check triads with no `auth_gate` reference: `read/statx.c`,
+`query/prepare.c`, `protocols/webdav/access.c`. Per-site ruling
+(post-rebrand naming: the gate is `brix_auth_gate`, decision-only variant
+`brix_authz_check`, both in `src/auth/authz/auth_gate.h`):
+
+1. **`read/statx.c` — FIXED (code change).** `brix_statx_path_authorized()`
+   is a per-path *predicate* inside the batched statx loop, so it cannot call
+   `brix_auth_gate` (the gate sends a wire error; statx must abort the batch
+   through the caller's `BRIX_RETURN_ERR`, which already access-logs the
+   denial + bumps OP_ERR — the phase-18 logging concern was NOT live here).
+   The real gap was engine routing: the predicate called bare
+   `brix_check_authdb`, so `brix_authdb_format xrdacc` never applied to
+   STATX and a rule-less path leaked its flag byte. Fixed by routing the
+   authdb tier through `brix_authz_check(..., BRIX_AUTH_LOOKUP,
+   BRIX_AOP_ANY)` — identical verdict to single-STAT's
+   `brix_auth_gate(BRIX_AUTH_LOOKUP)` on both engines, native path
+   bit-for-bit unchanged (falls back to the same `brix_check_authdb` call).
+   Tests: `tests/test_acc.py::TestXrdAccStatx` (3: granted / unruled-path
+   denied / mixed batch aborts) + native regression
+   `tests/test_new_opcodes.py::TestStatx` (5) — all green.
+
+2. **`query/prepare.c` — WON'T-CHANGE (confirmed; already twice ruled above
+   in "What NOT to change", and already engine-correct).** Its authdb tier
+   ALREADY routes through `brix_authz_check` (`prepare_path_authz`,
+   `BRIX_AOP_STAGE`) — the exact caller the decision-only variant was
+   created for — and denials flow through `brix_prepare_check_fail`, which
+   logs and preserves the multi-path NGX_DONE/abort semantics the gate
+   cannot express. The audit's "zero auth_gate references" observation was
+   textually true (no substring `auth_gate` in the file) but materially
+   stale: the file consumes the auth_gate module's exported check.
+
+3. **`protocols/webdav/access.c` — WON'T-DO (wrong plane).**
+   `brix_auth_gate` is a root-protocol/stream API: it takes
+   `ngx_stream_brix_srv_conf_t`, emits kXR wire errors, and stashes
+   `ctx->write_rc`. The WebDAV access handler lives on the HTTP plane
+   (`ngx_http_request_t`, identity-query form `brix_check_authdb_identity`,
+   403 responses). Phase-18's correctness fix (denials missing from the
+   access log / metrics) does not apply there: denials return through
+   `webdav_metrics_return()` (metrics counted) and nginx's native HTTP
+   access log records the final 403 on every request. Migrating would mean
+   inventing an HTTP-plane gate twin for zero behavioral gain.
+
+**Net:** phase-18 is COMPLETE. One residual real bug found and fixed
+(xrdacc bypass in statx); the other two sites are correct as-is and are
+hereby marked won't-change/won't-do.

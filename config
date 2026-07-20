@@ -1269,6 +1269,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/aio/buffers_scratch.c \
     $ngx_addon_dir/src/core/aio/buffers_sendfile.c \
     $ngx_addon_dir/src/core/aio/resume.c \
+    $ngx_addon_dir/src/core/aio/fd_kind.c \
     $ngx_addon_dir/src/core/aio/reads.c \
     $ngx_addon_dir/src/core/aio/write.c \
     $ngx_addon_dir/src/core/aio/readv.c \

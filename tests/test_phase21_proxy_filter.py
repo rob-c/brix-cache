@@ -43,21 +43,17 @@ def _read(rel):
 # 1. Source-marker checks                                                      #
 # --------------------------------------------------------------------------- #
 
+@pytest.mark.skip(reason="WebDAV reverse-proxy transport (proxy.c/proxy_request.c/"
+                  "proxy_response.c/proxy_internal.h) deleted in the A-2 surface "
+                  "retirement; only proxy_pool.c (admin-API pool) survives")
 def test_multi_backend_wiring_present():
-    pinternal = _read("src/protocols/webdav/proxy_internal.h")
-    assert "brix_webdav_backend_t" in pinternal
-    assert "webdav_proxy_pick_backend" in pinternal
-    proxy = _read("src/protocols/webdav/proxy.c")
-    assert "webdav_proxy_pick_backend" in proxy
-    assert "upstream_rr" in proxy
-    # Passive health updates the selected backend on gateway failures.
-    resp = _read("src/protocols/webdav/proxy_response.c")
-    assert "fail_count" in resp and "selected_backend" in resp
+    pass
 
 
+@pytest.mark.skip(reason="WebDAV reverse-proxy transport (proxy_request.c) deleted "
+                  "in the A-2 surface retirement")
 def test_request_builder_uses_selected_backend():
-    req = _read("src/protocols/webdav/proxy_request.c")
-    assert "selected_backend" in req, "request builder must use picked backend host"
+    pass
 
 
 # --------------------------------------------------------------------------- #

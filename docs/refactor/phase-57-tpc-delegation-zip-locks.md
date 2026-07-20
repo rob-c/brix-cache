@@ -1,6 +1,6 @@
 # Phase 57 — Native-TPC delegation, ZIP member access, WebDAV lock hardening
 
-**Status:** Planned
+**Status:** CODE-COMPLETE (see "F6 outbound use — DONE; phase-57 code-complete", 2026-06-26). The plan body below is historical; chronological progress sections near the end supersede earlier "remaining/NOT shipped" claims. Stock-source interop was closed separately on 2026-07-19 (`tpc_build_origin_id`, commit f36eb208).
 **Author:** plan generated 2026-06-25 (source-verified against `src/`, `client/`, and `/tmp/xrootd-src`)
 **Scope:** three independent workstreams (W1/W2/W3), each individually shippable.
 
@@ -2131,6 +2131,16 @@ bootstrap login-auth-trigger change).
   (prototype reverted — it hung because that source's attn never arrived; needs a
   stock `xrdcp --tpc` source↔dest packet capture to settle the open semantics).
   Also: signed-DH outbound (dest currently advertises unsigned 10300).
+
+  > **SUPERSEDED (2026-07-19/20):** this diagnosis was wrong — a stock source
+  > never pushes; the "attn never arrived" hang was the source PARKING the
+  > pull-open as a pending authorization because the dest's `tpc.org` failed
+  > `XrdOfsTPCInfo::Match` (raw strcmp). Fixed by `tpc_build_origin_id`
+  > (`src/tpc/engine/launch_prepare.c`, commit f36eb208), which reproduces
+  > `XrdNetAddr::Name()`/`genOrg`. Gate:
+  > `tests/test_tpc_gsi_stock_source_only.py` (`--tpc only`) — green 2026-07-20.
+  > Full record → `docs/09-developer-guide/history-security-and-credentials.md`.
+  > Signed-DH outbound (10300→10600) remains an unverified, optional follow-up.
 - **F4 (share the client `gsi_core` handshake)** is now DE-RISKED — there is a
   green dest gate AND the client GSI tests (`test_gsi_handshake.py`,
   `test_gsi_interop_guards.py`) to gate a refactor. It remains a large bidirectional
@@ -2213,6 +2223,16 @@ PULL — that is a source-side configuration/model choice (it pushes, it doesn't
 the dest pull), not a dest gap; pull-capable sources (EOS/dCache, our nginx source,
 any server that sends the asynresp) are now handled.
 
+> **2026-07-20 correction — the stock-source gap is CLOSED, and the paragraph
+> above misdiagnosed it.** A stock source never pushes (`ofs.tpc pgm` is inert in
+> the source role); it was *parking* our pull-open as a pending authorization
+> because the destination's `tpc.org` host string failed the source's raw-strcmp
+> rendezvous match. Fixed in commit `f36eb208` (`tpc_build_origin_id` now
+> reproduces `XrdNetAddr::Name()`); gate
+> `tests/test_tpc_gsi_stock_source_only.py` (`--tpc only`, stock GSI source)
+> passes. See `../09-developer-guide/history-security-and-credentials.md` (top)
+> and `../09-developer-guide/fast-lane-burndown-2026-07.md` §3.2.
+
 ### Stage A (cache-fill multi-round) + F5 (TPC TLS) DONE (2026-06-26)
 
 Two more W1 stages landed, each independently revertable and gated:
@@ -2244,6 +2264,13 @@ green after the I/O refactor.
 
 **Remaining:** F6 (X.509 proxy delegation) — see below; off-by-default, needs a
 stock `-dlgpxy:1` interop gate that cannot be stood up locally.
+
+> **SUPERSEDED:** F6 was subsequently SHIPPED in this same phase — the gate was
+> stood up, the crypto core + inbound round + outbound use all landed, and
+> `tests/test_tpc_delegation.py::test_dest_pulls_as_user_via_delegation` is a
+> hard-green assertion (no xfail) in-tree. See "F6 outbound use — DONE;
+> phase-57 code-complete (2026-06-26)" below. The heading that follows is
+> kept as the historical decision record only.
 
 ### F6 (X.509 proxy delegation) — status: designed, gated, NOT shipped (2026-06-26)
 

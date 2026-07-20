@@ -22,7 +22,7 @@ def brutal_teardown(test_root: Path) -> list[tuple[bool, str]]:
         env={"TEST_ROOT": str(test_root)},
     )
     killed = 0
-    for proc_name in ("nginx", "xrootd", "krb5kdc", "kadmind"):
+    for proc_name in ("nginx", "xrootd", "krb5kdc", "kadmind", "haproxy"):
         pgrep = run(["pgrep", "-x", proc_name], cwd=REPO_ROOT)
         for pid_text in pgrep.stdout.split():
             try:

@@ -63,6 +63,9 @@ ngx_http_brix_dashboard_create_loc_conf(ngx_conf_t *cf)
     conf->stalled_threshold_ms = NGX_CONF_UNSET_MSEC;
     conf->cluster_stale_after_ms = NGX_CONF_UNSET_MSEC;
     conf->admin_require_both = NGX_CONF_UNSET;   /* admin_allow/secret: NULL via pcalloc */
+    conf->admin_rl_enable    = NGX_CONF_UNSET;
+    conf->admin_rl_write_pm  = NGX_CONF_UNSET_UINT;
+    conf->admin_rl_read_pm   = NGX_CONF_UNSET_UINT;
     conf->vfs_browse = NGX_CONF_UNSET;
     conf->scan_max_files = NGX_CONF_UNSET_UINT;
     return conf;
@@ -148,6 +151,23 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     }
     ngx_conf_merge_str_value(conf->admin_secret, prev->admin_secret, "");
     ngx_conf_merge_value(conf->admin_require_both, prev->admin_require_both, 0);
+
+    /* Admin API per-IP throttle: on by default with generous limits (a runaway
+     * client must not DoS the admin surface, but heavy legitimate querying —
+     * dashboards, monitoring sweeps — must keep working).  Finalizing builds
+     * the rules and provisions the dedicated SHM zone; skipped when the
+     * dashboard is off here (no admin endpoint to protect) or the operator
+     * said `brix_admin_rate_limit off`. */
+    ngx_conf_merge_value(conf->admin_rl_enable, prev->admin_rl_enable, 1);
+    ngx_conf_merge_uint_value(conf->admin_rl_write_pm,
+                              prev->admin_rl_write_pm, 120);
+    ngx_conf_merge_uint_value(conf->admin_rl_read_pm,
+                              prev->admin_rl_read_pm, 1200);
+    if (conf->enable && conf->admin_rl_enable
+        && brix_admin_rl_finalize(cf, conf) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
 
     /* Admin file-browser root: canonicalize once (realpath) into browse_root_canon
      * so request-time confinement has a stable anchor.  Empty => feature off.  A
@@ -431,6 +451,13 @@ static ngx_command_t ngx_http_brix_dashboard_commands[] = {
     { ngx_string("brix_admin_proxy_allow"), /* W6: dynamic-backend host allowlist */
       NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
       brix_admin_set_proxy_allow,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_admin_rate_limit"),  /* off | <writes/min> [<reads/min>] */
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE12,
+      brix_admin_set_rate_limit,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },

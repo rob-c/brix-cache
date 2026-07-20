@@ -33,7 +33,25 @@ from server_registry import (
 from settings import NGINX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
 
 
-@dataclass(frozen=True)
+def _nginx_bin() -> str:
+    """The nginx binary to exec: a per-process frozen copy of ``NGINX_BIN``.
+
+    The shared build tree's ``objs/nginx`` can be relinked by a concurrent
+    incremental build at any moment; ``exec`` during the relink window fails
+    with EACCES (and ``ldd``-style probes misread the half-written file), which
+    surfaced as whole-lane storms of ``PermissionError: /tmp/.../objs/nginx``
+    the instant an external ``make`` ran. ``freeze_nginx`` copies + validates
+    the binary once per process, so every launcher spawn is immune to relinks;
+    it falls back to the live path only if no stable copy can be taken.
+    """
+    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415 — lazy, avoids cycle
+    return str(freeze_nginx(NGINX_BIN))
+
+
+# NOT frozen: Python assigns __traceback__/__context__ on (re-)raise — e.g.
+# contextlib's __exit__ does `exc.__traceback__ = traceback` — and a frozen
+# dataclass blocks that, masking the real failure with FrozenInstanceError.
+@dataclass
 class RegistryCommandFailure(RuntimeError):
     config_path: str
     logs_dir: str
@@ -80,7 +98,7 @@ def launch_fleet_nginx(
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
-    cmd = [NGINX_BIN]
+    cmd = [_nginx_bin()]
     if prefix is not None:
         cmd += ["-p", prefix]
     cmd += ["-c", config_path]
@@ -872,8 +890,9 @@ class RegistryLauncher:
         merged_env = os.environ.copy()
         if env:
             merged_env.update(env)
+        nginx_bin = _nginx_bin()
         result = subprocess.run(
-            [NGINX_BIN, *args],
+            [nginx_bin, *args],
             capture_output=True,
             text=True,
             env=merged_env,
@@ -885,7 +904,7 @@ class RegistryLauncher:
             raise RegistryCommandFailure(
                 config_path=config_path,
                 logs_dir=logs_dir,
-                command=(NGINX_BIN, *args),
+                command=(nginx_bin, *args),
                 returncode=result.returncode,
                 stdout_tail=result.stdout[-4000:],
                 stderr_tail=result.stderr[-4000:],

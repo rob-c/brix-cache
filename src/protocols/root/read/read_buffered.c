@@ -322,6 +322,8 @@ read_finish_buffered(brix_ctx_t *ctx, ngx_connection_t *c,
     int          idx = io->idx;
 
     if (nread < 0) {
+        brix_read_io_failure_log(c->log, "buffered", io->fd,
+                                   (off_t) io->offset, io->rlen, errno);
         brix_release_read_buffer(ctx, c, databuf);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                           ctx->files[idx].path, "-",

@@ -37,7 +37,9 @@ workers, each holding **one persistent GSI connection**, run a deterministic
 per-worker subtree program — `mkdir` a small tree, `chmod` it, create files
 (open `kXR_new` + close), `chmod` + `stat` each, then `rm`/`rmdir`. Default
 8 workers × 125 ops ≈ 912 counted create-phase ops. JSON out: ops/sec +
-p50/p95/p99. This is **Layer (a)** of [`tests/run_pblock_meta_gsi.sh`](../../tests/run_pblock_meta_gsi.sh).
+p50/p95/p99. This is **Layer (a)** of the `pblock-meta-gsi` scenario in
+[`tests/cmdscripts/pblock_live.py`](../../tests/cmdscripts/pblock_live.py)
+(the Python port of the retired `run_pblock_meta_gsi.sh`).
 
 **Profiling.** WSL2 has no PMU, so `perf record -F 499 -e task-clock
 --call-graph dwarf,16384 -p <worker>` + Brendan Gregg's FlameGraph. To isolate
@@ -86,7 +88,7 @@ statement reuse), so a hit avoids the SQL compile *and* the B-tree descent.
 
 ## 3. What does *not* move the gap
 
-Measured with the same storm (best-of-N), `tests/run_pblock_meta_gsi.sh` plumbing:
+Measured with the same storm (best-of-N), `cmdscripts.pblock_live pblock-meta-gsi` plumbing:
 
 | Lever | Result |
 |---|---|
@@ -205,12 +207,13 @@ above.
 
 ```bash
 # correctness + the 3-layer storm (GSI), incl. chmod-persist + nested-mkdir guards
-tests/run_pblock_meta_gsi.sh
-tests/run_pblock_meta_gsi.sh --selftest      # success / fault / GSI-negative
+# (run from tests/; also exercised by pytest tests/test_cmd_pblock_live.py)
+python3 -m cmdscripts.pblock_live pblock-meta-gsi
+python3 -m cmdscripts.pblock_live --selftest  # success / fault / GSI-negative
 
 # A/B a durability knob (env read at catalog open)
-PBLOCK_SYNC=OFF  tests/run_pblock_meta_gsi.sh
-PBLOCK_WAL_AUTOCKPT=0 tests/run_pblock_meta_gsi.sh
+PBLOCK_SYNC=OFF  python3 -m cmdscripts.pblock_live pblock-meta-gsi
+PBLOCK_WAL_AUTOCKPT=0 python3 -m cmdscripts.pblock_live pblock-meta-gsi
 
 # flame graph of the server worker (task-clock + dwarf; needs ~/FlameGraph)
 #   start a pblock server, then:
@@ -226,9 +229,9 @@ perf report --sort=dso        # the headline: libsqlite3.so self-%
 2. **Cache coherency is load-bearing.** Any new code that mutates the `objects`
    table MUST go through `pblock_catalog_{put,create,setattr,touch,remove,
    rename}` (each invalidates/installs) — never a raw `INSERT/UPDATE/DELETE` on
-   `objects` that bypasses the cache. The `tests/run_pblock_meta_gsi.sh`
-   chmod-persist guard and `run_pblock_root.sh` byte-exact checks catch a stale
-   cache.
+   `objects` that bypasses the cache. The `pblock-meta-gsi` chmod-persist guard
+   and `pblock-root` byte-exact checks (both `cmdscripts/pblock_live.py`
+   scenarios) catch a stale cache.
 3. **#3's gate skip is non-POSIX-only and EXISTING-only.** Do not extend it to
    `WRITE` mode — `pblock` relies on the gate for parent-existence.
 4. **Measure by DSO, not by symbol** — `-O3` inlining hides the real split behind
