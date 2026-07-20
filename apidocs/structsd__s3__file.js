@@ -17,6 +17,7 @@ var structsd__s3__file =
     [ "port", "structsd__s3__file.html#a9532841a09610883abdb438620ec8c35", null ],
     [ "put_buf", "structsd__s3__file.html#a0c7c1aeb44cb93d85e9955d1fe6ce0aa", null ],
     [ "put_cap", "structsd__s3__file.html#af860a7da5fe4fbcedeaec016ff60e875", null ],
+    [ "put_checksum", "structsd__s3__file.html#acca7c8b420a9f936defe759699e23ca9", null ],
     [ "put_len", "structsd__s3__file.html#a316dec3eec8a3829cd420c94d9e4915e", null ],
     [ "put_write_off", "structsd__s3__file.html#a30db39205f59da05d08f338cabd75751", null ],
     [ "region", "structsd__s3__file.html#ab75fd16d090feac9bac6dfcf8c323cbe", null ],

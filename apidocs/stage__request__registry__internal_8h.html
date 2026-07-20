@@ -133,7 +133,7 @@ Macros</h2></td></tr>
 <tr class="separator:a13e6e5fdbe6a0cbdd22556e7203cdb50"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2a2b18dfb9633529524d64e24ebbecca" id="r_a2a2b18dfb9633529524d64e24ebbecca"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#a2a2b18dfb9633529524d64e24ebbecca">SRQ_VERSION</a>&#160;&#160;&#160;1u</td></tr>
 <tr class="separator:a2a2b18dfb9633529524d64e24ebbecca"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa290ce2fe03c2def199ea0e8d01b58bd" id="r_aa290ce2fe03c2def199ea0e8d01b58bd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#aa290ce2fe03c2def199ea0e8d01b58bd">SRQ_REQID_LEN</a>&#160;&#160;&#160;40            /* on-disk width (&quot;&lt;seq&gt;.&lt;pid&gt;@&lt;host&gt;&quot;)    */</td></tr>
+<tr class="memitem:aa290ce2fe03c2def199ea0e8d01b58bd" id="r_aa290ce2fe03c2def199ea0e8d01b58bd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#aa290ce2fe03c2def199ea0e8d01b58bd">SRQ_REQID_LEN</a>&#160;&#160;&#160;40            /* on-disk width (&quot;&lt;seq&gt;.&lt;pid&gt;@&lt;<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>&gt;&quot;)    */</td></tr>
 <tr class="separator:aa290ce2fe03c2def199ea0e8d01b58bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a52cbe9e7f801d2b9cff1605d8196cba6" id="r_a52cbe9e7f801d2b9cff1605d8196cba6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#a52cbe9e7f801d2b9cff1605d8196cba6">SRQ_LFN_LEN</a>&#160;&#160;&#160;3072</td></tr>
 <tr class="separator:a52cbe9e7f801d2b9cff1605d8196cba6"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -186,7 +186,7 @@ Functions</h2></td></tr>
 <tr class="separator:a41aec5054387af838350d10b45098ca5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afaa6794d8578ba8ba29c6fff5e258c04" id="r_afaa6794d8578ba8ba29c6fff5e258c04"><td class="memItemLeft" align="right" valign="top">int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#afaa6794d8578ba8ba29c6fff5e258c04">srq_alloc_slot</a> (brix_stage_registry_t *reg, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:afaa6794d8578ba8ba29c6fff5e258c04"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a127a14e2571d24b6fe15eb6aeb2ae33e" id="r_a127a14e2571d24b6fe15eb6aeb2ae33e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#a127a14e2571d24b6fe15eb6aeb2ae33e">srq_reqid_format</a> (const char *host, uint64_t seq, char *buf, size_t buf_sz)</td></tr>
+<tr class="memitem:a127a14e2571d24b6fe15eb6aeb2ae33e" id="r_a127a14e2571d24b6fe15eb6aeb2ae33e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#a127a14e2571d24b6fe15eb6aeb2ae33e">srq_reqid_format</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint64_t seq, char *buf, size_t buf_sz)</td></tr>
 <tr class="separator:a127a14e2571d24b6fe15eb6aeb2ae33e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4d2f633c92ab9bb7eb3d88b387c3e2d6" id="r_a4d2f633c92ab9bb7eb3d88b387c3e2d6"><td class="memItemLeft" align="right" valign="top">uint8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry__internal_8h.html#a4d2f633c92ab9bb7eb3d88b387c3e2d6">srq_status_on_disk</a> (<a class="el" href="stage__request__registry_8h.html#a529343fc71c472749962c1e4228fed0f">brix_stage_req_status_t</a> pub)</td></tr>
 <tr class="separator:a4d2f633c92ab9bb7eb3d88b387c3e2d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -285,7 +285,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define SRQ_REQID_LEN&#160;&#160;&#160;40            /* on-disk width (&quot;&lt;seq&gt;.&lt;pid&gt;@&lt;host&gt;&quot;)    */</td>
+          <td class="memname">#define SRQ_REQID_LEN&#160;&#160;&#160;40            /* on-disk width (&quot;&lt;seq&gt;.&lt;pid&gt;@&lt;<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>&gt;&quot;)    */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -783,6 +783,8 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="stage__request__registry_8c_source.html#l00291">291</a> of file <a class="el" href="stage__request__registry_8c_source.html">stage_request_registry.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="stage__request__registry__mutate_8c_source.html#l00030">brix_stage_request_reqid_generate()</a>, and <a class="el" href="stage__request__registry__mutate_8c_source.html#l00111">srq_rec_populate_from_view()</a>.</p>
 

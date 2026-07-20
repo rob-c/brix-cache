@@ -109,7 +109,7 @@ $(document).ready(function(){initNavTree('merge__macros_8h.html',''); initResiza
 Macros</h2></td></tr>
 <tr class="memitem:aaa527022138bf4ad74ad2c01c189f211" id="r_aaa527022138bf4ad74ad2c01c189f211"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="merge__macros_8h.html#aaa527022138bf4ad74ad2c01c189f211">BRIX_MERGE_PTR</a>(conf,  prev,  field)&#160;&#160;&#160;    if ((conf)-&gt;field == NULL) { (conf)-&gt;field = (prev)-&gt;field; }</td></tr>
 <tr class="separator:aaa527022138bf4ad74ad2c01c189f211"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9e4e9d1f6f97ba0007011c3bb4ae7fb8" id="r_a9e4e9d1f6f97ba0007011c3bb4ae7fb8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="merge__macros_8h.html#a9e4e9d1f6f97ba0007011c3bb4ae7fb8">BRIX_MERGE_HOSTPORT</a>(conf,  prev,  host,  port)</td></tr>
+<tr class="memitem:a9e4e9d1f6f97ba0007011c3bb4ae7fb8" id="r_a9e4e9d1f6f97ba0007011c3bb4ae7fb8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="merge__macros_8h.html#a9e4e9d1f6f97ba0007011c3bb4ae7fb8">BRIX_MERGE_HOSTPORT</a>(conf,  prev,  <a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>,  <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:a9e4e9d1f6f97ba0007011c3bb4ae7fb8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a11e0264abeb9ff9358dee94ebde68336" id="r_a11e0264abeb9ff9358dee94ebde68336"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="merge__macros_8h.html#a11e0264abeb9ff9358dee94ebde68336">BRIX_MERGE_ENUM</a>(conf,  prev,  field,  unset,  def)</td></tr>
 <tr class="separator:a11e0264abeb9ff9358dee94ebde68336"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -189,13 +189,13 @@ Macros</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname">host, </td>
+          <td class="paramname"><a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname">port&#160;</td>
+          <td class="paramname"><a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -204,10 +204,12 @@ Macros</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">if</span> ((conf)-&gt;host.len == 0 &amp;&amp; (prev)-&gt;host.len &gt; 0) {            \</div>
-<div class="line">        (conf)-&gt;host = (prev)-&gt;host;                                 \</div>
-<div class="line">        (conf)-&gt;port = (prev)-&gt;port;                                 \</div>
+<b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">if</span> ((conf)-&gt;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>.len == 0 &amp;&amp; (prev)-&gt;host.len &gt; 0) {            \</div>
+<div class="line">        (conf)-&gt;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a> = (prev)-&gt;host;                                 \</div>
+<div class="line">        (conf)-&gt;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a> = (prev)-&gt;port;                                 \</div>
 <div class="line">    }</div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a41c3a180b50c6b2ddcc1b6843a48f205"><div class="ttname"><a href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a></div><div class="ttdeci">char host[256]</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a63c89c04d1feae07ca35558055155ffb"><div class="ttname"><a href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 </div><!-- fragment -->
 <p class="definition">Definition at line <a class="el" href="merge__macros_8h_source.html#l00025">25</a> of file <a class="el" href="merge__macros_8h_source.html">merge_macros.h</a>.</p>
 

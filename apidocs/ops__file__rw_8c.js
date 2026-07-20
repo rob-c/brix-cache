@@ -7,5 +7,7 @@ var ops__file__rw_8c =
     [ "brix_file_writev", "ops__file__rw_8c.html#aebddae75c3ef3fea00fc13e893b18de7", null ],
     [ "brix_inflate_frame", "ops__file__rw_8c.html#ae160e891268c1603f8f86e1da54d7fe3", null ],
     [ "brix_readv_accumulate", "ops__file__rw_8c.html#a7c147ff95003c80f96d3849068bbed89", null ],
-    [ "brix_readv_scatter", "ops__file__rw_8c.html#ac3c88d1c4c44d10c83bc7dc25f46d14c", null ]
+    [ "brix_readv_scatter", "ops__file__rw_8c.html#ac3c88d1c4c44d10c83bc7dc25f46d14c", null ],
+    [ "file_read_frames", "ops__file__rw_8c.html#ad156fdb07263ff4626fd391b78acb90e", null ],
+    [ "file_readv_frames", "ops__file__rw_8c.html#a36dc3928506f6e11719c0a123b755608", null ]
 ];

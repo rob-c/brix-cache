@@ -14,6 +14,7 @@ var s3__ops_8h =
     ] ],
     [ "s3_build_vfs_ctx", "s3__ops_8h.html#a86790bc53882b6b847238de7b459aa15", null ],
     [ "s3_checksum_b64", "s3__ops_8h.html#a3eb0779c181ee42bbe5413640262e84a", null ],
+    [ "s3_content_md5_verify", "s3__ops_8h.html#ac0df75bba01c31f91b866e1e2e237d03", null ],
     [ "s3_delete_objects_body_handler", "s3__ops_8h.html#ad53521063cda9620e71266d044baec10", null ],
     [ "s3_echo_object_checksums", "s3__ops_8h.html#a97910d6600b9fd076664a76ea1044ac7", null ],
     [ "s3_etag", "s3__ops_8h.html#ad1eb0eeed9d5f44541acf954699f3491", null ],

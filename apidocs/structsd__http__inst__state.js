@@ -11,6 +11,7 @@ var structsd__http__inst__state =
     [ "log", "structsd__http__inst__state.html#a9b54fdbbaa5fd730f55702bbe6fb2353", null ],
     [ "n_eps", "structsd__http__inst__state.html#a0a895811bfd15a664aff9dc25a64e6ba", null ],
     [ "probe_tick", "structsd__http__inst__state.html#a4470d3bea73628c34f67b1f65ea59808", null ],
+    [ "put_checksum", "structsd__http__inst__state.html#a71e530c6d46982f34a18854880b9c906", null ],
     [ "tctx", "structsd__http__inst__state.html#a16561bd5ec3629181f6ae98245ded7f5", null ],
     [ "timeout_ms", "structsd__http__inst__state.html#a1fe4f9369600d94eef92ba1093cee69d", null ],
     [ "transport", "structsd__http__inst__state.html#a5aae711349fe3c3007509d3e01fdda76", null ]

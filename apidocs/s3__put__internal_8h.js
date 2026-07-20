@@ -23,6 +23,7 @@ var s3__put__internal_8h =
     [ "s3_put_finalize_empty_ok", "s3__put__internal_8h.html#aec59321aca585e393350244819f4aa37", null ],
     [ "s3_put_finalize_error", "s3__put__internal_8h.html#ae5114da3de7b816ef933b29af07ac70b", null ],
     [ "s3_put_finalize_fs_error", "s3__put__internal_8h.html#a96c091def73e99ca966bb70b952f6b73", null ],
+    [ "s3_put_finalize_invalid_digest", "s3__put__internal_8h.html#ae9dffc5048c8abeee6fabdc599f5023f", null ],
     [ "s3_put_finalize_invalid_request", "s3__put__internal_8h.html#a1bd5fb94f097fde52020a332710aa834", null ],
     [ "s3_put_finalize_ok", "s3__put__internal_8h.html#aa3910ea021515f434dab0a0c3a42fa46", null ],
     [ "s3_put_streaming", "s3__put__internal_8h.html#a1456f53ca7c5b6dd96e23e73bc7123e4", null ],

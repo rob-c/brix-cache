@@ -12,7 +12,7 @@ var structbrix__prefetch__t =
     [ "mu", "structbrix__prefetch__t.html#aff058269305458d42e062bc84f84f2ee", null ],
     [ "nseen", "structbrix__prefetch__t.html#af8a9d9b2a698662ebd6844e927df3047", null ],
     [ "path", "structbrix__prefetch__t.html#ac3257f10735a4454bb057a4a0791dfb4", null ],
-    [ "q", "structbrix__prefetch__t.html#ab8887c5e1d2f35c0a00fe2574ab3e86d", null ],
+    [ "q", "structbrix__prefetch__t.html#afc3bd8689c5ecbbd561bdf6c76769c12", null ],
     [ "qh", "structbrix__prefetch__t.html#a03f6649c1a9ae5239da9cd7bef8518a9", null ],
     [ "qn", "structbrix__prefetch__t.html#a4ecc880b2976febdd5483e99e58335b4", null ],
     [ "quota", "structbrix__prefetch__t.html#a38d2895d7abb388cc6978da73387b799", null ],

@@ -2,7 +2,7 @@
 <area shape="rect" id="Node000001" title=" " alt="" coords="3519,5,3678,31"/>
 <area shape="rect" id="Node000002" href="$process_8c.html" title=" " alt="" coords="5,189,187,214"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="3505,23,3008,32,2204,57,1730,78,1232,106,726,141,230,184,170,191,169,186,229,179,725,135,1231,100,1730,73,2204,52,3008,27,3505,18"/>
-<area shape="rect" id="Node000003" href="$net_2proxy_2proxy__internal_8h.html" title=" " alt="" coords="2011,86,2159,126"/>
+<area shape="rect" id="Node000003" href="$proxy__internal_8h.html" title=" " alt="" coords="2011,86,2159,126"/>
 <area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="3505,27,2160,103,2160,98,3505,22"/>
 <area shape="rect" id="Node000024" href="$protocols_2root_2session_2lifecycle_8c.html" title=" " alt="" coords="3450,181,3595,221"/>
 <area shape="poly" id="edge34_Node000001_Node000024" title=" " alt="" coords="3582,43,3557,80,3538,134,3528,182,3523,181,3533,133,3552,77,3577,40"/>

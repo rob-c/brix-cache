@@ -111,55 +111,55 @@ $(document).ready(function(){initNavTree('wait41_8c_source.html',''); initResiza
 <div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#include &quot;<a class="code" href="brix_8h.html">brix.h</a>&quot;</span></div>
 <div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="preprocessor">#include &quot;<a class="code" href="crypto_8h.html">core/compat/crypto.h</a>&quot;</span></div>
 <div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#include &quot;<a class="code" href="version_8h.html">core/version.h</a>&quot;</span></div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="preprocessor">#include &lt;string.h&gt;</span></div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="preprocessor">#include &lt;<a class="code" href="time_8h.html">time.h</a>&gt;</span></div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#include &lt;unistd.h&gt;</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span> </div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="comment">/* Real main; dispatched from xrddiag (multi-call, see xrddiag.c). */</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00023" data-start="{" data-end="}">
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno"><a class="line" href="diag__internal_8h.html#a2f97c82f0d619a01f9242684ac320b5e">   23</a></span><a class="code hl_function" href="wait41_8c.html#a2f97c82f0d619a01f9242684ac320b5e">brix_wait41_main</a>(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> **argv)</div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span>{</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>    <a class="code hl_struct" href="structbrix__url.html">brix_url</a>    u;</div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *endpoint = NULL;</div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <span class="keywordtype">int</span>         timeout_s = 60, full = 0, i;</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>    time_t      deadline;</div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span> </div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    <span class="comment">/* --help / --version before main loop. */</span></div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    <span class="keywordflow">if</span> (argc &gt;= 2) {</div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>        <span class="keywordflow">if</span> (strcmp(argv[1], <span class="stringliteral">&quot;--version&quot;</span>) == 0) {</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>            printf(<span class="stringliteral">&quot;%s (BriX-Cache client) %s\n&quot;</span>, argv[0], <a class="code hl_function" href="version_8h.html#a1c7d5fedc8411f9207165e4e7e6f7681">brix_client_version</a>());</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>            <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>        }</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>        <span class="keywordflow">if</span> (strcmp(argv[1], <span class="stringliteral">&quot;--help&quot;</span>) == 0 || strcmp(argv[1], <span class="stringliteral">&quot;-h&quot;</span>) == 0) {</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>            printf(<span class="stringliteral">&quot;usage: %s [--timeout S] [--full] host[:port]\n&quot;</span></div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>                   <a class="code hl_define" href="version_8h.html#acdecf414f269bcd4bc2f90a1fd6f3227">BRIX_USAGE_FOOTER</a>(<span class="stringliteral">&quot;wait41-brix&quot;</span>),</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>                   argv[0]);</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>            <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        }</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    }</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span> </div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <span class="keywordflow">for</span> (i = 1; i &lt; argc; i++) {</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>        <span class="keywordflow">if</span> (strcmp(argv[i], <span class="stringliteral">&quot;--timeout&quot;</span>) == 0 &amp;&amp; i + 1 &lt; argc) {</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>            timeout_s = atoi(argv[++i]);</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (strcmp(argv[i], <span class="stringliteral">&quot;--full&quot;</span>) == 0) {</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>            full = 1;</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (strcmp(argv[i], <span class="stringliteral">&quot;--help&quot;</span>) == 0 || strcmp(argv[i], <span class="stringliteral">&quot;-h&quot;</span>) == 0) {</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>            <span class="comment">/* Recognise -h/--help at any position (not just argv[1]). */</span></div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>            printf(<span class="stringliteral">&quot;usage: %s [--timeout S] [--full] host[:port]\n&quot;</span></div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>                   <a class="code hl_define" href="version_8h.html#acdecf414f269bcd4bc2f90a1fd6f3227">BRIX_USAGE_FOOTER</a>(<span class="stringliteral">&quot;wait41-brix&quot;</span>),</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>                   argv[0]);</div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="preprocessor">#include &quot;<a class="code" href="progname_8h.html">core/progname.h</a>&quot;</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span> </div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="preprocessor">#include &lt;string.h&gt;</span></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#include &lt;<a class="code" href="time_8h.html">time.h</a>&gt;</span></div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#include &lt;unistd.h&gt;</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span> </div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="comment">/* Real main; dispatched from xrddiag (multi-call, see xrddiag.c). */</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00024" data-start="{" data-end="}">
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno"><a class="line" href="diag__internal_8h.html#a2f97c82f0d619a01f9242684ac320b5e">   24</a></span><a class="code hl_function" href="wait41_8c.html#a2f97c82f0d619a01f9242684ac320b5e">brix_wait41_main</a>(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> **argv)</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>{</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    <a class="code hl_struct" href="structbrix__url.html">brix_url</a>    u;</div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>    <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *endpoint = NULL;</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>    <span class="keywordtype">int</span>         timeout_s = 60, full = 0, i;</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>    time_t      deadline;</div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> </div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    <span class="comment">/* --help / --version before main loop. */</span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    <span class="keywordflow">if</span> (argc &gt;= 2) {</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        <span class="keywordflow">if</span> (strcmp(argv[1], <span class="stringliteral">&quot;--version&quot;</span>) == 0) {</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>            printf(<span class="stringliteral">&quot;%s (BriX-Cache client) %s\n&quot;</span>, <a class="code hl_function" href="progname_8h.html#ab9982caf42d007f9a4bee6850df4a24f">brix_prog_base</a>(argv[0]),</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>                   <a class="code hl_function" href="version_8h.html#a1c7d5fedc8411f9207165e4e7e6f7681">brix_client_version</a>());</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>        }</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>        <span class="keywordflow">if</span> (strcmp(argv[1], <span class="stringliteral">&quot;--help&quot;</span>) == 0 || strcmp(argv[1], <span class="stringliteral">&quot;-h&quot;</span>) == 0) {</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>            printf(<span class="stringliteral">&quot;usage: %s [--timeout S] [--full] host[:port]\n&quot;</span>, <a class="code hl_function" href="progname_8h.html#ab9982caf42d007f9a4bee6850df4a24f">brix_prog_base</a>(argv[0]));</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>            <a class="code hl_function" href="progname_8h.html#a8c64e1a1a6778bb3bab86aa5ec3e0ca2">brix_usage_footer</a>(stdout, argv[0]);</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>        }</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    }</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    <span class="keywordflow">for</span> (i = 1; i &lt; argc; i++) {</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>        <span class="keywordflow">if</span> (strcmp(argv[i], <span class="stringliteral">&quot;--timeout&quot;</span>) == 0 &amp;&amp; i + 1 &lt; argc) {</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>            timeout_s = atoi(argv[++i]);</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (strcmp(argv[i], <span class="stringliteral">&quot;--full&quot;</span>) == 0) {</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>            full = 1;</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (strcmp(argv[i], <span class="stringliteral">&quot;--help&quot;</span>) == 0 || strcmp(argv[i], <span class="stringliteral">&quot;-h&quot;</span>) == 0) {</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>            <span class="comment">/* Recognise -h/--help at any position (not just argv[1]). */</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>            printf(<span class="stringliteral">&quot;usage: %s [--timeout S] [--full] host[:port]\n&quot;</span>, <a class="code hl_function" href="progname_8h.html#ab9982caf42d007f9a4bee6850df4a24f">brix_prog_base</a>(argv[0]));</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>            <a class="code hl_function" href="progname_8h.html#a8c64e1a1a6778bb3bab86aa5ec3e0ca2">brix_usage_footer</a>(stdout, argv[0]);</div>
 <div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>            <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        } <span class="keywordflow">else</span> {</div>
 <div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>            endpoint = argv[i];</div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>        }</div>
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    }</div>
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <span class="keywordflow">if</span> (endpoint == NULL) {</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        fprintf(stderr, <span class="stringliteral">&quot;usage: %s [--timeout S] [--full] host[:port]\n&quot;</span>, argv[0]);</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        fprintf(stderr, <span class="stringliteral">&quot;usage: %s [--timeout S] [--full] host[:port]\n&quot;</span>, <a class="code hl_function" href="progname_8h.html#ab9982caf42d007f9a4bee6850df4a24f">brix_prog_base</a>(argv[0]));</div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>        <span class="keywordflow">return</span> 50;</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    }</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span> </div>
@@ -199,15 +199,18 @@ $(document).ready(function(){initNavTree('wait41_8c_source.html',''); initResiza
 </div>
 <div class="ttc" id="abrix_8h_html"><div class="ttname"><a href="brix_8h.html">brix.h</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_a12d5bb822e9916d15fda2cfcb7ba4cf3"><div class="ttname"><a href="brix__net_8h.html#a12d5bb822e9916d15fda2cfcb7ba4cf3">brix_status_clear</a></div><div class="ttdeci">void brix_status_clear(brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2core_2types_2status_8c_source.html#l00022">status.c:22</a></div></div>
-<div class="ttc" id="abrix__net_8h_html_a44fea517d5cb4f3eb71c09b5b68f78a9"><div class="ttname"><a href="brix__net_8h.html#a44fea517d5cb4f3eb71c09b5b68f78a9">brix_close</a></div><div class="ttdeci">void brix_close(brix_conn *c)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00539">conn.c:539</a></div></div>
+<div class="ttc" id="abrix__net_8h_html_a44fea517d5cb4f3eb71c09b5b68f78a9"><div class="ttname"><a href="brix__net_8h.html#a44fea517d5cb4f3eb71c09b5b68f78a9">brix_close</a></div><div class="ttdeci">void brix_close(brix_conn *c)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00543">conn.c:543</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_a83d62730cd957a812d747a27b7b066a3"><div class="ttname"><a href="brix__net_8h.html#a83d62730cd957a812d747a27b7b066a3">brix_endpoint_parse</a></div><div class="ttdeci">int brix_endpoint_parse(const char *ep, brix_url *out, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="url_8c_source.html#l00177">url.c:177</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_ab849f69b357f1e75e8d2c8ecc3950d34"><div class="ttname"><a href="brix__net_8h.html#ab849f69b357f1e75e8d2c8ecc3950d34">brix_tcp_connect</a></div><div class="ttdeci">int brix_tcp_connect(const char *host, int port, int timeout_ms, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="sock_8c_source.html#l00220">sock.c:220</a></div></div>
-<div class="ttc" id="abrix__net_8h_html_ae73e785866fb9e7a49888035110168b9"><div class="ttname"><a href="brix__net_8h.html#ae73e785866fb9e7a49888035110168b9">brix_connect</a></div><div class="ttdeci">int brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00418">conn.c:418</a></div></div>
+<div class="ttc" id="abrix__net_8h_html_ae73e785866fb9e7a49888035110168b9"><div class="ttname"><a href="brix__net_8h.html#ae73e785866fb9e7a49888035110168b9">brix_connect</a></div><div class="ttdeci">int brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00422">conn.c:422</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_aafbcde67669a1b96577e735ddebd8634"><div class="ttname"><a href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a></div><div class="ttdeci">int close(int fd)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00374">brixposix_preload.c:374</a></div></div>
 <div class="ttc" id="acrypto_8c_html_ade07d1dd3acb0b87b5f44cd63c2de23b"><div class="ttname"><a href="crypto_8c.html#ade07d1dd3acb0b87b5f44cd63c2de23b">brix_crypto_init</a></div><div class="ttdeci">int brix_crypto_init(void)</div><div class="ttdef"><b>Definition</b> <a href="crypto_8c_source.html#l00022">crypto.c:22</a></div></div>
 <div class="ttc" id="acrypto_8h_html"><div class="ttname"><a href="crypto_8h.html">crypto.h</a></div></div>
 <div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
-<div class="ttc" id="astructbrix__conn_html"><div class="ttname"><a href="structbrix__conn.html">brix_conn</a></div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00084">brix_net.h:84</a></div></div>
+<div class="ttc" id="aprogname_8h_html"><div class="ttname"><a href="progname_8h.html">progname.h</a></div></div>
+<div class="ttc" id="aprogname_8h_html_a8c64e1a1a6778bb3bab86aa5ec3e0ca2"><div class="ttname"><a href="progname_8h.html#a8c64e1a1a6778bb3bab86aa5ec3e0ca2">brix_usage_footer</a></div><div class="ttdeci">static void brix_usage_footer(FILE *out, const char *argv0)</div><div class="ttdef"><b>Definition</b> <a href="progname_8h_source.html#l00084">progname.h:84</a></div></div>
+<div class="ttc" id="aprogname_8h_html_ab9982caf42d007f9a4bee6850df4a24f"><div class="ttname"><a href="progname_8h.html#ab9982caf42d007f9a4bee6850df4a24f">brix_prog_base</a></div><div class="ttdeci">static const char * brix_prog_base(const char *argv0)</div><div class="ttdef"><b>Definition</b> <a href="progname_8h_source.html#l00036">progname.h:36</a></div></div>
+<div class="ttc" id="astructbrix__conn_html"><div class="ttname"><a href="structbrix__conn.html">brix_conn</a></div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00104">brix_net.h:104</a></div></div>
 <div class="ttc" id="astructbrix__status_html"><div class="ttname"><a href="structbrix__status.html">brix_status</a></div><div class="ttdef"><b>Definition</b> <a href="brix_8h_source.html#l00048">brix.h:48</a></div></div>
 <div class="ttc" id="astructbrix__status_html_a0a43ccccb1781168a5502591195d563b"><div class="ttname"><a href="structbrix__status.html#a0a43ccccb1781168a5502591195d563b">brix_status::msg</a></div><div class="ttdeci">char msg[512]</div><div class="ttdef"><b>Definition</b> <a href="brix_8h_source.html#l00051">brix.h:51</a></div></div>
 <div class="ttc" id="astructbrix__url_html"><div class="ttname"><a href="structbrix__url.html">brix_url</a></div><div class="ttdef"><b>Definition</b> <a href="brix_8h_source.html#l00073">brix.h:73</a></div></div>
@@ -216,8 +219,7 @@ $(document).ready(function(){initNavTree('wait41_8c_source.html',''); initResiza
 <div class="ttc" id="atime_8h_html"><div class="ttname"><a href="time_8h.html">time.h</a></div></div>
 <div class="ttc" id="aversion_8h_html"><div class="ttname"><a href="version_8h.html">version.h</a></div></div>
 <div class="ttc" id="aversion_8h_html_a1c7d5fedc8411f9207165e4e7e6f7681"><div class="ttname"><a href="version_8h.html#a1c7d5fedc8411f9207165e4e7e6f7681">brix_client_version</a></div><div class="ttdeci">static const char * brix_client_version(void)</div><div class="ttdef"><b>Definition</b> <a href="version_8h_source.html#l00044">version.h:44</a></div></div>
-<div class="ttc" id="aversion_8h_html_acdecf414f269bcd4bc2f90a1fd6f3227"><div class="ttname"><a href="version_8h.html#acdecf414f269bcd4bc2f90a1fd6f3227">BRIX_USAGE_FOOTER</a></div><div class="ttdeci">#define BRIX_USAGE_FOOTER(TOOL)</div><div class="ttdef"><b>Definition</b> <a href="version_8h_source.html#l00032">version.h:32</a></div></div>
-<div class="ttc" id="await41_8c_html_a2f97c82f0d619a01f9242684ac320b5e"><div class="ttname"><a href="wait41_8c.html#a2f97c82f0d619a01f9242684ac320b5e">brix_wait41_main</a></div><div class="ttdeci">int brix_wait41_main(int argc, char **argv)</div><div class="ttdef"><b>Definition</b> <a href="wait41_8c_source.html#l00023">wait41.c:23</a></div></div>
+<div class="ttc" id="await41_8c_html_a2f97c82f0d619a01f9242684ac320b5e"><div class="ttname"><a href="wait41_8c.html#a2f97c82f0d619a01f9242684ac320b5e">brix_wait41_main</a></div><div class="ttdeci">int brix_wait41_main(int argc, char **argv)</div><div class="ttdef"><b>Definition</b> <a href="wait41_8c_source.html#l00024">wait41.c:24</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

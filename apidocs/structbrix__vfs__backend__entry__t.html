@@ -155,6 +155,8 @@ Data Fields</h2></td></tr>
 <tr class="separator:a01949a6cedb9c1dc1585ea69daaa3bce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a38cf1d8d9a58a5102281a9cc093fa430" id="r_a38cf1d8d9a58a5102281a9cc093fa430"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__vfs__backend__entry__t.html#a38cf1d8d9a58a5102281a9cc093fa430">origin_s3_region</a> [64]</td></tr>
 <tr class="separator:a38cf1d8d9a58a5102281a9cc093fa430"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abf1e579e277e7349246d2eeceedec055" id="r_abf1e579e277e7349246d2eeceedec055"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__vfs__backend__entry__t.html#abf1e579e277e7349246d2eeceedec055">origin_put_checksum</a></td></tr>
+<tr class="separator:abf1e579e277e7349246d2eeceedec055"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a697a9e9194018ebcc66ac5b2574372c3" id="r_a697a9e9194018ebcc66ac5b2574372c3"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__vfs__backend__entry__t.html#a697a9e9194018ebcc66ac5b2574372c3">origin_sss_keytab</a> [1024]</td></tr>
 <tr class="separator:a697a9e9194018ebcc66ac5b2574372c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a17aaf5dfb8dcd8751e0d7dbc47461bff" id="r_a17aaf5dfb8dcd8751e0d7dbc47461bff"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__vfs__backend__entry__t.html#a17aaf5dfb8dcd8751e0d7dbc47461bff">staging</a></td></tr>
@@ -214,7 +216,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00028">28</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00366">brix_vfs_backend_build_source()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00020">brix_vfs_backend_config()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00072">brix_vfs_backend_config_ceph()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00250">brix_vfs_backend_set_http_ranks()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00059">brix_vfs_backend_set_xroot()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00368">brix_vfs_backend_build_source()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00020">brix_vfs_backend_config()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00072">brix_vfs_backend_config_ceph()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00250">brix_vfs_backend_set_http_ranks()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -232,7 +234,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00042">42</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -266,7 +268,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00075">75</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00079">79</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00159">brix_vfs_backend_config_cache_store()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>.</p>
 
@@ -284,7 +286,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00074">74</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00078">78</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00159">brix_vfs_backend_config_cache_store()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>.</p>
 
@@ -302,7 +304,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00063">63</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00067">67</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00072">brix_vfs_backend_config_ceph()</a>, and <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>.</p>
 
@@ -320,7 +322,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00068">68</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00072">72</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>.</p>
 
@@ -338,7 +340,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00064">64</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00068">68</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00072">brix_vfs_backend_config_ceph()</a>.</p>
 
@@ -356,7 +358,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00062">62</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00066">66</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00072">brix_vfs_backend_config_ceph()</a>, and <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>.</p>
 
@@ -374,7 +376,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00070">70</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00074">74</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>.</p>
 
@@ -392,7 +394,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00069">69</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00073">73</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>.</p>
 
@@ -410,7 +412,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00076">76</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00080">80</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00179">brix_vfs_backend_config_cache_cold_store()</a>.</p>
 
@@ -448,7 +450,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00039">39</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -464,7 +466,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -498,9 +500,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00094">94</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00098">98</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__config_8c_source.html#l00020">brix_vfs_backend_config()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00179">brix_vfs_backend_config_cache_cold_store()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00159">brix_vfs_backend_config_cache_store()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00072">brix_vfs_backend_config_ceph()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00322">brix_vfs_backend_config_stage_store()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00249">brix_vfs_backend_entry_build()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00250">brix_vfs_backend_set_http_ranks()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00059">brix_vfs_backend_set_xroot()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__config_8c_source.html#l00020">brix_vfs_backend_config()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00179">brix_vfs_backend_config_cache_cold_store()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00159">brix_vfs_backend_config_cache_store()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00072">brix_vfs_backend_config_ceph()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00101">brix_vfs_backend_config_cephfs_ro()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00322">brix_vfs_backend_config_stage_store()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00249">brix_vfs_backend_entry_build()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00250">brix_vfs_backend_set_http_ranks()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -518,7 +520,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00044">44</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -534,7 +536,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00090">90</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00094">94</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>.</p>
 
@@ -572,7 +574,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00033">33</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00059">brix_vfs_backend_set_xroot()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>.</p>
 
 </div>
 </div>
@@ -590,7 +592,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00030">30</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00190">brix_vbr_build_tape()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00059">brix_vfs_backend_set_xroot()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00190">brix_vbr_build_tape()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>.</p>
 
 </div>
 </div>
@@ -608,7 +610,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00034">34</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00190">brix_vbr_build_tape()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00190">brix_vbr_build_tape()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__ceph_8c_source.html#l00134">brix_vfs_backend_config_tape()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>.</p>
 
 </div>
 </div>
@@ -626,7 +628,25 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00031">31</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00059">brix_vfs_backend_set_xroot()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>.</p>
+
+</div>
+</div>
+<a id="abf1e579e277e7349246d2eeceedec055" name="abf1e579e277e7349246d2eeceedec055"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abf1e579e277e7349246d2eeceedec055">&#9670;&#160;</a></span>origin_put_checksum</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_vfs_backend_entry_t::origin_put_checksum</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00058">58</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>.</p>
 
 </div>
 </div>
@@ -644,7 +664,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00055">55</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>.</p>
 
 </div>
 </div>
@@ -662,7 +682,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00057">57</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>.</p>
 
 </div>
 </div>
@@ -680,7 +700,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00056">56</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>.</p>
 
 </div>
 </div>
@@ -696,7 +716,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00058">58</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00062">62</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>.</p>
 
@@ -716,7 +736,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00032">32</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00059">brix_vfs_backend_set_xroot()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, and <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>.</p>
 
 </div>
 </div>
@@ -802,7 +822,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00091">91</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00095">95</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>.</p>
 
@@ -822,7 +842,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00040">40</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00196">brix_vfs_backend_config_cache_peers()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -840,7 +860,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00027">27</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00076">brix_vbr_build_posix()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00264">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00190">brix_vbr_build_tape()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00134">brix_vbr_wrap_stage_tier()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00102">brix_vbr_wrap_staging_shim()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00304">brix_vfs_backend_resolve()</a>, and <a class="el" href="vfs__backend__registry_8c_source.html#l00326">brix_vfs_backend_resolve_for_path()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00076">brix_vbr_build_posix()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00190">brix_vbr_build_tape()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00094">brix_vbr_build_xroot()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00160">brix_vbr_wrap_cache_tier()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00134">brix_vbr_wrap_stage_tier()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00102">brix_vbr_wrap_staging_shim()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00064">brix_vfs_backend_entry_get_or_create()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00304">brix_vfs_backend_resolve()</a>, and <a class="el" href="vfs__backend__registry_8c_source.html#l00326">brix_vfs_backend_resolve_for_path()</a>.</p>
 
 </div>
 </div>
@@ -856,7 +876,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00093">93</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00097">97</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00134">brix_vbr_wrap_stage_tier()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00322">brix_vfs_backend_config_stage_store()</a>.</p>
 
@@ -874,7 +894,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00092">92</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00096">96</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00134">brix_vbr_wrap_stage_tier()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00102">brix_vbr_wrap_staging_shim()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00322">brix_vfs_backend_config_stage_store()</a>.</p>
 
@@ -892,7 +912,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00059">59</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00063">63</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry_8c_source.html#l00102">brix_vbr_wrap_staging_shim()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00284">brix_vfs_backend_export_info()</a>, and <a class="el" href="vfs__backend__config_8c_source.html#l00149">brix_vfs_backend_set_staging()</a>.</p>
 
@@ -912,7 +932,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="vfs__backend__internal_8h_source.html#l00041">41</a> of file <a class="el" href="vfs__backend__internal_8h_source.html">vfs_backend_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00173">vfs_backend_add_http_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, and <a class="el" href="vfs__backend__config__http_8c_source.html#l00184">vfs_backend_add_http_endpoint()</a>.</p>
 
 </div>
 </div>

@@ -156,7 +156,7 @@ Functions</h2></td></tr>
 <tr class="separator:a26c6147e7bae10262b97d49841d3ec70"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ada06a83e3c1a92a52f80f4516f89c8fe" id="r_ada06a83e3c1a92a52f80f4516f89c8fe"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry_8c.html#ada06a83e3c1a92a52f80f4516f89c8fe">srq_unlock</a> (brix_stage_registry_t *reg)</td></tr>
 <tr class="separator:ada06a83e3c1a92a52f80f4516f89c8fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a127a14e2571d24b6fe15eb6aeb2ae33e" id="r_a127a14e2571d24b6fe15eb6aeb2ae33e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry_8c.html#a127a14e2571d24b6fe15eb6aeb2ae33e">srq_reqid_format</a> (const char *host, uint64_t seq, char *buf, size_t buf_sz)</td></tr>
+<tr class="memitem:a127a14e2571d24b6fe15eb6aeb2ae33e" id="r_a127a14e2571d24b6fe15eb6aeb2ae33e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry_8c.html#a127a14e2571d24b6fe15eb6aeb2ae33e">srq_reqid_format</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint64_t seq, char *buf, size_t buf_sz)</td></tr>
 <tr class="separator:a127a14e2571d24b6fe15eb6aeb2ae33e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af82bd6953771622ec30b1e78eb4e7acc" id="r_af82bd6953771622ec30b1e78eb4e7acc"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="stage__request__registry_8h.html#a529343fc71c472749962c1e4228fed0f">brix_stage_req_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stage__request__registry_8c.html#af82bd6953771622ec30b1e78eb4e7acc">srq_status_public</a> (uint8_t on_disk)</td></tr>
 <tr class="separator:af82bd6953771622ec30b1e78eb4e7acc"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -270,7 +270,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="stage__request__registry_8c_source.html#l00062">srq_singleton</a>, and <a class="el" href="stage__request__registry_8c_source.html#l00063">srq_singleton_used</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="prepare_8c_source.html#l00638">brix_handle_prepare()</a>, <a class="el" href="open__request_8c_source.html#l00464">brix_open_residency_gate()</a>, <a class="el" href="prepare_8c_source.html#l00285">brix_prepare_handle_cancel()</a>, <a class="el" href="prepare_8c_source.html#l00598">prepare_dispatch_special()</a>, <a class="el" href="prepare_8c_source.html#l00382">prepare_enqueue_resolved()</a>, <a class="el" href="prepare__qprep_8c_source.html#l00134">qprep_resolve_src()</a>, <a class="el" href="prepare__qprep_8c_source.html#l00065">qprep_status_for_path()</a>, <a class="el" href="stage__waiter_8c_source.html#l00193">stage_waiter_deliver_one()</a>, and <a class="el" href="tape__rest_8c_source.html#l00049">tape_queue()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="prepare_8c_source.html#l00638">brix_handle_prepare()</a>, <a class="el" href="open__request_8c_source.html#l00474">brix_open_residency_gate()</a>, <a class="el" href="prepare_8c_source.html#l00285">brix_prepare_handle_cancel()</a>, <a class="el" href="prepare_8c_source.html#l00598">prepare_dispatch_special()</a>, <a class="el" href="prepare_8c_source.html#l00382">prepare_enqueue_resolved()</a>, <a class="el" href="prepare__qprep_8c_source.html#l00134">qprep_resolve_src()</a>, <a class="el" href="prepare__qprep_8c_source.html#l00065">qprep_status_for_path()</a>, <a class="el" href="stage__waiter_8c_source.html#l00193">stage_waiter_deliver_one()</a>, and <a class="el" href="tape__rest_8c_source.html#l00049">tape_queue()</a>.</p>
 
 </div>
 </div>
@@ -943,6 +943,8 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="stage__request__registry_8c_source.html#l00291">291</a> of file <a class="el" href="stage__request__registry_8c_source.html">stage_request_registry.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="stage__request__registry__mutate_8c_source.html#l00030">brix_stage_request_reqid_generate()</a>, and <a class="el" href="stage__request__registry__mutate_8c_source.html#l00111">srq_rec_populate_from_view()</a>.</p>
 

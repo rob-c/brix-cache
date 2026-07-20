@@ -23,6 +23,8 @@ var structbrix__tpc__pull__t =
     [ "src_host", "structbrix__tpc__pull__t.html#a4eb5c6ab3ef798904ab728c05c0884ed", null ],
     [ "src_path", "structbrix__tpc__pull__t.html#a55b6076789a751ecd1f2c61c4483c91d", null ],
     [ "src_port", "structbrix__tpc__pull__t.html#a899c5614fab0977a0aa380268452dec0", null ],
+    [ "src_size", "structbrix__tpc__pull__t.html#a5bbafd3add486e8fb61805d5e0c9184f", null ],
+    [ "src_size_known", "structbrix__tpc__pull__t.html#a95c8cc719cfa1d8cec5b967903b6a7a1", null ],
     [ "streamid", "structbrix__tpc__pull__t.html#a4e961aa86d07763a68dddcbfa5e468df", null ],
     [ "tls", "structbrix__tpc__pull__t.html#a53d6cebc9d658e46795ef16e6dda4baa", null ],
     [ "tls_ctx", "structbrix__tpc__pull__t.html#abef9a3d5c660a989b4d6bbd136190524", null ],

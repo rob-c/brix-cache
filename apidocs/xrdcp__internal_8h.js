@@ -33,7 +33,7 @@ var xrdcp__internal_8h =
     [ "str_append", "xrdcp__internal_8h.html#af090b82aff6106aacc9b77cb0d9bfc41", null ],
     [ "str_free", "xrdcp__internal_8h.html#a24c06f82fc52ea926ddb2359340e527a", null ],
     [ "transfer_one", "xrdcp__internal_8h.html#ab60be43a049918bd99d9d77b9d0b3160", null ],
-    [ "usage", "xrdcp__internal_8h.html#ae8605e2b78cd4a81b6c6b5c30cb7366a", null ],
+    [ "usage", "xrdcp__internal_8h.html#a364112f4dc61f0649eec6b78e586509d", null ],
     [ "uses_cred_auth", "xrdcp__internal_8h.html#a22e0ecabe3ebf781f8fa10be6d3dba88", null ],
     [ "web_join", "xrdcp__internal_8h.html#a37de256a248e4082bc3811c30836ef14", null ],
     [ "web_scheme_str", "xrdcp__internal_8h.html#a1d074007b699f215b3f11458c4014d7c", null ],

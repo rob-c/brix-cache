@@ -3,6 +3,7 @@ var module__enums_8h =
     [ "brix_auth_modes", "module__enums_8h.html#ab004c64cf0f1baac97e5c34293fb46f1", null ],
     [ "brix_authdb_audit_modes", "module__enums_8h.html#a3b63d0b0ae80624114dbd5c471f1a458", null ],
     [ "brix_authdb_format_modes", "module__enums_8h.html#a49e1cde7d10bd2c8384f583533523dee", null ],
+    [ "brix_cache_verify_modes", "module__enums_8h.html#a2ef42ca238839ff6c3ba8258ae73b647", null ],
     [ "brix_cns_modes", "module__enums_8h.html#aab8a3861392c9e03183a889ee0340847", null ],
     [ "brix_crl_modes", "module__enums_8h.html#a3c7c900a4e352fb8facae40cc702ea35", null ],
     [ "brix_hc_types", "module__enums_8h.html#a0d6bfaef9b68238b4ca68fc768db2fcf", null ],

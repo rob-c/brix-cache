@@ -966,58 +966,58 @@ var sectionId = 'dynsection-1';
 </a>
 </g>
 </g>
-<!-- Node168 -->
-<g id="Node000168" class="node">
-<title>Node168</title>
-<g id="a_Node000168"><a xlink:href="xrdhttp_8c.html" target="_top" xlink:title=" ">
+<!-- Node162 -->
+<g id="Node000162" class="node">
+<title>Node162</title>
+<g id="a_Node000162"><a xlink:href="xrdhttp_8c.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="2630,-30 2510,-30 2510,0 2630,0 2630,-30"/>
 <text text-anchor="start" x="2518" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
 <text text-anchor="middle" x="2570" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/xrdhttp.c</text>
 </a>
 </g>
 </g>
-<!-- Node1&#45;&gt;Node168 -->
-<g id="edge77_Node000001_Node000168" class="edge">
-<title>Node1&#45;&gt;Node168</title>
-<g id="a_edge77_Node000001_Node000168"><a xlink:title=" ">
+<!-- Node1&#45;&gt;Node162 -->
+<g id="edge77_Node000001_Node000162" class="edge">
+<title>Node1&#45;&gt;Node162</title>
+<g id="a_edge77_Node000001_Node000162"><a xlink:title=" ">
 <path fill="none" stroke="#63b8ff" d="M3025.7,-144.92C2827.81,-141.1 2209.09,-126.74 2180,-96 2170.84,-86.32 2171.11,-75.94 2180,-66 2227.84,-12.49 2430.09,-41.15 2501,-30 2503.9,-29.54 2506.86,-29.05 2509.85,-28.53"/>
 <polygon fill="#63b8ff" stroke="#63b8ff" points="3025.85,-148.43 3035.92,-145.12 3025.98,-141.43 3025.85,-148.43"/>
 </a>
 </g>
 </g>
-<!-- Node170 -->
-<g id="Node000170" class="node">
-<title>Node170</title>
-<g id="a_Node000170"><a xlink:href="xrdhttp__response_8c.html" target="_top" xlink:title=" ">
+<!-- Node164 -->
+<g id="Node000164" class="node">
+<title>Node164</title>
+<g id="a_Node000164"><a xlink:href="xrdhttp__response_8c.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="2768,-30 2648,-30 2648,0 2768,0 2768,-30"/>
 <text text-anchor="start" x="2656" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
 <text text-anchor="middle" x="2708" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/xrdhttp_response.c</text>
 </a>
 </g>
 </g>
-<!-- Node1&#45;&gt;Node170 -->
-<g id="edge78_Node000001_Node000170" class="edge">
-<title>Node1&#45;&gt;Node170</title>
-<g id="a_edge78_Node000001_Node000170"><a xlink:title=" ">
+<!-- Node1&#45;&gt;Node164 -->
+<g id="edge78_Node000001_Node000164" class="edge">
+<title>Node1&#45;&gt;Node164</title>
+<g id="a_edge78_Node000001_Node000164"><a xlink:title=" ">
 <path fill="none" stroke="#63b8ff" d="M3025.7,-144.89C2829.26,-140.96 2218.72,-126.37 2190,-96 2180.84,-86.31 2180.96,-75.8 2190,-66 2223.95,-29.22 2589.44,-36.99 2639,-30 2641.9,-29.59 2644.87,-29.13 2647.86,-28.64"/>
 <polygon fill="#63b8ff" stroke="#63b8ff" points="3025.77,-148.39 3035.84,-145.09 3025.91,-141.39 3025.77,-148.39"/>
 </a>
 </g>
 </g>
-<!-- Node172 -->
-<g id="Node000172" class="node">
-<title>Node172</title>
-<g id="a_Node000172"><a xlink:href="xrdhttp__tpc_8c.html" target="_top" xlink:title=" ">
+<!-- Node166 -->
+<g id="Node000166" class="node">
+<title>Node166</title>
+<g id="a_Node000166"><a xlink:href="xrdhttp__tpc_8c.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="2906,-30 2786,-30 2786,0 2906,0 2906,-30"/>
 <text text-anchor="start" x="2794" y="-18" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/webdav</text>
 <text text-anchor="middle" x="2846" y="-7" font-family="Helvetica,sans-Serif" font-size="10.00">/xrdhttp_tpc.c</text>
 </a>
 </g>
 </g>
-<!-- Node1&#45;&gt;Node172 -->
-<g id="edge79_Node000001_Node000172" class="edge">
-<title>Node1&#45;&gt;Node172</title>
-<g id="a_edge79_Node000001_Node000172"><a xlink:title=" ">
+<!-- Node1&#45;&gt;Node166 -->
+<g id="edge79_Node000001_Node000166" class="edge">
+<title>Node1&#45;&gt;Node166</title>
+<g id="a_edge79_Node000001_Node000166"><a xlink:title=" ">
 <path fill="none" stroke="#63b8ff" d="M3025.9,-144.84C2831.6,-140.79 2231.26,-125.91 2203,-96 2114.81,-2.68 2649.71,-46.82 2777,-30 2779.91,-29.62 2782.88,-29.18 2785.87,-28.71"/>
 <polygon fill="#63b8ff" stroke="#63b8ff" points="3025.87,-148.34 3035.94,-145.05 3026.01,-141.34 3025.87,-148.34"/>
 </a>
@@ -1328,28 +1328,28 @@ var sectionId = 'dynsection-1';
 </a>
 </g>
 </g>
-<!-- Node68&#45;&gt;Node168 -->
-<g id="edge73_Node000068_Node000168" class="edge">
-<title>Node68&#45;&gt;Node168</title>
-<g id="a_edge73_Node000068_Node000168"><a xlink:title=" ">
+<!-- Node68&#45;&gt;Node162 -->
+<g id="edge73_Node000068_Node000162" class="edge">
+<title>Node68&#45;&gt;Node162</title>
+<g id="a_edge73_Node000068_Node000162"><a xlink:title=" ">
 <path fill="none" stroke="#63b8ff" d="M1938.45,-75.52C2079.89,-66.34 2394.03,-45.02 2501,-30 2503.91,-29.59 2506.87,-29.14 2509.86,-28.65"/>
 <polygon fill="#63b8ff" stroke="#63b8ff" points="1937.91,-72.05 1928.16,-76.18 1938.37,-79.03 1937.91,-72.05"/>
 </a>
 </g>
 </g>
-<!-- Node68&#45;&gt;Node170 -->
-<g id="edge75_Node000068_Node000170" class="edge">
-<title>Node68&#45;&gt;Node170</title>
-<g id="a_edge75_Node000068_Node000170"><a xlink:title=" ">
+<!-- Node68&#45;&gt;Node164 -->
+<g id="edge75_Node000068_Node000164" class="edge">
+<title>Node68&#45;&gt;Node164</title>
+<g id="a_edge75_Node000068_Node000164"><a xlink:title=" ">
 <path fill="none" stroke="#63b8ff" d="M1938.17,-75.99C2115.18,-65.81 2570.69,-39.1 2639,-30 2641.91,-29.61 2644.88,-29.17 2647.87,-28.7"/>
 <polygon fill="#63b8ff" stroke="#63b8ff" points="1937.96,-72.5 1928.18,-76.57 1938.36,-79.49 1937.96,-72.5"/>
 </a>
 </g>
 </g>
-<!-- Node68&#45;&gt;Node172 -->
-<g id="edge76_Node000068_Node000172" class="edge">
-<title>Node68&#45;&gt;Node172</title>
-<g id="a_edge76_Node000068_Node000172"><a xlink:title=" ">
+<!-- Node68&#45;&gt;Node166 -->
+<g id="edge76_Node000068_Node000166" class="edge">
+<title>Node68&#45;&gt;Node166</title>
+<g id="a_edge76_Node000068_Node000166"><a xlink:title=" ">
 <path fill="none" stroke="#63b8ff" d="M1938.3,-76.72C2137.19,-67.37 2694.8,-40.54 2777,-30 2779.91,-29.63 2782.88,-29.2 2785.87,-28.73"/>
 <polygon fill="#63b8ff" stroke="#63b8ff" points="1938.08,-73.23 1928.25,-77.2 1938.41,-80.22 1938.08,-73.23"/>
 </a>

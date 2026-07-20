@@ -159,6 +159,8 @@ Data Fields</h2></td></tr>
 <tr class="separator:a366fb5681bdc08edc1c8681f24ec4f0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9f0c6d24c671edcb86f9ff816e53f531" id="r_a9f0c6d24c671edcb86f9ff816e53f531"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__s3__file.html#a9f0c6d24c671edcb86f9ff816e53f531">part_buf_len</a></td></tr>
 <tr class="separator:a9f0c6d24c671edcb86f9ff816e53f531"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acca7c8b420a9f936defe759699e23ca9" id="r_acca7c8b420a9f936defe759699e23ca9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__s3__file.html#acca7c8b420a9f936defe759699e23ca9">put_checksum</a></td></tr>
+<tr class="separator:acca7c8b420a9f936defe759699e23ca9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -178,7 +180,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00036">36</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00274">sd_s3_emit_auth_header()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, and <a class="el" href="sd__s3__sign_8c_source.html#l00104">sd_s3_sign()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00274">sd_s3_emit_auth_header()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, and <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>.</p>
 
 </div>
 </div>
@@ -196,7 +198,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00060">60</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00056">sd_s3_etag_ensure_cap()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00072">sd_s3_etag_ensure_cap()</a>.</p>
 
 </div>
 </div>
@@ -214,7 +216,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00059">59</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00056">sd_s3_etag_ensure_cap()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00239">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00072">sd_s3_etag_ensure_cap()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>.</p>
 
 </div>
 </div>
@@ -232,7 +234,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00032">32</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00104">sd_s3_sign()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00207">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -250,7 +252,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00046">46</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00467">sd_s3_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00480">sd_s3_write_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00508">sd_s3_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00521">sd_s3_write_size()</a>.</p>
 
 </div>
 </div>
@@ -268,7 +270,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00045">45</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00467">sd_s3_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00508">sd_s3_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -286,7 +288,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00035">35</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00104">sd_s3_sign()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00207">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -304,7 +306,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00047">47</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -322,7 +324,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00061">61</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00480">sd_s3_write_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00521">sd_s3_write_size()</a>.</p>
 
 </div>
 </div>
@@ -340,7 +342,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00042">42</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -358,7 +360,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00062">62</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00125">sd_s3_mpu_flush()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00239">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00154">sd_s3_mpu_flush()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -376,7 +378,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00063">63</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00125">sd_s3_mpu_flush()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00154">sd_s3_mpu_flush()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -394,7 +396,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00058">58</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00125">sd_s3_mpu_flush()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00154">sd_s3_mpu_flush()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>.</p>
 
 </div>
 </div>
@@ -412,7 +414,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00050">50</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -430,7 +432,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00033">33</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00104">sd_s3_sign()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00207">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -448,7 +450,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00052">52</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00187">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3_8c_source.html#l00239">sd_s3_close()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -466,7 +468,25 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00054">54</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00284">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
+
+</div>
+</div>
+<a id="acca7c8b420a9f936defe759699e23ca9" name="acca7c8b420a9f936defe759699e23ca9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acca7c8b420a9f936defe759699e23ca9">&#9670;&#160;</a></span>put_checksum</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_s3_file::put_checksum</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00069">69</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00313">sd_s3_open_write()</a>.</p>
 
 </div>
 </div>
@@ -484,7 +504,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00053">53</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00467">sd_s3_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00480">sd_s3_write_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00508">sd_s3_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00521">sd_s3_write_size()</a>.</p>
 
 </div>
 </div>
@@ -502,7 +522,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00055">55</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00339">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00365">sd_s3_pwrite()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00369">sd_s3_put_upgrade_mpu()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00395">sd_s3_pwrite()</a>.</p>
 
 </div>
 </div>
@@ -520,7 +540,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00038">38</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00251">sd_s3_derive_key_and_sign()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00104">sd_s3_sign()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00226">sd_s3_string_to_sign()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00251">sd_s3_derive_key_and_sign()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00226">sd_s3_string_to_sign()</a>.</p>
 
 </div>
 </div>
@@ -538,7 +558,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00037">37</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00251">sd_s3_derive_key_and_sign()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, and <a class="el" href="sd__s3__sign_8c_source.html#l00104">sd_s3_sign()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00251">sd_s3_derive_key_and_sign()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, and <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>.</p>
 
 </div>
 </div>
@@ -556,7 +576,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00040">40</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00207">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -574,7 +594,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00041">41</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00207">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -592,7 +612,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00034">34</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00207">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -610,7 +630,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00039">39</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00428">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00155">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00458">sd_s3_commit()</a>, <a class="el" href="sd__s3_8c_source.html#l00207">sd_s3_delete()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, <a class="el" href="sd__s3_8c_source.html#l00099">sd_s3_pread()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>, and <a class="el" href="sd__s3_8c_source.html#l00064">sd_s3_size()</a>.</p>
 
 </div>
 </div>
@@ -628,7 +648,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__internal_8h_source.html#l00057">57</a> of file <a class="el" href="sd__s3__internal_8h_source.html">sd_s3_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00249">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00179">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00137">sd_s3_mpu_create()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00075">sd_s3_mpu_upload_part()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__write_8c_source.html#l00278">sd_s3_mpu_abort()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00208">sd_s3_mpu_complete()</a>, <a class="el" href="sd__s3__write_8c_source.html#l00166">sd_s3_mpu_create()</a>, and <a class="el" href="sd__s3__write_8c_source.html#l00091">sd_s3_mpu_upload_part()</a>.</p>
 
 </div>
 </div>

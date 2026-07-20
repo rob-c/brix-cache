@@ -8,6 +8,7 @@ var ftp__module_8c =
     [ "brix_ftp_merge_conf", "ftp__module_8c.html#a4fd1bfbd067f441ed12dee641c90c671", null ],
     [ "brix_ftp_set_enable", "ftp__module_8c.html#a96f808999e84a060b39d8e96350b4110", null ],
     [ "brix_ftp_set_export", "ftp__module_8c.html#a2d31241173738a7b2a58ab80d1489890", null ],
+    [ "brix_ftp_set_pasv_range", "ftp__module_8c.html#a298e1b3a34c7c00912acdfda250d0506", null ],
     [ "brix_ftp_ssl_ctx_cleanup", "ftp__module_8c.html#a510ca0f23c922d8feda28ce962728efc", null ],
     [ "brix_ftp_commands", "ftp__module_8c.html#a97e6e8025bdd58f88a024ef0e390c648", null ],
     [ "brix_ftp_module_ctx", "ftp__module_8c.html#ad9e17e07a082a9cadd0c424e9c3662c3", null ],

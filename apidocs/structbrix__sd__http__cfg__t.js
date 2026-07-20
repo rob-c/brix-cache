@@ -9,6 +9,7 @@ var structbrix__sd__http__cfg__t =
     [ "host", "structbrix__sd__http__cfg__t.html#afd7acf11b868e990c545d792390432ef", null ],
     [ "n_extra", "structbrix__sd__http__cfg__t.html#ae3195dfe3b19a306f4f95685b8bad895", null ],
     [ "port", "structbrix__sd__http__cfg__t.html#a5faaa6e80d67a54a589122b23179ae97", null ],
+    [ "put_checksum", "structbrix__sd__http__cfg__t.html#ae0d3f1474878c8e417b1627111b65edb", null ],
     [ "tctx", "structbrix__sd__http__cfg__t.html#af496ae8a5e58058ea3ea65dff16a45f1", null ],
     [ "timeout_ms", "structbrix__sd__http__cfg__t.html#abefd56379dc36d343dbc26132e6fa0c9", null ],
     [ "tls", "structbrix__sd__http__cfg__t.html#a73053d45925f6fa583c5608d3f54d0ef", null ],

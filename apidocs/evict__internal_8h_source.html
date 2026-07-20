@@ -200,7 +200,7 @@ $(document).ready(function(){initNavTree('evict__internal_8h_source.html',''); i
 <div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment"> * (f_blocks == 0). *usage is left untouched on NGX_ERROR.</span></div>
 <div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>ngx_int_t <a class="code hl_function" href="evict__internal_8h.html#ac4c95bea9e283ee3c5c0fb60634aa7aa">brix_cache_fs_usage</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *root,</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    <a class="code hl_struct" href="structbrix__cache__fs__usage__t.html">brix_cache_fs_usage_t</a> *<a class="code hl_function" href="xrdgsiproxy_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a>);</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    <a class="code hl_struct" href="structbrix__cache__fs__usage__t.html">brix_cache_fs_usage_t</a> *<a class="code hl_function" href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a>);</div>
 <div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span> </div>
 <div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="comment">/*</span></div>
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="comment"> * Measure cache occupancy through the store adapter (phase-64 P3/G5): prefer</span></div>
@@ -211,7 +211,7 @@ $(document).ready(function(){initNavTree('evict__internal_8h_source.html',''); i
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> * brix_cache_fs_usage_t. NGX_OK / NGX_ERROR (usage untouched on error).</span></div>
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>ngx_int_t <a class="code hl_function" href="evict__internal_8h.html#a9f7fc76ae6b6e91f4476ed390356ff4d">brix_cache_usage_measure</a>(<a class="code hl_struct" href="structbrix__cstore__t.html">brix_cstore_t</a> *cs, <span class="keyword">const</span> <span class="keywordtype">char</span> *root,</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <a class="code hl_struct" href="structbrix__cache__fs__usage__t.html">brix_cache_fs_usage_t</a> *<a class="code hl_function" href="xrdgsiproxy_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a>);</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <a class="code hl_struct" href="structbrix__cache__fs__usage__t.html">brix_cache_fs_usage_t</a> *<a class="code hl_function" href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a>);</div>
 <div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span> </div>
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment">/*</span></div>
 <div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> * TTL-cached wrapper over brix_cache_fs_usage (per-worker), so hot callers —</span></div>
@@ -326,7 +326,7 @@ $(document).ready(function(){initNavTree('evict__internal_8h_source.html',''); i
 <div class="ttc" id="astructbrix__ctx__t_html"><div class="ttname"><a href="structbrix__ctx__t.html">brix_ctx_t</a></div><div class="ttdef"><b>Definition</b> <a href="context_8h_source.html#l00091">context.h:91</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00115">config.h:115</a></div></div>
 <div class="ttc" id="atime_8h_html"><div class="ttname"><a href="time_8h.html">time.h</a></div></div>
-<div class="ttc" id="axrdgsiproxy_8c_html_ad96d407a911fbb914fa8e4cfbf2faf0f"><div class="ttname"><a href="xrdgsiproxy_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a></div><div class="ttdeci">static void usage(void)</div><div class="ttdef"><b>Definition</b> <a href="xrdgsiproxy_8c_source.html#l00046">xrdgsiproxy.c:46</a></div></div>
+<div class="ttc" id="axrootdfs_8c_html_ae8605e2b78cd4a81b6c6b5c30cb7366a"><div class="ttname"><a href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a></div><div class="ttdeci">void usage(void)</div><div class="ttdef"><b>Definition</b> <a href="xrootdfs_8c_source.html#l00270">xrootdfs.c:270</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

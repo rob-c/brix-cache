@@ -286,14 +286,14 @@ $(document).ready(function(){initNavTree('macaroon__endpoint__request_8c_source.
 <div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>{</div>
 <div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    <span class="keywordtype">char</span>        json[<a class="code hl_define" href="macaroon__issue_8h.html#ab07fd99b3883cc56671eb896b52e3064">BRIX_MACAROON_ISSUE_OUT_MAX</a> + 768];</div>
 <div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>;</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    ngx_str_t   host;</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    ngx_str_t   <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>;</div>
 <div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keywordtype">int</span>         n;</div>
 <div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
 <div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a> = (r-&gt;connection-&gt;ssl != NULL) ? <span class="stringliteral">&quot;https&quot;</span> : <span class="stringliteral">&quot;http&quot;</span>;</div>
 <div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="keywordflow">if</span> (r-&gt;headers_in.host != NULL) {</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        host = r-&gt;headers_in.host-&gt;value;</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a> = r-&gt;headers_in.host-&gt;value;</div>
 <div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        ngx_str_set(&amp;host, <span class="stringliteral">&quot;localhost&quot;</span>);</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        ngx_str_set(&amp;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, <span class="stringliteral">&quot;localhost&quot;</span>);</div>
 <div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    }</div>
 <div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    n = (int) (ngx_snprintf((u_char *) json, <span class="keyword">sizeof</span>(json) - 1,</div>
 <div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        <span class="stringliteral">&quot;{\&quot;macaroon\&quot;:\&quot;%s\&quot;,\&quot;uri\&quot;:{&quot;</span></div>
@@ -302,10 +302,10 @@ $(document).ready(function(){initNavTree('macaroon__endpoint__request_8c_source.
 <div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>        <span class="stringliteral">&quot;\&quot;base\&quot;:\&quot;%s://%V/\&quot;,&quot;</span></div>
 <div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>        <span class="stringliteral">&quot;\&quot;baseWithMacaroon\&quot;:\&quot;%s://%V/?authz=%s\&quot;}}&quot;</span>,</div>
 <div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>        token_out,</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;host, &amp;r-&gt;uri,</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;host, &amp;r-&gt;uri, token_out,</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;host,</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;host, token_out) - (u_char *) json);</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, &amp;r-&gt;uri,</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, &amp;r-&gt;uri, token_out,</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>,</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <a class="code hl_variable" href="tier__config_8c.html#a1f17dcc9c40a4f8283d52097307ae343">scheme</a>, &amp;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, token_out) - (u_char *) json);</div>
 <div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    <span class="keywordflow">if</span> (n &lt; 0) { n = 0; }</div>
 <div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <a class="code hl_function" href="macaroon__endpoint_8c.html#ae69e2b7cff7a4ce9406afb6589c5feb5">mac_respond</a>(r, NGX_HTTP_OK, json, (<span class="keywordtype">size_t</span>) n);</div>
 <div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>}</div>
@@ -401,6 +401,7 @@ $(document).ready(function(){initNavTree('macaroon__endpoint__request_8c_source.
 <div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    <a class="code hl_function" href="macaroon__endpoint__request_8c.html#ad2e1cbd825f31c4c466d0d95c0298d36">mac_request_respond</a>(r, token_out);</div>
 <div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>}</div>
 </div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a41c3a180b50c6b2ddcc1b6843a48f205"><div class="ttname"><a href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a></div><div class="ttdeci">char host[256]</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 <div class="ttc" id="ahttp__body_8h_html"><div class="ttname"><a href="http__body_8h.html">http_body.h</a></div></div>
 <div class="ttc" id="ajson__min_8c_html_a77183f5a4d27a9cebdc07145ef1c6856"><div class="ttname"><a href="json__min_8c.html#a77183f5a4d27a9cebdc07145ef1c6856">brix_json_get_str</a></div><div class="ttdeci">int brix_json_get_str(const char *json, size_t len, const char *key, char *out, size_t outsz)</div><div class="ttdef"><b>Definition</b> <a href="json__min_8c_source.html#l00395">json_min.c:395</a></div></div>
 <div class="ttc" id="ajson__min_8h_html"><div class="ttname"><a href="json__min_8h.html">json_min.h</a></div></div>

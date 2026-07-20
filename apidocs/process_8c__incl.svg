@@ -138,7 +138,7 @@ var sectionId = 'dynsection-0';
 <!-- Node128 -->
 <g id="Node000128" class="node">
 <title>Node128</title>
-<g id="a_Node000128"><a xlink:href="net_2proxy_2proxy__internal_8h.html" target="_top" xlink:title=" ">
+<g id="a_Node000128"><a xlink:href="proxy__internal_8h.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="3361,-316 3215,-316 3215,-297 3361,-297 3361,-316"/>
 <text text-anchor="middle" x="3288" y="-304" font-family="Helvetica,sans-Serif" font-size="10.00">net/proxy/proxy_internal.h</text>
 </a>

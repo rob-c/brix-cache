@@ -13,5 +13,6 @@ var client_2lib_2net_2tls_8c =
     [ "peer_collect_sans", "client_2lib_2net_2tls_8c.html#a10a36e790ce4c4a89442efca7c4d3140", null ],
     [ "tls_do_connect", "client_2lib_2net_2tls_8c.html#a148082f12e67f43ee0abe91b0b9876cd", null ],
     [ "tls_err", "client_2lib_2net_2tls_8c.html#a836c77354bf52935488ceb4e1c85d78b", null ],
+    [ "tls_read_wait_ms", "client_2lib_2net_2tls_8c.html#a34f557ba48ef445456c167048f7ddf2b", null ],
     [ "wait_io", "client_2lib_2net_2tls_8c.html#a9d161f0fb3a56afbab517e9e30d5b030", null ]
 ];

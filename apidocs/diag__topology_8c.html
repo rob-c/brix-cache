@@ -121,9 +121,9 @@ Functions</h2></td></tr>
 <tr class="separator:aa5add7d7cdc555963519664eee4ab4a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a67c19c8001d9031459742439604fc2fd" id="r_a67c19c8001d9031459742439604fc2fd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__topology_8c.html#a67c19c8001d9031459742439604fc2fd">do_topology</a> (const <a class="el" href="structdiag__args.html">diag_args</a> *a)</td></tr>
 <tr class="separator:a67c19c8001d9031459742439604fc2fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a67622e6039a128270eb259218d1f4159" id="r_a67622e6039a128270eb259218d1f4159"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__topology_8c.html#a67622e6039a128270eb259218d1f4159">parse_http_hostport</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, char *host, size_t hsz, int *port)</td></tr>
+<tr class="memitem:a67622e6039a128270eb259218d1f4159" id="r_a67622e6039a128270eb259218d1f4159"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__topology_8c.html#a67622e6039a128270eb259218d1f4159">parse_http_hostport</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, size_t hsz, int *<a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:a67622e6039a128270eb259218d1f4159"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af0dce40cb09209e7453f28cbb4fd07de" id="r_af0dce40cb09209e7453f28cbb4fd07de"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__topology_8c.html#af0dce40cb09209e7453f28cbb4fd07de">resolve_once</a> (const char *host, int port, char *ip, size_t ipsz, int *is_loop, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:af0dce40cb09209e7453f28cbb4fd07de" id="r_af0dce40cb09209e7453f28cbb4fd07de"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__topology_8c.html#af0dce40cb09209e7453f28cbb4fd07de">resolve_once</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, int <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, char *ip, size_t ipsz, int *is_loop, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:af0dce40cb09209e7453f28cbb4fd07de"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aefdbad698867a42c49443c783a55f898" id="r_aefdbad698867a42c49443c783a55f898"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="diag__topology_8c.html#aefdbad698867a42c49443c783a55f898">probe_open</a> (<a class="el" href="structbrix__conn.html">brix_conn</a> *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *urlbuf, const <a class="el" href="structdiag__args.html">diag_args</a> *a, int tmo, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:aefdbad698867a42c49443c783a55f898"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -149,7 +149,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00208">208</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="xrddiag_8c_source.html#l00012">g_fails</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="diag__internal_8h_source.html#l00037">diag_args::json</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="diag__topology_8c_source.html#l00176">topo_emit_json()</a>, <a class="el" href="diag__topology_8c_source.html#l00074">topo_probe_locate()</a>, <a class="el" href="diag__topology_8c_source.html#l00109">topo_probe_redirect()</a>, <a class="el" href="diag__topology_8c_source.html#l00139">topo_report_cluster()</a>, and <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="xrddiag_8c_source.html#l00013">g_fails</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="diag__internal_8h_source.html#l00037">diag_args::json</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="diag__topology_8c_source.html#l00176">topo_emit_json()</a>, <a class="el" href="diag__topology_8c_source.html#l00074">topo_probe_locate()</a>, <a class="el" href="diag__topology_8c_source.html#l00109">topo_probe_redirect()</a>, <a class="el" href="diag__topology_8c_source.html#l00139">topo_report_cluster()</a>, and <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>.</p>
 
 </div>
 </div>
@@ -193,7 +193,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00251">251</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>.</p>
 
@@ -245,7 +245,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00322">322</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00024">probe_p1_path_escape()</a>, <a class="el" href="diag__misc_8c_source.html#l00067">probe_p2_bad_opcode()</a>, <a class="el" href="diag__misc_8c_source.html#l00103">probe_p3_oversized_dlen()</a>, <a class="el" href="diag__misc_8c_source.html#l00140">probe_p4_oob_read()</a>, <a class="el" href="diag__misc_8c_source.html#l00179">probe_p5_partial_frame()</a>, and <a class="el" href="diag__misc_8c_source.html#l00212">probe_server_survives()</a>.</p>
 
@@ -303,7 +303,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00345">345</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, and <a class="el" href="opcodes_8h_source.html#l00108">kXR_oksofar</a>.</p>
+<p class="reference">References <a class="el" href="frame_8c_source.html#l00425">brix_recv()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sock_8c_source.html#l00467">brix_write_full()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, and <a class="el" href="opcodes_8h_source.html#l00108">kXR_oksofar</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00067">probe_p2_bad_opcode()</a>, <a class="el" href="diag__misc_8c_source.html#l00103">probe_p3_oversized_dlen()</a>, and <a class="el" href="diag__misc_8c_source.html#l00140">probe_p4_oob_read()</a>.</p>
 
@@ -361,7 +361,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00283">283</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="netpref_8c_source.html#l00067">brix_netpref_family()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="netpref_8c_source.html#l00067">brix_netpref_family()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00252">do_probe_robustness()</a>.</p>
 
@@ -419,7 +419,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00013">13</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00380">brix_dirlist()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="brix__net_8h_source.html#l00157">brix_dirent::st</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
+<p class="reference">References <a class="el" href="ops__meta_8c_source.html#l00380">brix_dirlist()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00161">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix__net_8h_source.html#l00160">brix_statinfo::size</a>, <a class="el" href="brix__net_8h_source.html#l00177">brix_dirent::st</a>, and <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__bench_8c_source.html#l00094">do_bench()</a>, <a class="el" href="diag__check_8c_source.html#l00403">do_check()</a>, <a class="el" href="diag__doctor_8c_source.html#l00849">doctor_one_xfer_probe()</a>, and <a class="el" href="diag__watch_8c_source.html#l00109">watch_probe_once()</a>.</p>
 
@@ -467,7 +467,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00176">176</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="jsonout_8c_source.html#l00067">brix_json_kv_str()</a>, and <a class="el" href="xfer__spawn__unittest_8c_source.html#l00019">fails</a>.</p>
+<p class="reference">References <a class="el" href="jsonout_8c_source.html#l00067">brix_json_kv_str()</a>, <a class="el" href="xfer__spawn__unittest_8c_source.html#l00019">fails</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__topology_8c_source.html#l00208">do_topology()</a>.</p>
 
@@ -625,7 +625,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="diag__topology_8c_source.html#l00139">139</a> of file <a class="el" href="diag__topology_8c_source.html">diag_topology.c</a>.</p>
 
-<p class="reference">References <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="diag__internal_8h_source.html#l00031">diag_args::cluster_url</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrddiag_8c_source.html#l00081">note()</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, and <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>.</p>
+<p class="reference">References <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="diag__internal_8h_source.html#l00031">diag_args::cluster_url</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrddiag_8c_source.html#l00082">note()</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, and <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__topology_8c_source.html#l00208">do_topology()</a>.</p>
 

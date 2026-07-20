@@ -135,7 +135,7 @@ $(document).ready(function(){initNavTree('oauth2_8c_source.html',''); initResiza
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>{</div>
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    json_error_t  jerr;</div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    json_t       *root;</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    json_t       *tok;</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    json_t       *<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>;</div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>   *token;</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    <span class="keywordtype">size_t</span>        len;</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
@@ -152,8 +152,8 @@ $(document).ready(function(){initNavTree('oauth2_8c_source.html',''); initResiza
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    }</div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span> </div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    tok = json_object_get(root, <span class="stringliteral">&quot;access_token&quot;</span>);</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    <span class="keywordflow">if</span> (!json_is_string(tok)) {</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a> = json_object_get(root, <span class="stringliteral">&quot;access_token&quot;</span>);</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    <span class="keywordflow">if</span> (!json_is_string(<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>)) {</div>
 <div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        <span class="keywordflow">if</span> (err != NULL &amp;&amp; err_sz &gt; 0) {</div>
 <div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>            snprintf(err, err_sz, <span class="stringliteral">&quot;no string \&quot;access_token\&quot; in token response&quot;</span>);</div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>        }</div>
@@ -161,7 +161,7 @@ $(document).ready(function(){initNavTree('oauth2_8c_source.html',''); initResiza
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    }</div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    token = json_string_value(tok);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    token = json_string_value(<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>);</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    len = strlen(token);</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    <span class="keywordflow">if</span> (len &gt;= out_sz) {</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>        <span class="keywordflow">if</span> (err != NULL &amp;&amp; err_sz &gt; 0) {</div>
@@ -179,6 +179,7 @@ $(document).ready(function(){initNavTree('oauth2_8c_source.html',''); initResiza
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aoauth2_8c_html_ae8db516c82183827a7f2ba267e0b1e56"><div class="ttname"><a href="oauth2_8c.html#ae8db516c82183827a7f2ba267e0b1e56">brix_oauth2_parse_access_token</a></div><div class="ttdeci">ngx_int_t brix_oauth2_parse_access_token(const char *json, char *out, size_t out_sz, char *err, size_t err_sz)</div><div class="ttdef"><b>Definition</b> <a href="oauth2_8c_source.html#l00032">oauth2.c:32</a></div></div>
 <div class="ttc" id="aoauth2_8h_html"><div class="ttname"><a href="oauth2_8h.html">oauth2.h</a></div></div>
+<div class="ttc" id="aput__body_8c_html_a245cabc3bef72dcd807971c43731f28d"><div class="ttname"><a href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a></div><div class="ttdeci">const char * tok</div><div class="ttdef"><b>Definition</b> <a href="put__body_8c_source.html#l00052">put_body.c:52</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

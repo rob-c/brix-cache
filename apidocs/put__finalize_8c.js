@@ -9,6 +9,7 @@ var put__finalize_8c =
     [ "s3_put_finalize_empty_ok", "put__finalize_8c.html#aec59321aca585e393350244819f4aa37", null ],
     [ "s3_put_finalize_error", "put__finalize_8c.html#ae5114da3de7b816ef933b29af07ac70b", null ],
     [ "s3_put_finalize_fs_error", "put__finalize_8c.html#a96c091def73e99ca966bb70b952f6b73", null ],
+    [ "s3_put_finalize_invalid_digest", "put__finalize_8c.html#ae9dffc5048c8abeee6fabdc599f5023f", null ],
     [ "s3_put_finalize_invalid_request", "put__finalize_8c.html#a1bd5fb94f097fde52020a332710aa834", null ],
     [ "s3_put_finalize_ok", "put__finalize_8c.html#aa3910ea021515f434dab0a0c3a42fa46", null ]
 ];

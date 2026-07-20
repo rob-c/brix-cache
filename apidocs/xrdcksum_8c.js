@@ -7,6 +7,5 @@ var xrdcksum_8c =
     [ "brix_xrdckverify_main", "xrdcksum_8c.html#a49ab7e96dd3de307084cbcee04444cf9", null ],
     [ "dispatch", "xrdcksum_8c.html#a5085420b244719d9f9286a344acdb07b", null ],
     [ "main", "xrdcksum_8c.html#a3c04138a5bfe5d72780bb7e82a18e627", null ],
-    [ "tool_basename", "xrdcksum_8c.html#a5ac3af9264940bd5ad43d8a603bfdd62", null ],
     [ "CKSUM_TOOLS", "xrdcksum_8c.html#abe1fef3bfa0344b6eaae25514a664c61", null ]
 ];

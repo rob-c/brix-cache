@@ -101,6 +101,7 @@ $(document).ready(function(){initNavTree('xrddiag_8c.html',''); initResizable();
 <div class="textblock"><code>#include &quot;<a class="el" href="diag__internal_8h_source.html">diag_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="jsonout_8h_source.html">cli/jsonout.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="version_8h_source.html">core/version.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="progname_8h_source.html">core/progname.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="suggest_8h_source.html">cli/suggest.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cli__hint_8h_source.html">cli/cli_hint.h</a>&quot;</code><br />
 <code>#include &lt;stddef.h&gt;</code><br />
@@ -142,7 +143,7 @@ Functions</h2></td></tr>
 <tr class="separator:ad5bde47d7073c3835cb7db35e2a1d67f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a664536b19d60e114b9711adf414f746e" id="r_a664536b19d60e114b9711adf414f746e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a664536b19d60e114b9711adf414f746e">dx_record_status</a> (<a class="el" href="structdoctor__ep.html">doctor_ep</a> *e, const char *<a class="el" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a>, const <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a664536b19d60e114b9711adf414f746e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a91fbf5b482d7aa24257358a39c421a94" id="r_a91fbf5b482d7aa24257358a39c421a94"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a91fbf5b482d7aa24257358a39c421a94">dx_is_loopback</a> (const char *host)</td></tr>
+<tr class="memitem:a91fbf5b482d7aa24257358a39c421a94" id="r_a91fbf5b482d7aa24257358a39c421a94"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a91fbf5b482d7aa24257358a39c421a94">dx_is_loopback</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>)</td></tr>
 <tr class="separator:a91fbf5b482d7aa24257358a39c421a94"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6ba6542797c717fcdfb011c7b0d55668" id="r_a6ba6542797c717fcdfb011c7b0d55668"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a6ba6542797c717fcdfb011c7b0d55668">dx_b64url_enc</a> (const unsigned char *in, size_t n, char *out, size_t outsz)</td></tr>
 <tr class="separator:a6ba6542797c717fcdfb011c7b0d55668"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -152,11 +153,11 @@ Functions</h2></td></tr>
 <tr class="separator:abc5d02e17b33cc4dffa1085bd74afb99"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afcdde58ada9e5adcae9737881b1704e6" id="r_afcdde58ada9e5adcae9737881b1704e6"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#afcdde58ada9e5adcae9737881b1704e6">dx_proto_name</a> (<a class="el" href="diag__internal_8h.html#acd64e9fcc40d86912d237b498ff7f115">dx_proto</a> p)</td></tr>
 <tr class="separator:afcdde58ada9e5adcae9737881b1704e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac5b00210cde75309f8f94fc945da7c61" id="r_ac5b00210cde75309f8f94fc945da7c61"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#ac5b00210cde75309f8f94fc945da7c61">dx_scheme_match</a> (const char **p, <a class="el" href="diag__internal_8h.html#acd64e9fcc40d86912d237b498ff7f115">dx_proto</a> *proto, int *<a class="el" href="tier__config_8c.html#a39888985bf98dd26251c28fbf14cb82f">tls</a>, int *port)</td></tr>
+<tr class="memitem:ac5b00210cde75309f8f94fc945da7c61" id="r_ac5b00210cde75309f8f94fc945da7c61"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#ac5b00210cde75309f8f94fc945da7c61">dx_scheme_match</a> (const char **p, <a class="el" href="diag__internal_8h.html#acd64e9fcc40d86912d237b498ff7f115">dx_proto</a> *proto, int *<a class="el" href="tier__config_8c.html#a39888985bf98dd26251c28fbf14cb82f">tls</a>, int *<a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:ac5b00210cde75309f8f94fc945da7c61"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af1b5200d5f0accae774fc846de6977a5" id="r_af1b5200d5f0accae774fc846de6977a5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#af1b5200d5f0accae774fc846de6977a5">dx_host6_parse</a> (const char **p, char *host, size_t hsz, int *port)</td></tr>
+<tr class="memitem:af1b5200d5f0accae774fc846de6977a5" id="r_af1b5200d5f0accae774fc846de6977a5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#af1b5200d5f0accae774fc846de6977a5">dx_host6_parse</a> (const char **p, char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, size_t hsz, int *<a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:af1b5200d5f0accae774fc846de6977a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa32736b24866e77f5a3df9f9b330ef22" id="r_aa32736b24866e77f5a3df9f9b330ef22"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#aa32736b24866e77f5a3df9f9b330ef22">dx_hostname_parse</a> (const char **p, char *host, size_t hsz, int *port)</td></tr>
+<tr class="memitem:aa32736b24866e77f5a3df9f9b330ef22" id="r_aa32736b24866e77f5a3df9f9b330ef22"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#aa32736b24866e77f5a3df9f9b330ef22">dx_hostname_parse</a> (const char **p, char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, size_t hsz, int *<a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:aa32736b24866e77f5a3df9f9b330ef22"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0e46421c06e99a478c561e149c38ecfe" id="r_a0e46421c06e99a478c561e149c38ecfe"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a0e46421c06e99a478c561e149c38ecfe">dx_url_parse</a> (const char *url, <a class="el" href="structdx__url__t.html">dx_url_t</a> *u)</td></tr>
 <tr class="separator:a0e46421c06e99a478c561e149c38ecfe"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -176,10 +177,10 @@ Functions</h2></td></tr>
 <tr class="separator:ac13075d0e0fd8e994c2fdd753608d03a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a972c9c16a83ff189053bcb86ab056019" id="r_a972c9c16a83ff189053bcb86ab056019"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a972c9c16a83ff189053bcb86ab056019">js_count</a> (const char *json, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
 <tr class="separator:a972c9c16a83ff189053bcb86ab056019"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a28999b7bf77e817ab21c70002c3ad233" id="r_a28999b7bf77e817ab21c70002c3ad233"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a28999b7bf77e817ab21c70002c3ad233">usage_fp</a> (FILE *out)</td></tr>
-<tr class="separator:a28999b7bf77e817ab21c70002c3ad233"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae8605e2b78cd4a81b6c6b5c30cb7366a" id="r_ae8605e2b78cd4a81b6c6b5c30cb7366a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a> (void)</td></tr>
-<tr class="separator:ae8605e2b78cd4a81b6c6b5c30cb7366a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a017babcb376a0b2a74e3762918e3d31e" id="r_a017babcb376a0b2a74e3762918e3d31e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a017babcb376a0b2a74e3762918e3d31e">usage_fp</a> (FILE *out, const char *prog)</td></tr>
+<tr class="separator:a017babcb376a0b2a74e3762918e3d31e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a364112f4dc61f0649eec6b78e586509d" id="r_a364112f4dc61f0649eec6b78e586509d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a364112f4dc61f0649eec6b78e586509d">usage</a> (const char *prog)</td></tr>
+<tr class="separator:a364112f4dc61f0649eec6b78e586509d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acf262e85ee91fc9e111e2386716e0d08" id="r_acf262e85ee91fc9e111e2386716e0d08"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#acf262e85ee91fc9e111e2386716e0d08">dx_opt_apply</a> (<a class="el" href="structdiag__args.html">diag_args</a> *a, const <a class="el" href="structdx__opt__t.html">dx_opt_t</a> *o, int argc, char **argv, int *i)</td></tr>
 <tr class="separator:acf262e85ee91fc9e111e2386716e0d08"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d70e8a19f91c4fa8687a9e047b48fd5" id="r_a2d70e8a19f91c4fa8687a9e047b48fd5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a2d70e8a19f91c4fa8687a9e047b48fd5">dx_opt_parse</a> (<a class="el" href="structdiag__args.html">diag_args</a> *a, int argc, char **argv, int *i)</td></tr>
@@ -188,10 +189,10 @@ Functions</h2></td></tr>
 <tr class="separator:a0a8947074b33a33928a660febdb737ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab471efcaaeb89a9de415bc6409479c83" id="r_ab471efcaaeb89a9de415bc6409479c83"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#ab471efcaaeb89a9de415bc6409479c83">dx_personality_route</a> (int argc, char **argv, int *rc)</td></tr>
 <tr class="separator:ab471efcaaeb89a9de415bc6409479c83"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a80966c4c51304397b83b6ca9b976ad31" id="r_a80966c4c51304397b83b6ca9b976ad31"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a80966c4c51304397b83b6ca9b976ad31">dx_unknown_sub</a> (const char *sub)</td></tr>
-<tr class="separator:a80966c4c51304397b83b6ca9b976ad31"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afcca6cddefbb73a8c42cdf3ff8cb9614" id="r_afcca6cddefbb73a8c42cdf3ff8cb9614"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#afcca6cddefbb73a8c42cdf3ff8cb9614">dx_dispatch</a> (const char *sub, const <a class="el" href="structdiag__args.html">diag_args</a> *a)</td></tr>
-<tr class="separator:afcca6cddefbb73a8c42cdf3ff8cb9614"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a51d34471c54cfbd31138ce9fa434d1fa" id="r_a51d34471c54cfbd31138ce9fa434d1fa"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a51d34471c54cfbd31138ce9fa434d1fa">dx_unknown_sub</a> (const char *sub, const char *prog)</td></tr>
+<tr class="separator:a51d34471c54cfbd31138ce9fa434d1fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab3f409fd5ff541f1d3393084723fae10" id="r_ab3f409fd5ff541f1d3393084723fae10"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#ab3f409fd5ff541f1d3393084723fae10">dx_dispatch</a> (const char *sub, const <a class="el" href="structdiag__args.html">diag_args</a> *a, const char *prog)</td></tr>
+<tr class="separator:ab3f409fd5ff541f1d3393084723fae10"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c04138a5bfe5d72780bb7e82a18e627" id="r_a3c04138a5bfe5d72780bb7e82a18e627"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrddiag_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a3c04138a5bfe5d72780bb7e82a18e627"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -229,7 +230,7 @@ Variables</h2></td></tr>
 <tr><td class="fieldname"><a id="a1c1871a20e2e59daa97e9473d65068e1afbb76274d89712c62582b08fc3ed4f2c" name="a1c1871a20e2e59daa97e9473d65068e1afbb76274d89712c62582b08fc3ed4f2c"></a>DXO_STR&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00652">652</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00655">655</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 </div>
 </div>
@@ -272,9 +273,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00186">186</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00187">187</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00214">dx_make_jwt()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00215">dx_make_jwt()</a>.</p>
 
 </div>
 </div>
@@ -322,16 +323,16 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00237">237</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00238">238</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00158">dx_cred_sel::auth_force</a>, <a class="el" href="brix__net_8h_source.html#l00038">brix_opts::auth_force</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="diag__internal_8h_source.html#l00156">dx_cred_sel::force_anon</a>, <a class="el" href="brix__net_8h_source.html#l00043">brix_opts::force_anon</a>, and <a class="el" href="diag__internal_8h_source.html#l00157">dx_cred_sel::token_override</a>.</p>
+<p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00158">dx_cred_sel::auth_force</a>, <a class="el" href="brix__net_8h_source.html#l00058">brix_opts::auth_force</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="diag__internal_8h_source.html#l00156">dx_cred_sel::force_anon</a>, <a class="el" href="brix__net_8h_source.html#l00063">brix_opts::force_anon</a>, and <a class="el" href="diag__internal_8h_source.html#l00157">dx_cred_sel::token_override</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__check_8c_source.html#l00716">dx_authz_anon()</a>, <a class="el" href="diag__check_8c_source.html#l00805">dx_authz_expired()</a>, <a class="el" href="diag__check_8c_source.html#l00773">dx_authz_forged()</a>, and <a class="el" href="diag__check_8c_source.html#l00835">dx_authz_scope()</a>.</p>
 
 </div>
 </div>
-<a id="afcca6cddefbb73a8c42cdf3ff8cb9614" name="afcca6cddefbb73a8c42cdf3ff8cb9614"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afcca6cddefbb73a8c42cdf3ff8cb9614">&#9670;&#160;</a></span>dx_dispatch()</h2>
+<a id="ab3f409fd5ff541f1d3393084723fae10" name="ab3f409fd5ff541f1d3393084723fae10"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab3f409fd5ff541f1d3393084723fae10">&#9670;&#160;</a></span>dx_dispatch()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -349,7 +350,13 @@ Variables</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const <a class="el" href="structdiag__args.html">diag_args</a> *&#160;</td>
-          <td class="paramname"><em>a</em>&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -364,11 +371,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00896">896</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00903">903</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00847">DX_CMDS</a>, <a class="el" href="xrddiag_8c_source.html#l00871">dx_unknown_sub()</a>, <a class="el" href="xrddiag_8c_source.html#l00844">dx_cmd_t::fn</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00854">DX_CMDS</a>, <a class="el" href="xrddiag_8c_source.html#l00878">dx_unknown_sub()</a>, <a class="el" href="xrddiag_8c_source.html#l00851">dx_cmd_t::fn</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00910">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00917">main()</a>.</p>
 
 </div>
 </div>
@@ -418,9 +425,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00345">345</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00346">346</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00407">dx_url_parse()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00408">dx_url_parse()</a>.</p>
 
 </div>
 </div>
@@ -470,9 +479,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00375">375</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00376">376</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00407">dx_url_parse()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00408">dx_url_parse()</a>.</p>
 
 </div>
 </div>
@@ -508,9 +519,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00460">460</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00461">461</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="diag__doctor_8c_source.html#l00073">doc_issue()</a>, <a class="el" href="diag__internal_8h_source.html#l00054">DOC_RED</a>, <a class="el" href="diag__internal_8h_source.html#l00058">DX_FAIL</a>, <a class="el" href="xrddiag_8c_source.html#l00111">dx_record()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00050">brix_status::sys_errno</a>, <a class="el" href="tier__config_8c_source.html#l00028">tls</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
+<p class="reference">References <a class="el" href="diag__doctor_8c_source.html#l00073">doc_issue()</a>, <a class="el" href="diag__internal_8h_source.html#l00054">DOC_RED</a>, <a class="el" href="diag__internal_8h_source.html#l00058">DX_FAIL</a>, <a class="el" href="xrddiag_8c_source.html#l00112">dx_record()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00050">brix_status::sys_errno</a>, <a class="el" href="tier__config_8c_source.html#l00028">tls</a>, and <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00456">doctor_http()</a>, and <a class="el" href="diag__doctor_8c_source.html#l00618">doctor_s3()</a>.</p>
 
@@ -548,9 +559,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00432">432</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00433">433</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00058">DX_FAIL</a>, <a class="el" href="diag__internal_8h_source.html#l00056">DX_OK</a>, <a class="el" href="xrddiag_8c_source.html#l00111">dx_record()</a>, <a class="el" href="diag__internal_8h_source.html#l00057">DX_WARN</a>, and <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>.</p>
+<p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00058">DX_FAIL</a>, <a class="el" href="diag__internal_8h_source.html#l00056">DX_OK</a>, <a class="el" href="xrddiag_8c_source.html#l00112">dx_record()</a>, <a class="el" href="diag__internal_8h_source.html#l00057">DX_WARN</a>, and <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00456">doctor_http()</a>, <a class="el" href="diag__doctor_8c_source.html#l00512">s3_classify_anon()</a>, and <a class="el" href="diag__doctor_8c_source.html#l00540">s3_classify_signed()</a>.</p>
 
@@ -572,7 +583,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00170">170</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00171">171</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00210">auth_suite_token_probes()</a>, and <a class="el" href="diag__doctor_8c_source.html#l00269">doctor_diagnose()</a>.</p>
 
@@ -622,9 +635,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00214">214</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00215">215</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00186">dx_b64url_enc()</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00187">dx_b64url_enc()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00177">auth_suite_forged_probes()</a>.</p>
 
@@ -682,11 +695,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00698">698</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00701">701</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00654">DXO_CLEAR</a>, <a class="el" href="xrddiag_8c_source.html#l00653">DXO_FLAG</a>, <a class="el" href="xrddiag_8c_source.html#l00655">DXO_INT</a>, <a class="el" href="xrddiag_8c_source.html#l00661">dx_opt_t::kind</a>, and <a class="el" href="xrddiag_8c_source.html#l00662">dx_opt_t::off</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00657">DXO_CLEAR</a>, <a class="el" href="xrddiag_8c_source.html#l00656">DXO_FLAG</a>, <a class="el" href="xrddiag_8c_source.html#l00658">DXO_INT</a>, <a class="el" href="xrddiag_8c_source.html#l00664">dx_opt_t::kind</a>, and <a class="el" href="xrddiag_8c_source.html#l00665">dx_opt_t::off</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00731">dx_opt_parse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00734">dx_opt_parse()</a>.</p>
 
 </div>
 </div>
@@ -736,11 +749,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00731">731</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00734">734</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00698">dx_opt_apply()</a>, <a class="el" href="xrddiag_8c_source.html#l00665">DX_OPTS</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="diag__internal_8h_source.html#l00047">diag_args::prom_path</a>, and <a class="el" href="diag__internal_8h_source.html#l00046">diag_args::watch_prom</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00701">dx_opt_apply()</a>, <a class="el" href="xrddiag_8c_source.html#l00668">DX_OPTS</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="diag__internal_8h_source.html#l00047">diag_args::prom_path</a>, and <a class="el" href="diag__internal_8h_source.html#l00046">diag_args::watch_prom</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00771">dx_parse_argv()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00774">dx_parse_argv()</a>.</p>
 
 </div>
 </div>
@@ -796,11 +809,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00771">771</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00774">774</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cli__opts_8c_source.html#l00179">brix_opts_parse_arg()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="xrddiag_8c_source.html#l00731">dx_opt_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00757">dx_pos_t::n</a>, <a class="el" href="xrddiag_8c_source.html#l00637">usage()</a>, <a class="el" href="xrddiag_8c_source.html#l00598">usage_fp()</a>, and <a class="el" href="xrddiag_8c_source.html#l00756">dx_pos_t::v</a>.</p>
+<p class="reference">References <a class="el" href="cli__opts_8c_source.html#l00179">brix_opts_parse_arg()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="xrddiag_8c_source.html#l00734">dx_opt_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00760">dx_pos_t::n</a>, <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>, <a class="el" href="xrddiag_8c_source.html#l00599">usage_fp()</a>, and <a class="el" href="xrddiag_8c_source.html#l00759">dx_pos_t::v</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00910">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00917">main()</a>.</p>
 
 </div>
 </div>
@@ -844,11 +857,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00819">819</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00822">822</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="mpxstats_8c_source.html#l00125">brix_mpxstats_main()</a>, <a class="el" href="xrdqstats_8c_source.html#l00018">brix_qstats_main()</a>, and <a class="el" href="wait41_8c_source.html#l00023">brix_wait41_main()</a>.</p>
+<p class="reference">References <a class="el" href="mpxstats_8c_source.html#l00128">brix_mpxstats_main()</a>, <a class="el" href="progname_8h_source.html#l00036">brix_prog_base()</a>, <a class="el" href="progname_8h_source.html#l00054">brix_prog_strip_compat()</a>, <a class="el" href="xrdqstats_8c_source.html#l00019">brix_qstats_main()</a>, and <a class="el" href="wait41_8c_source.html#l00024">brix_wait41_main()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00910">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00917">main()</a>.</p>
 
 </div>
 </div>
@@ -868,7 +881,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00269">269</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00270">270</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00074">DXP_CMS</a>, <a class="el" href="diag__internal_8h_source.html#l00072">DXP_DAVS</a>, <a class="el" href="diag__internal_8h_source.html#l00070">DXP_HTTP</a>, <a class="el" href="diag__internal_8h_source.html#l00071">DXP_HTTPS</a>, and <a class="el" href="diag__internal_8h_source.html#l00073">DXP_S3</a>.</p>
 
@@ -902,11 +915,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00111">111</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00112">112</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00064">dx_finding::cause</a>, <a class="el" href="diag__internal_8h_source.html#l00143">dx_note::cause</a>, <a class="el" href="diag__internal_8h_source.html#l00059">DOC_MAXDX</a>, <a class="el" href="diag__internal_8h_source.html#l00116">doctor_ep::dx</a>, <a class="el" href="diag__internal_8h_source.html#l00063">dx_finding::kxr</a>, <a class="el" href="diag__internal_8h_source.html#l00142">dx_note::kxr</a>, <a class="el" href="diag__internal_8h_source.html#l00115">doctor_ep::ndx</a>, <a class="el" href="diag__internal_8h_source.html#l00061">dx_finding::probe</a>, <a class="el" href="diag__internal_8h_source.html#l00140">dx_note::probe</a>, <a class="el" href="diag__internal_8h_source.html#l00065">dx_finding::remedy</a>, <a class="el" href="diag__internal_8h_source.html#l00144">dx_note::remedy</a>, <a class="el" href="diag__internal_8h_source.html#l00098">doctor_ep::status</a>, <a class="el" href="diag__internal_8h_source.html#l00062">dx_finding::verdict</a>, and <a class="el" href="diag__internal_8h_source.html#l00141">dx_note::verdict</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00239">doctor_auth_suite()</a>, <a class="el" href="diag__doctor_8c_source.html#l00670">doctor_cms()</a>, <a class="el" href="diag__doctor_8c_source.html#l00269">doctor_diagnose()</a>, <a class="el" href="diag__doctor_8c_source.html#l00784">doctor_one_connect_fail()</a>, <a class="el" href="diag__doctor_8c_source.html#l00618">doctor_s3()</a>, <a class="el" href="diag__check_8c_source.html#l00716">dx_authz_anon()</a>, <a class="el" href="diag__check_8c_source.html#l00805">dx_authz_expired()</a>, <a class="el" href="diag__check_8c_source.html#l00773">dx_authz_forged()</a>, <a class="el" href="diag__check_8c_source.html#l00835">dx_authz_scope()</a>, <a class="el" href="xrddiag_8c_source.html#l00460">dx_http_fail()</a>, <a class="el" href="xrddiag_8c_source.html#l00432">dx_http_status()</a>, <a class="el" href="diag__check_8c_source.html#l00466">dx_probe_auth()</a>, <a class="el" href="diag__check_8c_source.html#l00569">dx_probe_checksum()</a>, <a class="el" href="diag__check_8c_source.html#l00482">dx_probe_namespace()</a>, <a class="el" href="diag__check_8c_source.html#l00524">dx_probe_read()</a>, <a class="el" href="diag__check_8c_source.html#l00691">dx_probe_stage()</a>, <a class="el" href="diag__check_8c_source.html#l00613">dx_probe_write()</a>, <a class="el" href="xrddiag_8c_source.html#l00135">dx_record_status()</a>, <a class="el" href="diag__doctor_8c_source.html#l00362">http_check_common_headers()</a>, <a class="el" href="diag__doctor_8c_source.html#l00401">http_davs_extras()</a>, <a class="el" href="diag__doctor_8c_source.html#l00342">http_record_tls()</a>, <a class="el" href="diag__doctor_8c_source.html#l00512">s3_classify_anon()</a>, <a class="el" href="diag__doctor_8c_source.html#l00540">s3_classify_signed()</a>, and <a class="el" href="diag__doctor_8c_source.html#l00575">s3_sigv4_probe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00239">doctor_auth_suite()</a>, <a class="el" href="diag__doctor_8c_source.html#l00670">doctor_cms()</a>, <a class="el" href="diag__doctor_8c_source.html#l00269">doctor_diagnose()</a>, <a class="el" href="diag__doctor_8c_source.html#l00784">doctor_one_connect_fail()</a>, <a class="el" href="diag__doctor_8c_source.html#l00618">doctor_s3()</a>, <a class="el" href="diag__check_8c_source.html#l00716">dx_authz_anon()</a>, <a class="el" href="diag__check_8c_source.html#l00805">dx_authz_expired()</a>, <a class="el" href="diag__check_8c_source.html#l00773">dx_authz_forged()</a>, <a class="el" href="diag__check_8c_source.html#l00835">dx_authz_scope()</a>, <a class="el" href="xrddiag_8c_source.html#l00461">dx_http_fail()</a>, <a class="el" href="xrddiag_8c_source.html#l00433">dx_http_status()</a>, <a class="el" href="diag__check_8c_source.html#l00466">dx_probe_auth()</a>, <a class="el" href="diag__check_8c_source.html#l00569">dx_probe_checksum()</a>, <a class="el" href="diag__check_8c_source.html#l00482">dx_probe_namespace()</a>, <a class="el" href="diag__check_8c_source.html#l00524">dx_probe_read()</a>, <a class="el" href="diag__check_8c_source.html#l00691">dx_probe_stage()</a>, <a class="el" href="diag__check_8c_source.html#l00613">dx_probe_write()</a>, <a class="el" href="xrddiag_8c_source.html#l00136">dx_record_status()</a>, <a class="el" href="diag__doctor_8c_source.html#l00362">http_check_common_headers()</a>, <a class="el" href="diag__doctor_8c_source.html#l00401">http_davs_extras()</a>, <a class="el" href="diag__doctor_8c_source.html#l00342">http_record_tls()</a>, <a class="el" href="diag__doctor_8c_source.html#l00512">s3_classify_anon()</a>, <a class="el" href="diag__doctor_8c_source.html#l00540">s3_classify_signed()</a>, and <a class="el" href="diag__doctor_8c_source.html#l00575">s3_sigv4_probe()</a>.</p>
 
 </div>
 </div>
@@ -942,9 +955,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00135">135</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00136">136</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>, <a class="el" href="diag__internal_8h_source.html#l00124">dx_rule::cause</a>, <a class="el" href="diag__internal_8h_source.html#l00119">DX_ANY</a>, <a class="el" href="diag__internal_8h_source.html#l00058">DX_FAIL</a>, <a class="el" href="xrddiag_8c_source.html#l00111">dx_record()</a>, <a class="el" href="xrddiag_8c_source.html#l00014">DX_RULES</a>, <a class="el" href="diag__internal_8h_source.html#l00122">dx_rule::kxr</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="diag__internal_8h_source.html#l00121">dx_rule::probe</a>, <a class="el" href="diag__internal_8h_source.html#l00125">dx_rule::remedy</a>, and <a class="el" href="diag__internal_8h_source.html#l00123">dx_rule::sev</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00050">brix_kxr_name()</a>, <a class="el" href="diag__internal_8h_source.html#l00124">dx_rule::cause</a>, <a class="el" href="diag__internal_8h_source.html#l00119">DX_ANY</a>, <a class="el" href="diag__internal_8h_source.html#l00058">DX_FAIL</a>, <a class="el" href="xrddiag_8c_source.html#l00112">dx_record()</a>, <a class="el" href="xrddiag_8c_source.html#l00015">DX_RULES</a>, <a class="el" href="diag__internal_8h_source.html#l00122">dx_rule::kxr</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>, <a class="el" href="diag__internal_8h_source.html#l00121">dx_rule::probe</a>, <a class="el" href="diag__internal_8h_source.html#l00125">dx_rule::remedy</a>, and <a class="el" href="diag__internal_8h_source.html#l00123">dx_rule::sev</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__doctor_8c_source.html#l00670">doctor_cms()</a>, <a class="el" href="diag__doctor_8c_source.html#l00269">doctor_diagnose()</a>, <a class="el" href="diag__check_8c_source.html#l00569">dx_probe_checksum()</a>, <a class="el" href="diag__check_8c_source.html#l00482">dx_probe_namespace()</a>, <a class="el" href="diag__check_8c_source.html#l00524">dx_probe_read()</a>, <a class="el" href="diag__check_8c_source.html#l00691">dx_probe_stage()</a>, and <a class="el" href="diag__check_8c_source.html#l00613">dx_probe_write()</a>.</p>
 
@@ -996,16 +1009,16 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00319">319</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00320">320</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00297">DX_SCHEMES</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00298">DX_SCHEMES</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00407">dx_url_parse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00408">dx_url_parse()</a>.</p>
 
 </div>
 </div>
-<a id="a80966c4c51304397b83b6ca9b976ad31" name="a80966c4c51304397b83b6ca9b976ad31"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a80966c4c51304397b83b6ca9b976ad31">&#9670;&#160;</a></span>dx_unknown_sub()</h2>
+<a id="a51d34471c54cfbd31138ce9fa434d1fa" name="a51d34471c54cfbd31138ce9fa434d1fa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a51d34471c54cfbd31138ce9fa434d1fa">&#9670;&#160;</a></span>dx_unknown_sub()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1017,8 +1030,18 @@ Variables</h2></td></tr>
           <td class="memname">static int dx_unknown_sub </td>
           <td>(</td>
           <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>sub</em></td><td>)</td>
+          <td class="paramname"><em>sub</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -1028,11 +1051,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00871">871</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00878">878</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cli__hint_8c_source.html#l00074">brix_cli_hint()</a>, <a class="el" href="suggest_8c_source.html#l00078">brix_suggest()</a>, and <a class="el" href="xrddiag_8c_source.html#l00637">usage()</a>.</p>
+<p class="reference">References <a class="el" href="cli__hint_8c_source.html#l00074">brix_cli_hint()</a>, <a class="el" href="suggest_8c_source.html#l00078">brix_suggest()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00896">dx_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00903">dx_dispatch()</a>.</p>
 
 </div>
 </div>
@@ -1062,9 +1085,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00407">407</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00408">408</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00345">dx_host6_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00375">dx_hostname_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00319">dx_scheme_match()</a>, <a class="el" href="diag__internal_8h_source.html#l00088">dx_url_t::host</a>, <a class="el" href="diag__internal_8h_source.html#l00090">dx_url_t::path</a>, <a class="el" href="diag__internal_8h_source.html#l00089">dx_url_t::port</a>, <a class="el" href="diag__internal_8h_source.html#l00086">dx_url_t::proto</a>, and <a class="el" href="diag__internal_8h_source.html#l00087">dx_url_t::tls</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00346">dx_host6_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00376">dx_hostname_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00320">dx_scheme_match()</a>, <a class="el" href="diag__internal_8h_source.html#l00088">dx_url_t::host</a>, <a class="el" href="diag__internal_8h_source.html#l00090">dx_url_t::path</a>, <a class="el" href="diag__internal_8h_source.html#l00089">dx_url_t::port</a>, <a class="el" href="diag__internal_8h_source.html#l00086">dx_url_t::proto</a>, and <a class="el" href="diag__internal_8h_source.html#l00087">dx_url_t::tls</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__misc_8c_source.html#l00323">do_srr()</a>, <a class="el" href="diag__misc_8c_source.html#l00415">do_tape()</a>, and <a class="el" href="diag__doctor_8c_source.html#l01077">doctor_dispatch()</a>.</p>
 
@@ -1086,7 +1109,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00502">502</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00503">503</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00058">DX_FAIL</a>, and <a class="el" href="diag__internal_8h_source.html#l00057">DX_WARN</a>.</p>
 
@@ -1120,7 +1143,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00495">495</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00496">496</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="jsonout_8c_source.html#l00050">brix_json_fputs()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
@@ -1154,7 +1177,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00580">580</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00581">581</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
@@ -1200,7 +1223,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00513">513</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00514">514</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
@@ -1234,7 +1257,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00552">552</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00553">553</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
@@ -1268,9 +1291,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00910">910</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00917">917</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="xrddiag_8c_source.html#l00896">dx_dispatch()</a>, <a class="el" href="xrddiag_8c_source.html#l00771">dx_parse_argv()</a>, <a class="el" href="xrddiag_8c_source.html#l00819">dx_personality_route()</a>, <a class="el" href="diag__internal_8h_source.html#l00030">diag_args::metrics_port</a>, <a class="el" href="xrddiag_8c_source.html#l00757">dx_pos_t::n</a>, <a class="el" href="diag__internal_8h_source.html#l00043">diag_args::nurls</a>, <a class="el" href="diag__internal_8h_source.html#l00028">diag_args::ref_url</a>, <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>, <a class="el" href="diag__internal_8h_source.html#l00042">diag_args::urls</a>, <a class="el" href="xrddiag_8c_source.html#l00637">usage()</a>, <a class="el" href="xrddiag_8c_source.html#l00598">usage_fp()</a>, <a class="el" href="xrddiag_8c_source.html#l00756">dx_pos_t::v</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, and <a class="el" href="diag__internal_8h_source.html#l00041">diag_args::verify_tls</a>.</p>
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="progname_8h_source.html#l00036">brix_prog_base()</a>, <a class="el" href="diag__internal_8h_source.html#l00026">diag_args::conn</a>, <a class="el" href="xrddiag_8c_source.html#l00903">dx_dispatch()</a>, <a class="el" href="xrddiag_8c_source.html#l00774">dx_parse_argv()</a>, <a class="el" href="xrddiag_8c_source.html#l00822">dx_personality_route()</a>, <a class="el" href="diag__internal_8h_source.html#l00030">diag_args::metrics_port</a>, <a class="el" href="xrddiag_8c_source.html#l00760">dx_pos_t::n</a>, <a class="el" href="diag__internal_8h_source.html#l00043">diag_args::nurls</a>, <a class="el" href="diag__internal_8h_source.html#l00028">diag_args::ref_url</a>, <a class="el" href="diag__internal_8h_source.html#l00027">diag_args::url</a>, <a class="el" href="diag__internal_8h_source.html#l00042">diag_args::urls</a>, <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>, <a class="el" href="xrddiag_8c_source.html#l00599">usage_fp()</a>, <a class="el" href="xrddiag_8c_source.html#l00759">dx_pos_t::v</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, and <a class="el" href="diag__internal_8h_source.html#l00041">diag_args::verify_tls</a>.</p>
 
 </div>
 </div>
@@ -1306,7 +1329,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00081">81</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00082">82</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
@@ -1346,7 +1369,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00485">485</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00486">486</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">References <a class="el" href="diag__internal_8h_source.html#l00184">s3_sign_req::ak</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00204">brix_s3_sign_v4()</a>, <a class="el" href="diag__internal_8h_source.html#l00182">s3_sign_req::host</a>, <a class="el" href="diag__internal_8h_source.html#l00181">s3_sign_req::method</a>, <a class="el" href="diag__internal_8h_source.html#l00185">s3_sign_req::region</a>, <a class="el" href="diag__internal_8h_source.html#l00184">s3_sign_req::sk</a>, and <a class="el" href="diag__internal_8h_source.html#l00183">s3_sign_req::uri</a>.</p>
 
@@ -1354,8 +1377,8 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="ae8605e2b78cd4a81b6c6b5c30cb7366a" name="ae8605e2b78cd4a81b6c6b5c30cb7366a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae8605e2b78cd4a81b6c6b5c30cb7366a">&#9670;&#160;</a></span>usage()</h2>
+<a id="a364112f4dc61f0649eec6b78e586509d" name="a364112f4dc61f0649eec6b78e586509d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a364112f4dc61f0649eec6b78e586509d">&#9670;&#160;</a></span>usage()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1363,23 +1386,21 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">void usage </td>
           <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00637">637</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00640">640</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00598">usage_fp()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00771">dx_parse_argv()</a>, <a class="el" href="xrddiag_8c_source.html#l00871">dx_unknown_sub()</a>, and <a class="el" href="xrddiag_8c_source.html#l00910">main()</a>.</p>
+<p class="reference">References <a class="el" href="xrddiag_8c_source.html#l00599">usage_fp()</a>.</p>
 
 </div>
 </div>
-<a id="a28999b7bf77e817ab21c70002c3ad233" name="a28999b7bf77e817ab21c70002c3ad233"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a28999b7bf77e817ab21c70002c3ad233">&#9670;&#160;</a></span>usage_fp()</h2>
+<a id="a017babcb376a0b2a74e3762918e3d31e" name="a017babcb376a0b2a74e3762918e3d31e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a017babcb376a0b2a74e3762918e3d31e">&#9670;&#160;</a></span>usage_fp()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1391,8 +1412,18 @@ Variables</h2></td></tr>
           <td class="memname">static void usage_fp </td>
           <td>(</td>
           <td class="paramtype">FILE *&#160;</td>
-          <td class="paramname"><em>out</em></td><td>)</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -1402,11 +1433,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00598">598</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00599">599</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>.</p>
+<p class="reference">References <a class="el" href="progname_8h_source.html#l00036">brix_prog_base()</a>, and <a class="el" href="progname_8h_source.html#l00084">brix_usage_footer()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00771">dx_parse_argv()</a>, <a class="el" href="xrddiag_8c_source.html#l00910">main()</a>, and <a class="el" href="xrddiag_8c_source.html#l00637">usage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00774">dx_parse_argv()</a>, <a class="el" href="xrddiag_8c_source.html#l00917">main()</a>, and <a class="el" href="xrddiag_8c_source.html#l00640">usage()</a>.</p>
 
 </div>
 </div>
@@ -1457,9 +1488,9 @@ Variables</h2></td></tr>
 <div class="ttc" id="adiag__internal_8h_html_ad62a13e964d1d8b7cbf70cfeffc08c82"><div class="ttname"><a href="diag__internal_8h.html#ad62a13e964d1d8b7cbf70cfeffc08c82">do_probe_robustness</a></div><div class="ttdeci">int do_probe_robustness(const diag_args *a)</div><div class="ttdef"><b>Definition</b> <a href="diag__misc_8c_source.html#l00252">diag_misc.c:252</a></div></div>
 <div class="ttc" id="adiag__internal_8h_html_aef689df7dfb41d4b586a530604444bbf"><div class="ttname"><a href="diag__internal_8h.html#aef689df7dfb41d4b586a530604444bbf">do_replay</a></div><div class="ttdeci">int do_replay(const diag_args *a)</div><div class="ttdef"><b>Definition</b> <a href="diag__misc_8c_source.html#l00301">diag_misc.c:301</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00847">847</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00854">854</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00896">dx_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00903">dx_dispatch()</a>.</p>
 
 </div>
 </div>
@@ -1504,14 +1535,14 @@ Variables</h2></td></tr>
 <div class="line">    { <span class="stringliteral">&quot;--prometheus&quot;</span>,      <a class="code hl_enumvalue" href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1a18150e367da8f4e81fc4815c5593ae8c">DXO_FLAG</a>,  offsetof(<a class="code hl_struct" href="structdiag__args.html">diag_args</a>, watch_prom) },</div>
 <div class="line">}</div>
 <div class="ttc" id="astructdiag__args_html"><div class="ttname"><a href="structdiag__args.html">diag_args</a></div><div class="ttdef"><b>Definition</b> <a href="diag__internal_8h_source.html#l00025">diag_internal.h:25</a></div></div>
-<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1a18150e367da8f4e81fc4815c5593ae8c"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1a18150e367da8f4e81fc4815c5593ae8c">DXO_FLAG</a></div><div class="ttdeci">@ DXO_FLAG</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00653">xrddiag.c:653</a></div></div>
-<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1adc13aa513ba33cf0e657888df4192992"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1adc13aa513ba33cf0e657888df4192992">DXO_INT</a></div><div class="ttdeci">@ DXO_INT</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00655">xrddiag.c:655</a></div></div>
-<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1afbb76274d89712c62582b08fc3ed4f2c"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1afbb76274d89712c62582b08fc3ed4f2c">DXO_STR</a></div><div class="ttdeci">@ DXO_STR</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00656">xrddiag.c:656</a></div></div>
-<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1affe61e3584b39d7cac81a6a951b58565"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1affe61e3584b39d7cac81a6a951b58565">DXO_CLEAR</a></div><div class="ttdeci">@ DXO_CLEAR</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00654">xrddiag.c:654</a></div></div>
+<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1a18150e367da8f4e81fc4815c5593ae8c"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1a18150e367da8f4e81fc4815c5593ae8c">DXO_FLAG</a></div><div class="ttdeci">@ DXO_FLAG</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00656">xrddiag.c:656</a></div></div>
+<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1adc13aa513ba33cf0e657888df4192992"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1adc13aa513ba33cf0e657888df4192992">DXO_INT</a></div><div class="ttdeci">@ DXO_INT</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00658">xrddiag.c:658</a></div></div>
+<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1afbb76274d89712c62582b08fc3ed4f2c"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1afbb76274d89712c62582b08fc3ed4f2c">DXO_STR</a></div><div class="ttdeci">@ DXO_STR</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00659">xrddiag.c:659</a></div></div>
+<div class="ttc" id="axrddiag_8c_html_a1c1871a20e2e59daa97e9473d65068e1affe61e3584b39d7cac81a6a951b58565"><div class="ttname"><a href="xrddiag_8c.html#a1c1871a20e2e59daa97e9473d65068e1affe61e3584b39d7cac81a6a951b58565">DXO_CLEAR</a></div><div class="ttdeci">@ DXO_CLEAR</div><div class="ttdef"><b>Definition</b> <a href="xrddiag_8c_source.html#l00657">xrddiag.c:657</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00665">665</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00668">668</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00731">dx_opt_parse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00734">dx_opt_parse()</a>.</p>
 
 </div>
 </div>
@@ -1527,9 +1558,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00014">14</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00015">15</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00135">dx_record_status()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00136">dx_record_status()</a>.</p>
 
 </div>
 </div>
@@ -1572,9 +1603,9 @@ Variables</h2></td></tr>
 <div class="ttc" id="adiag__internal_8h_html_acd64e9fcc40d86912d237b498ff7f115a5d5c56a3494aaf4951a20259c5aa965a"><div class="ttname"><a href="diag__internal_8h.html#acd64e9fcc40d86912d237b498ff7f115a5d5c56a3494aaf4951a20259c5aa965a">DXP_S3</a></div><div class="ttdeci">@ DXP_S3</div><div class="ttdef"><b>Definition</b> <a href="diag__internal_8h_source.html#l00073">diag_internal.h:73</a></div></div>
 <div class="ttc" id="adiag__internal_8h_html_acd64e9fcc40d86912d237b498ff7f115a685fbda6e3363f5a8c4a640c90ccc6b5"><div class="ttname"><a href="diag__internal_8h.html#acd64e9fcc40d86912d237b498ff7f115a685fbda6e3363f5a8c4a640c90ccc6b5">DXP_HTTP</a></div><div class="ttdeci">@ DXP_HTTP</div><div class="ttdef"><b>Definition</b> <a href="diag__internal_8h_source.html#l00070">diag_internal.h:70</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00297">297</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00298">298</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00319">dx_scheme_match()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrddiag_8c_source.html#l00320">dx_scheme_match()</a>.</p>
 
 </div>
 </div>
@@ -1590,7 +1621,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00012">12</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00013">13</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__check_8c_source.html#l00403">do_check()</a>, <a class="el" href="diag__compare_8c_source.html#l00278">do_compare()</a>, <a class="el" href="diag__compare_8c_source.html#l00057">do_compare_davs()</a>, <a class="el" href="diag__misc_8c_source.html#l00252">do_probe_robustness()</a>, <a class="el" href="diag__topology_8c_source.html#l00208">do_topology()</a>, and <a class="el" href="diag__compare_8c_source.html#l00008">probe()</a>.</p>
 
@@ -1608,7 +1639,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00076">76</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrddiag_8c_source.html#l00077">77</a> of file <a class="el" href="xrddiag_8c_source.html">xrddiag.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="diag__watch_8c_source.html#l00307">do_watch()</a>, <a class="el" href="diag__watch_8c_source.html#l00065">watch_on_signal()</a>, and <a class="el" href="diag__watch_8c_source.html#l00296">watch_sleep()</a>.</p>
 

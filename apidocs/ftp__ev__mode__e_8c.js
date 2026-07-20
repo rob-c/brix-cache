@@ -14,6 +14,7 @@ var ftp__ev__mode__e_8c =
     [ "ev_eb_marker_perf", "ftp__ev__mode__e_8c.html#a5588b652531020643a098fb0efb12bfa", null ],
     [ "ev_eb_marker_range", "ftp__ev__mode__e_8c.html#a251660b5dfb25e107bbd51eb1fd81806", null ],
     [ "ev_eb_range_cmp", "ftp__ev__mode__e_8c.html#af27151e486f28098edefcfd08cb96d53", null ],
+    [ "ev_eb_ranges_contiguous", "ftp__ev__mode__e_8c.html#a058dfb755e3af4d1dd621f4ebba418fc", null ],
     [ "ev_eb_receiver_open", "ftp__ev__mode__e_8c.html#ab0d97c2d4012593bd6b1dc9a749c52bf", null ],
     [ "ev_eb_send_idle", "ftp__ev__mode__e_8c.html#a3f6056243035f96a465d783e48714fe1", null ],
     [ "ev_eb_slot", "ftp__ev__mode__e_8c.html#aa894670981e889bd4bf6002582709dca", null ],

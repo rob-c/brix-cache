@@ -121,6 +121,10 @@ Functions</h2></td></tr>
 <tr class="separator:ae5b0b289dd4597ae8297a50a20dbce47"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5fe17558d2ce7b559e5673928b4cd7ce" id="r_a5fe17558d2ce7b559e5673928b4cd7ce"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source__internal_8h.html#a5fe17558d2ce7b559e5673928b4cd7ce">tpc_close_source</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd, const u_char *fhandle)</td></tr>
 <tr class="separator:a5fe17558d2ce7b559e5673928b4cd7ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6aace5d71b5faf429a79ffc2be2409b6" id="r_a6aace5d71b5faf429a79ffc2be2409b6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source__internal_8h.html#a6aace5d71b5faf429a79ffc2be2409b6">tpc_stat_source</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd)</td></tr>
+<tr class="separator:a6aace5d71b5faf429a79ffc2be2409b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad3077a1e67aa08c42b4edcadd9ead9d6" id="r_ad3077a1e67aa08c42b4edcadd9ead9d6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="source__internal_8h.html#ad3077a1e67aa08c42b4edcadd9ead9d6">tpc_verify_source_checksum</a> (<a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *t, int fd)</td></tr>
+<tr class="separator:ad3077a1e67aa08c42b4edcadd9ead9d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a5fe17558d2ce7b559e5673928b4cd7ce" name="a5fe17558d2ce7b559e5673928b4cd7ce"></a>
@@ -155,7 +159,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="source__stream_8c_source.html#l00291">291</a> of file <a class="el" href="source__stream_8c_source.html">source_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="source__stream_8c_source.html#l00539">539</a> of file <a class="el" href="source__stream_8c_source.html">source_stream.c</a>.</p>
 
 <p class="reference">References <a class="el" href="wire__core__requests_8h_source.html#l00430">ClientCloseRequest::fhandle</a>, <a class="el" href="opcodes_8h_source.html#l00048">kXR_close</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__core__requests_8h_source.html#l00429">ClientCloseRequest::requestid</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="wire__core__requests_8h_source.html#l00428">ClientCloseRequest::streamid</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
 
@@ -197,7 +201,41 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="source__open_8c_source.html#l00433">433</a> of file <a class="el" href="source__open_8c_source.html">source_open.c</a>.</p>
 
-<p class="reference">References <a class="el" href="source__open_8c_source.html#l00070">tpc_open_ctx_t::buf</a>, <a class="el" href="source__open_8c_source.html#l00325">tpc_open_buf_t::buf</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="source__open_8c_source.html#l00069">tpc_open_ctx_t::fd</a>, <a class="el" href="source__open_8c_source.html#l00071">tpc_open_ctx_t::len</a>, <a class="el" href="source__open_8c_source.html#l00327">tpc_open_buf_t::len</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="tpc__internal_8h_source.html#l00023">TPC_IO_TIMEOUT_SEC</a>, <a class="el" href="source__open_8c_source.html#l00293">tpc_open_build_opaque()</a>, <a class="el" href="source__open_8c_source.html#l00339">tpc_open_build_request()</a>, <a class="el" href="source__open_8c_source.html#l00389">tpc_open_extract_fhandle()</a>, <a class="el" href="source__open_8c_source.html#l00240">tpc_open_resolve()</a>, <a class="el" href="tpc__internal_8h_source.html#l00034">TPC_OPEN_WAIT_CAP_SEC</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, and <a class="el" href="source__open_8c_source.html#l00035">tpc_set_rcvtimeo()</a>.</p>
+<p class="reference">References <a class="el" href="source__open_8c_source.html#l00070">tpc_open_ctx_t::buf</a>, <a class="el" href="source__open_8c_source.html#l00325">tpc_open_buf_t::buf</a>, <a class="el" href="tpc__internal_8h_source.html#l00132">brix_tpc_pull_t::err_msg</a>, <a class="el" href="source__open_8c_source.html#l00069">tpc_open_ctx_t::fd</a>, <a class="el" href="source__open_8c_source.html#l00071">tpc_open_ctx_t::len</a>, <a class="el" href="source__open_8c_source.html#l00327">tpc_open_buf_t::len</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="tpc__internal_8h_source.html#l00023">TPC_IO_TIMEOUT_SEC</a>, <a class="el" href="source__open_8c_source.html#l00293">tpc_open_build_opaque()</a>, <a class="el" href="source__open_8c_source.html#l00339">tpc_open_build_request()</a>, <a class="el" href="source__open_8c_source.html#l00389">tpc_open_extract_fhandle()</a>, <a class="el" href="source__open_8c_source.html#l00240">tpc_open_resolve()</a>, <a class="el" href="tpc__internal_8h_source.html#l00034">TPC_OPEN_WAIT_CAP_SEC</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, and <a class="el" href="source__open_8c_source.html#l00035">tpc_set_rcvtimeo()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00020">tpc_pull_from_source()</a>.</p>
+
+</div>
+</div>
+<a id="a6aace5d71b5faf429a79ffc2be2409b6" name="a6aace5d71b5faf429a79ffc2be2409b6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6aace5d71b5faf429a79ffc2be2409b6">&#9670;&#160;</a></span>tpc_stat_source()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpc_stat_source </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="source__stream_8c_source.html#l00356">356</a> of file <a class="el" href="source__stream_8c_source.html">source_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00132">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00062">kXR_stat</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="tpc__internal_8h_source.html#l00105">brix_tpc_pull_t::src_path</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::src_size</a>, <a class="el" href="tpc__internal_8h_source.html#l00131">brix_tpc_pull_t::src_size_known</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, <a class="el" href="source__stream_8c_source.html#l00321">tpc_stat_parse_size()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00020">tpc_pull_from_source()</a>.</p>
 
@@ -235,9 +273,43 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="source__stream_8c_source.html#l00236">236</a> of file <a class="el" href="source__stream_8c_source.html">source_stream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="source__stream_8c_source.html#l00238">238</a> of file <a class="el" href="source__stream_8c_source.html">source_stream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::result</a>, <a class="el" href="source__stream_8c_source.html#l00155">tpc_stream_drain_request()</a>, <a class="el" href="source__stream_8c_source.html#l00042">tpc_stream_send_read()</a>, <a class="el" href="source__stream_8c_source.html#l00202">tpc_stream_sync_dst()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="tpc__internal_8h_source.html#l00127">brix_tpc_pull_t::bytes_written</a>, <a class="el" href="tpc__internal_8h_source.html#l00099">brix_tpc_pull_t::conf</a>, <a class="el" href="tpc__internal_8h_source.html#l00132">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="tpc__internal_8h_source.html#l00122">brix_tpc_pull_t::result</a>, <a class="el" href="tpc__internal_8h_source.html#l00128">brix_tpc_pull_t::src_size</a>, <a class="el" href="tpc__internal_8h_source.html#l00131">brix_tpc_pull_t::src_size_known</a>, <a class="el" href="source__stream_8c_source.html#l00157">tpc_stream_drain_request()</a>, <a class="el" href="source__stream_8c_source.html#l00044">tpc_stream_send_read()</a>, <a class="el" href="source__stream_8c_source.html#l00204">tpc_stream_sync_dst()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00020">tpc_pull_from_source()</a>.</p>
+
+</div>
+</div>
+<a id="ad3077a1e67aa08c42b4edcadd9ead9d6" name="ad3077a1e67aa08c42b4edcadd9ead9d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad3077a1e67aa08c42b4edcadd9ead9d6">&#9670;&#160;</a></span>tpc_verify_source_checksum()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpc_verify_source_checksum </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__tpc__pull__t.html">brix_tpc_pull_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="source__stream_8c_source.html#l00413">413</a> of file <a class="el" href="source__stream_8c_source.html">source_stream.c</a>.</p>
+
+<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">alg</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00460">brix_checksum_hex_name_fd()</a>, <a class="el" href="tpc__internal_8h_source.html#l00097">brix_tpc_pull_t::c</a>, <a class="el" href="tpc__internal_8h_source.html#l00119">brix_tpc_pull_t::dst_fd</a>, <a class="el" href="tpc__internal_8h_source.html#l00118">brix_tpc_pull_t::dst_path</a>, <a class="el" href="tpc__internal_8h_source.html#l00132">brix_tpc_pull_t::err_msg</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="opcodes_8h_source.html#l00196">kXR_Qcksum</a>, <a class="el" href="opcodes_8h_source.html#l00046">kXR_query</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="tpc__internal_8h_source.html#l00105">brix_tpc_pull_t::src_path</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00119">tpc_recv_response()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, and <a class="el" href="tpc__internal_8h_source.html#l00123">brix_tpc_pull_t::xrd_error</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="source_8c_source.html#l00020">tpc_pull_from_source()</a>.</p>
 

@@ -710,142 +710,199 @@ $(document).ready(function(){initNavTree('origin__protocol_8c_source.html',''); 
 <div class="line"><a id="l00580" name="l00580"></a><span class="lineno">  580</span><span class="comment"> * origin with no checksum or a wire hiccup must NOT fail an otherwise-complete</span></div>
 <div class="line"><a id="l00581" name="l00581"></a><span class="lineno">  581</span><span class="comment"> * fill (data is already on disk) — on ANY failure it restores t&#39;s error state</span></div>
 <div class="line"><a id="l00582" name="l00582"></a><span class="lineno">  582</span><span class="comment"> * and returns 0 with out-&gt;alg emptied, so the caller treats it as &quot;no origin</span></div>
-<div class="line"><a id="l00583" name="l00583"></a><span class="lineno">  583</span><span class="comment"> * digest&quot; and the verify policy decides. */</span></div>
-<div class="line"><a id="l00584" name="l00584"></a><span class="lineno">  584</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00585" data-start="{" data-end="}">
-<div class="line"><a id="l00585" name="l00585"></a><span class="lineno"><a class="line" href="cache__internal_8h.html#aa02324ae02b841448582815397fd56a9">  585</a></span><a class="code hl_function" href="origin__protocol_8c.html#aa02324ae02b841448582815397fd56a9">brix_cache_origin_query_checksum</a>(<a class="code hl_struct" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t,</div>
-<div class="line"><a id="l00586" name="l00586"></a><span class="lineno">  586</span>    <a class="code hl_struct" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__cache__cksum__out__t.html">brix_cache_cksum_out_t</a> *out)</div>
-<div class="line"><a id="l00587" name="l00587"></a><span class="lineno">  587</span>{</div>
-<div class="line"><a id="l00588" name="l00588"></a><span class="lineno">  588</span>    uint16_t  status;</div>
-<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span>    uint32_t  dlen;</div>
-<div class="line"><a id="l00590" name="l00590"></a><span class="lineno">  590</span>    u_char   *body;</div>
-<div class="line"><a id="l00591" name="l00591"></a><span class="lineno">  591</span>    <span class="keywordtype">int</span>       saved_result, saved_xrd;</div>
-<div class="line"><a id="l00592" name="l00592"></a><span class="lineno">  592</span> </div>
-<div class="line"><a id="l00593" name="l00593"></a><span class="lineno">  593</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a8800a72dc3d89359df08916f1daea52f">alg_sz</a> &gt; 0) {</div>
-<div class="line"><a id="l00594" name="l00594"></a><span class="lineno">  594</span>        out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a664d2f1006c1f5febbbedf45ada99c57">alg</a>[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00595" name="l00595"></a><span class="lineno">  595</span>    }</div>
-<div class="line"><a id="l00596" name="l00596"></a><span class="lineno">  596</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#ab2084d5a23dfdac4be629d2494a6780c">hex_sz</a> &gt; 0) {</div>
-<div class="line"><a id="l00597" name="l00597"></a><span class="lineno">  597</span>        out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a2093480d2042770aac82c2e57c5e082b">hex</a>[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00598" name="l00598"></a><span class="lineno">  598</span>    }</div>
-<div class="line"><a id="l00599" name="l00599"></a><span class="lineno">  599</span> </div>
-<div class="line"><a id="l00600" name="l00600"></a><span class="lineno">  600</span>    <span class="comment">/* The download already succeeded; never let a checksum-query failure leak an</span></div>
-<div class="line"><a id="l00601" name="l00601"></a><span class="lineno">  601</span><span class="comment">     * error onto the task. Snapshot and restore the error triple. */</span></div>
-<div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span>    saved_result = t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a2ef9e18c01e8e2a8e63ba9b662eac193">result</a>;</div>
-<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span>    saved_xrd    = t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a9a7354881521bc606cb9240f61c173bc">xrd_error</a>;</div>
-<div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span> </div>
-<div class="line"><a id="l00605" name="l00605"></a><span class="lineno">  605</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="origin__protocol_8c.html#a8476834b8bfb3c5d76ea7241ff3674b7">origin_cksum_send_query</a>(t, oc) != 0) {</div>
-<div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00607" name="l00607"></a><span class="lineno">  607</span>    }</div>
-<div class="line"><a id="l00608" name="l00608"></a><span class="lineno">  608</span> </div>
-<div class="line"><a id="l00609" name="l00609"></a><span class="lineno">  609</span>    body = NULL;</div>
-<div class="line"><a id="l00610" name="l00610"></a><span class="lineno">  610</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#ac8a960e6a345d0438b9220d930ea3737">brix_cache_read_response</a>(t, oc, &amp;status, &amp;body, &amp;dlen, 512) != 0) {</div>
-<div class="line"><a id="l00611" name="l00611"></a><span class="lineno">  611</span>        t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a2ef9e18c01e8e2a8e63ba9b662eac193">result</a>    = saved_result;</div>
-<div class="line"><a id="l00612" name="l00612"></a><span class="lineno">  612</span>        t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a9a7354881521bc606cb9240f61c173bc">xrd_error</a> = saved_xrd;</div>
-<div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span>    }</div>
-<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span> </div>
-<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span>    <span class="keywordflow">if</span> (status != <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a> || body == NULL || dlen == 0) {</div>
-<div class="line"><a id="l00617" name="l00617"></a><span class="lineno">  617</span>        free(body);                             <span class="comment">/* origin has no checksum */</span></div>
-<div class="line"><a id="l00618" name="l00618"></a><span class="lineno">  618</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00619" name="l00619"></a><span class="lineno">  619</span>    }</div>
-<div class="line"><a id="l00620" name="l00620"></a><span class="lineno">  620</span> </div>
-<div class="line"><a id="l00621" name="l00621"></a><span class="lineno">  621</span>    <span class="comment">/* body is NUL-terminated &quot;&lt;algo&gt; &lt;hexvalue&gt;&quot;. */</span></div>
-<div class="line"><a id="l00622" name="l00622"></a><span class="lineno">  622</span>    <a class="code hl_function" href="origin__protocol_8c.html#a8427c5f9f7f981f883da1939a7a60724">origin_cksum_split</a>(body, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a664d2f1006c1f5febbbedf45ada99c57">alg</a>, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a8800a72dc3d89359df08916f1daea52f">alg_sz</a>, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a2093480d2042770aac82c2e57c5e082b">hex</a>, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#ab2084d5a23dfdac4be629d2494a6780c">hex_sz</a>);</div>
-<div class="line"><a id="l00623" name="l00623"></a><span class="lineno">  623</span> </div>
-<div class="line"><a id="l00624" name="l00624"></a><span class="lineno">  624</span>    free(body);</div>
-<div class="line"><a id="l00625" name="l00625"></a><span class="lineno">  625</span>    <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00626" name="l00626"></a><span class="lineno">  626</span>}</div>
+<div class="line"><a id="l00583" name="l00583"></a><span class="lineno">  583</span><span class="comment"> * digest&quot; and the verify policy decides.</span></div>
+<div class="line"><a id="l00584" name="l00584"></a><span class="lineno">  584</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00585" name="l00585"></a><span class="lineno">  585</span><span class="comment"> * WAITRESP: a real origin usually does NOT have the digest cached at fill time —</span></div>
+<div class="line"><a id="l00586" name="l00586"></a><span class="lineno">  586</span><span class="comment"> * it computes it on demand and PARKS the query with kXR_waitresp, then delivers</span></div>
+<div class="line"><a id="l00587" name="l00587"></a><span class="lineno">  587</span><span class="comment"> * the answer as an unsolicited kXR_attn(kXR_asynresp) frame (exactly what a stock</span></div>
+<div class="line"><a id="l00588" name="l00588"></a><span class="lineno">  588</span><span class="comment"> * XRootD client absorbs transparently). We follow that handshake for a bounded</span></div>
+<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span><span class="comment"> * number of hops so the common lazy-checksum origin still yields a digest for</span></div>
+<div class="line"><a id="l00590" name="l00590"></a><span class="lineno">  590</span><span class="comment"> * verify=require, while a hostile origin that streams frames forever cannot wedge</span></div>
+<div class="line"><a id="l00591" name="l00591"></a><span class="lineno">  591</span><span class="comment"> * the fill thread — each recv is bounded by the origin socket timeout and the hop</span></div>
+<div class="line"><a id="l00592" name="l00592"></a><span class="lineno">  592</span><span class="comment"> * count caps the exchange. Unrelated async pushes (kXR_asyncms) are skipped. */</span></div>
+<div class="line"><a id="l00593" name="l00593"></a><span class="lineno">  593</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00594" data-start="{" data-end="}">
+<div class="line"><a id="l00594" name="l00594"></a><span class="lineno"><a class="line" href="cache__internal_8h.html#aa02324ae02b841448582815397fd56a9">  594</a></span><a class="code hl_function" href="origin__protocol_8c.html#aa02324ae02b841448582815397fd56a9">brix_cache_origin_query_checksum</a>(<a class="code hl_struct" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t,</div>
+<div class="line"><a id="l00595" name="l00595"></a><span class="lineno">  595</span>    <a class="code hl_struct" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__cache__cksum__out__t.html">brix_cache_cksum_out_t</a> *out)</div>
+<div class="line"><a id="l00596" name="l00596"></a><span class="lineno">  596</span>{</div>
+<div class="line"><a id="l00597" name="l00597"></a><span class="lineno">  597</span>    uint16_t  status;</div>
+<div class="line"><a id="l00598" name="l00598"></a><span class="lineno">  598</span>    uint32_t  dlen;</div>
+<div class="line"><a id="l00599" name="l00599"></a><span class="lineno">  599</span>    u_char   *body;</div>
+<div class="line"><a id="l00600" name="l00600"></a><span class="lineno">  600</span>    <span class="keywordtype">int</span>       saved_result, saved_xrd;</div>
+<div class="line"><a id="l00601" name="l00601"></a><span class="lineno">  601</span>    <span class="keywordtype">int</span>       hops;</div>
+<div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span> </div>
+<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a8800a72dc3d89359df08916f1daea52f">alg_sz</a> &gt; 0) {</div>
+<div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span>        out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a664d2f1006c1f5febbbedf45ada99c57">alg</a>[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00605" name="l00605"></a><span class="lineno">  605</span>    }</div>
+<div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span>    <span class="keywordflow">if</span> (out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#ab2084d5a23dfdac4be629d2494a6780c">hex_sz</a> &gt; 0) {</div>
+<div class="line"><a id="l00607" name="l00607"></a><span class="lineno">  607</span>        out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a2093480d2042770aac82c2e57c5e082b">hex</a>[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00608" name="l00608"></a><span class="lineno">  608</span>    }</div>
+<div class="line"><a id="l00609" name="l00609"></a><span class="lineno">  609</span> </div>
+<div class="line"><a id="l00610" name="l00610"></a><span class="lineno">  610</span>    <span class="comment">/* The download already succeeded; never let a checksum-query failure leak an</span></div>
+<div class="line"><a id="l00611" name="l00611"></a><span class="lineno">  611</span><span class="comment">     * error onto the task. Snapshot and restore the error triple. */</span></div>
+<div class="line"><a id="l00612" name="l00612"></a><span class="lineno">  612</span>    saved_result = t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a2ef9e18c01e8e2a8e63ba9b662eac193">result</a>;</div>
+<div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span>    saved_xrd    = t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a9a7354881521bc606cb9240f61c173bc">xrd_error</a>;</div>
+<div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span> </div>
+<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="origin__protocol_8c.html#a8476834b8bfb3c5d76ea7241ff3674b7">origin_cksum_send_query</a>(t, oc) != 0) {</div>
+<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00617" name="l00617"></a><span class="lineno">  617</span>    }</div>
+<div class="line"><a id="l00618" name="l00618"></a><span class="lineno">  618</span> </div>
+<div class="line"><a id="l00619" name="l00619"></a><span class="lineno">  619</span>    <span class="keywordflow">for</span> (hops = 0; hops &lt; 8; hops++) {</div>
+<div class="line"><a id="l00620" name="l00620"></a><span class="lineno">  620</span>        body = NULL;</div>
+<div class="line"><a id="l00621" name="l00621"></a><span class="lineno">  621</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#ac8a960e6a345d0438b9220d930ea3737">brix_cache_read_response</a>(t, oc, &amp;status, &amp;body, &amp;dlen, 512) != 0) {</div>
+<div class="line"><a id="l00622" name="l00622"></a><span class="lineno">  622</span>            t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a2ef9e18c01e8e2a8e63ba9b662eac193">result</a>    = saved_result;</div>
+<div class="line"><a id="l00623" name="l00623"></a><span class="lineno">  623</span>            t-&gt;<a class="code hl_variable" href="structbrix__cache__fill__t.html#a9a7354881521bc606cb9240f61c173bc">xrd_error</a> = saved_xrd;</div>
+<div class="line"><a id="l00624" name="l00624"></a><span class="lineno">  624</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00625" name="l00625"></a><span class="lineno">  625</span>        }</div>
+<div class="line"><a id="l00626" name="l00626"></a><span class="lineno">  626</span> </div>
+<div class="line"><a id="l00627" name="l00627"></a><span class="lineno">  627</span>        <span class="keywordflow">if</span> (status == <a class="code hl_define" href="opcodes_8h.html#ac9592878b57fc80e1f0f3c4b9ff4c1bb">kXR_waitresp</a>) {</div>
+<div class="line"><a id="l00628" name="l00628"></a><span class="lineno">  628</span>            free(body);      <span class="comment">/* body = advised seconds; the answer frame follows */</span></div>
+<div class="line"><a id="l00629" name="l00629"></a><span class="lineno">  629</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00630" name="l00630"></a><span class="lineno">  630</span>        }</div>
+<div class="line"><a id="l00631" name="l00631"></a><span class="lineno">  631</span> </div>
+<div class="line"><a id="l00632" name="l00632"></a><span class="lineno">  632</span>        <span class="keywordflow">if</span> (status == <a class="code hl_define" href="opcodes_8h.html#aca84332dab92f63fc318400c2e3c9c8b">kXR_attn</a>) {</div>
+<div class="line"><a id="l00633" name="l00633"></a><span class="lineno">  633</span>            <span class="comment">/* kXR_attn asynresp body layout (opcodes.h):</span></div>
+<div class="line"><a id="l00634" name="l00634"></a><span class="lineno">  634</span><span class="comment">             *   actnum[4] reserved[4] ServerResponseHdr[8] response[inner_dlen] */</span></div>
+<div class="line"><a id="l00635" name="l00635"></a><span class="lineno">  635</span>            uint32_t  actnum;</div>
+<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span>            uint16_t  inner_status;</div>
+<div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span>            uint32_t  inner_dlen;</div>
+<div class="line"><a id="l00638" name="l00638"></a><span class="lineno">  638</span> </div>
+<div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span>            <span class="keywordflow">if</span> (body == NULL || dlen &lt; 16) {</div>
+<div class="line"><a id="l00640" name="l00640"></a><span class="lineno">  640</span>                free(body);</div>
+<div class="line"><a id="l00641" name="l00641"></a><span class="lineno">  641</span>                <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00642" name="l00642"></a><span class="lineno">  642</span>            }</div>
+<div class="line"><a id="l00643" name="l00643"></a><span class="lineno">  643</span>            actnum = <a class="code hl_function" href="frame__hdr_8h.html#af77830b5003bf87f69df0301e7fd0b6e">xrd_get_u32_be</a>(body);</div>
+<div class="line"><a id="l00644" name="l00644"></a><span class="lineno">  644</span>            <span class="keywordflow">if</span> (actnum != (uint32_t) <a class="code hl_define" href="opcodes_8h.html#a9a85f9401bf64e43b8b2e4a9be6b5b8b">kXR_asynresp</a>) {</div>
+<div class="line"><a id="l00645" name="l00645"></a><span class="lineno">  645</span>                free(body);                 <span class="comment">/* asyncms / other push — keep going */</span></div>
+<div class="line"><a id="l00646" name="l00646"></a><span class="lineno">  646</span>                <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00647" name="l00647"></a><span class="lineno">  647</span>            }</div>
+<div class="line"><a id="l00648" name="l00648"></a><span class="lineno">  648</span>            <a class="code hl_function" href="frame__hdr_8h.html#aeb9f71de57902d12ab98d7fe09013738">xrd_resp_hdr_unpack</a>(body + 8, NULL, &amp;inner_status, &amp;inner_dlen);</div>
+<div class="line"><a id="l00649" name="l00649"></a><span class="lineno">  649</span>            <span class="keywordflow">if</span> (inner_status != <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a> || inner_dlen == 0</div>
+<div class="line"><a id="l00650" name="l00650"></a><span class="lineno">  650</span>                || (<span class="keywordtype">size_t</span>) 16 + inner_dlen &gt; (<span class="keywordtype">size_t</span>) dlen)</div>
+<div class="line"><a id="l00651" name="l00651"></a><span class="lineno">  651</span>            {</div>
+<div class="line"><a id="l00652" name="l00652"></a><span class="lineno">  652</span>                free(body);                 <span class="comment">/* deferred result was not a digest */</span></div>
+<div class="line"><a id="l00653" name="l00653"></a><span class="lineno">  653</span>                <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00654" name="l00654"></a><span class="lineno">  654</span>            }</div>
+<div class="line"><a id="l00655" name="l00655"></a><span class="lineno">  655</span>            <span class="comment">/* NUL-terminate the inner payload before the split (read_response</span></div>
+<div class="line"><a id="l00656" name="l00656"></a><span class="lineno">  656</span><span class="comment">             * over-allocated dlen+1, and 16+inner_dlen &lt;= dlen, so this index is</span></div>
+<div class="line"><a id="l00657" name="l00657"></a><span class="lineno">  657</span><span class="comment">             * in bounds). */</span></div>
+<div class="line"><a id="l00658" name="l00658"></a><span class="lineno">  658</span>            body[16 + inner_dlen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00659" name="l00659"></a><span class="lineno">  659</span>            <a class="code hl_function" href="origin__protocol_8c.html#a8427c5f9f7f981f883da1939a7a60724">origin_cksum_split</a>(body + 16, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a664d2f1006c1f5febbbedf45ada99c57">alg</a>, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a8800a72dc3d89359df08916f1daea52f">alg_sz</a>,</div>
+<div class="line"><a id="l00660" name="l00660"></a><span class="lineno">  660</span>                               out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a2093480d2042770aac82c2e57c5e082b">hex</a>, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#ab2084d5a23dfdac4be629d2494a6780c">hex_sz</a>);</div>
+<div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span>            free(body);</div>
+<div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span>        }</div>
+<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span> </div>
+<div class="line"><a id="l00665" name="l00665"></a><span class="lineno">  665</span>        <span class="keywordflow">if</span> (status == <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a>) {</div>
+<div class="line"><a id="l00666" name="l00666"></a><span class="lineno">  666</span>            <span class="keywordflow">if</span> (body == NULL || dlen == 0) {</div>
+<div class="line"><a id="l00667" name="l00667"></a><span class="lineno">  667</span>                free(body);</div>
+<div class="line"><a id="l00668" name="l00668"></a><span class="lineno">  668</span>                <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00669" name="l00669"></a><span class="lineno">  669</span>            }</div>
+<div class="line"><a id="l00670" name="l00670"></a><span class="lineno">  670</span>            <span class="comment">/* body is NUL-terminated &quot;&lt;algo&gt; &lt;hexvalue&gt;&quot;. */</span></div>
+<div class="line"><a id="l00671" name="l00671"></a><span class="lineno">  671</span>            <a class="code hl_function" href="origin__protocol_8c.html#a8427c5f9f7f981f883da1939a7a60724">origin_cksum_split</a>(body, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a664d2f1006c1f5febbbedf45ada99c57">alg</a>, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a8800a72dc3d89359df08916f1daea52f">alg_sz</a>,</div>
+<div class="line"><a id="l00672" name="l00672"></a><span class="lineno">  672</span>                               out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#a2093480d2042770aac82c2e57c5e082b">hex</a>, out-&gt;<a class="code hl_variable" href="structbrix__cache__cksum__out__t.html#ab2084d5a23dfdac4be629d2494a6780c">hex_sz</a>);</div>
+<div class="line"><a id="l00673" name="l00673"></a><span class="lineno">  673</span>            free(body);</div>
+<div class="line"><a id="l00674" name="l00674"></a><span class="lineno">  674</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00675" name="l00675"></a><span class="lineno">  675</span>        }</div>
+<div class="line"><a id="l00676" name="l00676"></a><span class="lineno">  676</span> </div>
+<div class="line"><a id="l00677" name="l00677"></a><span class="lineno">  677</span>        <span class="comment">/* kXR_error or any other status: origin has no usable checksum. */</span></div>
+<div class="line"><a id="l00678" name="l00678"></a><span class="lineno">  678</span>        free(body);</div>
+<div class="line"><a id="l00679" name="l00679"></a><span class="lineno">  679</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00680" name="l00680"></a><span class="lineno">  680</span>    }</div>
+<div class="line"><a id="l00681" name="l00681"></a><span class="lineno">  681</span> </div>
+<div class="line"><a id="l00682" name="l00682"></a><span class="lineno">  682</span>    <span class="keywordflow">return</span> 0;   <span class="comment">/* too many hops — treat as no origin digest (verify decides) */</span></div>
+<div class="line"><a id="l00683" name="l00683"></a><span class="lineno">  683</span>}</div>
 </div>
-<div class="line"><a id="l00627" name="l00627"></a><span class="lineno">  627</span> </div>
-<div class="line"><a id="l00628" name="l00628"></a><span class="lineno">  628</span> </div>
-<div class="line"><a id="l00629" name="l00629"></a><span class="lineno">  629</span><span class="comment">/* brix_cache_origin_read_chunk — kXR_read at (rng-&gt;read_off, rng-&gt;want),</span></div>
-<div class="line"><a id="l00630" name="l00630"></a><span class="lineno">  630</span><span class="comment"> * writing each reply payload to the sink via brix_cache_sink_pwrite and looping</span></div>
-<div class="line"><a id="l00631" name="l00631"></a><span class="lineno">  631</span><span class="comment"> * over kXR_oksofar until the final kXR_ok. dlen is bounded (&lt;= want, accumulated</span></div>
-<div class="line"><a id="l00632" name="l00632"></a><span class="lineno">  632</span><span class="comment"> * rng-&gt;got within request bounds) to prevent overflow. Sets rng-&gt;got;</span></div>
-<div class="line"><a id="l00633" name="l00633"></a><span class="lineno">  633</span><span class="comment"> * returns 0 / -1. */</span></div>
-<div class="line"><a id="l00634" name="l00634"></a><span class="lineno">  634</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00635" data-start="{" data-end="}">
-<div class="line"><a id="l00635" name="l00635"></a><span class="lineno"><a class="line" href="cache__internal_8h.html#adfcac920a738473933af7db114628f10">  635</a></span><a class="code hl_function" href="origin__protocol_8c.html#adfcac920a738473933af7db114628f10">brix_cache_origin_read_chunk</a>(<a class="code hl_struct" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t,</div>
-<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span>    <a class="code hl_struct" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, <span class="keyword">const</span> u_char fhandle[<a class="code hl_define" href="opcodes_8h.html#a93d8ec5c6b9576a5f5d928ad82f9ef3b">XRD_FHANDLE_LEN</a>],</div>
-<div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span>    <a class="code hl_struct" href="structbrix__cache__sink__t.html">brix_cache_sink_t</a> *sink, <a class="code hl_struct" href="structbrix__cache__read__range__t.html">brix_cache_read_range_t</a> *rng)</div>
-<div class="line"><a id="l00638" name="l00638"></a><span class="lineno">  638</span>{</div>
-<div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span>    <a class="code hl_struct" href="structClientReadRequest.html">ClientReadRequest</a> req;</div>
-<div class="line"><a id="l00640" name="l00640"></a><span class="lineno">  640</span>    uint16_t          status;</div>
-<div class="line"><a id="l00641" name="l00641"></a><span class="lineno">  641</span>    uint32_t          dlen;</div>
-<div class="line"><a id="l00642" name="l00642"></a><span class="lineno">  642</span>    u_char           *body;</div>
-<div class="line"><a id="l00643" name="l00643"></a><span class="lineno">  643</span> </div>
-<div class="line"><a id="l00644" name="l00644"></a><span class="lineno">  644</span>    rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a> = 0;</div>
-<div class="line"><a id="l00645" name="l00645"></a><span class="lineno">  645</span> </div>
-<div class="line"><a id="l00646" name="l00646"></a><span class="lineno">  646</span>    ngx_memzero(&amp;req, <span class="keyword">sizeof</span>(req));</div>
-<div class="line"><a id="l00647" name="l00647"></a><span class="lineno">  647</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a45284dccd21267f1c5996fb7bfccd1fe">streamid</a>[1] = 3;</div>
-<div class="line"><a id="l00648" name="l00648"></a><span class="lineno">  648</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a3843dd98e7a051a07c11ae7721ecec73">requestid</a> = htons(<a class="code hl_define" href="opcodes_8h.html#a2f29024883754b6909c9071d8b6e4443">kXR_read</a>);</div>
-<div class="line"><a id="l00649" name="l00649"></a><span class="lineno">  649</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(req.<a class="code hl_variable" href="structClientReadRequest.html#a71ae5e04832eafb1ee299203a25c1e62">fhandle</a>, fhandle, <a class="code hl_define" href="opcodes_8h.html#a93d8ec5c6b9576a5f5d928ad82f9ef3b">XRD_FHANDLE_LEN</a>);</div>
-<div class="line"><a id="l00650" name="l00650"></a><span class="lineno">  650</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a37eb9a1dfccff238ca31dc92abbb15df">offset</a> = (<a class="code hl_typedef" href="types_8h.html#af4586c2b1d84cb0579ed6d42e00a46f2">kXR_int64</a>) htobe64(rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a245e28192dcc4f27888a34e6ca0f5644">read_off</a>);</div>
-<div class="line"><a id="l00651" name="l00651"></a><span class="lineno">  651</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#ad6ffe5fd9afb85e37f48229ccd4c2023">rlen</a> = htonl((<a class="code hl_typedef" href="types_8h.html#a8a5bb849bba0f9e18216749f88388aac">kXR_int32</a>) rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a5c984b2e9f91589032d47d30f3b8483f">want</a>);</div>
-<div class="line"><a id="l00652" name="l00652"></a><span class="lineno">  652</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a8ea90b1ce7529e7a08164d03a2dbeeb6">dlen</a> = 0;</div>
-<div class="line"><a id="l00653" name="l00653"></a><span class="lineno">  653</span> </div>
-<div class="line"><a id="l00654" name="l00654"></a><span class="lineno">  654</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#a767425e96da1702f730f2cfb81f109ac">brix_cache_io_send</a>(oc, &amp;req, <span class="keyword">sizeof</span>(req)) != 0) {</div>
-<div class="line"><a id="l00655" name="l00655"></a><span class="lineno">  655</span>        <a class="code hl_function" href="cache__internal_8h.html#a80b938fa9e754d1c155e681c53ed501e">brix_cache_set_error</a>(t, <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>, errno,</div>
-<div class="line"><a id="l00656" name="l00656"></a><span class="lineno">  656</span>                               <span class="stringliteral">&quot;cache origin read write failed&quot;</span>);</div>
-<div class="line"><a id="l00657" name="l00657"></a><span class="lineno">  657</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00658" name="l00658"></a><span class="lineno">  658</span>    }</div>
-<div class="line"><a id="l00659" name="l00659"></a><span class="lineno">  659</span> </div>
-<div class="line"><a id="l00660" name="l00660"></a><span class="lineno">  660</span>    <span class="keywordflow">for</span> (;;) {</div>
-<div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span>        body = NULL;</div>
-<div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#ac8a960e6a345d0438b9220d930ea3737">brix_cache_read_response</a>(t, oc, &amp;status, &amp;body, &amp;dlen,</div>
-<div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span>                                       <a class="code hl_define" href="cache__internal_8h.html#a499fe16645b6cd51207459ddfda89de6">BRIX_CACHE_FETCH_CHUNK</a>) != 0) {</div>
-<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span>            <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00665" name="l00665"></a><span class="lineno">  665</span>        }</div>
-<div class="line"><a id="l00666" name="l00666"></a><span class="lineno">  666</span> </div>
-<div class="line"><a id="l00667" name="l00667"></a><span class="lineno">  667</span>        <span class="keywordflow">if</span> (status == <a class="code hl_define" href="opcodes_8h.html#a5aa81617cd7483e67bc603da08ec2c4f">kXR_error</a>) {</div>
-<div class="line"><a id="l00668" name="l00668"></a><span class="lineno">  668</span>            <a class="code hl_function" href="cache__internal_8h.html#a4695fbe218f141309c2bac8237d3e7d1">brix_cache_set_origin_error</a>(t, body, dlen,</div>
-<div class="line"><a id="l00669" name="l00669"></a><span class="lineno">  669</span>                                          <span class="stringliteral">&quot;cache origin read failed&quot;</span>);</div>
-<div class="line"><a id="l00670" name="l00670"></a><span class="lineno">  670</span>            free(body);</div>
-<div class="line"><a id="l00671" name="l00671"></a><span class="lineno">  671</span>            <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00672" name="l00672"></a><span class="lineno">  672</span>        }</div>
-<div class="line"><a id="l00673" name="l00673"></a><span class="lineno">  673</span> </div>
-<div class="line"><a id="l00674" name="l00674"></a><span class="lineno">  674</span>        <span class="keywordflow">if</span> (status != <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a> &amp;&amp; status != <a class="code hl_define" href="opcodes_8h.html#ac0e0ddf62a529be9ec397ce6d21c8307">kXR_oksofar</a>) {</div>
-<div class="line"><a id="l00675" name="l00675"></a><span class="lineno">  675</span>            free(body);</div>
-<div class="line"><a id="l00676" name="l00676"></a><span class="lineno">  676</span>            <a class="code hl_function" href="cache__internal_8h.html#a80b938fa9e754d1c155e681c53ed501e">brix_cache_set_error</a>(t, <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>, 0,</div>
-<div class="line"><a id="l00677" name="l00677"></a><span class="lineno">  677</span>                                   <span class="stringliteral">&quot;cache origin read returned invalid status&quot;</span>);</div>
-<div class="line"><a id="l00678" name="l00678"></a><span class="lineno">  678</span>            <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00679" name="l00679"></a><span class="lineno">  679</span>        }</div>
-<div class="line"><a id="l00680" name="l00680"></a><span class="lineno">  680</span> </div>
-<div class="line"><a id="l00681" name="l00681"></a><span class="lineno">  681</span>        <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) dlen &gt; rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a5c984b2e9f91589032d47d30f3b8483f">want</a> || rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a> &gt; rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a5c984b2e9f91589032d47d30f3b8483f">want</a> - (<span class="keywordtype">size_t</span>) dlen) {</div>
-<div class="line"><a id="l00682" name="l00682"></a><span class="lineno">  682</span>            free(body);</div>
-<div class="line"><a id="l00683" name="l00683"></a><span class="lineno">  683</span>            <a class="code hl_function" href="cache__internal_8h.html#a80b938fa9e754d1c155e681c53ed501e">brix_cache_set_error</a>(t, <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>, 0,</div>
-<div class="line"><a id="l00684" name="l00684"></a><span class="lineno">  684</span>                                   <span class="stringliteral">&quot;cache origin read returned too much data&quot;</span>);</div>
-<div class="line"><a id="l00685" name="l00685"></a><span class="lineno">  685</span>            <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00686" name="l00686"></a><span class="lineno">  686</span>        }</div>
-<div class="line"><a id="l00687" name="l00687"></a><span class="lineno">  687</span> </div>
-<div class="line"><a id="l00688" name="l00688"></a><span class="lineno">  688</span>        <span class="keywordflow">if</span> (dlen &gt; 0) {</div>
-<div class="line"><a id="l00689" name="l00689"></a><span class="lineno">  689</span>            <span class="comment">/* Write at dst_off + bytes already written this call (rng-&gt;got).</span></div>
-<div class="line"><a id="l00690" name="l00690"></a><span class="lineno">  690</span><span class="comment">             * dst_off is the caller&#39;s WRITE base, decoupled from the origin READ</span></div>
-<div class="line"><a id="l00691" name="l00691"></a><span class="lineno">  691</span><span class="comment">             * offset: the whole-file fetch passes dst_off==read_off (absolute), a</span></div>
-<div class="line"><a id="l00692" name="l00692"></a><span class="lineno">  692</span><span class="comment">             * slice fill passes a 0-relative base. Using got alone restarts at 0</span></div>
-<div class="line"><a id="l00693" name="l00693"></a><span class="lineno">  693</span><span class="comment">             * each 1 MiB chunk, so multi-chunk whole-file fetches overwrote at</span></div>
-<div class="line"><a id="l00694" name="l00694"></a><span class="lineno">  694</span><span class="comment">             * offset 0 (corrupting any file &gt; BRIX_CACHE_FETCH_CHUNK → adler32</span></div>
-<div class="line"><a id="l00695" name="l00695"></a><span class="lineno">  695</span><span class="comment">             * mismatch). */</span></div>
-<div class="line"><a id="l00696" name="l00696"></a><span class="lineno">  696</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#a49f78c4e2d5d4caa985a706540d263a6">brix_cache_sink_pwrite</a>(sink, body, dlen,</div>
-<div class="line"><a id="l00697" name="l00697"></a><span class="lineno">  697</span>                                         (off_t) (rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a9aa35024cbd67cd131035c94e5ac0d87">dst_off</a> + rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a>)) != 0)</div>
-<div class="line"><a id="l00698" name="l00698"></a><span class="lineno">  698</span>            {</div>
-<div class="line"><a id="l00699" name="l00699"></a><span class="lineno">  699</span>                free(body);</div>
-<div class="line"><a id="l00700" name="l00700"></a><span class="lineno">  700</span>                <a class="code hl_function" href="cache__internal_8h.html#af20aa75e9df3506b988d3c51644a85d4">brix_cache_set_syserror</a>(t, <a class="code hl_define" href="opcodes_8h.html#adf851a6f2c3162960cec3ce622bda7e0">kXR_IOError</a>,</div>
-<div class="line"><a id="l00701" name="l00701"></a><span class="lineno">  701</span>                                          <span class="stringliteral">&quot;cache file write failed&quot;</span>);</div>
-<div class="line"><a id="l00702" name="l00702"></a><span class="lineno">  702</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00703" name="l00703"></a><span class="lineno">  703</span>            }</div>
-<div class="line"><a id="l00704" name="l00704"></a><span class="lineno">  704</span>            rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a> += (size_t) dlen;</div>
-<div class="line"><a id="l00705" name="l00705"></a><span class="lineno">  705</span>        }</div>
-<div class="line"><a id="l00706" name="l00706"></a><span class="lineno">  706</span> </div>
-<div class="line"><a id="l00707" name="l00707"></a><span class="lineno">  707</span>        free(body);</div>
-<div class="line"><a id="l00708" name="l00708"></a><span class="lineno">  708</span> </div>
-<div class="line"><a id="l00709" name="l00709"></a><span class="lineno">  709</span>        <span class="keywordflow">if</span> (status == <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a>) {</div>
-<div class="line"><a id="l00710" name="l00710"></a><span class="lineno">  710</span>            <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00711" name="l00711"></a><span class="lineno">  711</span>        }</div>
-<div class="line"><a id="l00712" name="l00712"></a><span class="lineno">  712</span>    }</div>
-<div class="line"><a id="l00713" name="l00713"></a><span class="lineno">  713</span>}</div>
+<div class="line"><a id="l00684" name="l00684"></a><span class="lineno">  684</span> </div>
+<div class="line"><a id="l00685" name="l00685"></a><span class="lineno">  685</span> </div>
+<div class="line"><a id="l00686" name="l00686"></a><span class="lineno">  686</span><span class="comment">/* brix_cache_origin_read_chunk — kXR_read at (rng-&gt;read_off, rng-&gt;want),</span></div>
+<div class="line"><a id="l00687" name="l00687"></a><span class="lineno">  687</span><span class="comment"> * writing each reply payload to the sink via brix_cache_sink_pwrite and looping</span></div>
+<div class="line"><a id="l00688" name="l00688"></a><span class="lineno">  688</span><span class="comment"> * over kXR_oksofar until the final kXR_ok. dlen is bounded (&lt;= want, accumulated</span></div>
+<div class="line"><a id="l00689" name="l00689"></a><span class="lineno">  689</span><span class="comment"> * rng-&gt;got within request bounds) to prevent overflow. Sets rng-&gt;got;</span></div>
+<div class="line"><a id="l00690" name="l00690"></a><span class="lineno">  690</span><span class="comment"> * returns 0 / -1. */</span></div>
+<div class="line"><a id="l00691" name="l00691"></a><span class="lineno">  691</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00692" data-start="{" data-end="}">
+<div class="line"><a id="l00692" name="l00692"></a><span class="lineno"><a class="line" href="cache__internal_8h.html#adfcac920a738473933af7db114628f10">  692</a></span><a class="code hl_function" href="origin__protocol_8c.html#adfcac920a738473933af7db114628f10">brix_cache_origin_read_chunk</a>(<a class="code hl_struct" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t,</div>
+<div class="line"><a id="l00693" name="l00693"></a><span class="lineno">  693</span>    <a class="code hl_struct" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, <span class="keyword">const</span> u_char fhandle[<a class="code hl_define" href="opcodes_8h.html#a93d8ec5c6b9576a5f5d928ad82f9ef3b">XRD_FHANDLE_LEN</a>],</div>
+<div class="line"><a id="l00694" name="l00694"></a><span class="lineno">  694</span>    <a class="code hl_struct" href="structbrix__cache__sink__t.html">brix_cache_sink_t</a> *sink, <a class="code hl_struct" href="structbrix__cache__read__range__t.html">brix_cache_read_range_t</a> *rng)</div>
+<div class="line"><a id="l00695" name="l00695"></a><span class="lineno">  695</span>{</div>
+<div class="line"><a id="l00696" name="l00696"></a><span class="lineno">  696</span>    <a class="code hl_struct" href="structClientReadRequest.html">ClientReadRequest</a> req;</div>
+<div class="line"><a id="l00697" name="l00697"></a><span class="lineno">  697</span>    uint16_t          status;</div>
+<div class="line"><a id="l00698" name="l00698"></a><span class="lineno">  698</span>    uint32_t          dlen;</div>
+<div class="line"><a id="l00699" name="l00699"></a><span class="lineno">  699</span>    u_char           *body;</div>
+<div class="line"><a id="l00700" name="l00700"></a><span class="lineno">  700</span> </div>
+<div class="line"><a id="l00701" name="l00701"></a><span class="lineno">  701</span>    rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a> = 0;</div>
+<div class="line"><a id="l00702" name="l00702"></a><span class="lineno">  702</span> </div>
+<div class="line"><a id="l00703" name="l00703"></a><span class="lineno">  703</span>    ngx_memzero(&amp;req, <span class="keyword">sizeof</span>(req));</div>
+<div class="line"><a id="l00704" name="l00704"></a><span class="lineno">  704</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a45284dccd21267f1c5996fb7bfccd1fe">streamid</a>[1] = 3;</div>
+<div class="line"><a id="l00705" name="l00705"></a><span class="lineno">  705</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a3843dd98e7a051a07c11ae7721ecec73">requestid</a> = htons(<a class="code hl_define" href="opcodes_8h.html#a2f29024883754b6909c9071d8b6e4443">kXR_read</a>);</div>
+<div class="line"><a id="l00706" name="l00706"></a><span class="lineno">  706</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(req.<a class="code hl_variable" href="structClientReadRequest.html#a71ae5e04832eafb1ee299203a25c1e62">fhandle</a>, fhandle, <a class="code hl_define" href="opcodes_8h.html#a93d8ec5c6b9576a5f5d928ad82f9ef3b">XRD_FHANDLE_LEN</a>);</div>
+<div class="line"><a id="l00707" name="l00707"></a><span class="lineno">  707</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a37eb9a1dfccff238ca31dc92abbb15df">offset</a> = (<a class="code hl_typedef" href="types_8h.html#af4586c2b1d84cb0579ed6d42e00a46f2">kXR_int64</a>) htobe64(rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a245e28192dcc4f27888a34e6ca0f5644">read_off</a>);</div>
+<div class="line"><a id="l00708" name="l00708"></a><span class="lineno">  708</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#ad6ffe5fd9afb85e37f48229ccd4c2023">rlen</a> = htonl((<a class="code hl_typedef" href="types_8h.html#a8a5bb849bba0f9e18216749f88388aac">kXR_int32</a>) rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a5c984b2e9f91589032d47d30f3b8483f">want</a>);</div>
+<div class="line"><a id="l00709" name="l00709"></a><span class="lineno">  709</span>    req.<a class="code hl_variable" href="structClientReadRequest.html#a8ea90b1ce7529e7a08164d03a2dbeeb6">dlen</a> = 0;</div>
+<div class="line"><a id="l00710" name="l00710"></a><span class="lineno">  710</span> </div>
+<div class="line"><a id="l00711" name="l00711"></a><span class="lineno">  711</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#a767425e96da1702f730f2cfb81f109ac">brix_cache_io_send</a>(oc, &amp;req, <span class="keyword">sizeof</span>(req)) != 0) {</div>
+<div class="line"><a id="l00712" name="l00712"></a><span class="lineno">  712</span>        <a class="code hl_function" href="cache__internal_8h.html#a80b938fa9e754d1c155e681c53ed501e">brix_cache_set_error</a>(t, <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>, errno,</div>
+<div class="line"><a id="l00713" name="l00713"></a><span class="lineno">  713</span>                               <span class="stringliteral">&quot;cache origin read write failed&quot;</span>);</div>
+<div class="line"><a id="l00714" name="l00714"></a><span class="lineno">  714</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00715" name="l00715"></a><span class="lineno">  715</span>    }</div>
+<div class="line"><a id="l00716" name="l00716"></a><span class="lineno">  716</span> </div>
+<div class="line"><a id="l00717" name="l00717"></a><span class="lineno">  717</span>    <span class="keywordflow">for</span> (;;) {</div>
+<div class="line"><a id="l00718" name="l00718"></a><span class="lineno">  718</span>        body = NULL;</div>
+<div class="line"><a id="l00719" name="l00719"></a><span class="lineno">  719</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#ac8a960e6a345d0438b9220d930ea3737">brix_cache_read_response</a>(t, oc, &amp;status, &amp;body, &amp;dlen,</div>
+<div class="line"><a id="l00720" name="l00720"></a><span class="lineno">  720</span>                                       <a class="code hl_define" href="cache__internal_8h.html#a499fe16645b6cd51207459ddfda89de6">BRIX_CACHE_FETCH_CHUNK</a>) != 0) {</div>
+<div class="line"><a id="l00721" name="l00721"></a><span class="lineno">  721</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00722" name="l00722"></a><span class="lineno">  722</span>        }</div>
+<div class="line"><a id="l00723" name="l00723"></a><span class="lineno">  723</span> </div>
+<div class="line"><a id="l00724" name="l00724"></a><span class="lineno">  724</span>        <span class="keywordflow">if</span> (status == <a class="code hl_define" href="opcodes_8h.html#a5aa81617cd7483e67bc603da08ec2c4f">kXR_error</a>) {</div>
+<div class="line"><a id="l00725" name="l00725"></a><span class="lineno">  725</span>            <a class="code hl_function" href="cache__internal_8h.html#a4695fbe218f141309c2bac8237d3e7d1">brix_cache_set_origin_error</a>(t, body, dlen,</div>
+<div class="line"><a id="l00726" name="l00726"></a><span class="lineno">  726</span>                                          <span class="stringliteral">&quot;cache origin read failed&quot;</span>);</div>
+<div class="line"><a id="l00727" name="l00727"></a><span class="lineno">  727</span>            free(body);</div>
+<div class="line"><a id="l00728" name="l00728"></a><span class="lineno">  728</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00729" name="l00729"></a><span class="lineno">  729</span>        }</div>
+<div class="line"><a id="l00730" name="l00730"></a><span class="lineno">  730</span> </div>
+<div class="line"><a id="l00731" name="l00731"></a><span class="lineno">  731</span>        <span class="keywordflow">if</span> (status != <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a> &amp;&amp; status != <a class="code hl_define" href="opcodes_8h.html#ac0e0ddf62a529be9ec397ce6d21c8307">kXR_oksofar</a>) {</div>
+<div class="line"><a id="l00732" name="l00732"></a><span class="lineno">  732</span>            free(body);</div>
+<div class="line"><a id="l00733" name="l00733"></a><span class="lineno">  733</span>            <a class="code hl_function" href="cache__internal_8h.html#a80b938fa9e754d1c155e681c53ed501e">brix_cache_set_error</a>(t, <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>, 0,</div>
+<div class="line"><a id="l00734" name="l00734"></a><span class="lineno">  734</span>                                   <span class="stringliteral">&quot;cache origin read returned invalid status&quot;</span>);</div>
+<div class="line"><a id="l00735" name="l00735"></a><span class="lineno">  735</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00736" name="l00736"></a><span class="lineno">  736</span>        }</div>
+<div class="line"><a id="l00737" name="l00737"></a><span class="lineno">  737</span> </div>
+<div class="line"><a id="l00738" name="l00738"></a><span class="lineno">  738</span>        <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) dlen &gt; rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a5c984b2e9f91589032d47d30f3b8483f">want</a> || rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a> &gt; rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a5c984b2e9f91589032d47d30f3b8483f">want</a> - (<span class="keywordtype">size_t</span>) dlen) {</div>
+<div class="line"><a id="l00739" name="l00739"></a><span class="lineno">  739</span>            free(body);</div>
+<div class="line"><a id="l00740" name="l00740"></a><span class="lineno">  740</span>            <a class="code hl_function" href="cache__internal_8h.html#a80b938fa9e754d1c155e681c53ed501e">brix_cache_set_error</a>(t, <a class="code hl_define" href="opcodes_8h.html#a047327de036a7d4cd811fc8af53d268a">kXR_ServerError</a>, 0,</div>
+<div class="line"><a id="l00741" name="l00741"></a><span class="lineno">  741</span>                                   <span class="stringliteral">&quot;cache origin read returned too much data&quot;</span>);</div>
+<div class="line"><a id="l00742" name="l00742"></a><span class="lineno">  742</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00743" name="l00743"></a><span class="lineno">  743</span>        }</div>
+<div class="line"><a id="l00744" name="l00744"></a><span class="lineno">  744</span> </div>
+<div class="line"><a id="l00745" name="l00745"></a><span class="lineno">  745</span>        <span class="keywordflow">if</span> (dlen &gt; 0) {</div>
+<div class="line"><a id="l00746" name="l00746"></a><span class="lineno">  746</span>            <span class="comment">/* Write at dst_off + bytes already written this call (rng-&gt;got).</span></div>
+<div class="line"><a id="l00747" name="l00747"></a><span class="lineno">  747</span><span class="comment">             * dst_off is the caller&#39;s WRITE base, decoupled from the origin READ</span></div>
+<div class="line"><a id="l00748" name="l00748"></a><span class="lineno">  748</span><span class="comment">             * offset: the whole-file fetch passes dst_off==read_off (absolute), a</span></div>
+<div class="line"><a id="l00749" name="l00749"></a><span class="lineno">  749</span><span class="comment">             * slice fill passes a 0-relative base. Using got alone restarts at 0</span></div>
+<div class="line"><a id="l00750" name="l00750"></a><span class="lineno">  750</span><span class="comment">             * each 1 MiB chunk, so multi-chunk whole-file fetches overwrote at</span></div>
+<div class="line"><a id="l00751" name="l00751"></a><span class="lineno">  751</span><span class="comment">             * offset 0 (corrupting any file &gt; BRIX_CACHE_FETCH_CHUNK → adler32</span></div>
+<div class="line"><a id="l00752" name="l00752"></a><span class="lineno">  752</span><span class="comment">             * mismatch). */</span></div>
+<div class="line"><a id="l00753" name="l00753"></a><span class="lineno">  753</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__internal_8h.html#a49f78c4e2d5d4caa985a706540d263a6">brix_cache_sink_pwrite</a>(sink, body, dlen,</div>
+<div class="line"><a id="l00754" name="l00754"></a><span class="lineno">  754</span>                                         (off_t) (rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a9aa35024cbd67cd131035c94e5ac0d87">dst_off</a> + rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a>)) != 0)</div>
+<div class="line"><a id="l00755" name="l00755"></a><span class="lineno">  755</span>            {</div>
+<div class="line"><a id="l00756" name="l00756"></a><span class="lineno">  756</span>                free(body);</div>
+<div class="line"><a id="l00757" name="l00757"></a><span class="lineno">  757</span>                <a class="code hl_function" href="cache__internal_8h.html#af20aa75e9df3506b988d3c51644a85d4">brix_cache_set_syserror</a>(t, <a class="code hl_define" href="opcodes_8h.html#adf851a6f2c3162960cec3ce622bda7e0">kXR_IOError</a>,</div>
+<div class="line"><a id="l00758" name="l00758"></a><span class="lineno">  758</span>                                          <span class="stringliteral">&quot;cache file write failed&quot;</span>);</div>
+<div class="line"><a id="l00759" name="l00759"></a><span class="lineno">  759</span>                <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00760" name="l00760"></a><span class="lineno">  760</span>            }</div>
+<div class="line"><a id="l00761" name="l00761"></a><span class="lineno">  761</span>            rng-&gt;<a class="code hl_variable" href="structbrix__cache__read__range__t.html#a57f48dd5b6c4e7b67a6b65243a559c1e">got</a> += (size_t) dlen;</div>
+<div class="line"><a id="l00762" name="l00762"></a><span class="lineno">  762</span>        }</div>
+<div class="line"><a id="l00763" name="l00763"></a><span class="lineno">  763</span> </div>
+<div class="line"><a id="l00764" name="l00764"></a><span class="lineno">  764</span>        free(body);</div>
+<div class="line"><a id="l00765" name="l00765"></a><span class="lineno">  765</span> </div>
+<div class="line"><a id="l00766" name="l00766"></a><span class="lineno">  766</span>        <span class="keywordflow">if</span> (status == <a class="code hl_define" href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a>) {</div>
+<div class="line"><a id="l00767" name="l00767"></a><span class="lineno">  767</span>            <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00768" name="l00768"></a><span class="lineno">  768</span>        }</div>
+<div class="line"><a id="l00769" name="l00769"></a><span class="lineno">  769</span>    }</div>
+<div class="line"><a id="l00770" name="l00770"></a><span class="lineno">  770</span>}</div>
 </div>
-<div class="line"><a id="l00714" name="l00714"></a><span class="lineno">  714</span> </div>
+<div class="line"><a id="l00771" name="l00771"></a><span class="lineno">  771</span> </div>
 <div class="ttc" id="abootstrap__pack_8h_html"><div class="ttname"><a href="bootstrap__pack_8h.html">bootstrap_pack.h</a></div></div>
 <div class="ttc" id="abootstrap__pack_8h_html_a24418591ae5ce6b6e36393bb540e5a84"><div class="ttname"><a href="bootstrap__pack_8h.html#a24418591ae5ce6b6e36393bb540e5a84">xrd_pack_handshake</a></div><div class="ttdeci">static void xrd_pack_handshake(ClientInitHandShake *hs)</div><div class="ttdef"><b>Definition</b> <a href="bootstrap__pack_8h_source.html#l00045">bootstrap_pack.h:45</a></div></div>
 <div class="ttc" id="abootstrap__pack_8h_html_a5f17591aa69d17ec62a69db16c485637"><div class="ttname"><a href="bootstrap__pack_8h.html#a5f17591aa69d17ec62a69db16c485637">xrd_pack_protocol_request</a></div><div class="ttdeci">static void xrd_pack_protocol_request(ClientProtocolRequest *pr, const uint8_t streamid[2], uint8_t flags)</div><div class="ttdef"><b>Definition</b> <a href="bootstrap__pack_8h_source.html#l00061">bootstrap_pack.h:61</a></div></div>
@@ -869,6 +926,8 @@ $(document).ready(function(){initNavTree('origin__protocol_8c_source.html',''); 
 <div class="ttc" id="aflags_8h_html_ab37673562ce6bcfaaba8c319a8e99f42"><div class="ttname"><a href="flags_8h.html#ab37673562ce6bcfaaba8c319a8e99f42">kXR_ver005</a></div><div class="ttdeci">#define kXR_ver005</div><div class="ttdef"><b>Definition</b> <a href="flags_8h_source.html#l00117">flags.h:117</a></div></div>
 <div class="ttc" id="aflags_8h_html_acf39855fd4e8a25f16b21ca58afd8e3d"><div class="ttname"><a href="flags_8h.html#acf39855fd4e8a25f16b21ca58afd8e3d">kXR_ableTLS</a></div><div class="ttdeci">#define kXR_ableTLS</div><div class="ttdef"><b>Definition</b> <a href="flags_8h_source.html#l00067">flags.h:67</a></div></div>
 <div class="ttc" id="aframe__hdr_8h_html"><div class="ttname"><a href="frame__hdr_8h.html">frame_hdr.h</a></div></div>
+<div class="ttc" id="aframe__hdr_8h_html_aeb9f71de57902d12ab98d7fe09013738"><div class="ttname"><a href="frame__hdr_8h.html#aeb9f71de57902d12ab98d7fe09013738">xrd_resp_hdr_unpack</a></div><div class="ttdeci">static void xrd_resp_hdr_unpack(const uint8_t h[8], uint16_t *streamid, uint16_t *status, uint32_t *dlen)</div><div class="ttdef"><b>Definition</b> <a href="frame__hdr_8h_source.html#l00083">frame_hdr.h:83</a></div></div>
+<div class="ttc" id="aframe__hdr_8h_html_af77830b5003bf87f69df0301e7fd0b6e"><div class="ttname"><a href="frame__hdr_8h.html#af77830b5003bf87f69df0301e7fd0b6e">xrd_get_u32_be</a></div><div class="ttdeci">static uint32_t xrd_get_u32_be(const void *p)</div><div class="ttdef"><b>Definition</b> <a href="frame__hdr_8h_source.html#l00038">frame_hdr.h:38</a></div></div>
 <div class="ttc" id="agsi_8h_html"><div class="ttname"><a href="gsi_8h.html">gsi.h</a></div></div>
 <div class="ttc" id="agsi__core_8h_html"><div class="ttname"><a href="gsi__core_8h.html">gsi_core.h</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
@@ -883,10 +942,13 @@ $(document).ready(function(){initNavTree('origin__protocol_8c_source.html',''); 
 <div class="ttc" id="aopcodes_8h_html_a790b43be43892c812f9f587a216d7774"><div class="ttname"><a href="opcodes_8h.html#a790b43be43892c812f9f587a216d7774">kXR_query</a></div><div class="ttdeci">#define kXR_query</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00046">opcodes.h:46</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a93d8ec5c6b9576a5f5d928ad82f9ef3b"><div class="ttname"><a href="opcodes_8h.html#a93d8ec5c6b9576a5f5d928ad82f9ef3b">XRD_FHANDLE_LEN</a></div><div class="ttdeci">#define XRD_FHANDLE_LEN</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00029">opcodes.h:29</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a9a47d787a58910193af847806b3f8090"><div class="ttname"><a href="opcodes_8h.html#a9a47d787a58910193af847806b3f8090">kXR_Unsupported</a></div><div class="ttdeci">#define kXR_Unsupported</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00159">opcodes.h:159</a></div></div>
+<div class="ttc" id="aopcodes_8h_html_a9a85f9401bf64e43b8b2e4a9be6b5b8b"><div class="ttname"><a href="opcodes_8h.html#a9a85f9401bf64e43b8b2e4a9be6b5b8b">kXR_asynresp</a></div><div class="ttdeci">#define kXR_asynresp</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00135">opcodes.h:135</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_aa67fc2b9e36e7bb4fbc6105b970e852b"><div class="ttname"><a href="opcodes_8h.html#aa67fc2b9e36e7bb4fbc6105b970e852b">kXR_TLSRequired</a></div><div class="ttdeci">#define kXR_TLSRequired</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00171">opcodes.h:171</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ab10be6bbee431740aec2685b49ccdf24"><div class="ttname"><a href="opcodes_8h.html#ab10be6bbee431740aec2685b49ccdf24">kXR_Qcksum</a></div><div class="ttdeci">#define kXR_Qcksum</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00196">opcodes.h:196</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ac0e0ddf62a529be9ec397ce6d21c8307"><div class="ttname"><a href="opcodes_8h.html#ac0e0ddf62a529be9ec397ce6d21c8307">kXR_oksofar</a></div><div class="ttdeci">#define kXR_oksofar</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00108">opcodes.h:108</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ac57121591e93112d33d914666e324fbb"><div class="ttname"><a href="opcodes_8h.html#ac57121591e93112d33d914666e324fbb">kXR_AuthFailed</a></div><div class="ttdeci">#define kXR_AuthFailed</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00172">opcodes.h:172</a></div></div>
+<div class="ttc" id="aopcodes_8h_html_ac9592878b57fc80e1f0f3c4b9ff4c1bb"><div class="ttname"><a href="opcodes_8h.html#ac9592878b57fc80e1f0f3c4b9ff4c1bb">kXR_waitresp</a></div><div class="ttdeci">#define kXR_waitresp</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00114">opcodes.h:114</a></div></div>
+<div class="ttc" id="aopcodes_8h_html_aca84332dab92f63fc318400c2e3c9c8b"><div class="ttname"><a href="opcodes_8h.html#aca84332dab92f63fc318400c2e3c9c8b">kXR_attn</a></div><div class="ttdeci">#define kXR_attn</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00109">opcodes.h:109</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_adf851a6f2c3162960cec3ce622bda7e0"><div class="ttname"><a href="opcodes_8h.html#adf851a6f2c3162960cec3ce622bda7e0">kXR_IOError</a></div><div class="ttdeci">#define kXR_IOError</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00153">opcodes.h:153</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_af5e5a0c85d98ceaec9b6ad128b70dabe"><div class="ttname"><a href="opcodes_8h.html#af5e5a0c85d98ceaec9b6ad128b70dabe">BRIX_SESSION_ID_LEN</a></div><div class="ttdeci">#define BRIX_SESSION_ID_LEN</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00030">opcodes.h:30</a></div></div>
 <div class="ttc" id="aorigin__protocol_8c_html_a07b86523a25de03decc928372f24c902"><div class="ttname"><a href="origin__protocol_8c.html#a07b86523a25de03decc928372f24c902">origin_bs_auth_fail_msg</a></div><div class="ttdeci">static const char * origin_bs_auth_fail_msg(const brix_cache_fill_t *t)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00249">origin_protocol.c:249</a></div></div>
@@ -898,11 +960,11 @@ $(document).ready(function(){initNavTree('origin__protocol_8c_source.html',''); 
 <div class="ttc" id="aorigin__protocol_8c_html_a8476834b8bfb3c5d76ea7241ff3674b7"><div class="ttname"><a href="origin__protocol_8c.html#a8476834b8bfb3c5d76ea7241ff3674b7">origin_cksum_send_query</a></div><div class="ttdeci">static int origin_cksum_send_query(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00510">origin_protocol.c:510</a></div></div>
 <div class="ttc" id="aorigin__protocol_8c_html_a8953d44aa4ca0840bf995675281b199a"><div class="ttname"><a href="origin__protocol_8c.html#a8953d44aa4ca0840bf995675281b199a">origin_expect_frame</a></div><div class="ttdeci">static int origin_expect_frame(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc, uint32_t max_dlen, const char *fail_msg, origin_frame_t *fr)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00079">origin_protocol.c:79</a></div></div>
 <div class="ttc" id="aorigin__protocol_8c_html_a9e13a46744c652e3805a2458aa2dfd79"><div class="ttname"><a href="origin__protocol_8c.html#a9e13a46744c652e3805a2458aa2dfd79">cache_origin_gsi_parms</a></div><div class="ttdeci">static const char * cache_origin_gsi_parms(const char *parms, size_t plen)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00034">origin_protocol.c:34</a></div></div>
-<div class="ttc" id="aorigin__protocol_8c_html_aa02324ae02b841448582815397fd56a9"><div class="ttname"><a href="origin__protocol_8c.html#aa02324ae02b841448582815397fd56a9">brix_cache_origin_query_checksum</a></div><div class="ttdeci">int brix_cache_origin_query_checksum(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc, const brix_cache_cksum_out_t *out)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00585">origin_protocol.c:585</a></div></div>
+<div class="ttc" id="aorigin__protocol_8c_html_aa02324ae02b841448582815397fd56a9"><div class="ttname"><a href="origin__protocol_8c.html#aa02324ae02b841448582815397fd56a9">brix_cache_origin_query_checksum</a></div><div class="ttdeci">int brix_cache_origin_query_checksum(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc, const brix_cache_cksum_out_t *out)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00594">origin_protocol.c:594</a></div></div>
 <div class="ttc" id="aorigin__protocol_8c_html_ab3e0bc6a3da62851f9e54ddb3f9b5aa3"><div class="ttname"><a href="origin__protocol_8c.html#ab3e0bc6a3da62851f9e54ddb3f9b5aa3">origin_bs_auth_dispatch</a></div><div class="ttdeci">static int origin_bs_auth_dispatch(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc, const origin_auth_advert_t *ad)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00274">origin_protocol.c:274</a></div></div>
 <div class="ttc" id="aorigin__protocol_8c_html_ac573eb186d49e0dac44a52e40d7e69c4"><div class="ttname"><a href="origin__protocol_8c.html#ac573eb186d49e0dac44a52e40d7e69c4">origin_bs_authmore_fallback</a></div><div class="ttdeci">static int origin_bs_authmore_fallback(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00320">origin_protocol.c:320</a></div></div>
 <div class="ttc" id="aorigin__protocol_8c_html_ac71f40284f7fe897508ecf6434346a83"><div class="ttname"><a href="origin__protocol_8c.html#ac71f40284f7fe897508ecf6434346a83">origin_bs_login</a></div><div class="ttdeci">static int origin_bs_login(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc, origin_frame_t *fr)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00191">origin_protocol.c:191</a></div></div>
-<div class="ttc" id="aorigin__protocol_8c_html_adfcac920a738473933af7db114628f10"><div class="ttname"><a href="origin__protocol_8c.html#adfcac920a738473933af7db114628f10">brix_cache_origin_read_chunk</a></div><div class="ttdeci">int brix_cache_origin_read_chunk(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc, const u_char fhandle[4], brix_cache_sink_t *sink, brix_cache_read_range_t *rng)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00635">origin_protocol.c:635</a></div></div>
+<div class="ttc" id="aorigin__protocol_8c_html_adfcac920a738473933af7db114628f10"><div class="ttname"><a href="origin__protocol_8c.html#adfcac920a738473933af7db114628f10">brix_cache_origin_read_chunk</a></div><div class="ttdeci">int brix_cache_origin_read_chunk(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc, const u_char fhandle[4], brix_cache_sink_t *sink, brix_cache_read_range_t *rng)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00692">origin_protocol.c:692</a></div></div>
 <div class="ttc" id="aorigin__protocol_8c_html_ae710df008b44856d8359c0ea469e5eb1"><div class="ttname"><a href="origin__protocol_8c.html#ae710df008b44856d8359c0ea469e5eb1">brix_cache_origin_bootstrap</a></div><div class="ttdeci">int brix_cache_origin_bootstrap(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc)</div><div class="ttdef"><b>Definition</b> <a href="origin__protocol_8c_source.html#l00355">origin_protocol.c:355</a></div></div>
 <div class="ttc" id="asss__keytab__kernel_8h_html"><div class="ttname"><a href="sss__keytab__kernel_8h.html">sss_keytab_kernel.h</a></div></div>
 <div class="ttc" id="astructClientInitHandShake_html"><div class="ttname"><a href="structClientInitHandShake.html">ClientInitHandShake</a></div><div class="ttdef"><b>Definition</b> <a href="wire__core__requests_8h_source.html#l00041">wire_core_requests.h:41</a></div></div>

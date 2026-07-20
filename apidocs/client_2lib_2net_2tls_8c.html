@@ -121,6 +121,8 @@ Functions</h2></td></tr>
 <tr class="separator:a836c77354bf52935488ceb4e1c85d78b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9d161f0fb3a56afbab517e9e30d5b030" id="r_a9d161f0fb3a56afbab517e9e30d5b030"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a9d161f0fb3a56afbab517e9e30d5b030">wait_io</a> (int fd, short events, int timeout_ms)</td></tr>
 <tr class="separator:a9d161f0fb3a56afbab517e9e30d5b030"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a34f557ba48ef445456c167048f7ddf2b" id="r_a34f557ba48ef445456c167048f7ddf2b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a34f557ba48ef445456c167048f7ddf2b">tls_read_wait_ms</a> (int timeout_ms, uint64_t deadline_ns)</td></tr>
+<tr class="separator:a34f557ba48ef445456c167048f7ddf2b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a73fab942449b0440d978519f6cd72976" id="r_a73fab942449b0440d978519f6cd72976"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a73fab942449b0440d978519f6cd72976">brix_tls_read</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, void *buf, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a73fab942449b0440d978519f6cd72976"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6435e0ce6a77c6a1f597bd59bc6e0915" id="r_a6435e0ce6a77c6a1f597bd59bc6e0915"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a6435e0ce6a77c6a1f597bd59bc6e0915">brix_tls_write</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const void *buf, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
@@ -131,7 +133,7 @@ Functions</h2></td></tr>
 <tr class="separator:a9e60be137f1cc24f3029cd4e235619d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a404d86b7da01e6bf2f2e4ad64d46781d" id="r_a404d86b7da01e6bf2f2e4ad64d46781d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a404d86b7da01e6bf2f2e4ad64d46781d">brix_tls_read_some</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, void *buf, size_t n, size_t *got, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a404d86b7da01e6bf2f2e4ad64d46781d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7cd3ff858f7d76f5efabb51173d2958a" id="r_a7cd3ff858f7d76f5efabb51173d2958a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a7cd3ff858f7d76f5efabb51173d2958a">brix_tls_client</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const char *host, int verify_peer, int verify_host, const char *ca_dir, void **out_ctx, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a7cd3ff858f7d76f5efabb51173d2958a" id="r_a7cd3ff858f7d76f5efabb51173d2958a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a7cd3ff858f7d76f5efabb51173d2958a">brix_tls_client</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, int verify_peer, int verify_host, const char *ca_dir, void **out_ctx, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a7cd3ff858f7d76f5efabb51173d2958a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a661f66289074a862ff455903e4f82359" id="r_a661f66289074a862ff455903e4f82359"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_2lib_2net_2tls_8c.html#a661f66289074a862ff455903e4f82359">brix_tls_client_free</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, void *ctx)</td></tr>
 <tr class="separator:a661f66289074a862ff455903e4f82359"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -203,9 +205,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">324</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00371">371</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00166">tls_do_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00213">tls_do_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="web__ka_8c_source.html#l00070">brix_kaconn_connect()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, and <a class="el" href="webfile__io_8c_source.html#l00030">web_connect()</a>.</p>
 
@@ -237,7 +239,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">387</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00434">434</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>.</p>
 
@@ -277,7 +279,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00401">401</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00448">448</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>.</p>
 
@@ -301,11 +303,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00413">413</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00460">460</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00355">brix_bind()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00510">brix_reconnect()</a>, and <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00358">brix_bind()</a>, <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00514">brix_reconnect()</a>, and <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>.</p>
 
 </div>
 </div>
@@ -341,11 +343,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00427">427</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00474">474</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="diag__check_8c_source.html#l00089">chk_probe_tls()</a>, <a class="el" href="diag__doctor_8c_source.html#l00818">doctor_one_session_facts()</a>, <a class="el" href="conn_8c_source.html#l00643">explain_tls()</a>, <a class="el" href="diag__watch_8c_source.html#l00109">watch_probe_once()</a>, <a class="el" href="xrd__mount_8c_source.html#l00168">xrd_caps()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="diag__check_8c_source.html#l00089">chk_probe_tls()</a>, <a class="el" href="diag__doctor_8c_source.html#l00818">doctor_one_session_facts()</a>, <a class="el" href="conn_8c_source.html#l00647">explain_tls()</a>, <a class="el" href="diag__watch_8c_source.html#l00109">watch_probe_once()</a>, <a class="el" href="xrd__mount_8c_source.html#l00169">xrd_caps()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
 
 </div>
 </div>
@@ -375,9 +377,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">476</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00523">523</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00443">peer_collect_sans()</a>, <a class="el" href="brix__net_8h_source.html#l00247">brix_cert_info::sans</a>, <a class="el" href="brix__net_8h_source.html#l00254">brix_cert_info::self_signed</a>, and <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00287">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00288">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00281">brix_cert_info::have</a>, <a class="el" href="brix__net_8h_source.html#l00290">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00283">brix_cert_info::issuer</a>, <a class="el" href="brix__net_8h_source.html#l00286">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00285">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00289">brix_cert_info::not_yet_valid</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00490">peer_collect_sans()</a>, <a class="el" href="brix__net_8h_source.html#l00284">brix_cert_info::sans</a>, <a class="el" href="brix__net_8h_source.html#l00291">brix_cert_info::self_signed</a>, and <a class="el" href="brix__net_8h_source.html#l00282">brix_cert_info::subject</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00670">xrd_certinfo()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
 
@@ -421,11 +423,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00058">58</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">84</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00044">wait_io()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>, <a class="el" href="brix__net_8h_source.html#l00025">brix_io::stall_deadline_ms</a>, <a class="el" href="brix__net_8h_source.html#l00039">brix_io::stall_deadline_ns</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00060">tls_read_wait_ms()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00044">wait_io()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00458">brix_read_full()</a>.</p>
 
 </div>
 </div>
@@ -473,7 +475,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00277">277</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">324</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00044">wait_io()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
@@ -525,9 +527,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00209">209</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00256">256</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00166">tls_do_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00213">tls_do_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00274">brix_bringup_ex()</a>.</p>
 
@@ -571,11 +573,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00114">114</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00161">161</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00044">wait_io()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00467">brix_write_full()</a>.</p>
 
 </div>
 </div>
@@ -619,9 +621,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00443">443</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00490">490</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">brix_tls_peer_cert_info()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00523">brix_tls_peer_cert_info()</a>.</p>
 
 </div>
 </div>
@@ -671,11 +673,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00166">166</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00213">213</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00029">tls_err()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00044">wait_io()</a>, <a class="el" href="brix_8h_source.html#l00058">XRDC_EAUTH</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_client()</a>, and <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00209">brix_tls_upgrade()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00371">brix_tls_client()</a>, and <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00256">brix_tls_upgrade()</a>.</p>
 
 </div>
 </div>
@@ -723,7 +725,49 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_client()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00058">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00277">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00209">brix_tls_upgrade()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00114">brix_tls_write()</a>, and <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00166">tls_do_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00371">brix_tls_client()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00256">brix_tls_upgrade()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00161">brix_tls_write()</a>, and <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00213">tls_do_connect()</a>.</p>
+
+</div>
+</div>
+<a id="a34f557ba48ef445456c167048f7ddf2b" name="a34f557ba48ef445456c167048f7ddf2b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a34f557ba48ef445456c167048f7ddf2b">&#9670;&#160;</a></span>tls_read_wait_ms()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int tls_read_wait_ms </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>timeout_ms</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>deadline_ns</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00060">60</a> of file <a class="el" href="client_2lib_2net_2tls_8c_source.html">tls.c</a>.</p>
+
+<p class="reference">References <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>.</p>
 
 </div>
 </div>
@@ -771,7 +815,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00058">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00277">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00114">brix_tls_write()</a>, and <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00166">tls_do_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00161">brix_tls_write()</a>, and <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00213">tls_do_connect()</a>.</p>
 
 </div>
 </div>

@@ -124,7 +124,7 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c_source.html'
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="comment"> *      brix_conf_set_proxy_path_rewrite() copies two argument values to strip/add fields directly.</span></div>
 <div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span> </div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#include &quot;<a class="code" href="protocols_2webdav_2proxy__internal_8h.html">proxy_internal.h</a>&quot;</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#include &quot;<a class="code" href="proxy__internal_8h.html">proxy_internal.h</a>&quot;</span></div>
 <div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span> </div>
 <div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#include &lt;string.h&gt;</span></div>
@@ -280,8 +280,8 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c_source.html'
 <div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf = conf_ptr;</div>
 <div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    ngx_str_t                    *value;</div>
 <div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordtype">char</span>                         *addr_copy, *rc;</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    ngx_str_t                     host;</div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    uint16_t                      port = 1094;</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    ngx_str_t                     <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>;</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    uint16_t                      <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a> = 1094;</div>
 <div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <a class="code hl_struct" href="structbrix__proxy__upstream__t.html">brix_proxy_upstream_t</a>      *entry;</div>
 <div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span> </div>
 <div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
@@ -293,10 +293,10 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c_source.html'
 <div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
 <div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    }</div>
 <div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span> </div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    host.data = NULL;</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    host.len  = 0;</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>.data = NULL;</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>.len  = 0;</div>
 <div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span> </div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    rc = <a class="code hl_function" href="net_2proxy_2directives_8c.html#abb7946dfbd7d591ab0f65ca3d032965c">proxy_parse_host_port</a>(cf, &amp;value[1], addr_copy, &amp;host, &amp;port);</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    rc = <a class="code hl_function" href="net_2proxy_2directives_8c.html#abb7946dfbd7d591ab0f65ca3d032965c">proxy_parse_host_port</a>(cf, &amp;value[1], addr_copy, &amp;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, &amp;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>);</div>
 <div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    <span class="keywordflow">if</span> (rc != NGX_CONF_OK) {</div>
 <div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <span class="keywordflow">return</span> rc;</div>
 <div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>    }</div>
@@ -313,8 +313,8 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c_source.html'
 <div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <span class="keywordflow">if</span> (entry == NULL) {</div>
 <div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
 <div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    }</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    entry-&gt;<a class="code hl_variable" href="structbrix__proxy__upstream__t.html#abe447e48993776054124a747c89f4c25">host</a>            = host;</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    entry-&gt;<a class="code hl_variable" href="structbrix__proxy__upstream__t.html#a28ee2fb7f384c7bf74bed4c7e3027f32">port</a>            = port;</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    entry-&gt;<a class="code hl_variable" href="structbrix__proxy__upstream__t.html#abe447e48993776054124a747c89f4c25">host</a>            = <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>;</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    entry-&gt;<a class="code hl_variable" href="structbrix__proxy__upstream__t.html#a28ee2fb7f384c7bf74bed4c7e3027f32">port</a>            = <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>;</div>
 <div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    entry-&gt;<a class="code hl_variable" href="structbrix__proxy__upstream__t.html#ad625a47ff030ef0e9990dfa7a6479800">auth</a>            = -1;   <span class="comment">/* inherit global proxy_auth by default */</span></div>
 <div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    entry-&gt;<a class="code hl_variable" href="structbrix__proxy__upstream__t.html#a8f55a80f5bf20715127e2c97113a3ccb">sss_keyname</a>[0]  = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span> </div>
@@ -328,8 +328,8 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c_source.html'
 <div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span> </div>
 <div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <span class="comment">/* Backward compat: first occurrence sets the legacy single-upstream fields */</span></div>
 <div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    <span class="keywordflow">if</span> (conf-&gt;proxy.host.len == 0) {</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        conf-&gt;proxy.host = host;</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>        conf-&gt;proxy.port = (ngx_int_t) port;</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        conf-&gt;proxy.host = <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>;</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>        conf-&gt;proxy.port = (ngx_int_t) <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>;</div>
 <div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    }</div>
 <div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span> </div>
 <div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
@@ -453,6 +453,8 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c_source.html'
 <div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>}</div>
 </div>
 <div class="ttc" id="aalloc__guard_8h_html"><div class="ttname"><a href="alloc__guard_8h.html">alloc_guard.h</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a41c3a180b50c6b2ddcc1b6843a48f205"><div class="ttname"><a href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a></div><div class="ttdeci">char host[256]</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a63c89c04d1feae07ca35558055155ffb"><div class="ttname"><a href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 <div class="ttc" id="aconf__structs_8h_html_a0b8ba9843d4b7605ff646398a71f37f8"><div class="ttname"><a href="conf__structs_8h.html#a0b8ba9843d4b7605ff646398a71f37f8">BRIX_PROXY_LOGIN_FIXED</a></div><div class="ttdeci">#define BRIX_PROXY_LOGIN_FIXED</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00145">conf_structs.h:145</a></div></div>
 <div class="ttc" id="aconf__structs_8h_html_a1b84e54d188cbd4060c560fcc4930720"><div class="ttname"><a href="conf__structs_8h.html#a1b84e54d188cbd4060c560fcc4930720">BRIX_PROXY_LOGIN_PASSTHROUGH</a></div><div class="ttdeci">#define BRIX_PROXY_LOGIN_PASSTHROUGH</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00144">conf_structs.h:144</a></div></div>
 <div class="ttc" id="aconf__structs_8h_html_a5fa237c4fe033c5f177dc534e643e53e"><div class="ttname"><a href="conf__structs_8h.html#a5fa237c4fe033c5f177dc534e643e53e">BRIX_PROXY_AUTH_FORWARD</a></div><div class="ttdeci">#define BRIX_PROXY_AUTH_FORWARD</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00140">conf_structs.h:140</a></div></div>
@@ -470,7 +472,7 @@ $(document).ready(function(){initNavTree('net_2proxy_2directives_8c_source.html'
 <div class="ttc" id="anet_2proxy_2directives_8c_html_ae266e3344a32ec4d31a1699c9104744f"><div class="ttname"><a href="net_2proxy_2directives_8c.html#ae266e3344a32ec4d31a1699c9104744f">brix_conf_set_proxy_login_user</a></div><div class="ttdeci">char * brix_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)</div><div class="ttdef"><b>Definition</b> <a href="net_2proxy_2directives_8c_source.html#l00281">directives.c:281</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
-<div class="ttc" id="aprotocols_2webdav_2proxy__internal_8h_html"><div class="ttname"><a href="protocols_2webdav_2proxy__internal_8h.html">proxy_internal.h</a></div></div>
+<div class="ttc" id="aproxy__internal_8h_html"><div class="ttname"><a href="proxy__internal_8h.html">proxy_internal.h</a></div></div>
 <div class="ttc" id="astructbrix__proxy__upstream__t_html"><div class="ttname"><a href="structbrix__proxy__upstream__t.html">brix_proxy_upstream_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00091">config.h:91</a></div></div>
 <div class="ttc" id="astructbrix__proxy__upstream__t_html_a28ee2fb7f384c7bf74bed4c7e3027f32"><div class="ttname"><a href="structbrix__proxy__upstream__t.html#a28ee2fb7f384c7bf74bed4c7e3027f32">brix_proxy_upstream_t::port</a></div><div class="ttdeci">uint16_t port</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00093">config.h:93</a></div></div>
 <div class="ttc" id="astructbrix__proxy__upstream__t_html_a8f55a80f5bf20715127e2c97113a3ccb"><div class="ttname"><a href="structbrix__proxy__upstream__t.html#a8f55a80f5bf20715127e2c97113a3ccb">brix_proxy_upstream_t::sss_keyname</a></div><div class="ttdeci">char sss_keyname[BRIX_SSS_NAME_MAX]</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00095">config.h:95</a></div></div>

@@ -137,20 +137,20 @@ $(document).ready(function(){initNavTree('tables_8c_source.html',''); initResiza
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span> </div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><a class="code hl_struct" href="structbrix__acc__cap__t.html">brix_acc_cap_t</a> *</div>
 <div class="foldopen" id="foldopen00037" data-start="{" data-end="}">
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="acc_8h.html#a6c550befcb268978d361b9d54189a53f">   37</a></span><a class="code hl_function" href="tables_8c.html#a6c550befcb268978d361b9d54189a53f">brix_acc_domain_find</a>(<a class="code hl_struct" href="structbrix__acc__named__t.html">brix_acc_named_t</a> *dlist, <span class="keyword">const</span> <span class="keywordtype">char</span> *host)</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="acc_8h.html#a6c550befcb268978d361b9d54189a53f">   37</a></span><a class="code hl_function" href="tables_8c.html#a6c550befcb268978d361b9d54189a53f">brix_acc_domain_find</a>(<a class="code hl_struct" href="structbrix__acc__named__t.html">brix_acc_named_t</a> *dlist, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>)</div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>{</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    <span class="keywordtype">int</span>  hlen;</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordflow">if</span> (host == NULL) {</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a> == NULL) {</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    }</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    hlen = (int) ngx_strlen(host);</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    hlen = (int) ngx_strlen(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>);</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    <span class="comment">/* A domain record (e.g. &quot;.cern.ch&quot;) matches when it is a suffix of the</span></div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="comment">     * host of equal length (XrdAccCapName::Find). */</span></div>
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordflow">for</span> (; dlist != NULL; dlist = dlist-&gt;<a class="code hl_variable" href="structbrix__acc__named__t.html#aa92641cac63eec58ca85ad84fbec13aa">next</a>) {</div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        <span class="keywordflow">if</span> (dlist-&gt;<a class="code hl_variable" href="structbrix__acc__named__t.html#a890c698d2f6dfb4e48811e72dbd9dfc6">nlen</a> &lt;= hlen</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>            &amp;&amp; ngx_strcmp(dlist-&gt;<a class="code hl_variable" href="structbrix__acc__named__t.html#a38aae70fbc6f29976182f9cdc6492398">name</a>, host + (hlen - dlist-&gt;<a class="code hl_variable" href="structbrix__acc__named__t.html#a890c698d2f6dfb4e48811e72dbd9dfc6">nlen</a>)) == 0)</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>            &amp;&amp; ngx_strcmp(dlist-&gt;<a class="code hl_variable" href="structbrix__acc__named__t.html#a38aae70fbc6f29976182f9cdc6492398">name</a>, <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a> + (hlen - dlist-&gt;<a class="code hl_variable" href="structbrix__acc__named__t.html#a890c698d2f6dfb4e48811e72dbd9dfc6">nlen</a>)) == 0)</div>
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        {</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>            <span class="keywordflow">return</span> dlist-&gt;<a class="code hl_variable" href="structbrix__acc__named__t.html#a170604999987bc884eb4222bd3e6ef90">caps</a>;</div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>        }</div>
@@ -172,6 +172,7 @@ $(document).ready(function(){initNavTree('tables_8c_source.html',''); initResiza
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>}</div>
 </div>
 <div class="ttc" id="aacc_8h_html"><div class="ttname"><a href="acc_8h.html">acc.h</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a41c3a180b50c6b2ddcc1b6843a48f205"><div class="ttname"><a href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a></div><div class="ttdeci">char host[256]</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 <div class="ttc" id="assi__service_8c_html_a8f8f80d37794cde9472343e4487ba3eb"><div class="ttname"><a href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a></div><div class="ttdeci">const char * name</div><div class="ttdef"><b>Definition</b> <a href="ssi__service_8c_source.html#l00102">ssi_service.c:102</a></div></div>
 <div class="ttc" id="astructbrix__acc__cap__t_html"><div class="ttname"><a href="structbrix__acc__cap__t.html">brix_acc_cap_t</a></div><div class="ttdef"><b>Definition</b> <a href="acc_8h_source.html#l00044">acc.h:44</a></div></div>
 <div class="ttc" id="astructbrix__acc__named__t_html"><div class="ttname"><a href="structbrix__acc__named__t.html">brix_acc_named_t</a></div><div class="ttdef"><b>Definition</b> <a href="acc_8h_source.html#l00059">acc.h:59</a></div></div>

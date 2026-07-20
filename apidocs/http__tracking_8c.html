@@ -104,7 +104,7 @@ $(document).ready(function(){initNavTree('http__tracking_8c.html',''); initResiz
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="http__tracking_8c__incl.svg" width="100%" height="569"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="http__tracking_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="http__tracking_8c_source.html">Go to the source code of this file.</a></p>
@@ -144,11 +144,11 @@ Functions</h2></td></tr>
 <tr class="separator:aa79dea917e4e2a56675dc8b0154d49a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1d64c24ab97b7be49bc7016963daafa3" id="r_a1d64c24ab97b7be49bc7016963daafa3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a1d64c24ab97b7be49bc7016963daafa3">redact_split_authority</a> (const char *url, <a class="el" href="structredact__parts__t.html">redact_parts_t</a> *p)</td></tr>
 <tr class="separator:a1d64c24ab97b7be49bc7016963daafa3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a353f98ce1750136446267b3e00e0e522" id="r_a353f98ce1750136446267b3e00e0e522"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a353f98ce1750136446267b3e00e0e522">redact_write_host</a> (const <a class="el" href="structredact__parts__t.html">redact_parts_t</a> *p, char *host, size_t hostsz)</td></tr>
+<tr class="memitem:a353f98ce1750136446267b3e00e0e522" id="r_a353f98ce1750136446267b3e00e0e522"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a353f98ce1750136446267b3e00e0e522">redact_write_host</a> (const <a class="el" href="structredact__parts__t.html">redact_parts_t</a> *p, char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, size_t hostsz)</td></tr>
 <tr class="separator:a353f98ce1750136446267b3e00e0e522"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9293f8d0c3878adc12106fd7ff610c98" id="r_a9293f8d0c3878adc12106fd7ff610c98"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a9293f8d0c3878adc12106fd7ff610c98">redact_write_path_hint</a> (const char *path, char *path_hint, size_t pathsz)</td></tr>
 <tr class="separator:a9293f8d0c3878adc12106fd7ff610c98"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a640b67efc2ce82398b44ff54a97225e0" id="r_a640b67efc2ce82398b44ff54a97225e0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a640b67efc2ce82398b44ff54a97225e0">dashboard_redact_url</a> (const char *url, char *host, size_t hostsz, char *path_hint, size_t pathsz)</td></tr>
+<tr class="memitem:a640b67efc2ce82398b44ff54a97225e0" id="r_a640b67efc2ce82398b44ff54a97225e0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a640b67efc2ce82398b44ff54a97225e0">dashboard_redact_url</a> (const char *url, char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, size_t hostsz, char *path_hint, size_t pathsz)</td></tr>
 <tr class="separator:a640b67efc2ce82398b44ff54a97225e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a69839bf975d5f7a64e68bc0c02b3568d" id="r_a69839bf975d5f7a64e68bc0c02b3568d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="http__tracking_8c.html#a69839bf975d5f7a64e68bc0c02b3568d">brix_dashboard_http_tpc_remote</a> (ngx_http_request_t *r, const char *remote_url, int remote_status, int curl_exit)</td></tr>
 <tr class="separator:a69839bf975d5f7a64e68bc0c02b3568d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -472,7 +472,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00134">134</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00153">brix_transfer_slot_count_op()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="http__tracking_8c_source.html#l00055">dashboard_http_cleanup()</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00452">ngx_http_brix_dashboard_module</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="http__tracking_8c_source.html#l00035">brix_dashboard_http_track_t::r</a>, <a class="el" href="http__tracking_8c_source.html#l00033">brix_dashboard_http_track_t::slot</a>, and <a class="el" href="http__tracking_8c_source.html#l00034">brix_dashboard_http_track_t::table</a>.</p>
+<p class="reference">References <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00153">brix_transfer_slot_count_op()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="http__tracking_8c_source.html#l00055">dashboard_http_cleanup()</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="observability_2dashboard_2module_8c_source.html#l00479">ngx_http_brix_dashboard_module</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="http__tracking_8c_source.html#l00035">brix_dashboard_http_track_t::r</a>, <a class="el" href="http__tracking_8c_source.html#l00033">brix_dashboard_http_track_t::slot</a>, and <a class="el" href="http__tracking_8c_source.html#l00034">brix_dashboard_http_track_t::table</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>.</p>
 
@@ -626,7 +626,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00068">68</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2dashboard_2module_8c_source.html#l00452">ngx_http_brix_dashboard_module</a>.</p>
+<p class="reference">References <a class="el" href="observability_2dashboard_2module_8c_source.html#l00479">ngx_http_brix_dashboard_module</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__tracking_8c_source.html#l00199">brix_dashboard_http_start_identity()</a>, <a class="el" href="http__tracking_8c_source.html#l00257">brix_dashboard_http_state()</a>, and <a class="el" href="http__tracking_8c_source.html#l00455">brix_dashboard_http_tpc_remote()</a>.</p>
 
@@ -686,7 +686,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00428">428</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00294">redact_parts_t::path</a>, <a class="el" href="http__tracking_8c_source.html#l00309">redact_split_authority()</a>, <a class="el" href="http__tracking_8c_source.html#l00341">redact_write_host()</a>, and <a class="el" href="http__tracking_8c_source.html#l00391">redact_write_path_hint()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="http__tracking_8c_source.html#l00294">redact_parts_t::path</a>, <a class="el" href="http__tracking_8c_source.html#l00309">redact_split_authority()</a>, <a class="el" href="http__tracking_8c_source.html#l00341">redact_write_host()</a>, and <a class="el" href="http__tracking_8c_source.html#l00391">redact_write_path_hint()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00455">brix_dashboard_http_tpc_remote()</a>.</p>
 
@@ -808,7 +808,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="http__tracking_8c_source.html#l00341">341</a> of file <a class="el" href="http__tracking_8c_source.html">http_tracking.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00292">redact_parts_t::authority</a>, <a class="el" href="http__tracking_8c_source.html#l00293">redact_parts_t::end</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="http__tracking_8c_source.html#l00291">redact_parts_t::scheme_end</a>, and <a class="el" href="http__tracking_8c_source.html#l00290">redact_parts_t::url</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00292">redact_parts_t::authority</a>, <a class="el" href="http__tracking_8c_source.html#l00293">redact_parts_t::end</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="http__tracking_8c_source.html#l00291">redact_parts_t::scheme_end</a>, and <a class="el" href="http__tracking_8c_source.html#l00290">redact_parts_t::url</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="http__tracking_8c_source.html#l00428">dashboard_redact_url()</a>.</p>
 

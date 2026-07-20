@@ -111,7 +111,7 @@ $(document).ready(function(){initNavTree('stream__cache_8c.html',''); initResiza
 Functions</h2></td></tr>
 <tr class="memitem:a266bc0087d189fc230be975f3dabb37b" id="r_a266bc0087d189fc230be975f3dabb37b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#a266bc0087d189fc230be975f3dabb37b">brix_cache_statvfs</a> (const char *root, uint64_t *total, uint64_t *used, uint64_t *available, ngx_uint_t *occupancy_ppm)</td></tr>
 <tr class="separator:a266bc0087d189fc230be975f3dabb37b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abee5eac096893814815d28f6495513e1" id="r_abee5eac096893814815d28f6495513e1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#abee5eac096893814815d28f6495513e1">stream_cache_port_str</a> (char *buf, size_t buf_size, ngx_uint_t port)</td></tr>
+<tr class="memitem:abee5eac096893814815d28f6495513e1" id="r_abee5eac096893814815d28f6495513e1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#abee5eac096893814815d28f6495513e1">stream_cache_port_str</a> (char *buf, size_t buf_size, ngx_uint_t <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:abee5eac096893814815d28f6495513e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5f39bfdce5af1411aac92e6b6c0612b8" id="r_a5f39bfdce5af1411aac92e6b6c0612b8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="stream__cache_8c.html#a5f39bfdce5af1411aac92e6b6c0612b8">stream_cache_emit_occupancy_ratio</a> (<a class="el" href="structmetrics__writer__t.html">metrics_writer_t</a> *mw, <a class="el" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *shm)</td></tr>
 <tr class="separator:a5f39bfdce5af1411aac92e6b6c0612b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -684,6 +684,8 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="stream__cache_8c_source.html#l00053">53</a> of file <a class="el" href="stream__cache_8c_source.html">stream_cache.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="stream__cache_8c_source.html#l00136">stream_cache_emit_cache_bytes()</a>, <a class="el" href="stream__cache_8c_source.html#l00248">stream_cache_emit_dirty_reaped()</a>, <a class="el" href="stream__cache_8c_source.html#l00182">stream_cache_emit_eviction_counter()</a>, <a class="el" href="stream__cache_8c_source.html#l00105">stream_cache_emit_eviction_threshold()</a>, <a class="el" href="stream__cache_8c_source.html#l00067">stream_cache_emit_occupancy_ratio()</a>, <a class="el" href="stream__cache_8c_source.html#l00323">stream_cache_emit_wt_flushes()</a>, and <a class="el" href="stream__cache_8c_source.html#l00292">stream_cache_emit_wt_single()</a>.</p>
 

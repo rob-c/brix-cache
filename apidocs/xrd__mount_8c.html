@@ -96,6 +96,7 @@ $(document).ready(function(){initNavTree('xrd__mount_8c.html',''); initResizable
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="xrd__internal_8h_source.html">xrd_internal.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="progname_8h_source.html">core/progname.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for xrd_mount.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -166,7 +167,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00230">230</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00231">231</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
 </div>
 </div>
@@ -186,9 +187,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00208">208</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00209">209</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00500">xrd_unmount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00502">xrd_unmount()</a>.</p>
 
 </div>
 </div>
@@ -218,9 +219,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00168">168</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00169">169</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00427">brix_tls_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00116">xrd_role_str()</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00474">brix_tls_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00117">xrd_role_str()</a>.</p>
 
 </div>
 </div>
@@ -240,9 +241,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00334">334</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00335">335</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00306">cmd_mounts()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00464">xrd_mount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00341">cmd_mounts()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00465">xrd_mount()</a>.</p>
 
 </div>
 </div>
@@ -272,7 +273,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00013">13</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00014">14</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
 <p class="reference">References <a class="el" href="credrefresh_8c_source.html#l00252">brix_cred_autorefresh()</a>, <a class="el" href="credinfo_8c_source.html#l00437">brix_cred_diagnose()</a>, and <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>.</p>
 
@@ -304,9 +305,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00464">464</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00465">465</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tier__config_8c_source.html#l00027">driver</a>, <a class="el" href="xrd_8c_source.html#l00094">exec_tool()</a>, <a class="el" href="xrd__mount_8c_source.html#l00334">xrd_list_mounts()</a>, <a class="el" href="xrd__mount_8c_source.html#l00430">xrd_mount_build_argv()</a>, <a class="el" href="xrd__mount_8c_source.html#l00382">xrd_mount_parse_selectors()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="progname_8h_source.html#l00036">brix_prog_base()</a>, <a class="el" href="progname_8h_source.html#l00068">brix_prog_prefix()</a>, <a class="el" href="tier__config_8c_source.html#l00027">driver</a>, <a class="el" href="xrd_8c_source.html#l00115">exec_tool()</a>, <a class="el" href="xrd__mount_8c_source.html#l00335">xrd_list_mounts()</a>, <a class="el" href="xrd__mount_8c_source.html#l00431">xrd_mount_build_argv()</a>, <a class="el" href="xrd__mount_8c_source.html#l00383">xrd_mount_parse_selectors()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -374,11 +375,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00430">430</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00431">431</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
 <p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, and <a class="el" href="tier__config_8c_source.html#l00027">driver</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00464">xrd_mount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00465">xrd_mount()</a>.</p>
 
 </div>
 </div>
@@ -434,9 +435,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00382">382</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00383">383</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00464">xrd_mount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00465">xrd_mount()</a>.</p>
 
 </div>
 </div>
@@ -466,9 +467,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00044">44</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00045">45</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>.</p>
 
 </div>
 </div>
@@ -488,11 +489,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00116">116</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00117">117</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
 <p class="reference">References <a class="el" href="flags_8h_source.html#l00083">kXR_isManager</a>, and <a class="el" href="flags_8h_source.html#l00082">kXR_isServer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00096">doctor_json_head()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00445">doctor_report_conn()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00168">xrd_caps()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00096">doctor_json_head()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00445">doctor_report_conn()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00169">xrd_caps()</a>.</p>
 
 </div>
 </div>
@@ -522,9 +523,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00500">500</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00502">502</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="xrd__mount_8c_source.html#l00208">run_cmd()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="xrd__mount_8c_source.html#l00209">run_cmd()</a>.</p>
 
 </div>
 </div>
@@ -554,9 +555,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00130">130</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00131">131</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="credinfo_8c_source.html#l00267">brix_gsi_cert_explain()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="credinfo_8c_source.html#l00267">brix_gsi_cert_explain()</a>, <a class="el" href="proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>.</p>
 
 </div>
 </div>

@@ -111,7 +111,7 @@
 <!-- Node126 -->
 <g id="Node000126" class="node">
 <title>Node126</title>
-<g id="a_Node000126"><a xlink:href="net_2proxy_2proxy__internal_8h.html" target="_top" xlink:title=" ">
+<g id="a_Node000126"><a xlink:href="proxy__internal_8h.html" target="_top" xlink:title=" ">
 <polygon fill="#fff0f0" stroke="red" points="1637.85,-272 1491.85,-272 1491.85,-253 1637.85,-253 1637.85,-272"/>
 <text text-anchor="middle" x="1564.85" y="-260" font-family="Helvetica,sans-Serif" font-size="10.00">net/proxy/proxy_internal.h</text>
 </a>

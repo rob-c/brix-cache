@@ -101,6 +101,7 @@ $(document).ready(function(){initNavTree('xrdsssadmin_8c.html',''); initResizabl
 <div class="textblock"><code>#include &quot;<a class="el" href="brix_8h_source.html">brix.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="sss__keytab_8h_source.html">auth/sss/sss_keytab.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="version_8h_source.html">core/version.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="progname_8h_source.html">core/progname.h</a>&quot;</code><br />
 <code>#include &lt;stddef.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
@@ -137,10 +138,10 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a28999b7bf77e817ab21c70002c3ad233" id="r_a28999b7bf77e817ab21c70002c3ad233"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#a28999b7bf77e817ab21c70002c3ad233">usage_fp</a> (FILE *out)</td></tr>
-<tr class="separator:a28999b7bf77e817ab21c70002c3ad233"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad96d407a911fbb914fa8e4cfbf2faf0f" id="r_ad96d407a911fbb914fa8e4cfbf2faf0f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a> (void)</td></tr>
-<tr class="separator:ad96d407a911fbb914fa8e4cfbf2faf0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a017babcb376a0b2a74e3762918e3d31e" id="r_a017babcb376a0b2a74e3762918e3d31e"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#a017babcb376a0b2a74e3762918e3d31e">usage_fp</a> (FILE *out, const char *prog)</td></tr>
+<tr class="separator:a017babcb376a0b2a74e3762918e3d31e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a848c0ca46d3e3ecc39d2fccc4d85fa12" id="r_a848c0ca46d3e3ecc39d2fccc4d85fa12"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#a848c0ca46d3e3ecc39d2fccc4d85fa12">usage</a> (const char *prog)</td></tr>
+<tr class="separator:a848c0ca46d3e3ecc39d2fccc4d85fa12"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4c6a03303c4fb64602922e1ad1ba1ba9" id="r_a4c6a03303c4fb64602922e1ad1ba1ba9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#a4c6a03303c4fb64602922e1ad1ba1ba9">load_or_empty</a> (const char *path, <a class="el" href="structbrix__sss__key.html">brix_sss_key</a> *keys, int max, int *n)</td></tr>
 <tr class="separator:a4c6a03303c4fb64602922e1ad1ba1ba9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a55595de2f09c0a3ef4fff66c47197e15" id="r_a55595de2f09c0a3ef4fff66c47197e15"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#a55595de2f09c0a3ef4fff66c47197e15">add_fill_entry</a> (<a class="el" href="structbrix__sss__key.html">brix_sss_key</a> *k, const <a class="el" href="structadd__args__t.html">add_args_t</a> *a, int64_t maxid, int keylen)</td></tr>
@@ -157,8 +158,8 @@ Functions</h2></td></tr>
 <tr class="separator:af76fdf5ba3e5b84e49f3ae21699361d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac920f5ffb7e5bd9fa8fb2c26a2224003" id="r_ac920f5ffb7e5bd9fa8fb2c26a2224003"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#ac920f5ffb7e5bd9fa8fb2c26a2224003">parse_opts</a> (int argc, char **argv, <a class="el" href="structcli__opts__t.html">cli_opts_t</a> *o, int *stop)</td></tr>
 <tr class="separator:ac920f5ffb7e5bd9fa8fb2c26a2224003"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a96759bb8f4f08f7914ab168dddd156cf" id="r_a96759bb8f4f08f7914ab168dddd156cf"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#a96759bb8f4f08f7914ab168dddd156cf">dispatch_cmd</a> (const <a class="el" href="structcli__opts__t.html">cli_opts_t</a> *o, const char *keytab)</td></tr>
-<tr class="separator:a96759bb8f4f08f7914ab168dddd156cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:addeae1969d5dbae5d0e71f27f518e7ba" id="r_addeae1969d5dbae5d0e71f27f518e7ba"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#addeae1969d5dbae5d0e71f27f518e7ba">dispatch_cmd</a> (const <a class="el" href="structcli__opts__t.html">cli_opts_t</a> *o, const char *keytab, const char *prog)</td></tr>
+<tr class="separator:addeae1969d5dbae5d0e71f27f518e7ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c04138a5bfe5d72780bb7e82a18e627" id="r_a3c04138a5bfe5d72780bb7e82a18e627"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdsssadmin_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a3c04138a5bfe5d72780bb7e82a18e627"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -185,7 +186,7 @@ Variables</h2></td></tr>
 <tr><td class="fieldname"><a id="a057d88a98fa90c8b6b61dcc70e72a45da6d21206e512febf3c8bde183039306e0" name="a057d88a98fa90c8b6b61dcc70e72a45da6d21206e512febf3c8bde183039306e0"></a>OPT_I64&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00270">270</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00272">272</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
 </div>
 </div>
@@ -236,11 +237,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00102">102</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00104">104</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sss__keytab_8h_source.html#l00045">brix_sss_key::exp</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00084">add_args_t::group</a>, <a class="el" href="sss__keytab_8h_source.html#l00043">brix_sss_key::group</a>, <a class="el" href="sss__keytab_8h_source.html#l00039">brix_sss_key::id</a>, <a class="el" href="sss__keytab_8h_source.html#l00040">brix_sss_key::key</a>, <a class="el" href="sss__keytab_8h_source.html#l00041">brix_sss_key::key_len</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00087">add_args_t::lifetime_days</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00085">add_args_t::name</a>, <a class="el" href="sss__keytab_8h_source.html#l00044">brix_sss_key::name</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00083">add_args_t::user</a>, <a class="el" href="sss__keytab_8h_source.html#l00042">brix_sss_key::user</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00086">add_args_t::want_id</a>.</p>
+<p class="reference">References <a class="el" href="sss__keytab_8h_source.html#l00045">brix_sss_key::exp</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00086">add_args_t::group</a>, <a class="el" href="sss__keytab_8h_source.html#l00043">brix_sss_key::group</a>, <a class="el" href="sss__keytab_8h_source.html#l00039">brix_sss_key::id</a>, <a class="el" href="sss__keytab_8h_source.html#l00040">brix_sss_key::key</a>, <a class="el" href="sss__keytab_8h_source.html#l00041">brix_sss_key::key_len</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00089">add_args_t::lifetime_days</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00087">add_args_t::name</a>, <a class="el" href="sss__keytab_8h_source.html#l00044">brix_sss_key::name</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00085">add_args_t::user</a>, <a class="el" href="sss__keytab_8h_source.html#l00042">brix_sss_key::user</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00088">add_args_t::want_id</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00141">cmd_add()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00143">cmd_add()</a>.</p>
 
 </div>
 </div>
@@ -284,11 +285,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00309">309</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00311">311</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00270">OPT_I64</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00270">OPT_STR</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00272">OPT_I64</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00272">OPT_STR</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00357">parse_opts()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00359">parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -326,11 +327,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00141">141</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00143">143</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00102">add_fill_entry()</a>, <a class="el" href="sss__keytab_8c_source.html#l00129">brix_sss_keytab_read()</a>, <a class="el" href="sss__keytab_8c_source.html#l00183">brix_sss_keytab_write()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sss__keytab_8h_source.html#l00039">brix_sss_key::id</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00088">add_args_t::keylen</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00057">load_or_empty()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="sss__keytab_8h_source.html#l00035">XRDC_SSS_KEY_MAX</a>, and <a class="el" href="sss__keytab_8h_source.html#l00036">XRDC_SSS_KEYS_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00104">add_fill_entry()</a>, <a class="el" href="sss__keytab_8c_source.html#l00129">brix_sss_keytab_read()</a>, <a class="el" href="sss__keytab_8c_source.html#l00183">brix_sss_keytab_write()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sss__keytab_8h_source.html#l00039">brix_sss_key::id</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00090">add_args_t::keylen</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00059">load_or_empty()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="sss__keytab_8h_source.html#l00035">XRDC_SSS_KEY_MAX</a>, and <a class="el" href="sss__keytab_8h_source.html#l00036">XRDC_SSS_KEYS_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00391">dispatch_cmd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00393">dispatch_cmd()</a>.</p>
 
 </div>
 </div>
@@ -368,11 +369,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00213">213</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00215">215</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sss__keytab_8c_source.html#l00129">brix_sss_keytab_read()</a>, <a class="el" href="sss__keytab_8c_source.html#l00183">brix_sss_keytab_write()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, and <a class="el" href="sss__keytab_8h_source.html#l00036">XRDC_SSS_KEYS_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00391">dispatch_cmd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00393">dispatch_cmd()</a>.</p>
 
 </div>
 </div>
@@ -400,16 +401,16 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00188">188</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00190">190</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sss__keytab_8c_source.html#l00129">brix_sss_keytab_read()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="sss__keytab_8h_source.html#l00036">XRDC_SSS_KEYS_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00391">dispatch_cmd()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00393">dispatch_cmd()</a>.</p>
 
 </div>
 </div>
-<a id="a96759bb8f4f08f7914ab168dddd156cf" name="a96759bb8f4f08f7914ab168dddd156cf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a96759bb8f4f08f7914ab168dddd156cf">&#9670;&#160;</a></span>dispatch_cmd()</h2>
+<a id="addeae1969d5dbae5d0e71f27f518e7ba" name="addeae1969d5dbae5d0e71f27f518e7ba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#addeae1969d5dbae5d0e71f27f518e7ba">&#9670;&#160;</a></span>dispatch_cmd()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -427,7 +428,13 @@ Variables</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>keytab</em>&#160;</td>
+          <td class="paramname"><em>keytab</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -442,11 +449,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00391">391</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00393">393</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00265">cli_opts_t::add</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00263">cli_opts_t::cmd</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00141">cmd_add()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00213">cmd_del()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00188">cmd_list()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00266">cli_opts_t::id</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00050">usage()</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00086">add_args_t::want_id</a>.</p>
+<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00267">cli_opts_t::add</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00265">cli_opts_t::cmd</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00143">cmd_add()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00215">cmd_del()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00190">cmd_list()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00268">cli_opts_t::id</a>, <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00088">add_args_t::want_id</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00411">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00413">main()</a>.</p>
 
 </div>
 </div>
@@ -496,11 +503,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00057">57</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00059">59</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="sss__keytab_8c_source.html#l00129">brix_sss_keytab_read()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, and <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00141">cmd_add()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00143">cmd_add()</a>.</p>
 
 </div>
 </div>
@@ -530,9 +537,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00411">411</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00413">413</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="sss__keytab_8c_source.html#l00065">brix_sss_keytab_default()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00263">cli_opts_t::cmd</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00391">dispatch_cmd()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00264">cli_opts_t::keytab</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00357">parse_opts()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00050">usage()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00030">usage_fp()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="progname_8h_source.html#l00036">brix_prog_base()</a>, <a class="el" href="sss__keytab_8c_source.html#l00065">brix_sss_keytab_default()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00265">cli_opts_t::cmd</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00393">dispatch_cmd()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00266">cli_opts_t::keytab</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00359">parse_opts()</a>, <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00031">usage_fp()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -560,11 +567,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00330">330</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00332">332</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00284">opt_spec::alt</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00289">OPTS</a>.</p>
+<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00286">opt_spec::alt</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00291">OPTS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00357">parse_opts()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00359">parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -614,16 +621,16 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00357">357</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00359">359</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00309">apply_opt()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00263">cli_opts_t::cmd</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00330">match_opt()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00050">usage()</a>.</p>
+<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00311">apply_opt()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00265">cli_opts_t::cmd</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00332">match_opt()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00411">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00413">main()</a>.</p>
 
 </div>
 </div>
-<a id="ad96d407a911fbb914fa8e4cfbf2faf0f" name="ad96d407a911fbb914fa8e4cfbf2faf0f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad96d407a911fbb914fa8e4cfbf2faf0f">&#9670;&#160;</a></span>usage()</h2>
+<a id="a848c0ca46d3e3ecc39d2fccc4d85fa12" name="a848c0ca46d3e3ecc39d2fccc4d85fa12"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a848c0ca46d3e3ecc39d2fccc4d85fa12">&#9670;&#160;</a></span>usage()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -634,8 +641,8 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">static void usage </td>
           <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -646,16 +653,14 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00050">50</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00052">52</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00030">usage_fp()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00391">dispatch_cmd()</a>, <a class="el" href="xrdsssadmin_8c_source.html#l00411">main()</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00357">parse_opts()</a>.</p>
+<p class="reference">References <a class="el" href="xrdsssadmin_8c_source.html#l00031">usage_fp()</a>.</p>
 
 </div>
 </div>
-<a id="a28999b7bf77e817ab21c70002c3ad233" name="a28999b7bf77e817ab21c70002c3ad233"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a28999b7bf77e817ab21c70002c3ad233">&#9670;&#160;</a></span>usage_fp()</h2>
+<a id="a017babcb376a0b2a74e3762918e3d31e" name="a017babcb376a0b2a74e3762918e3d31e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a017babcb376a0b2a74e3762918e3d31e">&#9670;&#160;</a></span>usage_fp()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -667,8 +672,18 @@ Variables</h2></td></tr>
           <td class="memname">static void usage_fp </td>
           <td>(</td>
           <td class="paramtype">FILE *&#160;</td>
-          <td class="paramname"><em>out</em></td><td>)</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
@@ -678,11 +693,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00030">30</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00031">31</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="version_8h_source.html#l00032">BRIX_USAGE_FOOTER</a>.</p>
+<p class="reference">References <a class="el" href="progname_8h_source.html#l00036">brix_prog_base()</a>, and <a class="el" href="progname_8h_source.html#l00084">brix_usage_footer()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00411">main()</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00050">usage()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00413">main()</a>, and <a class="el" href="xrdsssadmin_8c_source.html#l00052">usage()</a>.</p>
 
 </div>
 </div>
@@ -715,14 +730,14 @@ Variables</h2></td></tr>
 <div class="line">    { <span class="stringliteral">&quot;--lifetime&quot;</span>, NULL, <a class="code hl_enumvalue" href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da7500f36595a4d5cb1f84b1d9abb4e0f2">OPT_I32</a>, offsetof(<a class="code hl_struct" href="structcli__opts__t.html">cli_opts_t</a>, add.lifetime_days) },</div>
 <div class="line">    { <span class="stringliteral">&quot;--keylen&quot;</span>,   NULL, <a class="code hl_enumvalue" href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da7500f36595a4d5cb1f84b1d9abb4e0f2">OPT_I32</a>, offsetof(<a class="code hl_struct" href="structcli__opts__t.html">cli_opts_t</a>, add.keylen)        },</div>
 <div class="line">}</div>
-<div class="ttc" id="astructcli__opts__t_html"><div class="ttname"><a href="structcli__opts__t.html">cli_opts_t</a></div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00262">xrdsssadmin.c:262</a></div></div>
-<div class="ttc" id="axrdsssadmin_8c_html_a057d88a98fa90c8b6b61dcc70e72a45da6d21206e512febf3c8bde183039306e0"><div class="ttname"><a href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da6d21206e512febf3c8bde183039306e0">OPT_I64</a></div><div class="ttdeci">@ OPT_I64</div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00270">xrdsssadmin.c:270</a></div></div>
-<div class="ttc" id="axrdsssadmin_8c_html_a057d88a98fa90c8b6b61dcc70e72a45da7500f36595a4d5cb1f84b1d9abb4e0f2"><div class="ttname"><a href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da7500f36595a4d5cb1f84b1d9abb4e0f2">OPT_I32</a></div><div class="ttdeci">@ OPT_I32</div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00270">xrdsssadmin.c:270</a></div></div>
-<div class="ttc" id="axrdsssadmin_8c_html_a057d88a98fa90c8b6b61dcc70e72a45da91e7b05156fd80c0d07df2eb55b98e3d"><div class="ttname"><a href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da91e7b05156fd80c0d07df2eb55b98e3d">OPT_STR</a></div><div class="ttdeci">@ OPT_STR</div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00270">xrdsssadmin.c:270</a></div></div>
+<div class="ttc" id="astructcli__opts__t_html"><div class="ttname"><a href="structcli__opts__t.html">cli_opts_t</a></div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00264">xrdsssadmin.c:264</a></div></div>
+<div class="ttc" id="axrdsssadmin_8c_html_a057d88a98fa90c8b6b61dcc70e72a45da6d21206e512febf3c8bde183039306e0"><div class="ttname"><a href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da6d21206e512febf3c8bde183039306e0">OPT_I64</a></div><div class="ttdeci">@ OPT_I64</div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00272">xrdsssadmin.c:272</a></div></div>
+<div class="ttc" id="axrdsssadmin_8c_html_a057d88a98fa90c8b6b61dcc70e72a45da7500f36595a4d5cb1f84b1d9abb4e0f2"><div class="ttname"><a href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da7500f36595a4d5cb1f84b1d9abb4e0f2">OPT_I32</a></div><div class="ttdeci">@ OPT_I32</div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00272">xrdsssadmin.c:272</a></div></div>
+<div class="ttc" id="axrdsssadmin_8c_html_a057d88a98fa90c8b6b61dcc70e72a45da91e7b05156fd80c0d07df2eb55b98e3d"><div class="ttname"><a href="xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da91e7b05156fd80c0d07df2eb55b98e3d">OPT_STR</a></div><div class="ttdeci">@ OPT_STR</div><div class="ttdef"><b>Definition</b> <a href="xrdsssadmin_8c_source.html#l00272">xrdsssadmin.c:272</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00289">289</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdsssadmin_8c_source.html#l00291">291</a> of file <a class="el" href="xrdsssadmin_8c_source.html">xrdsssadmin.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00330">match_opt()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdsssadmin_8c_source.html#l00332">match_opt()</a>.</p>
 
 </div>
 </div>

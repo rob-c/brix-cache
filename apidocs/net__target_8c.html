@@ -123,7 +123,7 @@ Functions</h2></td></tr>
 <tr class="separator:ac41f3e4c6e0fb6e84827cd31060c3edb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a14da145a4aff2614923f221b8ae79dbb" id="r_a14da145a4aff2614923f221b8ae79dbb"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net__target_8c.html#a14da145a4aff2614923f221b8ae79dbb">brix_net_target_check_addr</a> (const struct sockaddr *sa, const <a class="el" href="structbrix__net__target__policy__t.html">brix_net_target_policy_t</a> *policy, char *err, size_t errsz)</td></tr>
 <tr class="separator:a14da145a4aff2614923f221b8ae79dbb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3a5d828e3af16d6f82ebaacf7122f1f6" id="r_a3a5d828e3af16d6f82ebaacf7122f1f6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net__target_8c.html#a3a5d828e3af16d6f82ebaacf7122f1f6">brix_net_host_chars_valid</a> (const char *host, size_t len)</td></tr>
+<tr class="memitem:a3a5d828e3af16d6f82ebaacf7122f1f6" id="r_a3a5d828e3af16d6f82ebaacf7122f1f6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="net__target_8c.html#a3a5d828e3af16d6f82ebaacf7122f1f6">brix_net_host_chars_valid</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, size_t len)</td></tr>
 <tr class="separator:a3a5d828e3af16d6f82ebaacf7122f1f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
@@ -154,6 +154,8 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="net__target_8c_source.html#l00175">175</a> of file <a class="el" href="net__target_8c_source.html">net_target.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2manager_2registry_8c_source.html#l00138">brix_srv_register()</a>, and <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00048">cms_wake_pending_session()</a>.</p>
 
@@ -201,7 +203,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="net__target_8h_source.html#l00052">brix_net_target_policy_t::allow_local</a>, <a class="el" href="net__target_8h_source.html#l00053">brix_net_target_policy_t::allow_private</a>, and <a class="el" href="net__target_8c_source.html#l00109">net_addr_check()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00115">ev_do_port()</a>, and <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00149">ev_do_port()</a>, and <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>.</p>
 
 </div>
 </div>

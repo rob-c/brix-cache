@@ -383,7 +383,7 @@ $(document).ready(function(){initNavTree('proto__exclusive_8c_source.html',''); 
 <div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>{</div>
 <div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    ngx_uint_t                  p, a, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
 <div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    ngx_uint_t                  port_mask, srv_mask;</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    ngx_http_conf_port_t       *port;</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    ngx_http_conf_port_t       *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>;</div>
 <div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    ngx_http_conf_addr_t       *addr;</div>
 <div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    ngx_http_core_srv_conf_t  **cscf;</div>
 <div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    ngx_http_core_main_conf_t  *cmcf;</div>
@@ -393,12 +393,12 @@ $(document).ready(function(){initNavTree('proto__exclusive_8c_source.html',''); 
 <div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>        <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    }</div>
 <div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span> </div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    port = cmcf-&gt;ports-&gt;elts;</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a> = cmcf-&gt;ports-&gt;elts;</div>
 <div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>    <span class="keywordflow">for</span> (p = 0; p &lt; cmcf-&gt;ports-&gt;nelts; p++) {</div>
 <div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>        port_mask = <a class="code hl_define" href="proto__exclusive_8c.html#a4de35a125e0ee7b2cd79b05253459750">BRIX_PROTO_NONE</a>;</div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>        addr = port[p].addrs.elts;</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>        addr = <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>[p].addrs.elts;</div>
 <div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span> </div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>        <span class="keywordflow">for</span> (a = 0; a &lt; port[p].addrs.nelts; a++) {</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>        <span class="keywordflow">for</span> (a = 0; a &lt; <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>[p].addrs.nelts; a++) {</div>
 <div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>            cscf = addr[a].servers.elts;</div>
 <div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>            <span class="keywordflow">for</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = 0; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt; addr[a].servers.nelts; <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>++) {</div>
 <div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>                srv_mask = <a class="code hl_define" href="proto__exclusive_8c.html#a4de35a125e0ee7b2cd79b05253459750">BRIX_PROTO_NONE</a>;</div>
@@ -415,13 +415,14 @@ $(document).ready(function(){initNavTree('proto__exclusive_8c_source.html',''); 
 <div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>                <span class="stringliteral">&quot;one brix protocol per port&quot;</span>,</div>
 <div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>                <a class="code hl_function" href="proto__exclusive_8c.html#a4ca0a7224bbcf7d737df54ee6cbf4e43">brix_proto_name</a>(port_mask &amp; (port_mask - 1)),</div>
 <div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>                <a class="code hl_function" href="proto__exclusive_8c.html#a4ca0a7224bbcf7d737df54ee6cbf4e43">brix_proto_name</a>(port_mask &amp; ~(port_mask - 1)),</div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>                (ngx_uint_t) port[p].port);   <span class="comment">/* host order (ngx_inet_get_port) */</span></div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>                (ngx_uint_t) <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>[p].<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>);   <span class="comment">/* host order (ngx_inet_get_port) */</span></div>
 <div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>        }</div>
 <div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    }</div>
 <div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>    <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>}</div>
 </div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a63c89c04d1feae07ca35558055155ffb"><div class="ttname"><a href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 <div class="ttc" id="acvmfs_8h_html"><div class="ttname"><a href="cvmfs_8h.html">cvmfs.h</a></div></div>
 <div class="ttc" id="aproto__exclusive_8c_html_a1998cf83e6dcbaeda2225772957f82ff"><div class="ttname"><a href="proto__exclusive_8c.html#a1998cf83e6dcbaeda2225772957f82ff">brix_proto_add_level</a></div><div class="ttdeci">static ngx_int_t brix_proto_add_level(ngx_conf_t *cf, void **loc_conf, ngx_str_t *name, ngx_uint_t *server_mask)</div><div class="ttdef"><b>Definition</b> <a href="proto__exclusive_8c_source.html#l00099">proto_exclusive.c:99</a></div></div>
 <div class="ttc" id="aproto__exclusive_8c_html_a477bd3902224b11dde60b703ed05752f"><div class="ttname"><a href="proto__exclusive_8c.html#a477bd3902224b11dde60b703ed05752f">brix_http_proto_exclusive_check</a></div><div class="ttdeci">ngx_int_t brix_http_proto_exclusive_check(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="proto__exclusive_8c_source.html#l00267">proto_exclusive.c:267</a></div></div>

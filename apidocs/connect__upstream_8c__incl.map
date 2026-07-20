@@ -1,6 +1,6 @@
 <map id="src/net/proxy/connect_upstream.c" name="src/net/proxy/connect_upstream.c">
 <area shape="rect" id="Node000001" title=" " alt="" coords="6237,5,6400,45"/>
-<area shape="rect" id="Node000002" href="$net_2proxy_2proxy__internal_8h.html" title=" " alt="" coords="5304,93,5432,119"/>
+<area shape="rect" id="Node000002" href="$proxy__internal_8h.html" title=" " alt="" coords="5304,93,5432,119"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="6238,36,5446,101,5445,96,6237,31"/>
 <area shape="rect" id="Node000128" href="$netconnect_8h.html" title=" " alt="" coords="6075,240,6261,280"/>
 <area shape="poly" id="edge76_Node000001_Node000128" title=" " alt="" coords="6309,47,6190,230,6186,227,6304,44"/>

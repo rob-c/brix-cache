@@ -123,6 +123,8 @@ Functions</h2></td></tr>
 <tr class="separator:a538bce4593b305eca5a39dc5ef6c0b82"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adaf93db2218759337c21fc7ef2d8ebab" id="r_adaf93db2218759337c21fc7ef2d8ebab"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="pgw__fob_8c.html#adaf93db2218759337c21fc7ef2d8ebab">brix_pgw_fob_count</a> (const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *f)</td></tr>
 <tr class="separator:adaf93db2218759337c21fc7ef2d8ebab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ace5f38085204d0c22e009c7bb02e00b4" id="r_ace5f38085204d0c22e009c7bb02e00b4"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="pgw__fob_8c.html#ace5f38085204d0c22e009c7bb02e00b4">brix_pgw_fob_commit_blocked</a> (const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *f)</td></tr>
+<tr class="separator:ace5f38085204d0c22e009c7bb02e00b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5f9f0d5a3032f03f11604d78633adefc" id="r_a5f9f0d5a3032f03f11604d78633adefc"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="pgw__fob_8c.html#a5f9f0d5a3032f03f11604d78633adefc">brix_pgw_fob_reset</a> (<a class="el" href="structbrix__file__t.html">brix_file_t</a> *f)</td></tr>
 <tr class="separator:a5f9f0d5a3032f03f11604d78633adefc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -167,6 +169,30 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ace5f38085204d0c22e009c7bb02e00b4" name="ace5f38085204d0c22e009c7bb02e00b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ace5f38085204d0c22e009c7bb02e00b4">&#9670;&#160;</a></span>brix_pgw_fob_commit_blocked()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t brix_pgw_fob_commit_blocked </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structbrix__file__t.html">brix_file_t</a> *&#160;</td>
+          <td class="paramname"><em>f</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="pgw__fob_8c_source.html#l00113">113</a> of file <a class="el" href="pgw__fob_8c_source.html">pgw_fob.c</a>.</p>
+
+<p class="reference">References <a class="el" href="core_2types_2file_8h_source.html#l00238">brix_file_t::pgw_fob_count</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00237">brix_file_t::pgw_fob_enabled</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00137">brix_close_pgw_gate()</a>, and <a class="el" href="sync_8c_source.html#l00018">brix_handle_sync()</a>.</p>
+
+</div>
+</div>
 <a id="adaf93db2218759337c21fc7ef2d8ebab" name="adaf93db2218759337c21fc7ef2d8ebab"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#adaf93db2218759337c21fc7ef2d8ebab">&#9670;&#160;</a></span>brix_pgw_fob_count()</h2>
 
@@ -186,8 +212,6 @@ Functions</h2></td></tr>
 <p class="definition">Definition at line <a class="el" href="pgw__fob_8c_source.html#l00107">107</a> of file <a class="el" href="pgw__fob_8c_source.html">pgw_fob.c</a>.</p>
 
 <p class="reference">References <a class="el" href="core_2types_2file_8h_source.html#l00238">brix_file_t::pgw_fob_count</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00137">brix_close_pgw_gate()</a>.</p>
 
 </div>
 </div>
@@ -311,7 +335,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="pgw__fob_8c_source.html#l00113">113</a> of file <a class="el" href="pgw__fob_8c_source.html">pgw_fob.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="pgw__fob_8c_source.html#l00119">119</a> of file <a class="el" href="pgw__fob_8c_source.html">pgw_fob.c</a>.</p>
 
 <p class="reference">References <a class="el" href="core_2types_2file_8h_source.html#l00241">brix_file_t::pgw_fob</a>, <a class="el" href="core_2types_2file_8h_source.html#l00238">brix_file_t::pgw_fob_count</a>, <a class="el" href="core_2types_2file_8h_source.html#l00237">brix_file_t::pgw_fob_enabled</a>, <a class="el" href="core_2types_2file_8h_source.html#l00239">brix_file_t::pgw_fob_errs</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00240">brix_file_t::pgw_fob_fixes</a>.</p>
 

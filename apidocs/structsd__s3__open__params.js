@@ -4,6 +4,7 @@ var structsd__s3__open__params =
     [ "host", "structsd__s3__open__params.html#a69263c5fb461f7dcb91c446f1556e577", null ],
     [ "key", "structsd__s3__open__params.html#a7ee3d80c96335314eb3934d11e238cf5", null ],
     [ "port", "structsd__s3__open__params.html#a964ccef96ee9e30f72569f966ccea247", null ],
+    [ "put_checksum", "structsd__s3__open__params.html#aa5f8874743862ce1fad129e8a6d8911f", null ],
     [ "region", "structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6", null ],
     [ "sk", "structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad", null ],
     [ "tctx", "structsd__s3__open__params.html#a7420f3b6f28d171b3ca9f365f5a88b28", null ],

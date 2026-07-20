@@ -7,6 +7,7 @@ var src_2protocols_2s3_2checksum_8c =
     [ "s3_cksum_by_token", "src_2protocols_2s3_2checksum_8c.html#abc01dafcf86779853d66aa31596e3a96", null ],
     [ "s3_cksum_vfs_open", "src_2protocols_2s3_2checksum_8c.html#a51d3a50768d84a5de550d3c0e84ac3d1", null ],
     [ "s3_cksum_vfs_unlink", "src_2protocols_2s3_2checksum_8c.html#a99fc666983569bc5fd448804febe18a0", null ],
+    [ "s3_content_md5_verify", "src_2protocols_2s3_2checksum_8c.html#ac0df75bba01c31f91b866e1e2e237d03", null ],
     [ "s3_echo_object_checksums", "src_2protocols_2s3_2checksum_8c.html#a97910d6600b9fd076664a76ea1044ac7", null ],
     [ "s3_put_checksum_apply", "src_2protocols_2s3_2checksum_8c.html#a2f1b93b59482d998345d0897e7c0bd7e", null ],
     [ "s3_put_select_algo", "src_2protocols_2s3_2checksum_8c.html#abe2599b8b60eeb702308e6a00b8d1abc", null ],

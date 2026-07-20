@@ -718,7 +718,7 @@ var sectionId = 'dynsection-0';
 <!-- Node74 -->
 <g id="Node000074" class="node">
 <title>Node74</title>
-<g id="a_Node000074"><a xlink:href="client_2lib_2auth_2gsi_2proxy_8c.html" target="_top" xlink:title=" ">
+<g id="a_Node000074"><a xlink:href="proxy_8c.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="3758,-96 3657,-96 3657,-66 3758,-66 3758,-96"/>
 <text text-anchor="start" x="3665" y="-84" font-family="Helvetica,sans-Serif" font-size="10.00">client/lib/auth/gsi</text>
 <text text-anchor="middle" x="3707.5" y="-73" font-family="Helvetica,sans-Serif" font-size="10.00">/proxy.c</text>

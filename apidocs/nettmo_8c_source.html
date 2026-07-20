@@ -194,179 +194,206 @@ $(document).ready(function(){initNavTree('nettmo_8c_source.html',''); initResiza
 <div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>}</div>
 </div>
 <div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span> </div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00092" data-start="{" data-end="}">
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno"><a class="line" href="brix__net_8h.html#aa592df33acdd628a8195e4973a6ae134">   92</a></span><a class="code hl_function" href="nettmo_8c.html#aa592df33acdd628a8195e4973a6ae134">brix_tmo_set_connect_ms</a>(<span class="keywordtype">int</span> ms)</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>{</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    <span class="keywordflow">if</span> (ms &gt; 0) {</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        atomic_store_explicit(&amp;<a class="code hl_variable" href="nettmo_8c.html#a52b9576a636c17ca5cd0e46749529cb6">g_connect_ms</a>, ms, memory_order_relaxed);</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    }</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>}</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="comment">/* Slow-drip completion deadline. Default 0 = DISABLED (unresolved sentinel and</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="comment"> * &quot;off&quot; coincide, so this re-checks env/xrdrc until a setter or a positive value</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="comment"> * pins it — cheap, and the read path is not hot enough to matter). */</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno"><a class="line" href="nettmo_8c.html#a197aa9c6aafe861e5ce01b672c62b7a3">   94</a></span><span class="keyword">static</span> atomic_int <a class="code hl_variable" href="nettmo_8c.html#a197aa9c6aafe861e5ce01b672c62b7a3">g_stall_ms</a> = 0;</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span> </div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00097" data-start="{" data-end="}">
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno"><a class="line" href="brix__net_8h.html#a8bda073d49f1c1c9ec0a0921d5b59abd">   97</a></span><a class="code hl_function" href="nettmo_8c.html#a8bda073d49f1c1c9ec0a0921d5b59abd">brix_tmo_stall_ms</a>(<span class="keywordtype">void</span>)</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>{</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="nettmo_8c.html#a39804819b44da71d3b55540524f10955">resolve_ms</a>(&amp;<a class="code hl_variable" href="nettmo_8c.html#a197aa9c6aafe861e5ce01b672c62b7a3">g_stall_ms</a>, <span class="stringliteral">&quot;XRDC_STALL_DEADLINE_MS&quot;</span>,</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>                      <span class="stringliteral">&quot;stall_deadline_ms&quot;</span>, 0 <span class="comment">/* off by default */</span>);</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>}</div>
 </div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span> </div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00100" data-start="{" data-end="}">
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno"><a class="line" href="brix__net_8h.html#ae1ff1463baa651ec557fee4aebaf3a41">  100</a></span><a class="code hl_function" href="nettmo_8c.html#ae1ff1463baa651ec557fee4aebaf3a41">brix_tmo_set_io_ms</a>(<span class="keywordtype">int</span> ms)</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>{</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    <span class="keywordflow">if</span> (ms &gt; 0) {</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        atomic_store_explicit(&amp;<a class="code hl_variable" href="nettmo_8c.html#aa0bb68537c6ea27aa50dd660184df46c">g_io_ms</a>, ms, memory_order_relaxed);</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    }</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>}</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span> </div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00104" data-start="{" data-end="}">
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno"><a class="line" href="brix__net_8h.html#abb1e01baf3475978687209e4e6786929">  104</a></span><a class="code hl_function" href="nettmo_8c.html#abb1e01baf3475978687209e4e6786929">brix_tmo_set_stall_ms</a>(<span class="keywordtype">int</span> ms)</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>{</div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <span class="keywordflow">if</span> (ms &gt; 0) {</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>        atomic_store_explicit(&amp;<a class="code hl_variable" href="nettmo_8c.html#a197aa9c6aafe861e5ce01b672c62b7a3">g_stall_ms</a>, ms, memory_order_relaxed);</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    }</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>}</div>
 </div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span> </div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="keywordtype">unsigned</span></div>
-<div class="foldopen" id="foldopen00108" data-start="{" data-end="}">
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno"><a class="line" href="brix__net_8h.html#a207308bd1d0dc2abf0ff25bb7b430b24">  108</a></span><a class="code hl_function" href="nettmo_8c.html#a207308bd1d0dc2abf0ff25bb7b430b24">brix_backoff_delay_ms</a>(<span class="keywordtype">unsigned</span> attempt, uint64_t *seed)</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>{</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="comment">/* Exponential base 100ms&lt;&lt;attempt, capped at 5s; attempt exponent clamped so</span></div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment">     * a long-running retry loop cannot overflow the shift. */</span></div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordtype">unsigned</span> shift = (attempt &lt; 6) ? attempt : 6;</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    uint64_t base  = 100ULL &lt;&lt; shift;</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordflow">if</span> (base &gt; 5000) {</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        base = 5000;</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span> </div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00112" data-start="{" data-end="}">
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno"><a class="line" href="brix__net_8h.html#aa592df33acdd628a8195e4973a6ae134">  112</a></span><a class="code hl_function" href="nettmo_8c.html#aa592df33acdd628a8195e4973a6ae134">brix_tmo_set_connect_ms</a>(<span class="keywordtype">int</span> ms)</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>{</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordflow">if</span> (ms &gt; 0) {</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>        atomic_store_explicit(&amp;<a class="code hl_variable" href="nettmo_8c.html#a52b9576a636c17ca5cd0e46749529cb6">g_connect_ms</a>, ms, memory_order_relaxed);</div>
 <div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    }</div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    <span class="comment">/* xorshift64 jitter in [0, base/2] decorrelates concurrent retriers so they</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment">     * do not all wake and reconnect on the same tick. */</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    uint64_t <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = (*seed != 0) ? *seed : 0x9e3779b97f4a7c15ULL;</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 13;</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt;&gt; 7;</div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 17;</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    *seed = <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    <span class="keywordtype">unsigned</span> jitter = (unsigned) (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> % (base / 2 + 1));</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span>) base + jitter;</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>}</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>}</div>
 </div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span> </div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="comment">/* Transport-fault backoff base (ms), tunable via $XRDC_BACKOFF_BASE_MS (default</span></div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span><span class="comment"> * 25). On a lossy-but-connected link the reconnect itself is sub-millisecond, so</span></div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span><span class="comment"> * the backoff sleep dominates recovery latency; lowering it (e.g. =1) maximises</span></div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment"> * throughput under heavy reset-style loss at the cost of a tighter retry loop</span></div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span><span class="comment"> * against a genuinely-down peer. Read once and cached. */</span></div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment"> * backoff_base_ms — resolve the transport-fault backoff base once and cache it.</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span><span class="comment"> * WHAT: Returns the number of milliseconds to use as the backoff base for</span></div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment"> *       transport-fault retries. Resolution order: env XRDC_BACKOFF_BASE_MS &gt;</span></div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment"> *       xrdrc [defaults] backoff_base_ms &gt; compiled default (25 ms).</span></div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="comment"> * WHY:  On a lossy link the default may be tuned site-wide via .xrdrc without</span></div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment"> *       requiring every operator to set an env var in their shell profile.</span></div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> * HOW:  Uses a sentinel-initialized atomic (−1 = not yet resolved) so the</span></div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment"> *       resolution happens only once per process lifetime.</span></div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="keyword">static</span> <span class="keywordtype">unsigned</span></div>
-<div class="foldopen" id="foldopen00145" data-start="{" data-end="}">
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno"><a class="line" href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">  145</a></span><a class="code hl_function" href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">backoff_base_ms</a>(<span class="keywordtype">void</span>)</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>{</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    <span class="keyword">static</span> atomic_int cached = -1;</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    <span class="keywordtype">int</span> v = atomic_load_explicit(&amp;cached, memory_order_relaxed);</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    <span class="keywordflow">if</span> (v &lt; 0) {</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *e = getenv(<span class="stringliteral">&quot;XRDC_BACKOFF_BASE_MS&quot;</span>);</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>        <span class="keywordtype">long</span> parsed;</div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        <span class="keywordflow">if</span> (e != NULL &amp;&amp; *e != <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>            parsed = strtol(e, NULL, 10);</div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>            <span class="keywordtype">int</span> xv;</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>            parsed = <a class="code hl_function" href="brix__net_8h.html#a5f40488d4f111b9e9dbd47c78c243c54">brix_xrdrc_default_ms</a>(<span class="stringliteral">&quot;backoff_base_ms&quot;</span>, &amp;xv) ? (long) xv : 25L;</div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        }</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>        <span class="keywordflow">if</span> (parsed &lt; 0) {</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>            parsed = 0;</div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>        }</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        <span class="keywordflow">if</span> (parsed &gt; 10000) {</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>            parsed = 10000;</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        }</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        v = (int) parsed;</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>        atomic_store_explicit(&amp;cached, v, memory_order_relaxed);</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    }</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span>) v;</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>}</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span> </div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00120" data-start="{" data-end="}">
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno"><a class="line" href="brix__net_8h.html#ae1ff1463baa651ec557fee4aebaf3a41">  120</a></span><a class="code hl_function" href="nettmo_8c.html#ae1ff1463baa651ec557fee4aebaf3a41">brix_tmo_set_io_ms</a>(<span class="keywordtype">int</span> ms)</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>{</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    <span class="keywordflow">if</span> (ms &gt; 0) {</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        atomic_store_explicit(&amp;<a class="code hl_variable" href="nettmo_8c.html#aa0bb68537c6ea27aa50dd660184df46c">g_io_ms</a>, ms, memory_order_relaxed);</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    }</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>}</div>
 </div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span> </div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span><span class="keywordtype">unsigned</span></div>
-<div class="foldopen" id="foldopen00171" data-start="{" data-end="}">
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno"><a class="line" href="brix__net_8h.html#ac83bb39b6b3bed8e14b1fa3818feb16b">  171</a></span><a class="code hl_function" href="nettmo_8c.html#ac83bb39b6b3bed8e14b1fa3818feb16b">brix_backoff_delay_fast_ms</a>(<span class="keywordtype">unsigned</span> attempt, uint64_t *seed)</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>{</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    <span class="comment">/* Fast backoff for TRANSPORT faults (a connection reset/EOF is instant and</span></div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span><span class="comment">     * not a sign of server overload): BASE&lt;&lt;attempt capped at 10x BASE (&gt;=250ms</span></div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span><span class="comment">     * for the 25ms default), plus jitter. A short cap lets many retries fit inside</span></div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span><span class="comment">     * the patience window, which is what rides out a high packet-loss link — where</span></div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span><span class="comment">     * each large read/reconnect is frequently severed and must simply be</span></div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="comment">     * re-attempted promptly. BASE is $XRDC_BACKOFF_BASE_MS (default 25). */</span></div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keywordtype">unsigned</span> base_ms = <a class="code hl_function" href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">backoff_base_ms</a>();</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <span class="keywordtype">unsigned</span> shift = (attempt &lt; 4) ? attempt : 4;</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    uint64_t base  = (uint64_t) base_ms &lt;&lt; shift;   <span class="comment">/* e.g. 25,50,100,200,400→cap */</span></div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    uint64_t cap   = (base_ms &gt;= 25) ? 250ULL : (uint64_t) base_ms * 10ULL;</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <span class="keywordflow">if</span> (base &gt; cap) {</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        base = cap;</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    }</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    uint64_t <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = (*seed != 0) ? *seed : 0x2545f4914f6cdd1dULL;</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 13;</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt;&gt; 7;</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 17;</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    *seed = <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordtype">unsigned</span> jitter = (unsigned) (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> % (base / 2 + 1));</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span>) base + jitter;</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>}</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span> </div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="keywordtype">unsigned</span></div>
+<div class="foldopen" id="foldopen00128" data-start="{" data-end="}">
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno"><a class="line" href="brix__net_8h.html#a207308bd1d0dc2abf0ff25bb7b430b24">  128</a></span><a class="code hl_function" href="nettmo_8c.html#a207308bd1d0dc2abf0ff25bb7b430b24">brix_backoff_delay_ms</a>(<span class="keywordtype">unsigned</span> attempt, uint64_t *seed)</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>{</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    <span class="comment">/* Exponential base 100ms&lt;&lt;attempt, capped at 5s; attempt exponent clamped so</span></div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span><span class="comment">     * a long-running retry loop cannot overflow the shift. */</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    <span class="keywordtype">unsigned</span> shift = (attempt &lt; 6) ? attempt : 6;</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    uint64_t base  = 100ULL &lt;&lt; shift;</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordflow">if</span> (base &gt; 5000) {</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        base = 5000;</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    <span class="comment">/* xorshift64 jitter in [0, base/2] decorrelates concurrent retriers so they</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment">     * do not all wake and reconnect on the same tick. */</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    uint64_t <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = (*seed != 0) ? *seed : 0x9e3779b97f4a7c15ULL;</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 13;</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt;&gt; 7;</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 17;</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    *seed = <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    <span class="keywordtype">unsigned</span> jitter = (unsigned) (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> % (base / 2 + 1));</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span>) base + jitter;</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>}</div>
 </div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span> </div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="comment">/* Sleep `ms` in &lt;=50ms slices, observing a cooperative cancel between slices. */</span></div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00197" data-start="{" data-end="}">
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno"><a class="line" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">  197</a></span><a class="code hl_function" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a>(<span class="keywordtype">unsigned</span> ms)</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>{</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <span class="keywordflow">while</span> (ms &gt; 0) {</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="brix__ops_8h.html#a14a6f705360ce358aeca056b7a89c46f">brix_copy_quit_requested</a>()) {</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>            <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        }</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>        <span class="keywordtype">unsigned</span>        slice = (ms &gt; 50) ? 50 : ms;</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>        <span class="keyword">struct </span>timespec ts = { (time_t) (slice / 1000),</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>                               (long) (slice % 1000) * 1000000L };</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>        nanosleep(&amp;ts, NULL);</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>        ms -= slice;</div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    }</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>}</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span> </div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span><span class="comment">/* Transport-fault backoff base (ms), tunable via $XRDC_BACKOFF_BASE_MS (default</span></div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="comment"> * 25). On a lossy-but-connected link the reconnect itself is sub-millisecond, so</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="comment"> * the backoff sleep dominates recovery latency; lowering it (e.g. =1) maximises</span></div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="comment"> * throughput under heavy reset-style loss at the cost of a tighter retry loop</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> * against a genuinely-down peer. Read once and cached. */</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment"> * backoff_base_ms — resolve the transport-fault backoff base once and cache it.</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment"> * WHAT: Returns the number of milliseconds to use as the backoff base for</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span><span class="comment"> *       transport-fault retries. Resolution order: env XRDC_BACKOFF_BASE_MS &gt;</span></div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="comment"> *       xrdrc [defaults] backoff_base_ms &gt; compiled default (25 ms).</span></div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment"> * WHY:  On a lossy link the default may be tuned site-wide via .xrdrc without</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment"> *       requiring every operator to set an env var in their shell profile.</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> * HOW:  Uses a sentinel-initialized atomic (−1 = not yet resolved) so the</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> *       resolution happens only once per process lifetime.</span></div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="keyword">static</span> <span class="keywordtype">unsigned</span></div>
+<div class="foldopen" id="foldopen00165" data-start="{" data-end="}">
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno"><a class="line" href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">  165</a></span><a class="code hl_function" href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">backoff_base_ms</a>(<span class="keywordtype">void</span>)</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>{</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keyword">static</span> atomic_int cached = -1;</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    <span class="keywordtype">int</span> v = atomic_load_explicit(&amp;cached, memory_order_relaxed);</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <span class="keywordflow">if</span> (v &lt; 0) {</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *e = getenv(<span class="stringliteral">&quot;XRDC_BACKOFF_BASE_MS&quot;</span>);</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>        <span class="keywordtype">long</span> parsed;</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        <span class="keywordflow">if</span> (e != NULL &amp;&amp; *e != <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>            parsed = strtol(e, NULL, 10);</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>            <span class="keywordtype">int</span> xv;</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>            parsed = <a class="code hl_function" href="brix__net_8h.html#a5f40488d4f111b9e9dbd47c78c243c54">brix_xrdrc_default_ms</a>(<span class="stringliteral">&quot;backoff_base_ms&quot;</span>, &amp;xv) ? (long) xv : 25L;</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        }</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        <span class="keywordflow">if</span> (parsed &lt; 0) {</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>            parsed = 0;</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        }</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>        <span class="keywordflow">if</span> (parsed &gt; 10000) {</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>            parsed = 10000;</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        }</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        v = (int) parsed;</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        atomic_store_explicit(&amp;cached, v, memory_order_relaxed);</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    }</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span>) v;</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>}</div>
 </div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span> </div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00212" data-start="{" data-end="}">
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno"><a class="line" href="brix__net_8h.html#aad37385cfbd244a7fb68e3ee38248dfd">  212</a></span><a class="code hl_function" href="nettmo_8c.html#aad37385cfbd244a7fb68e3ee38248dfd">brix_backoff_sleep</a>(<span class="keywordtype">unsigned</span> attempt)</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>{</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    <span class="keyword">static</span> _Thread_local uint64_t seed = 0;</div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <span class="keywordflow">if</span> (seed == 0) {</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>        seed = (uint64_t) <a class="code hl_function" href="brix__net_8h.html#a46af1f7c34a624ced2f54acd24ea2c05">brix_mono_ns</a>() ^ (uint64_t) (uintptr_t) &amp;seed;</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    }</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    <a class="code hl_function" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a>(<a class="code hl_function" href="nettmo_8c.html#a207308bd1d0dc2abf0ff25bb7b430b24">brix_backoff_delay_ms</a>(attempt, &amp;seed));</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>}</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span> </div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="keywordtype">unsigned</span></div>
+<div class="foldopen" id="foldopen00191" data-start="{" data-end="}">
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno"><a class="line" href="brix__net_8h.html#ac83bb39b6b3bed8e14b1fa3818feb16b">  191</a></span><a class="code hl_function" href="nettmo_8c.html#ac83bb39b6b3bed8e14b1fa3818feb16b">brix_backoff_delay_fast_ms</a>(<span class="keywordtype">unsigned</span> attempt, uint64_t *seed)</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>{</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    <span class="comment">/* Fast backoff for TRANSPORT faults (a connection reset/EOF is instant and</span></div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span><span class="comment">     * not a sign of server overload): BASE&lt;&lt;attempt capped at 10x BASE (&gt;=250ms</span></div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="comment">     * for the 25ms default), plus jitter. A short cap lets many retries fit inside</span></div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="comment">     * the patience window, which is what rides out a high packet-loss link — where</span></div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="comment">     * each large read/reconnect is frequently severed and must simply be</span></div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="comment">     * re-attempted promptly. BASE is $XRDC_BACKOFF_BASE_MS (default 25). */</span></div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <span class="keywordtype">unsigned</span> base_ms = <a class="code hl_function" href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">backoff_base_ms</a>();</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    <span class="keywordtype">unsigned</span> shift = (attempt &lt; 4) ? attempt : 4;</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    uint64_t base  = (uint64_t) base_ms &lt;&lt; shift;   <span class="comment">/* e.g. 25,50,100,200,400→cap */</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    uint64_t cap   = (base_ms &gt;= 25) ? 250ULL : (uint64_t) base_ms * 10ULL;</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    <span class="keywordflow">if</span> (base &gt; cap) {</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>        base = cap;</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    }</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    uint64_t <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = (*seed != 0) ? *seed : 0x2545f4914f6cdd1dULL;</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 13;</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &gt;&gt; 7;</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> ^= <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> &lt;&lt; 17;</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    *seed = <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>;</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    <span class="keywordtype">unsigned</span> jitter = (unsigned) (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> % (base / 2 + 1));</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="keywordflow">return</span> (<span class="keywordtype">unsigned</span>) base + jitter;</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>}</div>
 </div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span> </div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00222" data-start="{" data-end="}">
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno"><a class="line" href="brix__net_8h.html#a573a8f9722f4fbdf5281694331a44f50">  222</a></span><a class="code hl_function" href="nettmo_8c.html#a573a8f9722f4fbdf5281694331a44f50">brix_backoff_sleep_fast</a>(<span class="keywordtype">unsigned</span> attempt)</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>{</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <span class="keyword">static</span> _Thread_local uint64_t seed = 0;</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    <span class="keywordflow">if</span> (seed == 0) {</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        seed = (uint64_t) <a class="code hl_function" href="brix__net_8h.html#a46af1f7c34a624ced2f54acd24ea2c05">brix_mono_ns</a>() ^ (uint64_t) (uintptr_t) &amp;seed ^ 0x55;</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    }</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    <a class="code hl_function" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a>(<a class="code hl_function" href="nettmo_8c.html#ac83bb39b6b3bed8e14b1fa3818feb16b">brix_backoff_delay_fast_ms</a>(attempt, &amp;seed));</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span> </div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="comment">/* Sleep `ms` in &lt;=50ms slices, observing a cooperative cancel between slices. */</span></div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00217" data-start="{" data-end="}">
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno"><a class="line" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">  217</a></span><a class="code hl_function" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a>(<span class="keywordtype">unsigned</span> ms)</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>{</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    <span class="keywordflow">while</span> (ms &gt; 0) {</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="brix__ops_8h.html#a14a6f705360ce358aeca056b7a89c46f">brix_copy_quit_requested</a>()) {</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>            <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        }</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>        <span class="keywordtype">unsigned</span>        slice = (ms &gt; 50) ? 50 : ms;</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>        <span class="keyword">struct </span>timespec ts = { (time_t) (slice / 1000),</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>                               (long) (slice % 1000) * 1000000L };</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>        nanosleep(&amp;ts, NULL);</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>        ms -= slice;</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    }</div>
 <div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>}</div>
+</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span> </div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00232" data-start="{" data-end="}">
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno"><a class="line" href="brix__net_8h.html#aad37385cfbd244a7fb68e3ee38248dfd">  232</a></span><a class="code hl_function" href="nettmo_8c.html#aad37385cfbd244a7fb68e3ee38248dfd">brix_backoff_sleep</a>(<span class="keywordtype">unsigned</span> attempt)</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>{</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    <span class="keyword">static</span> _Thread_local uint64_t seed = 0;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    <span class="keywordflow">if</span> (seed == 0) {</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>        seed = (uint64_t) <a class="code hl_function" href="brix__net_8h.html#a46af1f7c34a624ced2f54acd24ea2c05">brix_mono_ns</a>() ^ (uint64_t) (uintptr_t) &amp;seed;</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    }</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <a class="code hl_function" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a>(<a class="code hl_function" href="nettmo_8c.html#a207308bd1d0dc2abf0ff25bb7b430b24">brix_backoff_delay_ms</a>(attempt, &amp;seed));</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>}</div>
+</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span> </div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00242" data-start="{" data-end="}">
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno"><a class="line" href="brix__net_8h.html#a573a8f9722f4fbdf5281694331a44f50">  242</a></span><a class="code hl_function" href="nettmo_8c.html#a573a8f9722f4fbdf5281694331a44f50">brix_backoff_sleep_fast</a>(<span class="keywordtype">unsigned</span> attempt)</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>{</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    <span class="keyword">static</span> _Thread_local uint64_t seed = 0;</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    <span class="keywordflow">if</span> (seed == 0) {</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        seed = (uint64_t) <a class="code hl_function" href="brix__net_8h.html#a46af1f7c34a624ced2f54acd24ea2c05">brix_mono_ns</a>() ^ (uint64_t) (uintptr_t) &amp;seed ^ 0x55;</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    }</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    <a class="code hl_function" href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a>(<a class="code hl_function" href="nettmo_8c.html#ac83bb39b6b3bed8e14b1fa3818feb16b">brix_backoff_delay_fast_ms</a>(attempt, &amp;seed));</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>}</div>
 </div>
 <div class="ttc" id="abrix_8h_html"><div class="ttname"><a href="brix_8h.html">brix.h</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_a46af1f7c34a624ced2f54acd24ea2c05"><div class="ttname"><a href="brix__net_8h.html#a46af1f7c34a624ced2f54acd24ea2c05">brix_mono_ns</a></div><div class="ttdeci">uint64_t brix_mono_ns(void)</div><div class="ttdef"><b>Definition</b> <a href="trace_8c_source.html#l00041">trace.c:41</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_a5f40488d4f111b9e9dbd47c78c243c54"><div class="ttname"><a href="brix__net_8h.html#a5f40488d4f111b9e9dbd47c78c243c54">brix_xrdrc_default_ms</a></div><div class="ttdeci">int brix_xrdrc_default_ms(const char *key, int *out_ms)</div><div class="ttdef"><b>Definition</b> <a href="xrdrc_8c_source.html#l00428">xrdrc.c:428</a></div></div>
 <div class="ttc" id="abrix__ops_8h_html_a14a6f705360ce358aeca056b7a89c46f"><div class="ttname"><a href="brix__ops_8h.html#a14a6f705360ce358aeca056b7a89c46f">brix_copy_quit_requested</a></div><div class="ttdeci">int brix_copy_quit_requested(void)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2xfer_2copy_8c_source.html#l00030">copy.c:30</a></div></div>
-<div class="ttc" id="anettmo_8c_html_a207308bd1d0dc2abf0ff25bb7b430b24"><div class="ttname"><a href="nettmo_8c.html#a207308bd1d0dc2abf0ff25bb7b430b24">brix_backoff_delay_ms</a></div><div class="ttdeci">unsigned brix_backoff_delay_ms(unsigned attempt, uint64_t *seed)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00108">nettmo.c:108</a></div></div>
+<div class="ttc" id="anettmo_8c_html_a197aa9c6aafe861e5ce01b672c62b7a3"><div class="ttname"><a href="nettmo_8c.html#a197aa9c6aafe861e5ce01b672c62b7a3">g_stall_ms</a></div><div class="ttdeci">static atomic_int g_stall_ms</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00094">nettmo.c:94</a></div></div>
+<div class="ttc" id="anettmo_8c_html_a207308bd1d0dc2abf0ff25bb7b430b24"><div class="ttname"><a href="nettmo_8c.html#a207308bd1d0dc2abf0ff25bb7b430b24">brix_backoff_delay_ms</a></div><div class="ttdeci">unsigned brix_backoff_delay_ms(unsigned attempt, uint64_t *seed)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00128">nettmo.c:128</a></div></div>
 <div class="ttc" id="anettmo_8c_html_a39804819b44da71d3b55540524f10955"><div class="ttname"><a href="nettmo_8c.html#a39804819b44da71d3b55540524f10955">resolve_ms</a></div><div class="ttdeci">static int resolve_ms(atomic_int *slot, const char *env, const char *xrdrc_key, int dflt)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00056">nettmo.c:56</a></div></div>
 <div class="ttc" id="anettmo_8c_html_a52b9576a636c17ca5cd0e46749529cb6"><div class="ttname"><a href="nettmo_8c.html#a52b9576a636c17ca5cd0e46749529cb6">g_connect_ms</a></div><div class="ttdeci">static atomic_int g_connect_ms</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00041">nettmo.c:41</a></div></div>
-<div class="ttc" id="anettmo_8c_html_a573a8f9722f4fbdf5281694331a44f50"><div class="ttname"><a href="nettmo_8c.html#a573a8f9722f4fbdf5281694331a44f50">brix_backoff_sleep_fast</a></div><div class="ttdeci">void brix_backoff_sleep_fast(unsigned attempt)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00222">nettmo.c:222</a></div></div>
-<div class="ttc" id="anettmo_8c_html_a6ad74f42a7f1acb442b7aeab35f8be33"><div class="ttname"><a href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">backoff_base_ms</a></div><div class="ttdeci">static unsigned backoff_base_ms(void)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00145">nettmo.c:145</a></div></div>
+<div class="ttc" id="anettmo_8c_html_a573a8f9722f4fbdf5281694331a44f50"><div class="ttname"><a href="nettmo_8c.html#a573a8f9722f4fbdf5281694331a44f50">brix_backoff_sleep_fast</a></div><div class="ttdeci">void brix_backoff_sleep_fast(unsigned attempt)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00242">nettmo.c:242</a></div></div>
+<div class="ttc" id="anettmo_8c_html_a6ad74f42a7f1acb442b7aeab35f8be33"><div class="ttname"><a href="nettmo_8c.html#a6ad74f42a7f1acb442b7aeab35f8be33">backoff_base_ms</a></div><div class="ttdeci">static unsigned backoff_base_ms(void)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00165">nettmo.c:165</a></div></div>
+<div class="ttc" id="anettmo_8c_html_a8bda073d49f1c1c9ec0a0921d5b59abd"><div class="ttname"><a href="nettmo_8c.html#a8bda073d49f1c1c9ec0a0921d5b59abd">brix_tmo_stall_ms</a></div><div class="ttdeci">int brix_tmo_stall_ms(void)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00097">nettmo.c:97</a></div></div>
 <div class="ttc" id="anettmo_8c_html_a9ef2af52974e64486a62048561f507be"><div class="ttname"><a href="nettmo_8c.html#a9ef2af52974e64486a62048561f507be">brix_tmo_io_ms</a></div><div class="ttdeci">int brix_tmo_io_ms(void)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00085">nettmo.c:85</a></div></div>
-<div class="ttc" id="anettmo_8c_html_a9fae421277c1ef3f25739fdc560587d0"><div class="ttname"><a href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a></div><div class="ttdeci">static void sleep_ms_cancelable(unsigned ms)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00197">nettmo.c:197</a></div></div>
+<div class="ttc" id="anettmo_8c_html_a9fae421277c1ef3f25739fdc560587d0"><div class="ttname"><a href="nettmo_8c.html#a9fae421277c1ef3f25739fdc560587d0">sleep_ms_cancelable</a></div><div class="ttdeci">static void sleep_ms_cancelable(unsigned ms)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00217">nettmo.c:217</a></div></div>
 <div class="ttc" id="anettmo_8c_html_aa0bb68537c6ea27aa50dd660184df46c"><div class="ttname"><a href="nettmo_8c.html#aa0bb68537c6ea27aa50dd660184df46c">g_io_ms</a></div><div class="ttdeci">static atomic_int g_io_ms</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00042">nettmo.c:42</a></div></div>
 <div class="ttc" id="anettmo_8c_html_aa546c3d7574decab27990512799fa88b"><div class="ttname"><a href="nettmo_8c.html#aa546c3d7574decab27990512799fa88b">XRDC_TMO_IO_DEFAULT_MS</a></div><div class="ttdeci">#define XRDC_TMO_IO_DEFAULT_MS</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00038">nettmo.c:38</a></div></div>
-<div class="ttc" id="anettmo_8c_html_aa592df33acdd628a8195e4973a6ae134"><div class="ttname"><a href="nettmo_8c.html#aa592df33acdd628a8195e4973a6ae134">brix_tmo_set_connect_ms</a></div><div class="ttdeci">void brix_tmo_set_connect_ms(int ms)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00092">nettmo.c:92</a></div></div>
-<div class="ttc" id="anettmo_8c_html_aad37385cfbd244a7fb68e3ee38248dfd"><div class="ttname"><a href="nettmo_8c.html#aad37385cfbd244a7fb68e3ee38248dfd">brix_backoff_sleep</a></div><div class="ttdeci">void brix_backoff_sleep(unsigned attempt)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00212">nettmo.c:212</a></div></div>
-<div class="ttc" id="anettmo_8c_html_ac83bb39b6b3bed8e14b1fa3818feb16b"><div class="ttname"><a href="nettmo_8c.html#ac83bb39b6b3bed8e14b1fa3818feb16b">brix_backoff_delay_fast_ms</a></div><div class="ttdeci">unsigned brix_backoff_delay_fast_ms(unsigned attempt, uint64_t *seed)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00171">nettmo.c:171</a></div></div>
+<div class="ttc" id="anettmo_8c_html_aa592df33acdd628a8195e4973a6ae134"><div class="ttname"><a href="nettmo_8c.html#aa592df33acdd628a8195e4973a6ae134">brix_tmo_set_connect_ms</a></div><div class="ttdeci">void brix_tmo_set_connect_ms(int ms)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00112">nettmo.c:112</a></div></div>
+<div class="ttc" id="anettmo_8c_html_aad37385cfbd244a7fb68e3ee38248dfd"><div class="ttname"><a href="nettmo_8c.html#aad37385cfbd244a7fb68e3ee38248dfd">brix_backoff_sleep</a></div><div class="ttdeci">void brix_backoff_sleep(unsigned attempt)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00232">nettmo.c:232</a></div></div>
+<div class="ttc" id="anettmo_8c_html_abb1e01baf3475978687209e4e6786929"><div class="ttname"><a href="nettmo_8c.html#abb1e01baf3475978687209e4e6786929">brix_tmo_set_stall_ms</a></div><div class="ttdeci">void brix_tmo_set_stall_ms(int ms)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00104">nettmo.c:104</a></div></div>
+<div class="ttc" id="anettmo_8c_html_ac83bb39b6b3bed8e14b1fa3818feb16b"><div class="ttname"><a href="nettmo_8c.html#ac83bb39b6b3bed8e14b1fa3818feb16b">brix_backoff_delay_fast_ms</a></div><div class="ttdeci">unsigned brix_backoff_delay_fast_ms(unsigned attempt, uint64_t *seed)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00191">nettmo.c:191</a></div></div>
 <div class="ttc" id="anettmo_8c_html_adb84aa7f66f5305f428c213a50126ea2"><div class="ttname"><a href="nettmo_8c.html#adb84aa7f66f5305f428c213a50126ea2">XRDC_TMO_CONNECT_DEFAULT_MS</a></div><div class="ttdeci">#define XRDC_TMO_CONNECT_DEFAULT_MS</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00037">nettmo.c:37</a></div></div>
-<div class="ttc" id="anettmo_8c_html_ae1ff1463baa651ec557fee4aebaf3a41"><div class="ttname"><a href="nettmo_8c.html#ae1ff1463baa651ec557fee4aebaf3a41">brix_tmo_set_io_ms</a></div><div class="ttdeci">void brix_tmo_set_io_ms(int ms)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00100">nettmo.c:100</a></div></div>
+<div class="ttc" id="anettmo_8c_html_ae1ff1463baa651ec557fee4aebaf3a41"><div class="ttname"><a href="nettmo_8c.html#ae1ff1463baa651ec557fee4aebaf3a41">brix_tmo_set_io_ms</a></div><div class="ttdeci">void brix_tmo_set_io_ms(int ms)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00120">nettmo.c:120</a></div></div>
 <div class="ttc" id="anettmo_8c_html_af8e9ef4c63fbe6b35afe38ecf55431e7"><div class="ttname"><a href="nettmo_8c.html#af8e9ef4c63fbe6b35afe38ecf55431e7">brix_tmo_connect_ms</a></div><div class="ttdeci">int brix_tmo_connect_ms(void)</div><div class="ttdef"><b>Definition</b> <a href="nettmo_8c_source.html#l00078">nettmo.c:78</a></div></div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>
 <div class="ttc" id="atime_8h_html"><div class="ttname"><a href="time_8h.html">time.h</a></div></div>

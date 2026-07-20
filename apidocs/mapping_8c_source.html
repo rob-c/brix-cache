@@ -156,7 +156,7 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno"><a class="line" href="mapping_8c.html#a882579cca3c47471733bd1c67d9d6071">   53</a></span><a class="code hl_function" href="mapping_8c.html#a882579cca3c47471733bd1c67d9d6071">pmark_csv_has</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *csv, ngx_str_t *needle)</div>
 <div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>{</div>
 <div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *p, *start;</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <span class="keywordtype">size_t</span>      tok;</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <span class="keywordtype">size_t</span>      <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>;</div>
 <div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    <span class="keywordflow">if</span> (csv == NULL || needle-&gt;len == 0) {</div>
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>        <span class="keywordflow">return</span> 0;</div>
@@ -164,9 +164,9 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    p = start = csv;</div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordflow">for</span> (;;) {</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        <span class="keywordflow">if</span> (*p == <span class="charliteral">&#39;,&#39;</span> || *p == <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>            tok = (size_t) (p - start);</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            <span class="keywordflow">if</span> (tok == needle-&gt;len</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>                &amp;&amp; ngx_strncmp(start, needle-&gt;data, tok) == 0)</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>            <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a> = (size_t) (p - start);</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            <span class="keywordflow">if</span> (<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a> == needle-&gt;len</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>                &amp;&amp; ngx_strncmp(start, needle-&gt;data, <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>) == 0)</div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>            {</div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>                <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>            }</div>
@@ -215,14 +215,14 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="foldopen" id="foldopen00109" data-start="{" data-end="}">
 <div class="line"><a id="l00109" name="l00109"></a><span class="lineno"><a class="line" href="mapping_8c.html#a871a2e6128331e04af8a3fb985876de5">  109</a></span><a class="code hl_function" href="mapping_8c.html#a871a2e6128331e04af8a3fb985876de5">pmark_resolve_dest</a>(ngx_str_t *spec, <a class="code hl_struct" href="structbrix__pmark__dest__t.html">brix_pmark_dest_t</a> *dst, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
 <div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>{</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordtype">char</span>             host[256];</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordtype">char</span>             port[16];</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordtype">char</span>             <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>[256];</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordtype">char</span>             <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>[16];</div>
 <div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    u_char          *colon, *end;</div>
 <div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordtype">size_t</span>           hlen;</div>
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <span class="keyword">struct </span>addrinfo  hints, *res;</div>
 <div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="keywordtype">int</span>              rc;</div>
 <div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span> </div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    <span class="keywordflow">if</span> (spec-&gt;len == 0 || spec-&gt;len &gt;= <span class="keyword">sizeof</span>(host)) {</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    <span class="keywordflow">if</span> (spec-&gt;len == 0 || spec-&gt;len &gt;= <span class="keyword">sizeof</span>(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>)) {</div>
 <div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    }</div>
 <div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    end = spec-&gt;data + spec-&gt;len;</div>
@@ -234,29 +234,29 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        u_char *rb = ngx_strlchr(spec-&gt;data, end, <span class="charliteral">&#39;]&#39;</span>);</div>
 <div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        colon = (rb &amp;&amp; rb + 1 &lt; end &amp;&amp; rb[1] == <span class="charliteral">&#39;:&#39;</span>) ? rb + 1 : NULL;</div>
 <div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        hlen = rb ? (size_t) (rb - spec-&gt;data - 1) : spec-&gt;len;</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(host, spec-&gt;data + 1, hlen);</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, spec-&gt;data + 1, hlen);</div>
 <div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    } <span class="keywordflow">else</span> {</div>
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        hlen = colon ? (size_t) (colon - spec-&gt;data) : spec-&gt;len;</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(host, spec-&gt;data, hlen);</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, spec-&gt;data, hlen);</div>
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    }</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    host[hlen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>[hlen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span> </div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    <span class="keywordflow">if</span> (colon &amp;&amp; colon + 1 &lt; end) {</div>
 <div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>        <span class="keywordtype">size_t</span> plen = (size_t) (end - (colon + 1));</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        <span class="keywordflow">if</span> (plen &gt;= <span class="keyword">sizeof</span>(port)) {</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        <span class="keywordflow">if</span> (plen &gt;= <span class="keyword">sizeof</span>(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)) {</div>
 <div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        }</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(port, colon + 1, plen);</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        port[plen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, colon + 1, plen);</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>[plen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>        ngx_snprintf((u_char *) port, <span class="keyword">sizeof</span>(port), <span class="stringliteral">&quot;%d%Z&quot;</span>, <a class="code hl_define" href="pmark_8h.html#a24f46e4f142f78439b03f8530f61a38b">BRIX_PMARK_FF_PORT</a>);</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>        ngx_snprintf((u_char *) <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>), <span class="stringliteral">&quot;%d%Z&quot;</span>, <a class="code hl_define" href="pmark_8h.html#a24f46e4f142f78439b03f8530f61a38b">BRIX_PMARK_FF_PORT</a>);</div>
 <div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    }</div>
 <div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span> </div>
 <div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    ngx_memzero(&amp;hints, <span class="keyword">sizeof</span>(hints));</div>
 <div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    hints.ai_family   = AF_UNSPEC;</div>
 <div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    hints.ai_socktype = SOCK_DGRAM;</div>
 <div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span> </div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    rc = getaddrinfo(host, port, &amp;hints, &amp;res);</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    rc = getaddrinfo(<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, &amp;hints, &amp;res);</div>
 <div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    <span class="keywordflow">if</span> (rc != 0 || res == NULL) {</div>
 <div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        ngx_log_error(NGX_LOG_WARN, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, 0,</div>
 <div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>            <span class="stringliteral">&quot;pmark: cannot resolve firefly dest \&quot;%V\&quot;: %s&quot;</span>,</div>
@@ -594,6 +594,8 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00469" name="l00469"></a><span class="lineno">  469</span>    <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00470" name="l00470"></a><span class="lineno">  470</span>}</div>
 </div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a41c3a180b50c6b2ddcc1b6843a48f205"><div class="ttname"><a href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a></div><div class="ttdeci">char host[256]</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a63c89c04d1feae07ca35558055155ffb"><div class="ttname"><a href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 <div class="ttc" id="acstr_8h_html"><div class="ttname"><a href="cstr_8h.html">cstr.h</a></div></div>
 <div class="ttc" id="acstr_8h_html_a9bb0256bbf38e5c7dfe426ed3a218409"><div class="ttname"><a href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a></div><div class="ttdeci">static const char * brix_str_cbuf(char *buf, size_t bufsize, const ngx_str_t *s)</div><div class="ttdef"><b>Definition</b> <a href="cstr_8h_source.html#l00043">cstr.h:43</a></div></div>
 <div class="ttc" id="adefsfile_8c_html_a1ac3f92b5cd1b8aeca05d614376817bd"><div class="ttname"><a href="defsfile_8c.html#a1ac3f92b5cd1b8aeca05d614376817bd">brix_pmark_defsfile_load</a></div><div class="ttdeci">ngx_int_t brix_pmark_defsfile_load(const char *path, ngx_pool_t *pool, ngx_array_t **out, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="defsfile_8c_source.html#l00051">defsfile.c:51</a></div></div>
@@ -625,6 +627,7 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="ttc" id="apmark_8h_html_abb3ed6a1c57837da9e36873765f50c2ca7535e95ded0f2a7acbbb5af9dea6fecb"><div class="ttname"><a href="pmark_8h.html#abb3ed6a1c57837da9e36873765f50c2ca7535e95ded0f2a7acbbb5af9dea6fecb">BRIX_PMARK_ACTR_USER</a></div><div class="ttdeci">@ BRIX_PMARK_ACTR_USER</div><div class="ttdef"><b>Definition</b> <a href="pmark_8h_source.html#l00099">pmark.h:98</a></div></div>
 <div class="ttc" id="apmark_8h_html_abb3ed6a1c57837da9e36873765f50c2ca95462c598b2283ce5204e725f804fa2e"><div class="ttname"><a href="pmark_8h.html#abb3ed6a1c57837da9e36873765f50c2ca95462c598b2283ce5204e725f804fa2e">BRIX_PMARK_ACTR_DEFAULT</a></div><div class="ttdeci">@ BRIX_PMARK_ACTR_DEFAULT</div><div class="ttdef"><b>Definition</b> <a href="pmark_8h_source.html#l00096">pmark.h:96</a></div></div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>
+<div class="ttc" id="aput__body_8c_html_a245cabc3bef72dcd807971c43731f28d"><div class="ttname"><a href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a></div><div class="ttdeci">const char * tok</div><div class="ttdef"><b>Definition</b> <a href="put__body_8c_source.html#l00052">put_body.c:52</a></div></div>
 <div class="ttc" id="astructbrix__pmark__act__rule__r__t_html"><div class="ttname"><a href="structbrix__pmark__act__rule__r__t.html">brix_pmark_act_rule_r_t</a></div><div class="ttdef"><b>Definition</b> <a href="pmark_8h_source.html#l00150">pmark.h:150</a></div></div>
 <div class="ttc" id="astructbrix__pmark__act__rule__r__t_html_a31f6b1dd5f1f6dea7504120f6fada54b"><div class="ttname"><a href="structbrix__pmark__act__rule__r__t.html#a31f6b1dd5f1f6dea7504120f6fada54b">brix_pmark_act_rule_r_t::match</a></div><div class="ttdeci">ngx_str_t match</div><div class="ttdef"><b>Definition</b> <a href="pmark_8h_source.html#l00153">pmark.h:153</a></div></div>
 <div class="ttc" id="astructbrix__pmark__act__rule__r__t_html_a8fc66eb068c083691dbe4ea623accf20"><div class="ttname"><a href="structbrix__pmark__act__rule__r__t.html#a8fc66eb068c083691dbe4ea623accf20">brix_pmark_act_rule_r_t::exp_id</a></div><div class="ttdeci">ngx_uint_t exp_id</div><div class="ttdef"><b>Definition</b> <a href="pmark_8h_source.html#l00151">pmark.h:151</a></div></div>

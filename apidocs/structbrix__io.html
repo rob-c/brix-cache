@@ -106,6 +106,10 @@ Data Fields</h2></td></tr>
 <tr class="separator:a020e210fa78e9ec6ed471dd893df4c34"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab0fdf563077f7c2ec5744982b7f47243" id="r_ab0fdf563077f7c2ec5744982b7f47243"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__io.html#ab0fdf563077f7c2ec5744982b7f47243">timeout_ms</a></td></tr>
 <tr class="separator:ab0fdf563077f7c2ec5744982b7f47243"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b6580dc37447755f7aea3a9a5340ad4" id="r_a6b6580dc37447755f7aea3a9a5340ad4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__io.html#a6b6580dc37447755f7aea3a9a5340ad4">stall_deadline_ms</a></td></tr>
+<tr class="separator:a6b6580dc37447755f7aea3a9a5340ad4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0705bbd36758e839856faa6b3a652e5b" id="r_a0705bbd36758e839856faa6b3a652e5b"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__io.html#a0705bbd36758e839856faa6b3a652e5b">stall_deadline_ns</a></td></tr>
+<tr class="separator:a0705bbd36758e839856faa6b3a652e5b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -125,7 +129,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brix__net_8h_source.html#l00022">22</a> of file <a class="el" href="brix__net_8h_source.html">brix_net.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio__conn_8c_source.html#l00121">aconn_reconnect_succeeded()</a>, <a class="el" href="aio_8c_source.html#l00446">brix_aconn_attach()</a>, <a class="el" href="conn_8c_source.html#l00355">brix_bind()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http__upload_8c_source.html#l00449">brix_http_upload()</a>, <a class="el" href="web__ka_8c_source.html#l00070">brix_kaconn_connect()</a>, <a class="el" href="web__ka_8c_source.html#l00053">brix_kaconn_disconnect()</a>, <a class="el" href="web__ka_8c_source.html#l00035">brix_kaconn_init()</a>, <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_client()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00058">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00277">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00114">brix_tls_write()</a>, <a class="el" href="webfile__io_8c_source.html#l00334">brix_webfile_open()</a>, <a class="el" href="diag__check_8c_source.html#l00255">chk_probe_posc()</a>, <a class="el" href="http__download_8c_source.html#l00281">http_download_attempt()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__req_8c_source.html#l00014">httpx_read_some()</a>, <a class="el" href="http__upload_8c_source.html#l00345">httpx_resumable_attempt()</a>, <a class="el" href="web__ka_8c_source.html#l00092">kaconn_read_some()</a>, <a class="el" href="sock_8c_source.html#l00380">note_io_failure()</a>, <a class="el" href="sock_8c_source.html#l00268">plain_read_full()</a>, <a class="el" href="sock_8c_source.html#l00322">plain_write_full()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00166">tls_do_connect()</a>, <a class="el" href="webfile__io_8c_source.html#l00030">web_connect()</a>, <a class="el" href="webfile__io_8c_source.html#l00012">web_disconnect()</a>, <a class="el" href="webfile__io_8c_source.html#l00052">web_read_some()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00018">web_slot_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio__conn_8c_source.html#l00121">aconn_reconnect_succeeded()</a>, <a class="el" href="aio_8c_source.html#l00446">brix_aconn_attach()</a>, <a class="el" href="conn_8c_source.html#l00358">brix_bind()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http__upload_8c_source.html#l00449">brix_http_upload()</a>, <a class="el" href="web__ka_8c_source.html#l00070">brix_kaconn_connect()</a>, <a class="el" href="web__ka_8c_source.html#l00053">brix_kaconn_disconnect()</a>, <a class="el" href="web__ka_8c_source.html#l00035">brix_kaconn_init()</a>, <a class="el" href="streams_8c_source.html#l00052">brix_streams_close()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00371">brix_tls_client()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00161">brix_tls_write()</a>, <a class="el" href="webfile__io_8c_source.html#l00334">brix_webfile_open()</a>, <a class="el" href="diag__check_8c_source.html#l00255">chk_probe_posc()</a>, <a class="el" href="http__download_8c_source.html#l00281">http_download_attempt()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__req_8c_source.html#l00014">httpx_read_some()</a>, <a class="el" href="http__upload_8c_source.html#l00345">httpx_resumable_attempt()</a>, <a class="el" href="web__ka_8c_source.html#l00092">kaconn_read_some()</a>, <a class="el" href="sock_8c_source.html#l00432">note_io_failure()</a>, <a class="el" href="sock_8c_source.html#l00297">plain_read_full()</a>, <a class="el" href="sock_8c_source.html#l00374">plain_write_full()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00213">tls_do_connect()</a>, <a class="el" href="webfile__io_8c_source.html#l00030">web_connect()</a>, <a class="el" href="webfile__io_8c_source.html#l00012">web_disconnect()</a>, <a class="el" href="webfile__io_8c_source.html#l00052">web_read_some()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00018">web_slot_connect()</a>.</p>
 
 </div>
 </div>
@@ -143,7 +147,43 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brix__net_8h_source.html#l00023">23</a> of file <a class="el" href="brix__net_8h_source.html">brix_net.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="aio__conn_8c_source.html#l00121">aconn_reconnect_succeeded()</a>, <a class="el" href="aio_8c_source.html#l00446">brix_aconn_attach()</a>, <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_client()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00387">brix_tls_client_free()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00401">brix_tls_client_info()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00058">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00277">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00114">brix_tls_write()</a>, <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>, <a class="el" href="http__req_8c_source.html#l00014">httpx_read_some()</a>, <a class="el" href="web__ka_8c_source.html#l00092">kaconn_read_some()</a>, and <a class="el" href="webfile__io_8c_source.html#l00052">web_read_some()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="aio__conn_8c_source.html#l00121">aconn_reconnect_succeeded()</a>, <a class="el" href="aio_8c_source.html#l00446">brix_aconn_attach()</a>, <a class="el" href="sock_8c_source.html#l00458">brix_read_full()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00371">brix_tls_client()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00434">brix_tls_client_free()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00448">brix_tls_client_info()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00161">brix_tls_write()</a>, <a class="el" href="sock_8c_source.html#l00467">brix_write_full()</a>, <a class="el" href="http__req_8c_source.html#l00014">httpx_read_some()</a>, <a class="el" href="web__ka_8c_source.html#l00092">kaconn_read_some()</a>, and <a class="el" href="webfile__io_8c_source.html#l00052">web_read_some()</a>.</p>
+
+</div>
+</div>
+<a id="a6b6580dc37447755f7aea3a9a5340ad4" name="a6b6580dc37447755f7aea3a9a5340ad4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b6580dc37447755f7aea3a9a5340ad4">&#9670;&#160;</a></span>stall_deadline_ms</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_io::stall_deadline_ms</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__net_8h_source.html#l00025">25</a> of file <a class="el" href="brix__net_8h_source.html">brix_net.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00358">brix_bind()</a>, <a class="el" href="sock_8c_source.html#l00440">brix_io_stall_arm()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, and <a class="el" href="sock_8c_source.html#l00297">plain_read_full()</a>.</p>
+
+</div>
+</div>
+<a id="a0705bbd36758e839856faa6b3a652e5b" name="a0705bbd36758e839856faa6b3a652e5b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0705bbd36758e839856faa6b3a652e5b">&#9670;&#160;</a></span>stall_deadline_ns</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint64_t brix_io::stall_deadline_ns</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__net_8h_source.html#l00039">39</a> of file <a class="el" href="brix__net_8h_source.html">brix_net.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00440">brix_io_stall_arm()</a>, <a class="el" href="sock_8c_source.html#l00452">brix_io_stall_disarm()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, and <a class="el" href="sock_8c_source.html#l00297">plain_read_full()</a>.</p>
 
 </div>
 </div>
@@ -161,7 +201,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brix__net_8h_source.html#l00024">24</a> of file <a class="el" href="brix__net_8h_source.html">brix_net.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00355">brix_bind()</a>, <a class="el" href="web__ka_8c_source.html#l00070">brix_kaconn_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00058">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00277">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00114">brix_tls_write()</a>, <a class="el" href="http__upload_8c_source.html#l00266">httpx_chunk_read_status()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>, <a class="el" href="http__upload_8c_source.html#l00345">httpx_resumable_attempt()</a>, <a class="el" href="web__ka_8c_source.html#l00092">kaconn_read_some()</a>, <a class="el" href="sock_8c_source.html#l00268">plain_read_full()</a>, <a class="el" href="sock_8c_source.html#l00322">plain_write_full()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00166">tls_do_connect()</a>, <a class="el" href="webfile__io_8c_source.html#l00030">web_connect()</a>, and <a class="el" href="webfile__io_8c_source.html#l00052">web_read_some()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00358">brix_bind()</a>, <a class="el" href="web__ka_8c_source.html#l00070">brix_kaconn_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00324">brix_tls_read_some()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00161">brix_tls_write()</a>, <a class="el" href="http__upload_8c_source.html#l00266">httpx_chunk_read_status()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>, <a class="el" href="http__upload_8c_source.html#l00345">httpx_resumable_attempt()</a>, <a class="el" href="web__ka_8c_source.html#l00092">kaconn_read_some()</a>, <a class="el" href="sock_8c_source.html#l00297">plain_read_full()</a>, <a class="el" href="sock_8c_source.html#l00374">plain_write_full()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00213">tls_do_connect()</a>, <a class="el" href="webfile__io_8c_source.html#l00030">web_connect()</a>, and <a class="el" href="webfile__io_8c_source.html#l00052">web_read_some()</a>.</p>
 
 </div>
 </div>

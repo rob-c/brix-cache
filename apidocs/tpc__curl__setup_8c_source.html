@@ -135,7 +135,7 @@ $(document).ready(function(){initNavTree('tpc__curl__setup_8c_source.html',''); 
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <span class="keywordtype">char</span>                       err[256];</div>
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <span class="keywordtype">char</span>                       entry[512];   <span class="comment">/* &quot;[host]:port:addr&quot; — room for a</span></div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment">                                              * bracketed IPv6/long host + addr */</span></div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    uint16_t                   port;</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    uint16_t                   <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>;</div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <span class="keyword">struct </span>curl_slist         *rs;</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    *resolve_out = NULL;</div>
@@ -162,7 +162,7 @@ $(document).ready(function(){initNavTree('tpc__curl__setup_8c_source.html',''); 
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        <span class="keywordflow">return</span> -1;</div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    }</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    port = tgt.<a class="code hl_variable" href="structbrix__net__target__t.html#adb322e764444f306ce348d53852e0505">has_port</a> ? tgt.<a class="code hl_variable" href="structbrix__net__target__t.html#acf98915ae9b04be3f5fff3a6cd137f8b">port</a> : 443;</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a> = tgt.<a class="code hl_variable" href="structbrix__net__target__t.html#adb322e764444f306ce348d53852e0505">has_port</a> ? tgt.<a class="code hl_variable" href="structbrix__net__target__t.html#acf98915ae9b04be3f5fff3a6cd137f8b">port</a> : 443;</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    {</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>        <span class="comment">/* curl&#39;s CURLOPT_RESOLVE host field must bracket an IPv6 literal</span></div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">         * (&quot;[::1]:443:addr&quot;) to match the bracketed host in an IPv6 URL;</span></div>
@@ -174,7 +174,7 @@ $(document).ready(function(){initNavTree('tpc__curl__setup_8c_source.html',''); 
 <div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>        hostz[hl] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        <a class="code hl_function" href="host__format_8c.html#a783d37953a9f0ada2a7dde2bd2ffe5ad">brix_format_host</a>(hostz, hostb, <span class="keyword">sizeof</span>(hostb));</div>
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        snprintf(entry, <span class="keyword">sizeof</span>(entry), <span class="stringliteral">&quot;%s:%u:%s&quot;</span>,</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>                 hostb, (<span class="keywordtype">unsigned</span>) port, pin_ip);</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>                 hostb, (<span class="keywordtype">unsigned</span>) <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, pin_ip);</div>
 <div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    }</div>
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    rs = curl_slist_append(NULL, entry);</div>
@@ -379,6 +379,7 @@ $(document).ready(function(){initNavTree('tpc__curl__setup_8c_source.html',''); 
 <div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    <span class="keywordflow">return</span> content_length;</div>
 <div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>}</div>
 </div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a63c89c04d1feae07ca35558055155ffb"><div class="ttname"><a href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 <div class="ttc" id="ahost__format_8c_html_a783d37953a9f0ada2a7dde2bd2ffe5ad"><div class="ttname"><a href="host__format_8c.html#a783d37953a9f0ada2a7dde2bd2ffe5ad">brix_format_host</a></div><div class="ttdeci">size_t brix_format_host(const char *host, char *out, size_t sz)</div><div class="ttdef"><b>Definition</b> <a href="host__format_8c_source.html#l00025">host_format.c:25</a></div></div>
 <div class="ttc" id="anet__target_8h_html_ab1170a9cdab1354585eabb4882412d8f"><div class="ttname"><a href="net__target_8h.html#ab1170a9cdab1354585eabb4882412d8f">brix_net_target_check_dns_pin</a></div><div class="ttdeci">ngx_int_t brix_net_target_check_dns_pin(const brix_net_target_t *target, const brix_net_target_policy_t *policy, char *out_ip, size_t out_ipsz, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__dns_8c_source.html#l00236">net_target_dns.c:236</a></div></div>
 <div class="ttc" id="anet__target_8h_html_adc50f92e770654ffe6d7ea3feafc5783"><div class="ttname"><a href="net__target_8h.html#adc50f92e770654ffe6d7ea3feafc5783">brix_net_target_parse</a></div><div class="ttdeci">ngx_int_t brix_net_target_parse(ngx_pool_t *pool, const ngx_str_t *url, brix_net_target_t *out, char *err, size_t errsz)</div><div class="ttdef"><b>Definition</b> <a href="net__target__parse_8c_source.html#l00244">net_target_parse.c:244</a></div></div>

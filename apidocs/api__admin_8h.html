@@ -101,7 +101,7 @@ $(document).ready(function(){initNavTree('api__admin_8h.html',''); initResizable
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="api__admin_8h__incl.svg" width="100%" height="569"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="api__admin_8h__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div><div class="textblock"><div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-1-trigger" src="closed.png" alt="+"/> This graph shows which files directly or indirectly include this file:</div>
@@ -123,6 +123,10 @@ Functions</h2></td></tr>
 <tr class="separator:a840864d958d416f7c7f809ebcd770f2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9dd7b2533b57a8fbfafb46466e9559c3" id="r_a9dd7b2533b57a8fbfafb46466e9559c3"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__admin_8h.html#a9dd7b2533b57a8fbfafb46466e9559c3">brix_admin_set_proxy_allow</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
 <tr class="separator:a9dd7b2533b57a8fbfafb46466e9559c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4e3f9ec85cdf7120d591f34325bf931a" id="r_a4e3f9ec85cdf7120d591f34325bf931a"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__admin_8h.html#a4e3f9ec85cdf7120d591f34325bf931a">brix_admin_set_rate_limit</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a4e3f9ec85cdf7120d591f34325bf931a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0d3645f21f65db2bb371eba8a93bb04" id="r_ab0d3645f21f65db2bb371eba8a93bb04"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="api__admin_8h.html#ab0d3645f21f65db2bb371eba8a93bb04">brix_admin_rl_finalize</a> (ngx_conf_t *cf, <a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *lcf)</td></tr>
+<tr class="separator:ab0d3645f21f65db2bb371eba8a93bb04"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ae59fc3f158e5c3703c77ab9e21a1500e" name="ae59fc3f158e5c3703c77ab9e21a1500e"></a>
@@ -141,11 +145,45 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api__admin_8c_source.html#l00590">590</a> of file <a class="el" href="api__admin_8c_source.html">api_admin.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api__admin_8c_source.html#l00652">652</a> of file <a class="el" href="api__admin_8c_source.html">api_admin.c</a>.</p>
 
-<p class="reference">References <a class="el" href="api__admin_8c_source.html#l00220">admin_audit()</a>, <a class="el" href="api__admin_8c_source.html#l00528">admin_route_cluster()</a>, <a class="el" href="api__admin_8c_source.html#l00454">admin_route_io_uring()</a>, <a class="el" href="api__admin_8c_source.html#l00549">admin_route_proxy()</a>, <a class="el" href="api__admin_8c_source.html#l00021">admin_send_error()</a>, <a class="el" href="dashboard__api__admin__internal_8h_source.html#l00025">BRIX_ADMIN_AUTH_OK</a>, <a class="el" href="api__admin_8c_source.html#l00195">brix_admin_check_auth()</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00452">ngx_http_brix_dashboard_module</a>.</p>
+<p class="reference">References <a class="el" href="api__admin_8c_source.html#l00220">admin_audit()</a>, <a class="el" href="api__admin_8c_source.html#l00614">admin_rate_gate()</a>, <a class="el" href="api__admin_8c_source.html#l00528">admin_route_cluster()</a>, <a class="el" href="api__admin_8c_source.html#l00454">admin_route_io_uring()</a>, <a class="el" href="api__admin_8c_source.html#l00549">admin_route_proxy()</a>, <a class="el" href="api__admin_8c_source.html#l00021">admin_send_error()</a>, <a class="el" href="dashboard__api__admin__internal_8h_source.html#l00025">BRIX_ADMIN_AUTH_OK</a>, <a class="el" href="api__admin_8c_source.html#l00195">brix_admin_check_auth()</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00479">ngx_http_brix_dashboard_module</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="module__dispatch_8c_source.html#l00182">ngx_http_brix_dashboard_main_handler()</a>.</p>
+
+</div>
+</div>
+<a id="ab0d3645f21f65db2bb371eba8a93bb04" name="ab0d3645f21f65db2bb371eba8a93bb04"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab0d3645f21f65db2bb371eba8a93bb04">&#9670;&#160;</a></span>brix_admin_rl_finalize()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_admin_rl_finalize </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>lcf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__admin__config_8c_source.html#l00303">303</a> of file <a class="el" href="api__admin__config_8c_source.html">api_admin_config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="api__admin__config_8c_source.html#l00276">admin_rl_build_rule()</a>, <a class="el" href="dashboard__http_8h_source.html#l00067">ngx_http_brix_dashboard_loc_conf_t::admin_rl_read</a>, <a class="el" href="dashboard__http_8h_source.html#l00065">ngx_http_brix_dashboard_loc_conf_t::admin_rl_read_pm</a>, <a class="el" href="dashboard__http_8h_source.html#l00066">ngx_http_brix_dashboard_loc_conf_t::admin_rl_write</a>, <a class="el" href="dashboard__http_8h_source.html#l00064">ngx_http_brix_dashboard_loc_conf_t::admin_rl_write_pm</a>, <a class="el" href="api__admin__config_8c_source.html#l00199">BRIX_ADMIN_RL_ZONE_SIZE</a>, and <a class="el" href="ratelimit__zone_8c_source.html#l00181">brix_rl_zone_add()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="observability_2dashboard_2module_8c_source.html#l00127">ngx_http_brix_dashboard_merge_loc_conf()</a>.</p>
 
 </div>
 </div>
@@ -183,7 +221,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="api__admin__config_8c_source.html#l00072">72</a> of file <a class="el" href="api__admin__config_8c_source.html">api_admin_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00046">ngx_http_brix_dashboard_loc_conf_t::admin_allow</a>.</p>
+<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00047">ngx_http_brix_dashboard_loc_conf_t::admin_allow</a>.</p>
 
 </div>
 </div>
@@ -221,7 +259,45 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="api__admin__proxy_8c_source.html#l00282">282</a> of file <a class="el" href="api__admin__proxy_8c_source.html">api_admin_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00050">ngx_http_brix_dashboard_loc_conf_t::admin_proxy_allow</a>.</p>
+<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00051">ngx_http_brix_dashboard_loc_conf_t::admin_proxy_allow</a>.</p>
+
+</div>
+</div>
+<a id="a4e3f9ec85cdf7120d591f34325bf931a" name="a4e3f9ec85cdf7120d591f34325bf931a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4e3f9ec85cdf7120d591f34325bf931a">&#9670;&#160;</a></span>brix_admin_set_rate_limit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char * brix_admin_set_rate_limit </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="api__admin__config_8c_source.html#l00219">219</a> of file <a class="el" href="api__admin__config_8c_source.html">api_admin_config.c</a>.</p>
+
+<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00063">ngx_http_brix_dashboard_loc_conf_t::admin_rl_enable</a>, <a class="el" href="dashboard__http_8h_source.html#l00065">ngx_http_brix_dashboard_loc_conf_t::admin_rl_read_pm</a>, and <a class="el" href="dashboard__http_8h_source.html#l00064">ngx_http_brix_dashboard_loc_conf_t::admin_rl_write_pm</a>.</p>
 
 </div>
 </div>
@@ -259,7 +335,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="api__admin__config_8c_source.html#l00122">122</a> of file <a class="el" href="api__admin__config_8c_source.html">api_admin_config.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00047">ngx_http_brix_dashboard_loc_conf_t::admin_secret</a>, <a class="el" href="dashboard__api__admin__internal_8h_source.html#l00018">ADMIN_SECRET_MAX</a>, <a class="el" href="dashboard__api__admin__internal_8h_source.html#l00019">ADMIN_SECRET_MIN</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00048">ngx_http_brix_dashboard_loc_conf_t::admin_secret</a>, <a class="el" href="dashboard__api__admin__internal_8h_source.html#l00018">ADMIN_SECRET_MAX</a>, <a class="el" href="dashboard__api__admin__internal_8h_source.html#l00019">ADMIN_SECRET_MIN</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
 </div>
 </div>

@@ -134,16 +134,22 @@ Functions</h2></td></tr>
 <tr class="separator:a9932ecccd17971695fa4443866fb1d63"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a720f49008f3d94472c01a50c8682f132" id="r_a720f49008f3d94472c01a50c8682f132"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a720f49008f3d94472c01a50c8682f132">fd_family</a> (int fd)</td></tr>
 <tr class="separator:a720f49008f3d94472c01a50c8682f132"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6db0710e92363031a177bc6fa2e452cc" id="r_a6db0710e92363031a177bc6fa2e452cc"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a6db0710e92363031a177bc6fa2e452cc">connect_resolved</a> (const char *host, int port, int timeout_ms, int family, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:a6db0710e92363031a177bc6fa2e452cc" id="r_a6db0710e92363031a177bc6fa2e452cc"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a6db0710e92363031a177bc6fa2e452cc">connect_resolved</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, int <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, int timeout_ms, int family, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a6db0710e92363031a177bc6fa2e452cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab849f69b357f1e75e8d2c8ecc3950d34" id="r_ab849f69b357f1e75e8d2c8ecc3950d34"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#ab849f69b357f1e75e8d2c8ecc3950d34">brix_tcp_connect</a> (const char *host, int port, int timeout_ms, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
+<tr class="memitem:ab849f69b357f1e75e8d2c8ecc3950d34" id="r_ab849f69b357f1e75e8d2c8ecc3950d34"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#ab849f69b357f1e75e8d2c8ecc3950d34">brix_tcp_connect</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, int <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, int timeout_ms, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:ab849f69b357f1e75e8d2c8ecc3950d34"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a169279fc6d27c694b86f721804524dce" id="r_a169279fc6d27c694b86f721804524dce"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a169279fc6d27c694b86f721804524dce">read_wait_ms</a> (int timeout_ms, uint64_t deadline_ns)</td></tr>
+<tr class="separator:a169279fc6d27c694b86f721804524dce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a144c4b929a9eb20ff551bd4a40da6988" id="r_a144c4b929a9eb20ff551bd4a40da6988"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a144c4b929a9eb20ff551bd4a40da6988">plain_read_full</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, void *buf, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a144c4b929a9eb20ff551bd4a40da6988"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abfc1ad5282546da922dc7f0d3433b156" id="r_abfc1ad5282546da922dc7f0d3433b156"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#abfc1ad5282546da922dc7f0d3433b156">plain_write_full</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const void *buf, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:abfc1ad5282546da922dc7f0d3433b156"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8bbfce32984591034a720d49a35004fd" id="r_a8bbfce32984591034a720d49a35004fd"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a8bbfce32984591034a720d49a35004fd">note_io_failure</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, int rc, const <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a8bbfce32984591034a720d49a35004fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a73011f62bb1a72fcbccd807a549b99f6" id="r_a73011f62bb1a72fcbccd807a549b99f6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a73011f62bb1a72fcbccd807a549b99f6">brix_io_stall_arm</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io)</td></tr>
+<tr class="separator:a73011f62bb1a72fcbccd807a549b99f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a16f19d65068687922ffb56258700ecf7" id="r_a16f19d65068687922ffb56258700ecf7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a16f19d65068687922ffb56258700ecf7">brix_io_stall_disarm</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io)</td></tr>
+<tr class="separator:a16f19d65068687922ffb56258700ecf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a486877f3c772065b3ee10a8097f4fc7f" id="r_a486877f3c772065b3ee10a8097f4fc7f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#a486877f3c772065b3ee10a8097f4fc7f">brix_read_full</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, void *buf, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
 <tr class="separator:a486877f3c772065b3ee10a8097f4fc7f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae456735ed9dca06568278c12b011cde6" id="r_ae456735ed9dca06568278c12b011cde6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sock_8c.html#ae456735ed9dca06568278c12b011cde6">brix_write_full</a> (<a class="el" href="structbrix__io.html">brix_io</a> *io, const void *buf, size_t n, <a class="el" href="structbrix__status.html">brix_status</a> *st)</td></tr>
@@ -167,6 +173,54 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a73011f62bb1a72fcbccd807a549b99f6" name="a73011f62bb1a72fcbccd807a549b99f6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a73011f62bb1a72fcbccd807a549b99f6">&#9670;&#160;</a></span>brix_io_stall_arm()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_io_stall_arm </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__io.html">brix_io</a> *&#160;</td>
+          <td class="paramname"><em>io</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00440">440</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+
+<p class="reference">References <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="brix__net_8h_source.html#l00025">brix_io::stall_deadline_ms</a>, and <a class="el" href="brix__net_8h_source.html#l00039">brix_io::stall_deadline_ns</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ops__file__pg_8c_source.html#l00186">brix_file_pgread()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00161">brix_file_read()</a>, and <a class="el" href="ops__file__rw_8c_source.html#l00463">brix_file_readv()</a>.</p>
+
+</div>
+</div>
+<a id="a16f19d65068687922ffb56258700ecf7" name="a16f19d65068687922ffb56258700ecf7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a16f19d65068687922ffb56258700ecf7">&#9670;&#160;</a></span>brix_io_stall_disarm()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_io_stall_disarm </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__io.html">brix_io</a> *&#160;</td>
+          <td class="paramname"><em>io</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00452">452</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__net_8h_source.html#l00039">brix_io::stall_deadline_ns</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ops__file__pg_8c_source.html#l00186">brix_file_pgread()</a>, <a class="el" href="ops__file__rw_8c_source.html#l00161">brix_file_read()</a>, and <a class="el" href="ops__file__rw_8c_source.html#l00463">brix_file_readv()</a>.</p>
+
+</div>
+</div>
 <a id="a486877f3c772065b3ee10a8097f4fc7f" name="a486877f3c772065b3ee10a8097f4fc7f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a486877f3c772065b3ee10a8097f4fc7f">&#9670;&#160;</a></span>brix_read_full()</h2>
 
@@ -205,11 +259,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00388">388</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00458">458</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00058">brix_tls_read()</a>, <a class="el" href="sock_8c_source.html#l00380">note_io_failure()</a>, <a class="el" href="sock_8c_source.html#l00268">plain_read_full()</a>, and <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00084">brix_tls_read()</a>, <a class="el" href="sock_8c_source.html#l00432">note_io_failure()</a>, <a class="el" href="sock_8c_source.html#l00297">plain_read_full()</a>, and <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ops__file__pg_8c_source.html#l00122">brix_file_pgread()</a>, <a class="el" href="web__ka_8c_source.html#l00192">brix_kaconn_read_body()</a>, <a class="el" href="frame_8c_source.html#l00137">frame_read_body()</a>, <a class="el" href="frame_8c_source.html#l00114">frame_read_header()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00312">pgwrite_handle_cse()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00190">pgwrite_retry_one()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00025">read_status_frame()</a>, <a class="el" href="conn_8c_source.html#l00101">recv_raw()</a>, and <a class="el" href="webfile__io_8c_source.html#l00249">web_range_stream_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="web__ka_8c_source.html#l00192">brix_kaconn_read_body()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00122">file_pgread_frames()</a>, <a class="el" href="frame_8c_source.html#l00137">frame_read_body()</a>, <a class="el" href="frame_8c_source.html#l00114">frame_read_header()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00325">pgwrite_handle_cse()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00203">pgwrite_retry_one()</a>, <a class="el" href="ops__file__pg_8c_source.html#l00025">read_status_frame()</a>, <a class="el" href="conn_8c_source.html#l00101">recv_raw()</a>, and <a class="el" href="webfile__io_8c_source.html#l00249">web_range_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -275,9 +329,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00220">220</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
-<p class="reference">References <a class="el" href="netpref_8c_source.html#l00067">brix_netpref_family()</a>, <a class="el" href="netpref_8c_source.html#l00134">brix_netpref_undo_demote()</a>, <a class="el" href="sock_8c_source.html#l00051">brix_sock_tune()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="sock_8c_source.html#l00160">connect_resolved()</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="netpref_8c_source.html#l00067">brix_netpref_family()</a>, <a class="el" href="netpref_8c_source.html#l00134">brix_netpref_undo_demote()</a>, <a class="el" href="sock_8c_source.html#l00051">brix_sock_tune()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="sock_8c_source.html#l00160">connect_resolved()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00274">brix_bringup_ex()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="web__ka_8c_source.html#l00070">brix_kaconn_connect()</a>, <a class="el" href="wait41_8c_source.html#l00023">brix_wait41_main()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, and <a class="el" href="webfile__io_8c_source.html#l00030">web_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00274">brix_bringup_ex()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="web__ka_8c_source.html#l00070">brix_kaconn_connect()</a>, <a class="el" href="wait41_8c_source.html#l00024">brix_wait41_main()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, and <a class="el" href="webfile__io_8c_source.html#l00030">web_connect()</a>.</p>
 
 </div>
 </div>
@@ -319,9 +373,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00397">397</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00467">467</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00114">brix_tls_write()</a>, <a class="el" href="sock_8c_source.html#l00380">note_io_failure()</a>, <a class="el" href="sock_8c_source.html#l00322">plain_write_full()</a>, and <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00161">brix_tls_write()</a>, <a class="el" href="sock_8c_source.html#l00432">note_io_failure()</a>, <a class="el" href="sock_8c_source.html#l00374">plain_write_full()</a>, and <a class="el" href="brix__net_8h_source.html#l00023">brix_io::ssl</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="frame_8c_source.html#l00027">brix_send_ext()</a>, <a class="el" href="client_2lib_2auth_2sigver_8c_source.html#l00031">brix_sigver_maybe()</a>, <a class="el" href="conn_8c_source.html#l00128">do_handshake()</a>, <a class="el" href="http__upload_8c_source.html#l00296">httpx_chunk_core()</a>, <a class="el" href="http__download_8c_source.html#l00197">httpx_download_exchange()</a>, <a class="el" href="http__upload_8c_source.html#l00164">httpx_exchange_core()</a>, <a class="el" href="http__req_8c_source.html#l00172">httpx_send_request()</a>, <a class="el" href="http__upload_8c_source.html#l00071">httpx_upload_body()</a>, <a class="el" href="capture_8c_source.html#l00374">playback_reissue_wire()</a>, <a class="el" href="diag__misc_8c_source.html#l00179">probe_p5_partial_frame()</a>, <a class="el" href="diag__topology_8c_source.html#l00345">raw_send_expect_reject()</a>, <a class="el" href="webfile__io_8c_source.html#l00128">web_range_send_req()</a>, and <a class="el" href="web__ka_8c_source.html#l00234">webmeta_send_req()</a>.</p>
 
@@ -423,7 +477,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00160">160</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
-<p class="reference">References <a class="el" href="netpref_8c_source.html#l00105">brix_netpref_demote_ipv6()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="sock_8c_source.html#l00083">connect_one()</a>, <a class="el" href="sock_8c_source.html#l00073">XRDC_CONNECT_ATTEMPT_MS</a>, <a class="el" href="brix_8h_source.html#l00061">XRDC_ERESOLVE</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="netpref_8c_source.html#l00105">brix_netpref_demote_ipv6()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="sock_8c_source.html#l00083">connect_one()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, <a class="el" href="sock_8c_source.html#l00073">XRDC_CONNECT_ATTEMPT_MS</a>, <a class="el" href="brix_8h_source.html#l00061">XRDC_ERESOLVE</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00220">brix_tcp_connect()</a>.</p>
 
@@ -455,7 +509,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00143">143</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00380">note_io_failure()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00432">note_io_failure()</a>.</p>
 
 </div>
 </div>
@@ -499,11 +553,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00380">380</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00432">432</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
 <p class="reference">References <a class="el" href="netpref_8c_source.html#l00117">brix_netpref_note_wire_error()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="sock_8c_source.html#l00143">fd_family()</a>, <a class="el" href="brix_8h_source.html#l00050">brix_status::sys_errno</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>, and <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00458">brix_read_full()</a>, and <a class="el" href="sock_8c_source.html#l00467">brix_write_full()</a>.</p>
 
 </div>
 </div>
@@ -553,11 +607,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00268">268</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00297">297</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="sock_8c_source.html#l00273">read_wait_ms()</a>, <a class="el" href="brix__net_8h_source.html#l00025">brix_io::stall_deadline_ms</a>, <a class="el" href="brix__net_8h_source.html#l00039">brix_io::stall_deadline_ns</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00388">brix_read_full()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00458">brix_read_full()</a>.</p>
 
 </div>
 </div>
@@ -607,11 +661,53 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00322">322</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00374">374</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="brix__net_8h_source.html#l00022">brix_io::fd</a>, <a class="el" href="brix__net_8h_source.html#l00024">brix_io::timeout_ms</a>, and <a class="el" href="brix_8h_source.html#l00055">XRDC_ESOCK</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00397">brix_write_full()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00467">brix_write_full()</a>.</p>
+
+</div>
+</div>
+<a id="a169279fc6d27c694b86f721804524dce" name="a169279fc6d27c694b86f721804524dce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a169279fc6d27c694b86f721804524dce">&#9670;&#160;</a></span>read_wait_ms()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int read_wait_ms </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>timeout_ms</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint64_t&#160;</td>
+          <td class="paramname"><em>deadline_ns</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sock_8c_source.html#l00273">273</a> of file <a class="el" href="sock_8c_source.html">sock.c</a>.</p>
+
+<p class="reference">References <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sock_8c_source.html#l00297">plain_read_full()</a>.</p>
 
 </div>
 </div>

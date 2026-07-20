@@ -4,6 +4,8 @@ var structsd__cache__fill__state__t =
     [ "from_cold", "structsd__cache__fill__state__t.html#a87a5a15fcbec561a1d7064c11256f7df", null ],
     [ "from_peer", "structsd__cache__fill__state__t.html#a135b246b37294fca825363769ffb8215", null ],
     [ "off", "structsd__cache__fill__state__t.html#a65f964405bcbf704bcad91dcd2612bdc", null ],
+    [ "origin_alg", "structsd__cache__fill__state__t.html#acd0840a284b9d288839fadd160ae5965", null ],
+    [ "origin_hex", "structsd__cache__fill__state__t.html#a7be4c6945336e0aaeff1cdd4ebec5f9f", null ],
     [ "snap", "structsd__cache__fill__state__t.html#a10971d8a3315a32340ae0c13a065b1de", null ],
     [ "so", "structsd__cache__fill__state__t.html#a311e23f9aa2b195b3b51a0c040aaa2bd", null ],
     [ "src", "structsd__cache__fill__state__t.html#abf0a2540aec26cdbd0bb334e4279d1fd", null ],

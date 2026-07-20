@@ -8,5 +8,6 @@ var put__internal_8h =
     [ "webdav_put_persist_checksums", "put__internal_8h.html#ad02005cc7df71b9ead988d83dd04a9eb", null ],
     [ "webdav_put_precheck", "put__internal_8h.html#a94e33c95f2664b80e25191b794314f05", null ],
     [ "webdav_put_start_dashboard", "put__internal_8h.html#a23d74fba168c6c09cece0abf026fb51d", null ],
-    [ "webdav_put_stream_body", "put__internal_8h.html#ad339eddfa81a5ad18625b1b163584bfe", null ]
+    [ "webdav_put_stream_body", "put__internal_8h.html#ad339eddfa81a5ad18625b1b163584bfe", null ],
+    [ "webdav_put_verify_ingest_digest", "put__internal_8h.html#a2347aedf321aafea0af2fc11ffc6fa81", null ]
 ];

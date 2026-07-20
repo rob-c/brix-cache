@@ -43,7 +43,7 @@ var searchData=
   ['propfind_5fbody_5fmax_40',['PROPFIND_BODY_MAX',['../propfind__internal_8h.html#ab5044acfe8d86c02b641281af68e45cb',1,'propfind_internal.h']]],
   ['propfind_5finfinity_5fmax_5fentries_41',['PROPFIND_INFINITY_MAX_ENTRIES',['../propfind__internal_8h.html#ab9e13cdbd7e592d4dae4f664e77f62ab',1,'propfind_internal.h']]],
   ['proxy_5fbio_42',['proxy_bio',['../sec__gsi_8c.html#a8fba4cf6d2658a38f6aa1af59f2ca6f6',1,'sec_gsi.c']]],
-  ['proxy_5fcert_5finfo_5foid_43',['PROXY_CERT_INFO_OID',['../client_2lib_2auth_2gsi_2proxy_8c.html#a86d774c72cd8fc2e361f0bed92898ddc',1,'proxy.c']]],
+  ['proxy_5fcert_5finfo_5foid_43',['PROXY_CERT_INFO_OID',['../proxy_8c.html#a86d774c72cd8fc2e361f0bed92898ddc',1,'proxy.c']]],
   ['proxy_5fupstream_5fbearer_5fmax_44',['PROXY_UPSTREAM_BEARER_MAX',['../events__bootstrap__auth_8c.html#af3e18fda62147cc6754dd2c849d643f4',1,'events_bootstrap_auth.c']]],
   ['pwd_5fkeylen_45',['PWD_KEYLEN',['../sec__pwd_8c.html#a84ad8b68bb5c118daa6f9521a3bb5514',1,'sec_pwd.c']]],
   ['pwd_5fversion_46',['PWD_VERSION',['../sec__pwd_8c.html#a64dca83c1e5ec6c2553725e5ffeec238',1,'sec_pwd.c']]]

@@ -23,5 +23,5 @@ var dir_077ac7c5718cd11a37d5ae62d190a061 =
     [ "gsi_upstream_login.c", "gsi__upstream__login_8c.html", "gsi__upstream__login_8c" ],
     [ "pool.c", "src_2net_2proxy_2pool_8c.html", "src_2net_2proxy_2pool_8c" ],
     [ "proxy.h", "proxy_8h.html", "proxy_8h" ],
-    [ "proxy_internal.h", "net_2proxy_2proxy__internal_8h.html", "net_2proxy_2proxy__internal_8h" ]
+    [ "proxy_internal.h", "proxy__internal_8h.html", "proxy__internal_8h" ]
 ];

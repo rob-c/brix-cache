@@ -1,6 +1,7 @@
 var structftp__ev__dc__s =
 [
     [ "abs", "structftp__ev__dc__s.html#a70e8635c9720e042d0bfc1feeb6b0cba", null ],
+    [ "allo_size", "structftp__ev__dc__s.html#a0052bbf21fb1bbd1a0bd9b1b511df600", null ],
     [ "buf", "structftp__ev__dc__s.html#aa4cbace1bcc28e6c6c20cd96bca50357", null ],
     [ "buf_len", "structftp__ev__dc__s.html#ae1ec854ddc5da4811699ff77f28ba444", null ],
     [ "buf_pos", "structftp__ev__dc__s.html#a05d03fdd7fc806daa4c738e3e6a22768", null ],

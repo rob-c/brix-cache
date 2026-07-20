@@ -1,5 +1,6 @@
 var dir_f9a7e4b84fd11f8ae1623030e54545e5 =
 [
+    [ "brix_fault_proxy.c", "brix__fault__proxy_8c.html", "brix__fault__proxy_8c" ],
     [ "diag_bench.c", "diag__bench_8c.html", "diag__bench_8c" ],
     [ "diag_check.c", "diag__check_8c.html", "diag__check_8c" ],
     [ "diag_compare.c", "diag__compare_8c.html", "diag__compare_8c" ],

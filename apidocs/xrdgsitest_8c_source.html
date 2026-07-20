@@ -115,97 +115,100 @@ $(document).ready(function(){initNavTree('xrdgsitest_8c_source.html',''); initRe
 <div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="preprocessor">#include &quot;<a class="code" href="brix_8h.html">brix.h</a>&quot;</span></div>
 <div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="preprocessor">#include &quot;<a class="code" href="crypto_8h.html">core/compat/crypto.h</a>&quot;</span></div>
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="preprocessor">#include &quot;<a class="code" href="version_8h.html">core/version.h</a>&quot;</span></div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#include &lt;string.h&gt;</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span> </div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00024" data-start="{" data-end="}">
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno"><a class="line" href="xrdgsitest_8c.html#a28999b7bf77e817ab21c70002c3ad233">   24</a></span><a class="code hl_function" href="xrdgsitest_8c.html#a28999b7bf77e817ab21c70002c3ad233">usage_fp</a>(FILE *out)</div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span>{</div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>    fprintf(out,</div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>        <span class="stringliteral">&quot;usage: xrdgsitest [opts] root[s]://host[:port]\n&quot;</span></div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>        <span class="stringliteral">&quot;  forces GSI auth and reports whether the handshake authenticated.\n&quot;</span></div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>        <span class="stringliteral">&quot;  opts: --tls --notlsok --noverifyhost\n&quot;</span></div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>        <span class="stringliteral">&quot;        --version  print version and exit\n&quot;</span></div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>        <span class="stringliteral">&quot;  uses $X509_USER_PROXY / $X509_CERT_DIR as usual.\n&quot;</span></div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>        <a class="code hl_define" href="version_8h.html#acdecf414f269bcd4bc2f90a1fd6f3227">BRIX_USAGE_FOOTER</a>(<span class="stringliteral">&quot;xrdgsitest&quot;</span>));</div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>}</div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="preprocessor">#include &quot;<a class="code" href="progname_8h.html">core/progname.h</a>&quot;</span></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span> </div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#include &lt;string.h&gt;</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00025" data-start="{" data-end="}">
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno"><a class="line" href="xrdgsitest_8c.html#a017babcb376a0b2a74e3762918e3d31e">   25</a></span><a class="code hl_function" href="xrdgsitest_8c.html#a017babcb376a0b2a74e3762918e3d31e">usage_fp</a>(FILE *out, <span class="keyword">const</span> <span class="keywordtype">char</span> *prog)</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span>{</div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span>    prog = <a class="code hl_function" href="progname_8h.html#ab9982caf42d007f9a4bee6850df4a24f">brix_prog_base</a>(prog);   <span class="comment">/* display the invoked name, not a path */</span></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span>    fprintf(out,</div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>        <span class="stringliteral">&quot;usage: %s [opts] root[s]://host[:port]\n&quot;</span></div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>        <span class="stringliteral">&quot;  forces GSI auth and reports whether the handshake authenticated.\n&quot;</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>        <span class="stringliteral">&quot;  opts: --tls --notlsok --noverifyhost\n&quot;</span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>        <span class="stringliteral">&quot;        --version  print version and exit\n&quot;</span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>        <span class="stringliteral">&quot;  uses $X509_USER_PROXY / $X509_CERT_DIR as usual.\n&quot;</span>,</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        prog);</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <a class="code hl_function" href="progname_8h.html#a8c64e1a1a6778bb3bab86aa5ec3e0ca2">brix_usage_footer</a>(out, prog);</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>}</div>
 </div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span> </div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00036" data-start="{" data-end="}">
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno"><a class="line" href="xrdgsitest_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">   36</a></span><a class="code hl_function" href="xrdgsitest_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a>(<span class="keywordtype">void</span>)</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>{</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <a class="code hl_function" href="xrdgsitest_8c.html#a28999b7bf77e817ab21c70002c3ad233">usage_fp</a>(stderr);</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>}</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span> </div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00039" data-start="{" data-end="}">
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno"><a class="line" href="xrdgsitest_8c.html#a848c0ca46d3e3ecc39d2fccc4d85fa12">   39</a></span><a class="code hl_function" href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *prog)</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>{</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <a class="code hl_function" href="xrdgsitest_8c.html#a017babcb376a0b2a74e3762918e3d31e">usage_fp</a>(stderr, prog);</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>}</div>
 </div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00042" data-start="{" data-end="}">
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno"><a class="line" href="xrdgsitest_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">   42</a></span><a class="code hl_function" href="proxy__req__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe">main</a>(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> **argv)</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>{</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    <a class="code hl_struct" href="structbrix__url.html">brix_url</a>    u;</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <a class="code hl_struct" href="structbrix__conn.html">brix_conn</a>   <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>   o;</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *url = NULL;</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <span class="keywordtype">int</span>         i;</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    memset(&amp;o, 0, <span class="keyword">sizeof</span>(o));</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    o.<a class="code hl_variable" href="structbrix__opts.html#afb841a5b8846ac885e4942dfb2592971">verify_host</a> = 1;</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    o.<a class="code hl_variable" href="structbrix__opts.html#a9bbb1e1ed16212493f77fbf1ceddbb73">auth_force</a> = <span class="stringliteral">&quot;gsi&quot;</span>;   <span class="comment">/* this is the whole point of the tool */</span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <a class="code hl_function" href="crypto_8c.html#ade07d1dd3acb0b87b5f44cd63c2de23b">brix_crypto_init</a>();</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span> </div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <span class="keywordflow">for</span> (i = 1; i &lt; argc; i++) {</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *a = argv[i];</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>        <span class="keywordflow">if</span> (a[0] == <span class="charliteral">&#39;-&#39;</span> &amp;&amp; a[1] != <span class="charliteral">&#39;\0&#39;</span> &amp;&amp; strcmp(a, <span class="stringliteral">&quot;-&quot;</span>) != 0) {</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>            {</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>                <span class="keywordtype">int</span> pr = <a class="code hl_function" href="brix__ops_8h.html#a67c96adfd0486e131b6902ec6ee27d2c">brix_opts_parse_arg</a>(&amp;o, argc, argv, &amp;i);</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>                <span class="keywordflow">if</span> (pr == 2) { <a class="code hl_function" href="xrdgsitest_8c.html#a28999b7bf77e817ab21c70002c3ad233">usage_fp</a>(stdout); <span class="keywordflow">return</span> 0; }  <span class="comment">/* --help */</span></div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>                <span class="keywordflow">if</span> (pr)      { <span class="keywordflow">continue</span>; }</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>            }</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>            <span class="keywordflow">if</span> (strcmp(a, <span class="stringliteral">&quot;-h&quot;</span>) == 0) { <a class="code hl_function" href="xrdgsitest_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a>(); <span class="keywordflow">return</span> 0; }  <span class="comment">/* C1 */</span></div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            <span class="keywordflow">else</span> { fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: unknown option &#39;%s&#39;\n&quot;</span>, a); <a class="code hl_function" href="xrdgsitest_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a>(); <span class="keywordflow">return</span> 50; }</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (url == NULL) {</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>            url = a;</div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>            fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: too many arguments\n&quot;</span>);</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>            <span class="keywordflow">return</span> 50;</div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        }</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    }</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    <span class="keywordflow">if</span> (url == NULL) {</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        <a class="code hl_function" href="xrdgsitest_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a>();</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        <span class="keywordflow">return</span> 50;</div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    }</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span> </div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    <a class="code hl_function" href="brix__net_8h.html#a12d5bb822e9916d15fda2cfcb7ba4cf3">brix_status_clear</a>(&amp;st);</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="brix__net_8h.html#a83d62730cd957a812d747a27b7b066a3">brix_endpoint_parse</a>(url, &amp;u, &amp;st) != 0) {</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: %s\n&quot;</span>, st.<a class="code hl_variable" href="structbrix__status.html#a0a43ccccb1781168a5502591195d563b">msg</a>);</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        <span class="keywordflow">return</span> 50;</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    }</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="brix__ops_8h.html#a593d14864658db176c471a01874cf76a">brix_connect_resilient</a>(&amp;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, &amp;u, &amp;o, &amp;st) != 0) {</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>        fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: GSI handshake failed: %s\n&quot;</span>, st.<a class="code hl_variable" href="structbrix__status.html#a0a43ccccb1781168a5502591195d563b">msg</a>);</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="brix__net_8h.html#ad1eb880fc83059f40d1b5d629d3eb978">brix_shellcode</a>(&amp;st);</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    }</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span> </div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    <a class="code hl_function" href="brix__net_8h.html#a69547d579488ff547aaff22a801e0e79">brix_explain_conn</a>(&amp;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, &amp;o, stdout);</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span> </div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="comment">/* The gate: GSI must actually be the protocol that authenticated. */</span></div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        <span class="keywordtype">int</span> ok = (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>.diag.chosen_auth != NULL</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>                  &amp;&amp; strcmp(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>.diag.chosen_auth, <span class="stringliteral">&quot;gsi&quot;</span>) == 0);</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        printf(<span class="stringliteral">&quot;Result: GSI %s\n&quot;</span>, ok ? <span class="stringliteral">&quot;OK&quot;</span> : <span class="stringliteral">&quot;NOT used (fell back / anon)&quot;</span>);</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        <a class="code hl_function" href="brix__net_8h.html#a44fea517d5cb4f3eb71c09b5b68f78a9">brix_close</a>(&amp;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>);</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        <span class="keywordflow">return</span> ok ? 0 : 53;</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    }</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>}</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00045" data-start="{" data-end="}">
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno"><a class="line" href="xrdgsitest_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">   45</a></span><a class="code hl_function" href="proxy__req__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe">main</a>(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> **argv)</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>{</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <a class="code hl_struct" href="structbrix__url.html">brix_url</a>    u;</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <a class="code hl_struct" href="structbrix__conn.html">brix_conn</a>   <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <a class="code hl_struct" href="structbrix__status.html">brix_status</a> st;</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    <a class="code hl_struct" href="structbrix__opts.html">brix_opts</a>   o;</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *url = NULL;</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <span class="keywordtype">int</span>         i;</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span> </div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    memset(&amp;o, 0, <span class="keyword">sizeof</span>(o));</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    o.<a class="code hl_variable" href="structbrix__opts.html#afb841a5b8846ac885e4942dfb2592971">verify_host</a> = 1;</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    o.<a class="code hl_variable" href="structbrix__opts.html#a9bbb1e1ed16212493f77fbf1ceddbb73">auth_force</a> = <span class="stringliteral">&quot;gsi&quot;</span>;   <span class="comment">/* this is the whole point of the tool */</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    <a class="code hl_function" href="crypto_8c.html#ade07d1dd3acb0b87b5f44cd63c2de23b">brix_crypto_init</a>();</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keywordflow">for</span> (i = 1; i &lt; argc; i++) {</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *a = argv[i];</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>        <span class="keywordflow">if</span> (a[0] == <span class="charliteral">&#39;-&#39;</span> &amp;&amp; a[1] != <span class="charliteral">&#39;\0&#39;</span> &amp;&amp; strcmp(a, <span class="stringliteral">&quot;-&quot;</span>) != 0) {</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>            {</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>                <span class="keywordtype">int</span> pr = <a class="code hl_function" href="brix__ops_8h.html#a67c96adfd0486e131b6902ec6ee27d2c">brix_opts_parse_arg</a>(&amp;o, argc, argv, &amp;i);</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>                <span class="keywordflow">if</span> (pr == 2) { <a class="code hl_function" href="xrdgsitest_8c.html#a017babcb376a0b2a74e3762918e3d31e">usage_fp</a>(stdout, argv[0]); <span class="keywordflow">return</span> 0; }  <span class="comment">/* --help */</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>                <span class="keywordflow">if</span> (pr)      { <span class="keywordflow">continue</span>; }</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>            }</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>            <span class="keywordflow">if</span> (strcmp(a, <span class="stringliteral">&quot;-h&quot;</span>) == 0) { <a class="code hl_function" href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a>(argv[0]); <span class="keywordflow">return</span> 0; }  <span class="comment">/* C1 */</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>            <span class="keywordflow">else</span> { fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: unknown option &#39;%s&#39;\n&quot;</span>, a); <a class="code hl_function" href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a>(argv[0]); <span class="keywordflow">return</span> 50; }</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (url == NULL) {</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>            url = a;</div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>            fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: too many arguments\n&quot;</span>);</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            <span class="keywordflow">return</span> 50;</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>        }</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    }</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    <span class="keywordflow">if</span> (url == NULL) {</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        <a class="code hl_function" href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a>(argv[0]);</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        <span class="keywordflow">return</span> 50;</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    }</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span> </div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <a class="code hl_function" href="brix__net_8h.html#a12d5bb822e9916d15fda2cfcb7ba4cf3">brix_status_clear</a>(&amp;st);</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="brix__net_8h.html#a83d62730cd957a812d747a27b7b066a3">brix_endpoint_parse</a>(url, &amp;u, &amp;st) != 0) {</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>        fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: %s\n&quot;</span>, st.<a class="code hl_variable" href="structbrix__status.html#a0a43ccccb1781168a5502591195d563b">msg</a>);</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>        <span class="keywordflow">return</span> 50;</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    }</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="brix__ops_8h.html#a593d14864658db176c471a01874cf76a">brix_connect_resilient</a>(&amp;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, &amp;u, &amp;o, &amp;st) != 0) {</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        fprintf(stderr, <span class="stringliteral">&quot;xrdgsitest: GSI handshake failed: %s\n&quot;</span>, st.<a class="code hl_variable" href="structbrix__status.html#a0a43ccccb1781168a5502591195d563b">msg</a>);</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="brix__net_8h.html#ad1eb880fc83059f40d1b5d629d3eb978">brix_shellcode</a>(&amp;st);</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    }</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span> </div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <a class="code hl_function" href="brix__net_8h.html#a69547d579488ff547aaff22a801e0e79">brix_explain_conn</a>(&amp;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, &amp;o, stdout);</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span> </div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    <span class="comment">/* The gate: GSI must actually be the protocol that authenticated. */</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    {</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        <span class="keywordtype">int</span> ok = (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>.diag.chosen_auth != NULL</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>                  &amp;&amp; strcmp(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>.diag.chosen_auth, <span class="stringliteral">&quot;gsi&quot;</span>) == 0);</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        printf(<span class="stringliteral">&quot;Result: GSI %s\n&quot;</span>, ok ? <span class="stringliteral">&quot;OK&quot;</span> : <span class="stringliteral">&quot;NOT used (fell back / anon)&quot;</span>);</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>        <a class="code hl_function" href="brix__net_8h.html#a44fea517d5cb4f3eb71c09b5b68f78a9">brix_close</a>(&amp;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>);</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        <span class="keywordflow">return</span> ok ? 0 : 53;</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    }</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>}</div>
 </div>
 <div class="ttc" id="abrix_8h_html"><div class="ttname"><a href="brix_8h.html">brix.h</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_a12d5bb822e9916d15fda2cfcb7ba4cf3"><div class="ttname"><a href="brix__net_8h.html#a12d5bb822e9916d15fda2cfcb7ba4cf3">brix_status_clear</a></div><div class="ttdeci">void brix_status_clear(brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2core_2types_2status_8c_source.html#l00022">status.c:22</a></div></div>
-<div class="ttc" id="abrix__net_8h_html_a44fea517d5cb4f3eb71c09b5b68f78a9"><div class="ttname"><a href="brix__net_8h.html#a44fea517d5cb4f3eb71c09b5b68f78a9">brix_close</a></div><div class="ttdeci">void brix_close(brix_conn *c)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00539">conn.c:539</a></div></div>
-<div class="ttc" id="abrix__net_8h_html_a69547d579488ff547aaff22a801e0e79"><div class="ttname"><a href="brix__net_8h.html#a69547d579488ff547aaff22a801e0e79">brix_explain_conn</a></div><div class="ttdeci">void brix_explain_conn(brix_conn *c, const brix_opts *opts, FILE *out)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00724">conn.c:724</a></div></div>
+<div class="ttc" id="abrix__net_8h_html_a44fea517d5cb4f3eb71c09b5b68f78a9"><div class="ttname"><a href="brix__net_8h.html#a44fea517d5cb4f3eb71c09b5b68f78a9">brix_close</a></div><div class="ttdeci">void brix_close(brix_conn *c)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00543">conn.c:543</a></div></div>
+<div class="ttc" id="abrix__net_8h_html_a69547d579488ff547aaff22a801e0e79"><div class="ttname"><a href="brix__net_8h.html#a69547d579488ff547aaff22a801e0e79">brix_explain_conn</a></div><div class="ttdeci">void brix_explain_conn(brix_conn *c, const brix_opts *opts, FILE *out)</div><div class="ttdef"><b>Definition</b> <a href="conn_8c_source.html#l00728">conn.c:728</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_a83d62730cd957a812d747a27b7b066a3"><div class="ttname"><a href="brix__net_8h.html#a83d62730cd957a812d747a27b7b066a3">brix_endpoint_parse</a></div><div class="ttdeci">int brix_endpoint_parse(const char *ep, brix_url *out, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="url_8c_source.html#l00177">url.c:177</a></div></div>
 <div class="ttc" id="abrix__net_8h_html_ad1eb880fc83059f40d1b5d629d3eb978"><div class="ttname"><a href="brix__net_8h.html#ad1eb880fc83059f40d1b5d629d3eb978">brix_shellcode</a></div><div class="ttdeci">int brix_shellcode(const brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2core_2types_2status_8c_source.html#l00088">status.c:88</a></div></div>
 <div class="ttc" id="abrix__ops_8h_html_a593d14864658db176c471a01874cf76a"><div class="ttname"><a href="brix__ops_8h.html#a593d14864658db176c471a01874cf76a">brix_connect_resilient</a></div><div class="ttdeci">int brix_connect_resilient(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *st)</div><div class="ttdef"><b>Definition</b> <a href="resilient_8c_source.html#l00070">resilient.c:70</a></div></div>
@@ -213,18 +216,20 @@ $(document).ready(function(){initNavTree('xrdgsitest_8c_source.html',''); initRe
 <div class="ttc" id="acrypto_8c_html_ade07d1dd3acb0b87b5f44cd63c2de23b"><div class="ttname"><a href="crypto_8c.html#ade07d1dd3acb0b87b5f44cd63c2de23b">brix_crypto_init</a></div><div class="ttdeci">int brix_crypto_init(void)</div><div class="ttdef"><b>Definition</b> <a href="crypto_8c_source.html#l00022">crypto.c:22</a></div></div>
 <div class="ttc" id="acrypto_8h_html"><div class="ttname"><a href="crypto_8h.html">crypto.h</a></div></div>
 <div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
+<div class="ttc" id="aprogname_8h_html"><div class="ttname"><a href="progname_8h.html">progname.h</a></div></div>
+<div class="ttc" id="aprogname_8h_html_a8c64e1a1a6778bb3bab86aa5ec3e0ca2"><div class="ttname"><a href="progname_8h.html#a8c64e1a1a6778bb3bab86aa5ec3e0ca2">brix_usage_footer</a></div><div class="ttdeci">static void brix_usage_footer(FILE *out, const char *argv0)</div><div class="ttdef"><b>Definition</b> <a href="progname_8h_source.html#l00084">progname.h:84</a></div></div>
+<div class="ttc" id="aprogname_8h_html_ab9982caf42d007f9a4bee6850df4a24f"><div class="ttname"><a href="progname_8h.html#ab9982caf42d007f9a4bee6850df4a24f">brix_prog_base</a></div><div class="ttdeci">static const char * brix_prog_base(const char *argv0)</div><div class="ttdef"><b>Definition</b> <a href="progname_8h_source.html#l00036">progname.h:36</a></div></div>
 <div class="ttc" id="aproxy__req__unittest_8c_html_a840291bc02cba5474a4cb46a9b9566fe"><div class="ttname"><a href="proxy__req__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe">main</a></div><div class="ttdeci">int main(void)</div><div class="ttdef"><b>Definition</b> <a href="proxy__req__unittest_8c_source.html#l00373">proxy_req_unittest.c:373</a></div></div>
-<div class="ttc" id="astructbrix__conn_html"><div class="ttname"><a href="structbrix__conn.html">brix_conn</a></div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00084">brix_net.h:84</a></div></div>
-<div class="ttc" id="astructbrix__opts_html"><div class="ttname"><a href="structbrix__opts.html">brix_opts</a></div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00029">brix_net.h:29</a></div></div>
-<div class="ttc" id="astructbrix__opts_html_a9bbb1e1ed16212493f77fbf1ceddbb73"><div class="ttname"><a href="structbrix__opts.html#a9bbb1e1ed16212493f77fbf1ceddbb73">brix_opts::auth_force</a></div><div class="ttdeci">const char * auth_force</div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00038">brix_net.h:38</a></div></div>
-<div class="ttc" id="astructbrix__opts_html_afb841a5b8846ac885e4942dfb2592971"><div class="ttname"><a href="structbrix__opts.html#afb841a5b8846ac885e4942dfb2592971">brix_opts::verify_host</a></div><div class="ttdeci">int verify_host</div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00033">brix_net.h:33</a></div></div>
+<div class="ttc" id="astructbrix__conn_html"><div class="ttname"><a href="structbrix__conn.html">brix_conn</a></div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00104">brix_net.h:104</a></div></div>
+<div class="ttc" id="astructbrix__opts_html"><div class="ttname"><a href="structbrix__opts.html">brix_opts</a></div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00049">brix_net.h:49</a></div></div>
+<div class="ttc" id="astructbrix__opts_html_a9bbb1e1ed16212493f77fbf1ceddbb73"><div class="ttname"><a href="structbrix__opts.html#a9bbb1e1ed16212493f77fbf1ceddbb73">brix_opts::auth_force</a></div><div class="ttdeci">const char * auth_force</div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00058">brix_net.h:58</a></div></div>
+<div class="ttc" id="astructbrix__opts_html_afb841a5b8846ac885e4942dfb2592971"><div class="ttname"><a href="structbrix__opts.html#afb841a5b8846ac885e4942dfb2592971">brix_opts::verify_host</a></div><div class="ttdeci">int verify_host</div><div class="ttdef"><b>Definition</b> <a href="brix__net_8h_source.html#l00053">brix_net.h:53</a></div></div>
 <div class="ttc" id="astructbrix__status_html"><div class="ttname"><a href="structbrix__status.html">brix_status</a></div><div class="ttdef"><b>Definition</b> <a href="brix_8h_source.html#l00048">brix.h:48</a></div></div>
 <div class="ttc" id="astructbrix__status_html_a0a43ccccb1781168a5502591195d563b"><div class="ttname"><a href="structbrix__status.html#a0a43ccccb1781168a5502591195d563b">brix_status::msg</a></div><div class="ttdeci">char msg[512]</div><div class="ttdef"><b>Definition</b> <a href="brix_8h_source.html#l00051">brix.h:51</a></div></div>
 <div class="ttc" id="astructbrix__url_html"><div class="ttname"><a href="structbrix__url.html">brix_url</a></div><div class="ttdef"><b>Definition</b> <a href="brix_8h_source.html#l00073">brix.h:73</a></div></div>
 <div class="ttc" id="aversion_8h_html"><div class="ttname"><a href="version_8h.html">version.h</a></div></div>
-<div class="ttc" id="aversion_8h_html_acdecf414f269bcd4bc2f90a1fd6f3227"><div class="ttname"><a href="version_8h.html#acdecf414f269bcd4bc2f90a1fd6f3227">BRIX_USAGE_FOOTER</a></div><div class="ttdeci">#define BRIX_USAGE_FOOTER(TOOL)</div><div class="ttdef"><b>Definition</b> <a href="version_8h_source.html#l00032">version.h:32</a></div></div>
-<div class="ttc" id="axrdgsitest_8c_html_a28999b7bf77e817ab21c70002c3ad233"><div class="ttname"><a href="xrdgsitest_8c.html#a28999b7bf77e817ab21c70002c3ad233">usage_fp</a></div><div class="ttdeci">static void usage_fp(FILE *out)</div><div class="ttdef"><b>Definition</b> <a href="xrdgsitest_8c_source.html#l00024">xrdgsitest.c:24</a></div></div>
-<div class="ttc" id="axrdgsitest_8c_html_ad96d407a911fbb914fa8e4cfbf2faf0f"><div class="ttname"><a href="xrdgsitest_8c.html#ad96d407a911fbb914fa8e4cfbf2faf0f">usage</a></div><div class="ttdeci">static void usage(void)</div><div class="ttdef"><b>Definition</b> <a href="xrdgsitest_8c_source.html#l00036">xrdgsitest.c:36</a></div></div>
+<div class="ttc" id="axrdgsitest_8c_html_a017babcb376a0b2a74e3762918e3d31e"><div class="ttname"><a href="xrdgsitest_8c.html#a017babcb376a0b2a74e3762918e3d31e">usage_fp</a></div><div class="ttdeci">static void usage_fp(FILE *out, const char *prog)</div><div class="ttdef"><b>Definition</b> <a href="xrdgsitest_8c_source.html#l00025">xrdgsitest.c:25</a></div></div>
+<div class="ttc" id="axrootdfs_8c_html_ae8605e2b78cd4a81b6c6b5c30cb7366a"><div class="ttname"><a href="xrootdfs_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a></div><div class="ttdeci">void usage(void)</div><div class="ttdef"><b>Definition</b> <a href="xrootdfs_8c_source.html#l00270">xrootdfs.c:270</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

@@ -7,6 +7,7 @@ var dir_6bb662bc3c2c04881b7f0dc28fb155ba =
     [ "buffers_sendfile.c", "buffers__sendfile_8c.html", "buffers__sendfile_8c" ],
     [ "config.c", "core_2aio_2config_8c.html", "core_2aio_2config_8c" ],
     [ "dirlist.c", "dirlist_8c.html", "dirlist_8c" ],
+    [ "fd_kind.c", "fd__kind_8c.html", "fd__kind_8c" ],
     [ "reads.c", "reads_8c.html", "reads_8c" ],
     [ "readv.c", "core_2aio_2readv_8c.html", "core_2aio_2readv_8c" ],
     [ "resume.c", "resume_8c.html", "resume_8c" ],

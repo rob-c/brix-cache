@@ -133,7 +133,7 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a7952b1f2db50d5e603139ee98064f080" id="r_a7952b1f2db50d5e603139ee98064f080"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="netconnect_8h.html#a7952b1f2db50d5e603139ee98064f080">brix_resolve_connect_socket</a> (const char *host, unsigned port, <a class="el" href="af__policy_8h.html#aaf173079f9656bd7f1b5f747910a1414">brix_af_policy_t</a> af_policy, struct sockaddr_storage *addr_out, socklen_t *addrlen_out, <a class="el" href="netconnect_8h.html#adb0a148a8187f41e65bcef03d9834ef0">brix_resolve_status_t</a> *status_out)</td></tr>
+<tr class="memitem:a7952b1f2db50d5e603139ee98064f080" id="r_a7952b1f2db50d5e603139ee98064f080"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="netconnect_8h.html#a7952b1f2db50d5e603139ee98064f080">brix_resolve_connect_socket</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, unsigned <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, <a class="el" href="af__policy_8h.html#aaf173079f9656bd7f1b5f747910a1414">brix_af_policy_t</a> af_policy, struct sockaddr_storage *addr_out, socklen_t *addrlen_out, <a class="el" href="netconnect_8h.html#adb0a148a8187f41e65bcef03d9834ef0">brix_resolve_status_t</a> *status_out)</td></tr>
 <tr class="separator:a7952b1f2db50d5e603139ee98064f080"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad4fcf483bd9c7ddfb929770072b3bc55" id="r_ad4fcf483bd9c7ddfb929770072b3bc55"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="netconnect_8h.html#ad4fcf483bd9c7ddfb929770072b3bc55">brix_apply_socket_io_timeouts</a> (int fd, long timeout_secs)</td></tr>
 <tr class="separator:ad4fcf483bd9c7ddfb929770072b3bc55"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -315,7 +315,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="netconnect_8h_source.html#l00067">67</a> of file <a class="el" href="netconnect_8h_source.html">netconnect.h</a>.</p>
 
-<p class="reference">References <a class="el" href="netconnect_8h_source.html#l00047">BRIX_RESOLVE_ERR_DNS</a>, <a class="el" href="netconnect_8h_source.html#l00048">BRIX_RESOLVE_ERR_SOCKET</a>, <a class="el" href="netconnect_8h_source.html#l00046">BRIX_RESOLVE_OK</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="netconnect_8h_source.html#l00047">BRIX_RESOLVE_ERR_DNS</a>, <a class="el" href="netconnect_8h_source.html#l00048">BRIX_RESOLVE_ERR_SOCKET</a>, <a class="el" href="netconnect_8h_source.html#l00046">BRIX_RESOLVE_OK</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="start_8c_source.html#l00100">brix_upstream_start_resolve_socket()</a>, and <a class="el" href="connect__upstream_8c_source.html#l00352">pc_resolve_target()</a>.</p>
 

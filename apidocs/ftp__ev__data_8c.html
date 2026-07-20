@@ -106,6 +106,7 @@ $(document).ready(function(){initNavTree('ftp__ev__data_8c.html',''); initResiza
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
+<code>#include &lt;errno.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for ftp_ev_data.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -162,11 +163,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00444">444</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00478">478</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00254">brix_ftp_ev_eb_teardown()</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>, <a class="el" href="ftp__ev__io_8c_source.html#l00199">brix_ftp_ev_resume()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__dir_8c_source.html#l00500">brix_vfs_closedir()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="ftp__ev_8h_source.html#l00112">ftp_ev_t::dc</a>, <a class="el" href="ftp__ev_8h_source.html#l00068">FTP_EV_ST_CMD</a>, <a class="el" href="ftp__ev_8h_source.html#l00106">ftp_ev_t::pasv_fd</a>, and <a class="el" href="ftp__ev_8h_source.html#l00080">ftp_ev_t::state</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00254">brix_ftp_ev_eb_teardown()</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>, <a class="el" href="ftp__ev__io_8c_source.html#l00199">brix_ftp_ev_resume()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__dir_8c_source.html#l00500">brix_vfs_closedir()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="ftp__ev_8h_source.html#l00114">ftp_ev_t::dc</a>, <a class="el" href="ftp__ev_8h_source.html#l00068">FTP_EV_ST_CMD</a>, <a class="el" href="ftp__ev_8h_source.html#l00108">ftp_ev_t::pasv_fd</a>, and <a class="el" href="ftp__ev_8h_source.html#l00080">ftp_ev_t::state</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00252">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00140">brix_ftp_ev_dc_start_tls()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00494">brix_ftp_ev_eb_accept()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00252">ev_accept_handler()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00309">ev_connect_handler()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00124">ev_dc_tls_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00273">ev_eb_child_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00302">ev_eb_child_read()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00431">ev_eb_child_tls_done()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00206">ev_list_write()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00144">ev_retr_mode_e_write()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00046">ev_retr_write()</a>, and <a class="el" href="ftp__ev__xfer_8c_source.html#l00106">ev_stor_read()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00268">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00140">brix_ftp_ev_dc_start_tls()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00551">brix_ftp_ev_eb_accept()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00286">ev_accept_handler()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00343">ev_connect_handler()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00124">ev_dc_tls_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">ev_eb_child_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00359">ev_eb_child_read()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00488">ev_eb_child_tls_done()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00222">ev_list_write()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00144">ev_retr_mode_e_write()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00046">ev_retr_write()</a>, and <a class="el" href="ftp__ev__xfer_8c_source.html#l00106">ev_stor_read()</a>.</p>
 
 </div>
 </div>
@@ -186,11 +187,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00348">348</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00382">382</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00109">ftp_ev_t::active</a>, <a class="el" href="ftp__ev_8h_source.html#l00111">ftp_ev_t::active_sa</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00494">brix_ftp_ev_eb_accept()</a>, <a class="el" href="ftp__ev_8h_source.html#l00044">BRIX_FTP_EV_IO_TIMEO</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00231">brix_ftp_ev_wrap_conn()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00252">ev_accept_handler()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00309">ev_connect_handler()</a>, and <a class="el" href="ftp__ev_8h_source.html#l00106">ftp_ev_t::pasv_fd</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00111">ftp_ev_t::active</a>, <a class="el" href="ftp__ev_8h_source.html#l00113">ftp_ev_t::active_sa</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00551">brix_ftp_ev_eb_accept()</a>, <a class="el" href="ftp__ev_8h_source.html#l00044">BRIX_FTP_EV_IO_TIMEO</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00265">brix_ftp_ev_wrap_conn()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00286">ev_accept_handler()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00343">ev_connect_handler()</a>, and <a class="el" href="ftp__ev_8h_source.html#l00108">ftp_ev_t::pasv_fd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00310">ev_begin_transfer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00326">ev_begin_transfer()</a>.</p>
 
 </div>
 </div>
@@ -226,11 +227,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00214">214</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00248">248</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00047">ev_do_pasv()</a>, and <a class="el" href="ftp__ev__data_8c_source.html#l00115">ev_do_port()</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00048">ev_do_pasv()</a>, and <a class="el" href="ftp__ev__data_8c_source.html#l00149">ev_do_port()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00416">brix_ftp_ev_do_transfer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00438">brix_ftp_ev_do_transfer()</a>.</p>
 
 </div>
 </div>
@@ -260,11 +261,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00231">231</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00265">265</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00348">brix_ftp_ev_data_open()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00494">brix_ftp_ev_eb_accept()</a>, and <a class="el" href="ftp__ev__data_8c_source.html#l00252">ev_accept_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00382">brix_ftp_ev_data_open()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00551">brix_ftp_ev_eb_accept()</a>, and <a class="el" href="ftp__ev__data_8c_source.html#l00286">ev_accept_handler()</a>.</p>
 
 </div>
 </div>
@@ -292,11 +293,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00252">252</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00286">286</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00444">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00252">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00140">brix_ftp_ev_dc_start_tls()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00231">brix_ftp_ev_wrap_conn()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev_8h_source.html#l00106">ftp_ev_t::pasv_fd</a>, and <a class="el" href="ftp__ev_8h_source.html#l00107">ftp_ev_t::prot</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00268">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00140">brix_ftp_ev_dc_start_tls()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00265">brix_ftp_ev_wrap_conn()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev_8h_source.html#l00108">ftp_ev_t::pasv_fd</a>, and <a class="el" href="ftp__ev_8h_source.html#l00109">ftp_ev_t::prot</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00348">brix_ftp_ev_data_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00382">brix_ftp_ev_data_open()</a>.</p>
 
 </div>
 </div>
@@ -324,11 +325,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00309">309</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00343">343</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00444">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00252">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00140">brix_ftp_ev_dc_start_tls()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, and <a class="el" href="ftp__ev_8h_source.html#l00107">ftp_ev_t::prot</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00268">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00140">brix_ftp_ev_dc_start_tls()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, and <a class="el" href="ftp__ev_8h_source.html#l00109">ftp_ev_t::prot</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00348">brix_ftp_ev_data_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00382">brix_ftp_ev_data_open()</a>.</p>
 
 </div>
 </div>
@@ -366,11 +367,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00047">47</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00048">48</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00109">ftp_ev_t::active</a>, <a class="el" href="ftp__ev_8h_source.html#l00046">BRIX_FTP_EV_DATA_BACKLOG</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="ftp__ev_8h_source.html#l00106">ftp_ev_t::pasv_fd</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00111">ftp_ev_t::active</a>, <a class="el" href="ftp__ev_8h_source.html#l00046">BRIX_FTP_EV_DATA_BACKLOG</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev_8h_source.html#l00078">ftp_ev_t::conf</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ftp__ev_8h_source.html#l00108">ftp_ev_t::pasv_fd</a>, <a class="el" href="ftp__gateway_8h_source.html#l00055">ngx_stream_brix_ftp_srv_conf_t::pasv_port_hi</a>, <a class="el" href="ftp__gateway_8h_source.html#l00054">ngx_stream_brix_ftp_srv_conf_t::pasv_port_lo</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00214">brix_ftp_ev_data_setup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00248">brix_ftp_ev_data_setup()</a>.</p>
 
 </div>
 </div>
@@ -414,11 +415,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00115">115</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__data_8c_source.html#l00149">149</a> of file <a class="el" href="ftp__ev__data_8c_source.html">ftp_ev_data.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00109">ftp_ev_t::active</a>, <a class="el" href="ftp__ev_8h_source.html#l00110">ftp_ev_t::active_offpeer</a>, <a class="el" href="ftp__ev_8h_source.html#l00111">ftp_ev_t::active_sa</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>, <a class="el" href="net__target_8c_source.html#l00151">brix_net_target_check_addr()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev_8h_source.html#l00108">ftp_ev_t::dcau_a</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ftp__ev_8h_source.html#l00106">ftp_ev_t::pasv_fd</a>, and <a class="el" href="ftp__ev_8h_source.html#l00116">ftp_ev_t::sec_active</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00111">ftp_ev_t::active</a>, <a class="el" href="ftp__ev_8h_source.html#l00112">ftp_ev_t::active_offpeer</a>, <a class="el" href="ftp__ev_8h_source.html#l00113">ftp_ev_t::active_sa</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>, <a class="el" href="net__target_8c_source.html#l00151">brix_net_target_check_addr()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev_8h_source.html#l00110">ftp_ev_t::dcau_a</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ftp__ev_8h_source.html#l00108">ftp_ev_t::pasv_fd</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, and <a class="el" href="ftp__ev_8h_source.html#l00118">ftp_ev_t::sec_active</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00214">brix_ftp_ev_data_setup()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00248">brix_ftp_ev_data_setup()</a>.</p>
 
 </div>
 </div>

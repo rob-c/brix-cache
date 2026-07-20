@@ -1,6 +1,6 @@
 <map id="src/net/proxy/gsi_upstream_login.c" name="src/net/proxy/gsi_upstream_login.c">
 <area shape="rect" id="Node000001" title=" " alt="" coords="5739,5,5937,45"/>
-<area shape="rect" id="Node000002" href="$net_2proxy_2proxy__internal_8h.html" title=" " alt="" coords="2605,93,2733,119"/>
+<area shape="rect" id="Node000002" href="$proxy__internal_8h.html" title=" " alt="" coords="2605,93,2733,119"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="5738,32,2746,105,2746,100,5738,26"/>
 <area shape="rect" id="Node000090" href="$event__sched_8h.html" title=" " alt="" coords="5545,401,5731,441"/>
 <area shape="poly" id="edge96_Node000001_Node000090" title=" " alt="" coords="5841,46,5841,178,5841,254,5839,308,5832,331,5815,355,5783,382,5746,400,5743,395,5780,377,5811,352,5827,329,5834,308,5835,254,5835,178,5835,46"/>

@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['q_0',['q',['../structbrix__prefetch__t.html#ab8887c5e1d2f35c0a00fe2574ab3e86d',1,'brix_prefetch_t::q'],['../structwebdav__search__walk__ctx__t.html#a7e8ce977eaadc8d82dfe7cc783e82a77',1,'webdav_search_walk_ctx_t::q']]],
+  ['q_0',['q',['../structbrix__prefetch__t.html#afc3bd8689c5ecbbd561bdf6c76769c12',1,'brix_prefetch_t::q'],['../structwebdav__search__walk__ctx__t.html#a7e8ce977eaadc8d82dfe7cc783e82a77',1,'webdav_search_walk_ctx_t::q']]],
   ['qh_1',['qh',['../structbrix__prefetch__t.html#a03f6649c1a9ae5239da9cd7bef8518a9',1,'brix_prefetch_t']]],
   ['qn_2',['qn',['../structbrix__prefetch__t.html#a4ecc880b2976febdd5483e99e58335b4',1,'brix_prefetch_t']]],
   ['qos_3',['qos',['../structngx__http__brix__cvmfs__loc__conf__t.html#a96ad70bdc71745cf9da0b539b42640e1',1,'ngx_http_brix_cvmfs_loc_conf_t']]],

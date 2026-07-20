@@ -9,7 +9,6 @@ var webdav__module__internal_8h =
     [ "webdav_conf_add_cors_origin", "webdav__module__internal_8h.html#a0df1025a3ef87f9349e0b242d0e5ea6c", null ],
     [ "webdav_conf_dig_export", "webdav__module__internal_8h.html#a1110655f30b3038cf1340c3db62769ed", null ],
     [ "webdav_conf_open_file_cache", "webdav__module__internal_8h.html#a825b1cddddc8faf0ae70c882ea76e964", null ],
-    [ "webdav_conf_proxy_auth", "webdav__module__internal_8h.html#a5ab719344b53ca207ed97a328fb387c3", null ],
     [ "webdav_open_file_cache_arg", "webdav__module__internal_8h.html#a01dac593cf0ebac0cb229829265a3c99", null ],
     [ "brix_webdav_cks_xattr_formats", "webdav__module__internal_8h.html#a3b00c10c6945bedb1b33aef8218f59c0", null ],
     [ "ngx_http_brix_webdav_commands", "webdav__module__internal_8h.html#a2c9b52301658cb5647d95dc1b766fc54", null ],

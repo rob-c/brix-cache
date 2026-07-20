@@ -130,6 +130,8 @@ Functions</h2></td></tr>
 <tr class="separator:a96f808999e84a060b39d8e96350b4110"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d31241173738a7b2a58ab80d1489890" id="r_a2d31241173738a7b2a58ab80d1489890"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__module_8c.html#a2d31241173738a7b2a58ab80d1489890">brix_ftp_set_export</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf_ptr)</td></tr>
 <tr class="separator:a2d31241173738a7b2a58ab80d1489890"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a298e1b3a34c7c00912acdfda250d0506" id="r_a298e1b3a34c7c00912acdfda250d0506"><td class="memItemLeft" align="right" valign="top">static char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__module_8c.html#a298e1b3a34c7c00912acdfda250d0506">brix_ftp_set_pasv_range</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf_ptr)</td></tr>
+<tr class="separator:a298e1b3a34c7c00912acdfda250d0506"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a70981fe0b713cecb9eadb9df8dd48926" id="r_a70981fe0b713cecb9eadb9df8dd48926"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__module_8c.html#a70981fe0b713cecb9eadb9df8dd48926">brix_ftp_init_process</a> (ngx_cycle_t *cycle)</td></tr>
 <tr class="separator:a70981fe0b713cecb9eadb9df8dd48926"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -177,11 +179,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00059">59</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00062">62</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__build_8c_source.html#l00366">brix_build_ca_store_cached()</a>, <a class="el" href="store__policy_8h_source.html#l00026">BRIX_CRL_MODE_OFF</a>, <a class="el" href="ftp__module_8c_source.html#l00041">brix_ftp_ssl_ctx_cleanup()</a>, <a class="el" href="signing__policy_8h_source.html#l00021">BRIX_SP_MODE_OFF</a>, <a class="el" href="ftp__gateway_8h_source.html#l00059">ngx_stream_brix_ftp_srv_conf_t::ca_store</a>, <a class="el" href="ftp__gateway_8h_source.html#l00055">ngx_stream_brix_ftp_srv_conf_t::certificate</a>, <a class="el" href="ftp__gateway_8h_source.html#l00056">ngx_stream_brix_ftp_srv_conf_t::certificate_key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00058">ngx_stream_brix_ftp_srv_conf_t::tls_ctx</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00057">ngx_stream_brix_ftp_srv_conf_t::trusted_ca</a>.</p>
+<p class="reference">References <a class="el" href="pki__build_8c_source.html#l00366">brix_build_ca_store_cached()</a>, <a class="el" href="store__policy_8h_source.html#l00026">BRIX_CRL_MODE_OFF</a>, <a class="el" href="ftp__module_8c_source.html#l00044">brix_ftp_ssl_ctx_cleanup()</a>, <a class="el" href="signing__policy_8h_source.html#l00021">BRIX_SP_MODE_OFF</a>, <a class="el" href="ftp__gateway_8h_source.html#l00081">ngx_stream_brix_ftp_srv_conf_t::ca_store</a>, <a class="el" href="ftp__gateway_8h_source.html#l00077">ngx_stream_brix_ftp_srv_conf_t::certificate</a>, <a class="el" href="ftp__gateway_8h_source.html#l00078">ngx_stream_brix_ftp_srv_conf_t::certificate_key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00080">ngx_stream_brix_ftp_srv_conf_t::tls_ctx</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00079">ngx_stream_brix_ftp_srv_conf_t::trusted_ca</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00209">brix_ftp_merge_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00212">brix_ftp_merge_conf()</a>.</p>
 
 </div>
 </div>
@@ -211,7 +213,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00020">20</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00032">ngx_stream_brix_ftp_srv_conf_t::allow_write</a>, <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>, <a class="el" href="ftp__gateway_8h_source.html#l00054">ngx_stream_brix_ftp_srv_conf_t::gsi</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00039">ngx_stream_brix_ftp_srv_conf_t::verify_write</a>.</p>
+<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00032">ngx_stream_brix_ftp_srv_conf_t::allow_write</a>, <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>, <a class="el" href="ftp__gateway_8h_source.html#l00076">ngx_stream_brix_ftp_srv_conf_t::gsi</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00055">ngx_stream_brix_ftp_srv_conf_t::pasv_port_hi</a>, <a class="el" href="ftp__gateway_8h_source.html#l00054">ngx_stream_brix_ftp_srv_conf_t::pasv_port_lo</a>, <a class="el" href="ftp__gateway_8h_source.html#l00065">ngx_stream_brix_ftp_srv_conf_t::require_allo_size</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00039">ngx_stream_brix_ftp_srv_conf_t::verify_write</a>.</p>
 
 </div>
 </div>
@@ -239,9 +241,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00454">454</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00525">525</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credential__block_8c_source.html#l00022">brix_credential_lookup()</a>, <a class="el" href="credential__block_8c_source.html#l00284">brix_credential_to_backend_cred()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ftp__module_8c_source.html#l00517">ngx_stream_brix_ftp_module</a>, <a class="el" href="ftp__gateway_8h_source.html#l00043">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00035">ngx_stream_brix_ftp_srv_conf_t::storage_credential</a>.</p>
+<p class="reference">References <a class="el" href="credential__block_8c_source.html#l00022">brix_credential_lookup()</a>, <a class="el" href="credential__block_8c_source.html#l00284">brix_credential_to_backend_cred()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ftp__module_8c_source.html#l00588">ngx_stream_brix_ftp_module</a>, <a class="el" href="ftp__gateway_8h_source.html#l00045">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00035">ngx_stream_brix_ftp_srv_conf_t::storage_credential</a>.</p>
 
 </div>
 </div>
@@ -279,11 +281,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00166">166</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00169">169</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="credential__block_8c_source.html#l00022">brix_credential_lookup()</a>, <a class="el" href="credential__block_8c_source.html#l00284">brix_credential_to_backend_cred()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00051">ngx_stream_brix_ftp_srv_conf_t::deleg_mode</a>, <a class="el" href="credential__block_8h_source.html#l00042">brix_credential_t::mode</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ftp__gateway_8h_source.html#l00043">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00035">ngx_stream_brix_ftp_srv_conf_t::storage_credential</a>.</p>
+<p class="reference">References <a class="el" href="credential__block_8c_source.html#l00022">brix_credential_lookup()</a>, <a class="el" href="credential__block_8c_source.html#l00284">brix_credential_to_backend_cred()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00064">brix_vfs_backend_set_credential()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00073">ngx_stream_brix_ftp_srv_conf_t::deleg_mode</a>, <a class="el" href="credential__block_8h_source.html#l00042">brix_credential_t::mode</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ftp__gateway_8h_source.html#l00045">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00035">ngx_stream_brix_ftp_srv_conf_t::storage_credential</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00209">brix_ftp_merge_conf()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00212">brix_ftp_merge_conf()</a>.</p>
 
 </div>
 </div>
@@ -321,11 +323,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00278">278</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00284">284</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ftp__ev__io_8c_source.html#l00258">brix_ftp_ev_handler()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00293">brix_ftp_set_enable()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00299">brix_ftp_set_enable()</a>.</p>
 
 </div>
 </div>
@@ -369,9 +371,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00209">209</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00212">212</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00032">ngx_stream_brix_ftp_srv_conf_t::allow_write</a>, <a class="el" href="af__policy_8h_source.html#l00022">BRIX_AF_AUTO</a>, <a class="el" href="sd_8h_source.html#l00198">BRIX_CRED_PASSTHROUGH</a>, <a class="el" href="ftp__module_8c_source.html#l00059">brix_ftp_build_gsi()</a>, <a class="el" href="ftp__module_8c_source.html#l00166">brix_ftp_install_backend_credential()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00108">brix_vfs_backend_config_str()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00059">ngx_stream_brix_ftp_srv_conf_t::ca_store</a>, <a class="el" href="ftp__gateway_8h_source.html#l00055">ngx_stream_brix_ftp_srv_conf_t::certificate</a>, <a class="el" href="ftp__gateway_8h_source.html#l00056">ngx_stream_brix_ftp_srv_conf_t::certificate_key</a>, <a class="el" href="ftp__gateway_8h_source.html#l00051">ngx_stream_brix_ftp_srv_conf_t::deleg_mode</a>, <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>, <a class="el" href="ftp__gateway_8h_source.html#l00031">ngx_stream_brix_ftp_srv_conf_t::export</a>, <a class="el" href="ftp__gateway_8h_source.html#l00054">ngx_stream_brix_ftp_srv_conf_t::gsi</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ftp__gateway_8h_source.html#l00043">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, <a class="el" href="ftp__gateway_8h_source.html#l00033">ngx_stream_brix_ftp_srv_conf_t::storage_backend</a>, <a class="el" href="ftp__gateway_8h_source.html#l00035">ngx_stream_brix_ftp_srv_conf_t::storage_credential</a>, <a class="el" href="ftp__gateway_8h_source.html#l00058">ngx_stream_brix_ftp_srv_conf_t::tls_ctx</a>, <a class="el" href="ftp__gateway_8h_source.html#l00057">ngx_stream_brix_ftp_srv_conf_t::trusted_ca</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00039">ngx_stream_brix_ftp_srv_conf_t::verify_write</a>.</p>
+<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00032">ngx_stream_brix_ftp_srv_conf_t::allow_write</a>, <a class="el" href="af__policy_8h_source.html#l00022">BRIX_AF_AUTO</a>, <a class="el" href="sd_8h_source.html#l00198">BRIX_CRED_PASSTHROUGH</a>, <a class="el" href="ftp__module_8c_source.html#l00062">brix_ftp_build_gsi()</a>, <a class="el" href="ftp__module_8c_source.html#l00169">brix_ftp_install_backend_credential()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00108">brix_vfs_backend_config_str()</a>, <a class="el" href="ftp__gateway_8h_source.html#l00081">ngx_stream_brix_ftp_srv_conf_t::ca_store</a>, <a class="el" href="ftp__gateway_8h_source.html#l00077">ngx_stream_brix_ftp_srv_conf_t::certificate</a>, <a class="el" href="ftp__gateway_8h_source.html#l00078">ngx_stream_brix_ftp_srv_conf_t::certificate_key</a>, <a class="el" href="ftp__gateway_8h_source.html#l00073">ngx_stream_brix_ftp_srv_conf_t::deleg_mode</a>, <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>, <a class="el" href="ftp__gateway_8h_source.html#l00031">ngx_stream_brix_ftp_srv_conf_t::export</a>, <a class="el" href="ftp__gateway_8h_source.html#l00076">ngx_stream_brix_ftp_srv_conf_t::gsi</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="ftp__gateway_8h_source.html#l00055">ngx_stream_brix_ftp_srv_conf_t::pasv_port_hi</a>, <a class="el" href="ftp__gateway_8h_source.html#l00054">ngx_stream_brix_ftp_srv_conf_t::pasv_port_lo</a>, <a class="el" href="ftp__gateway_8h_source.html#l00065">ngx_stream_brix_ftp_srv_conf_t::require_allo_size</a>, <a class="el" href="ftp__gateway_8h_source.html#l00045">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, <a class="el" href="ftp__gateway_8h_source.html#l00033">ngx_stream_brix_ftp_srv_conf_t::storage_backend</a>, <a class="el" href="ftp__gateway_8h_source.html#l00035">ngx_stream_brix_ftp_srv_conf_t::storage_credential</a>, <a class="el" href="ftp__gateway_8h_source.html#l00080">ngx_stream_brix_ftp_srv_conf_t::tls_ctx</a>, <a class="el" href="ftp__gateway_8h_source.html#l00079">ngx_stream_brix_ftp_srv_conf_t::trusted_ca</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00039">ngx_stream_brix_ftp_srv_conf_t::verify_write</a>.</p>
 
 </div>
 </div>
@@ -415,9 +417,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00293">293</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00299">299</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__module_8c_source.html#l00278">brix_ftp_install_handler()</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>.</p>
+<p class="reference">References <a class="el" href="ftp__module_8c_source.html#l00284">brix_ftp_install_handler()</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00030">ngx_stream_brix_ftp_srv_conf_t::enable</a>.</p>
 
 </div>
 </div>
@@ -461,9 +463,55 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00318">318</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00324">324</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00031">ngx_stream_brix_ftp_srv_conf_t::export</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00043">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>.</p>
+<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00031">ngx_stream_brix_ftp_srv_conf_t::export</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00045">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>.</p>
+
+</div>
+</div>
+<a id="a298e1b3a34c7c00912acdfda250d0506" name="a298e1b3a34c7c00912acdfda250d0506"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a298e1b3a34c7c00912acdfda250d0506">&#9670;&#160;</a></span>brix_ftp_set_pasv_range()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static char * brix_ftp_set_pasv_range </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf_ptr</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00369">369</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00055">ngx_stream_brix_ftp_srv_conf_t::pasv_port_hi</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00054">ngx_stream_brix_ftp_srv_conf_t::pasv_port_lo</a>.</p>
 
 </div>
 </div>
@@ -491,9 +539,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00041">41</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00044">44</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00059">brix_ftp_build_gsi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__module_8c_source.html#l00062">brix_ftp_build_gsi()</a>.</p>
 
 </div>
 </div>
@@ -518,7 +566,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00357">357</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00402">402</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
 </div>
 </div>
@@ -550,9 +598,9 @@ Variables</h2></td></tr>
 <div class="line">    <a class="code hl_function" href="ftp__module_8c.html#a4fd1bfbd067f441ed12dee641c90c671">brix_ftp_merge_conf</a>,      </div>
 <div class="line">}</div>
 <div class="ttc" id="aftp__module_8c_html_a09714faef2e55bf19603309608b3d7d2"><div class="ttname"><a href="ftp__module_8c.html#a09714faef2e55bf19603309608b3d7d2">brix_ftp_create_conf</a></div><div class="ttdeci">static void * brix_ftp_create_conf(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00020">ftp_module.c:20</a></div></div>
-<div class="ttc" id="aftp__module_8c_html_a4fd1bfbd067f441ed12dee641c90c671"><div class="ttname"><a href="ftp__module_8c.html#a4fd1bfbd067f441ed12dee641c90c671">brix_ftp_merge_conf</a></div><div class="ttdeci">static char * brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00209">ftp_module.c:209</a></div></div>
+<div class="ttc" id="aftp__module_8c_html_a4fd1bfbd067f441ed12dee641c90c671"><div class="ttname"><a href="ftp__module_8c.html#a4fd1bfbd067f441ed12dee641c90c671">brix_ftp_merge_conf</a></div><div class="ttdeci">static char * brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00212">ftp_module.c:212</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00508">508</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00579">579</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
 </div>
 </div>
@@ -581,13 +629,13 @@ Variables</h2></td></tr>
 <div class="line">    NULL,                     </div>
 <div class="line">    NGX_MODULE_V1_PADDING</div>
 <div class="line">}</div>
-<div class="ttc" id="aftp__module_8c_html_a70981fe0b713cecb9eadb9df8dd48926"><div class="ttname"><a href="ftp__module_8c.html#a70981fe0b713cecb9eadb9df8dd48926">brix_ftp_init_process</a></div><div class="ttdeci">static ngx_int_t brix_ftp_init_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00454">ftp_module.c:454</a></div></div>
-<div class="ttc" id="aftp__module_8c_html_a97e6e8025bdd58f88a024ef0e390c648"><div class="ttname"><a href="ftp__module_8c.html#a97e6e8025bdd58f88a024ef0e390c648">brix_ftp_commands</a></div><div class="ttdeci">static ngx_command_t brix_ftp_commands[]</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00357">ftp_module.c:357</a></div></div>
-<div class="ttc" id="aftp__module_8c_html_ad9e17e07a082a9cadd0c424e9c3662c3"><div class="ttname"><a href="ftp__module_8c.html#ad9e17e07a082a9cadd0c424e9c3662c3">brix_ftp_module_ctx</a></div><div class="ttdeci">static ngx_stream_module_t brix_ftp_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00508">ftp_module.c:508</a></div></div>
+<div class="ttc" id="aftp__module_8c_html_a70981fe0b713cecb9eadb9df8dd48926"><div class="ttname"><a href="ftp__module_8c.html#a70981fe0b713cecb9eadb9df8dd48926">brix_ftp_init_process</a></div><div class="ttdeci">static ngx_int_t brix_ftp_init_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00525">ftp_module.c:525</a></div></div>
+<div class="ttc" id="aftp__module_8c_html_a97e6e8025bdd58f88a024ef0e390c648"><div class="ttname"><a href="ftp__module_8c.html#a97e6e8025bdd58f88a024ef0e390c648">brix_ftp_commands</a></div><div class="ttdeci">static ngx_command_t brix_ftp_commands[]</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00402">ftp_module.c:402</a></div></div>
+<div class="ttc" id="aftp__module_8c_html_ad9e17e07a082a9cadd0c424e9c3662c3"><div class="ttname"><a href="ftp__module_8c.html#ad9e17e07a082a9cadd0c424e9c3662c3">brix_ftp_module_ctx</a></div><div class="ttdeci">static ngx_stream_module_t brix_ftp_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="ftp__module_8c_source.html#l00579">ftp_module.c:579</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00517">517</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__module_8c_source.html#l00588">588</a> of file <a class="el" href="ftp__module_8c_source.html">ftp_module.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__io_8c_source.html#l00258">brix_ftp_ev_handler()</a>, <a class="el" href="ftp__ev__io_8c_source.html#l00210">brix_ftp_ev_read_handler()</a>, <a class="el" href="ftp__ev__io_8c_source.html#l00234">brix_ftp_ev_write_handler()</a>, and <a class="el" href="ftp__module_8c_source.html#l00454">brix_ftp_init_process()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__io_8c_source.html#l00258">brix_ftp_ev_handler()</a>, <a class="el" href="ftp__ev__io_8c_source.html#l00210">brix_ftp_ev_read_handler()</a>, <a class="el" href="ftp__ev__io_8c_source.html#l00234">brix_ftp_ev_write_handler()</a>, and <a class="el" href="ftp__module_8c_source.html#l00525">brix_ftp_init_process()</a>.</p>
 
 </div>
 </div>

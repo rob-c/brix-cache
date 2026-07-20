@@ -126,6 +126,10 @@ Functions</h2></td></tr>
 <tr class="separator:af8e9ef4c63fbe6b35afe38ecf55431e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9ef2af52974e64486a62048561f507be" id="r_a9ef2af52974e64486a62048561f507be"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="nettmo_8c.html#a9ef2af52974e64486a62048561f507be">brix_tmo_io_ms</a> (void)</td></tr>
 <tr class="separator:a9ef2af52974e64486a62048561f507be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8bda073d49f1c1c9ec0a0921d5b59abd" id="r_a8bda073d49f1c1c9ec0a0921d5b59abd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="nettmo_8c.html#a8bda073d49f1c1c9ec0a0921d5b59abd">brix_tmo_stall_ms</a> (void)</td></tr>
+<tr class="separator:a8bda073d49f1c1c9ec0a0921d5b59abd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abb1e01baf3475978687209e4e6786929" id="r_abb1e01baf3475978687209e4e6786929"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="nettmo_8c.html#abb1e01baf3475978687209e4e6786929">brix_tmo_set_stall_ms</a> (int ms)</td></tr>
+<tr class="separator:abb1e01baf3475978687209e4e6786929"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa592df33acdd628a8195e4973a6ae134" id="r_aa592df33acdd628a8195e4973a6ae134"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="nettmo_8c.html#aa592df33acdd628a8195e4973a6ae134">brix_tmo_set_connect_ms</a> (int ms)</td></tr>
 <tr class="separator:aa592df33acdd628a8195e4973a6ae134"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae1ff1463baa651ec557fee4aebaf3a41" id="r_ae1ff1463baa651ec557fee4aebaf3a41"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="nettmo_8c.html#ae1ff1463baa651ec557fee4aebaf3a41">brix_tmo_set_io_ms</a> (int ms)</td></tr>
@@ -149,6 +153,8 @@ Variables</h2></td></tr>
 <tr class="separator:a52b9576a636c17ca5cd0e46749529cb6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa0bb68537c6ea27aa50dd660184df46c" id="r_aa0bb68537c6ea27aa50dd660184df46c"><td class="memItemLeft" align="right" valign="top">static atomic_int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="nettmo_8c.html#aa0bb68537c6ea27aa50dd660184df46c">g_io_ms</a> = 0</td></tr>
 <tr class="separator:aa0bb68537c6ea27aa50dd660184df46c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a197aa9c6aafe861e5ce01b672c62b7a3" id="r_a197aa9c6aafe861e5ce01b672c62b7a3"><td class="memItemLeft" align="right" valign="top">static atomic_int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="nettmo_8c.html#a197aa9c6aafe861e5ce01b672c62b7a3">g_stall_ms</a> = 0</td></tr>
+<tr class="separator:a197aa9c6aafe861e5ce01b672c62b7a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="adb84aa7f66f5305f428c213a50126ea2" name="adb84aa7f66f5305f428c213a50126ea2"></a>
@@ -208,11 +214,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00145">145</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00165">165</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
 <p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00171">brix_backoff_delay_fast_ms()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00191">brix_backoff_delay_fast_ms()</a>.</p>
 
 </div>
 </div>
@@ -242,11 +248,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00171">171</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00191">191</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00145">backoff_base_ms()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00165">backoff_base_ms()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00242">brix_backoff_sleep_fast()</a>.</p>
 
 </div>
 </div>
@@ -276,11 +282,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00108">108</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00128">128</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00212">brix_backoff_sleep()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00232">brix_backoff_sleep()</a>.</p>
 
 </div>
 </div>
@@ -300,9 +306,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00212">212</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00232">232</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00108">brix_backoff_delay_ms()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, and <a class="el" href="nettmo_8c_source.html#l00197">sleep_ms_cancelable()</a>.</p>
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00128">brix_backoff_delay_ms()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, and <a class="el" href="nettmo_8c_source.html#l00217">sleep_ms_cancelable()</a>.</p>
 
 </div>
 </div>
@@ -322,9 +328,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00222">222</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00242">242</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
-<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00171">brix_backoff_delay_fast_ms()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, and <a class="el" href="nettmo_8c_source.html#l00197">sleep_ms_cancelable()</a>.</p>
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00191">brix_backoff_delay_fast_ms()</a>, <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, and <a class="el" href="nettmo_8c_source.html#l00217">sleep_ms_cancelable()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="resilient_8c_source.html#l00070">brix_connect_resilient()</a>, <a class="el" href="fuse__ops_8c_source.html#l00039">brix_fuse_run()</a>, <a class="el" href="http__download_8c_source.html#l00336">brix_http_download()</a>, <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>, <a class="el" href="aio__mgr_8c_source.html#l00604">brix_mfile_pread()</a>, <a class="el" href="aio__mgr_8c_source.html#l00668">brix_mfile_pwrite()</a>, <a class="el" href="resilient_8c_source.html#l00261">brix_rfile_open_read()</a>, <a class="el" href="resilient_8c_source.html#l00286">brix_rfile_open_write()</a>, <a class="el" href="resilient_8c_source.html#l00312">brix_rfile_pread()</a>, <a class="el" href="resilient_8c_source.html#l00343">brix_rfile_pwrite()</a>, <a class="el" href="resilient_8c_source.html#l00164">brix_roundtrip_resilient()</a>, <a class="el" href="webfile__io_8c_source.html#l00400">brix_webfile_pread()</a>, <a class="el" href="web__ka_8c_source.html#l00271">brix_webmeta_propfind()</a>, <a class="el" href="resilient_8c_source.html#l00111">brix_with_resilience()</a>, <a class="el" href="copy__local_8c_source.html#l00151">csctx_retry_gate()</a>, <a class="el" href="copy__pump_8c_source.html#l00114">pump_sink_remote()</a>, <a class="el" href="copy__pump_8c_source.html#l00061">pump_src_remote()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00107">resilient_setup()</a>, <a class="el" href="copy__local_8c_source.html#l00520">upload_close_commit_resilient()</a>, and <a class="el" href="xrootdfs__meta_8c_source.html#l00286">xfs_readlink()</a>.</p>
 
@@ -374,7 +380,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="nettmo_8c_source.html#l00042">g_io_ms</a>, <a class="el" href="nettmo_8c_source.html#l00056">resolve_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00038">XRDC_TMO_IO_DEFAULT_MS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00274">brix_bringup_ex()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, and <a class="el" href="conn_8c_source.html#l00480">brix_connect_no_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00274">brix_bringup_ex()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, and <a class="el" href="conn_8c_source.html#l00484">brix_connect_no_login()</a>.</p>
 
 </div>
 </div>
@@ -394,7 +400,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00092">92</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00112">112</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
 <p class="reference">References <a class="el" href="nettmo_8c_source.html#l00041">g_connect_ms</a>.</p>
 
@@ -418,11 +424,57 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00100">100</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00120">120</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
 <p class="reference">References <a class="el" href="nettmo_8c_source.html#l00042">g_io_ms</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrootdfs_8c_source.html#l00300">aio_opt_conn_value()</a>, and <a class="el" href="xrootdfs__legacy_8c_source.html#l00790">xfs_opt_value()</a>.</p>
+
+</div>
+</div>
+<a id="abb1e01baf3475978687209e4e6786929" name="abb1e01baf3475978687209e4e6786929"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abb1e01baf3475978687209e4e6786929">&#9670;&#160;</a></span>brix_tmo_set_stall_ms()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_tmo_set_stall_ms </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ms</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00104">104</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00094">g_stall_ms</a>.</p>
+
+</div>
+</div>
+<a id="a8bda073d49f1c1c9ec0a0921d5b59abd" name="a8bda073d49f1c1c9ec0a0921d5b59abd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8bda073d49f1c1c9ec0a0921d5b59abd">&#9670;&#160;</a></span>brix_tmo_stall_ms()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int brix_tmo_stall_ms </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00097">97</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+
+<p class="reference">References <a class="el" href="nettmo_8c_source.html#l00094">g_stall_ms</a>, and <a class="el" href="nettmo_8c_source.html#l00056">resolve_ms()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="conn_8c_source.html#l00274">brix_bringup_ex()</a>.</p>
 
 </div>
 </div>
@@ -476,7 +528,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00428">brix_xrdrc_default_ms()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00078">brix_tmo_connect_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00085">brix_tmo_io_ms()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00078">brix_tmo_connect_ms()</a>, <a class="el" href="nettmo_8c_source.html#l00085">brix_tmo_io_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00097">brix_tmo_stall_ms()</a>.</p>
 
 </div>
 </div>
@@ -504,11 +556,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00197">197</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00217">217</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00030">brix_copy_quit_requested()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00212">brix_backoff_sleep()</a>, and <a class="el" href="nettmo_8c_source.html#l00222">brix_backoff_sleep_fast()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00232">brix_backoff_sleep()</a>, and <a class="el" href="nettmo_8c_source.html#l00242">brix_backoff_sleep_fast()</a>.</p>
 
 </div>
 </div>
@@ -535,7 +587,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00041">41</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00078">brix_tmo_connect_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00092">brix_tmo_set_connect_ms()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00078">brix_tmo_connect_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00112">brix_tmo_set_connect_ms()</a>.</p>
 
 </div>
 </div>
@@ -561,7 +613,33 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00042">42</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00085">brix_tmo_io_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00100">brix_tmo_set_io_ms()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00085">brix_tmo_io_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00120">brix_tmo_set_io_ms()</a>.</p>
+
+</div>
+</div>
+<a id="a197aa9c6aafe861e5ce01b672c62b7a3" name="a197aa9c6aafe861e5ce01b672c62b7a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a197aa9c6aafe861e5ce01b672c62b7a3">&#9670;&#160;</a></span>g_stall_ms</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">atomic_int g_stall_ms = 0</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="nettmo_8c_source.html#l00094">94</a> of file <a class="el" href="nettmo_8c_source.html">nettmo.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="nettmo_8c_source.html#l00104">brix_tmo_set_stall_ms()</a>, and <a class="el" href="nettmo_8c_source.html#l00097">brix_tmo_stall_ms()</a>.</p>
 
 </div>
 </div>

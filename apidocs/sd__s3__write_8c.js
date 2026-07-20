@@ -2,6 +2,7 @@ var sd__s3__write_8c =
 [
     [ "sd_s3_abort", "sd__s3__write_8c.html#a9a0c6f593d77c4f77a888030fadc80ec", null ],
     [ "sd_s3_check_sequential", "sd__s3__write_8c.html#af6fc03d56915c73dd71d0ce76f74945a", null ],
+    [ "sd_s3_ck_crc32", "sd__s3__write_8c.html#a395be6919b6d1b60b0f348050d43c64d", null ],
     [ "sd_s3_commit", "sd__s3__write_8c.html#a45e610f048eaa8deef486fb2203e2b71", null ],
     [ "sd_s3_etag_ensure_cap", "sd__s3__write_8c.html#a38c1afa3a6dc6ed5848b0eb1ccf3e62b", null ],
     [ "sd_s3_mpu_abort", "sd__s3__write_8c.html#a9290ec4eca04c3519b8b0950a966da78", null ],

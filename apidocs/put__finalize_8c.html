@@ -126,6 +126,8 @@ Functions</h2></td></tr>
 <tr class="separator:abb299719e401967d71e1efa8e045c444"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1bd5fb94f097fde52020a332710aa834" id="r_a1bd5fb94f097fde52020a332710aa834"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__finalize_8c.html#a1bd5fb94f097fde52020a332710aa834">s3_put_finalize_invalid_request</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a1bd5fb94f097fde52020a332710aa834"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae9dffc5048c8abeee6fabdc599f5023f" id="r_ae9dffc5048c8abeee6fabdc599f5023f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__finalize_8c.html#ae9dffc5048c8abeee6fabdc599f5023f">s3_put_finalize_invalid_digest</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:ae9dffc5048c8abeee6fabdc599f5023f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a07a3b6d07b5e8db5f541f0e4028d7500" id="r_a07a3b6d07b5e8db5f541f0e4028d7500"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__finalize_8c.html#a07a3b6d07b5e8db5f541f0e4028d7500">s3_put_finalize_codec_error</a> (ngx_http_request_t *r, ngx_int_t status)</td></tr>
 <tr class="separator:a07a3b6d07b5e8db5f541f0e4028d7500"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a61d3c59dc37618983fa0f71f5d78d328" id="r_a61d3c59dc37618983fa0f71f5d78d328"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__finalize_8c.html#a61d3c59dc37618983fa0f71f5d78d328">s3_put_checksum_failed</a> (ngx_http_request_t *r, const char *fs_path, const char *root_canon)</td></tr>
@@ -218,9 +220,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00286">286</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00303">303</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="put__finalize_8c_source.html#l00222">s3_put_finalize_bad_digest()</a>, and <a class="el" href="put__finalize_8c_source.html#l00239">s3_put_finalize_invalid_request()</a>.</p>
+<p class="reference">References <a class="el" href="s3__ops_8h_source.html#l00109">S3_CKSUM_CONFLICT</a>, <a class="el" href="s3__ops_8h_source.html#l00108">S3_CKSUM_MISMATCH</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00338">s3_content_md5_verify()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="put__finalize_8c_source.html#l00222">s3_put_finalize_bad_digest()</a>, <a class="el" href="put__finalize_8c_source.html#l00256">s3_put_finalize_invalid_digest()</a>, and <a class="el" href="put__finalize_8c_source.html#l00239">s3_put_finalize_invalid_request()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>.</p>
 
@@ -244,7 +246,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00079">79</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
-<p class="reference">References <a class="el" href="put__finalize_8c_source.html#l00340">s3_put_finalize_client_error()</a>.</p>
+<p class="reference">References <a class="el" href="put__finalize_8c_source.html#l00373">s3_put_finalize_client_error()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, <a class="el" href="put__aio_8c_source.html#l00070">s3_put_aio_done()</a>, and <a class="el" href="put__stream_8c_source.html#l00297">s3put_commit_and_headers()</a>.</p>
 
@@ -270,7 +272,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00286">s3_put_checksum_failed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00303">s3_put_checksum_failed()</a>.</p>
 
 </div>
 </div>
@@ -312,7 +314,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00340">340</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00373">373</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
 <p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
@@ -346,7 +348,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00260">260</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00277">277</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
 
 <p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00372">code</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
@@ -436,6 +438,30 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ae9dffc5048c8abeee6fabdc599f5023f" name="ae9dffc5048c8abeee6fabdc599f5023f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae9dffc5048c8abeee6fabdc599f5023f">&#9670;&#160;</a></span>s3_put_finalize_invalid_digest()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void s3_put_finalize_invalid_digest </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="put__finalize_8c_source.html#l00256">256</a> of file <a class="el" href="put__finalize_8c_source.html">put_finalize.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="put__finalize_8c_source.html#l00303">s3_put_checksum_failed()</a>.</p>
+
+</div>
+</div>
 <a id="a1bd5fb94f097fde52020a332710aa834" name="a1bd5fb94f097fde52020a332710aa834"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a1bd5fb94f097fde52020a332710aa834">&#9670;&#160;</a></span>s3_put_finalize_invalid_request()</h2>
 
@@ -456,7 +482,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="metrics__s3_8h_source.html#l00026">BRIX_S3_METHOD_PUT</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00286">s3_put_checksum_failed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__chunk_8c_source.html#l00015">s3_chunk_finalize()</a>, and <a class="el" href="put__finalize_8c_source.html#l00303">s3_put_checksum_failed()</a>.</p>
 
 </div>
 </div>

@@ -41,6 +41,7 @@ var structngx__http__brix__shared__conf__t =
     [ "pblock_block_size", "structngx__http__brix__shared__conf__t.html#ad79ff71d673b6fcd48ce618bca5c061b", null ],
     [ "pmark", "structngx__http__brix__shared__conf__t.html#a55fec63c4029ae9e8d5a03c6a0d57b58", null ],
     [ "read_only", "structngx__http__brix__shared__conf__t.html#a96418168a114ac69a07f3e86edefec3c", null ],
+    [ "require_pgwrite", "structngx__http__brix__shared__conf__t.html#ac8b33b8a850e3d28c4be219f9f67712d", null ],
     [ "root", "structngx__http__brix__shared__conf__t.html#a7173924397cedcb8eb86a338c72593d3", null ],
     [ "root_canon", "structngx__http__brix__shared__conf__t.html#a16bdf484c0d11f79befd2ad1316c5725", null ],
     [ "rootfd", "structngx__http__brix__shared__conf__t.html#aea774edbbe058d9f91e1250570b5e8a2", null ],

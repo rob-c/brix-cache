@@ -24,6 +24,7 @@ var structbrix__vfs__backend__entry__t =
     [ "origin_host", "structbrix__vfs__backend__entry__t.html#aeb6a7258bf1f7fd6aa7a2783043c6ead", null ],
     [ "origin_path", "structbrix__vfs__backend__entry__t.html#aea01fe599d7a51973987ebe25468ff89", null ],
     [ "origin_port", "structbrix__vfs__backend__entry__t.html#a3a5c568330a2698105c56de56392946d", null ],
+    [ "origin_put_checksum", "structbrix__vfs__backend__entry__t.html#abf1e579e277e7349246d2eeceedec055", null ],
     [ "origin_s3_access_key", "structbrix__vfs__backend__entry__t.html#acc7825878c3ca2423bc67bdca260bf82", null ],
     [ "origin_s3_region", "structbrix__vfs__backend__entry__t.html#a38cf1d8d9a58a5102281a9cc093fa430", null ],
     [ "origin_s3_secret_key", "structbrix__vfs__backend__entry__t.html#a01949a6cedb9c1dc1585ea69daaa3bce", null ],

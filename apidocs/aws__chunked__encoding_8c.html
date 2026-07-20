@@ -112,9 +112,9 @@ $(document).ready(function(){initNavTree('aws__chunked__encoding_8c.html',''); i
 Functions</h2></td></tr>
 <tr class="memitem:a69522ccc0e21df706e467b72141e2226" id="r_a69522ccc0e21df706e467b72141e2226"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aws__chunked__encoding_8c.html#a69522ccc0e21df706e467b72141e2226">s3_body_is_aws_chunked</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a69522ccc0e21df706e467b72141e2226"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac59b3688e0a59ff05d65574af64626b1" id="r_ac59b3688e0a59ff05d65574af64626b1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aws__chunked__encoding_8c.html#ac59b3688e0a59ff05d65574af64626b1">inner_coding_next_token</a> (const u_char **pp, const u_char *end, const u_char **tok, size_t *len)</td></tr>
+<tr class="memitem:ac59b3688e0a59ff05d65574af64626b1" id="r_ac59b3688e0a59ff05d65574af64626b1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aws__chunked__encoding_8c.html#ac59b3688e0a59ff05d65574af64626b1">inner_coding_next_token</a> (const u_char **pp, const u_char *end, const u_char **<a class="el" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, size_t *len)</td></tr>
 <tr class="separator:ac59b3688e0a59ff05d65574af64626b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0b6a892faa1445544e43aa9789f21518" id="r_a0b6a892faa1445544e43aa9789f21518"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">inner_coding_is_passthrough</a> (const u_char *tok, size_t len)</td></tr>
+<tr class="memitem:a0b6a892faa1445544e43aa9789f21518" id="r_a0b6a892faa1445544e43aa9789f21518"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">inner_coding_is_passthrough</a> (const u_char *<a class="el" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, size_t len)</td></tr>
 <tr class="separator:a0b6a892faa1445544e43aa9789f21518"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a33169088576aeefef09c430c8bf2ea08" id="r_a33169088576aeefef09c430c8bf2ea08"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="aws__chunked__encoding_8c.html#a33169088576aeefef09c430c8bf2ea08">s3_aws_chunked_has_inner_coding</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a33169088576aeefef09c430c8bf2ea08"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -155,6 +155,8 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="aws__chunked__encoding_8c_source.html#l00090">90</a> of file <a class="el" href="aws__chunked__encoding_8c_source.html">aws_chunked_encoding.c</a>.</p>
+
+<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="aws__chunked__encoding_8c_source.html#l00107">s3_aws_chunked_has_inner_coding()</a>.</p>
 
@@ -208,6 +210,8 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="aws__chunked__encoding_8c_source.html#l00068">68</a> of file <a class="el" href="aws__chunked__encoding_8c_source.html">aws_chunked_encoding.c</a>.</p>
 
+<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
+
 <p class="reference">Referenced by <a class="el" href="aws__chunked__encoding_8c_source.html#l00107">s3_aws_chunked_has_inner_coding()</a>.</p>
 
 </div>
@@ -230,7 +234,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="aws__chunked__encoding_8c_source.html#l00107">107</a> of file <a class="el" href="aws__chunked__encoding_8c_source.html">aws_chunked_encoding.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00090">inner_coding_is_passthrough()</a>, and <a class="el" href="aws__chunked__encoding_8c_source.html#l00068">inner_coding_next_token()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00090">inner_coding_is_passthrough()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00068">inner_coding_next_token()</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="put__stream_8c_source.html#l00019">s3put_stream_aws_chunked()</a>.</p>
 

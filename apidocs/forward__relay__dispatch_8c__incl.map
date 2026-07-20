@@ -1,6 +1,6 @@
 <map id="src/net/proxy/forward_relay_dispatch.c" name="src/net/proxy/forward_relay_dispatch.c">
 <area shape="rect" id="Node000001" title=" " alt="" coords="4111,5,4272,45"/>
-<area shape="rect" id="Node000002" href="$net_2proxy_2proxy__internal_8h.html" title=" " alt="" coords="4077,93,4205,119"/>
+<area shape="rect" id="Node000002" href="$proxy__internal_8h.html" title=" " alt="" coords="4077,93,4205,119"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="4181,47,4158,83,4153,80,4177,44"/>
 <area shape="rect" id="Node000128" href="$protocols_2root_2session_2registry_8h.html" title=" " alt="" coords="4199,167,4365,207"/>
 <area shape="poly" id="edge93_Node000001_Node000128" title=" " alt="" coords="4204,44,4267,153,4262,156,4200,47"/>

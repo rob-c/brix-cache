@@ -7,6 +7,7 @@ var api__admin_8c =
     [ "admin_auth_secret_ok", "api__admin_8c.html#aaeb8c88a384324db13bc293126bb33b2", null ],
     [ "admin_char_is_alnum", "api__admin_8c.html#a886008019ad07889681140ee9f235ee9", null ],
     [ "admin_path_char_ok", "api__admin_8c.html#a9fa91a7d02d2d39b465cb3fdb7f11424", null ],
+    [ "admin_rate_gate", "api__admin_8c.html#a22b692dfb61b864c64897862e89cbc03", null ],
     [ "admin_route_cluster", "api__admin_8c.html#a8df72f93e99d24af30d195f8f1ed35b2", null ],
     [ "admin_route_cluster_server", "api__admin_8c.html#ab9cc9e923d9d7959f5c57ddca0769519", null ],
     [ "admin_route_io_uring", "api__admin_8c.html#a6ac3619fa3192a81b8a0992c804ce48c", null ],

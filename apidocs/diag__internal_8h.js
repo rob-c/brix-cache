@@ -94,7 +94,7 @@ var diag__internal_8h =
     [ "resolve_once", "diag__internal_8h.html#af0dce40cb09209e7453f28cbb4fd07de", null ],
     [ "resolve_target", "diag__internal_8h.html#aed0a9d3bb240ee83e5028fe2ce08c964", null ],
     [ "s3_sign", "diag__internal_8h.html#ac76dddf2c325ff214eafe7acbf4e6264", null ],
-    [ "usage", "diag__internal_8h.html#ae8605e2b78cd4a81b6c6b5c30cb7366a", null ],
+    [ "usage", "diag__internal_8h.html#a364112f4dc61f0649eec6b78e586509d", null ],
     [ "watch_count_tokens", "diag__internal_8h.html#aba20e7d84f23a1013879e7da932790d5", null ],
     [ "watch_emit_human", "diag__internal_8h.html#a02d58456943c020b4605add386c09abe", null ],
     [ "watch_emit_json", "diag__internal_8h.html#afddab65ca26d2ebcc97a2d8e083b3bf8", null ],

@@ -165,11 +165,11 @@ $(document).ready(function(){initNavTree('protocols_2cvmfs_2request_8c_source.ht
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="keyword">static</span> ngx_int_t</div>
 <div class="foldopen" id="foldopen00065" data-start="{" data-end="}">
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno"><a class="line" href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">   65</a></span><a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">brix_cvmfs_proxy_parse_port</a>(ngx_http_request_t *r, in_port_t *port)</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno"><a class="line" href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">   65</a></span><a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">brix_cvmfs_proxy_parse_port</a>(ngx_http_request_t *r, in_port_t *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>{</div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    ngx_int_t p;</div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span> </div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    *port = 80;</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a> = 80;</div>
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <span class="keywordflow">if</span> (r-&gt;uri_start != NULL &amp;&amp; r-&gt;host_end != NULL</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>        &amp;&amp; r-&gt;host_end &lt; r-&gt;uri_start &amp;&amp; *r-&gt;host_end == <span class="charliteral">&#39;:&#39;</span>)</div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    {</div>
@@ -178,7 +178,7 @@ $(document).ready(function(){initNavTree('protocols_2cvmfs_2request_8c_source.ht
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        <span class="keywordflow">if</span> (p &lt; 1 || p &gt; 65535) {</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>            <span class="keywordflow">return</span> NGX_HTTP_BAD_REQUEST;</div>
 <div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        }</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        *port = (in_port_t) p;</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>        *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a> = (in_port_t) p;</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    }</div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>}</div>
@@ -199,7 +199,7 @@ $(document).ready(function(){initNavTree('protocols_2cvmfs_2request_8c_source.ht
 <div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="keyword">static</span> ngx_int_t</div>
 <div class="foldopen" id="foldopen00097" data-start="{" data-end="}">
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno"><a class="line" href="protocols_2cvmfs_2request_8c.html#afbfe61e02de5121fb294c222a029322d">   97</a></span><a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#afbfe61e02de5121fb294c222a029322d">brix_cvmfs_proxy_host_allowed</a>(<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__cvmfs__conf__t.html">brix_cvmfs_conf_t</a> *cc, <span class="keyword">const</span> ngx_str_t *host)</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno"><a class="line" href="protocols_2cvmfs_2request_8c.html#afbfe61e02de5121fb294c222a029322d">   97</a></span><a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#afbfe61e02de5121fb294c222a029322d">brix_cvmfs_proxy_host_allowed</a>(<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__cvmfs__conf__t.html">brix_cvmfs_conf_t</a> *cc, <span class="keyword">const</span> ngx_str_t *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>)</div>
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>{</div>
 <div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    ngx_str_t  *allow;</div>
 <div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    ngx_uint_t  i;</div>
@@ -210,8 +210,8 @@ $(document).ready(function(){initNavTree('protocols_2cvmfs_2request_8c_source.ht
 <div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    }</div>
 <div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    allow = cc-&gt;<a class="code hl_variable" href="structbrix__cvmfs__conf__t.html#abcb9f6ac6a1559e9eb259a1d257446e4">upstream_allow</a>-&gt;elts;</div>
 <div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    <span class="keywordflow">for</span> (i = 0; i &lt; cc-&gt;<a class="code hl_variable" href="structbrix__cvmfs__conf__t.html#abcb9f6ac6a1559e9eb259a1d257446e4">upstream_allow</a>-&gt;nelts; i++) {</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>        <span class="keywordflow">if</span> (allow[i].len == host-&gt;len</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>            &amp;&amp; ngx_strncasecmp(allow[i].data, host-&gt;data, host-&gt;len) == 0)</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>        <span class="keywordflow">if</span> (allow[i].len == <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>-&gt;len</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>            &amp;&amp; ngx_strncasecmp(allow[i].data, <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>-&gt;data, <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>-&gt;len) == 0)</div>
 <div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>        {</div>
 <div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>            <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>        }</div>
@@ -240,7 +240,7 @@ $(document).ready(function(){initNavTree('protocols_2cvmfs_2request_8c_source.ht
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>ngx_int_t</div>
 <div class="foldopen" id="foldopen00135" data-start="{" data-end="}">
 <div class="line"><a id="l00135" name="l00135"></a><span class="lineno"><a class="line" href="cvmfs_8h.html#a8b67a3f6ed8e7bf0d033e29cbd942734">  135</a></span><a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#a8b67a3f6ed8e7bf0d033e29cbd942734">brix_cvmfs_proxy_target</a>(ngx_http_request_t *r, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__cvmfs__conf__t.html">brix_cvmfs_conf_t</a> *cc,</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    ngx_str_t *host, in_port_t *port)</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    ngx_str_t *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, in_port_t *<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>{</div>
 <div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    ngx_int_t rc;</div>
 <div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span> </div>
@@ -253,17 +253,19 @@ $(document).ready(function(){initNavTree('protocols_2cvmfs_2request_8c_source.ht
 <div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>        <span class="keywordflow">return</span> rc;</div>
 <div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    }</div>
 <div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span> </div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    host-&gt;data = r-&gt;host_start;</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    host-&gt;len  = (size_t) (r-&gt;host_end - r-&gt;host_start);</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>-&gt;data = r-&gt;host_start;</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>-&gt;len  = (size_t) (r-&gt;host_end - r-&gt;host_start);</div>
 <div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span> </div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    rc = <a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">brix_cvmfs_proxy_parse_port</a>(r, port);</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    rc = <a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">brix_cvmfs_proxy_parse_port</a>(r, <a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>);</div>
 <div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
 <div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        <span class="keywordflow">return</span> rc;</div>
 <div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    }</div>
 <div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span> </div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#afbfe61e02de5121fb294c222a029322d">brix_cvmfs_proxy_host_allowed</a>(cc, host);</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="protocols_2cvmfs_2request_8c.html#afbfe61e02de5121fb294c222a029322d">brix_cvmfs_proxy_host_allowed</a>(cc, <a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>);</div>
 <div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>}</div>
 </div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a41c3a180b50c6b2ddcc1b6843a48f205"><div class="ttname"><a href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a></div><div class="ttdeci">char host[256]</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a63c89c04d1feae07ca35558055155ffb"><div class="ttname"><a href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00130">brix_fault_proxy.c:130</a></div></div>
 <div class="ttc" id="acvmfs_8h_html"><div class="ttname"><a href="cvmfs_8h.html">cvmfs.h</a></div></div>
 <div class="ttc" id="acvmfs_8h_html_a367344710f67ad83783984b6e05dff77"><div class="ttname"><a href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_cvmfs_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2cvmfs_2module_8c_source.html#l00351">module.c:351</a></div></div>
 <div class="ttc" id="aprotocols_2cvmfs_2request_8c_html_a524ee10cadf3a608f701a515c52cecf9"><div class="ttname"><a href="protocols_2cvmfs_2request_8c.html#a524ee10cadf3a608f701a515c52cecf9">brix_cvmfs_proxy_parse_port</a></div><div class="ttdeci">static ngx_int_t brix_cvmfs_proxy_parse_port(ngx_http_request_t *r, in_port_t *port)</div><div class="ttdef"><b>Definition</b> <a href="protocols_2cvmfs_2request_8c_source.html#l00065">request.c:65</a></div></div>

@@ -144,8 +144,8 @@ Data Structures</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ae8605e2b78cd4a81b6c6b5c30cb7366a" id="r_ae8605e2b78cd4a81b6c6b5c30cb7366a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcp__internal_8h.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a> (void)</td></tr>
-<tr class="separator:ae8605e2b78cd4a81b6c6b5c30cb7366a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a364112f4dc61f0649eec6b78e586509d" id="r_a364112f4dc61f0649eec6b78e586509d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcp__internal_8h.html#a364112f4dc61f0649eec6b78e586509d">usage</a> (const char *prog)</td></tr>
+<tr class="separator:a364112f4dc61f0649eec6b78e586509d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af090b82aff6106aacc9b77cb0d9bfc41" id="r_af090b82aff6106aacc9b77cb0d9bfc41"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcp__internal_8h.html#af090b82aff6106aacc9b77cb0d9bfc41">str_append</a> (char ***list, size_t *n, size_t *cap, const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:af090b82aff6106aacc9b77cb0d9bfc41"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a24c06f82fc52ea926ddb2359340e527a" id="r_a24c06f82fc52ea926ddb2359340e527a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrdcp__internal_8h.html#a24c06f82fc52ea926ddb2359340e527a">str_free</a> (char **list, size_t n)</td></tr>
@@ -284,9 +284,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__transfer_8c_source.html#l00393">393</a> of file <a class="el" href="xrdcp__transfer_8c_source.html">xrdcp_transfer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="xrdcp_8c_source.html#l00402">join_dest()</a>, <a class="el" href="xrdcp_8c_source.html#l00284">path_basename()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00293">transfer_one()</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="brix_8h_source.html#l00045">XRDC_NAME_MAX</a>.</p>
+<p class="reference">References <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00032">brix_status_set()</a>, <a class="el" href="xrdcp_8c_source.html#l00404">join_dest()</a>, <a class="el" href="xrdcp_8c_source.html#l00286">path_basename()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00293">transfer_one()</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="brix_8h_source.html#l00045">XRDC_NAME_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp__transfer_8c_source.html#l00427">batch_worker()</a>, and <a class="el" href="xrdcp_8c_source.html#l01225">xrdcp_batch_one()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp__transfer_8c_source.html#l00427">batch_worker()</a>, and <a class="el" href="xrdcp_8c_source.html#l01253">xrdcp_batch_one()</a>.</p>
 
 </div>
 </div>
@@ -380,7 +380,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="xrdcp__transfer_8c_source.html#l00427">batch_worker()</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00030">batch_ctx::co</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00028">batch_ctx::dst</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00036">batch_ctx::fail</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00026">batch_ctx::items</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00038">batch_ctx::jrn</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00037">batch_ctx::lock</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00027">batch_ctx::n</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00029">batch_ctx::o</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00034">batch_ctx::ok</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00031">batch_ctx::retries</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00035">batch_ctx::skip</a>, and <a class="el" href="xrdcp__internal_8h_source.html#l00032">batch_ctx::sync_mode</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01265">xrdcp_dispatch_batch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01293">xrdcp_dispatch_batch()</a>.</p>
 
 </div>
 </div>
@@ -434,7 +434,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00413">413</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00415">415</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>.</p>
 
@@ -494,9 +494,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__transfer_8c_source.html#l00051">51</a> of file <a class="el" href="xrdcp__transfer_8c_source.html">xrdcp_transfer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcp_8c_source.html#l00413">both_web()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00433">brix_copy()</a>, <a class="el" href="trace_8c_source.html#l00057">brix_jitter_ms()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00344">relay_web_to_web()</a>, and <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>.</p>
+<p class="reference">References <a class="el" href="xrdcp_8c_source.html#l00415">both_web()</a>, <a class="el" href="client_2lib_2xfer_2copy_8c_source.html#l00433">brix_copy()</a>, <a class="el" href="trace_8c_source.html#l00057">brix_jitter_ms()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00344">relay_web_to_web()</a>, and <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00183">place_to_local()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00144">place_to_web()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00344">relay_web_to_web()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00293">transfer_one()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00618">walk_handle_file()</a>, <a class="el" href="xrdcp_8c_source.html#l01084">xrdcp_dispatch_recursive_web_download()</a>, and <a class="el" href="xrdcp_8c_source.html#l01109">xrdcp_dispatch_recursive_web_upload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00183">place_to_local()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00144">place_to_web()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00344">relay_web_to_web()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00293">transfer_one()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00618">walk_handle_file()</a>, <a class="el" href="xrdcp_8c_source.html#l01112">xrdcp_dispatch_recursive_web_download()</a>, and <a class="el" href="xrdcp_8c_source.html#l01137">xrdcp_dispatch_recursive_web_upload()</a>.</p>
 
 </div>
 </div>
@@ -526,11 +526,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00377">377</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00379">379</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="brix_8h_source.html#l00069">XRDC_SCHEME_LOCAL</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00161">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="brix_8h_source.html#l00069">XRDC_SCHEME_LOCAL</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01265">xrdcp_dispatch_batch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01293">xrdcp_dispatch_batch()</a>.</p>
 
 </div>
 </div>
@@ -568,7 +568,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__recursive_8c_source.html#l00228">228</a> of file <a class="el" href="xrdcp__recursive_8c_source.html">xrdcp_recursive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00482">brix_copy_opts::bearer</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00391">brix_webdav_mkcol()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="brix__net_8h_source.html#l00037">brix_opts::ca_dir</a>, <a class="el" href="brix__ops_8h_source.html#l00506">brix_copy_opts::dry_run</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00482">brix_copy_opts::bearer</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00391">brix_webdav_mkcol()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="brix__net_8h_source.html#l00057">brix_opts::ca_dir</a>, <a class="el" href="brix__ops_8h_source.html#l00506">brix_copy_opts::dry_run</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00400">recursive_s3_download()</a>, and <a class="el" href="xrdcp__recursive_8c_source.html#l00478">recursive_web_download()</a>.</p>
 
@@ -614,7 +614,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__transfer_8c_source.html#l00097">97</a> of file <a class="el" href="xrdcp__transfer_8c_source.html">xrdcp_transfer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00141">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix__net_8h_source.html#l00142">brix_statinfo::mtime</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__net_8h_source.html#l00140">brix_statinfo::size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="brix_8h_source.html#l00069">XRDC_SCHEME_LOCAL</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00161">brix_statinfo::flags</a>, <a class="el" href="flags_8h_source.html#l00049">kXR_isDir</a>, <a class="el" href="brix__net_8h_source.html#l00162">brix_statinfo::mtime</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix__net_8h_source.html#l00160">brix_statinfo::size</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="brix_8h_source.html#l00069">XRDC_SCHEME_LOCAL</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcp__transfer_8c_source.html#l00208">transfer_filter_check()</a>, and <a class="el" href="xrdcp__transfer_8c_source.html#l00243">transfer_sync_check()</a>.</p>
 
@@ -666,9 +666,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__recursive_8c_source.html#l00033">33</a> of file <a class="el" href="xrdcp__recursive_8c_source.html">xrdcp_recursive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, <a class="el" href="glob_8c_source.html#l00198">brix_glob()</a>, <a class="el" href="glob_8c_source.html#l00239">brix_glob_free()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdcktree_8c_source.html#l00047">is_root_url()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00015">source_has_glob()</a>, <a class="el" href="xrdcp_8c_source.html#l00186">str_append()</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, <a class="el" href="glob_8c_source.html#l00198">brix_glob()</a>, <a class="el" href="glob_8c_source.html#l00239">brix_glob_free()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="xrdcktree_8c_source.html#l00047">is_root_url()</a>, <a class="el" href="brix_8h_source.html#l00049">brix_status::kxr</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00015">source_has_glob()</a>, <a class="el" href="xrdcp_8c_source.html#l00188">str_append()</a>, <a class="el" href="brix_8h_source.html#l00057">XRDC_EUSAGE</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00991">build_and_preflight_credentials()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01019">build_and_preflight_credentials()</a>.</p>
 
 </div>
 </div>
@@ -688,11 +688,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00368">368</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00370">370</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01109">xrdcp_dispatch_recursive_web_upload()</a>, and <a class="el" href="xrdcp_8c_source.html#l01137">xrdcp_try_recursive_web()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01137">xrdcp_dispatch_recursive_web_upload()</a>, and <a class="el" href="xrdcp_8c_source.html#l01165">xrdcp_try_recursive_web()</a>.</p>
 
 </div>
 </div>
@@ -712,11 +712,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00340">340</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00342">342</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00360">uses_cred_auth()</a>, and <a class="el" href="xrdcp_8c_source.html#l01069">xrdcp_hint_failed_source()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00362">uses_cred_auth()</a>, and <a class="el" href="xrdcp_8c_source.html#l01097">xrdcp_hint_failed_source()</a>.</p>
 
 </div>
 </div>
@@ -736,11 +736,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00351">351</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00353">353</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00360">uses_cred_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00362">uses_cred_auth()</a>.</p>
 
 </div>
 </div>
@@ -782,7 +782,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00402">402</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00404">404</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcp__transfer_8c_source.html#l00393">batch_copy_one()</a>.</p>
 
@@ -814,11 +814,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00265">265</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00267">267</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcp_8c_source.html#l00215">alias_name_of()</a>, <a class="el" href="xrdrc_8c_source.html#l00380">brix_alias_lookup()</a>, <a class="el" href="xrdcp_8c_source.html#l00234">fold_alias_creds()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix__net_8h_source.html#l00431">brix_alias_info::token_file</a>, and <a class="el" href="brix__net_8h_source.html#l00432">brix_alias_info::token_file_failed</a>.</p>
+<p class="reference">References <a class="el" href="xrdcp_8c_source.html#l00217">alias_name_of()</a>, <a class="el" href="xrdrc_8c_source.html#l00380">brix_alias_lookup()</a>, <a class="el" href="xrdcp_8c_source.html#l00236">fold_alias_creds()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brix__net_8h_source.html#l00468">brix_alias_info::token_file</a>, and <a class="el" href="brix__net_8h_source.html#l00469">brix_alias_info::token_file_failed</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00991">build_and_preflight_credentials()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01019">build_and_preflight_credentials()</a>.</p>
 
 </div>
 </div>
@@ -856,7 +856,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__recursive_8c_source.html#l00114">114</a> of file <a class="el" href="xrdcp__recursive_8c_source.html">xrdcp_recursive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcp__internal_8h_source.html#l00106">mkcol_ctx_t::base</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00107">mkcol_ctx_t::bearer</a>, <a class="el" href="weblist_8c_source.html#l00391">brix_webdav_mkcol()</a>, <a class="el" href="brix__net_8h_source.html#l00037">brix_opts::ca_dir</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00108">mkcol_ctx_t::co</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00105">mkcol_ctx_t::du</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdcp__internal_8h_source.html#l00106">mkcol_ctx_t::base</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00107">mkcol_ctx_t::bearer</a>, <a class="el" href="weblist_8c_source.html#l00391">brix_webdav_mkcol()</a>, <a class="el" href="brix__net_8h_source.html#l00057">brix_opts::ca_dir</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00108">mkcol_ctx_t::co</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00105">mkcol_ctx_t::du</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00144">place_to_web()</a>.</p>
 
@@ -918,7 +918,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00284">284</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00286">286</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 </div>
 </div>
@@ -960,11 +960,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00316">316</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00318">318</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcp_8c_source.html#l00301">manifest_trim()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="xrdcp_8c_source.html#l00186">str_append()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdcp_8c_source.html#l00303">manifest_trim()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="xrdcp_8c_source.html#l00188">str_append()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00530">xrdcp_collect_sources()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00532">xrdcp_collect_sources()</a>.</p>
 
 </div>
 </div>
@@ -1048,7 +1048,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__recursive_8c_source.html#l00400">400</a> of file <a class="el" href="xrdcp__recursive_8c_source.html">xrdcp_recursive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00098">brix_strv_free()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00037">brix_opts::ca_dir</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00228">ensure_web_dst_base()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="brix__ops_8h_source.html#l00483">brix_copy_opts::s3_access</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00364">s3_download_loop()</a>, <a class="el" href="brix__ops_8h_source.html#l00485">brix_copy_opts::s3_region</a>, <a class="el" href="brix__ops_8h_source.html#l00484">brix_copy_opts::s3_secret</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00333">s3_split_bucket_prefix()</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="weblist_8c_source.html#l00313">brix_s3_list()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00098">brix_strv_free()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00057">brix_opts::ca_dir</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00228">ensure_web_dst_base()</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="brix__ops_8h_source.html#l00483">brix_copy_opts::s3_access</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00364">s3_download_loop()</a>, <a class="el" href="brix__ops_8h_source.html#l00485">brix_copy_opts::s3_region</a>, <a class="el" href="brix__ops_8h_source.html#l00484">brix_copy_opts::s3_secret</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00333">s3_split_bucket_prefix()</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00478">recursive_web_download()</a>.</p>
 
@@ -1100,9 +1100,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__recursive_8c_source.html#l00478">478</a> of file <a class="el" href="xrdcp__recursive_8c_source.html">xrdcp_recursive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00482">brix_copy_opts::bearer</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00098">brix_strv_free()</a>, <a class="el" href="weblist_8c_source.html#l00523">brix_webdav_list()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00037">brix_opts::ca_dir</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00228">ensure_web_dst_base()</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00400">recursive_s3_download()</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00444">web_download_loop()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00482">brix_copy_opts::bearer</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00098">brix_strv_free()</a>, <a class="el" href="weblist_8c_source.html#l00523">brix_webdav_list()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00057">brix_opts::ca_dir</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00228">ensure_web_dst_base()</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00400">recursive_s3_download()</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00444">web_download_loop()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01084">xrdcp_dispatch_recursive_web_download()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01112">xrdcp_dispatch_recursive_web_download()</a>.</p>
 
 </div>
 </div>
@@ -1152,9 +1152,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__recursive_8c_source.html#l00703">703</a> of file <a class="el" href="xrdcp__recursive_8c_source.html">xrdcp_recursive.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00482">brix_copy_opts::bearer</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00391">brix_webdav_mkcol()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00037">brix_opts::ca_dir</a>, <a class="el" href="brix__ops_8h_source.html#l00506">brix_copy_opts::dry_run</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00094">brix_weburl::proto</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrdcp_8c_source.html#l00421">web_scheme_str()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00660">web_upload_walk()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="brix__ops_8h_source.html#l00482">brix_copy_opts::bearer</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="weblist_8c_source.html#l00391">brix_webdav_mkcol()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00057">brix_opts::ca_dir</a>, <a class="el" href="brix__ops_8h_source.html#l00506">brix_copy_opts::dry_run</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00099">brix_weburl::path</a>, <a class="el" href="brix_8h_source.html#l00094">brix_weburl::proto</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="brix__ops_8h_source.html#l00464">brix_copy_opts::silent</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, <a class="el" href="xrdcp_8c_source.html#l00423">web_scheme_str()</a>, <a class="el" href="xrdcp__recursive_8c_source.html#l00660">web_upload_walk()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01109">xrdcp_dispatch_recursive_web_upload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01137">xrdcp_dispatch_recursive_web_upload()</a>.</p>
 
 </div>
 </div>
@@ -1174,7 +1174,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00441">441</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00443">443</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="client_2lib_2fs_2path_8c_source.html#l00120">brix_rel_is_unsafe()</a>.</p>
 
@@ -1302,11 +1302,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00186">186</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00188">188</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>, <a class="el" href="xrdcp_8c_source.html#l00921">parse_and_validate_args()</a>, <a class="el" href="xrdcp_8c_source.html#l00316">read_manifest()</a>, <a class="el" href="xrdcp_8c_source.html#l00530">xrdcp_collect_sources()</a>, and <a class="el" href="xrdcp_8c_source.html#l00709">xrdcp_parse_pattern_option()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp__recursive_8c_source.html#l00033">expand_source()</a>, <a class="el" href="xrdcp_8c_source.html#l00949">parse_and_validate_args()</a>, <a class="el" href="xrdcp_8c_source.html#l00318">read_manifest()</a>, <a class="el" href="xrdcp_8c_source.html#l00532">xrdcp_collect_sources()</a>, and <a class="el" href="xrdcp_8c_source.html#l00737">xrdcp_parse_pattern_option()</a>.</p>
 
 </div>
 </div>
@@ -1336,9 +1336,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00203">203</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00205">205</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00980">xrdcp_lists_free()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01008">xrdcp_lists_free()</a>.</p>
 
 </div>
 </div>
@@ -1400,14 +1400,14 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrdcp__transfer_8c_source.html#l00293">293</a> of file <a class="el" href="xrdcp__transfer_8c_source.html">xrdcp_transfer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrdcp__transfer_8c_source.html#l00051">copy_one_with_retry()</a>, <a class="el" href="brix__ops_8h_source.html#l00506">brix_copy_opts::dry_run</a>, <a class="el" href="xrdcp_8c_source.html#l00284">path_basename()</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="brix__ops_8h_source.html#l00507">brix_copy_opts::remove_source</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00025">remove_source_entry()</a>, <a class="el" href="brix__ops_8h_source.html#l00508">brix_copy_opts::sync</a>, <a class="el" href="brix__ops_8h_source.html#l00511">brix_copy_opts::sync_delete</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00208">transfer_filter_check()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00243">transfer_sync_check()</a>, and <a class="el" href="brix_8h_source.html#l00045">XRDC_NAME_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrdcp__transfer_8c_source.html#l00051">copy_one_with_retry()</a>, <a class="el" href="brix__ops_8h_source.html#l00506">brix_copy_opts::dry_run</a>, <a class="el" href="xrdcp_8c_source.html#l00286">path_basename()</a>, <a class="el" href="brix__ops_8h_source.html#l00478">brix_copy_opts::recursive</a>, <a class="el" href="brix__ops_8h_source.html#l00507">brix_copy_opts::remove_source</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00025">remove_source_entry()</a>, <a class="el" href="brix__ops_8h_source.html#l00508">brix_copy_opts::sync</a>, <a class="el" href="brix__ops_8h_source.html#l00511">brix_copy_opts::sync_delete</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00208">transfer_filter_check()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00243">transfer_sync_check()</a>, and <a class="el" href="brix_8h_source.html#l00045">XRDC_NAME_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp__transfer_8c_source.html#l00393">batch_copy_one()</a>, and <a class="el" href="xrdcp_8c_source.html#l01183">xrdcp_dispatch_single()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp__transfer_8c_source.html#l00393">batch_copy_one()</a>, and <a class="el" href="xrdcp_8c_source.html#l01211">xrdcp_dispatch_single()</a>.</p>
 
 </div>
 </div>
-<a id="ae8605e2b78cd4a81b6c6b5c30cb7366a" name="ae8605e2b78cd4a81b6c6b5c30cb7366a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae8605e2b78cd4a81b6c6b5c30cb7366a">&#9670;&#160;</a></span>usage()</h2>
+<a id="a364112f4dc61f0649eec6b78e586509d" name="a364112f4dc61f0649eec6b78e586509d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a364112f4dc61f0649eec6b78e586509d">&#9670;&#160;</a></span>usage()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1415,14 +1415,14 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">void usage </td>
           <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00178">178</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00180">180</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 </div>
 </div>
@@ -1442,11 +1442,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00360">360</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00362">362</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
-<p class="reference">References <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="xrdcp_8c_source.html#l00340">is_root_url()</a>, <a class="el" href="xrdcp_8c_source.html#l00351">is_s3_url()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="xrdcp_8c_source.html#l00342">is_root_url()</a>, <a class="el" href="xrdcp_8c_source.html#l00353">is_s3_url()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l00991">build_and_preflight_credentials()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01019">build_and_preflight_credentials()</a>.</p>
 
 </div>
 </div>
@@ -1510,7 +1510,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00421">421</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00423">423</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brix_8h_source.html#l00088">XRDC_WEB_DAV</a>, <a class="el" href="brix_8h_source.html#l00089">XRDC_WEB_DAVS</a>, <a class="el" href="brix_8h_source.html#l00086">XRDC_WEB_HTTP</a>, <a class="el" href="brix_8h_source.html#l00087">XRDC_WEB_HTTPS</a>, <a class="el" href="brix_8h_source.html#l00090">XRDC_WEB_S3</a>, and <a class="el" href="brix_8h_source.html#l00091">XRDC_WEB_S3S</a>.</p>
 
@@ -1590,11 +1590,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00451">451</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00453">453</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="trace_8c_source.html#l00041">brix_mono_ns()</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00054">xrdcp_prog::label</a>, <a class="el" href="xrdcp__internal_8h_source.html#l00056">xrdcp_prog::last_ns</a>, and <a class="el" href="xrdcp__internal_8h_source.html#l00055">xrdcp_prog::start_ns</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01164">xrdcp_enable_progress_if_needed()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrdcp_8c_source.html#l01192">xrdcp_enable_progress_if_needed()</a>.</p>
 
 </div>
 </div>

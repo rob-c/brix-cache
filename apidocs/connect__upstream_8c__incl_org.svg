@@ -21,7 +21,7 @@
 <!-- Node2 -->
 <g id="Node000002" class="node">
 <title>Node2</title>
-<g id="a_Node000002"><a xlink:href="net_2proxy_2proxy__internal_8h.html" target="_top" xlink:title=" ">
+<g id="a_Node000002"><a xlink:href="proxy__internal_8h.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="4070.11,-327 3974.11,-327 3974.11,-308 4070.11,-308 4070.11,-327"/>
 <text text-anchor="middle" x="4022.11" y="-315" font-family="Helvetica,sans-Serif" font-size="10.00">proxy_internal.h</text>
 </a>

@@ -17,11 +17,6 @@ var webdav_8h =
       [ "WEBDAV_AUTH_OPTIONAL", "webdav_8h.html#a84d207a732230743f000c54abb8dc9f5aff141e81fffb3be524b1bf4d91d43694", null ],
       [ "WEBDAV_AUTH_REQUIRED", "webdav_8h.html#a84d207a732230743f000c54abb8dc9f5a4a4d22220e1f7e008b64a80e51c7ecb6", null ]
     ] ],
-    [ "webdav_proxy_auth_t", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daa", [
-      [ "WEBDAV_PROXY_AUTH_ANONYMOUS", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daaab361b074273b2b6ec8b1714feb029260", null ],
-      [ "WEBDAV_PROXY_AUTH_FORWARD", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daaacbcaccbf6ef5ff32530f03cfcf411e53", null ],
-      [ "WEBDAV_PROXY_AUTH_TOKEN", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daaa518cc9548995863fa2a575496c618025", null ]
-    ] ],
     [ "brix_link_confined_canon", "webdav_8h.html#a9f19a15ede784e28be8218682eed012c", null ],
     [ "brix_mkdir_confined_canon", "webdav_8h.html#a5f804b93c7ad896ae3c9e851e2aea47c", null ],
     [ "brix_open_confined_canon", "webdav_8h.html#a942cdb2e7943b0680d3183f43fd513d5", null ],

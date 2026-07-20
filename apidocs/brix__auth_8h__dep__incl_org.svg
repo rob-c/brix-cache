@@ -596,7 +596,7 @@
 <!-- Node72 -->
 <g id="Node000072" class="node">
 <title>Node72</title>
-<g id="a_Node000072"><a xlink:href="client_2lib_2auth_2gsi_2proxy_8c.html" target="_top" xlink:title=" ">
+<g id="a_Node000072"><a xlink:href="proxy_8c.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="3808.5,-96 3707.5,-96 3707.5,-66 3808.5,-66 3808.5,-96"/>
 <text text-anchor="start" x="3715.5" y="-84" font-family="Helvetica,sans-Serif" font-size="10.00">client/lib/auth/gsi</text>
 <text text-anchor="middle" x="3758" y="-73" font-family="Helvetica,sans-Serif" font-size="10.00">/proxy.c</text>

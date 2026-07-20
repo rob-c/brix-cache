@@ -4,6 +4,7 @@ var structbrix__sd__remote__cfg__t =
     [ "bucket", "structbrix__sd__remote__cfg__t.html#afa10111a2c9e4b2c4c9c424464d2220b", null ],
     [ "host", "structbrix__sd__remote__cfg__t.html#aa089d137ca11a20bb1e4c85bc3aa7ebb", null ],
     [ "port", "structbrix__sd__remote__cfg__t.html#a50a781bd2ac8182f1685ae4e6593fb89", null ],
+    [ "put_checksum", "structbrix__sd__remote__cfg__t.html#a3352dc223ccfe37de07f57c121ac8409", null ],
     [ "region", "structbrix__sd__remote__cfg__t.html#a82e4dd6a91aecc66ee222230bbb63fe7", null ],
     [ "scheme", "structbrix__sd__remote__cfg__t.html#acaaf38e5f4a844ac454c5dfd384aebce", null ],
     [ "secret_key", "structbrix__sd__remote__cfg__t.html#a5c0ef34b84f799fb422d28c60064f506", null ],

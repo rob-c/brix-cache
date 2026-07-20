@@ -132,7 +132,7 @@ Macros</h2></td></tr>
 <tr class="separator:a9bc50059d88e093674c668840e299ff8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7ce805cfa5a98e4807d212c8937ae4c7" id="r_a7ce805cfa5a98e4807d212c8937ae4c7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a7ce805cfa5a98e4807d212c8937ae4c7">SD_HTTP_PATH_MAX</a>&#160;&#160;&#160;2048                 /* full URL path = base + <a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a> */</td></tr>
 <tr class="separator:a7ce805cfa5a98e4807d212c8937ae4c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7dca6e23d5c015632f94c8d9e09d132b" id="r_a7dca6e23d5c015632f94c8d9e09d132b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a7dca6e23d5c015632f94c8d9e09d132b">SD_HTTP_AUTH_MAX</a>&#160;&#160;&#160;4160                 /* &quot;Authorization: Bearer &lt;tok&gt;\r\n&quot; */</td></tr>
+<tr class="memitem:a7dca6e23d5c015632f94c8d9e09d132b" id="r_a7dca6e23d5c015632f94c8d9e09d132b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a7dca6e23d5c015632f94c8d9e09d132b">SD_HTTP_AUTH_MAX</a>&#160;&#160;&#160;4160                 /* &quot;Authorization: Bearer &lt;<a class="el" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>&gt;\r\n&quot; */</td></tr>
 <tr class="separator:a7dca6e23d5c015632f94c8d9e09d132b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0c9fb3f2f183dcb4513b3accebc2347c" id="r_a0c9fb3f2f183dcb4513b3accebc2347c"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__http__internal_8h.html#a0c9fb3f2f183dcb4513b3accebc2347c">SD_HTTP_RANK_WEIGHT</a>&#160;&#160;&#160;4096</td></tr>
 <tr class="separator:a0c9fb3f2f183dcb4513b3accebc2347c"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -189,7 +189,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define SD_HTTP_AUTH_MAX&#160;&#160;&#160;4160                 /* &quot;Authorization: Bearer &lt;tok&gt;\r\n&quot; */</td>
+          <td class="memname">#define SD_HTTP_AUTH_MAX&#160;&#160;&#160;4160                 /* &quot;Authorization: Bearer &lt;<a class="el" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>&gt;\r\n&quot; */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -297,7 +297,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="sd_8h_source.html#l00207">brix_sd_cred_t::bearer</a>, <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00059">brix_s3_transport_t::request_cred</a>, <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>, and <a class="el" href="sd_8h_source.html#l00206">brix_sd_cred_t::x509_proxy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00233">sd_http_open_common()</a>, <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00446">sd_http_stat_cred()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00233">sd_http_open_common()</a>, <a class="el" href="sd__http__write_8c_source.html#l00090">sd_http_staged_open_common()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00446">sd_http_stat_cred()</a>.</p>
 
 </div>
 </div>
@@ -533,7 +533,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__http__select_8c_source.html#l00385">385</a> of file <a class="el" href="sd__http__select_8c_source.html">sd_http_select.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00029">sd_http_endpoint::fail_score</a>, <a class="el" href="sd__http__internal_8h_source.html#l00085">sd_http_req_t::force_primary</a>, <a class="el" href="sd__http__internal_8h_source.html#l00079">sd_http_req_t::is</a>, <a class="el" href="sd__http__internal_8h_source.html#l00081">sd_http_req_t::key</a>, <a class="el" href="sd__http__internal_8h_source.html#l00080">sd_http_req_t::method</a>, <a class="el" href="sd__http__internal_8h_source.html#l00040">sd_http_inst_state::n_eps</a>, <a class="el" href="sd__http__select_8c_source.html#l00319">sd_http_fo_next()</a>, <a class="el" href="sd__http__select_8c_source.html#l00356">sd_http_fo_note_fail()</a>, <a class="el" href="sd__http__select_8c_source.html#l00296">sd_http_fo_note_success()</a>, <a class="el" href="sd__http__select_8c_source.html#l00262">sd_http_fo_perform()</a>, <a class="el" href="sd__http__select_8c_source.html#l00222">sd_http_fo_select()</a>, <a class="el" href="sd__http__select_8c_source.html#l00155">sd_http_live_log()</a>, and <a class="el" href="sd__http__select_8c_source.html#l00138">sd_http_log_key()</a>.</p>
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00029">sd_http_endpoint::fail_score</a>, <a class="el" href="sd__http__internal_8h_source.html#l00089">sd_http_req_t::force_primary</a>, <a class="el" href="sd__http__internal_8h_source.html#l00083">sd_http_req_t::is</a>, <a class="el" href="sd__http__internal_8h_source.html#l00085">sd_http_req_t::key</a>, <a class="el" href="sd__http__internal_8h_source.html#l00084">sd_http_req_t::method</a>, <a class="el" href="sd__http__internal_8h_source.html#l00040">sd_http_inst_state::n_eps</a>, <a class="el" href="sd__http__select_8c_source.html#l00319">sd_http_fo_next()</a>, <a class="el" href="sd__http__select_8c_source.html#l00356">sd_http_fo_note_fail()</a>, <a class="el" href="sd__http__select_8c_source.html#l00296">sd_http_fo_note_success()</a>, <a class="el" href="sd__http__select_8c_source.html#l00262">sd_http_fo_perform()</a>, <a class="el" href="sd__http__select_8c_source.html#l00222">sd_http_fo_select()</a>, <a class="el" href="sd__http__select_8c_source.html#l00155">sd_http_live_log()</a>, and <a class="el" href="sd__http__select_8c_source.html#l00138">sd_http_log_key()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__http__read_8c_source.html#l00061">sd_http_head_size()</a>, and <a class="el" href="sd__http__read_8c_source.html#l00315">sd_http_pread()</a>.</p>
 
@@ -601,9 +601,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00227">227</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00267">267</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00044">sd_http_staged_state::buf</a>.</p>
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00063">sd_http_staged_state::buf</a>.</p>
 
 </div>
 </div>
@@ -633,9 +633,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00173">173</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00192">192</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__write_8c_source.html#l00047">sd_http_staged_state::auth_hdr</a>, <a class="el" href="sd__http__write_8c_source.html#l00044">sd_http_staged_state::buf</a>, <a class="el" href="sd__http__write_8c_source.html#l00048">sd_http_staged_state::cert_pem</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00025">sd_http_endpoint::host</a>, <a class="el" href="sd__http__write_8c_source.html#l00045">sd_http_staged_state::len</a>, <a class="el" href="sd__http__write_8c_source.html#l00043">sd_http_staged_state::path</a>, <a class="el" href="sd__http__internal_8h_source.html#l00026">sd_http_endpoint::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00059">brix_s3_transport_t::request_cred</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__http__internal_8h_source.html#l00042">sd_http_inst_state::tctx</a>, <a class="el" href="sd__http__internal_8h_source.html#l00043">sd_http_inst_state::timeout_ms</a>, <a class="el" href="sd__http__internal_8h_source.html#l00027">sd_http_endpoint::tls</a>, and <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>.</p>
+<p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__write_8c_source.html#l00066">sd_http_staged_state::auth_hdr</a>, <a class="el" href="sd__http__write_8c_source.html#l00063">sd_http_staged_state::buf</a>, <a class="el" href="sd__http__write_8c_source.html#l00067">sd_http_staged_state::cert_pem</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00025">sd_http_endpoint::host</a>, <a class="el" href="sd__http__write_8c_source.html#l00064">sd_http_staged_state::len</a>, <a class="el" href="sd__http__write_8c_source.html#l00062">sd_http_staged_state::path</a>, <a class="el" href="sd__http__internal_8h_source.html#l00026">sd_http_endpoint::port</a>, <a class="el" href="sd__http__internal_8h_source.html#l00064">sd_http_inst_state::put_checksum</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00059">brix_s3_transport_t::request_cred</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__http__internal_8h_source.html#l00019">SD_HTTP_AUTH_MAX</a>, <a class="el" href="sd__http__write_8c_source.html#l00039">sd_http_content_md5()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__http__internal_8h_source.html#l00042">sd_http_inst_state::tctx</a>, <a class="el" href="sd__http__internal_8h_source.html#l00043">sd_http_inst_state::timeout_ms</a>, <a class="el" href="sd__http__internal_8h_source.html#l00027">sd_http_endpoint::tls</a>, and <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>.</p>
 
 </div>
 </div>
@@ -677,9 +677,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00118">118</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00137">137</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>.</p>
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00090">sd_http_staged_open_common()</a>.</p>
 
 </div>
 </div>
@@ -727,9 +727,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00135">135</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00154">154</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>.</p>
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00090">sd_http_staged_open_common()</a>.</p>
 
 </div>
 </div>
@@ -771,9 +771,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00142">142</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00161">161</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00044">sd_http_staged_state::buf</a>, <a class="el" href="sd__http__write_8c_source.html#l00046">sd_http_staged_state::cap</a>, <a class="el" href="sd__http__write_8c_source.html#l00045">sd_http_staged_state::len</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="sd__http__write_8c_source.html#l00063">sd_http_staged_state::buf</a>, <a class="el" href="sd__http__write_8c_source.html#l00065">sd_http_staged_state::cap</a>, <a class="el" href="sd__http__write_8c_source.html#l00064">sd_http_staged_state::len</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 </div>
 </div>
@@ -891,7 +891,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00237">237</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__http__write_8c_source.html#l00277">277</a> of file <a class="el" href="sd__http__write_8c_source.html">sd_http_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00055">sd_http_inst_state::auth_hdr</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, <a class="el" href="sd__http__internal_8h_source.html#l00025">sd_http_endpoint::host</a>, <a class="el" href="sd__http__internal_8h_source.html#l00026">sd_http_endpoint::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__http__internal_8h_source.html#l00018">SD_HTTP_PATH_MAX</a>, <a class="el" href="sd__http__select_8c_source.html#l00053">sd_http_write_path()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__http__internal_8h_source.html#l00042">sd_http_inst_state::tctx</a>, <a class="el" href="sd__http__internal_8h_source.html#l00043">sd_http_inst_state::timeout_ms</a>, <a class="el" href="sd__http__internal_8h_source.html#l00027">sd_http_endpoint::tls</a>, and <a class="el" href="sd__http__internal_8h_source.html#l00041">sd_http_inst_state::transport</a>.</p>
 
@@ -939,7 +939,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="sd__http__internal_8h_source.html#l00028">sd_http_endpoint::base_path</a>, <a class="el" href="sd__http__internal_8h_source.html#l00039">sd_http_inst_state::eps</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__http__write_8c_source.html#l00071">sd_http_staged_open_common()</a>, and <a class="el" href="sd__http__write_8c_source.html#l00237">sd_http_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__http__write_8c_source.html#l00090">sd_http_staged_open_common()</a>, and <a class="el" href="sd__http__write_8c_source.html#l00277">sd_http_unlink()</a>.</p>
 
 </div>
 </div>

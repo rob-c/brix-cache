@@ -3,6 +3,7 @@ var structftp__ev__t =
     [ "active", "structftp__ev__t.html#a5ca64c5d0977506dd4ad08814a4139fc", null ],
     [ "active_offpeer", "structftp__ev__t.html#a13174eeb0e99370b0aed7db3627e200c", null ],
     [ "active_sa", "structftp__ev__t.html#ab41b7b795ebeacda18ab17f0b8dd2dcf", null ],
+    [ "allo_size", "structftp__ev__t.html#a8f2d849cb3d7b10859b07c3c2b7ab280", null ],
     [ "authed", "structftp__ev__t.html#a34e401ebce47b092d66b4c892ed09891", null ],
     [ "blen", "structftp__ev__t.html#a3a858b0f41b9412bebc8d3128fc48498", null ],
     [ "bpos", "structftp__ev__t.html#a0548ecd91f1a2a9739da67da1da18bb6", null ],

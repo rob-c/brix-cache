@@ -155,10 +155,10 @@ Macros</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:a0473c915c9e27e8bbfb1c6d76d8764bb" id="r_a0473c915c9e27e8bbfb1c6d76d8764bb"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__internal_8h.html#a0473c915c9e27e8bbfb1c6d76d8764bb">is_fs_verb</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
 <tr class="separator:a0473c915c9e27e8bbfb1c6d76d8764bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae8605e2b78cd4a81b6c6b5c30cb7366a" id="r_ae8605e2b78cd4a81b6c6b5c30cb7366a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__internal_8h.html#ae8605e2b78cd4a81b6c6b5c30cb7366a">usage</a> (void)</td></tr>
-<tr class="separator:ae8605e2b78cd4a81b6c6b5c30cb7366a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6597d4ce9dac80da1386aa9fbe8944a6" id="r_a6597d4ce9dac80da1386aa9fbe8944a6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__internal_8h.html#a6597d4ce9dac80da1386aa9fbe8944a6">exec_tool</a> (const char *tool, char **argv)</td></tr>
-<tr class="separator:a6597d4ce9dac80da1386aa9fbe8944a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a364112f4dc61f0649eec6b78e586509d" id="r_a364112f4dc61f0649eec6b78e586509d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__internal_8h.html#a364112f4dc61f0649eec6b78e586509d">usage</a> (const char *prog)</td></tr>
+<tr class="separator:a364112f4dc61f0649eec6b78e586509d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa22a91c6fc99de405a165317f8b189a5" id="r_aa22a91c6fc99de405a165317f8b189a5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__internal_8h.html#aa22a91c6fc99de405a165317f8b189a5">exec_tool</a> (const char *prefix, const char *tool, char **argv)</td></tr>
+<tr class="separator:aa22a91c6fc99de405a165317f8b189a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae0cff64500bac3c2e3c5acb85da5c8e1" id="r_ae0cff64500bac3c2e3c5acb85da5c8e1"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__internal_8h.html#ae0cff64500bac3c2e3c5acb85da5c8e1">map_fs_arg</a> (const char *arg, const char *ehost, int eport, int *mismatch)</td></tr>
 <tr class="separator:ae0cff64500bac3c2e3c5acb85da5c8e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8cf2c1bd39a0ddd8a1d432c7b2293f46" id="r_a8cf2c1bd39a0ddd8a1d432c7b2293f46"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="xrd__internal_8h.html#a8cf2c1bd39a0ddd8a1d432c7b2293f46">bat_add</a> (<a class="el" href="structxrd__battery.html">xrd_battery</a> *b, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, int status, const char *fmt,...)</td></tr>
@@ -371,7 +371,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__battery_8c_source.html#l00316">316</a> of file <a class="el" href="xrd__battery_8c_source.html">xrd_battery.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrd__battery_8c_source.html#l00024">bat_add()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="ops__ext_8c_source.html#l00188">brix_ext_probe()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__battery_8c_source.html#l00111">probe_path_confinement()</a>, <a class="el" href="xrd__battery_8c_source.html#l00081">probe_root_read_suite()</a>, <a class="el" href="xrd__battery_8c_source.html#l00264">probe_write_suite()</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, and <a class="el" href="xrd__internal_8h_source.html#l00059">xrd_battery::reachable</a>.</p>
+<p class="reference">References <a class="el" href="xrd__battery_8c_source.html#l00024">bat_add()</a>, <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="ops__ext_8c_source.html#l00188">brix_ext_probe()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__battery_8c_source.html#l00111">probe_path_confinement()</a>, <a class="el" href="xrd__battery_8c_source.html#l00081">probe_root_read_suite()</a>, <a class="el" href="xrd__battery_8c_source.html#l00264">probe_write_suite()</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, and <a class="el" href="xrd__internal_8h_source.html#l00059">xrd_battery::reachable</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrd__battery_8c_source.html#l00653">xrd_run_battery()</a>.</p>
 
@@ -493,8 +493,8 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="a6597d4ce9dac80da1386aa9fbe8944a6" name="a6597d4ce9dac80da1386aa9fbe8944a6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6597d4ce9dac80da1386aa9fbe8944a6">&#9670;&#160;</a></span>exec_tool()</h2>
+<a id="aa22a91c6fc99de405a165317f8b189a5" name="aa22a91c6fc99de405a165317f8b189a5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa22a91c6fc99de405a165317f8b189a5">&#9670;&#160;</a></span>exec_tool()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -502,6 +502,12 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">void exec_tool </td>
           <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prefix</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>tool</em>, </td>
         </tr>
@@ -519,11 +525,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00094">94</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00115">115</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="xrd_8c_source.html#l00096">try_exec_dir()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00191">cmd_cp()</a>, <a class="el" href="xrd_8c_source.html#l00247">cmd_diag()</a>, <a class="el" href="xrd_8c_source.html#l00472">cmd_fs_verb()</a>, <a class="el" href="xrd_8c_source.html#l00206">cmd_get()</a>, <a class="el" href="xrd_8c_source.html#l00227">cmd_put()</a>, <a class="el" href="xrd_8c_source.html#l00262">cmd_replicas()</a>, <a class="el" href="xrd_8c_source.html#l00323">cmd_storascan()</a>, <a class="el" href="xrd_8c_source.html#l00279">cmd_sync()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00464">xrd_mount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00220">cmd_cp()</a>, <a class="el" href="xrd_8c_source.html#l00279">cmd_diag()</a>, <a class="el" href="xrd_8c_source.html#l00508">cmd_fs_verb()</a>, <a class="el" href="xrd_8c_source.html#l00236">cmd_get()</a>, <a class="el" href="xrd_8c_source.html#l00258">cmd_put()</a>, <a class="el" href="xrd_8c_source.html#l00295">cmd_replicas()</a>, <a class="el" href="xrd_8c_source.html#l00358">cmd_storascan()</a>, <a class="el" href="xrd_8c_source.html#l00313">cmd_sync()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00465">xrd_mount()</a>.</p>
 
 </div>
 </div>
@@ -575,11 +581,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00024">24</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00025">25</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrd_8c_source.html#l00010">FS_VERBS</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="xrd_8c_source.html#l00011">FS_VERBS</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00544">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00581">main()</a>.</p>
 
 </div>
 </div>
@@ -621,11 +627,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00122">122</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00150">150</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
 
 <p class="reference">References <a class="el" href="xrdrc_8c_source.html#l00309">brix_alias_resolve()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="url_8c_source.html#l00112">brix_url_parse()</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00078">brix_url::path</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="brix_8h_source.html#l00074">brix_url::scheme</a>, <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>, <a class="el" href="brix_8h_source.html#l00067">XRDC_SCHEME_ROOT</a>, and <a class="el" href="brix_8h_source.html#l00068">XRDC_SCHEME_ROOTS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00436">fs_map_split_args()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00472">fs_map_split_args()</a>.</p>
 
 </div>
 </div>
@@ -661,7 +667,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00230">230</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00231">231</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
 </div>
 </div>
@@ -681,9 +687,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00208">208</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00209">209</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00500">xrd_unmount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00502">xrd_unmount()</a>.</p>
 
 </div>
 </div>
@@ -721,8 +727,8 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="ae8605e2b78cd4a81b6c6b5c30cb7366a" name="ae8605e2b78cd4a81b6c6b5c30cb7366a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae8605e2b78cd4a81b6c6b5c30cb7366a">&#9670;&#160;</a></span>usage()</h2>
+<a id="a364112f4dc61f0649eec6b78e586509d" name="a364112f4dc61f0649eec6b78e586509d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a364112f4dc61f0649eec6b78e586509d">&#9670;&#160;</a></span>usage()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -730,14 +736,14 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">void usage </td>
           <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>prog</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00178">178</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrdcp_8c_source.html#l00180">180</a> of file <a class="el" href="xrdcp_8c_source.html">xrdcp.c</a>.</p>
 
 </div>
 </div>
@@ -767,9 +773,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00168">168</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00169">169</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00427">brix_tls_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00116">xrd_role_str()</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00474">brix_tls_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00117">xrd_role_str()</a>.</p>
 
 </div>
 </div>
@@ -801,7 +807,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00670">670</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00480">brix_connect_no_login()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">brix_tls_peer_cert_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00250">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00251">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00244">brix_cert_info::have</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00253">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00034">brix_opts::insecure_tls</a>, <a class="el" href="brix__net_8h_source.html#l00246">brix_cert_info::issuer</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00249">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00248">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00252">brix_cert_info::not_yet_valid</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="brix__net_8h_source.html#l00247">brix_cert_info::sans</a>, <a class="el" href="brix__net_8h_source.html#l00254">brix_cert_info::self_signed</a>, <a class="el" href="brix__net_8h_source.html#l00245">brix_cert_info::subject</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00484">brix_connect_no_login()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00523">brix_tls_peer_cert_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__net_8h_source.html#l00287">brix_cert_info::days_left</a>, <a class="el" href="brix__net_8h_source.html#l00288">brix_cert_info::expired</a>, <a class="el" href="brix__net_8h_source.html#l00281">brix_cert_info::have</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00290">brix_cert_info::host_match</a>, <a class="el" href="brix__net_8h_source.html#l00054">brix_opts::insecure_tls</a>, <a class="el" href="brix__net_8h_source.html#l00283">brix_cert_info::issuer</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00286">brix_cert_info::not_after</a>, <a class="el" href="brix__net_8h_source.html#l00285">brix_cert_info::not_before</a>, <a class="el" href="brix__net_8h_source.html#l00289">brix_cert_info::not_yet_valid</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="brix__net_8h_source.html#l00284">brix_cert_info::sans</a>, <a class="el" href="brix__net_8h_source.html#l00291">brix_cert_info::self_signed</a>, <a class="el" href="brix__net_8h_source.html#l00282">brix_cert_info::subject</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, and <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>.</p>
 
 </div>
 </div>
@@ -833,7 +839,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__clockskew_8c_source.html#l00146">146</a> of file <a class="el" href="xrd__clockskew_8c_source.html">xrd_clockskew.c</a>.</p>
 
-<p class="reference">References <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, <a class="el" href="xrd__internal_8h_source.html#l00043">xrd_probe::server_epoch</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00021">xrd_fabs()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
+<p class="reference">References <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, <a class="el" href="xrd__internal_8h_source.html#l00043">xrd_probe::server_epoch</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00021">xrd_fabs()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00010">xrd_fmt_epoch()</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
 
 </div>
 </div>
@@ -929,7 +935,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__clockskew_8c_source.html#l00091">91</a> of file <a class="el" href="xrd__clockskew_8c_source.html">xrd_clockskew.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00015">brix_file_open_write()</a>, <a class="el" href="ops__fs_8c_source.html#l00087">brix_rm()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00142">brix_statinfo::mtime</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, and <a class="el" href="xrd__internal_8h_source.html#l00043">xrd_probe::server_epoch</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="ops__file_8c_source.html#l00033">brix_file_close()</a>, <a class="el" href="ops__file_8c_source.html#l00015">brix_file_open_write()</a>, <a class="el" href="ops__fs_8c_source.html#l00087">brix_rm()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00041">xrd_probe::clock_have</a>, <a class="el" href="xrd__internal_8h_source.html#l00042">xrd_probe::clock_method</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix__net_8h_source.html#l00162">brix_statinfo::mtime</a>, <a class="el" href="xrd__internal_8h_source.html#l00044">xrd_probe::offset_s</a>, <a class="el" href="xrd__internal_8h_source.html#l00045">xrd_probe::rtt_ms</a>, and <a class="el" href="xrd__internal_8h_source.html#l00043">xrd_probe::server_epoch</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>.</p>
 
@@ -1041,7 +1047,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00013">13</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="conn_8c_source.html#l00480">brix_connect_no_login()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00427">brix_tls_info()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00476">brix_tls_peer_cert_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00034">brix_opts::insecure_tls</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
+<p class="reference">References <a class="el" href="xrd__internal_8h_source.html#l00036">xrd_probe::auth</a>, <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="conn_8c_source.html#l00484">brix_connect_no_login()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00474">brix_tls_info()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00523">brix_tls_peer_cert_info()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00038">xrd_probe::cert</a>, <a class="el" href="xrd__internal_8h_source.html#l00030">xrd_probe::connected</a>, <a class="el" href="xrd__internal_8h_source.html#l00031">xrd_probe::err</a>, <a class="el" href="xrd__internal_8h_source.html#l00028">xrd_probe::host</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix__net_8h_source.html#l00054">brix_opts::insecure_tls</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00029">xrd_probe::port</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="xrd__internal_8h_source.html#l00037">xrd_probe::sec_list</a>, <a class="el" href="xrd__internal_8h_source.html#l00035">xrd_probe::server_flags</a>, <a class="el" href="xrd__internal_8h_source.html#l00032">xrd_probe::tls_active</a>, <a class="el" href="xrd__internal_8h_source.html#l00034">xrd_probe::tls_cipher</a>, <a class="el" href="xrd__internal_8h_source.html#l00033">xrd_probe::tls_ver</a>, <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>, <a class="el" href="xrd__clockskew_8c_source.html#l00133">xrd_measure_clock_skew()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>, and <a class="el" href="brix_8h_source.html#l00042">XRDC_MSG_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00401">doctor_emit_json()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00550">doctor_report_endpoint()</a>.</p>
 
@@ -1157,9 +1163,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00334">334</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00335">335</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00306">cmd_mounts()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00464">xrd_mount()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00341">cmd_mounts()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00465">xrd_mount()</a>.</p>
 
 </div>
 </div>
@@ -1189,7 +1195,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00013">13</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00014">14</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
 <p class="reference">References <a class="el" href="credrefresh_8c_source.html#l00252">brix_cred_autorefresh()</a>, <a class="el" href="credinfo_8c_source.html#l00437">brix_cred_diagnose()</a>, and <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>.</p>
 
@@ -1273,9 +1279,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00464">464</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00465">465</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tier__config_8c_source.html#l00027">driver</a>, <a class="el" href="xrd_8c_source.html#l00094">exec_tool()</a>, <a class="el" href="xrd__mount_8c_source.html#l00334">xrd_list_mounts()</a>, <a class="el" href="xrd__mount_8c_source.html#l00430">xrd_mount_build_argv()</a>, <a class="el" href="xrd__mount_8c_source.html#l00382">xrd_mount_parse_selectors()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="progname_8h_source.html#l00036">brix_prog_base()</a>, <a class="el" href="progname_8h_source.html#l00068">brix_prog_prefix()</a>, <a class="el" href="tier__config_8c_source.html#l00027">driver</a>, <a class="el" href="xrd_8c_source.html#l00115">exec_tool()</a>, <a class="el" href="xrd__mount_8c_source.html#l00335">xrd_list_mounts()</a>, <a class="el" href="xrd__mount_8c_source.html#l00431">xrd_mount_build_argv()</a>, <a class="el" href="xrd__mount_8c_source.html#l00383">xrd_mount_parse_selectors()</a>, and <a class="el" href="brix_8h_source.html#l00043">XRDC_PATH_MAX</a>.</p>
 
 </div>
 </div>
@@ -1339,9 +1345,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00044">44</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00045">45</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
+<p class="reference">References <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="ops__meta_8c_source.html#l00087">brix_stat()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>.</p>
 
 </div>
 </div>
@@ -1373,9 +1379,9 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__doctor_8c_source.html#l00643">643</a> of file <a class="el" href="xrd__doctor_8c_source.html">xrd_doctor.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="opcodes_8h_source.html#l00200">kXR_Qconfig</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="xrd_8c_source.html#l00017">XRD_CAP_KEYS</a>, and <a class="el" href="xrd__internal_8h_source.html#l00024">XRD_CAPS_MAX</a>.</p>
+<p class="reference">References <a class="el" href="ops__fs_8c_source.html#l00177">brix_query()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="xrd__internal_8h_source.html#l00039">xrd_probe::caps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::key</a>, <a class="el" href="opcodes_8h_source.html#l00200">kXR_Qconfig</a>, <a class="el" href="xrd__internal_8h_source.html#l00040">xrd_probe::ncaps</a>, <a class="el" href="xrd__internal_8h_source.html#l00025">xrd_cap_kv::val</a>, <a class="el" href="xrd_8c_source.html#l00018">XRD_CAP_KEYS</a>, and <a class="el" href="xrd__internal_8h_source.html#l00024">XRD_CAPS_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00168">xrd_caps()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__mount_8c_source.html#l00169">xrd_caps()</a>, and <a class="el" href="xrd__doctor_8c_source.html#l00013">xrd_doctor_probe()</a>.</p>
 
 </div>
 </div>
@@ -1395,11 +1401,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00116">116</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00117">117</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
 <p class="reference">References <a class="el" href="flags_8h_source.html#l00083">kXR_isManager</a>, and <a class="el" href="flags_8h_source.html#l00082">kXR_isServer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00096">doctor_json_head()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00445">doctor_report_conn()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00168">xrd_caps()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00096">doctor_json_head()</a>, <a class="el" href="xrd__doctor_8c_source.html#l00445">doctor_report_conn()</a>, and <a class="el" href="xrd__mount_8c_source.html#l00169">xrd_caps()</a>.</p>
 
 </div>
 </div>
@@ -1443,7 +1449,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="xrd__battery_8c_source.html#l00653">653</a> of file <a class="el" href="xrd__battery_8c_source.html">xrd_battery.c</a>.</p>
 
-<p class="reference">References <a class="el" href="xrd__battery_8c_source.html#l00316">battery_root()</a>, <a class="el" href="xrd__battery_8c_source.html#l00623">battery_s3()</a>, <a class="el" href="xrd__battery_8c_source.html#l00487">battery_web()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="xrd__internal_8h_source.html#l00057">xrd_battery::endpoint</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
+<p class="reference">References <a class="el" href="xrd__battery_8c_source.html#l00316">battery_root()</a>, <a class="el" href="xrd__battery_8c_source.html#l00623">battery_s3()</a>, <a class="el" href="xrd__battery_8c_source.html#l00487">battery_web()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="url_8c_source.html#l00246">brix_is_web_url()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="url_8c_source.html#l00395">brix_weburl_parse()</a>, <a class="el" href="xrd__internal_8h_source.html#l00057">xrd_battery::endpoint</a>, <a class="el" href="xrd__internal_8h_source.html#l00060">xrd_battery::err</a>, <a class="el" href="brix_8h_source.html#l00096">brix_weburl::is_s3</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="xrd__internal_8h_source.html#l00058">xrd_battery::protocol</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00050">region</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00377">doctor_run_batteries()</a>.</p>
 
@@ -1475,9 +1481,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00500">500</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00502">502</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="xrd__mount_8c_source.html#l00208">run_cmd()</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="xrd__mount_8c_source.html#l00209">run_cmd()</a>.</p>
 
 </div>
 </div>
@@ -1507,9 +1513,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00130">130</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd__mount_8c_source.html#l00131">131</a> of file <a class="el" href="xrd__mount_8c_source.html">xrd_mount.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="conn_8c_source.html#l00539">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00418">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="credinfo_8c_source.html#l00267">brix_gsi_cert_explain()</a>, <a class="el" href="client_2lib_2auth_2gsi_2proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, and <a class="el" href="brix__net_8h_source.html#l00033">brix_opts::verify_host</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00470">access()</a>, <a class="el" href="conn_8c_source.html#l00543">brix_close()</a>, <a class="el" href="conn_8c_source.html#l00422">brix_connect()</a>, <a class="el" href="crypto_8c_source.html#l00022">brix_crypto_init()</a>, <a class="el" href="url_8c_source.html#l00177">brix_endpoint_parse()</a>, <a class="el" href="credinfo_8c_source.html#l00267">brix_gsi_cert_explain()</a>, <a class="el" href="proxy_8c_source.html#l00072">brix_proxy_default_path()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00088">brix_shellcode()</a>, <a class="el" href="client_2lib_2core_2types_2status_8c_source.html#l00022">brix_status_clear()</a>, <a class="el" href="sec__token_8c_source.html#l00081">brix_token_discover()</a>, <a class="el" href="credinfo_8c_source.html#l00073">brix_token_explain()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix_8h_source.html#l00075">brix_url::host</a>, <a class="el" href="brix_8h_source.html#l00051">brix_status::msg</a>, <a class="el" href="brix_8h_source.html#l00076">brix_url::port</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="brix__net_8h_source.html#l00053">brix_opts::verify_host</a>.</p>
 
 </div>
 </div>
@@ -1534,9 +1540,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00010">10</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00011">11</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00024">is_fs_verb()</a>, and <a class="el" href="xrd_8c_source.html#l00518">report_unknown_command()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="xrd_8c_source.html#l00025">is_fs_verb()</a>, and <a class="el" href="xrd_8c_source.html#l00555">report_unknown_command()</a>.</p>
 
 </div>
 </div>
@@ -1560,7 +1566,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00017">17</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="xrd_8c_source.html#l00018">18</a> of file <a class="el" href="xrd_8c_source.html">xrd.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="xrd__doctor_8c_source.html#l00643">xrd_probe_caps()</a>.</p>
 

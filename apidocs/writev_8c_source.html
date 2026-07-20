@@ -494,41 +494,60 @@ $(document).ready(function(){initNavTree('writev_8c_source.html',''); initResiza
 <div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>        <span class="keywordflow">return</span> rc;       <span class="comment">/* framing violation: error sent, drop the link. */</span></div>
 <div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>    }</div>
 <div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span> </div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    rc = <a class="code hl_function" href="writev_8c.html#afc190116e39e57dfd3bac965da3e8032">writev_validate_handles</a>(ctx, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, wl, n_segs);</div>
-<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>        <span class="keywordflow">return</span> rc;</div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    }</div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span> </div>
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    <span class="comment">/* All N descriptors occupy the first n_segs*16 bytes; the per-segment data</span></div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span><span class="comment">     * blocks follow contiguously in segment order from here. */</span></div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    data_ptr = ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#ab0293a515af8e163661ff917daa56d6b">payload</a> + n_segs * <a class="code hl_define" href="flags_8h.html#a6590b782c49750af42bd4207dc1b5a60">BRIX_WRITEV_SEGSIZE</a>;</div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    <span class="comment">/* INVARIANT 1 / hostile-network integrity: kXR_writev carries NO per-segment</span></div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span><span class="comment">     * CRC (like plain kXR_write, unlike kXR_pgwrite). brix_require_pgwrite refuses</span></div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span><span class="comment">     * a data-carrying vector so clients must use the checksummed pgwrite path; the</span></div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span><span class="comment">     * all-zero-length vector already returned NGX_DONE above, so any vector reaching</span></div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span><span class="comment">     * here carries data. */</span></div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    {</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>        <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *rconf = ngx_stream_get_module_srv_conf(</div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>            (ngx_stream_session_t *) <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;data, <a class="code hl_variable" href="negcache_8c.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
 <div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span> </div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#af221c7b12c2a2e6a6588548cd555684a">ctx</a>      = ctx;</div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#a1b96a66e5419c0ccd050ca67b27e156f">c</a>        = <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#a94d2fd26f79c0b802f087ff605c25916">wl</a>       = wl;</div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#ad0154727bd3c8d71c8e2a8644b2251d4">n_segs</a>   = n_segs;</div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#ac44c2186b2c02e8a16255a1682280caa">data_ptr</a> = data_ptr;</div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span> </div>
-<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>    rc = <a class="code hl_function" href="writev__aio_8c.html#a473142efe5dd01dbaac688a7bd0a4bf5">writev_try_aio</a>(&amp;run, do_sync, &amp;posted);</div>
-<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>        <span class="keywordflow">return</span> rc;       <span class="comment">/* allocation failure: drop the link. */</span></div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>    }</div>
-<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>    <span class="keywordflow">if</span> (posted) {</div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>        <span class="keywordflow">return</span> NGX_OK;   <span class="comment">/* done callback owns the buffer + reply. */</span></div>
-<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>    }</div>
-<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span> </div>
-<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>    <span class="comment">/* Synchronous fallback: write each segment on the event-loop thread. */</span></div>
-<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    rc = <a class="code hl_function" href="writev_8c.html#ade9a0ff1eb273a0c56d3c0cdb539f9e3">writev_execute_sync</a>(&amp;run, &amp;bytes_written_total);</div>
-<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
-<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>        <span class="keywordflow">return</span> rc;</div>
-<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    }</div>
-<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span> </div>
-<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    <span class="keywordflow">if</span> (do_sync) {</div>
-<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>        <a class="code hl_function" href="writev_8c.html#a2b998dd51c7842685b3810eb36f77a9b">writev_sync_handles</a>(ctx, wl, n_segs);</div>
-<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>    }</div>
-<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span> </div>
-<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="writev_8c.html#ad510df03c3e61dfa8b5e583ddb0d6891">writev_reply</a>(ctx, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, n_segs, bytes_written_total);</div>
-<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>}</div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>        <span class="keywordflow">if</span> (rconf-&gt;common.require_pgwrite) {</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>            <a class="code hl_function" href="fs_2path_2path_8h.html#a308cfe11a89dc7e25d8c493abffaf624">brix_log_access</a>(ctx, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <span class="stringliteral">&quot;WRITEV&quot;</span>, <span class="stringliteral">&quot;-&quot;</span>, <span class="stringliteral">&quot;-&quot;</span>, 0, <a class="code hl_define" href="opcodes_8h.html#a9a47d787a58910193af847806b3f8090">kXR_Unsupported</a>,</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>                              <span class="stringliteral">&quot;cleartext writev refused; use pgwrite &quot;</span></div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>                              <span class="stringliteral">&quot;(brix_require_pgwrite)&quot;</span>, 0);</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>            <a class="code hl_define" href="tunables_8h.html#a4952c70715df502b8c6647ee5635b174">BRIX_OP_ERR</a>(ctx, <a class="code hl_define" href="observability_2metrics_2metrics_8h.html#a843da5ca07d51ec44ba51a856b7c1164">BRIX_OP_WRITEV</a>);</div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>            <span class="keywordflow">return</span> <a class="code hl_function" href="basic_8c.html#a3bb0965e1cf62be0fa2a2681fdb9095d">brix_send_error</a>(ctx, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="code hl_define" href="opcodes_8h.html#a9a47d787a58910193af847806b3f8090">kXR_Unsupported</a>,</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>                <span class="stringliteral">&quot;cleartext writev refused; use pgwrite (brix_require_pgwrite)&quot;</span>);</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>        }</div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    }</div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span> </div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>    rc = <a class="code hl_function" href="writev_8c.html#afc190116e39e57dfd3bac965da3e8032">writev_validate_handles</a>(ctx, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, wl, n_segs);</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>        <span class="keywordflow">return</span> rc;</div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>    }</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span> </div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    <span class="comment">/* All N descriptors occupy the first n_segs*16 bytes; the per-segment data</span></div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span><span class="comment">     * blocks follow contiguously in segment order from here. */</span></div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>    data_ptr = ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#ab0293a515af8e163661ff917daa56d6b">payload</a> + n_segs * <a class="code hl_define" href="flags_8h.html#a6590b782c49750af42bd4207dc1b5a60">BRIX_WRITEV_SEGSIZE</a>;</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span> </div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#af221c7b12c2a2e6a6588548cd555684a">ctx</a>      = ctx;</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#a1b96a66e5419c0ccd050ca67b27e156f">c</a>        = <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#a94d2fd26f79c0b802f087ff605c25916">wl</a>       = wl;</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#ad0154727bd3c8d71c8e2a8644b2251d4">n_segs</a>   = n_segs;</div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>    run.<a class="code hl_variable" href="structwritev__run__t.html#ac44c2186b2c02e8a16255a1682280caa">data_ptr</a> = data_ptr;</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span> </div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>    rc = <a class="code hl_function" href="writev__aio_8c.html#a473142efe5dd01dbaac688a7bd0a4bf5">writev_try_aio</a>(&amp;run, do_sync, &amp;posted);</div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>        <span class="keywordflow">return</span> rc;       <span class="comment">/* allocation failure: drop the link. */</span></div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>    }</div>
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>    <span class="keywordflow">if</span> (posted) {</div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>        <span class="keywordflow">return</span> NGX_OK;   <span class="comment">/* done callback owns the buffer + reply. */</span></div>
+<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>    }</div>
+<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span> </div>
+<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>    <span class="comment">/* Synchronous fallback: write each segment on the event-loop thread. */</span></div>
+<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>    rc = <a class="code hl_function" href="writev_8c.html#ade9a0ff1eb273a0c56d3c0cdb539f9e3">writev_execute_sync</a>(&amp;run, &amp;bytes_written_total);</div>
+<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span>    <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
+<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span>        <span class="keywordflow">return</span> rc;</div>
+<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span>    }</div>
+<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span> </div>
+<div class="line"><a id="l00430" name="l00430"></a><span class="lineno">  430</span>    <span class="keywordflow">if</span> (do_sync) {</div>
+<div class="line"><a id="l00431" name="l00431"></a><span class="lineno">  431</span>        <a class="code hl_function" href="writev_8c.html#a2b998dd51c7842685b3810eb36f77a9b">writev_sync_handles</a>(ctx, wl, n_segs);</div>
+<div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span>    }</div>
+<div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span> </div>
+<div class="line"><a id="l00434" name="l00434"></a><span class="lineno">  434</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="writev_8c.html#ad510df03c3e61dfa8b5e583ddb0d6891">writev_reply</a>(ctx, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, n_segs, bytes_written_total);</div>
+<div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span>}</div>
 </div>
 <div class="ttc" id="abasic_8c_html_a3bb0965e1cf62be0fa2a2681fdb9095d"><div class="ttname"><a href="basic_8c.html#a3bb0965e1cf62be0fa2a2681fdb9095d">brix_send_error</a></div><div class="ttdeci">ngx_int_t brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c, uint16_t errcode, const char *msg)</div><div class="ttdef"><b>Definition</b> <a href="basic_8c_source.html#l00067">basic.c:67</a></div></div>
 <div class="ttc" id="abasic_8c_html_a92044f57c42b1d164212dbd304be599d"><div class="ttname"><a href="basic_8c.html#a92044f57c42b1d164212dbd304be599d">brix_send_ok</a></div><div class="ttdeci">ngx_int_t brix_send_ok(brix_ctx_t *ctx, ngx_connection_t *c, const void *body, uint32_t bodylen)</div><div class="ttdef"><b>Definition</b> <a href="basic_8c_source.html#l00043">basic.c:43</a></div></div>
@@ -542,6 +561,7 @@ $(document).ready(function(){initNavTree('writev_8c_source.html',''); initResiza
 <div class="ttc" id="aopcodes_8h_html_a50631794a0a8a25bb067d8bcb3af95ab"><div class="ttname"><a href="opcodes_8h.html#a50631794a0a8a25bb067d8bcb3af95ab">kXR_NoMemory</a></div><div class="ttdeci">#define kXR_NoMemory</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00154">opcodes.h:154</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a6843f5cb248f6fe37984287cae0d3d31"><div class="ttname"><a href="opcodes_8h.html#a6843f5cb248f6fe37984287cae0d3d31">kXR_ArgTooLong</a></div><div class="ttdeci">#define kXR_ArgTooLong</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00148">opcodes.h:148</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a88df43f36de416990007d4c7ae9f4e1f"><div class="ttname"><a href="opcodes_8h.html#a88df43f36de416990007d4c7ae9f4e1f">kXR_FileNotOpen</a></div><div class="ttdeci">#define kXR_FileNotOpen</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00150">opcodes.h:150</a></div></div>
+<div class="ttc" id="aopcodes_8h_html_a9a47d787a58910193af847806b3f8090"><div class="ttname"><a href="opcodes_8h.html#a9a47d787a58910193af847806b3f8090">kXR_Unsupported</a></div><div class="ttdeci">#define kXR_Unsupported</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00159">opcodes.h:159</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ab8c1193e47850ff100a67db2eaad0f46"><div class="ttname"><a href="opcodes_8h.html#ab8c1193e47850ff100a67db2eaad0f46">kXR_NotAuthorized</a></div><div class="ttdeci">#define kXR_NotAuthorized</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00156">opcodes.h:156</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ad3def7abb22da1e86aa0beada6572fb7"><div class="ttname"><a href="opcodes_8h.html#ad3def7abb22da1e86aa0beada6572fb7">kXR_ArgInvalid</a></div><div class="ttdeci">#define kXR_ArgInvalid</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00146">opcodes.h:146</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_adf851a6f2c3162960cec3ce622bda7e0"><div class="ttname"><a href="opcodes_8h.html#adf851a6f2c3162960cec3ce622bda7e0">kXR_IOError</a></div><div class="ttdeci">#define kXR_IOError</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00153">opcodes.h:153</a></div></div>

@@ -169,7 +169,7 @@ $(document).ready(function(){initNavTree('aws__chunked__encoding_8c_source.html'
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
 <div class="foldopen" id="foldopen00068" data-start="{" data-end="}">
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno"><a class="line" href="aws__chunked__encoding_8c.html#ac59b3688e0a59ff05d65574af64626b1">   68</a></span><a class="code hl_function" href="aws__chunked__encoding_8c.html#ac59b3688e0a59ff05d65574af64626b1">inner_coding_next_token</a>(<span class="keyword">const</span> u_char **pp, <span class="keyword">const</span> u_char *end,</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <span class="keyword">const</span> u_char **tok, <span class="keywordtype">size_t</span> *len)</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <span class="keyword">const</span> u_char **<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, <span class="keywordtype">size_t</span> *len)</div>
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>{</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    <span class="keyword">const</span> u_char *p = *pp;</div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    <span class="keyword">const</span> u_char *tend;</div>
@@ -178,11 +178,11 @@ $(document).ready(function(){initNavTree('aws__chunked__encoding_8c_source.html'
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    }</div>
 <div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <span class="keywordflow">while</span> (p &lt; end &amp;&amp; (*p == <span class="charliteral">&#39; &#39;</span> || *p == <span class="charliteral">&#39;,&#39;</span> || *p == <span class="charliteral">&#39;\t&#39;</span>)) { p++; }</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    *tok = p;</div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    *<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a> = p;</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">while</span> (p &lt; end &amp;&amp; *p != <span class="charliteral">&#39;,&#39;</span>) { p++; }</div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    tend = p;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <span class="keywordflow">while</span> (tend &gt; *tok &amp;&amp; (tend[-1] == <span class="charliteral">&#39; &#39;</span> || tend[-1] == <span class="charliteral">&#39;\t&#39;</span>)) { tend--; }</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    *len = (size_t) (tend - *tok);</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <span class="keywordflow">while</span> (tend &gt; *<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a> &amp;&amp; (tend[-1] == <span class="charliteral">&#39; &#39;</span> || tend[-1] == <span class="charliteral">&#39;\t&#39;</span>)) { tend--; }</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    *len = (size_t) (tend - *<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>);</div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    *pp  = p;</div>
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>}</div>
@@ -192,17 +192,17 @@ $(document).ready(function(){initNavTree('aws__chunked__encoding_8c_source.html'
 <div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="comment"> * (empty, &quot;aws-chunked&quot;, or &quot;identity&quot;) rather than a real inner coding. */</span></div>
 <div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
 <div class="foldopen" id="foldopen00090" data-start="{" data-end="}">
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno"><a class="line" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">   90</a></span><a class="code hl_function" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">inner_coding_is_passthrough</a>(<span class="keyword">const</span> u_char *tok, <span class="keywordtype">size_t</span> len)</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno"><a class="line" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">   90</a></span><a class="code hl_function" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">inner_coding_is_passthrough</a>(<span class="keyword">const</span> u_char *<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, <span class="keywordtype">size_t</span> len)</div>
 <div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>{</div>
 <div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>    <span class="keywordflow">if</span> (len == 0) {</div>
 <div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    }</div>
 <div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    <span class="keywordflow">if</span> (len == <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;aws-chunked&quot;</span>) - 1</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        &amp;&amp; ngx_strncasecmp((u_char *) tok, (u_char *) <span class="stringliteral">&quot;aws-chunked&quot;</span>, len) == 0) {</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        &amp;&amp; ngx_strncasecmp((u_char *) <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, (u_char *) <span class="stringliteral">&quot;aws-chunked&quot;</span>, len) == 0) {</div>
 <div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    }</div>
 <div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="keywordflow">if</span> (len == <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;identity&quot;</span>) - 1</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        &amp;&amp; ngx_strncasecmp((u_char *) tok, (u_char *) <span class="stringliteral">&quot;identity&quot;</span>, len) == 0) {</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>        &amp;&amp; ngx_strncasecmp((u_char *) <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, (u_char *) <span class="stringliteral">&quot;identity&quot;</span>, len) == 0) {</div>
 <div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    }</div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    <span class="keywordflow">return</span> 0;</div>
@@ -215,7 +215,7 @@ $(document).ready(function(){initNavTree('aws__chunked__encoding_8c_source.html'
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>{</div>
 <div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    ngx_table_elt_t *h = <a class="code hl_function" href="http__headers_8c.html#af44cbcd95d2967de3ea081ce217cdf9d">brix_http_find_header</a>(r, <span class="stringliteral">&quot;Content-Encoding&quot;</span>,</div>
 <div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>                                                 <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;Content-Encoding&quot;</span>) - 1);</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keyword">const</span> u_char    *p, *end, *tok;</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keyword">const</span> u_char    *p, *end, *<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>;</div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordtype">size_t</span>           len;</div>
 <div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span> </div>
 <div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordflow">if</span> (h == NULL || h-&gt;value.len == 0) {</div>
@@ -227,8 +227,8 @@ $(document).ready(function(){initNavTree('aws__chunked__encoding_8c_source.html'
 <div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <span class="comment">/* Walk comma-separated content-codings; any token that is neither</span></div>
 <div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment">     * &quot;aws-chunked&quot; nor &quot;identity&quot; (nor empty) is an inner content-coding the</span></div>
 <div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment">     * streaming path cannot decode. */</span></div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <span class="keywordflow">while</span> (<a class="code hl_function" href="aws__chunked__encoding_8c.html#ac59b3688e0a59ff05d65574af64626b1">inner_coding_next_token</a>(&amp;p, end, &amp;tok, &amp;len)) {</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        <span class="keywordflow">if</span> (!<a class="code hl_function" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">inner_coding_is_passthrough</a>(tok, len)) {</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <span class="keywordflow">while</span> (<a class="code hl_function" href="aws__chunked__encoding_8c.html#ac59b3688e0a59ff05d65574af64626b1">inner_coding_next_token</a>(&amp;p, end, &amp;<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, &amp;len)) {</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>        <span class="keywordflow">if</span> (!<a class="code hl_function" href="aws__chunked__encoding_8c.html#a0b6a892faa1445544e43aa9789f21518">inner_coding_is_passthrough</a>(<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, len)) {</div>
 <div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>            <span class="keywordflow">return</span> 1;   <span class="comment">/* a real inner content-coding (gzip/zstd/...) present */</span></div>
 <div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        }</div>
 <div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    }</div>
@@ -242,6 +242,7 @@ $(document).ready(function(){initNavTree('aws__chunked__encoding_8c_source.html'
 <div class="ttc" id="aaws__chunked__encoding_8c_html_ac59b3688e0a59ff05d65574af64626b1"><div class="ttname"><a href="aws__chunked__encoding_8c.html#ac59b3688e0a59ff05d65574af64626b1">inner_coding_next_token</a></div><div class="ttdeci">static int inner_coding_next_token(const u_char **pp, const u_char *end, const u_char **tok, size_t *len)</div><div class="ttdef"><b>Definition</b> <a href="aws__chunked__encoding_8c_source.html#l00068">aws_chunked_encoding.c:68</a></div></div>
 <div class="ttc" id="ahttp__headers_8c_html_af44cbcd95d2967de3ea081ce217cdf9d"><div class="ttname"><a href="http__headers_8c.html#af44cbcd95d2967de3ea081ce217cdf9d">brix_http_find_header</a></div><div class="ttdeci">ngx_table_elt_t * brix_http_find_header(ngx_http_request_t *r, const char *name, size_t name_len)</div><div class="ttdef"><b>Definition</b> <a href="http__headers_8c_source.html#l00043">http_headers.c:43</a></div></div>
 <div class="ttc" id="ahttp__headers_8h_html"><div class="ttname"><a href="http__headers_8h.html">http_headers.h</a></div></div>
+<div class="ttc" id="aput__body_8c_html_a245cabc3bef72dcd807971c43731f28d"><div class="ttname"><a href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a></div><div class="ttdeci">const char * tok</div><div class="ttdef"><b>Definition</b> <a href="put__body_8c_source.html#l00052">put_body.c:52</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
