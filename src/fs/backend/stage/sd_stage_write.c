@@ -90,6 +90,90 @@ sd_stage_record_cred(brix_stage_cred_t *dst, const brix_sd_cred_t *cred)
     dst->deny = (uint8_t) cred->fallback_deny;
 }
 
+/* Seed the stage-store copy of `path` from the SOURCE object for a
+ * read-modify-write open.
+ *
+ * WHAT: When an update open (no TRUNC/EXCL) targets an object that already
+ *       exists on the backend, copy it source -> store through the one staging
+ *       engine (BRIX_STAGE_RECALL, the same generic pread -> staged_write
+ *       mover the nearline recall uses) BEFORE the write-back object opens.
+ *
+ * WHY:  The eventual flush replaces the WHOLE backend object with the staged
+ *       bytes, so an unhydrated partial overwrite would silently truncate every
+ *       region the client did not write. Hydrating also makes wb_pread return
+ *       the real object bytes during a read-write session.
+ *
+ * HOW:  1. No source stat slot -> nothing to probe, keep the old behaviour.
+ *       2. A non-empty stage copy already present (a durable staged object
+ *          kept for a flush retry) is NEWER than the backend - never clobber.
+ *       3. Source stat ENOENT / unreachable -> create semantics, proceed
+ *          unhydrated (the dead-origin write-back tier keeps absorbing
+ *          writes; unreachable is WARNed).  Empty source -> nothing to copy.
+ *       4. Otherwise run the inline RECALL with the caller's cred threaded;
+ *          a copy failure for an object that provably EXISTS fails the open
+ *          (errno set) - flushing a truncated object is never acceptable. */
+static ngx_int_t
+sd_stage_wb_hydrate(sd_stage_inst_state *is, const char *path,
+    const brix_sd_cred_t *cred)
+{
+    brix_sd_stat_t    sst, dst_st;
+    brix_stage_cred_t  scred;
+
+    if (is->source->driver->stat == NULL) {
+        return NGX_OK;
+    }
+    if (is->store->driver->stat != NULL
+        && is->store->driver->stat(is->store, path, &dst_st) == NGX_OK
+        && dst_st.size > 0)
+    {
+        return NGX_OK;
+    }
+    if (is->source->driver->stat(is->source, path, &sst) != NGX_OK) {
+        if (errno != ENOENT) {
+            ngx_log_error(NGX_LOG_WARN, is->log, errno,
+                "stage write-back: cannot probe source \"%s\" — proceeding "
+                "as a whole-object create (unreachable backend)", path);
+        }
+        return NGX_OK;
+    }
+    if (sst.size == 0 || !sst.is_reg) {
+        return NGX_OK;
+    }
+
+    ngx_memzero(&scred, sizeof(scred));
+    sd_stage_record_cred(&scred, cred);
+    if (brix_stage_run_inline_cred(BRIX_STAGE_RECALL, is->source, path,
+            is->store, path,
+            (scred.key[0] != '\0') ? &scred : NULL) != NGX_OK)
+    {
+        int e = errno ? errno : EIO;
+
+        ngx_log_error(NGX_LOG_ERR, is->log, e,
+            "stage write-back: hydrating existing object \"%s\" (%O bytes) "
+            "from the backend failed — refusing the update open (an "
+            "unhydrated flush would truncate it)", path, sst.size);
+        errno = e;
+        return NGX_ERROR;
+    }
+
+    /* The mover preserves the SOURCE-reported permission bits, and a remote
+     * driver may synthesize a read-only mode (sd_xroot reports r--r--r-- for
+     * an anonymous origin) — but this copy is the WRITE spool the wb open is
+     * about to open O_RDWR as the (cap-dropped) worker. Force owner-rw on the
+     * spool copy; the extra bits keep the source's visibility for the flush's
+     * mode-preserving PUT. Best-effort: a store without setattr keeps the
+     * mover's mode. */
+    if (is->store->driver->setattr != NULL) {
+        brix_sd_setattr_t at;
+
+        ngx_memzero(&at, sizeof(at));
+        at.set_mode = 1;
+        at.mode     = (sst.mode & 0777) | 0600;
+        (void) is->store->driver->setattr(is->store, path, &at);
+    }
+    return NGX_OK;
+}
+
 /* Open the write-BACK object on the stage store (a normal writable object).
  *
  * WHAT: Opens a writable object on the stage store and wires a sd_stage_wb_state
@@ -117,6 +201,15 @@ sd_stage_open_writeback(brix_sd_instance_t *inst, sd_stage_inst_state *is,
 
     if (is->store->driver->open == NULL || is->store->driver->pwrite == NULL) {
         if (err_out != NULL) { *err_out = ENOSYS; }
+        return NULL;
+    }
+    /* Read-modify-write hydration: an update open (not truncating, not an
+     * exclusive create) must seed the stage copy from the existing backend
+     * object first — the flush later replaces the WHOLE object. */
+    if ((sd_flags & (BRIX_SD_O_TRUNC | BRIX_SD_O_EXCL)) == 0
+        && sd_stage_wb_hydrate(is, path, cred) != NGX_OK)
+    {
+        if (err_out != NULL) { *err_out = errno ? errno : EIO; }
         return NULL;
     }
     /* The stage store is service-owned (local POSIX); always open it plain. */

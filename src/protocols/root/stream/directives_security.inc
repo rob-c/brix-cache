@@ -41,10 +41,30 @@
      * risk-free; enforce kills execve/ptrace/process_vm_* and EPERMs the rest. */
     { ngx_string("brix_seccomp"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
+      brix_conf_set_seccomp,          /* also bumps the process-global strictest */
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, seccomp),
       &brix_seccomp_modes },
+
+    /* Opt out of the enforce execve/execveat KILL (default off) for sites that
+     * legitimately fork+exec helpers (OIDC token fetch, native-TPC token-exchange,
+     * kXR_prepare). ptrace/process_vm_* stay killed. Process-global (ratchets on). */
+    { ngx_string("brix_seccomp_allow_exec"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_seccomp_allow_exec,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* Confined account a root-capable worker is force-dropped to at init (default
+     * "nobody" + a warning) so pre-auth credential parsing never runs as a
+     * root-capable identity. Process-global; applies to every brix server. */
+    { ngx_string("brix_worker_user"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_worker_user,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
 
     /* E-4: negative-path backoff — throttle a per-principal stat/locate-harvest
      * loop. "off" (default) or "<threshold> <window_seconds> <wait_seconds>":

@@ -21,6 +21,7 @@ import shutil
 import time
 
 import pytest
+import requests
 
 import settings
 from server_launcher import LifecycleHarness, launch_fleet_nginx
@@ -108,15 +109,14 @@ def _master(ep) -> int:
         return int(fh.read().strip())
 
 
-def test_root_worker_sheds_dangerous_caps_and_sets_nnp(harness):
-    """item 1 — DEFAULT posture (impersonation off, HTTP-only): a `user root;`
-    worker is uid 0 yet its capability set is reduced to ONLY CAP_SETUID+CAP_SETGID
-    (CapEff==00..c0) — every dangerous cap (DAC_OVERRIDE, MKNOD, SYS_ADMIN, PTRACE,
-    CHOWN, FOWNER, ...) is shed and NO_NEW_PRIVS is set, so a worker-code exploit
-    can no longer bypass on-disk DAC, create device nodes, or ptrace. SETUID/SETGID
-    are retained only so a legitimate identity drop (pblock/single) still works and
-    add no escalation to an already-uid-0 process. Old code left this worker fully
-    privileged (the cap-drop ran only in `map` mode / stream workers)."""
+def test_root_configured_worker_deescalates_to_nobody(harness):
+    """item 1 — DEFAULT posture (impersonation off, HTTP-only) with `user root;` and
+    no brix_worker_user: brix FORCE-DROPS the root-capable worker down to `nobody` at
+    init (brix_imp_worker_deescalate), so pre-auth credential parsing never runs as a
+    root-capable identity. Observable steady state: the worker is uid 65534, holds NO
+    capabilities at all (not even the transient SETUID/SETGID retained across the
+    drop), and NO_NEW_PRIVS is set. (Before the de-escalation this worker stayed uid 0
+    with CapEff==CAP_SETUID+CAP_SETGID; that root state is now only momentary.)"""
     export, _run, _auth = H.prepare_export(BASE, "caps-off")
     ep = _launch(harness, NginxInstanceSpec(
         name="hard-caps-off",
@@ -126,14 +126,38 @@ def test_root_worker_sheds_dangerous_caps_and_sets_nnp(harness):
     workers = _worker_pids(_master(ep))
     assert workers, "no worker process found"
     st = _status(workers[0])
-    assert st.get("Uid", "").split()[:1] == ["0"], f"worker is not root: {st}"
-    # CapEff == setuid|setgid proves every dangerous cap (DAC_OVERRIDE, MKNOD,
-    # SYS_ADMIN, PTRACE, CHOWN, ...) is dropped.
-    assert st.get("CapEff") == CAP_SETUID_SETGID, \
-        f"root worker retains dangerous capabilities: {st}"
-    assert st.get("CapPrm") == CAP_SETUID_SETGID, \
-        f"root worker retains dangerous permitted caps: {st}"
+    # The root-configured worker de-escalated to nobody (65534) — not uid 0.
+    assert st.get("Uid", "").split()[:1] == ["65534"], \
+        f"root-configured worker was not dropped to nobody: {st}"
+    assert st.get("CapEff") == NO_CAPS, \
+        f"de-escalated worker still holds capabilities: {st}"
+    assert st.get("CapPrm") == NO_CAPS, \
+        f"de-escalated worker still holds permitted caps: {st}"
     assert st.get("NoNewPrivs") == "1", f"NO_NEW_PRIVS not set on worker: {st}"
+
+
+def test_http_only_worker_is_seccomp_filtered(harness):
+    """An HTTP-only (WebDAV/S3-style) config with `brix_seccomp enforce` — no
+    stream{} block at all — produces a worker under a seccomp filter (Seccomp:2)
+    that STILL serves.  Before the fix these workers were never filtered (the
+    install sat after the stream-config early-return and the directive was
+    stream-only)."""
+    export, _run, _auth = H.prepare_export(BASE, "http-seccomp")
+    ep = _launch(harness, NginxInstanceSpec(
+        name="hard-http-seccomp",
+        template="nginx_hardening_http_seccomp.conf",
+        protocol="http", data_root=export, readiness="tcp",
+        template_values={"EXPORT": export}))
+    workers = _worker_pids(_master(ep))
+    assert workers, "no worker process found"
+    st = _status(workers[0])
+    assert st.get("Seccomp") == "2", \
+        f"http-only worker is not seccomp-filtered (Seccomp!=2): {st}"
+    assert st.get("NoNewPrivs") == "1", f"NO_NEW_PRIVS not set: {st}"
+    # And the data plane still works under enforce (xattr + serving syscalls are
+    # allowlisted) — a PUT must succeed, not get EPERM'd/killed.
+    r = requests.put(f"http://{BIND}:{ep.port}/o.dat", data=b"seccomp-ok", timeout=15)
+    assert r.status_code in (200, 201, 204), f"PUT under enforce failed: {r.status_code}"
 
 
 def test_broker_seccomp_confined_and_map_worker_hardened(harness):

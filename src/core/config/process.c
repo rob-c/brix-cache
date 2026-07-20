@@ -163,7 +163,6 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     ngx_uint_t                     i;
     ngx_stream_brix_srv_conf_t  *gsi_xcf = NULL;  /* first GSI block: keypool cfg */
     ngx_uint_t                     manager_seen = 0;
-    ngx_uint_t                     seccomp_mode = BRIX_SECCOMP_OFF; /* D-3: strictest wins */
     brix_phase_timer_t           pt;
     u_char                         ctx[64];
 
@@ -189,6 +188,17 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
      * hardened too — not just stream/root:// workers or `map` mode. A worker never
      * needs caps; a root-configured worker must not keep them (D-3 companion). */
     brix_imp_worker_harden(cycle->log);
+
+    /* De-escalate a root-capable worker (root, or a non-root CAP_SETUID service
+     * account) down to the confined brix_worker_user (default nobody) BEFORE any
+     * backend init, broker connect, or the seccomp install below — so pre-auth
+     * credential parsing never runs as a root-capable identity, in EVERY mode and
+     * for HTTP-only (WebDAV/S3) workers too (they reach this before the early
+     * return below; their seccomp install runs later in the WebDAV init_process).
+     * Fail-closed: a worker that cannot reach a confined account refuses to run. */
+    if (brix_imp_worker_deescalate(cycle->log) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
     if (cmcf == NULL) {
@@ -233,13 +243,6 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
             manager_seen = 1;   /* A4: arm the pending-locate reaper below */
         }
 
-        /* D-3: the seccomp filter is process-global, but the directive is
-         * per-server; take the strictest requested value across enabled blocks
-         * (off < audit < enforce, encoded in the enum order). */
-        if (xcf->seccomp > seccomp_mode) {
-            seccomp_mode = xcf->seccomp;
-        }
-
         if (brix_init_one_server(cycle, xcf) != NGX_OK) {
             return NGX_ERROR;
         }
@@ -263,10 +266,12 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 
     /* D-3: install the seccomp syscall filter LAST, once every one-shot setup
      * syscall above has run, so only the steady-state serving set must be on the
-     * allowlist. Fails the worker closed if an audit/enforce filter cannot be
-     * loaded (e.g. libseccomp missing) — never serve unfiltered when the operator
-     * configured a filter. */
-    if (brix_seccomp_install(cycle, seccomp_mode) != NGX_OK) {
+     * allowlist.  Idempotent + process-global (strictest across ALL brix servers,
+     * stream + http): for an HTTP-only config this init_process early-returned
+     * above and the install happens in the WebDAV init_process instead, so
+     * WebDAV/S3-only workers are filtered too.  Fails the worker closed if an
+     * audit/enforce filter cannot be loaded — never serve unfiltered. */
+    if (brix_seccomp_install_once(cycle) != NGX_OK) {
         return NGX_ERROR;
     }
 

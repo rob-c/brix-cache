@@ -34,15 +34,29 @@
 #include <errno.h>
 
 /*
- * The named-dangerous set: under ENFORCE these are killed (not merely EPERM'd)
- * so a worker-code hijack cannot spawn a shell (execve/execveat), attach to or
- * trace another process (ptrace), or read/write the broker's address space
- * (process_vm_readv/writev) — the CAP_SETUID-broker residual that motivates D-3.
+ * The named-dangerous set, split in two:
+ *
+ *  - HARD: always killed under ENFORCE.  ptrace + process_vm_readv/writev are how
+ *    a worker-code hijack would attach to or read/write the CAP_SETUID broker's
+ *    address space — the residual that motivates D-3 — so these are NEVER relaxed.
+ *
+ *  - EXEC: execve/execveat.  Killed under ENFORCE only when the caller passes
+ *    allow_exec==0.  brix DEFAULTS allow_exec ON (brix_seccomp_allow_exec, seccomp.c)
+ *    because it legitimately fork+execs helpers (the FRM "exec" MSS adapter, OIDC
+ *    token fetch, native-TPC token-exchange, the kXR_prepare hook); a site with none
+ *    of those can opt into the anti-shell kill with `brix_seccomp_allow_exec off`.
+ *    When allowed the exec runs (added to the allowlist) while the HARD kills, and
+ *    the whole rest of the enforce policy, still apply.
+ *    A worker RCE could then exec, but only as the already unprivileged/no-caps/
+ *    NO_NEW_PRIVS/RESOLVE_BENEATH-confined worker — not an escalation — and it
+ *    still cannot ptrace or read the broker.
  */
-static const char *const brix_seccomp_deny[] = {
-    "execve", "execveat",
+static const char *const brix_seccomp_deny_hard[] = {
     "ptrace",
     "process_vm_readv", "process_vm_writev",
+};
+static const char *const brix_seccomp_deny_exec[] = {
+    "execve", "execveat",
 };
 
 /*
@@ -54,6 +68,11 @@ static const char *const brix_seccomp_allow[] = {
     /* ---- process / thread / scheduler ---- */
     "clone", "clone3", "set_tid_address",
     "gettid", "getpid", "getppid",
+    /* process-group / session: benign grouping only (no privilege gain). A
+     * spawned shell/coreutils under the exec MSS adapter calls getpgrp() during
+     * job-control init at startup; without these an ENFORCE worker EPERMs it and
+     * bash exits before running a line. */
+    "getpgrp", "getpgid", "setpgid", "getsid", "setsid",
     "tgkill", "tkill", "kill",
     "exit", "exit_group", "rseq",
     "sched_yield", "sched_getaffinity", "sched_setaffinity",
@@ -105,6 +124,13 @@ static const char *const brix_seccomp_allow[] = {
     "chmod", "fchmod", "fchmodat",
     "chown", "fchown", "lchown", "fchownat",
     "utimensat", "futimesat", "utimes",
+    /* extended attributes: WebDAV LOCK/PROPPATCH dead-props, kXR_fattr, the xmeta
+     * raw-path records, and the cache's xattr meta-mode all use these; without
+     * them an ENFORCE filter EPERMs every xattr op. */
+    "setxattr", "lsetxattr", "fsetxattr",
+    "getxattr", "lgetxattr", "fgetxattr",
+    "listxattr", "llistxattr", "flistxattr",
+    "removexattr", "lremovexattr", "fremovexattr",
     "fcntl", "fcntl64", "ioctl", "flock",
     "dup", "dup2", "dup3",
     "pipe", "pipe2", "eventfd", "eventfd2",
@@ -171,8 +197,8 @@ brix_seccomp_core_add(scmp_filter_ctx ctx, uint32_t action, const char *name,
 }
 
 int
-brix_seccomp_core_apply(unsigned mode, brix_seccomp_err_fn err_fn, void *ud,
-    unsigned *out_allow, unsigned *out_deny)
+brix_seccomp_core_apply(unsigned mode, unsigned allow_exec,
+    brix_seccomp_err_fn err_fn, void *ud, unsigned *out_allow, unsigned *out_deny)
 {
     scmp_filter_ctx  ctx;
     uint32_t         def_action;
@@ -207,12 +233,41 @@ brix_seccomp_core_apply(unsigned mode, brix_seccomp_err_fn err_fn, void *ud,
     }
 
     /* Deny the dangerous set only under enforce; under audit the log-only
-     * default already surfaces them without killing the worker. */
+     * default already surfaces them without killing the worker. The HARD set
+     * (ptrace/process_vm_*) is always killed; the EXEC set (execve/execveat) is
+     * killed unless the operator opted into allow_exec (then it is allowlisted
+     * below instead). */
     if (mode == BRIX_SECCOMP_CORE_ENFORCE) {
-        for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_deny); i++) {
+        for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_deny_hard); i++) {
             if (brix_seccomp_core_add(ctx, SCMP_ACT_KILL_PROCESS,
-                                      brix_seccomp_deny[i], err_fn, ud,
+                                      brix_seccomp_deny_hard[i], err_fn, ud,
                                       &n_deny) != 0)
+            {
+                seccomp_release(ctx);
+                return BRIX_SECCOMP_CORE_ERR;
+            }
+        }
+        if (!allow_exec) {
+            for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_deny_exec); i++) {
+                if (brix_seccomp_core_add(ctx, SCMP_ACT_KILL_PROCESS,
+                                          brix_seccomp_deny_exec[i], err_fn, ud,
+                                          &n_deny) != 0)
+                {
+                    seccomp_release(ctx);
+                    return BRIX_SECCOMP_CORE_ERR;
+                }
+            }
+        }
+    }
+
+    /* allow_exec: put execve/execveat on the allowlist so they RUN under enforce
+     * (the enforce default action is EPERM, so not-killed is not enough). No-op
+     * under audit (default already logs+allows) — harmless. */
+    if (allow_exec) {
+        for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_deny_exec); i++) {
+            if (brix_seccomp_core_add(ctx, SCMP_ACT_ALLOW,
+                                      brix_seccomp_deny_exec[i], err_fn, ud,
+                                      &n_allow) != 0)
             {
                 seccomp_release(ctx);
                 return BRIX_SECCOMP_CORE_ERR;
@@ -318,9 +373,10 @@ brix_seccomp_broker_apply(brix_seccomp_err_fn err_fn, void *ud,
 #else  /* !BRIX_HAVE_SECCOMP — libseccomp absent at build time */
 
 int
-brix_seccomp_core_apply(unsigned mode, brix_seccomp_err_fn err_fn, void *ud,
-    unsigned *out_allow, unsigned *out_deny)
+brix_seccomp_core_apply(unsigned mode, unsigned allow_exec,
+    brix_seccomp_err_fn err_fn, void *ud, unsigned *out_allow, unsigned *out_deny)
 {
+    (void) allow_exec;
     (void) err_fn;
     (void) ud;
 

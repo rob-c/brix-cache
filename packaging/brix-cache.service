@@ -71,6 +71,26 @@ PrivateDevices=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
+ProtectKernelLogs=true
+
+# Mount-namespace isolation (systemd builds a private mount namespace for the
+# service before it drops privilege — the gateway itself cannot unshare(2) once
+# its workers have shed CAP_SYS_ADMIN, so this is the correct layer for it).
+#   ProtectProc=invisible  — the service sees only its OWN processes under /proc;
+#                            other tenants' /proc/<pid> are hidden (a private,
+#                            hidepid=invisible /proc mount in the namespace).
+#   ProtectHostname / ProtectClock — the namespace cannot change the host name or
+#                            the system clock.
+#   ReadOnlyPaths          — the grid credential tree is read-only to the service
+#                            (the host key is loaded once at startup; nothing needs
+#                            to write it at runtime).
+# NOTE: ProcSubset=pid (which also hides /proc/sys, /proc/meminfo, ...) is
+# deliberately NOT set — some code paths read /proc/sys; enable it only after
+# verifying on your build.
+ProtectProc=invisible
+ProtectHostname=true
+ProtectClock=true
+ReadOnlyPaths=/etc/grid-security
 
 # Hide all kernel namespace operations.  The gateway does not create or enter
 # namespaces; exposing unshare/setns/clone-with-ns only enlarges the attack surface.

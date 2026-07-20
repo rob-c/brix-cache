@@ -21,6 +21,7 @@ import time
 import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
@@ -85,6 +86,9 @@ def test_durable_flush_replayed_after_restart(lifecycle, tmp_path):
     data = tmp_path / "data"; data.mkdir()
     stage = tmp_path / "stage"; stage.mkdir()
     journal = tmp_path / "journal"; journal.mkdir()
+    # The de-escalated `nobody` worker must reach + own the export/stage/journal
+    # trees (pytest tmp parents are root-0700 — untraversable otherwise).
+    worker_reachable(data, stage, journal)
     name = "wtr_recover.bin"
     src = tmp_path / "payload.bin"
     src.write_bytes(b"replay-me-" + b"r" * 400)

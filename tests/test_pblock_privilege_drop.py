@@ -141,12 +141,17 @@ def test_pblock_blobs_and_db_never_root_owned(harness):
     for c in cats:
         _assert_unprivileged(os.stat(c), f"catalog {c}")
 
-    # The drop actually happened (a root worker would not have logged this).
+    # The drop actually happened (a root worker would not have logged this). Either
+    # mechanism may have done it: the generic worker de-escalation
+    # (brix_imp_worker_deescalate) now runs at init and drops the root worker to
+    # nobody BEFORE pblock init, so pblock's own drop then no-ops. Accept either log.
     log = os.path.join(prefix, "logs", "error.log")
     if os.path.exists(log):
         with open(log, encoding="utf-8", errors="replace") as fh:
-            assert "dropped to \"nobody\"" in fh.read(), \
-                "expected the pblock root->nobody drop warning in the error log"
+            content = fh.read()
+        assert ('dropped to "nobody"' in content                        # pblock drop
+                or 'dropped a root-capable worker to "nobody"' in content), \
+            "expected the worker root->nobody drop to be logged"
 
 
 def test_pblock_large_object_stripes_into_multiple_unprivileged_blocks(harness):
