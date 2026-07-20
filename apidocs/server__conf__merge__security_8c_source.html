@@ -494,90 +494,103 @@ $(document).ready(function(){initNavTree('server__conf__merge__security_8c_sourc
 <div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span><span class="comment">     * anyone who wants best-effort enable. */</span></div>
 <div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>    ngx_conf_merge_uint_value(conf-&gt;io_uring,</div>
 <div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>                              prev-&gt;io_uring, <a class="code hl_define" href="tunables_8h.html#a985e3f3e7b4de399fa843b8526a1c516">BRIX_IO_URING_OFF</a>);</div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    <span class="comment">/* D-3: seccomp filter default OFF — strictly opt-in (audit-first rollout). */</span></div>
-<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>    ngx_conf_merge_uint_value(conf-&gt;seccomp,</div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>                              prev-&gt;seccomp, <a class="code hl_define" href="tunables_8h.html#a2f7a3e0ffe413efd7d532404a2cdfd21">BRIX_SECCOMP_OFF</a>);</div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    <span class="comment">/* E-4: negative-path backoff default OFF (threshold 0) — availability-first,</span></div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span><span class="comment">     * strictly opt-in. window_ms/backoff_s only matter when threshold &gt; 0. */</span></div>
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    ngx_conf_merge_uint_value(conf-&gt;negcache.threshold,</div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>                              prev-&gt;negcache.threshold, 0);</div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    ngx_conf_merge_uint_value(conf-&gt;negcache.window_ms,</div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>                              prev-&gt;negcache.window_ms, 0);</div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>    ngx_conf_merge_uint_value(conf-&gt;negcache.backoff_s,</div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>                              prev-&gt;negcache.backoff_s, 0);</div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    ngx_conf_merge_value(conf-&gt;io_uring_queue_depth,</div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>                         prev-&gt;io_uring_queue_depth,</div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>                         <a class="code hl_define" href="tunables_8h.html#aecede576681111fe869a816e672c5e2e">BRIX_IO_URING_QUEUE_DEPTH</a>);</div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    ngx_conf_merge_str_value(conf-&gt;io_uring_panic_file,</div>
-<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>                             prev-&gt;io_uring_panic_file, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    ngx_conf_merge_value(conf-&gt;io_uring_admin, prev-&gt;io_uring_admin, 0);</div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    ngx_conf_merge_value(conf-&gt;io_uring_restrict, prev-&gt;io_uring_restrict, 1);</div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span> </div>
-<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span> </div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    <span class="comment">/* Checksum-on-fill: default best-effort (verify when a digest is available,</span></div>
-<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span><span class="comment">     * fail-closed on mismatch). Operators opt down to off or up to require. */</span></div>
-<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>    ngx_conf_merge_uint_value(conf-&gt;cache_verify, prev-&gt;cache_verify,</div>
-<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>                              <a class="code hl_enumvalue" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22da1f04064fc5297c318404dee3f699283a">BRIX_CACHE_VERIFY_BESTEFFORT</a>);</div>
-<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    ngx_conf_merge_str_value(conf-&gt;cache_verify_digest,</div>
-<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>                             prev-&gt;cache_verify_digest, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span> </div>
-<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    <span class="comment">/* Pelican cache advertisement (default off; interval clamped to the</span></div>
-<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span><span class="comment">     * federation minimum of 60s = MinFedTokenTickerRate). */</span></div>
-<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    ngx_conf_merge_value(conf-&gt;advertise.enable, prev-&gt;advertise.enable, 0);</div>
-<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    ngx_conf_merge_msec_value(conf-&gt;advertise.interval,</div>
-<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>                              prev-&gt;advertise.interval, 60000);</div>
-<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>    <span class="keywordflow">if</span> (conf-&gt;advertise.interval &lt; 60000) {</div>
-<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>        conf-&gt;advertise.interval = 60000;</div>
-<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>    }</div>
-<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    ngx_conf_merge_str_value(conf-&gt;advertise.key,</div>
-<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>                             prev-&gt;advertise.key, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>    ngx_conf_merge_str_value(conf-&gt;advertise.data_url, prev-&gt;advertise.data_url, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>    ngx_conf_merge_str_value(conf-&gt;advertise.web_url, prev-&gt;advertise.web_url, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>    ngx_conf_merge_str_value(conf-&gt;advertise.sitename, prev-&gt;advertise.sitename, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>    ngx_conf_merge_str_value(conf-&gt;advertise.issuer_url, prev-&gt;advertise.issuer_url, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span>    <span class="keywordflow">if</span> (conf-&gt;advertise.ns == NULL) {</div>
-<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>        conf-&gt;advertise.ns = prev-&gt;advertise.ns;</div>
-<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>    }</div>
-<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span> </div>
-<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span>    <span class="comment">/* Inherit compiled regex from parent if the child didn&#39;t set one */</span></div>
-<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span>    <span class="keywordflow">if</span> (!conf-&gt;include_regex.set &amp;&amp; prev-&gt;include_regex.set) {</div>
-<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span>        conf-&gt;include_regex.str = prev-&gt;include_regex.str;</div>
-<div class="line"><a id="l00430" name="l00430"></a><span class="lineno">  430</span>        conf-&gt;include_regex.re     = prev-&gt;include_regex.re;</div>
-<div class="line"><a id="l00431" name="l00431"></a><span class="lineno">  431</span>        conf-&gt;include_regex.set = 1;</div>
-<div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span>    }</div>
-<div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span>}</div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    <span class="comment">/* D-3: seccomp filter default OFF — strictly opt-in (audit-first rollout).</span></div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span><span class="comment">     * An empirical flip to ENFORCE (2026-07) confirmed it must stay opt-in: the</span></div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span><span class="comment">     * worker deny-set KILLs execve, and a few EXTERNAL-helper features fork+exec:</span></div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span><span class="comment">     * the FRM &quot;exec&quot; MSS adapter ($BRIX_FRM_STAGECMD, a real HSM) / OIDC token</span></div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span><span class="comment">     * fetch / native-TPC token-exchange / the kXR_prepare hook, so a blanket</span></div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span><span class="comment">     * enforce default would break them.  (The DEFAULT tape/nearline backend uses</span></div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span><span class="comment">     * the built-in POSIX stub adapter — recall/migrate/purge are plain file copies,</span></div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span><span class="comment">     * no exec — so it is fine under strict enforce.)  Sites that use those now</span></div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span><span class="comment">     * set</span></div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span><span class="comment">     * `brix_seccomp_allow_exec on` to allowlist execve under enforce (ptrace/</span></div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span><span class="comment">     * process_vm_* stay killed); the xattr allowlist gap is fixed; and HTTP-only</span></div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span><span class="comment">     * (WebDAV/S3) workers are filtered too (the install runs from the WebDAV</span></div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span><span class="comment">     * init_process when there is no stream{} block).  So opt-in `brix_seccomp</span></div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span><span class="comment">     * enforce` (+ allow_exec when needed) is viable for every deployment. */</span></div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    ngx_conf_merge_uint_value(conf-&gt;seccomp,</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>                              prev-&gt;seccomp, <a class="code hl_define" href="tunables_8h.html#a2f7a3e0ffe413efd7d532404a2cdfd21">BRIX_SECCOMP_OFF</a>);</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    <span class="comment">/* E-4: negative-path backoff default OFF (threshold 0) — availability-first,</span></div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span><span class="comment">     * strictly opt-in. window_ms/backoff_s only matter when threshold &gt; 0. */</span></div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>    ngx_conf_merge_uint_value(conf-&gt;negcache.threshold,</div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>                              prev-&gt;negcache.threshold, 0);</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    ngx_conf_merge_uint_value(conf-&gt;negcache.window_ms,</div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>                              prev-&gt;negcache.window_ms, 0);</div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>    ngx_conf_merge_uint_value(conf-&gt;negcache.backoff_s,</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>                              prev-&gt;negcache.backoff_s, 0);</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    ngx_conf_merge_value(conf-&gt;io_uring_queue_depth,</div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>                         prev-&gt;io_uring_queue_depth,</div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>                         <a class="code hl_define" href="tunables_8h.html#aecede576681111fe869a816e672c5e2e">BRIX_IO_URING_QUEUE_DEPTH</a>);</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    ngx_conf_merge_str_value(conf-&gt;io_uring_panic_file,</div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>                             prev-&gt;io_uring_panic_file, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    ngx_conf_merge_value(conf-&gt;io_uring_admin, prev-&gt;io_uring_admin, 0);</div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    ngx_conf_merge_value(conf-&gt;io_uring_restrict, prev-&gt;io_uring_restrict, 1);</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span> </div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span> </div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>    <span class="comment">/* Checksum-on-fill: default best-effort (verify when a digest is available,</span></div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span><span class="comment">     * fail-closed on mismatch). Operators opt down to off or up to require. */</span></div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    ngx_conf_merge_uint_value(conf-&gt;cache_verify, prev-&gt;cache_verify,</div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>                              <a class="code hl_enumvalue" href="verify_8h.html#aec9f0e3e52570b093ffca2eb35acd22da1f04064fc5297c318404dee3f699283a">BRIX_CACHE_VERIFY_BESTEFFORT</a>);</div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>    ngx_conf_merge_str_value(conf-&gt;cache_verify_digest,</div>
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>                             prev-&gt;cache_verify_digest, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span> </div>
+<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>    <span class="comment">/* Pelican cache advertisement (default off; interval clamped to the</span></div>
+<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span><span class="comment">     * federation minimum of 60s = MinFedTokenTickerRate). */</span></div>
+<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>    ngx_conf_merge_value(conf-&gt;advertise.enable, prev-&gt;advertise.enable, 0);</div>
+<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>    ngx_conf_merge_msec_value(conf-&gt;advertise.interval,</div>
+<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span>                              prev-&gt;advertise.interval, 60000);</div>
+<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span>    <span class="keywordflow">if</span> (conf-&gt;advertise.interval &lt; 60000) {</div>
+<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span>        conf-&gt;advertise.interval = 60000;</div>
+<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span>    }</div>
+<div class="line"><a id="l00430" name="l00430"></a><span class="lineno">  430</span>    ngx_conf_merge_str_value(conf-&gt;advertise.key,</div>
+<div class="line"><a id="l00431" name="l00431"></a><span class="lineno">  431</span>                             prev-&gt;advertise.key, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span>    ngx_conf_merge_str_value(conf-&gt;advertise.data_url, prev-&gt;advertise.data_url, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span>    ngx_conf_merge_str_value(conf-&gt;advertise.web_url, prev-&gt;advertise.web_url, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00434" name="l00434"></a><span class="lineno">  434</span>    ngx_conf_merge_str_value(conf-&gt;advertise.sitename, prev-&gt;advertise.sitename, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span>    ngx_conf_merge_str_value(conf-&gt;advertise.issuer_url, prev-&gt;advertise.issuer_url, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span>    <span class="keywordflow">if</span> (conf-&gt;advertise.ns == NULL) {</div>
+<div class="line"><a id="l00437" name="l00437"></a><span class="lineno">  437</span>        conf-&gt;advertise.ns = prev-&gt;advertise.ns;</div>
+<div class="line"><a id="l00438" name="l00438"></a><span class="lineno">  438</span>    }</div>
+<div class="line"><a id="l00439" name="l00439"></a><span class="lineno">  439</span> </div>
+<div class="line"><a id="l00440" name="l00440"></a><span class="lineno">  440</span>    <span class="comment">/* Inherit compiled regex from parent if the child didn&#39;t set one */</span></div>
+<div class="line"><a id="l00441" name="l00441"></a><span class="lineno">  441</span>    <span class="keywordflow">if</span> (!conf-&gt;include_regex.set &amp;&amp; prev-&gt;include_regex.set) {</div>
+<div class="line"><a id="l00442" name="l00442"></a><span class="lineno">  442</span>        conf-&gt;include_regex.str = prev-&gt;include_regex.str;</div>
+<div class="line"><a id="l00443" name="l00443"></a><span class="lineno">  443</span>        conf-&gt;include_regex.re     = prev-&gt;include_regex.re;</div>
+<div class="line"><a id="l00444" name="l00444"></a><span class="lineno">  444</span>        conf-&gt;include_regex.set = 1;</div>
+<div class="line"><a id="l00445" name="l00445"></a><span class="lineno">  445</span>    }</div>
+<div class="line"><a id="l00446" name="l00446"></a><span class="lineno">  446</span>}</div>
 </div>
-<div class="line"><a id="l00434" name="l00434"></a><span class="lineno">  434</span> </div>
-<div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span><span class="comment">/* Storage: read/write compression, ZIP access, the read-through cache (origin,</span></div>
-<div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span><span class="comment"> * sizing, eviction, slice validation, include-regex inheritance), the memory</span></div>
-<div class="line"><a id="l00437" name="l00437"></a><span class="lineno">  437</span><span class="comment"> * budget, readv segment sizing, and the io_uring backend. */</span></div>
-<div class="line"><a id="l00438" name="l00438"></a><span class="lineno">  438</span><span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00439" data-start="{" data-end="}">
-<div class="line"><a id="l00439" name="l00439"></a><span class="lineno"><a class="line" href="server__conf__internal_8h.html#ab781638006bfe57eca1e5f4d23eb5ae4">  439</a></span><a class="code hl_function" href="server__conf__merge__security_8c.html#ab781638006bfe57eca1e5f4d23eb5ae4">brix_merge_srv_storage</a>(ngx_conf_t *cf, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00440" name="l00440"></a><span class="lineno">  440</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00441" name="l00441"></a><span class="lineno">  441</span>{</div>
-<div class="line"><a id="l00442" name="l00442"></a><span class="lineno">  442</span>    <span class="comment">/* common.* (storage backend, pblock stripe, tier grammar) is merged by</span></div>
-<div class="line"><a id="l00443" name="l00443"></a><span class="lineno">  443</span><span class="comment">     * ngx_http_brix_shared_merge() in brix_merge_srv_security — only the</span></div>
-<div class="line"><a id="l00444" name="l00444"></a><span class="lineno">  444</span><span class="comment">     * stream-specific validation below stays here. */</span></div>
-<div class="line"><a id="l00445" name="l00445"></a><span class="lineno">  445</span> </div>
-<div class="line"><a id="l00446" name="l00446"></a><span class="lineno">  446</span>    <span class="comment">/* §6.5: the tier slice size must be 0 (off) or a positive multiple of the</span></div>
-<div class="line"><a id="l00447" name="l00447"></a><span class="lineno">  447</span><span class="comment">     * 1 MiB cinfo block granule (so a partial fill never records a mis-aligned</span></div>
-<div class="line"><a id="l00448" name="l00448"></a><span class="lineno">  448</span><span class="comment">     * block) — the same rule the legacy brix_cache_slice enforced. */</span></div>
-<div class="line"><a id="l00449" name="l00449"></a><span class="lineno">  449</span>    <span class="keywordflow">if</span> (conf-&gt;common.cache_slice_size != 0</div>
-<div class="line"><a id="l00450" name="l00450"></a><span class="lineno">  450</span>        &amp;&amp; (conf-&gt;common.cache_slice_size &lt; (1024 * 1024)</div>
-<div class="line"><a id="l00451" name="l00451"></a><span class="lineno">  451</span>            || (conf-&gt;common.cache_slice_size % (1024 * 1024)) != 0))</div>
-<div class="line"><a id="l00452" name="l00452"></a><span class="lineno">  452</span>    {</div>
-<div class="line"><a id="l00453" name="l00453"></a><span class="lineno">  453</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
-<div class="line"><a id="l00454" name="l00454"></a><span class="lineno">  454</span>            <span class="stringliteral">&quot;brix_cache_slice_size must be a positive multiple of 1m&quot;</span>);</div>
-<div class="line"><a id="l00455" name="l00455"></a><span class="lineno">  455</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00456" name="l00456"></a><span class="lineno">  456</span>    }</div>
-<div class="line"><a id="l00457" name="l00457"></a><span class="lineno">  457</span> </div>
-<div class="line"><a id="l00458" name="l00458"></a><span class="lineno">  458</span>    <a class="code hl_function" href="server__conf__merge__security_8c.html#a1cc32f908c68fe60f6e7f310e968dc02">brix_merge_srv_zip_stage</a>(conf, prev);</div>
-<div class="line"><a id="l00459" name="l00459"></a><span class="lineno">  459</span>    <a class="code hl_function" href="server__conf__merge__security_8c.html#a734338fff7c77c8dc7ae74bb97079e95">brix_merge_srv_cache_origin</a>(conf, prev);</div>
-<div class="line"><a id="l00460" name="l00460"></a><span class="lineno">  460</span>    <a class="code hl_function" href="server__conf__merge__security_8c.html#a9225f0a89089f677a66ef8be95dda61e">brix_merge_srv_iouring_advertise</a>(conf, prev);</div>
-<div class="line"><a id="l00461" name="l00461"></a><span class="lineno">  461</span> </div>
-<div class="line"><a id="l00462" name="l00462"></a><span class="lineno">  462</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00463" name="l00463"></a><span class="lineno">  463</span>}</div>
+<div class="line"><a id="l00447" name="l00447"></a><span class="lineno">  447</span> </div>
+<div class="line"><a id="l00448" name="l00448"></a><span class="lineno">  448</span><span class="comment">/* Storage: read/write compression, ZIP access, the read-through cache (origin,</span></div>
+<div class="line"><a id="l00449" name="l00449"></a><span class="lineno">  449</span><span class="comment"> * sizing, eviction, slice validation, include-regex inheritance), the memory</span></div>
+<div class="line"><a id="l00450" name="l00450"></a><span class="lineno">  450</span><span class="comment"> * budget, readv segment sizing, and the io_uring backend. */</span></div>
+<div class="line"><a id="l00451" name="l00451"></a><span class="lineno">  451</span><span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00452" data-start="{" data-end="}">
+<div class="line"><a id="l00452" name="l00452"></a><span class="lineno"><a class="line" href="server__conf__internal_8h.html#ab781638006bfe57eca1e5f4d23eb5ae4">  452</a></span><a class="code hl_function" href="server__conf__merge__security_8c.html#ab781638006bfe57eca1e5f4d23eb5ae4">brix_merge_srv_storage</a>(ngx_conf_t *cf, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00453" name="l00453"></a><span class="lineno">  453</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00454" name="l00454"></a><span class="lineno">  454</span>{</div>
+<div class="line"><a id="l00455" name="l00455"></a><span class="lineno">  455</span>    <span class="comment">/* common.* (storage backend, pblock stripe, tier grammar) is merged by</span></div>
+<div class="line"><a id="l00456" name="l00456"></a><span class="lineno">  456</span><span class="comment">     * ngx_http_brix_shared_merge() in brix_merge_srv_security — only the</span></div>
+<div class="line"><a id="l00457" name="l00457"></a><span class="lineno">  457</span><span class="comment">     * stream-specific validation below stays here. */</span></div>
+<div class="line"><a id="l00458" name="l00458"></a><span class="lineno">  458</span> </div>
+<div class="line"><a id="l00459" name="l00459"></a><span class="lineno">  459</span>    <span class="comment">/* §6.5: the tier slice size must be 0 (off) or a positive multiple of the</span></div>
+<div class="line"><a id="l00460" name="l00460"></a><span class="lineno">  460</span><span class="comment">     * 1 MiB cinfo block granule (so a partial fill never records a mis-aligned</span></div>
+<div class="line"><a id="l00461" name="l00461"></a><span class="lineno">  461</span><span class="comment">     * block) — the same rule the legacy brix_cache_slice enforced. */</span></div>
+<div class="line"><a id="l00462" name="l00462"></a><span class="lineno">  462</span>    <span class="keywordflow">if</span> (conf-&gt;common.cache_slice_size != 0</div>
+<div class="line"><a id="l00463" name="l00463"></a><span class="lineno">  463</span>        &amp;&amp; (conf-&gt;common.cache_slice_size &lt; (1024 * 1024)</div>
+<div class="line"><a id="l00464" name="l00464"></a><span class="lineno">  464</span>            || (conf-&gt;common.cache_slice_size % (1024 * 1024)) != 0))</div>
+<div class="line"><a id="l00465" name="l00465"></a><span class="lineno">  465</span>    {</div>
+<div class="line"><a id="l00466" name="l00466"></a><span class="lineno">  466</span>        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00467" name="l00467"></a><span class="lineno">  467</span>            <span class="stringliteral">&quot;brix_cache_slice_size must be a positive multiple of 1m&quot;</span>);</div>
+<div class="line"><a id="l00468" name="l00468"></a><span class="lineno">  468</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00469" name="l00469"></a><span class="lineno">  469</span>    }</div>
+<div class="line"><a id="l00470" name="l00470"></a><span class="lineno">  470</span> </div>
+<div class="line"><a id="l00471" name="l00471"></a><span class="lineno">  471</span>    <a class="code hl_function" href="server__conf__merge__security_8c.html#a1cc32f908c68fe60f6e7f310e968dc02">brix_merge_srv_zip_stage</a>(conf, prev);</div>
+<div class="line"><a id="l00472" name="l00472"></a><span class="lineno">  472</span>    <a class="code hl_function" href="server__conf__merge__security_8c.html#a734338fff7c77c8dc7ae74bb97079e95">brix_merge_srv_cache_origin</a>(conf, prev);</div>
+<div class="line"><a id="l00473" name="l00473"></a><span class="lineno">  473</span>    <a class="code hl_function" href="server__conf__merge__security_8c.html#a9225f0a89089f677a66ef8be95dda61e">brix_merge_srv_iouring_advertise</a>(conf, prev);</div>
+<div class="line"><a id="l00474" name="l00474"></a><span class="lineno">  474</span> </div>
+<div class="line"><a id="l00475" name="l00475"></a><span class="lineno">  475</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00476" name="l00476"></a><span class="lineno">  476</span>}</div>
 </div>
 <div class="ttc" id="aaf__policy_8h_html"><div class="ttname"><a href="af__policy_8h.html">af_policy.h</a></div></div>
 <div class="ttc" id="aaf__policy_8h_html_aaf173079f9656bd7f1b5f747910a1414a2ea6fa7ce1b524cc57da09636b7a7807"><div class="ttname"><a href="af__policy_8h.html#aaf173079f9656bd7f1b5f747910a1414a2ea6fa7ce1b524cc57da09636b7a7807">BRIX_AF_AUTO</a></div><div class="ttdeci">@ BRIX_AF_AUTO</div><div class="ttdef"><b>Definition</b> <a href="af__policy_8h_source.html#l00022">af_policy.h:22</a></div></div>
@@ -594,10 +607,10 @@ $(document).ready(function(){initNavTree('server__conf__merge__security_8c_sourc
 <div class="ttc" id="aserver__conf__merge__security_8c_html_a64f453082e9188e662657316ab0013a8"><div class="ttname"><a href="server__conf__merge__security_8c.html#a64f453082e9188e662657316ab0013a8">brix_merge_srv_x509</a></div><div class="ttdeci">static char * brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__security_8c_source.html#l00096">server_conf_merge_security.c:96</a></div></div>
 <div class="ttc" id="aserver__conf__merge__security_8c_html_a734338fff7c77c8dc7ae74bb97079e95"><div class="ttname"><a href="server__conf__merge__security_8c.html#a734338fff7c77c8dc7ae74bb97079e95">brix_merge_srv_cache_origin</a></div><div class="ttdeci">static void brix_merge_srv_cache_origin(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__security_8c_source.html#l00316">server_conf_merge_security.c:316</a></div></div>
 <div class="ttc" id="aserver__conf__merge__security_8c_html_a9225f0a89089f677a66ef8be95dda61e"><div class="ttname"><a href="server__conf__merge__security_8c.html#a9225f0a89089f677a66ef8be95dda61e">brix_merge_srv_iouring_advertise</a></div><div class="ttdeci">static void brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__security_8c_source.html#l00362">server_conf_merge_security.c:362</a></div></div>
-<div class="ttc" id="aserver__conf__merge__security_8c_html_ab781638006bfe57eca1e5f4d23eb5ae4"><div class="ttname"><a href="server__conf__merge__security_8c.html#ab781638006bfe57eca1e5f4d23eb5ae4">brix_merge_srv_storage</a></div><div class="ttdeci">char * brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__security_8c_source.html#l00439">server_conf_merge_security.c:439</a></div></div>
+<div class="ttc" id="aserver__conf__merge__security_8c_html_ab781638006bfe57eca1e5f4d23eb5ae4"><div class="ttname"><a href="server__conf__merge__security_8c.html#ab781638006bfe57eca1e5f4d23eb5ae4">brix_merge_srv_storage</a></div><div class="ttdeci">char * brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__security_8c_source.html#l00452">server_conf_merge_security.c:452</a></div></div>
 <div class="ttc" id="aserver__conf__merge__security_8c_html_abfa8de2f64a6dfa2fe6a5f0921c46885"><div class="ttname"><a href="server__conf__merge__security_8c.html#abfa8de2f64a6dfa2fe6a5f0921c46885">brix_merge_srv_security</a></div><div class="ttdeci">char * brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__security_8c_source.html#l00221">server_conf_merge_security.c:221</a></div></div>
 <div class="ttc" id="aserver__conf__merge__security_8c_html_afa14ea84318b55bcd5aa283e13089567"><div class="ttname"><a href="server__conf__merge__security_8c.html#afa14ea84318b55bcd5aa283e13089567">brix_merge_srv_authtail</a></div><div class="ttdeci">static void brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__security_8c_source.html#l00185">server_conf_merge_security.c:185</a></div></div>
-<div class="ttc" id="ashared__conf_8h_html_ad371883748702e08b37931caeb4c2653"><div class="ttname"><a href="shared__conf_8h.html#ad371883748702e08b37931caeb4c2653">ngx_http_brix_shared_merge</a></div><div class="ttdeci">static char * ngx_http_brix_shared_merge(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev, ngx_http_brix_shared_conf_t *conf, const char *root_default)</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00528">shared_conf.h:528</a></div></div>
+<div class="ttc" id="ashared__conf_8h_html_ad371883748702e08b37931caeb4c2653"><div class="ttname"><a href="shared__conf_8h.html#ad371883748702e08b37931caeb4c2653">ngx_http_brix_shared_merge</a></div><div class="ttdeci">static char * ngx_http_brix_shared_merge(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *prev, ngx_http_brix_shared_conf_t *conf, const char *root_default)</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00555">shared_conf.h:555</a></div></div>
 <div class="ttc" id="asigning__policy_8h_html_a20df7abb9f755709f4159584151aa50aadf2071f9ac2df458331743768feec504"><div class="ttname"><a href="signing__policy_8h.html#a20df7abb9f755709f4159584151aa50aadf2071f9ac2df458331743768feec504">BRIX_SP_MODE_ON</a></div><div class="ttdeci">@ BRIX_SP_MODE_ON</div><div class="ttdef"><b>Definition</b> <a href="signing__policy_8h_source.html#l00022">signing_policy.h:22</a></div></div>
 <div class="ttc" id="astore__policy_8h_html"><div class="ttname"><a href="store__policy_8h.html">store_policy.h</a></div></div>
 <div class="ttc" id="astore__policy_8h_html_a598fc140e4bfc7e54481aadbec5d1fcd"><div class="ttname"><a href="store__policy_8h.html#a598fc140e4bfc7e54481aadbec5d1fcd">BRIX_CRL_MODE_TRY</a></div><div class="ttdeci">#define BRIX_CRL_MODE_TRY</div><div class="ttdef"><b>Definition</b> <a href="store__policy_8h_source.html#l00027">store_policy.h:27</a></div></div>

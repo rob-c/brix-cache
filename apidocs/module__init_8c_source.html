@@ -103,303 +103,314 @@ $(document).ready(function(){initNavTree('module__init_8c_source.html',''); init
 <div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span><span class="comment"> * Phase-38 split of module.c; behavior-identical.</span></div>
 <div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#include &quot;<a class="code" href="webdav__module__internal_8h.html">webdav_module_internal.h</a>&quot;</span></div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#include &quot;<a class="code" href="cvmfs_8h.html">protocols/cvmfs/cvmfs.h</a>&quot;</span>   <span class="comment">/* $brix_protocol: cvmfs claim */</span></div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#include &quot;<a class="code" href="store__policy_8h.html">auth/crypto/store_policy.h</a>&quot;</span> <span class="comment">/* brix_px_classify, brix_x509_oneline */</span></div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#include &quot;<a class="code" href="ucred_8h.html">fs/backend/ucred.h</a>&quot;</span>         <span class="comment">/* brix_sd_ucred_key / _resolve */</span></div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#include &quot;<a class="code" href="seccomp_8h.html">core/seccomp/seccomp.h</a>&quot;</span>    <span class="comment">/* brix_seccomp_install_once */</span></div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#include &quot;<a class="code" href="cvmfs_8h.html">protocols/cvmfs/cvmfs.h</a>&quot;</span>   <span class="comment">/* $brix_protocol: cvmfs claim */</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#include &quot;<a class="code" href="store__policy_8h.html">auth/crypto/store_policy.h</a>&quot;</span> <span class="comment">/* brix_px_classify, brix_x509_oneline */</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#include &quot;<a class="code" href="ucred_8h.html">fs/backend/ucred.h</a>&quot;</span>         <span class="comment">/* brix_sd_ucred_key / _resolve */</span></div>
 <div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span> </div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="comment"> * Directive table for the WebDAV HTTP module.  Mechanical: each entry binds a</span></div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="comment"> * config keyword to a setter and (usually) a field offset in the location conf.</span></div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="comment"> * Most use stock nginx setters (set_flag/str/num/sec/msec_slot); the handful of</span></div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="comment"> * custom handlers above (CORS origin list, proxy auth/upstream, open_file_cache)</span></div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="comment"> * and the cross-module setters (mirror, rate-limit, KV, token-cache) appear</span></div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="comment"> * where they are grouped by feature.  Defaults/merge live in config.c.</span></div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span> </div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span> </div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="comment"> * Directive table for the WebDAV HTTP module.  Mechanical: each entry binds a</span></div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="comment"> * config keyword to a setter and (usually) a field offset in the location conf.</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="comment"> * Most use stock nginx setters (set_flag/str/num/sec/msec_slot); the handful of</span></div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="comment"> * custom handlers above (CORS origin list, proxy auth/upstream, open_file_cache)</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="comment"> * and the cross-module setters (mirror, rate-limit, KV, token-cache) appear</span></div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="comment"> * where they are grouped by feature.  Defaults/merge live in config.c.</span></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="comment"> */</span></div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span> </div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="comment">/* Preconfiguration: register the $brix_protocol variable. */</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="comment"> * Resolve $brix_protocol for the current request: &quot;webdav&quot;, &quot;s3&quot;, &quot;cvmfs&quot;,</span></div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="comment"> * or &quot;http&quot;. Precedence is webdav &gt; s3 &gt; cvmfs &gt; plain http, decided by</span></div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="comment"> * which sibling module is enabled in this request&#39;s location conf (WebDAV</span></div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="comment"> * wins if several somehow apply). The labels are the central proto_list.h</span></div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="comment"> * dash_names; &quot;http&quot; is the nothing-claimed fallback. Used in log_format /</span></div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="comment"> * proxy decisions to label the served protocol.</span></div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00031" data-start="{" data-end="}">
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno"><a class="line" href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">   31</a></span><a class="code hl_function" href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">brix_http_protocol_variable</a>(ngx_http_request_t *r,</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    ngx_http_variable_value_t *v, uintptr_t data)</div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>{</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>    <a class="code hl_struct" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *wdcf;</div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>            *scf;</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a>  *ccf;</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>                        *label;</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <span class="keywordtype">size_t</span>                             len;</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    (void) data;</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span> </div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    label = <span class="stringliteral">&quot;http&quot;</span>;</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;http&quot;</span>) - 1;</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span> </div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    wdcf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    scf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a>);</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    ccf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a>);</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordflow">if</span> (wdcf != NULL &amp;&amp; wdcf-&gt;<a class="code hl_variable" href="structngx__http__brix__webdav__loc__conf__t.html#a96b31dca3dd80658bc722dc8383e73b0">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">enable</a>) {</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        label = <span class="stringliteral">&quot;webdav&quot;</span>;</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>        len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;webdav&quot;</span>) - 1;</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (scf != NULL &amp;&amp; scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">enable</a>) {</div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>        label = <span class="stringliteral">&quot;s3&quot;</span>;</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>        len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;s3&quot;</span>) - 1;</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (ccf != NULL &amp;&amp; ccf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#af42d06d0b83a61a37e51659a2d060713">cvmfs</a>.<a class="code hl_variable" href="structbrix__cvmfs__conf__t.html#ab6575ef2ce50243070be300b8a15e714">enable</a>) {</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>        label = <span class="stringliteral">&quot;cvmfs&quot;</span>;</div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;cvmfs&quot;</span>) - 1;</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    }</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    v-&gt;len = len;</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    v-&gt;valid = 1;</div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    v-&gt;no_cacheable = 0;</div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    v-&gt;not_found = 0;</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    v-&gt;data = (u_char *) label;</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span> </div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>}</div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span> </div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="comment">/* Preconfiguration: register the $brix_protocol variable. */</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="comment"> * Resolve $brix_protocol for the current request: &quot;webdav&quot;, &quot;s3&quot;, &quot;cvmfs&quot;,</span></div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="comment"> * or &quot;http&quot;. Precedence is webdav &gt; s3 &gt; cvmfs &gt; plain http, decided by</span></div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="comment"> * which sibling module is enabled in this request&#39;s location conf (WebDAV</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="comment"> * wins if several somehow apply). The labels are the central proto_list.h</span></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="comment"> * dash_names; &quot;http&quot; is the nothing-claimed fallback. Used in log_format /</span></div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="comment"> * proxy decisions to label the served protocol.</span></div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00032" data-start="{" data-end="}">
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno"><a class="line" href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">   32</a></span><a class="code hl_function" href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">brix_http_protocol_variable</a>(ngx_http_request_t *r,</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    ngx_http_variable_value_t *v, uintptr_t data)</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>{</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <a class="code hl_struct" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *wdcf;</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    <a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a>            *scf;</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <a class="code hl_struct" href="structngx__http__brix__cvmfs__loc__conf__t.html">ngx_http_brix_cvmfs_loc_conf_t</a>  *ccf;</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>                        *label;</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    <span class="keywordtype">size_t</span>                             len;</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    (void) data;</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span> </div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    label = <span class="stringliteral">&quot;http&quot;</span>;</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;http&quot;</span>) - 1;</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    wdcf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    scf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a>);</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    ccf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a>);</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <span class="keywordflow">if</span> (wdcf != NULL &amp;&amp; wdcf-&gt;<a class="code hl_variable" href="structngx__http__brix__webdav__loc__conf__t.html#a96b31dca3dd80658bc722dc8383e73b0">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">enable</a>) {</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>        label = <span class="stringliteral">&quot;webdav&quot;</span>;</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;webdav&quot;</span>) - 1;</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (scf != NULL &amp;&amp; scf-&gt;<a class="code hl_variable" href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#a830119e50c06bb31f63133378b85ff11">enable</a>) {</div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>        label = <span class="stringliteral">&quot;s3&quot;</span>;</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;s3&quot;</span>) - 1;</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (ccf != NULL &amp;&amp; ccf-&gt;<a class="code hl_variable" href="structngx__http__brix__cvmfs__loc__conf__t.html#af42d06d0b83a61a37e51659a2d060713">cvmfs</a>.<a class="code hl_variable" href="structbrix__cvmfs__conf__t.html#ab6575ef2ce50243070be300b8a15e714">enable</a>) {</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>        label = <span class="stringliteral">&quot;cvmfs&quot;</span>;</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        len = <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;cvmfs&quot;</span>) - 1;</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    }</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    v-&gt;len = len;</div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>    v-&gt;valid = 1;</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    v-&gt;no_cacheable = 0;</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    v-&gt;not_found = 0;</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    v-&gt;data = (u_char *) label;</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>}</div>
 </div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span> </div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment"> * delegated_cred_find_eec — locate the end-entity certificate of the</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> * TLS-verified peer: the leaf itself when the client authenticated with a</span></div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> * bare cert, else the first non-proxy cert (brix_px_classify) in the</span></div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> * presented chain (RFC 3820 proxies chain leaf → parent proxies → EEC).</span></div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> * Returns a BORROWED reference (owned by `leaf`&#39;s refcount or by the</span></div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="comment"> * connection&#39;s chain) or NULL when every presented cert is a proxy.</span></div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="keyword">static</span> X509 *</div>
-<div class="foldopen" id="foldopen00078" data-start="{" data-end="}">
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno"><a class="line" href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">   78</a></span><a class="code hl_function" href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">delegated_cred_find_eec</a>(SSL *sc, X509 *leaf)</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>{</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <a class="code hl_function" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509)  *chain;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <span class="keywordtype">int</span>              i, n;</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span> </div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="store__policy_8h.html#a5cc9360506ea8545b62a7edb578bdc63">brix_px_classify</a>(leaf) == <a class="code hl_enumvalue" href="store__policy_8h.html#a935dc78225422de7fe5ce9d6893f2be0a056bfb9f68d23e85aa3a30cefb408fbd">BRIX_PX_NONE</a>) {</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>        <span class="keywordflow">return</span> leaf;</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    }</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span> </div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    <span class="comment">/* Server side: SSL_get_peer_cert_chain excludes the leaf. */</span></div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    chain = SSL_get_peer_cert_chain(sc);</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    n = (chain != NULL) ? sk_X509_num(chain) : 0;</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span> </div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n; i++) {</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>        X509 *cert = sk_X509_value(chain, i);</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span> </div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="store__policy_8h.html#a5cc9360506ea8545b62a7edb578bdc63">brix_px_classify</a>(cert) == <a class="code hl_enumvalue" href="store__policy_8h.html#a935dc78225422de7fe5ce9d6893f2be0a056bfb9f68d23e85aa3a30cefb408fbd">BRIX_PX_NONE</a>) {</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>            <span class="keywordflow">return</span> cert;</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        }</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    }</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span> </div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="keywordflow">return</span> NULL;</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>}</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span> </div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> * delegated_cred_find_eec — locate the end-entity certificate of the</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> * TLS-verified peer: the leaf itself when the client authenticated with a</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> * bare cert, else the first non-proxy cert (brix_px_classify) in the</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="comment"> * presented chain (RFC 3820 proxies chain leaf → parent proxies → EEC).</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="comment"> * Returns a BORROWED reference (owned by `leaf`&#39;s refcount or by the</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment"> * connection&#39;s chain) or NULL when every presented cert is a proxy.</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="keyword">static</span> X509 *</div>
+<div class="foldopen" id="foldopen00079" data-start="{" data-end="}">
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno"><a class="line" href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">   79</a></span><a class="code hl_function" href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">delegated_cred_find_eec</a>(SSL *sc, X509 *leaf)</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>{</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <a class="code hl_function" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509)  *chain;</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    <span class="keywordtype">int</span>              i, n;</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span> </div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="store__policy_8h.html#a5cc9360506ea8545b62a7edb578bdc63">brix_px_classify</a>(leaf) == <a class="code hl_enumvalue" href="store__policy_8h.html#a935dc78225422de7fe5ce9d6893f2be0a056bfb9f68d23e85aa3a30cefb408fbd">BRIX_PX_NONE</a>) {</div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>        <span class="keywordflow">return</span> leaf;</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    }</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span> </div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    <span class="comment">/* Server side: SSL_get_peer_cert_chain excludes the leaf. */</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    chain = SSL_get_peer_cert_chain(sc);</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    n = (chain != NULL) ? sk_X509_num(chain) : 0;</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span> </div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n; i++) {</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>        X509 *cert = sk_X509_value(chain, i);</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span> </div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="store__policy_8h.html#a5cc9360506ea8545b62a7edb578bdc63">brix_px_classify</a>(cert) == <a class="code hl_enumvalue" href="store__policy_8h.html#a935dc78225422de7fe5ce9d6893f2be0a056bfb9f68d23e85aa3a30cefb408fbd">BRIX_PX_NONE</a>) {</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>            <span class="keywordflow">return</span> cert;</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>        }</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    }</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span> </div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>}</div>
 </div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
 <div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span> </div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> * $brix_delegated_cred — the verified client&#39;s delegated-credential path.</span></div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> * WHAT: resolves the per-user credential file stored by the delegation</span></div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> * endpoint (delegation.c): EEC DN of the TLS-verified client chain →</span></div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> * brix_sd_ucred_key (&quot;x5h-&quot; + SHA-256 prefix) → &lt;storage_credential_dir&gt;/</span></div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> * &lt;key&gt;.pem, expiry-checked.  Empty when anything is missing — FAIL CLOSED.</span></div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> * WHY: replaces the hand-maintained `map $ssl_client_s_dn_legacy` block in</span></div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="comment"> * credential-forwarding gateways (ARC-CE front proxy): the map duplicated</span></div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="comment"> * the ucred key derivation per user and had to be regenerated + reloaded on</span></div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="comment"> * every new user, and could not expiry-check the file it named.  With this</span></div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment"> * variable, `proxy_ssl_certificate $brix_delegated_cred` picks up a new</span></div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment"> * user&#39;s credential the moment delegation stores it.</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment"> * HOW: identity comes from the TLS layer directly (SSL_get_verify_result</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment"> * must be X509_V_OK — same signal as $ssl_client_verify), NOT from brix</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> * request auth, so the variable works in plain proxy_pass locations with no</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment"> * brix handler.  The EEC is found by skipping RFC 3820 proxy certs</span></div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment"> * (delegation stores under the EEC DN — the delegation endpoint refuses</span></div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment"> * proxy-authenticated uploads).  Kind must be x509 (.pem): bearer/s3/ceph</span></div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment"> * files cannot feed proxy_ssl_certificate.  Expired → empty, with an info</span></div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment"> * log naming the DN so operators can see who must re-delegate.</span></div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00128" data-start="{" data-end="}">
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno"><a class="line" href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">  128</a></span><a class="code hl_function" href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">brix_http_delegated_cred_variable</a>(ngx_http_request_t *r,</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    ngx_http_variable_value_t *v, uintptr_t data)</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>{</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    <a class="code hl_struct" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *wdcf;</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    ngx_connection_t                  *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    X509                              *leaf, *eec;</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    ngx_str_t                         *dir;</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    <a class="code hl_struct" href="structbrix__sd__ucred__t.html">brix_sd_ucred_t</a>                    cred;</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    ngx_int_t                          rc;</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    <span class="keywordtype">size_t</span>                             len;</div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    u_char                            *p;</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    <span class="keywordtype">char</span>                               dn[<a class="code hl_define" href="ucred_8h.html#ac6443a5b8b0ee1997ab85028fa74b054">BRIX_UCRED_PRINC_MAX</a>];</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    <span class="keywordtype">char</span>                               <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>[<a class="code hl_define" href="ucred_8h.html#afe89ae88bf905f4d835b2329d3b2a355">BRIX_UCRED_KEY_MAX</a>];</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    <span class="keywordtype">char</span>                               dirbuf[<a class="code hl_define" href="ucred_8h.html#acd59d1b58a4c04e15e54fd2978857941">BRIX_UCRED_PATH_MAX</a>];</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span> </div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    (void) data;</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span> </div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="comment">/* Fail-closed default: a valid, empty value (&quot;&quot; == no credential). */</span></div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    v-&gt;len = 0;</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    v-&gt;valid = 1;</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    v-&gt;no_cacheable = 0;</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    v-&gt;not_found = 0;</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    v-&gt;data = (u_char *) <span class="stringliteral">&quot;&quot;</span>;</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span> </div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a> = r-&gt;connection;</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span> </div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl == NULL</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>        || SSL_get_verify_result(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl-&gt;connection) != X509_V_OK)</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    {</div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>    }</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span> </div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    leaf = SSL_get_peer_certificate(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl-&gt;connection);</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    <span class="keywordflow">if</span> (leaf == NULL) {</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    }</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span> </div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>    dn[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    eec = <a class="code hl_function" href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">delegated_cred_find_eec</a>(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl-&gt;connection, leaf);</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keywordflow">if</span> (eec != NULL) {</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>        <a class="code hl_function" href="store__policy_8c.html#a9b173e89339ab4e8516bc3ec0ce2e975">brix_x509_oneline</a>(X509_get_subject_name(eec), dn, <span class="keyword">sizeof</span>(dn));</div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    }</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    X509_free(leaf);</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span> </div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    <span class="keywordflow">if</span> (dn[0] == <span class="charliteral">&#39;\0&#39;</span>) {</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    }</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span> </div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    wdcf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    dir = &amp;wdcf-&gt;<a class="code hl_variable" href="structngx__http__brix__webdav__loc__conf__t.html#a96b31dca3dd80658bc722dc8383e73b0">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#abb4956bb72dcbd1582cd4f02496332fc">storage_credential_dir</a>;</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span> </div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    <span class="keywordflow">if</span> (dir-&gt;len == 0 || dir-&gt;len &gt;= <span class="keyword">sizeof</span>(dirbuf)) {</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    }</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(dirbuf, dir-&gt;data, dir-&gt;len);</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    dirbuf[dir-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span> </div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="ucred_8c.html#a3dde26eee3ce03e5d5a3f6c2c7fb6728">brix_sd_ucred_key</a>(dn, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)) != NGX_OK) {</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span> </div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    <span class="comment">/* resolve() leaves fields untouched on its not-found path — zero first</span></div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span><span class="comment">     * so the expired-credential log below never reads garbage. */</span></div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    ngx_memzero(&amp;cred, <span class="keyword">sizeof</span>(cred));</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span> </div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    rc = <a class="code hl_function" href="ucred_8c.html#a245e06c20eea3791952c9c5f27393d47">brix_sd_ucred_resolve</a>(dirbuf, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, &amp;cred);</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span> </div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    <span class="keywordflow">if</span> (rc != NGX_OK || cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#aaa5478256a624f1ce04f4e845250672c">is_bearer</a> || cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#a21d5132f29dcf1e83b223b0da3d4d548">is_s3</a> || cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#ac31772b9f164846e5d6d7aed465cecdc">is_ceph</a>) {</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        <span class="keywordflow">if</span> (rc == NGX_DECLINED &amp;&amp; cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#ae02253eda24781a4a34ae9e40e047534">expired</a>) {</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>            ngx_log_error(NGX_LOG_INFO, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>                          <span class="stringliteral">&quot;brix_delegated_cred: stored credential for &quot;</span></div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>                          <span class="stringliteral">&quot;\&quot;%s\&quot; has expired — re-delegation required&quot;</span>, dn);</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        }</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        <span class="comment">/* A bearer/s3/ceph credential may have resolved here (this variable</span></div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment">         * only surfaces the x509 proxy PATH); erase any secret we decline. */</span></div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>        <a class="code hl_function" href="ucred_8c.html#a6f06f7fb547ae9e4344a558ed49d9d79">brix_sd_ucred_wipe</a>(&amp;cred);</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    }</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span> </div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    len = ngx_strlen(cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#a962cf21add6f93f7b7a28f0f1593ca19">path</a>);</div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    p = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, len);</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    <span class="keywordflow">if</span> (p == NULL) {</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>        <a class="code hl_function" href="ucred_8c.html#a6f06f7fb547ae9e4344a558ed49d9d79">brix_sd_ucred_wipe</a>(&amp;cred);</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    }</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#a962cf21add6f93f7b7a28f0f1593ca19">path</a>, len);</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span> </div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    v-&gt;len = len;</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    v-&gt;data = p;</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span> </div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    <a class="code hl_function" href="ucred_8c.html#a6f06f7fb547ae9e4344a558ed49d9d79">brix_sd_ucred_wipe</a>(&amp;cred);   <span class="comment">/* x509 proxy PATH exported; erase residue */</span></div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>}</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> * $brix_delegated_cred — the verified client&#39;s delegated-credential path.</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> * WHAT: resolves the per-user credential file stored by the delegation</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> * endpoint (delegation.c): EEC DN of the TLS-verified client chain →</span></div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> * brix_sd_ucred_key (&quot;x5h-&quot; + SHA-256 prefix) → &lt;storage_credential_dir&gt;/</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> * &lt;key&gt;.pem, expiry-checked.  Empty when anything is missing — FAIL CLOSED.</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="comment"> * WHY: replaces the hand-maintained `map $ssl_client_s_dn_legacy` block in</span></div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span><span class="comment"> * credential-forwarding gateways (ARC-CE front proxy): the map duplicated</span></div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="comment"> * the ucred key derivation per user and had to be regenerated + reloaded on</span></div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment"> * every new user, and could not expiry-check the file it named.  With this</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment"> * variable, `proxy_ssl_certificate $brix_delegated_cred` picks up a new</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment"> * user&#39;s credential the moment delegation stores it.</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment"> * HOW: identity comes from the TLS layer directly (SSL_get_verify_result</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> * must be X509_V_OK — same signal as $ssl_client_verify), NOT from brix</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment"> * request auth, so the variable works in plain proxy_pass locations with no</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment"> * brix handler.  The EEC is found by skipping RFC 3820 proxy certs</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment"> * (delegation stores under the EEC DN — the delegation endpoint refuses</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment"> * proxy-authenticated uploads).  Kind must be x509 (.pem): bearer/s3/ceph</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment"> * files cannot feed proxy_ssl_certificate.  Expired → empty, with an info</span></div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="comment"> * log naming the DN so operators can see who must re-delegate.</span></div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00129" data-start="{" data-end="}">
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno"><a class="line" href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">  129</a></span><a class="code hl_function" href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">brix_http_delegated_cred_variable</a>(ngx_http_request_t *r,</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    ngx_http_variable_value_t *v, uintptr_t data)</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>{</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    <a class="code hl_struct" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *wdcf;</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    ngx_connection_t                  *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    X509                              *leaf, *eec;</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    ngx_str_t                         *dir;</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    <a class="code hl_struct" href="structbrix__sd__ucred__t.html">brix_sd_ucred_t</a>                    cred;</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    ngx_int_t                          rc;</div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    <span class="keywordtype">size_t</span>                             len;</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>    u_char                            *p;</div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>    <span class="keywordtype">char</span>                               dn[<a class="code hl_define" href="ucred_8h.html#ac6443a5b8b0ee1997ab85028fa74b054">BRIX_UCRED_PRINC_MAX</a>];</div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>    <span class="keywordtype">char</span>                               <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>[<a class="code hl_define" href="ucred_8h.html#afe89ae88bf905f4d835b2329d3b2a355">BRIX_UCRED_KEY_MAX</a>];</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>    <span class="keywordtype">char</span>                               dirbuf[<a class="code hl_define" href="ucred_8h.html#acd59d1b58a4c04e15e54fd2978857941">BRIX_UCRED_PATH_MAX</a>];</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span> </div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    (void) data;</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span> </div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    <span class="comment">/* Fail-closed default: a valid, empty value (&quot;&quot; == no credential). */</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    v-&gt;len = 0;</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    v-&gt;valid = 1;</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    v-&gt;no_cacheable = 0;</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    v-&gt;not_found = 0;</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    v-&gt;data = (u_char *) <span class="stringliteral">&quot;&quot;</span>;</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span> </div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a> = r-&gt;connection;</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span> </div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl == NULL</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>        || SSL_get_verify_result(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl-&gt;connection) != X509_V_OK)</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    {</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    }</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span> </div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    leaf = SSL_get_peer_certificate(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl-&gt;connection);</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <span class="keywordflow">if</span> (leaf == NULL) {</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    }</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span> </div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>    dn[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    eec = <a class="code hl_function" href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">delegated_cred_find_eec</a>(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;ssl-&gt;connection, leaf);</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>    <span class="keywordflow">if</span> (eec != NULL) {</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>        <a class="code hl_function" href="store__policy_8c.html#a9b173e89339ab4e8516bc3ec0ce2e975">brix_x509_oneline</a>(X509_get_subject_name(eec), dn, <span class="keyword">sizeof</span>(dn));</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    }</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    X509_free(leaf);</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span> </div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    <span class="keywordflow">if</span> (dn[0] == <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span> </div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    wdcf = ngx_http_get_module_loc_conf(r, <a class="code hl_variable" href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a>);</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    dir = &amp;wdcf-&gt;<a class="code hl_variable" href="structngx__http__brix__webdav__loc__conf__t.html#a96b31dca3dd80658bc722dc8383e73b0">common</a>.<a class="code hl_variable" href="structngx__http__brix__shared__conf__t.html#abb4956bb72dcbd1582cd4f02496332fc">storage_credential_dir</a>;</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span> </div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    <span class="keywordflow">if</span> (dir-&gt;len == 0 || dir-&gt;len &gt;= <span class="keyword">sizeof</span>(dirbuf)) {</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    }</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(dirbuf, dir-&gt;data, dir-&gt;len);</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    dirbuf[dir-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span> </div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="ucred_8c.html#a3dde26eee3ce03e5d5a3f6c2c7fb6728">brix_sd_ucred_key</a>(dn, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)) != NGX_OK) {</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    }</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span> </div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <span class="comment">/* resolve() leaves fields untouched on its not-found path — zero first</span></div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span><span class="comment">     * so the expired-credential log below never reads garbage. */</span></div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    ngx_memzero(&amp;cred, <span class="keyword">sizeof</span>(cred));</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span> </div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    rc = <a class="code hl_function" href="ucred_8c.html#a245e06c20eea3791952c9c5f27393d47">brix_sd_ucred_resolve</a>(dirbuf, <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, &amp;cred);</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span> </div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="keywordflow">if</span> (rc != NGX_OK || cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#aaa5478256a624f1ce04f4e845250672c">is_bearer</a> || cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#a21d5132f29dcf1e83b223b0da3d4d548">is_s3</a> || cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#ac31772b9f164846e5d6d7aed465cecdc">is_ceph</a>) {</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <span class="keywordflow">if</span> (rc == NGX_DECLINED &amp;&amp; cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#ae02253eda24781a4a34ae9e40e047534">expired</a>) {</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>            ngx_log_error(NGX_LOG_INFO, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>                          <span class="stringliteral">&quot;brix_delegated_cred: stored credential for &quot;</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>                          <span class="stringliteral">&quot;\&quot;%s\&quot; has expired — re-delegation required&quot;</span>, dn);</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        }</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        <span class="comment">/* A bearer/s3/ceph credential may have resolved here (this variable</span></div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="comment">         * only surfaces the x509 proxy PATH); erase any secret we decline. */</span></div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>        <a class="code hl_function" href="ucred_8c.html#a6f06f7fb547ae9e4344a558ed49d9d79">brix_sd_ucred_wipe</a>(&amp;cred);</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    }</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span> </div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    len = ngx_strlen(cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#a962cf21add6f93f7b7a28f0f1593ca19">path</a>);</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    p = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, len);</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    <span class="keywordflow">if</span> (p == NULL) {</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>        <a class="code hl_function" href="ucred_8c.html#a6f06f7fb547ae9e4344a558ed49d9d79">brix_sd_ucred_wipe</a>(&amp;cred);</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    }</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, cred.<a class="code hl_variable" href="structbrix__sd__ucred__t.html#a962cf21add6f93f7b7a28f0f1593ca19">path</a>, len);</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span> </div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    v-&gt;len = len;</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    v-&gt;data = p;</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span> </div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    <a class="code hl_function" href="ucred_8c.html#a6f06f7fb547ae9e4344a558ed49d9d79">brix_sd_ucred_wipe</a>(&amp;cred);   <span class="comment">/* x509 proxy PATH exported; erase residue */</span></div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>}</div>
 </div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span> </div>
 <div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span> </div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00224" data-start="{" data-end="}">
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno"><a class="line" href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">  224</a></span><a class="code hl_function" href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">brix_http_add_protocol_variables</a>(ngx_conf_t *cf)</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>{</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    ngx_http_variable_t *var;</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    ngx_str_t            <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> = ngx_string(<span class="stringliteral">&quot;brix_protocol&quot;</span>);</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    ngx_str_t            cred_name = ngx_string(<span class="stringliteral">&quot;brix_delegated_cred&quot;</span>);</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span> </div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    var = ngx_http_add_variable(cf, &amp;<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, NGX_HTTP_VAR_NOCACHEABLE);</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    <span class="keywordflow">if</span> (var == NULL) {</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    }</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span> </div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    var-&gt;get_handler = <a class="code hl_function" href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">brix_http_protocol_variable</a>;</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    var-&gt;data = 0;</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span> </div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <span class="comment">/* Per-request cacheable: the TLS identity cannot change mid-request. */</span></div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    var = ngx_http_add_variable(cf, &amp;cred_name, 0);</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <span class="keywordflow">if</span> (var == NULL) {</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    }</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span> </div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    var-&gt;get_handler = <a class="code hl_function" href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">brix_http_delegated_cred_variable</a>;</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    var-&gt;data = 0;</div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span> </div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>}</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span> </div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00225" data-start="{" data-end="}">
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno"><a class="line" href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">  225</a></span><a class="code hl_function" href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">brix_http_add_protocol_variables</a>(ngx_conf_t *cf)</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>{</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    ngx_http_variable_t *var;</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    ngx_str_t            <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> = ngx_string(<span class="stringliteral">&quot;brix_protocol&quot;</span>);</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    ngx_str_t            cred_name = ngx_string(<span class="stringliteral">&quot;brix_delegated_cred&quot;</span>);</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span> </div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    var = ngx_http_add_variable(cf, &amp;<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, NGX_HTTP_VAR_NOCACHEABLE);</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    <span class="keywordflow">if</span> (var == NULL) {</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    }</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span> </div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    var-&gt;get_handler = <a class="code hl_function" href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">brix_http_protocol_variable</a>;</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    var-&gt;data = 0;</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span> </div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    <span class="comment">/* Per-request cacheable: the TLS identity cannot change mid-request. */</span></div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    var = ngx_http_add_variable(cf, &amp;cred_name, 0);</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <span class="keywordflow">if</span> (var == NULL) {</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    }</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span> </div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    var-&gt;get_handler = <a class="code hl_function" href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">brix_http_delegated_cred_variable</a>;</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    var-&gt;data = 0;</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span> </div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>}</div>
 </div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span> </div>
 <div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span> </div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00252" data-start="{" data-end="}">
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno"><a class="line" href="module__init_8c.html#a4d8136ce0aabfd9dff762f05abd0cedd">  252</a></span><a class="code hl_function" href="module__init_8c.html#a4d8136ce0aabfd9dff762f05abd0cedd">ngx_http_brix_webdav_preconfiguration</a>(ngx_conf_t *cf)</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>{</div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">brix_http_add_protocol_variables</a>(cf);</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>}</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span> </div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00253" data-start="{" data-end="}">
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno"><a class="line" href="module__init_8c.html#a4d8136ce0aabfd9dff762f05abd0cedd">  253</a></span><a class="code hl_function" href="module__init_8c.html#a4d8136ce0aabfd9dff762f05abd0cedd">ngx_http_brix_webdav_preconfiguration</a>(ngx_conf_t *cf)</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>{</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">brix_http_add_protocol_variables</a>(cf);</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>}</div>
 </div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span> </div>
 <div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span> </div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00259" data-start="{" data-end="}">
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno"><a class="line" href="module__init_8c.html#aeab8747159ca3ec7c5eb0887aec5862f">  259</a></span><a class="code hl_function" href="module__init_8c.html#aeab8747159ca3ec7c5eb0887aec5862f">ngx_http_brix_webdav_init_process</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>{</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    (void) cycle;</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span> </div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00260" data-start="{" data-end="}">
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno"><a class="line" href="module__init_8c.html#aeab8747159ca3ec7c5eb0887aec5862f">  260</a></span><a class="code hl_function" href="module__init_8c.html#aeab8747159ca3ec7c5eb0887aec5862f">ngx_http_brix_webdav_init_process</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>{</div>
 <div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    curl_global_init(CURL_GLOBAL_DEFAULT);</div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>}</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span> </div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>    <span class="comment">/* Install the process-global seccomp filter (idempotent).  For an HTTP-only</span></div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span><span class="comment">     * config the stream init_process early-returns before its own install, so</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment">     * this is where WebDAV/S3/cvmfs workers get filtered.  Placed AFTER</span></div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment">     * curl_global_init so that one-shot setup is not itself filtered.  Fails the</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span><span class="comment">     * worker closed if an audit/enforce filter cannot be built. */</span></div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="seccomp_8c.html#a0cd9d7438775dffa1f583ea6350323b4">brix_seccomp_install_once</a>(cycle) != NGX_OK) {</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    }</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>}</div>
 </div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span> </div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span> </div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00268" data-start="{" data-end="}">
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno"><a class="line" href="module__init_8c.html#a9085ae9448fb651ecf672ce95e0d56b4">  268</a></span><a class="code hl_function" href="module__init_8c.html#a9085ae9448fb651ecf672ce95e0d56b4">ngx_http_brix_webdav_exit_process</a>(ngx_cycle_t *cycle)</div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>{</div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    (void) cycle;</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    curl_global_cleanup();</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>}</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span> </div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span> </div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00277" data-start="{" data-end="}">
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno"><a class="line" href="module__init_8c.html#a9085ae9448fb651ecf672ce95e0d56b4">  277</a></span><a class="code hl_function" href="module__init_8c.html#a9085ae9448fb651ecf672ce95e0d56b4">ngx_http_brix_webdav_exit_process</a>(ngx_cycle_t *cycle)</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>{</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    (void) cycle;</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    curl_global_cleanup();</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>}</div>
 </div>
 <div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
 <div class="ttc" id="acvmfs_8h_html"><div class="ttname"><a href="cvmfs_8h.html">cvmfs.h</a></div></div>
 <div class="ttc" id="acvmfs_8h_html_a367344710f67ad83783984b6e05dff77"><div class="ttname"><a href="cvmfs_8h.html#a367344710f67ad83783984b6e05dff77">ngx_http_brix_cvmfs_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_cvmfs_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2cvmfs_2module_8c_source.html#l00351">module.c:351</a></div></div>
 <div class="ttc" id="akv__config_8c_html_ac0d274f302a4c56fb72c0077d7a8d2d8"><div class="ttname"><a href="kv__config_8c.html#ac0d274f302a4c56fb72c0077d7a8d2d8">ngx_http_brix_webdav_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_webdav_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2webdav_2module_8c_source.html#l00010">module.c:10</a></div></div>
-<div class="ttc" id="amodule__init_8c_html_a2100246246aa87afd18823db9b0fc5c6"><div class="ttname"><a href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">brix_http_add_protocol_variables</a></div><div class="ttdeci">ngx_int_t brix_http_add_protocol_variables(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00224">module_init.c:224</a></div></div>
-<div class="ttc" id="amodule__init_8c_html_a4d8136ce0aabfd9dff762f05abd0cedd"><div class="ttname"><a href="module__init_8c.html#a4d8136ce0aabfd9dff762f05abd0cedd">ngx_http_brix_webdav_preconfiguration</a></div><div class="ttdeci">ngx_int_t ngx_http_brix_webdav_preconfiguration(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00252">module_init.c:252</a></div></div>
-<div class="ttc" id="amodule__init_8c_html_a9085ae9448fb651ecf672ce95e0d56b4"><div class="ttname"><a href="module__init_8c.html#a9085ae9448fb651ecf672ce95e0d56b4">ngx_http_brix_webdav_exit_process</a></div><div class="ttdeci">void ngx_http_brix_webdav_exit_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00268">module_init.c:268</a></div></div>
-<div class="ttc" id="amodule__init_8c_html_aadb84113eb238a016c3055aa50b0adfe"><div class="ttname"><a href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">delegated_cred_find_eec</a></div><div class="ttdeci">static X509 * delegated_cred_find_eec(SSL *sc, X509 *leaf)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00078">module_init.c:78</a></div></div>
-<div class="ttc" id="amodule__init_8c_html_ad453bbca74f3c1ea17bb8933e040af87"><div class="ttname"><a href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">brix_http_protocol_variable</a></div><div class="ttdeci">ngx_int_t brix_http_protocol_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00031">module_init.c:31</a></div></div>
-<div class="ttc" id="amodule__init_8c_html_aeab8747159ca3ec7c5eb0887aec5862f"><div class="ttname"><a href="module__init_8c.html#aeab8747159ca3ec7c5eb0887aec5862f">ngx_http_brix_webdav_init_process</a></div><div class="ttdeci">ngx_int_t ngx_http_brix_webdav_init_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00259">module_init.c:259</a></div></div>
-<div class="ttc" id="amodule__init_8c_html_afdb04a0154198748df3d58db93149e09"><div class="ttname"><a href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">brix_http_delegated_cred_variable</a></div><div class="ttdeci">ngx_int_t brix_http_delegated_cred_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00128">module_init.c:128</a></div></div>
+<div class="ttc" id="amodule__init_8c_html_a2100246246aa87afd18823db9b0fc5c6"><div class="ttname"><a href="module__init_8c.html#a2100246246aa87afd18823db9b0fc5c6">brix_http_add_protocol_variables</a></div><div class="ttdeci">ngx_int_t brix_http_add_protocol_variables(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00225">module_init.c:225</a></div></div>
+<div class="ttc" id="amodule__init_8c_html_a4d8136ce0aabfd9dff762f05abd0cedd"><div class="ttname"><a href="module__init_8c.html#a4d8136ce0aabfd9dff762f05abd0cedd">ngx_http_brix_webdav_preconfiguration</a></div><div class="ttdeci">ngx_int_t ngx_http_brix_webdav_preconfiguration(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00253">module_init.c:253</a></div></div>
+<div class="ttc" id="amodule__init_8c_html_a9085ae9448fb651ecf672ce95e0d56b4"><div class="ttname"><a href="module__init_8c.html#a9085ae9448fb651ecf672ce95e0d56b4">ngx_http_brix_webdav_exit_process</a></div><div class="ttdeci">void ngx_http_brix_webdav_exit_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00277">module_init.c:277</a></div></div>
+<div class="ttc" id="amodule__init_8c_html_aadb84113eb238a016c3055aa50b0adfe"><div class="ttname"><a href="module__init_8c.html#aadb84113eb238a016c3055aa50b0adfe">delegated_cred_find_eec</a></div><div class="ttdeci">static X509 * delegated_cred_find_eec(SSL *sc, X509 *leaf)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00079">module_init.c:79</a></div></div>
+<div class="ttc" id="amodule__init_8c_html_ad453bbca74f3c1ea17bb8933e040af87"><div class="ttname"><a href="module__init_8c.html#ad453bbca74f3c1ea17bb8933e040af87">brix_http_protocol_variable</a></div><div class="ttdeci">ngx_int_t brix_http_protocol_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00032">module_init.c:32</a></div></div>
+<div class="ttc" id="amodule__init_8c_html_aeab8747159ca3ec7c5eb0887aec5862f"><div class="ttname"><a href="module__init_8c.html#aeab8747159ca3ec7c5eb0887aec5862f">ngx_http_brix_webdav_init_process</a></div><div class="ttdeci">ngx_int_t ngx_http_brix_webdav_init_process(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00260">module_init.c:260</a></div></div>
+<div class="ttc" id="amodule__init_8c_html_afdb04a0154198748df3d58db93149e09"><div class="ttname"><a href="module__init_8c.html#afdb04a0154198748df3d58db93149e09">brix_http_delegated_cred_variable</a></div><div class="ttdeci">ngx_int_t brix_http_delegated_cred_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)</div><div class="ttdef"><b>Definition</b> <a href="module__init_8c_source.html#l00129">module_init.c:129</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ab2b30ef18f08bfac0dea477c9ce1ea7e"><div class="ttname"><a href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a></div><div class="ttdeci">STACK_OF(X509) *brix_pki_load_certs_from_path(const char *path</div></div>
 <div class="ttc" id="aprotocols_2s3_2module_8c_html_aa3ebe1b6782bf4652135fb0c0bcd9489"><div class="ttname"><a href="protocols_2s3_2module_8c.html#aa3ebe1b6782bf4652135fb0c0bcd9489">ngx_http_brix_s3_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_s3_module</div><div class="ttdef"><b>Definition</b> <a href="protocols_2s3_2module_8c_source.html#l00420">module.c:420</a></div></div>
+<div class="ttc" id="aseccomp_8c_html_a0cd9d7438775dffa1f583ea6350323b4"><div class="ttname"><a href="seccomp_8c.html#a0cd9d7438775dffa1f583ea6350323b4">brix_seccomp_install_once</a></div><div class="ttdeci">ngx_int_t brix_seccomp_install_once(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00076">seccomp.c:76</a></div></div>
+<div class="ttc" id="aseccomp_8h_html"><div class="ttname"><a href="seccomp_8h.html">seccomp.h</a></div></div>
 <div class="ttc" id="assi__service_8c_html_a8f8f80d37794cde9472343e4487ba3eb"><div class="ttname"><a href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a></div><div class="ttdeci">const char * name</div><div class="ttdef"><b>Definition</b> <a href="ssi__service_8c_source.html#l00102">ssi_service.c:102</a></div></div>
 <div class="ttc" id="astore__policy_8c_html_a9b173e89339ab4e8516bc3ec0ce2e975"><div class="ttname"><a href="store__policy_8c.html#a9b173e89339ab4e8516bc3ec0ce2e975">brix_x509_oneline</a></div><div class="ttdeci">char * brix_x509_oneline(X509_NAME *name, char *buf, size_t buflen)</div><div class="ttdef"><b>Definition</b> <a href="store__policy_8c_source.html#l00044">store_policy.c:44</a></div></div>
 <div class="ttc" id="astore__policy_8h_html"><div class="ttname"><a href="store__policy_8h.html">store_policy.h</a></div></div>

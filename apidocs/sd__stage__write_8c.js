@@ -15,6 +15,7 @@ var sd__stage__write_8c =
     [ "sd_stage_wb_fstat", "sd__stage__write_8c.html#a412c4dc540812774123bfd7e3c33eac2", null ],
     [ "sd_stage_wb_fsync", "sd__stage__write_8c.html#a0339949d4212f6b4a7930509f0a7c370", null ],
     [ "sd_stage_wb_ftruncate", "sd__stage__write_8c.html#a8d0c288bffadc136985fac4ec292f77f", null ],
+    [ "sd_stage_wb_hydrate", "sd__stage__write_8c.html#a23317d7b93bd7703b4b6d02b1b1a6cbb", null ],
     [ "sd_stage_wb_pread", "sd__stage__write_8c.html#a3a5aafaef1fd90bba85540232e896759", null ],
     [ "sd_stage_wb_pwrite", "sd__stage__write_8c.html#a0cc2ed06a36fdcbe3ae698e4813ce9db", null ]
 ];

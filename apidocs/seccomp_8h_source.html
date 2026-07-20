@@ -135,10 +135,52 @@ $(document).ready(function(){initNavTree('seccomp_8h_source.html',''); initResiz
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment"> * not be built and loaded — the caller MUST fail the worker on NGX_ERROR rather</span></div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="comment"> * than serve unfiltered.</span></div>
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>ngx_int_t <a class="code hl_function" href="seccomp_8h.html#a37b0196103bbf2ac6128f6168057d63c">brix_seccomp_install</a>(ngx_cycle_t *cycle, ngx_uint_t mode);</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_CORE_SECCOMP_H */</span><span class="preprocessor"></span></div>
-<div class="ttc" id="aseccomp_8h_html_a37b0196103bbf2ac6128f6168057d63c"><div class="ttname"><a href="seccomp_8h.html#a37b0196103bbf2ac6128f6168057d63c">brix_seccomp_install</a></div><div class="ttdeci">ngx_int_t brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode)</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00038">seccomp.c:38</a></div></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>ngx_int_t <a class="code hl_function" href="seccomp_8h.html#a8579a73aab0d3a54b7149c5417e8aaf9">brix_seccomp_install</a>(ngx_cycle_t *cycle, ngx_uint_t mode,</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    ngx_uint_t allow_exec);</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment"> * Process-global &quot;allow execve under enforce&quot; flag (0/1), set by</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment"> * `brix_seccomp_allow_exec on`.  When 1, an ENFORCE filter allowlists</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment"> * execve/execveat (so OIDC token fetch / native-TPC token-exchange / the</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="comment"> * kXR_prepare hook can fork+exec) while STILL killing ptrace/process_vm_*.</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="keyword">extern</span> ngx_uint_t <a class="code hl_variable" href="seccomp_8h.html#a61178e87d8eb013e769c8d25587b2d2f">brix_seccomp_allow_exec</a>;</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="comment">/* Custom setter for `brix_seccomp_allow_exec on|off` (stream + http tables). */</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="keywordtype">char</span> *<a class="code hl_function" href="seccomp_8h.html#a4263dc667936fa282d08b61968a81cd9">brix_conf_set_seccomp_allow_exec</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>,</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="keywordtype">void</span> *conf);</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="comment"> * The process-global effective seccomp mode (strictest across ALL brix servers,</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment"> * stream + http). Set by brix_conf_set_seccomp() at config parse; read by</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment"> * brix_seccomp_install_once().</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="keyword">extern</span> ngx_uint_t <a class="code hl_variable" href="seccomp_8h.html#a25d8705e44acb38f408e4bea7fee8676">brix_seccomp_worker_mode</a>;</div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment"> * Custom setter for the `brix_seccomp` directive (registered in BOTH the stream</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment"> * and the shared http directive tables). Parses off|audit|enforce into the</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment"> * per-conf field AND bumps brix_seccomp_worker_mode to the strictest requested.</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="keywordtype">char</span> *<a class="code hl_function" href="seccomp_8h.html#ac545c4b00bebb9f9ec27a3d2ac11000f">brix_conf_set_seccomp</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>, <span class="keywordtype">void</span> *conf);</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment"> * Install brix_seccomp_worker_mode on the calling worker, exactly once (idempotent</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment"> * per worker). Called at the end of the brix init_process that runs for this</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment"> * worker — stream for stream/mixed configs, webdav for HTTP-only configs — so</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment"> * WebDAV/S3-only workers are filtered too. Returns NGX_ERROR (fail closed) when an</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment"> * audit/enforce filter was requested but could not be built.</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>ngx_int_t <a class="code hl_function" href="seccomp_8h.html#a0cd9d7438775dffa1f583ea6350323b4">brix_seccomp_install_once</a>(ngx_cycle_t *cycle);</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span> </div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_CORE_SECCOMP_H */</span><span class="preprocessor"></span></div>
+<div class="ttc" id="aseccomp_8h_html_a0cd9d7438775dffa1f583ea6350323b4"><div class="ttname"><a href="seccomp_8h.html#a0cd9d7438775dffa1f583ea6350323b4">brix_seccomp_install_once</a></div><div class="ttdeci">ngx_int_t brix_seccomp_install_once(ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00076">seccomp.c:76</a></div></div>
+<div class="ttc" id="aseccomp_8h_html_a25d8705e44acb38f408e4bea7fee8676"><div class="ttname"><a href="seccomp_8h.html#a25d8705e44acb38f408e4bea7fee8676">brix_seccomp_worker_mode</a></div><div class="ttdeci">ngx_uint_t brix_seccomp_worker_mode</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00027">seccomp.c:27</a></div></div>
+<div class="ttc" id="aseccomp_8h_html_a4263dc667936fa282d08b61968a81cd9"><div class="ttname"><a href="seccomp_8h.html#a4263dc667936fa282d08b61968a81cd9">brix_conf_set_seccomp_allow_exec</a></div><div class="ttdeci">char * brix_conf_set_seccomp_allow_exec(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00087">seccomp.c:87</a></div></div>
+<div class="ttc" id="aseccomp_8h_html_a61178e87d8eb013e769c8d25587b2d2f"><div class="ttname"><a href="seccomp_8h.html#a61178e87d8eb013e769c8d25587b2d2f">brix_seccomp_allow_exec</a></div><div class="ttdeci">ngx_uint_t brix_seccomp_allow_exec</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00042">seccomp.c:42</a></div></div>
+<div class="ttc" id="aseccomp_8h_html_a8579a73aab0d3a54b7149c5417e8aaf9"><div class="ttname"><a href="seccomp_8h.html#a8579a73aab0d3a54b7149c5417e8aaf9">brix_seccomp_install</a></div><div class="ttdeci">ngx_int_t brix_seccomp_install(ngx_cycle_t *cycle, ngx_uint_t mode, ngx_uint_t allow_exec)</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00131">seccomp.c:131</a></div></div>
+<div class="ttc" id="aseccomp_8h_html_ac545c4b00bebb9f9ec27a3d2ac11000f"><div class="ttname"><a href="seccomp_8h.html#ac545c4b00bebb9f9ec27a3d2ac11000f">brix_conf_set_seccomp</a></div><div class="ttdeci">char * brix_conf_set_seccomp(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="seccomp_8c_source.html#l00050">seccomp.c:50</a></div></div>
+<div class="ttc" id="astructcmd_html"><div class="ttname"><a href="structcmd.html">cmd</a></div><div class="ttdef"><b>Definition</b> <a href="aio__internal_8h_source.html#l00125">aio_internal.h:125</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

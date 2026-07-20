@@ -44,6 +44,7 @@ var structngx__http__brix__shared__conf__t =
     [ "root", "structngx__http__brix__shared__conf__t.html#a7173924397cedcb8eb86a338c72593d3", null ],
     [ "root_canon", "structngx__http__brix__shared__conf__t.html#a16bdf484c0d11f79befd2ad1316c5725", null ],
     [ "rootfd", "structngx__http__brix__shared__conf__t.html#aea774edbbe058d9f91e1250570b5e8a2", null ],
+    [ "seccomp", "structngx__http__brix__shared__conf__t.html#ae52ce22b9bf1767b6c641f26757b925d", null ],
     [ "session_log", "structngx__http__brix__shared__conf__t.html#a3492d351c3ada00437814ff664ea6fb9", null ],
     [ "stage_enable", "structngx__http__brix__shared__conf__t.html#ae7c051f962cfe288cb8b53f09d2a710b", null ],
     [ "stage_flush_async", "structngx__http__brix__shared__conf__t.html#afaa9f33c34448500ebea505a742db94b", null ],

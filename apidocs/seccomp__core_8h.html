@@ -129,8 +129,8 @@ Typedefs</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a255348994ffaaa50f7fe06b090023bbc" id="r_a255348994ffaaa50f7fe06b090023bbc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp__core_8h.html#a255348994ffaaa50f7fe06b090023bbc">brix_seccomp_core_apply</a> (unsigned mode, <a class="el" href="seccomp__core_8h.html#a5c0dd0929139cc52f3405ea4adb9c221">brix_seccomp_err_fn</a> err_fn, void *ud, unsigned *out_allow, unsigned *out_deny)</td></tr>
-<tr class="separator:a255348994ffaaa50f7fe06b090023bbc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae9f52ee95d63751882214bae74ebdcc6" id="r_ae9f52ee95d63751882214bae74ebdcc6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp__core_8h.html#ae9f52ee95d63751882214bae74ebdcc6">brix_seccomp_core_apply</a> (unsigned mode, unsigned allow_exec, <a class="el" href="seccomp__core_8h.html#a5c0dd0929139cc52f3405ea4adb9c221">brix_seccomp_err_fn</a> err_fn, void *ud, unsigned *out_allow, unsigned *out_deny)</td></tr>
+<tr class="separator:ae9f52ee95d63751882214bae74ebdcc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acd471403cc28212b70f7d7f89607c3b6" id="r_acd471403cc28212b70f7d7f89607c3b6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp__core_8h.html#acd471403cc28212b70f7d7f89607c3b6">brix_seccomp_broker_apply</a> (<a class="el" href="seccomp__core_8h.html#a5c0dd0929139cc52f3405ea4adb9c221">brix_seccomp_err_fn</a> err_fn, void *ud, unsigned *out_deny)</td></tr>
 <tr class="separator:acd471403cc28212b70f7d7f89607c3b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -281,7 +281,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="seccomp__core_8c_source.html#l00341">341</a> of file <a class="el" href="seccomp__core_8c_source.html">seccomp_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="seccomp__core_8c_source.html#l00397">397</a> of file <a class="el" href="seccomp__core_8c_source.html">seccomp_core.c</a>.</p>
 
 <p class="reference">References <a class="el" href="seccomp__core_8h_source.html#l00030">BRIX_SECCOMP_CORE_UNAVAIL</a>.</p>
 
@@ -289,8 +289,8 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="a255348994ffaaa50f7fe06b090023bbc" name="a255348994ffaaa50f7fe06b090023bbc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a255348994ffaaa50f7fe06b090023bbc">&#9670;&#160;</a></span>brix_seccomp_core_apply()</h2>
+<a id="ae9f52ee95d63751882214bae74ebdcc6" name="ae9f52ee95d63751882214bae74ebdcc6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae9f52ee95d63751882214bae74ebdcc6">&#9670;&#160;</a></span>brix_seccomp_core_apply()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -300,6 +300,12 @@ Functions</h2></td></tr>
           <td>(</td>
           <td class="paramtype">unsigned&#160;</td>
           <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>allow_exec</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -333,11 +339,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="seccomp__core_8c_source.html#l00321">321</a> of file <a class="el" href="seccomp__core_8c_source.html">seccomp_core.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="seccomp__core_8c_source.html#l00376">376</a> of file <a class="el" href="seccomp__core_8c_source.html">seccomp_core.c</a>.</p>
 
 <p class="reference">References <a class="el" href="seccomp__core_8h_source.html#l00023">BRIX_SECCOMP_CORE_OFF</a>, <a class="el" href="seccomp__core_8h_source.html#l00028">BRIX_SECCOMP_CORE_OK</a>, and <a class="el" href="seccomp__core_8h_source.html#l00030">BRIX_SECCOMP_CORE_UNAVAIL</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00038">brix_seccomp_install()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00131">brix_seccomp_install()</a>.</p>
 
 </div>
 </div>

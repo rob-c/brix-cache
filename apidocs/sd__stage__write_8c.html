@@ -124,6 +124,8 @@ Data Structures</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:afbaa89d6d2f0e1bc71a47a1f10ade02d" id="r_afbaa89d6d2f0e1bc71a47a1f10ade02d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage__write_8c.html#afbaa89d6d2f0e1bc71a47a1f10ade02d">sd_stage_record_cred</a> (<a class="el" href="structbrix__stage__cred__t.html">brix_stage_cred_t</a> *dst, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
 <tr class="separator:afbaa89d6d2f0e1bc71a47a1f10ade02d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a23317d7b93bd7703b4b6d02b1b1a6cbb" id="r_a23317d7b93bd7703b4b6d02b1b1a6cbb"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage__write_8c.html#a23317d7b93bd7703b4b6d02b1b1a6cbb">sd_stage_wb_hydrate</a> (<a class="el" href="structsd__stage__inst__state.html">sd_stage_inst_state</a> *is, const char *path, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
+<tr class="separator:a23317d7b93bd7703b4b6d02b1b1a6cbb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae247577739eeffdbb483ff93316340ec" id="r_ae247577739eeffdbb483ff93316340ec"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage__write_8c.html#ae247577739eeffdbb483ff93316340ec">sd_stage_open_writeback</a> (brix_sd_instance_t *inst, <a class="el" href="structsd__stage__inst__state.html">sd_stage_inst_state</a> *is, const char *path, int sd_flags, mode_t mode, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, int *err_out)</td></tr>
 <tr class="separator:ae247577739eeffdbb483ff93316340ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a10b1e031e71af8d9441d235810f2b9fa" id="r_a10b1e031e71af8d9441d235810f2b9fa"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__stage__write_8c.html#a10b1e031e71af8d9441d235810f2b9fa">sd_stage_wb_flush</a> (<a class="el" href="structsd__stage__wb__state.html">sd_stage_wb_state</a> *wb)</td></tr>
@@ -210,9 +212,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00109">109</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00193">193</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage_8c_source.html#l00185">brix_sd_stage_driver</a>, <a class="el" href="sd__stage__write_8c_source.html#l00058">sd_stage_wb_state::cred</a>, <a class="el" href="sd__stage__write_8c_source.html#l00057">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage__write_8c_source.html#l00056">sd_stage_wb_state::high_water</a>, <a class="el" href="sd__stage__write_8c_source.html#l00053">sd_stage_wb_state::is</a>, <a class="el" href="sd__stage__write_8c_source.html#l00054">sd_stage_wb_state::key</a>, <a class="el" href="sd__stage__write_8c_source.html#l00078">sd_stage_record_cred()</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00133">BRIX_SD_O_EXCL</a>, <a class="el" href="sd_8h_source.html#l00134">BRIX_SD_O_TRUNC</a>, <a class="el" href="sd__stage_8c_source.html#l00185">brix_sd_stage_driver</a>, <a class="el" href="sd__stage__write_8c_source.html#l00058">sd_stage_wb_state::cred</a>, <a class="el" href="sd__stage__write_8c_source.html#l00057">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage__write_8c_source.html#l00056">sd_stage_wb_state::high_water</a>, <a class="el" href="sd__stage__write_8c_source.html#l00053">sd_stage_wb_state::is</a>, <a class="el" href="sd__stage__write_8c_source.html#l00054">sd_stage_wb_state::key</a>, <a class="el" href="sd__stage__write_8c_source.html#l00078">sd_stage_record_cred()</a>, <a class="el" href="sd__stage__write_8c_source.html#l00116">sd_stage_wb_hydrate()</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__stage_8c_source.html#l00028">sd_stage_open()</a>, and <a class="el" href="sd__stage_8c_source.html#l00058">sd_stage_open_cred()</a>.</p>
 
@@ -256,7 +258,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="sd_8h_source.html#l00219">brix_sd_cred_t::cred_dir</a>, <a class="el" href="stage__engine_8h_source.html#l00069">brix_stage_cred_t::deny</a>, <a class="el" href="stage__engine_8h_source.html#l00068">brix_stage_cred_t::dir</a>, <a class="el" href="sd_8h_source.html#l00221">brix_sd_cred_t::fallback_deny</a>, <a class="el" href="sd_8h_source.html#l00215">brix_sd_cred_t::key</a>, <a class="el" href="stage__engine_8h_source.html#l00066">brix_stage_cred_t::key</a>, <a class="el" href="sd_8h_source.html#l00216">brix_sd_cred_t::principal</a>, and <a class="el" href="stage__engine_8h_source.html#l00067">brix_stage_cred_t::principal</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__stage__write_8c_source.html#l00109">sd_stage_open_writeback()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00303">sd_stage_staged_open_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__stage__write_8c_source.html#l00193">sd_stage_open_writeback()</a>, <a class="el" href="sd__stage__write_8c_source.html#l00396">sd_stage_staged_open_inner()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00116">sd_stage_wb_hydrate()</a>.</p>
 
 </div>
 </div>
@@ -276,7 +278,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00453">453</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00546">546</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00041">sd_stage_staged_state::inner</a>, <a class="el" href="sd__stage__write_8c_source.html#l00039">sd_stage_staged_state::is</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>.</p>
 
@@ -308,7 +310,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00387">387</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00480">480</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="stage__engine_8h_source.html#l00125">brix_stage_opts_t::async</a>, <a class="el" href="stage__engine_8h_source.html#l00077">BRIX_STAGE_FLUSH</a>, <a class="el" href="stage__engine_8c_source.html#l00394">brix_stage_run_inline_cred()</a>, <a class="el" href="stage__engine__scheduler_8c_source.html#l00043">brix_stage_submit()</a>, <a class="el" href="conf__structs_8h_source.html#l00065">BRIX_WT_MODE_ASYNC</a>, <a class="el" href="sd__stage__write_8c_source.html#l00042">sd_stage_staged_state::cred</a>, <a class="el" href="stage__engine_8h_source.html#l00131">brix_stage_opts_t::cred</a>, <a class="el" href="stage__engine_8h_source.html#l00130">brix_stage_opts_t::export_root</a>, <a class="el" href="tier_8h_source.html#l00108">brix_stage_policy_t::flush_mode</a>, <a class="el" href="sd__stage__write_8c_source.html#l00041">sd_stage_staged_state::inner</a>, <a class="el" href="sd__stage__write_8c_source.html#l00039">sd_stage_staged_state::is</a>, <a class="el" href="stage__engine_8h_source.html#l00066">brix_stage_cred_t::key</a>, <a class="el" href="sd__stage__write_8c_source.html#l00040">sd_stage_staged_state::key</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00037">sd_stage_inst_state::policy</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00038">sd_stage_inst_state::root_canon</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00035">sd_stage_inst_state::source</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>.</p>
 
@@ -352,9 +354,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00345">345</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00438">438</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00303">sd_stage_staged_open_inner()</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00396">sd_stage_staged_open_inner()</a>.</p>
 
 </div>
 </div>
@@ -402,9 +404,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00364">364</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00457">457</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00303">sd_stage_staged_open_inner()</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00396">sd_stage_staged_open_inner()</a>.</p>
 
 </div>
 </div>
@@ -466,11 +468,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00303">303</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00396">396</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00042">sd_stage_staged_state::cred</a>, <a class="el" href="sd__stage__write_8c_source.html#l00041">sd_stage_staged_state::inner</a>, <a class="el" href="sd__stage__write_8c_source.html#l00039">sd_stage_staged_state::is</a>, <a class="el" href="sd__stage__write_8c_source.html#l00040">sd_stage_staged_state::key</a>, <a class="el" href="sd__stage__write_8c_source.html#l00078">sd_stage_record_cred()</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__stage__write_8c_source.html#l00345">sd_stage_staged_open()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00364">sd_stage_staged_open_cred()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__stage__write_8c_source.html#l00438">sd_stage_staged_open()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00457">sd_stage_staged_open_cred()</a>.</p>
 
 </div>
 </div>
@@ -512,7 +514,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00372">372</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00465">465</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00041">sd_stage_staged_state::inner</a>.</p>
 
@@ -534,9 +536,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00274">274</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00367">367</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00057">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage__write_8c_source.html#l00181">sd_stage_wb_flush()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00057">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage__write_8c_source.html#l00274">sd_stage_wb_flush()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
 
 </div>
 </div>
@@ -564,11 +566,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00181">181</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00274">274</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="stage__engine_8h_source.html#l00125">brix_stage_opts_t::async</a>, <a class="el" href="stage__engine_8h_source.html#l00077">BRIX_STAGE_FLUSH</a>, <a class="el" href="stage__engine_8c_source.html#l00394">brix_stage_run_inline_cred()</a>, <a class="el" href="stage__engine__scheduler_8c_source.html#l00043">brix_stage_submit()</a>, <a class="el" href="conf__structs_8h_source.html#l00065">BRIX_WT_MODE_ASYNC</a>, <a class="el" href="sd__stage__write_8c_source.html#l00058">sd_stage_wb_state::cred</a>, <a class="el" href="stage__engine_8h_source.html#l00131">brix_stage_opts_t::cred</a>, <a class="el" href="sd__stage__write_8c_source.html#l00057">sd_stage_wb_state::dirty</a>, <a class="el" href="stage__engine_8h_source.html#l00130">brix_stage_opts_t::export_root</a>, <a class="el" href="tier_8h_source.html#l00108">brix_stage_policy_t::flush_mode</a>, <a class="el" href="sd__stage__write_8c_source.html#l00053">sd_stage_wb_state::is</a>, <a class="el" href="stage__engine_8h_source.html#l00066">brix_stage_cred_t::key</a>, <a class="el" href="sd__stage__write_8c_source.html#l00054">sd_stage_wb_state::key</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00037">sd_stage_inst_state::policy</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00038">sd_stage_inst_state::root_canon</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00035">sd_stage_inst_state::source</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__stage__write_8c_source.html#l00274">sd_stage_wb_close()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00268">sd_stage_wb_fsync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__stage__write_8c_source.html#l00367">sd_stage_wb_close()</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00361">sd_stage_wb_fsync()</a>.</p>
 
 </div>
 </div>
@@ -598,7 +600,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00260">260</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00353">353</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
 
@@ -620,9 +622,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00268">268</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00361">361</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00181">sd_stage_wb_flush()</a>.</p>
+<p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00274">sd_stage_wb_flush()</a>.</p>
 
 </div>
 </div>
@@ -652,9 +654,57 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00242">242</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00335">335</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00057">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage__write_8c_source.html#l00056">sd_stage_wb_state::high_water</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
+
+</div>
+</div>
+<a id="a23317d7b93bd7703b4b6d02b1b1a6cbb" name="a23317d7b93bd7703b4b6d02b1b1a6cbb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a23317d7b93bd7703b4b6d02b1b1a6cbb">&#9670;&#160;</a></span>sd_stage_wb_hydrate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_int_t sd_stage_wb_hydrate </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structsd__stage__inst__state.html">sd_stage_inst_state</a> *&#160;</td>
+          <td class="paramname"><em>is</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00116">116</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+
+<p class="reference">References <a class="el" href="stage__engine_8h_source.html#l00076">BRIX_STAGE_RECALL</a>, <a class="el" href="stage__engine_8c_source.html#l00394">brix_stage_run_inline_cred()</a>, <a class="el" href="sd_8h_source.html#l00278">brix_sd_stat_t::is_reg</a>, <a class="el" href="stage__engine_8h_source.html#l00066">brix_stage_cred_t::key</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00039">sd_stage_inst_state::log</a>, <a class="el" href="sd_8h_source.html#l00273">brix_sd_stat_t::mode</a>, <a class="el" href="sd_8h_source.html#l00297">brix_sd_setattr_t::mode</a>, <a class="el" href="sd__stage__write_8c_source.html#l00078">sd_stage_record_cred()</a>, <a class="el" href="sd_8h_source.html#l00294">brix_sd_setattr_t::set_mode</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="sd__stage__internal_8h_source.html#l00035">sd_stage_inst_state::source</a>, and <a class="el" href="sd__stage__internal_8h_source.html#l00036">sd_stage_inst_state::store</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__stage__write_8c_source.html#l00193">sd_stage_open_writeback()</a>.</p>
 
 </div>
 </div>
@@ -696,7 +746,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00234">234</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00327">327</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
 
@@ -740,7 +790,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00219">219</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__stage__write_8c_source.html#l00312">312</a> of file <a class="el" href="sd__stage__write_8c_source.html">sd_stage_write.c</a>.</p>
 
 <p class="reference">References <a class="el" href="sd__stage__write_8c_source.html#l00057">sd_stage_wb_state::dirty</a>, <a class="el" href="sd__stage__write_8c_source.html#l00056">sd_stage_wb_state::high_water</a>, and <a class="el" href="sd__stage__write_8c_source.html#l00055">sd_stage_wb_state::store_obj</a>.</p>
 

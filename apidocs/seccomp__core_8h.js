@@ -8,5 +8,5 @@ var seccomp__core_8h =
     [ "BRIX_SECCOMP_CORE_UNAVAIL", "seccomp__core_8h.html#ac760268ee27ccc549c20af6dac3f297e", null ],
     [ "brix_seccomp_err_fn", "seccomp__core_8h.html#a5c0dd0929139cc52f3405ea4adb9c221", null ],
     [ "brix_seccomp_broker_apply", "seccomp__core_8h.html#acd471403cc28212b70f7d7f89607c3b6", null ],
-    [ "brix_seccomp_core_apply", "seccomp__core_8h.html#a255348994ffaaa50f7fe06b090023bbc", null ]
+    [ "brix_seccomp_core_apply", "seccomp__core_8h.html#ae9f52ee95d63751882214bae74ebdcc6", null ]
 ];

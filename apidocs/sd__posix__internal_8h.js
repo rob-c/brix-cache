@@ -20,6 +20,7 @@ var sd__posix__internal_8h =
     [ "sd_posix_removexattr", "sd__posix__internal_8h.html#a68acfed3fa1de1208349e5aae75b0d87", null ],
     [ "sd_posix_rename", "sd__posix__internal_8h.html#aecd64770171fa25f4fbf2b6a96b0b398", null ],
     [ "sd_posix_server_copy", "sd__posix__internal_8h.html#aec0776c6dc732d74d5d0b7c48cbdefc9", null ],
+    [ "sd_posix_setattr", "sd__posix__internal_8h.html#a7d62d07c125cd23fd463618df4dc78f4", null ],
     [ "sd_posix_setxattr", "sd__posix__internal_8h.html#a055eed33d5715ce0910e1d6ac3259eaa", null ],
     [ "sd_posix_staged_abort", "sd__posix__internal_8h.html#a44f3147b14d9f36266e61bd67de16ea6", null ],
     [ "sd_posix_staged_commit", "sd__posix__internal_8h.html#acc4aabc756cdafaffe609fa6929310a9", null ],

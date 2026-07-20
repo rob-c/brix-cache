@@ -91,7 +91,8 @@ $(document).ready(function(){initNavTree('seccomp_8c.html',''); initResizable();
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a>  </div>
+<a href="#func-members">Functions</a> &#124;
+<a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">seccomp.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -111,14 +112,105 @@ $(document).ready(function(){initNavTree('seccomp_8c.html',''); initResizable();
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ac545c4b00bebb9f9ec27a3d2ac11000f" id="r_ac545c4b00bebb9f9ec27a3d2ac11000f"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#ac545c4b00bebb9f9ec27a3d2ac11000f">brix_conf_set_seccomp</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:ac545c4b00bebb9f9ec27a3d2ac11000f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0cd9d7438775dffa1f583ea6350323b4" id="r_a0cd9d7438775dffa1f583ea6350323b4"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a0cd9d7438775dffa1f583ea6350323b4">brix_seccomp_install_once</a> (ngx_cycle_t *cycle)</td></tr>
+<tr class="separator:a0cd9d7438775dffa1f583ea6350323b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4263dc667936fa282d08b61968a81cd9" id="r_a4263dc667936fa282d08b61968a81cd9"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a4263dc667936fa282d08b61968a81cd9">brix_conf_set_seccomp_allow_exec</a> (ngx_conf_t *cf, ngx_command_t *<a class="el" href="structcmd.html">cmd</a>, void *conf)</td></tr>
+<tr class="separator:a4263dc667936fa282d08b61968a81cd9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a773b7d28a554de1d0ca25f4b19d55855" id="r_a773b7d28a554de1d0ca25f4b19d55855"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a773b7d28a554de1d0ca25f4b19d55855">brix_seccomp_log_err</a> (void *ud, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, int rc)</td></tr>
 <tr class="separator:a773b7d28a554de1d0ca25f4b19d55855"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a37b0196103bbf2ac6128f6168057d63c" id="r_a37b0196103bbf2ac6128f6168057d63c"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a37b0196103bbf2ac6128f6168057d63c">brix_seccomp_install</a> (ngx_cycle_t *cycle, ngx_uint_t mode)</td></tr>
-<tr class="separator:a37b0196103bbf2ac6128f6168057d63c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8579a73aab0d3a54b7149c5417e8aaf9" id="r_a8579a73aab0d3a54b7149c5417e8aaf9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a8579a73aab0d3a54b7149c5417e8aaf9">brix_seccomp_install</a> (ngx_cycle_t *cycle, ngx_uint_t mode, ngx_uint_t allow_exec)</td></tr>
+<tr class="separator:a8579a73aab0d3a54b7149c5417e8aaf9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
+Variables</h2></td></tr>
+<tr class="memitem:a25d8705e44acb38f408e4bea7fee8676" id="r_a25d8705e44acb38f408e4bea7fee8676"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a25d8705e44acb38f408e4bea7fee8676">brix_seccomp_worker_mode</a> = 0</td></tr>
+<tr class="separator:a25d8705e44acb38f408e4bea7fee8676"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a61178e87d8eb013e769c8d25587b2d2f" id="r_a61178e87d8eb013e769c8d25587b2d2f"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a61178e87d8eb013e769c8d25587b2d2f">brix_seccomp_allow_exec</a> = 1</td></tr>
+<tr class="separator:a61178e87d8eb013e769c8d25587b2d2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a33e0687d1f399b09988105aa2e4db62c" id="r_a33e0687d1f399b09988105aa2e4db62c"><td class="memItemLeft" align="right" valign="top">static ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="seccomp_8c.html#a33e0687d1f399b09988105aa2e4db62c">brix_seccomp_installed</a> = 0</td></tr>
+<tr class="separator:a33e0687d1f399b09988105aa2e4db62c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a37b0196103bbf2ac6128f6168057d63c" name="a37b0196103bbf2ac6128f6168057d63c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a37b0196103bbf2ac6128f6168057d63c">&#9670;&#160;</a></span>brix_seccomp_install()</h2>
+<a id="ac545c4b00bebb9f9ec27a3d2ac11000f" name="ac545c4b00bebb9f9ec27a3d2ac11000f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac545c4b00bebb9f9ec27a3d2ac11000f">&#9670;&#160;</a></span>brix_conf_set_seccomp()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char * brix_conf_set_seccomp </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00050">50</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00114">BRIX_SECCOMP_OFF</a>, <a class="el" href="seccomp_8c_source.html#l00027">brix_seccomp_worker_mode</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+</div>
+</div>
+<a id="a4263dc667936fa282d08b61968a81cd9" name="a4263dc667936fa282d08b61968a81cd9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4263dc667936fa282d08b61968a81cd9">&#9670;&#160;</a></span>brix_conf_set_seccomp_allow_exec()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char * brix_conf_set_seccomp_allow_exec </td>
+          <td>(</td>
+          <td class="paramtype">ngx_conf_t *&#160;</td>
+          <td class="paramname"><em>cf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_command_t *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00087">87</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+
+<p class="reference">References <a class="el" href="seccomp_8c_source.html#l00042">brix_seccomp_allow_exec</a>.</p>
+
+</div>
+</div>
+<a id="a8579a73aab0d3a54b7149c5417e8aaf9" name="a8579a73aab0d3a54b7149c5417e8aaf9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8579a73aab0d3a54b7149c5417e8aaf9">&#9670;&#160;</a></span>brix_seccomp_install()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -133,7 +225,13 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>mode</em>&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>allow_exec</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -143,11 +241,35 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00038">38</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00131">131</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
 
-<p class="reference">References <a class="el" href="seccomp__core_8c_source.html#l00321">brix_seccomp_core_apply()</a>, <a class="el" href="seccomp__core_8h_source.html#l00028">BRIX_SECCOMP_CORE_OK</a>, <a class="el" href="seccomp__core_8h_source.html#l00030">BRIX_SECCOMP_CORE_UNAVAIL</a>, <a class="el" href="tunables_8h_source.html#l00116">BRIX_SECCOMP_ENFORCE</a>, <a class="el" href="seccomp_8c_source.html#l00020">brix_seccomp_log_err()</a>, and <a class="el" href="tunables_8h_source.html#l00114">BRIX_SECCOMP_OFF</a>.</p>
+<p class="reference">References <a class="el" href="seccomp__core_8c_source.html#l00376">brix_seccomp_core_apply()</a>, <a class="el" href="seccomp__core_8h_source.html#l00028">BRIX_SECCOMP_CORE_OK</a>, <a class="el" href="seccomp__core_8h_source.html#l00030">BRIX_SECCOMP_CORE_UNAVAIL</a>, <a class="el" href="tunables_8h_source.html#l00116">BRIX_SECCOMP_ENFORCE</a>, <a class="el" href="seccomp_8c_source.html#l00113">brix_seccomp_log_err()</a>, and <a class="el" href="tunables_8h_source.html#l00114">BRIX_SECCOMP_OFF</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="process_8c_source.html#l00158">ngx_stream_brix_init_process()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00076">brix_seccomp_install_once()</a>.</p>
+
+</div>
+</div>
+<a id="a0cd9d7438775dffa1f583ea6350323b4" name="a0cd9d7438775dffa1f583ea6350323b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0cd9d7438775dffa1f583ea6350323b4">&#9670;&#160;</a></span>brix_seccomp_install_once()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_seccomp_install_once </td>
+          <td>(</td>
+          <td class="paramtype">ngx_cycle_t *&#160;</td>
+          <td class="paramname"><em>cycle</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00076">76</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+
+<p class="reference">References <a class="el" href="seccomp_8c_source.html#l00042">brix_seccomp_allow_exec</a>, <a class="el" href="seccomp_8c_source.html#l00131">brix_seccomp_install()</a>, <a class="el" href="seccomp_8c_source.html#l00047">brix_seccomp_installed</a>, and <a class="el" href="seccomp_8c_source.html#l00027">brix_seccomp_worker_mode</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00260">ngx_http_brix_webdav_init_process()</a>, and <a class="el" href="process_8c_source.html#l00158">ngx_stream_brix_init_process()</a>.</p>
 
 </div>
 </div>
@@ -191,11 +313,74 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00020">20</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00113">113</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00038">brix_seccomp_install()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00131">brix_seccomp_install()</a>.</p>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a61178e87d8eb013e769c8d25587b2d2f" name="a61178e87d8eb013e769c8d25587b2d2f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a61178e87d8eb013e769c8d25587b2d2f">&#9670;&#160;</a></span>brix_seccomp_allow_exec</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_uint_t brix_seccomp_allow_exec = 1</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00042">42</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00087">brix_conf_set_seccomp_allow_exec()</a>, and <a class="el" href="seccomp_8c_source.html#l00076">brix_seccomp_install_once()</a>.</p>
+
+</div>
+</div>
+<a id="a33e0687d1f399b09988105aa2e4db62c" name="a33e0687d1f399b09988105aa2e4db62c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a33e0687d1f399b09988105aa2e4db62c">&#9670;&#160;</a></span>brix_seccomp_installed</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_uint_t brix_seccomp_installed = 0</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00047">47</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00076">brix_seccomp_install_once()</a>.</p>
+
+</div>
+</div>
+<a id="a25d8705e44acb38f408e4bea7fee8676" name="a25d8705e44acb38f408e4bea7fee8676"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a25d8705e44acb38f408e4bea7fee8676">&#9670;&#160;</a></span>brix_seccomp_worker_mode</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_uint_t brix_seccomp_worker_mode = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="seccomp_8c_source.html#l00027">27</a> of file <a class="el" href="seccomp_8c_source.html">seccomp.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="seccomp_8c_source.html#l00050">brix_conf_set_seccomp()</a>, and <a class="el" href="seccomp_8c_source.html#l00076">brix_seccomp_install_once()</a>.</p>
 
 </div>
 </div>

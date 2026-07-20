@@ -10,6 +10,8 @@ var lifecycle_8h =
     [ "BRIX_IMP_F_MIN_UID", "lifecycle_8h.html#a488db504a6f6f7d60288b6f56354f2a0", null ],
     [ "BRIX_IMP_F_SINGLE_USER", "lifecycle_8h.html#acfef320b18b068fd8d8e44346c7f95d9", null ],
     [ "BRIX_IMP_F_SOCKET", "lifecycle_8h.html#a69c619c691430cbd276c2e833be7b225", null ],
+    [ "brix_conf_set_worker_user", "lifecycle_8h.html#a334ebcf846f43bcc636cc9e917d55d3a", null ],
+    [ "brix_imp_cap_held", "lifecycle_8h.html#ad977665c2c4e8a1bade17b754f769941", null ],
     [ "brix_imp_conf_mode", "lifecycle_8h.html#a36189db5f4de298457b3e28048646016", null ],
     [ "brix_imp_conf_num", "lifecycle_8h.html#ac54e5869f7b9e584b6445c9169780ee3", null ],
     [ "brix_imp_conf_str", "lifecycle_8h.html#a067fb711f2ec40844775aed510938928", null ],
@@ -19,5 +21,8 @@ var lifecycle_8h =
     [ "brix_imp_request_begin", "lifecycle_8h.html#aef3a2d70ed8ae6a1a18cce1ba9670e0a", null ],
     [ "brix_imp_request_end", "lifecycle_8h.html#a58ae6d1fb5e91b4128d4b20988253fec", null ],
     [ "brix_imp_validate", "lifecycle_8h.html#a10898bb4cdb4366733ff1ccb543fba1b", null ],
-    [ "brix_imp_worker_harden", "lifecycle_8h.html#aedfc3423475631cc45fb8d12c26d302e", null ]
+    [ "brix_imp_worker_deescalate", "lifecycle_8h.html#a07bd13a4a8f5a2ad89268eeb9c523614", null ],
+    [ "brix_imp_worker_harden", "lifecycle_8h.html#aedfc3423475631cc45fb8d12c26d302e", null ],
+    [ "brix_imp_worker_runtime_ids", "lifecycle_8h.html#a410bc3cad8c2e49f399d82e08ebcf461", null ],
+    [ "brix_worker_user", "lifecycle_8h.html#a066efe02e205d27994f590587016d1e7", null ]
 ];
