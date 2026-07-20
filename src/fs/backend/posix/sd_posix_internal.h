@@ -63,6 +63,8 @@ ngx_int_t sd_posix_stat(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out);
 ngx_int_t sd_posix_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
 ngx_int_t sd_posix_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode);
+ngx_int_t sd_posix_setattr(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr);
 ngx_int_t sd_posix_rename(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace);
 ngx_int_t sd_posix_server_copy(brix_sd_instance_t *inst, const char *src,

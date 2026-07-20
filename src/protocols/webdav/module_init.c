@@ -3,6 +3,7 @@
  * Phase-38 split of module.c; behavior-identical.
  */
 #include "webdav_module_internal.h"
+#include "core/seccomp/seccomp.h"    /* brix_seccomp_install_once */
 #include "protocols/cvmfs/cvmfs.h"   /* $brix_protocol: cvmfs claim */
 #include "auth/crypto/store_policy.h" /* brix_px_classify, brix_x509_oneline */
 #include "fs/backend/ucred.h"         /* brix_sd_ucred_key / _resolve */
@@ -258,8 +259,16 @@ ngx_http_brix_webdav_preconfiguration(ngx_conf_t *cf)
 ngx_int_t
 ngx_http_brix_webdav_init_process(ngx_cycle_t *cycle)
 {
-    (void) cycle;
     curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    /* Install the process-global seccomp filter (idempotent).  For an HTTP-only
+     * config the stream init_process early-returns before its own install, so
+     * this is where WebDAV/S3/cvmfs workers get filtered.  Placed AFTER
+     * curl_global_init so that one-shot setup is not itself filtered.  Fails the
+     * worker closed if an audit/enforce filter cannot be built. */
+    if (brix_seccomp_install_once(cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
     return NGX_OK;
 }
 

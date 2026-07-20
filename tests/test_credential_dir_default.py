@@ -100,7 +100,16 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
             "default credential store was not created at config time"
         mode = stat.S_IMODE(os.stat(DEFAULT_STORE).st_mode)
         assert mode == 0o700, f"default store mode is {oct(mode)}, wanted 0700"
-        assert os.stat(DEFAULT_STORE).st_uid == os.geteuid()
+        # The store is handed to the RUNTIME worker identity: under a root
+        # harness the always-on de-escalation drops workers to `nobody`
+        # (brix_worker_user default), so the chown must target that account —
+        # a root-owned 0700 store would EACCES every delegation PUT.
+        if os.geteuid() == 0:
+            import pwd
+            expect_uid = pwd.getpwnam("nobody").pw_uid
+        else:
+            expect_uid = os.geteuid()
+        assert os.stat(DEFAULT_STORE).st_uid == expect_uid
 
         # full two-step delegation with NO configured dir: the credential
         # must land in the default store — the "deployed for free" contract.

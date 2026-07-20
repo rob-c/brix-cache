@@ -379,7 +379,20 @@ brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf,
      * anyone who wants best-effort enable. */
     ngx_conf_merge_uint_value(conf->io_uring,
                               prev->io_uring, BRIX_IO_URING_OFF);
-    /* D-3: seccomp filter default OFF — strictly opt-in (audit-first rollout). */
+    /* D-3: seccomp filter default OFF — strictly opt-in (audit-first rollout).
+     * An empirical flip to ENFORCE (2026-07) confirmed it must stay opt-in: the
+     * worker deny-set KILLs execve, and a few EXTERNAL-helper features fork+exec:
+     * the FRM "exec" MSS adapter ($BRIX_FRM_STAGECMD, a real HSM) / OIDC token
+     * fetch / native-TPC token-exchange / the kXR_prepare hook, so a blanket
+     * enforce default would break them.  (The DEFAULT tape/nearline backend uses
+     * the built-in POSIX stub adapter — recall/migrate/purge are plain file copies,
+     * no exec — so it is fine under strict enforce.)  Sites that use those now
+     * set
+     * `brix_seccomp_allow_exec on` to allowlist execve under enforce (ptrace/
+     * process_vm_* stay killed); the xattr allowlist gap is fixed; and HTTP-only
+     * (WebDAV/S3) workers are filtered too (the install runs from the WebDAV
+     * init_process when there is no stream{} block).  So opt-in `brix_seccomp
+     * enforce` (+ allow_exec when needed) is viable for every deployment. */
     ngx_conf_merge_uint_value(conf->seccomp,
                               prev->seccomp, BRIX_SECCOMP_OFF);
     /* E-4: negative-path backoff default OFF (threshold 0) — availability-first,

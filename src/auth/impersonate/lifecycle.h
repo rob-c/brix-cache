@@ -64,6 +64,29 @@ ngx_int_t brix_imp_init_module(ngx_cycle_t *cycle);
 ngx_int_t brix_imp_init_worker(ngx_cycle_t *cycle);
 void brix_imp_worker_harden(ngx_log_t *log);
 
+/* True iff this process currently holds `cap` (effective or permitted). */
+int brix_imp_cap_held(int cap);
+
+/* Force a root-capable worker (uid 0, or a non-root account holding CAP_SETUID)
+ * down to the confined `brix_worker_user` account (default "nobody" + a warning),
+ * fail-closed. No-op if already the target, or in the master/single process.
+ * Returns NGX_ERROR to fail the worker closed. */
+ngx_int_t brix_imp_worker_deescalate(ngx_log_t *log);
+
+/* `brix_worker_user <account>` setter + its process-global (empty => "nobody"). */
+char *brix_conf_set_worker_user(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+extern char brix_worker_user[64];
+
+/* The uid/gid the workers ACTUALLY serve as once the always-on de-escalation
+ * has run: the nginx `user` account when it is a real unprivileged account,
+ * else the confined brix_worker_user (default "nobody") a root-capable worker
+ * is forced down to. Config-time helper for provisioning worker-writable
+ * directories (credential store, default stage spool). conf_uid/conf_gid are
+ * the core-conf `user` ids (NGX_CONF_UNSET_UINT when unset). NGX_ERROR when
+ * no unprivileged account resolves. */
+ngx_int_t brix_imp_worker_runtime_ids(ngx_uid_t conf_uid, ngx_gid_t conf_gid,
+    uid_t *uid_out, gid_t *gid_out);
+
 /* ----- Per-request principal -------------------------------------- */
 
 /* Set the broker's target principal from `id` for the next op(s) on this worker;

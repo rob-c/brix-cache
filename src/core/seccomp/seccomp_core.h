@@ -44,8 +44,14 @@ typedef void (*brix_seccomp_err_fn)(void *ud, const char *name, int rc);
  * or loaded, or BRIX_SECCOMP_CORE_UNAVAIL if this binary was built without
  * libseccomp and a non-off mode was requested. mode==off is always OK.
  */
-int brix_seccomp_core_apply(unsigned mode, brix_seccomp_err_fn err_fn, void *ud,
-    unsigned *out_allow, unsigned *out_deny);
+/*
+ * `allow_exec` (0/1): when non-zero, execve/execveat are allowlisted (run) instead
+ * of killed under ENFORCE — for sites that legitimately fork+exec helpers (OIDC
+ * token fetch, native-TPC token-exchange, the kXR_prepare hook). The HARD kills
+ * (ptrace/process_vm_*) are unaffected.
+ */
+int brix_seccomp_core_apply(unsigned mode, unsigned allow_exec,
+    brix_seccomp_err_fn err_fn, void *ud, unsigned *out_allow, unsigned *out_deny);
 
 /*
  * Broker filter — a DEFAULT-ALLOW filter that hard-KILLs a small,

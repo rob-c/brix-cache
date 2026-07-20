@@ -80,6 +80,35 @@
 #      NOTE: a cross-device commit copies the whole object cache->storage at close;
 #      for very large objects keep the storage mount fast or expect a longer close.
 #
+#   8. DEFAULT GATEWAY WRITE-STAGING — a WRITABLE export whose
+#      brix_storage_backend is a whole-object remote (http(s):// WebDAV or
+#      s3://) cannot honour random-offset writes natively (uploads replace the
+#      whole object).  If you configure NO stage tier at all, brix
+#      auto-provisions one at startup — announced by a loud multi-line [warn]
+#      banner — over a brix-MANAGED directory:
+#        /tmp/staging/<sanitised-backend-url>     (0700, worker-owned)
+#      The default is the stock tier composition, byte-identical to writing:
+#        brix_stage       on;
+#        brix_stage_store posix:/tmp/staging/<sanitised-backend-url>;
+#      Do not place files in that directory — brix creates, fills and cleans
+#      it.  Mount /tmp/staging as tmpfs if you want RAM-tier spool performance
+#      (staged-but-unflushed writes then do not survive a reboot).  Point
+#      brix_stage_store at a durable device instead to override, or opt out
+#      with "brix_stage off" — writes must then arrive strictly sequentially
+#      from offset 0 (random offsets are rejected at the protocol edge).
+#      An update-open of an EXISTING backend object hydrates the spool copy
+#      from the backend first (read-modify-write), so a partial overwrite
+#      reassembles the full object at flush instead of truncating it.
+#      NOTE: the shipped systemd unit sets PrivateTmp=true — its /tmp is
+#      private to the service and DELETED on every restart; brix detects this
+#      at startup and shouts a "PrivateTmp DETECTED" warning for any /tmp-
+#      hosted stage/cache store.  Use a durable brix_stage_store (or
+#      PrivateTmp=no) when staged writes must survive service restarts.
+#      A READ cache is never required for gateway operation — random reads are
+#      served by ranged GETs against the backend — so the cache tier stays
+#      opt-in: add e.g. "brix_cache_store posix:/tmp/cache;" (same tmpfs note
+#      applies) only when you want read-through caching.
+#
 # Replace every /etc/grid-security/... and /var/lib/nginx-xrootd/... path and
 # every secret/issuer/audience with your site's real values before serving.
 # ============================================================================
@@ -212,6 +241,15 @@ server {
 #
 # stream {
 #     # RECOMMENDED HARDENING (see docs/09-developer-guide/deployment-hardening.md):
+#     #   0. Run workers UNPRIVILEGED. Set a top-level `user brix;` in nginx.conf so
+#     #      nginx drops workers to a dedicated account. Independently, brix FORCE-
+#     #      DROPS any root-capable worker (root, or a non-root account holding
+#     #      CAP_SETUID) down to `brix_worker_user` below at init — fail-closed — so
+#     #      the pre-auth credential parsers (JWT/macaroon/X.509/VOMS/krb5, which run
+#     #      in the worker on attacker-controlled bytes) NEVER run as a root-capable
+#     #      identity. Default target is `nobody` (+ a startup warning); set a
+#     #      dedicated account instead:
+#     brix_worker_user brix;
 #     #   1. Run under the hardened systemd unit packaging/brix-cache.service
 #     #      (NoNewPrivileges, ProtectSystem=strict, PrivateDevices, RestrictNamespaces,
 #     #      CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_NET_BIND_SERVICE, ...).
@@ -220,6 +258,19 @@ server {
 #     #      once (converge the audit log), then switch to `enforce`.  NOTE: `audit`
 #     #      is log-only and provides NO containment; only `enforce` does.
 #     brix_seccomp enforce;
+#     #      execve/execveat are ALLOWED by default so features that fork+exec an
+#     #      EXTERNAL helper keep working under `enforce`: the FRM "exec" MSS adapter
+#     #      (tape://exec, $BRIX_FRM_STAGECMD driving a real HSM), OIDC token fetch,
+#     #      native-TPC token-exchange, WebDAV HTTP-TPC oidc-agent, the kXR_prepare
+#     #      hook.  If you use NONE of these, opt into the strict anti-shell posture
+#     #      by KILLing execve (ptrace/process_vm_* are always killed regardless):
+#     #brix_seccomp_allow_exec off;
+#     #   4. If you enable per-request UNIX impersonation (`brix_impersonation map`,
+#     #      docs/06-authentication/impersonation.md), point the privileged broker
+#     #      at the dedicated non-root account the RPM created, so nothing runs as
+#     #      root after startup:
+#     #brix_impersonation             map;
+#     #brix_impersonation_broker_user brix-broker;
 #
 #     # root:// with WLCG token auth (modern default).
 #     server {
