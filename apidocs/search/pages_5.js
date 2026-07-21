@@ -52,12 +52,13 @@ var searchData=
   ['core_20types_20—_20core_20type_20definitions_20tunables_20and_20the_20canonical_20identity_20object_49',['src/core/types — Core type definitions, tunables, and the canonical identity object',['../md_src_2core_2types_2README.html',1,'']]],
   ['counters_20and_20the_20prometheus_20tt_20metrics_20tt_20exporter_50',['metrics — shared-memory counters and the Prometheus &lt;tt&gt;/metrics&lt;/tt&gt; exporter',['../md_src_2observability_2metrics_2README.html',1,'']]],
   ['crc32_51',['sss — Simple Shared Secret authentication (Blowfish-CFB64 + CRC32)',['../md_src_2auth_2sss_2README.html',1,'']]],
-  ['cross_20protocol_20helper_20library_20http_20file_20serving_20overflow_20safe_20size_20math_52',['shared — cross-protocol helper library (HTTP file serving + overflow-safe size math)',['../md_src_2protocols_2shared_2README.html',1,'']]],
-  ['cross_20protocol_20shared_20primitives_20checksums_20paths_20filesystem_20ssrf_53',['compat — Cross-protocol shared primitives (checksums, paths, filesystem, SSRF)',['../md_src_2core_2compat_2README.html',1,'']]],
-  ['cross_20worker_20key_20value_20store_20and_20token_20bucket_20rate_20limiter_20in_20nginx_20shared_20memory_54',['shm — generic cross-worker key/value store and token-bucket rate limiter in nginx shared memory',['../md_src_2core_2shm_2README.html',1,'']]],
-  ['cross_20worker_20registry_55',['session — XRootD session lifecycle, identity binding &amp; cross-worker registry',['../md_src_2protocols_2root_2session_2README.html',1,'']]],
-  ['crypto_20—_20shared_20openssl_20x_20509_20pki_20core_20for_20gsi_20and_20webdav_20certificate_20auth_56',['crypto — shared OpenSSL X.509 / PKI core for GSI and WebDAV certificate auth',['../md_src_2auth_2crypto_2README.html',1,'']]],
-  ['cta_20tape_20service_57',['&lt;tt&gt;src/protocols/ssi/svc_cta/&lt;/tt&gt; — flagship CTA tape service',['../md_src_2protocols_2ssi_2svc__cta_2README.html',1,'']]],
-  ['cvmfs_20—_20the_20cvmfs_3a_20site_20cache_20experimental_20scvmfs_3a_20tls_20variant_58',['cvmfs — the cvmfs:// site cache (+ experimental scvmfs:// TLS variant)',['../md_src_2protocols_2cvmfs_2README.html',1,'']]],
-  ['cvmfs_3a_20site_20cache_20experimental_20scvmfs_3a_20tls_20variant_59',['cvmfs — the cvmfs:// site cache (+ experimental scvmfs:// TLS variant)',['../md_src_2protocols_2cvmfs_2README.html',1,'']]]
+  ['credential_20exchange_52',['S3 STS Credential Exchange',['../md_src_2auth_2s3_2README.html',1,'']]],
+  ['cross_20protocol_20helper_20library_20http_20file_20serving_20overflow_20safe_20size_20math_53',['shared — cross-protocol helper library (HTTP file serving + overflow-safe size math)',['../md_src_2protocols_2shared_2README.html',1,'']]],
+  ['cross_20protocol_20shared_20primitives_20checksums_20paths_20filesystem_20ssrf_54',['compat — Cross-protocol shared primitives (checksums, paths, filesystem, SSRF)',['../md_src_2core_2compat_2README.html',1,'']]],
+  ['cross_20worker_20key_20value_20store_20and_20token_20bucket_20rate_20limiter_20in_20nginx_20shared_20memory_55',['shm — generic cross-worker key/value store and token-bucket rate limiter in nginx shared memory',['../md_src_2core_2shm_2README.html',1,'']]],
+  ['cross_20worker_20registry_56',['session — XRootD session lifecycle, identity binding &amp; cross-worker registry',['../md_src_2protocols_2root_2session_2README.html',1,'']]],
+  ['crypto_20—_20shared_20openssl_20x_20509_20pki_20core_20for_20gsi_20and_20webdav_20certificate_20auth_57',['crypto — shared OpenSSL X.509 / PKI core for GSI and WebDAV certificate auth',['../md_src_2auth_2crypto_2README.html',1,'']]],
+  ['cta_20tape_20service_58',['&lt;tt&gt;src/protocols/ssi/svc_cta/&lt;/tt&gt; — flagship CTA tape service',['../md_src_2protocols_2ssi_2svc__cta_2README.html',1,'']]],
+  ['cvmfs_20—_20the_20cvmfs_3a_20site_20cache_20experimental_20scvmfs_3a_20tls_20variant_59',['cvmfs — the cvmfs:// site cache (+ experimental scvmfs:// TLS variant)',['../md_src_2protocols_2cvmfs_2README.html',1,'']]],
+  ['cvmfs_3a_20site_20cache_20experimental_20scvmfs_3a_20tls_20variant_60',['cvmfs — the cvmfs:// site cache (+ experimental scvmfs:// TLS variant)',['../md_src_2protocols_2cvmfs_2README.html',1,'']]]
 ];

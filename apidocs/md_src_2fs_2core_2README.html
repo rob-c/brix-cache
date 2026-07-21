@@ -93,7 +93,7 @@ $(document).ready(function(){initNavTree('md_src_2fs_2core_2README.html',''); in
   <div class="headertitle"><div class="title">src/fs/core — the shared &lt;tt&gt;vfs&lt;/tt&gt; I/O verb layer</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md165"></a> <code>vfs_core.{c,h}</code> is the **<code>vfs</code>** layer of the unified storage topology:</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md169"></a> <code>vfs_core.{c,h}</code> is the **<code>vfs</code>** layer of the unified storage topology:</p>
 <div class="fragment"><div class="line">module ─▶ vfs_server ─▶ vfs ─▶ backend      (nginx server data plane)</div>
 <div class="line">client ──────────────▶ vfs ─▶ backend      (userland tools: xrdcp, xrootdfs, …)</div>
 </div><!-- fragment --><p>It holds the storage-neutral byte-I/O verbs that <b>both</b> the nginx server and the userland clients run, over the shared Storage Driver (<code>../backend/sd.h</code>):</p>

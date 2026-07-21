@@ -93,8 +93,8 @@ $(document).ready(function(){initNavTree('md_src_2fs_2cache_2README.html',''); i
   <div class="headertitle"><div class="title">&lt;tt&gt;src/fs/cache/&lt;/tt&gt; — XCache-style read-through cache and write-through origin mirroring</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md147"></a> </p>
-<h1><a class="anchor" id="autotoc_md148"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md151"></a> </p>
+<h1><a class="anchor" id="autotoc_md152"></a>
 Overview</h1>
 <p>This subsystem turns a data server into a <b>caching gateway</b> in front of a remote XRootD origin. It implements two complementary halves:</p>
 <ul>
@@ -104,9 +104,9 @@ Overview</h1>
 <p>Both halves share one <b>unified persistence-state engine</b>: the per-file <code>.cinfo</code> record (v3) carries the read side's block-present bitmap AND file-level write-back state (dirty extent, <code>dirty_since</code>, <code>flush_gen</code>, <code>last_flush</code>, <code>bytes_flushed</code>). The read fill marks blocks present; a write-through flush marks the file dirty before mirroring and clean on success; <b>eviction never reclaims a dirty file</b>; and a per-worker <b>stale-dirty reaper</b> removes write-back staging dirty longer than <code>brix_cache_dirty_max_age</code> (default 7 days) so an abandoned flush cannot leak disk indefinitely. A single shared <b>admission filter</b> (<code><a class="el" href="cache__admit_8c.html">cache_admit.c</a></code>) gives read-caching and write-through the same prefix/size/regex policy shape.</p>
 <p>It exists so that nginx-xrootd can act as a regional cache/proxy node in a grid storage federation without re-downloading hot data, and so that an edge node can absorb writes and propagate them upstream asynchronously. It sits <b>below</b> the protocol handlers: the stream <code>kXR_open</code> read path (<code>../read/open_cache.c</code>) and the slice read path (<code>../read/slice_read.c</code>) call in, the VFS open path (<code>../fs/vfs_open.c</code>) calls <code><a class="el" href="open_8c.html#a2314f201a745d1601f6e27ea9e4d3452">brix_cache_open()</a></code> for hits, and the write path (<code>../write/sync.c</code>, <code>../read/close.c</code>) calls the write-through flush entry points. The HTTP plane (WebDAV/S3) shares only the lightweight readiness/slice helpers via <code><a class="el" href="cache__http_8h.html">cache_http.h</a></code>.</p>
 <p>Everything that touches the origin runs in an <b>nginx thread-pool worker</b>, not on the event loop: the origin protocol (<code>io.c</code>, <code>origin_*.c</code>) uses blocking socket/TLS I/O with <code>poll()</code> timeouts. Completion callbacks (<code>brix_cache_fill_done</code>, <code>brix_wt_flush_done</code>) run back on the single-threaded event loop to resume the client and emit metrics. The cache namespace is a <b>separate directory tree</b> (<code>cache_root</code>) from the export root, with its own confinement model (see Invariants). <code>noop.c</code> is a stub implementation used only when the full cache is excluded from the build; the live build (see repo-root <code>config</code>) compiles the real sources.</p>
-<h1><a class="anchor" id="autotoc_md149"></a>
+<h1><a class="anchor" id="autotoc_md153"></a>
 Files</h1>
-<h2><a class="anchor" id="autotoc_md150"></a>
+<h2><a class="anchor" id="autotoc_md154"></a>
 Read-through entry points &amp; lifecycle</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -120,7 +120,7 @@ Read-through entry points &amp; lifecycle</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="open_8c.html">open.c</a></code>   </td><td class="markdownTableBodyNone">VFS-layer cache hit: <code><a class="el" href="open_8c.html#a2314f201a745d1601f6e27ea9e4d3452">brix_cache_open()</a></code> (open the cached fd if meta validates), <code><a class="el" href="open_8c.html#a1248ab51e311425c47268d757b2a61f1">brix_cache_path_for_resolved()</a></code> (map export-root path → cache-root path), <code><a class="el" href="open_8c.html#a152bca65efb1f411929ab5fe43841c31">brix_cache_record_access()</a></code> (bump atime for LRU).   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md151"></a>
+<h2><a class="anchor" id="autotoc_md155"></a>
 Slice cache (Phase 26)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -132,7 +132,7 @@ Slice cache (Phase 26)</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="cinfo_8c.html">cinfo.c</a></code> / <code><a class="el" href="cinfo_8h.html">cinfo.h</a></code>   </td><td class="markdownTableBodyNone">The unified per-file state record <code>&lt;cachefile&gt;.cinfo</code> (<b>v3</b>): the read-side block-present <b>bitmap</b> PLUS file-level write-back state. <code>mark_dirty</code>/<code>mark_clean</code>/<code>dirty_extent</code> (flock RMW that preserves the present bitmap) drive the dirty flag + extent + <code>dirty_since</code>/<code>flush_gen</code>/<code>last_flush</code>/<code>bytes_flushed</code>; a legacy <b>v2</b> sidecar is read as present-only/clean (no cache cold-start on upgrade). Originally Phase-58 §9 — XrdPfc cinfo's state vector in this module's versioned format. Fixed header (origin validity + access stats + optional origin digest) followed by <code>ceil(size/block_size)</code> bits, one per slice granule, set as windows are fetched. <code><a class="el" href="cinfo_8c.html#a1d18e15230679d9e3a1e15f2223b471c">brix_cache_cinfo_record_block()</a></code> is the record-keeping entry point: an <code>flock(2)</code>-serialised read-modify-write so concurrent slice fills never lose each other's bits, with a validity reset when the origin file's size/mtime changes. Plus <code>load</code>/<code>store</code> (header verbatim + appended bitmap; a short/garbage sidecar loads as <code>NGX_DECLINED</code> → "nothing recorded", so a torn write is always safe), pure bit ops (<code>mark_block</code>/<code>block_present</code>/<code>present_count</code>/<code>refresh_flags</code> → COMPLETE/PARTIAL), and <code>from_meta</code> migration. Records cache contents durably; does not (yet) change how reads are served. Unit-tested standalone (<code>tests/c/test_cinfo.c</code>).   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md152"></a>
+<h2><a class="anchor" id="autotoc_md156"></a>
 Origin protocol client (thread-pool, blocking)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -146,7 +146,7 @@ Origin protocol client (thread-pool, blocking)</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>io.c</code>   </td><td class="markdownTableBodyNone">Blocking <code>send</code>/<code>recv-exact</code>/<code>fd-write-all</code> loops handling SSL <code>WANT_READ/WANT_WRITE</code>, <code>EINTR</code>, and EOF→<code>EPIPE</code>/<code>ECONNRESET</code>.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md153"></a>
+<h2><a class="anchor" id="autotoc_md157"></a>
 Integrity (checksum-on-fill)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -166,7 +166,7 @@ Integrity (checksum-on-fill)</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>../../token/jwt_sign.{c,h}</code>   </td><td class="markdownTableBodyNone"><b>ES256 JWT minting</b> (<code>brix_jwt_sign_es256</code> + <code>brix_jwt_load_ec_key</code>) — the codebase's only JWT-signing path (verification lives in <code><a class="el" href="signature_8c.html">token/signature.c</a></code>). Used solely by the Pelican advertise token; the DER→P1363 conversion is the exact inverse of <code>brix_token_verify_es256</code>.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md154"></a>
+<h2><a class="anchor" id="autotoc_md158"></a>
 Cache filesystem bookkeeping</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -180,7 +180,7 @@ Cache filesystem bookkeeping</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="errors_8c.html">errors.c</a></code>   </td><td class="markdownTableBodyNone"><code>brix_cache_set_error</code> / <code>brix_cache_set_syserror</code>: record <code>result</code>/<code>xrd_error</code>/<code>sys_errno</code>/<code>err_msg</code> on the fill task for the done callback.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md155"></a>
+<h2><a class="anchor" id="autotoc_md159"></a>
 Eviction</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -197,7 +197,7 @@ Eviction</h2>
 <td class="markdownTableBodyNone"><code><a class="el" href="evict__internal_8h.html">evict_internal.h</a></code>   </td><td class="markdownTableBodyNone">Eviction structs (<code>evict_candidate_t</code>, <code>evict_list_t</code>, <code>fs_usage_t</code>), the <code>brix_cache_metric_add</code> macro, the sampler + <code>purge_to_target</code> prototypes.   </td></tr>
 </table>
 <p>The watermark directives (<code>brix_cache_high_watermark</code>, <code>brix_cache_low_watermark</code> as <code>0.9</code>/<code>90%</code>, <code>brix_cache_reap_interval</code> in seconds) live in <code>directives.c</code> (shared parser <code>brix_conf_set_cache_watermark</code>) + <code>../stream/module.c</code>; <code>cache_eviction_threshold</code> remains the on-fill safety net and the default for HIGH. Validation (<code>0 &lt; low &lt; high &lt; 1.0</code>): <code>../config/runtime_server.c</code>. Config test: <code>tests/run_cache_watermark_config.sh</code>.</p>
-<h2><a class="anchor" id="autotoc_md156"></a>
+<h2><a class="anchor" id="autotoc_md160"></a>
 Unified state engine &amp; parity</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -207,7 +207,7 @@ Unified state engine &amp; parity</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="cache__reap_8c.html">cache_reap.c</a></code> / <code><a class="el" href="cache__reap_8h.html">cache_reap.h</a></code>   </td><td class="markdownTableBodyNone">The stale-dirty reaper <code><a class="el" href="cache__reap_8c.html#a4fcde85bf163777644332181b3389b2c">brix_cache_reap_dirty()</a></code>: a recursive same-device scan of the state root that <b>unconditionally</b> removes any data file whose <code>.cinfo</code> has been DIRTY longer than <code>brix_cache_dirty_max_age</code> (data + <code>.cinfo</code>/<code>.meta</code> sidecars), with a <code>WARN</code> per file. Armed as a per-worker hourly timer in <code><a class="el" href="process_8c.html">src/core/config/process.c</a></code> (first tick 5 s), independent of occupancy. E2E: <code>tests/run_cache_reaper.sh</code>.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md157"></a>
+<h2><a class="anchor" id="autotoc_md161"></a>
 Write-through</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -227,7 +227,7 @@ Write-through</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>stage_admit.{c,h}</code>   </td><td class="markdownTableBodyNone"><b>Two-tier write-back-staging backpressure.</b> <code>brix_wt_stage_admit(conf)</code> samples the staging filesystem (<code>cache_wt_stage_root</code>, via the TTL <code>cache_fs_sampler</code>) and returns ALLOW / WAIT / REJECT from the pure band <code>brix_wt_stage_decide(occ, low, high)</code> (in the header, unit-tested by <code>tests/c/run_stage_admit_tests.sh</code>). Enforced at the <b>root:// write-open</b> (<code>../read/open_resolved_file.c</code>, <code>is_write &amp;&amp; wt_enable</code>, before any handle/temp allocation): soft band <code>[low,high)</code> → <code>kXR_wait</code> (the client retries; <code>BRIX_WT_STAGE_WAIT_SECS</code>), hard cap <code>≥high</code> → <code>kXR_Overloaded</code>. <b>Reads are never throttled</b> (staging is filled only by root:// write-through — <code>brix_wt_flush_on_close</code> from <code>../read/close.c</code>; WebDAV/S3 PUT do not stage, so there is no PUT gate). <b>Fails open</b> (ALLOW) on a statvfs fault. Directives <code>brix_wt_stage_{high,low}_watermark</code> (shared parser, <code>../config/runtime_server.c</code> validation, server-level — independent of the read cache). Metrics: gauge <code>brix_wt_stage_usage_ratio</code> + counter <code>brix_wt_stage_throttled_total{action="wait\|reject"}</code>. E2E <code>tests/run_cache_stage_throttle.sh</code>.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md158"></a>
+<h2><a class="anchor" id="autotoc_md162"></a>
 Cache storage on a driver (exclusively-VFS)</h2>
 <p>The cache performs <b>all</b> of its disk byte-I/O through the SD storage driver seam (<code>../fs/backend/</code>), never a raw libc call — the same seam the export uses. By default each cache role binds the <b>POSIX driver</b> to a per-worker <code>O_PATH</code> rootfd; a named backend (e.g. <code>pblock</code>) is resolved through the backend registry instead, so a node can run one object/block backend for its primary export AND a different one for each cache role. There are three roles, each independently pluggable:</p>
 <ul>
@@ -246,7 +246,7 @@ Cache storage on a driver (exclusively-VFS)</h2>
 <td class="markdownTableBodyNone"><code><a class="el" href="cache__storage_8h.html">cache_storage.h</a></code>   </td><td class="markdownTableBodyNone">Public interface for the above.   </td></tr>
 </table>
 <p>Both the root:// serve path (<code>../read/open_resolved_file.c</code>, the <code>from_cache</code> branch) and the WebDAV/S3 serve hook (<code><a class="el" href="open_8c.html">open.c</a></code>) open a driver-backed cache entry <b>through the cache instance</b> (adopting the returned <code>sd_obj</code> into the handle), keyed on the export-relative suffix under <code>cache_root</code>; a POSIX cache keeps the proven raw-fd path. E2E: <code>tests/run_cache_pblock_posix.sh</code> (pblock primary + POSIX read &amp; write-staging), <code>tests/run_cache_pblock_pblock.sh</code> (every plane pblock + a separate POSIX state root).</p>
-<h2><a class="anchor" id="autotoc_md159"></a>
+<h2><a class="anchor" id="autotoc_md163"></a>
 Shared / config / build</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -259,7 +259,7 @@ Shared / config / build</h2>
 <td class="markdownTableBodyNone"><code>open.h</code>   </td><td class="markdownTableBodyNone">VFS-facing prototypes: <code>brix_cache_open</code>, <code>brix_cache_record_access</code>, <code>brix_cache_path_for_resolved</code>.   </td></tr>
 </table>
 <p>| <code>directives.c</code> | nginx config parsers: <code>brix_cache_origin</code>, <code>_eviction_threshold</code> (ppm), <code>_max_file_size</code> (k/m/g), <code>_include_regex</code>, <code>brix_write_through</code>, <code>brix_wt_mode</code>, <code>brix_wt_origin</code>, <code>brix_wt_{allow,deny}_prefix</code>, and (parity) <code>brix_cache_{allow,deny}_prefix</code> + <code>brix_cache_state_root</code> + <code>brix_cache_dirty_max_age</code>. The cache-storage-on-a-driver directives (<code>brix_cache_storage_backend</code>, <code>brix_cache_storage_block_size</code>, <code>brix_cache_wt_stage_root</code>, <code>brix_cache_wt_stage_backend</code>, <code>brix_cache_wt_stage_block_size</code>) are parsed in <code>../stream/module.c</code> and prepared in <code>../config/runtime_server.c</code>. The prefix push is shared by the write-through and read-cache lists. <b>Deliberate asymmetry:</b> there is no read "mode" knob — read fills are inherently async (thread-pool) and whole-vs-slice is already <code>brix_cache_slice</code>, so an <code>brix_cache_mode</code> directive would be a no-op; the write side keeps <code>brix_wt_mode sync|async</code>. | | <code>noop.c</code> | Stub bodies for every public symbol — compiled only when the full cache is excluded from the build; returns <code>kXR_Unsupported</code> / <code>DECISION_DENY</code> / <code>NGX_DECLINED</code>. |</p>
-<h1><a class="anchor" id="autotoc_md160"></a>
+<h1><a class="anchor" id="autotoc_md164"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a></code>** (<code><a class="el" href="cache__internal_8h.html">cache_internal.h</a></code>) — per-fill task ctx, heap-allocated via <code>ngx_thread_task_alloc</code> so a worker thread can own it. Carries the client connection/ctx, echoed <code>streamid</code>, <code>kXR_open</code> options/mode, the four path variants (<code>clean_path</code>, <code>cache_path</code>, <code>part_path</code>, <code>lock_path</code>), <code>file_size</code> (from <code>kXR_retstat</code>), the Phase-26 slice fields (<code>slice_start</code>/<code>slice_len</code>/ <code>file_cache_path</code> + read-resume params), and the error triple (<code>result</code>/<code>xrd_error</code>/<code>sys_errno</code>/<code>err_msg</code>) written by the worker and read by the done callback.</li>
@@ -270,14 +270,14 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__cache__meta__t.html">brix_cache_meta_t</a></code>** (<code><a class="el" href="meta_8h.html">meta.h</a></code>) — the <code>.meta</code> sidecar contents: origin <code>mtime</code>, <code>size</code>, and a length-prefixed <code>etag</code> (≤55 bytes).</li>
 <li>**<code><a class="el" href="structbrix__cache__evict__list__t.html">brix_cache_evict_list_t</a></code> / <code>_candidate_t</code> / <code>_fs_usage_t</code>** (<code><a class="el" href="evict__internal_8h.html">evict_internal.h</a></code>) — the eviction working set: growable candidate array with a parallel <code>evicted[]</code> flag array, a <code>root_dev</code> same-device guard, a <code>protect_path</code> (the file being filled), and <code>occupancy_ppm</code> computed from <code>statvfs</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md161"></a>
+<h1><a class="anchor" id="autotoc_md165"></a>
 Control &amp; data flow</h1>
 <p><b>Read miss (whole file):</b> <code>../read/open_cache.c</code> resolves+ACL-checks the path, finds no cache copy, and calls <code><a class="el" href="ngx__brix__module_8h.html#afdb75e9f5fd54e3c3f7706b26dacdda6">brix_cache_open_or_fill()</a></code>. That allocates a fill task, binds <code>brix_cache_fill_thread</code>/<code>_done</code> via <code>brix_task_bind</code>, posts to <code>conf-&gt;common.thread_pool</code>, and parks the client in <code>XRD_ST_AIO</code>. The worker mkdirs, runs eviction (<code><a class="el" href="evict__policy_8c.html">evict_policy.c</a></code>), takes the per-file lock (<code>lock.c</code>), and calls <code><a class="el" href="cache__internal_8h.html#a8efc996aff9ec496404dd9f8c253c432">brix_cache_fetch_origin()</a></code> which drives <code><a class="el" href="origin__connection_8c.html">origin_connection.c</a></code> → <code><a class="el" href="origin__protocol_8c.html">origin_protocol.c</a></code> → <code>io.c</code>/<code><a class="el" href="origin__response_8c.html">origin_response.c</a></code>. On completion the event loop runs <code>brix_cache_fill_done</code>, which either redirects to origin (admission decline), sends a <code>kXR_*</code> error, or calls <code><a class="el" href="protocols_2root_2read_2open_8h.html#ac2acec8dd8479ff2549e3fab38720ab4">brix_open_resolved_file()</a></code> on the cached copy and <code><a class="el" href="src_2core_2aio_2aio_8h.html#a744d54bf3cd03d588a7708d1533e1b0c">brix_aio_resume()</a></code>s the connection.</p>
 <p><b>Read hit (VFS layer):</b> <code>../fs/vfs_open.c</code> calls <code><a class="el" href="open_8c.html#a2314f201a745d1601f6e27ea9e4d3452">brix_cache_open()</a></code>; it maps the resolved export path to the cache path, validates the <code>.meta</code> sidecar against the on-disk stat, and adopts the fd into the VFS (<code>brix_vfs_adopt_fd</code>). Hits then read through the normal <code>../read/</code> + <code>../aio/</code> path.</p>
 <p><b>Read miss (slice):</b> <code>../read/slice_read.c</code> calls <code>brix_slice_enumerate()</code> (<code>slice.c</code>) to find covering slices; ready slices are served, missing ones get a <code>brix_cache_slice_fill_thread</code> task and the client gets <code>kXR_wait</code> to retry.</p>
 <p><b>Write-through:</b> at open, <code>../fs/vfs_write.c</code> consults <code><a class="el" href="fs_2cache_2noop_8c.html#ac517cbac3535004d2a709580c400321e">brix_cache_should_writethrough()</a></code>; the handle records <code>wt_enabled</code>/dirty state via the <code><a class="el" href="writethrough__metrics_8h.html">writethrough_metrics.h</a></code> inlines. At <code>kXR_sync</code> (<code>../write/sync.c</code>) or close (<code>../read/close.c</code>), <code>brix_wt_flush_sync_handle</code>/<code>brix_wt_flush_on_close</code> (<code>writethrough_flush.c</code>) run <code>brix_wt_run_flush</code> (reusing the origin protocol client in write mode) either inline or on a worker, then mark the handle clean.</p>
 <p>Calls out to: <code>../read/</code> (open/serve), <code>../write/</code> &amp; <code>../fs/</code> (write-through, VFS adopt), <code>../aio/</code> (resume/thread-task binding), <code>../manager/registry.h</code> (<code>brix_srv_register</code>/<code>_unregister_path</code> in manager mode), <code>../metrics/</code> (counters), <code>../dashboard/</code> (flush events), <code>../protocol/</code> (wire structs/constants), <code>../config/</code> (directives), and <code>../shared/safe_size.h</code> (overflow-checked alloc).</p>
-<h1><a class="anchor" id="autotoc_md162"></a>
+<h1><a class="anchor" id="autotoc_md166"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Cache tree is NOT <code>RESOLVE_BENEATH</code>-confined like the export root.</b> <code><a class="el" href="open_8c.html">open.c</a></code> (lines 177-191) documents this deliberately: <code>cache_path</code> lives under <code>cache_root_canon</code>, a <em>different</em> directory from the per-worker export rootfd, so <code>openat2(RESOLVE_BENEATH, export_rootfd, ...)</code> would wrongly refuse it. Confinement instead comes from (a) the server-controlled path mapping in <code><a class="el" href="open_8c.html#a1248ab51e311425c47268d757b2a61f1">brix_cache_path_for_resolved()</a></code> (the client path is validated against <code>root_canon</code> and only a vetted suffix is appended — no raw client path), and (b) <code>O_NOFOLLOW</code> on every cache-file open. A dedicated cache rootfd + <code>openat2</code> is noted as future work, not yet done.</li>
@@ -292,7 +292,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Write-through fail-closed.</b> <code>brix_wt_default_decide</code> returns <code>DENY</code> on NULL config/path; deny prefixes beat allow prefixes; an allow list set makes it a whitelist. The decision is made <b>once at open</b>, cached on the handle, never re-evaluated per write (<code><a class="el" href="writethrough__decision_8h.html">writethrough_decision.h</a></code>). A short read during flush ("file changed during flush") aborts rather than mirroring truncated data.</li>
 <li><b>Stale <code>NGX_THREADS</code> comment.</b> <code><a class="el" href="evict__internal_8h.html">evict_internal.h</a></code> claims <code><a class="el" href="cache__internal_8h.html">cache_internal.h</a></code> wraps everything in <code>#if (NGX_THREADS)</code> — that guard is <b>not</b> present in the current source; the real build always compiles these files and uses <code>noop.c</code> only when the cache is dropped from <code>config</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md163"></a>
+<h1><a class="anchor" id="autotoc_md167"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>New cache config directive:</b> add the field to <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> (<code>../types/config.h</code>), write a parser in <code>directives.c</code>, register the <code>ngx_command_t</code>, and merge it in the server-conf merge. No <code>./configure</code> needed unless you add a new <code>.c</code> file.</li>
@@ -301,7 +301,7 @@ Entry points / extending</h1>
 <li><b>Custom write-through policy:</b> provide a <code>brix_wt_decision_fn</code> and set <code>cfg-&gt;fn</code>/<code>cfg-&gt;user_data</code>; the engine is already pluggable.</li>
 <li><b>Adding a <code>.c</code> file here:</b> register it in the repo-root <code>config</code> (<code>NGX_ADDON_SRCS</code>) and add headers to the dep list, then re-run <code>./configure</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md164"></a>
+<h1><a class="anchor" id="autotoc_md168"></a>
 See also</h1>
 <ul>
 <li><code>../read/README.md</code> — open/read handlers that drive the read-through cache (<code><a class="el" href="open__cache_8c.html">open_cache.c</a></code>, <code>slice_read.c</code>, <code><a class="el" href="close_8c.html">close.c</a></code>).</li>

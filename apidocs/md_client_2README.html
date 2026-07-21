@@ -93,8 +93,8 @@ $(document).ready(function(){initNavTree('md_client_2README.html',''); initResiz
   <div class="headertitle"><div class="title">&lt;tt&gt;client/&lt;/tt&gt; — native BriX client tools</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md601"></a> Pure-C, libXrdCl-free client suite built on <code>libbrix</code> and the in-tree <code>libxrdproto</code> wire layer. No libXrdSec*, no Xrootd headers beyond the wire structs in <code>src/protocols/root/protocol/</code>. One exception to "pure C": <code>apps/ceph/</code> holds the C++/Python storage-plane Ceph operator tools, which link librados directly (still libXrdCl-free).</p>
-<h1><a class="anchor" id="autotoc_md602"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md607"></a> Pure-C, libXrdCl-free client suite built on <code>libbrix</code> and the in-tree <code>libxrdproto</code> wire layer. No libXrdSec*, no Xrootd headers beyond the wire structs in <code>src/protocols/root/protocol/</code>. One exception to "pure C": <code>apps/ceph/</code> holds the C++/Python storage-plane Ceph operator tools, which link librados directly (still libXrdCl-free).</p>
+<h1><a class="anchor" id="autotoc_md608"></a>
 Directory layout</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -116,7 +116,7 @@ Directory layout</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>bin/</code>   </td><td class="markdownTableBodyNone">Built binaries and test executables (generated; not committed).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md603"></a>
+<h1><a class="anchor" id="autotoc_md609"></a>
 Build</h1>
 <div class="fragment"><div class="line"># From the repo root — builds libbrix.a + all CLI binaries</div>
 <div class="line">make -C client</div>
@@ -127,9 +127,9 @@ Build</h1>
 <div class="line"># Run unit tests</div>
 <div class="line">make -C client test</div>
 </div><!-- fragment --><p>The build requires only a C99 compiler and OpenSSL (<code>libssl-dev</code>). FUSE binaries (<code>xrootdfs</code>, <code>brixMount</code>) are built automatically when <code>libfuse3-dev</code> is present but are not in the default <code>BINS</code> list.</p>
-<h1><a class="anchor" id="autotoc_md604"></a>
+<h1><a class="anchor" id="autotoc_md610"></a>
 Feature summary (2026-07-05)</h1>
-<h2><a class="anchor" id="autotoc_md605"></a>
+<h2><a class="anchor" id="autotoc_md611"></a>
 xrdcp</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -151,7 +151,7 @@ xrdcp</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">TPC token forwarding   </td><td class="markdownTableBodyNone"><code>--tpc-token-mode &lt;m&gt;</code> (nginx-xrootd <code>tpc.token_mode</code> extension)   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md606"></a>
+<h2><a class="anchor" id="autotoc_md612"></a>
 xrdfs</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -167,7 +167,7 @@ xrdfs</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">io_uring for bulk I/O   </td><td class="markdownTableBodyNone"><code>upload --io-uring on\|off\|auto</code>, <code>download --io-uring on\|off\|auto</code>   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md607"></a>
+<h2><a class="anchor" id="autotoc_md613"></a>
 xrdcksum</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -177,7 +177,7 @@ xrdcksum</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>xrdcksum check &lt;manifest&gt; &lt;root&gt;</code>   </td><td class="markdownTableBodyNone">Verify every digest in a manifest (<code>--algo NAME</code>)   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md608"></a>
+<h2><a class="anchor" id="autotoc_md614"></a>
 xrddiag</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -189,10 +189,10 @@ xrddiag</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>replay &lt;file.xrdcap&gt;</code>   </td><td class="markdownTableBodyNone">Decode a captured session; <code>--playback &lt;url&gt;</code> re-issues it live   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md609"></a>
+<h2><a class="anchor" id="autotoc_md615"></a>
 Ceph operator tools</h2>
 <p>Five storage-plane utilities in <code>apps/ceph/</code> — the XrdCeph⇄CephFS migration pair (<code>xrdceph_striper_migrate</code>, <code>xrdceph_cephfs_to_striper</code>; compiled C++ primaries plus <code>.py</code> Python variants) and the offline rescue tools (<code>xrdrados_rescue</code>, <code>xrdcephfs_rescue</code>, <code>xrdceph_migrate</code>). They are dep-gated at make time (librados / libradosstriper / libcephfs headers + a C++ compiler, probed like fuse3; missing deps skip silently) and build as a group with <code>make -C client ceph-tools</code>. See <a href="apps/README.md#ceph-operator-tools-appsceph--built-only-when-the-ceph-dev-headers-are-present"><code>apps/README.md</code></a>.</p>
-<h1><a class="anchor" id="autotoc_md610"></a>
+<h1><a class="anchor" id="autotoc_md616"></a>
 Configuration — &lt;tt&gt;~/.xrdrc&lt;/tt&gt;</h1>
 <p>See <a href="apps/README.md#configuration----xrdrc"><code>apps/README.md</code></a> for the full reference, including the <code>[alias NAME]</code> credential bundles and the <code>[defaults]</code> timeout section.</p>
 <p>**<code>[defaults]</code> keys and precedence** (CLI flag &gt; env var &gt; <code>~/.xrdrc</code> &gt; compiled default):</p>
@@ -208,7 +208,7 @@ Configuration — &lt;tt&gt;~/.xrdrc&lt;/tt&gt;</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>backoff_base_ms</code>   </td><td class="markdownTableBodyNone">—   </td><td class="markdownTableBodyNone">Exponential reconnect back-off base (default 25 ms)   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md611"></a>
+<h1><a class="anchor" id="autotoc_md617"></a>
 Man pages &amp; bash completion</h1>
 <div class="fragment"><div class="line"># Install man pages</div>
 <div class="line">sudo cp client/man/*.1 /usr/local/share/man/man1/</div>
@@ -219,7 +219,7 @@ Man pages &amp; bash completion</h1>
 <div class="line"># System-wide bash completion</div>
 <div class="line">sudo cp client/completions/brix-tools.bash /etc/bash_completion.d/brix-tools</div>
 </div><!-- fragment --><p>zsh: <code>autoload -U +X bashcompinit &amp;&amp; bashcompinit</code>, then source the same file.</p>
-<h1><a class="anchor" id="autotoc_md612"></a>
+<h1><a class="anchor" id="autotoc_md618"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_client_2apps_2README.html">`apps/README.md`</a> — per-tool reference</li>

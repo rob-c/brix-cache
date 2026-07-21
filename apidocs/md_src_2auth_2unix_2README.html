@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2auth_2unix_2README.html',''); 
   <div class="headertitle"><div class="title">unix — XRootD &lt;tt&gt;unix&lt;/tt&gt; (UNIX-name) authentication handler</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md64"></a> </p>
-<h1><a class="anchor" id="autotoc_md65"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md66"></a> </p>
+<h1><a class="anchor" id="autotoc_md67"></a>
 Overview</h1>
 <p>This subsystem implements the XRootD <code>unix</code> security protocol: the simplest client-asserted authentication scheme, in which the client merely <em>declares</em> a user name (and optional group) and the server takes it at face value. There is no cryptographic proof of identity — <code>unix</code> is the moral equivalent of XRootD's "trust the peer" mode. Because it is unverified, this handler is deliberately <b>fail-closed</b>: by default it is only honoured for loopback peers, and it must be explicitly selected (<code>brix_auth unix</code>) before the stream dispatcher will ever route to it.</p>
 <p>It sits in the <b>stream / <code>root://</code></b> request lifecycle, downstream of <code>kXR_login</code> and inside the <code>kXR_auth</code> dispatcher. The umbrella auth router <code><a class="el" href="src_2auth_2gsi_2auth_8c.html#a489e96c1c7fab24ae4d4f08c822ebb2c">brix_handle_auth_inner()</a></code> in <a href="../gsi/auth.c"><code>../gsi/auth.c</code></a> reads the 4-byte <code>credtype</code> field from the kXR_auth payload; when it sees <code>"unix"</code> and the server is configured with <code>conf-&gt;auth == BRIX_AUTH_UNIX</code>, it calls <code><a class="el" href="src_2auth_2unix_2auth_8c.html#abee79be17182f2c4faa2e70cba35fa81">brix_handle_unix_auth()</a></code> — the single public entry point exported by this folder. (<code>unix</code> is not reachable over WebDAV/S3; those use cert/token/SigV4.)</p>
 <p>The handler's job is narrow but security-sensitive: gate the request to trusted peers, parse and <em>validate the characters</em> of the asserted user/group strings, populate the per-connection identity (<code>ctx-&gt;dn</code>, <code>ctx-&gt;vo_list</code>, <code>ctx-&gt;primary_vo</code>, and the canonical <code>ctx-&gt;identity</code>), register the session, emit auth metrics, write a sanitised audit-log line, and reply <code>kXR_ok</code>. From that point on the rest of the stack treats the connection exactly like any other authenticated session — path ACLs, VO policy, and write gating all key off the identity fields this handler fills in.</p>
 <p>Why it exists: real grid sites need an unauthenticated/loopback path for trusted local clients, sidecars, and intra-host tooling that should not have to mint a proxy cert or token. Keeping <code>unix</code> in its own file (rather than inline in the GSI dispatcher) isolates its trust assumptions and validation rules so a reviewer can audit the entire attack surface of "the client names itself" in one place.</p>
-<h1><a class="anchor" id="autotoc_md66"></a>
+<h1><a class="anchor" id="autotoc_md68"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -108,7 +108,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>auth.c</code>   </td><td class="markdownTableBodyNone">The whole subsystem. Exports <code><a class="el" href="src_2auth_2unix_2auth_8c.html#abee79be17182f2c4faa2e70cba35fa81">brix_handle_unix_auth()</a></code> (declared in <code>../ngx_brix_module.h</code>). Internals: <code><a class="el" href="src_2auth_2unix_2auth_8c.html#a6db08f4344379b2af4f2304d21ec9b04">brix_unix_peer_is_loopback()</a></code> (peer-address trust gate), <code><a class="el" href="src_2auth_2unix_2auth_8c.html#aa6edcb392eb9dc4b2e686b863c11698d">brix_unix_name_byte_ok()</a></code> + <code><a class="el" href="src_2auth_2unix_2auth_8c.html#a8eb8ac969d605a061122706ca0b1598c">brix_unix_copy_name()</a></code> (allow-list character validation + bounded copy of user/group), and <code><a class="el" href="src_2auth_2unix_2auth_8c.html#a0a811221038e4adac42269a3eafe82bd">brix_unix_track_identity()</a></code> (VO-activity / unique-user metrics).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md67"></a>
+<h1><a class="anchor" id="autotoc_md69"></a>
 Key types &amp; data structures</h1>
 <p>This subsystem defines no types of its own; it reads/writes shared ones:</p>
 <ul>
@@ -117,7 +117,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__identity__t.html">brix_identity_t</a></code>** (<code>../types/identity.h</code>) — the canonical Phase-2 identity object; populated via <code>brix_identity_set_dn(..., BRIX_AUTHN_UNIX)</code> and <code><a class="el" href="identity_8c.html#a18d6564299f36c6e1c150442fc649e8c">brix_identity_set_vos_csv()</a></code>. <code>BRIX_AUTHN_UNIX</code> (<code>0x10</code>) is the auth-method tag stamped onto the identity and into metrics.</li>
 <li><b>Size caps</b> (<code>../types/tunables.h</code>): <code>BRIX_SSS_USER_MAX</code> (128) and <code>BRIX_SSS_GROUP_MAX</code> (64) bound the parsed names; the <code>safe_user</code>/ <code>safe_group</code> log buffers are <code>×4</code> to leave room for <code>\xNN</code> escaping.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md68"></a>
+<h1><a class="anchor" id="autotoc_md70"></a>
 Control &amp; data flow</h1>
 <p><b>Entry:</b> <code>brix_handle_unix_auth(ctx, c, conf)</code> is called only from <code><a class="el" href="src_2auth_2gsi_2auth_8c.html#a489e96c1c7fab24ae4d4f08c822ebb2c">brix_handle_auth_inner()</a></code> in <a href="../gsi/auth.c"><code>../gsi/auth.c</code></a> (the kXR_auth credtype router), which is itself reached from the stream handshake dispatcher <a href="../../protocols/root/handshake/dispatch.c"><code>../handshake/dispatch.c</code></a> after <code>kXR_login</code>.</p>
 <p><b>Wire payload parsed:</b> the kXR_auth body for this scheme is <code>"unix\0"</code> followed by <code>user[ group]</code> (space-separated). The handler validates the <code>"unix\0"</code> tag, skips leading spaces, then extracts the user token and an optional group token.</p>
@@ -130,7 +130,7 @@ Control &amp; data flow</h1>
 <li>Response/exit is via the <code>BRIX_RETURN_OK</code> / <code>BRIX_RETURN_ERR</code> macros (<code>../types/tunables.h</code>) which fold access-log + per-op metric + <code>kXR_ok</code>/ <code>kXR_error</code> framing into one call; <code>kXR_NoMemory</code> errors go through <code><a class="el" href="basic_8c.html#a3bb0965e1cf62be0fa2a2681fdb9095d">brix_send_error()</a></code> directly.</li>
 </ul>
 <p><b>Return:</b> <code>NGX_OK</code>-class wire reply (<code>kXR_ok</code>) on success; a <code>kXR_error</code> reply (always <code>kXR_NotAuthorized</code>, or <code>kXR_NoMemory</code> on alloc failure) on any rejection. After success the connection proceeds to the normal opcode handlers (<a href="../../protocols/root/read/"><code>../read/</code></a>, <a href="../../protocols/root/write/"><code>../write/</code></a>, etc.), where the identity this handler set drives <a href="../../fs/path/"><code>../path/</code></a> ACL/VO authorization.</p>
-<h1><a class="anchor" id="autotoc_md69"></a>
+<h1><a class="anchor" id="autotoc_md71"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li>**Fail-closed peer gate (<code>auth.c:167</code>).** Unless <code>conf-&gt;unix_trust_remote</code> is on, the request is rejected unless <code>brix_unix_peer_is_loopback(c)</code> is true. Loopback = IPv4 <code>127.0.0.0/8</code>, IPv6 <code>::1</code>, or <code>AF_UNIX</code>. Because <code>unix</code> is <em>unauthenticated</em>, exposing it to remote peers is an identity-spoofing hole — the directive default (<code>0</code>) plus the loopback check make remote use opt-in.</li>
@@ -143,14 +143,14 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Log strings are always sanitised.</b> <code><a class="el" href="src_2core_2compat_2checksum_8c.html#ade2ba9452b028791d351ff1b15877c43">brix_sanitize_log_string()</a></code> is applied to user and group before the <code>unix auth OK</code> INFO line — even though they already passed the allow-list — keeping the audit log injection-proof.</li>
 <li><b>Event-loop safe.</b> This handler does only in-memory parsing and SHM metric bumps — no blocking I/O — so it runs inline on the stream worker with no AIO offload (cf. <a href="../../core/aio/"><code>../aio/</code></a>).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md70"></a>
+<h1><a class="anchor" id="autotoc_md72"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a new asserted-identity field</b> (e.g. honour a supplementary group): extend the parser in <code><a class="el" href="src_2auth_2unix_2auth_8c.html#abee79be17182f2c4faa2e70cba35fa81">brix_handle_unix_auth()</a></code> after the group block, validate it with <code><a class="el" href="src_2auth_2unix_2auth_8c.html#a8eb8ac969d605a061122706ca0b1598c">brix_unix_copy_name()</a></code>, and feed it through the identity setters — do not relax <code><a class="el" href="src_2auth_2unix_2auth_8c.html#aa6edcb392eb9dc4b2e686b863c11698d">brix_unix_name_byte_ok()</a></code> without a security review.</li>
 <li><b>Adjust the trust policy:</b> the directive <code>brix_unix_trust_remote</code> is wired in the live <code>ngx_stream_brix_commands[]</code> table in <a href="../../protocols/root/stream/module.c"><code>../stream/module.c</code></a> → field <code>unix_trust_remote</code> in <code>../types/config.h</code>, defaulted in <a href="../../core/config/server_conf.c"><code>../config/server_conf.c</code></a>. To add finer-grained trust (e.g. a CIDR allow-list) extend <code><a class="el" href="src_2auth_2unix_2auth_8c.html#a6db08f4344379b2af4f2304d21ec9b04">brix_unix_peer_is_loopback()</a></code> and the config plumbing — keep the default fail-closed.</li>
 <li><b>Add a sibling auth scheme:</b> mirror this file's shape (peer gate → parse → validate → fill identity → register → metric/log → return) and register the new credtype branch in <code><a class="el" href="src_2auth_2gsi_2auth_8c.html#a489e96c1c7fab24ae4d4f08c822ebb2c">brix_handle_auth_inner()</a></code> in <code>../gsi/auth.c</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md71"></a>
+<h1><a class="anchor" id="autotoc_md73"></a>
 See also</h1>
 <ul>
 <li><a href="../gsi/auth.c"><code>../gsi/auth.c</code></a> — kXR_auth credtype dispatcher and the GSI sibling scheme; the only caller of this handler.</li>

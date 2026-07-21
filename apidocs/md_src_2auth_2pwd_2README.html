@@ -93,19 +93,19 @@ $(document).ready(function(){initNavTree('md_src_2auth_2pwd_2README.html',''); i
   <div class="headertitle"><div class="title">pwd — password (&lt;tt&gt;XrdSecpwd&lt;/tt&gt;) authentication for the &lt;tt&gt;root://&lt;/tt&gt; stream protocol</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md43"></a> </p>
-<h1><a class="anchor" id="autotoc_md44"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md44"></a> </p>
+<h1><a class="anchor" id="autotoc_md45"></a>
 Overview</h1>
 <p>This subsystem implements the XRootD **<code>pwd</code>** security protocol (the wire equivalent of upstream <code>XrdSecpwd</code>) for <code>root://</code>/<code>roots://</code> clients. A client authenticates with a username + password, exchanged as a 2-round, Diffie-Hellman-bootstrapped handshake so the credential is never sent in the clear on the wire. It is one of several pluggable stream credential types (<code>gsi</code>, <code>token</code>, <code>sss</code>, <code>unix</code>, <code>krb5</code>, <code>pwd</code>, <code>host</code>), all dispatched from the single <code>kXR_auth</code> handler in <code>../gsi/auth.c</code>.</p>
 <p><code>pwd</code> is XRootD's legacy password scheme. It is <b>opt-in and fail-closed</b>: it must be explicitly selected (<code>brix_auth pwd</code>), requires <code>brix_pwd_file</code> (empty = deny all), and <b>should run only under TLS</b> — the credential is only DH-session-encrypted on the wire, and the server recovers the plaintext to verify it. The password database stores only a salt + a PBKDF2 hash, never cleartext. Isolating the scheme here keeps the password surface in one auditable place.</p>
 <p>In the request lifecycle this sits at the <b>stream login/auth stage</b>. After the handshake and <code>kXR_login</code>, the client sends a <code>kXR_auth</code> request whose credential type is <code>pwd</code>; the dispatcher in <code>../gsi/auth.c</code> calls <code><a class="el" href="src_2auth_2pwd_2auth_8c.html#ace05f15b5616143901fe630d8d404eda">brix_handle_pwd_auth()</a></code> here, which drives the two rounds. The key agreement and <code>kXRS_main</code> encryption reuse the shared GSI DH + session-cipher primitives in <code>../gsi/gsi_core.c</code>. Only the <code>root://</code> stream path uses it.</p>
-<h1><a class="anchor" id="autotoc_md45"></a>
+<h1><a class="anchor" id="autotoc_md46"></a>
 The two-round exchange</h1>
 <div class="fragment"><div class="line">round 1  client → kXRS_puk(client DH pub) + kXRS_user</div>
 <div class="line">         server → kXR_authmore: kXRS_puk(server DH pub) + credsreq</div>
 <div class="line">round 2  client → kXRS_main = DH-session-encrypted { kXRS_creds }</div>
 <div class="line">         server → kXR_ok iff PBKDF2(password, salt) == stored hash</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md46"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md47"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">

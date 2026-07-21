@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2fs_2path_2README.html',''); in
   <div class="headertitle"><div class="title">path — untrusted-path confinement, resolution, ACL/auth gating, and access logging</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md171"></a> </p>
-<h1><a class="anchor" id="autotoc_md172"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md175"></a> </p>
+<h1><a class="anchor" id="autotoc_md176"></a>
 Overview</h1>
 <p>This subsystem is the security boundary between an untrusted client path (arriving on the XRootD <code>root://</code> wire, a WebDAV/HTTP URL, or an S3 <code>/&lt;bucket&gt;/&lt;key&gt;</code>) and any syscall the gateway makes against the local POSIX export root. Every namespace and file operation in the module — open, stat, read, write, mkdir, rm, rename, dirlist, checksum, TPC staging — passes its path through here first. The cardinal invariant of the whole project lives in this folder: <b>no raw <code>open</code>/<code>stat</code>/<code>unlink</code> on a client path; the kernel, not nginx code, enforces that a path cannot escape the export root.</b></p>
 <p>Confinement is implemented with Linux <code>openat2(2)</code> + <code>RESOLVE_BENEATH</code> (<code><a class="el" href="beneath_8c.html">beneath.c</a></code>), anchored to a persistent O_PATH "rootfd" opened once per worker (stream <code>conf-&gt;rootfd</code>, HTTP <code>conf-&gt;common.rootfd</code>). The historical design canonicalised paths with <code>realpath(3)</code> and then string-compared against the root; Phase 8 retired that for runtime client paths. Today the runtime flow is: extract the path from the wire payload (<code>extract.c</code>), validate it lexically (length, depth limit, reject <code>.</code>/<code>..</code> segments — <code><a class="el" href="op__path_8c.html">op_path.c</a></code>, <code>helpers.c</code>), build a lexical <code>root_canon + reqpath</code> join used only for ACL prefix-matching and logging (<code>brix_beneath_full_path</code> in <code><a class="el" href="beneath_8h.html">beneath.h</a></code>), and let <code>openat2(RESOLVE_BENEATH)</code> reject any actual escape (<code>EXDEV</code>) at the moment of the syscall. <code>realpath(3)</code> survives only for <b>config-time</b> canonicalisation of trusted, admin-configured policy-rule paths (<code><a class="el" href="canonical_8c.html">canonical.c</a></code>, <code>helpers.c</code>, <code>unified.c</code>, <code><a class="el" href="resolve__path__variants_8c.html">resolve_path_variants.c</a></code>) — never for a client request path.</p>
 <p>On top of confinement, this folder owns the authorization layer that sits between a resolved path and the operation: the three-tier <code><a class="el" href="auth__gate_8c.html">auth_gate.c</a></code> (authdb → VO ACL → token scope) plus its supporting rule databases (<code><a class="el" href="authdb_8c.html">authdb.c</a></code>, <code>acl.c</code>, <code><a class="el" href="find__rule_8c.html">find_rule.c</a></code>), the parent-group ownership policy applied to newly created files/dirs (<code><a class="el" href="group__policy_8c.html">group_policy.c</a></code>), an optional cross-worker decision cache (<code><a class="el" href="auth__cache_8c.html">auth_cache.c</a></code>), and the per-request access log (<code>access_log.c</code>). It also provides small shared utilities every protocol needs: wire-string sanitization for safe logging, the <code>kXR_stat</code> ASCII body formatter, recursive mkdir, policy-path normalization, and config-array merging.</p>
 <p>Entry into this subsystem is almost always one of two convenience front-doors used by stream handlers: <code><a class="el" href="op__path_8c.html#a00e626086996281daa6322794e5cc303">brix_resolve_op_path()</a></code> (extract + validate + per-mode existence gate, sending the kXR error itself on failure) and <code><a class="el" href="auth__gate_8c.html#a8c0de3ca2802454751352397d778e6e3">brix_auth_gate()</a></code> (the three-tier authz check, sending <code>kXR_NotAuthorized</code> itself on failure). HTTP/S3 handlers reach the same primitives through the <code>compat/</code> adapter layer.</p>
-<h1><a class="anchor" id="autotoc_md173"></a>
+<h1><a class="anchor" id="autotoc_md177"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -160,7 +160,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="resolve__confined__ops_8c.html">resolve_confined_ops.c</a></code>   </td><td class="markdownTableBodyNone">Legacy <code>*_confined_canon</code> namespace ops (<code>open</code>/<code>unlink</code>/<code>mkdir</code>/<code>rename</code>/<code>link</code>) layering canonical resolution + <code>openat2 RESOLVE_BENEATH</code> (or O_NOFOLLOW fallback). Used by callers that hold a <code>root_canon</code> string but no per-worker rootfd; the beneath API supersedes these on hot paths.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md174"></a>
+<h1><a class="anchor" id="autotoc_md178"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code>brix_path_mode_t</code>** (<code><a class="el" href="op__path_8h.html">op_path.h</a></code>) — per-operation existence policy: <code>EXISTING</code> (target must exist: stat/locate/open-read/rm/chmod), <code>WRITE</code> (parent dir must exist, target may not, trailing slash rejected: create), <code>NOEXIST</code> (no existence gate: recursive mkdir), <code>EITHER</code> (parent-exists OR target-exists: truncate/rmdir). Embedded in the write-layer op-table descriptors.</li>
@@ -171,7 +171,7 @@ Key types &amp; data structures</h1>
 <li><code>**</code><a class="el" href="structbrix__path__opts__t.html">brix_path_opts_t</a><code>/</code><a class="el" href="structbrix__path__result__t.html">brix_path_result_t</a><code>/</code>brix_path_status_t<code>** (</code>unified.h<code>) — option flags (</code>allow_missing_tail<code>/</code>_parents<code>,</code>require_directory<code>,</code>allow_root<code>, …), result (resolved/type/depth/confined), and status enum for the config-time realpath resolver.</code></li>
 <li><code>**per-worker rootfd** — a persistent O_PATH fd on the canonical root (</code>conf-&gt;rootfd<code>for stream, </code>conf-&gt;common.rootfd` for HTTP), the anchor every beneath-API call needs. Not a struct in this folder but the load-bearing piece of state the API assumes.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md175"></a>
+<h1><a class="anchor" id="autotoc_md179"></a>
 Control &amp; data flow</h1>
 <p><b>Stream (<code>root://</code>) namespace op (the common path):**</p><ol type="1">
 <li>A handler in <a class="el" href="md_src_2protocols_2root_2read_2README.html">../read/</a>, <a class="el" href="md_src_2protocols_2root_2write_2README.html">../write/</a>, <a class="el" href="md_src_2protocols_2root_2dirlist_2README.html">../dirlist/</a>, <a class="el" href="md_src_2protocols_2root_2query_2README.html">../query/</a>, or <a class="el" href="md_src_2protocols_2root_2fattr_2README.html">../fattr/</a> calls <code>brix_resolve_op_path(ctx, c, OP, "VERB", conf, MODE, reqpath, …, resolved, …)</code>.</li>
@@ -185,7 +185,7 @@ Control &amp; data flow</h1>
 <p><b><b>Config / startup:</b> <code><a class="el" href="canonical_8c.html">canonical.c</a></code> canonicalises the export root; <code>brix_finalize_path_rules</code> (<code>helpers.c</code>) canonicalises every VO/authdb/group rule path via the surviving <code>brix_resolve_path_noexist</code> (<code><a class="el" href="resolve__path__variants_8c.html">resolve_path_variants.c</a></code> → <code>unified.c</code>); <code><a class="el" href="merge_8c.html">merge.c</a></code> merges inherited rule arrays; <code><a class="el" href="normalize_8c.html">normalize.c</a></code> canonicalises directive policy paths; <code><a class="el" href="auth__cache_8c.html">auth_cache.c</a></code> binds the gate cache to an <code>brix_kv</code> SHM zone (<a class="el" href="md_src_2core_2shm_2README.html">../shm/</a>).</b></p>
 <p><b><b>Cluster:</b> <code>brix_find_manager_map</code> (<code><a class="el" href="find__rule_8c.html">find_rule.c</a></code>) feeds path→server routing used by the <a class="el" href="md_src_2net_2manager_2README.html">../manager/</a> / <a class="el" href="md_src_2net_2cms_2README.html">../cms/</a> redirector.</b></p>
 <p><b></b></p>
-<h1><a class="anchor" id="autotoc_md176"></a>
+<h1><a class="anchor" id="autotoc_md180"></a>
 Invariants, security &amp; gotchas</h1>
 <p><b></b></p>
 <p><b></p><ul>
@@ -206,7 +206,7 @@ Invariants, security &amp; gotchas</h1>
 </ul>
 <p></b></p>
 <p><b></b></p>
-<h1><a class="anchor" id="autotoc_md177"></a>
+<h1><a class="anchor" id="autotoc_md181"></a>
 Entry points / extending</h1>
 <p><b></b></p>
 <p><b></p><ul>
@@ -218,7 +218,7 @@ Entry points / extending</h1>
 </ul>
 <p></b></p>
 <p><b></b></p>
-<h1><a class="anchor" id="autotoc_md178"></a>
+<h1><a class="anchor" id="autotoc_md182"></a>
 See also</h1>
 <p><b></b></p>
 <p><b></p><ul>

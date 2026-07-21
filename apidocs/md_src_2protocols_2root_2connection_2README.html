@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2connection_2R
   <div class="headertitle"><div class="title">connection — TCP connection lifecycle, framing, and the async I/O state machine for &lt;tt&gt;root://&lt;/tt&gt;</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md315"></a> </p>
-<h1><a class="anchor" id="autotoc_md316"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md321"></a> </p>
+<h1><a class="anchor" id="autotoc_md322"></a>
 Overview</h1>
 <p>This subsystem is the stream-side spine of the module: every <code>root://</code>/<code>roots://</code> request passes through it. When nginx accepts a TCP connection on an XRootD listener, <code><a class="el" href="protocols_2root_2connection_2handler_8c.html#a01239d2db14b9061cc9e311bbe9030dd">ngx_stream_brix_handler()</a></code> (<code>handler.c</code>) is the per-connection entry point. It allocates the per-connection <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code>, marks all file-handle slots free, mints an opaque 16-byte session ID, assigns the shared-memory metrics slot, and arms the read/write event handlers. From that point on the connection is driven entirely by the nginx event loop through this directory — there is no blocking I/O and no thread per connection.</p>
 <p>The heart of the subsystem is the <b>recv state machine</b> in <code>recv.c</code>. It frames the raw byte stream into discrete XRootD protocol units — the 20-byte client hello, the 24-byte <code><a class="el" href="structClientRequestHdr.html">ClientRequestHdr</a></code>, then <code>dlen</code> bytes of opcode payload — and only once a complete, size-validated request is buffered does it hand off to <code><a class="el" href="ngx__brix__module_8h.html#af132ef0a0493ad5eae6803fcee92c20e">brix_dispatch()</a></code> (in <a class="el" href="md_src_2protocols_2root_2handshake_2README.html">../handshake/README.md</a>). The machine is a single explicit <code>brix_state_t</code> enum (<code>../types/state.h</code>): the "active" framing states (<code>HANDSHAKE</code>/<code>REQ_HEADER</code>/<code>REQ_PAYLOAD</code>) interleave with "suspend" states (<code>SENDING</code>/<code>AIO</code>/<code>UPSTREAM</code>/<code>PROXY</code>/<code>WAITING_CMS</code>/<code>TLS_HANDSHAKE</code>) that hand the connection to another subsystem and return to the event loop until that subsystem re-arms an event. This is how blocking file reads, redirector queries, proxy forwarding, CMS locate waits, and TLS upgrades all coexist on a single-threaded event loop without ever blocking it.</p>
 <p>The rest of the directory supplies the machinery the state machine leans on: <code>send.c</code> drains queued responses on write-ready events; <code><a class="el" href="write__helpers_8c.html">write_helpers.c</a></code> implements the send/spin/park/resume logic and the per-connection <b>response ring</b> (<code>out_ring</code>) that makes read pipelining safe; <code>tls.c</code> performs the in-protocol <code>kXR_ableTLS</code> upgrade; <code><a class="el" href="fd__table_8c.html">fd_table.c</a></code> owns the per-session open-file slot table (the array index <em>is</em> the on-wire file handle) plus the bound-secondary shared-handle validation; <code><a class="el" href="disconnect_8c.html">disconnect.c</a></code> is the single teardown path that releases every heap buffer, crypto object, registry slot, and metric on any close; <code><a class="el" href="event__sched_8c.html">event_sched.c</a></code> re-arms and posts events after async work; <code><a class="el" href="chain__helpers_8c.html">chain_helpers.c</a></code> and <code><a class="el" href="budget_8h.html">budget.h</a></code> are small accounting helpers (pending-bytes counting and the SHM-global transfer-heap budget).</p>
 <p>Only <code>root://</code> (stream) traffic flows through this subsystem. WebDAV, S3, and the <code>/metrics</code>/dashboard endpoints are HTTP-side and use nginx's HTTP request machinery instead — but they share <code><a class="el" href="fd__table_8c.html">fd_table.c</a></code> indirectly only through the VFS, not through this directory.</p>
-<h1><a class="anchor" id="autotoc_md317"></a>
+<h1><a class="anchor" id="autotoc_md323"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -140,7 +140,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="budget_8h.html">budget.h</a></code>   </td><td class="markdownTableBodyNone">Inline SHM-global transfer-heap budget (Phase 31 W4): <code>brix_budget_sync</code> (idempotent reconcile of this connection's scratch footprint), <code>brix_budget_release</code> (disconnect), <code>brix_budget_admit</code> (kXR_wait backpressure when the global cap would be exceeded).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md318"></a>
+<h1><a class="anchor" id="autotoc_md324"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code>** (<code>../types/context.h</code>) — the per-TCP-connection session context that lives for the whole connection (<code>ngx_pcalloc</code> on <code>c-&gt;pool</code>). It carries the framing cursors (<code>hdr_buf</code>/<code>hdr_pos</code>, parsed <code>cur_streamid</code>/ <code>cur_reqid</code>/<code>cur_body</code>/<code>cur_dlen</code>), the reusable heap <code>payload_buf</code>, the open <code>files[BRIX_MAX_FILES]</code> table, the <code>out_ring</code> send FIFO, the reusable scratch buffers, auth/identity state, the <code>metrics</code> SHM pointer, the <code>destroyed</code> AIO guard, and <code>tls_pending</code>. Nearly every function here takes <code>ctx</code> as its first argument.</li>
@@ -149,7 +149,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__file__t.html">brix_file_t</a></code>** (<code>../types/file.h</code>) — one open-file slot; the array index is the XRootD wire fhandle (0..<code>BRIX_MAX_FILES</code>-1). Holds <code>fd</code>, resolved <code>path</code> (heap-owned), <code>readable</code>/<code>writable</code> capability bits, <code>device</code>/<code>inode</code> (validated on bound reopen), read-ahead/checkpoint/POSC/TPC/write-through state. <code><a class="el" href="fd__table_8c.html">fd_table.c</a></code> is the owner of this struct's lifecycle.</li>
 <li>**<code><a class="el" href="structngx__brix__srv__metrics__t.html">ngx_brix_srv_metrics_t</a></code>** (<code>../metrics/</code>) — the SHM per-server metrics block <code>ctx-&gt;metrics</code> points at; <code>handler.c</code> binds it and <code><a class="el" href="disconnect_8c.html">disconnect.c</a></code> finalizes it.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md319"></a>
+<h1><a class="anchor" id="autotoc_md325"></a>
 Control &amp; data flow</h1>
 <p><b>Entry.</b> A new TCP connection enters at <code>handler.c::ngx_stream_brix_handler</code>, installed by postconfiguration. It sets <code>state = XRD_ST_HANDSHAKE</code> and calls <code>ngx_stream_brix_recv(c-&gt;read)</code> to start framing.</p>
 <p><b>Inbound (recv loop).</b> <code>recv.c</code> accumulates bytes per the current state:</p><ul>
@@ -170,7 +170,7 @@ Control &amp; data flow</h1>
 <p><b>Teardown.</b> Every close path (read EOF, write error, timeout, handshake rejection, fatal dispatch error) funnels through <code>disconnect.c::brix_on_disconnect</code></p><ul>
 <li><code>fd_table.c::brix_close_all_files</code>, then <code>ngx_stream_finalize_session</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md320"></a>
+<h1><a class="anchor" id="autotoc_md326"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li><b>Payload cap before allocation.</b> <code>recv.c::brix_max_payload_for_request</code> (recv.c:20) is the first defense against memory-exhaustion: untrusted <code>dlen</code> is rejected (<code>oversized_payloads_total++</code>, connection closed) <em>before</em> <code>brix_ensure_payload_buffer</code> allocates anything. Per-opcode limits: write/pgwrite/writev/chkpoint → <code>BRIX_MAX_WRITE_PAYLOAD</code>; readv → segs × segsize; auth → 32 KB; prepare → 64 KB; everything else → path + 64.</li>
@@ -185,7 +185,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Disconnect is the only place fd-less cleanup happens.</b> POSC temp files, checkpoint files, and TPC registry entries are unlinked/removed in <code>brix_free_fhandle</code> when a session ends without a clean <code>kXR_close</code>. The <code>destroyed</code> guard plus the access-log flush (<code>brix_access_log_flush</code>) at the end of <code>brix_on_disconnect</code> make interrupted-transfer records durable immediately.</li>
 <li><b>Non-XRootD clients are dropped fast.</b> In <code>HANDSHAKE</code>, a nonzero first byte (<code>hdr_buf[0] != 0</code>) means a non-XRootD client and the connection is closed immediately (recv.c:288).</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md321"></a>
+<h1><a class="anchor" id="autotoc_md327"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>New stream opcode:</b> you do <b>not</b> edit this subsystem — register the opcode in <a class="el" href="md_src_2protocols_2root_2handshake_2README.html">../handshake/README.md</a> (<code>dispatch_*.c</code>) and add the handler under the relevant op directory. Touch <code>recv.c</code> only if the opcode needs a new payload-size class (add a branch to <code>brix_max_payload_for_request</code>) or is safe to pipeline behind in-flight reads (extend the drain-barrier conditions).</li>
@@ -193,7 +193,7 @@ Entry points / extending</h1>
 <li><b>New suspend state:</b> add it to <code>brix_state_t</code> (<code>../types/state.h</code>), give <code>recv.c</code> (and <code>send.c</code> if it can complete on a write event) a branch that re-arms the read event and returns, and have the owning subsystem call <code>brix_schedule_read_resume</code>/<code>_write_resume</code> on completion.</li>
 <li><b>New response shape:</b> queue it through <code><a class="el" href="write__helpers_8c.html">write_helpers.c</a></code> (<code>brix_queue_response</code> for a flat buffer, <code>brix_queue_response_chain</code> for sendfile/chains); pass <code>owned_base</code> if the backing buffer is raw-heap so it is freed on completion/disconnect.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md322"></a>
+<h1><a class="anchor" id="autotoc_md328"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2root_2handshake_2README.html">../handshake/README.md</a> — opcode dispatcher this loop hands off to.</li>

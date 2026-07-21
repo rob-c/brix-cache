@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_src_2fs_2meta_2README.html',''); in
   <div class="headertitle"><div class="title">meta — unified per-file metadata sidecar (xmeta)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md166"></a> </p>
-<h1><a class="anchor" id="autotoc_md167"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md170"></a> </p>
+<h1><a class="anchor" id="autotoc_md171"></a>
 Overview</h1>
 <p>One record per stored file carries the cache/transfer state that must survive restarts: the present-bitmap (which byte ranges of a partially filled cache object are valid), file-level dirty state, flush generation, and dirty-since timestamps. <code><a class="el" href="xmeta_8c.html">xmeta.c</a></code> encodes/decodes the record — byte-identical successor to the legacy <code>.cinfo</code>/<code>XCI1</code>/<code>.xrdt</code> formats, with a v2-compat reader so existing caches survive upgrades without a cold start.</p>
 <p>Two carriers persist the record: <code><a class="el" href="xmeta__path_8c.html">xmeta_path.c</a></code> loads/saves/removes it for local files by absolute path, and <code><a class="el" href="xmeta__carrier_8c.html">xmeta_carrier.c</a></code> composes the sidecar object key (<code>&lt;key&gt;.cinfo</code>) for store objects, so object backends carry the same metadata without a local filesystem. <code><a class="el" href="xmeta__unittest_8c.html">xmeta_unittest.c</a></code> covers encode/decode round-trips.</p>
-<h1><a class="anchor" id="autotoc_md168"></a>
+<h1><a class="anchor" id="autotoc_md172"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -112,14 +112,14 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="xmeta__unittest_8c.html">xmeta_unittest.c</a></code>   </td><td class="markdownTableBodyNone">encode/decode round-trip unit tests   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md169"></a>
+<h1><a class="anchor" id="autotoc_md173"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>The encoding is an on-disk compatibility contract — never change the layout without a versioned reader (v2-compat exists precisely so upgrades don't cold-start caches).</li>
 <li>Dirty/clean transitions are centralized in the write-through flush engine — handlers must not flip dirty bits directly.</li>
 <li>The eviction guard skips dirty entries; a stale-dirty reaper removes records older than <code>brix_cache_dirty_max_age</code> — metadata correctness here directly gates data-loss safety.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md170"></a>
+<h1><a class="anchor" id="autotoc_md174"></a>
 See also</h1>
 <ul>
 <li><a href="../cache/">../cache/</a> — the cache engine that reads/writes these records</li>

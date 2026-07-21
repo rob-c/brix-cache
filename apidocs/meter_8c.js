@@ -8,5 +8,8 @@ var meter_8c =
     [ "brix_cms_meter_sample", "meter_8c.html#afc8bfe73e32623d2f3c318e88cd54a18", null ],
     [ "meter_clamp_pct", "meter_8c.html#a8af4cd3e1b78fdfb4d4b8cb5779896c5", null ],
     [ "meter_find_counter", "meter_8c.html#ae9f17bb4921e14b3c40e13fea8b4ccd1", null ],
+    [ "meter_fold_deltas", "meter_8c.html#a04a7263f99133204f3811be8b3ead088", null ],
+    [ "meter_netdev_line_bytes", "meter_8c.html#a688856d40cdc90528e1fdaf905f91e9a", null ],
+    [ "meter_sample_gauges", "meter_8c.html#acca9caefa29ab84003c942b40ab6c4f2", null ],
     [ "meter_slurp", "meter_8c.html#add5ae7e1f227e6021f4398069293a4f5", null ]
 ];

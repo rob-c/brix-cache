@@ -93,8 +93,8 @@ $(document).ready(function(){initNavTree('md_src_2net_2cms_2README.html',''); in
   <div class="headertitle"><div class="title">cms — XRootD CMS cluster membership (heartbeat client + manager-side server)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md208"></a> </p>
-<h1><a class="anchor" id="autotoc_md209"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md212"></a> </p>
+<h1><a class="anchor" id="autotoc_md213"></a>
 Overview</h1>
 <p>This subsystem speaks the <b>XRootD Cluster Management Service (CMS)</b> wire protocol — the binary control channel a real <code>cmsd</code> uses to form a redirector cluster. It lets an nginx-xrootd node participate in a CMS mesh in either (or both) of two roles, implemented as two cooperating halves:</p>
 <ul>
@@ -103,9 +103,9 @@ Overview</h1>
 </ul>
 <p>These two halves close the loop that makes nginx-xrootd usable as a CMS redirector/manager. When a client issues <code>kXR_locate</code>/<code>kXR_open</code>/<code>kXR_stat</code>/ <code>kXR_query</code> against a node running in manager mode, the read-path handlers (<code>../read/locate.c</code>, <code>../read/open_request.c</code>, <code>../read/stat.c</code>, <code>../query/checksum_qcksum.c</code>) suspend the client session (<code>XRD_ST_WAITING_CMS</code>), record a pending-locate entry (<code>../manager/pending.c</code>), and emit a CMS <code>kYR_locate</code> upstream via this subsystem's <code>ngx_brix_cms_send_locate</code>. When the manager answers with <code>kYR_select</code>/<code>kYR_try</code>, <code>recv.c</code> wakes the suspended client and replies <code>kXR_redirect</code>.</p>
 <p>This subsystem only carries cluster <em>control</em> traffic; it never moves file data. The on-demand selection model (<code>kYR_state</code> → <code>kYR_have</code>) and the SSS cluster-auth handshake (<code>kYR_xauth</code>) are implemented to match real <code>cmsd</code> behaviour, so an nginx node can interoperate with stock XRootD managers and data servers in either direction.</p>
-<h1><a class="anchor" id="autotoc_md210"></a>
+<h1><a class="anchor" id="autotoc_md214"></a>
 Files</h1>
-<h2><a class="anchor" id="autotoc_md211"></a>
+<h2><a class="anchor" id="autotoc_md215"></a>
 Heartbeat client (main module)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -125,7 +125,7 @@ Heartbeat client (main module)</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="cms__internal_8h.html">cms_internal.h</a></code>   </td><td class="markdownTableBodyNone">Client context <code><a class="el" href="structngx__brix__cms__ctx__s.html">ngx_brix_cms_ctx_s</a></code>, all <code>kYR_*</code>/<code>CMS_*</code> wire constants, timing/sizing constants, and client-half prototypes.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md212"></a>
+<h2><a class="anchor" id="autotoc_md216"></a>
 Shared frame I/O</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -133,7 +133,7 @@ Shared frame I/O</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="frame__io_8c.html">frame_io.c</a></code> / <code><a class="el" href="frame__io_8h.html">frame_io.h</a></code>   </td><td class="markdownTableBodyNone">Transport primitives used by both halves: <code>brix_cms_send_all</code> (loop <code>c-&gt;send</code> to completion) and <code>brix_cms_send_frame</code> (build the 8-byte header + dispatch payload).   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md213"></a>
+<h2><a class="anchor" id="autotoc_md217"></a>
 Manager-side server (&lt;tt&gt;ngx_stream_brix_cms_srv_module&lt;/tt&gt;)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -151,7 +151,7 @@ Manager-side server (&lt;tt&gt;ngx_stream_brix_cms_srv_module&lt;/tt&gt;)</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="server__auth_8c.html">server_auth.c</a></code>   </td><td class="markdownTableBodyNone">Registration auth gates: <code>brix_cms_srv_check_peer</code> (CIDR allowlist, fail-open-with-warning when unset) and <code>brix_cms_srv_verify_xauth</code> (validate the data node's SSS credential via <code>../sss</code>).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md214"></a>
+<h1><a class="anchor" id="autotoc_md218"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structngx__brix__cms__ctx__s.html">ngx_brix_cms_ctx_s</a></code>** (<code><a class="el" href="cms__internal_8h.html">cms_internal.h</a></code>) — per-manager client state, one per worker (heap-allocated in <code>init_process</code>, pointer kept in <code>srv_conf-&gt;cms_ctx</code>). Holds the <code>ngx_peer_connection_t</code>, active <code>connection</code>, reconnect/heartbeat <code>timer</code>, current <code>backoff</code>, <code>logged_in</code> flag, monotone <code>next_streamid</code> (locate correlation key), and the frame accumulation buffer (<code>inbuf</code>/<code>in_pos</code>/<code>in_need</code>).</li>
@@ -160,7 +160,7 @@ Key types &amp; data structures</h1>
 <li>**<code>ngx_stream_brix_cms_srv_conf_t</code>** (<code><a class="el" href="server_8h.html">server.h</a></code>) — server-block config: <code>enable</code>, <code>interval</code>, CIDR <code>allow</code> array, <code>sss_keytab</code> path, parsed <code>sss_keys</code>.</li>
 <li><b>CMS opcodes &amp; encoding tags</b> (<code><a class="el" href="cms__internal_8h.html">cms_internal.h</a></code>) — <code>CMS_RR_*</code> request/reply codes (e.g. <code>LOGIN=0</code>, <code>LOCATE=2</code>, <code>AVAIL=12</code>, <code>HAVE=15</code>, <code>LOAD=16</code>, <code>SELECT=10</code>, <code>PING=17</code>, <code>STATE=20</code>, <code>STATUS=22</code>, <code>TRY=24</code>, <code>XAUTH=27</code>), <code>CMS_ST_*</code> status modifier bits, <code>CMS_MOD_RAW</code>/<code>CMS_HAVE_ONLINE</code>, and the <code>CMS_PT_SHORT (0x80)</code> / <code>CMS_PT_INT (0xa0)</code> Pup type tags.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md215"></a>
+<h1><a class="anchor" id="autotoc_md219"></a>
 Control &amp; data flow</h1>
 <p><b>Wire frame format.</b> Every frame is an 8-byte big-endian header (<code>streamid u32</code>, <code>rrCode u8</code>, <code>modifier u8</code>, <code>dlen u16</code>) followed by <code>dlen</code> payload bytes (<code>NGX_BRIX_CMS_HDR_LEN</code> / <code>NGX_BRIX_CMS_MAX_FRAME = 4096</code>). Scalars inside a payload carry a Pup type tag (<code>0x80</code> short, <code>0xa0</code> int); strings are tagless, length-prefixed <code>[u16 len][bytes + trailing NUL]</code> where <code>len</code> counts the NUL — matching <code>XrdOucPup</code>.</p>
 <p><b>Client half (this node is a data server).</b> <code>../config/process.c</code> calls <code>ngx_brix_cms_start</code> once per worker when <code>cms_addr</code> is configured. A one-shot timer (<code>INITIAL_DELAY = 1s</code>) fires <code>_connect</code>; on connect the write handler sends <code>kYR_login</code> (<code>CmsLoginData</code>: version/mode/PID/space/port/paths) then <code>kYR_status</code> (<code>Resume|noStage</code>) then the first <code>kYR_load</code>, and arms the <code>cms_interval</code> heartbeat. <code>recv.c</code> answers manager probes. Any I/O error → <code>_disconnect</code> + exponential backoff (<code>BACKOFF_MAX = 60s</code>, also capped at 10× the interval for short test intervals).</p>
@@ -169,7 +169,7 @@ Control &amp; data flow</h1>
 <p>**On-demand selection (<code>kYR_state</code> → <code>kYR_have</code>).** When the manager asks "do
 you hold `&lt;path&gt;`?", <code>recv.c</code> answers <code>kYR_have</code> only if the node can serve it: in manager mode by consulting <code>brix_srv_select</code> over the registry; on a data node by a kernel-confined <code>brix_stat_beneath</code> probe (<code>../path/beneath.h</code>). Otherwise it stays silent, so the manager won't select it.</p>
 <p>Outbound bytes always go through <code><a class="el" href="frame__io_8c.html">frame_io.c</a></code>; the read loops decode via <code><a class="el" href="wire_8c.html">wire.c</a></code> / the server TLV walkers; capacity numbers come from <code>space.c</code>; SSS verification delegates to <code>../sss</code>.</p>
-<h1><a class="anchor" id="autotoc_md216"></a>
+<h1><a class="anchor" id="autotoc_md220"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Per-worker, single-process redirect.</b> The CMS connection and the waiting client connection live in the <em>same</em> worker, so <code>cms_wake_pending_session</code> resolves the client by fd within <code>ngx_cycle</code> (<code>recv.c:73</code>). It revalidates <code>client_conn-&gt;number == pending-&gt;conn_number</code> and <code>state == XRD_ST_WAITING_CMS</code> before redirecting — guards against fd recycling after a client disconnect.</li>
@@ -183,7 +183,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Stream-allocation discipline.</b> Client ctx is <code>ngx_pcalloc</code> on <code>cycle-&gt;pool</code>; server ctx on <code>c-&gt;pool</code> (auto-freed on connection close). Wire buffers are fixed-size stack/struct arrays — no per-frame heap churn.</li>
 <li><b>The two halves are independent modules.</b> The client is part of the main module; the server is <code>ngx_stream_brix_cms_srv_module</code>. A node can run either, both, or neither; <code>manager_mode</code> makes the client aggregate cluster-wide space (<code>brix_srv_aggregate_space</code>) into its own load reports.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md217"></a>
+<h1><a class="anchor" id="autotoc_md221"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a handled inbound opcode (client side):</b> add a <code>CMS_RR_*</code> constant in <code><a class="el" href="cms__internal_8h.html">cms_internal.h</a></code>, then a <code>case</code> in <code>ngx_brix_cms_process_frame</code> (<code>recv.c</code>); add a matching <code>_send_*</code> in <code>send.c</code> if a reply is needed. Bounds- check the payload against <code>ctx-&gt;in_need - HDR_LEN</code> before reading it.</li>
@@ -191,7 +191,7 @@ Entry points / extending</h1>
 <li><b>Add a CMS server directive:</b> add the field to <code>ngx_stream_brix_cms_srv_conf_t</code> (<code><a class="el" href="server_8h.html">server.h</a></code>), an <code>ngx_command_t</code> entry + setter in <code><a class="el" href="server__module_8c.html">server_module.c</a></code>, and a <code>ngx_conf_merge_*</code> line in <code>brix_cms_srv_merge_conf</code>.</li>
 <li><b>Register a new source file:</b> add <code>.c</code> files to the build <code>config</code> at repo root (client list near line 397, server module list near line 678) — they are not compiled otherwise.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md218"></a>
+<h1><a class="anchor" id="autotoc_md222"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2net_2manager_2README.html">../manager/README.md</a> — SHM server registry, blacklist, <code>brix_srv_select</code>, and the pending-locate table this subsystem wakes.</li>

@@ -18,7 +18,8 @@ var searchData=
   ['worker_20key_20value_20store_20and_20token_20bucket_20rate_20limiter_20in_20nginx_20shared_20memory_15',['shm — generic cross-worker key/value store and token-bucket rate limiter in nginx shared memory',['../md_src_2core_2shm_2README.html',1,'']]],
   ['worker_20registry_16',['session — XRootD session lifecycle, identity binding &amp; cross-worker registry',['../md_src_2protocols_2root_2session_2README.html',1,'']]],
   ['worker_20resource_20init_17',['config — directive lifecycle, startup validation, and per-worker resource init',['../md_src_2core_2config_2README.html',1,'']]],
-  ['write_20—_20xrootd_20mutating_20opcode_20handlers_20the_20stream_20write_20path_18',['write — XRootD mutating-opcode handlers (the stream write path)',['../md_src_2protocols_2root_2write_2README.html',1,'']]],
-  ['write_20api_19',['dashboard — live HTTPS transfer monitor + REST admin write API',['../md_src_2observability_2dashboard_2README.html',1,'']]],
-  ['write_20through_20origin_20mirroring_20',['&lt;tt&gt;src/fs/cache/&lt;/tt&gt; — XCache-style read-through cache and write-through origin mirroring',['../md_src_2fs_2cache_2README.html',1,'']]]
+  ['worker_20seccomp_20bpf_20syscall_20filter_18',['Worker seccomp-BPF Syscall Filter',['../md_src_2core_2seccomp_2README.html',1,'']]],
+  ['write_20—_20xrootd_20mutating_20opcode_20handlers_20the_20stream_20write_20path_19',['write — XRootD mutating-opcode handlers (the stream write path)',['../md_src_2protocols_2root_2write_2README.html',1,'']]],
+  ['write_20api_20',['dashboard — live HTTPS transfer monitor + REST admin write API',['../md_src_2observability_2dashboard_2README.html',1,'']]],
+  ['write_20through_20origin_20mirroring_21',['&lt;tt&gt;src/fs/cache/&lt;/tt&gt; — XCache-style read-through cache and write-through origin mirroring',['../md_src_2fs_2cache_2README.html',1,'']]]
 ];

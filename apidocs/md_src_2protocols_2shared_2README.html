@@ -93,8 +93,8 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2shared_2README.html
   <div class="headertitle"><div class="title">shared — cross-protocol helper library (HTTP file serving + overflow-safe size math)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md438"></a> </p>
-<h1><a class="anchor" id="autotoc_md439"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md444"></a> </p>
+<h1><a class="anchor" id="autotoc_md445"></a>
 Overview</h1>
 <p><code>src/shared/</code> is a small, dependency-light library of helpers that more than one protocol handler needs but that belong to none of them. It exists to stop the same logic being copied into the WebDAV, S3, readv, and cache subsystems, where divergent copies would drift apart and (for the security-sensitive math) silently reintroduce bugs. The rule the suite enforces is "one canonical implementation,
 many callers" — see <code>tests/test_cross_protocol_shared_helpers.py</code>, which fails the build if a handler grows a private copy again instead of calling through here.</p>
@@ -105,7 +105,7 @@ many callers" — see <code>tests/test_cross_protocol_shared_helpers.py</code>, 
 <li><b>Overflow-checked size arithmetic</b> (<code><a class="el" href="safe__size_8h.html">safe_size.h</a></code>, header-only). The primitives <code>brix_size_mul</code>/<code>brix_size_add</code> and the array allocators <code>brix_palloc_array</code>/<code>brix_pcalloc_array</code>/<code>brix_alloc_array</code> turn attacker-controlled <code>n * sizeof(elem)</code> allocations into a clean <code>NULL</code>/error instead of a wrapped, undersized buffer that the caller then overflows. They are used wherever a count or length comes off the wire — currently the readv segment array (<code>../read/readv.c</code>) and the cache eviction-candidate growth (<code>../cache/evict_candidates.c</code>).</li>
 </ol>
 <p>Build registration: the serve pair is registered in the top-level nginx module <code>config</code> (the header at <code>config:168</code>, the source at <code>config:247</code>) and compiled as part of the normal build. <code><a class="el" href="safe__size_8h.html">safe_size.h</a></code> is <em>not</em> in <code>config</code> — it is header-only (<code>static ngx_inline</code>), so consumers pick it up purely by <code>#include</code>, with no new translation unit and no <code>./configure</code> change.</p>
-<h1><a class="anchor" id="autotoc_md440"></a>
+<h1><a class="anchor" id="autotoc_md446"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -117,7 +117,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="safe__size_8h.html">safe_size.h</a></code>   </td><td class="markdownTableBodyNone">Header-only (all <code>static ngx_inline</code>, no new translation unit): <code>brix_size_mul</code>/<code>brix_size_add</code> (overflow-detecting via <code>__builtin_*_overflow</code>, with a portable fallback for other compilers) and <code>brix_palloc_array</code>/<code>brix_pcalloc_array</code> (request-pool) / <code>brix_alloc_array</code> (heap, for the long-lived stream path) array allocators that return <code>NULL</code> on overflow, on a zero-size request, or on OOM. Compiles standalone under <code>BRIX_SAFE_SIZE_STANDALONE</code> for the fuzz target.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md441"></a>
+<h1><a class="anchor" id="autotoc_md447"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__http__serve__opts__t.html">brix_http_serve_opts_t</a></code>** (<code><a class="el" href="file__serve_8h.html">file_serve.h</a>:22</code>) — caller-supplied options for a serve. Carries <code>xfer_proto</code> (<code>BRIX_XFER_PROTO_WEBDAV</code>/<code>_S3</code>) and <code>op_name</code> (<code>"GET"</code>/<code>"GetObject"</code>) for dashboard/metric labelling, the resolved <code>identity</code> display string, <code>etag_flags</code> (<code>BRIX_ETAG_WEAK</code> or 0), and the optional <code>pre_header_send</code>/<code>pre_header_ud</code> hook.</li>
@@ -126,7 +126,7 @@ Key types &amp; data structures</h1>
 <li>**<code>brix_vfs_file_t</code> / <code><a class="el" href="structbrix__vfs__stat__t.html">brix_vfs_stat_t</a></code>** (from <code>../fs/vfs.h</code>) — the already-open handle and its stat snapshot that the caller hands in. Accessed here only through VFS accessors: <code>brix_vfs_file_fd</code>, <code>brix_vfs_file_path</code>, <code>brix_vfs_file_from_cache</code>, <code>brix_vfs_close</code>.</li>
 <li>**<code><a class="el" href="safe__size_8h.html">safe_size.h</a></code>** defines no types — just inline functions over plain <code>size_t</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md442"></a>
+<h1><a class="anchor" id="autotoc_md448"></a>
 Control &amp; data flow</h1>
 <p>**<code><a class="el" href="file__serve_8c.html">file_serve.c</a></code> — entry and call-outs.** Execution enters only via <code><a class="el" href="file__serve_8c.html#a6f541a3097eda1fbe34fb5a7576ebf70">brix_http_serve_file_ranged()</a></code>, called from two HTTP read handlers:</p>
 <ul>
@@ -147,7 +147,7 @@ Control &amp; data flow</h1>
 <li><code>../cache/evict_candidates.c</code> — the eviction-candidate list realloc growth, sized with <code>brix_size_mul(new_cap, sizeof(list-&gt;elts[0]), …)</code> (<code><a class="el" href="evict__candidates_8c.html">evict_candidates.c</a>:237</code>) before the buffer is grown.</li>
 </ul>
 <p>The header also compiles standalone for the libFuzzer target <code>tests/fuzz/fuzz_safe_size.c</code>, which defines <code>BRIX_SAFE_SIZE_STANDALONE</code> to skip the nginx includes and supply its own <code>ngx_int_t</code>/<code>size_t</code>/alloc shims.</p>
-<h1><a class="anchor" id="autotoc_md443"></a>
+<h1><a class="anchor" id="autotoc_md449"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>The handle is closed for you — exactly once.</b> Every return path in <code>brix_http_serve_file_ranged</code> calls <code>brix_vfs_close(fh, …)</code> before returning (<code><a class="el" href="file__serve_8c.html">file_serve.c</a>:68</code>, <code>:88</code>, <code>:110</code>, <code>:115</code>). A caller that also closes <code>fh</code> will double-close. This is the most common integration mistake.</li>
@@ -160,7 +160,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Pool vs heap allocator must match the buffer's lifetime.</b> Use <code>brix_palloc_array</code>/<code>brix_pcalloc_array</code> for request-pool memory (freed when the request pool is destroyed) and <code>brix_alloc_array</code> (free with <code>ngx_free</code>) only for the long-lived stream path where a connection/persistent buffer outlives any request pool — see the readv stream consumer above.</li>
 <li>**<code><a class="el" href="safe__size_8h.html">safe_size.h</a></code> adds no <code>.c</code> and no <code>./configure</code> change.** All functions are <code>static ngx_inline</code>; adopting them is <code>#include "../shared/safe_size.h"</code> plus a call. The mandate (header comment, <code><a class="el" href="safe__size_8h.html">safe_size.h</a>:1-24</code>) is that <em>every</em> wire-driven <code>n * sizeof(...)</code> and <code>len + 1</code> size computation migrates to these — the readv segment array and the cache eviction realloc were the seed sites.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md444"></a>
+<h1><a class="anchor" id="autotoc_md450"></a>
 Entry points / extending</h1>
 <p><b>Adopt the shared serve path from a new HTTP read handler.</b> Open and stat the file through the VFS, then:</p>
 <div class="fragment"><div class="line"><span class="preprocessor">#include &quot;../shared/file_serve.h&quot;</span></div>
@@ -192,7 +192,7 @@ Entry points / extending</h1>
 </div><!-- fragment --><p><code>rc</code> is <code>NGX_OK</code>, <code>NGX_ERROR</code>, or an HTTP status code (<code>416</code>, <code>500</code>); feed it straight back as the handler's return value.</p>
 <p><b>Add a wire-driven allocation safely.</b> Replace <code>ngx_palloc(pool, n * sizeof(*p))</code> with <code>brix_palloc_array(pool, n, sizeof(*p))</code> (or <code>brix_pcalloc_array</code> for zeroed, <code>brix_alloc_array(log, …)</code> for heap/stream-lifetime), and check for <code>NULL</code>. For a bare size computation feeding something else, use <code>brix_size_mul</code>/<code>brix_size_add</code> and check the <code>NGX_OK</code>/<code>NGX_ERROR</code> return before reading <code>*out</code>.</p>
 <p><b>Where new shared helpers belong.</b> Put logic here only when ≥2 protocol subsystems need it and it carries no protocol-specific policy. Anything with auth, path, or metric-label semantics stays in the owning subsystem and is wired to by these helpers, not absorbed into them. New shared <code>.c</code> files must be added to <code>config</code> (<code>NGX_ADDON_SRCS</code>); header-only helpers need no registration.</p>
-<h1><a class="anchor" id="autotoc_md445"></a>
+<h1><a class="anchor" id="autotoc_md451"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2README.html">`../README.md`</a> — master subsystem index.</li>

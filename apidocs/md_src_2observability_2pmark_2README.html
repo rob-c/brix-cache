@@ -93,16 +93,16 @@ $(document).ready(function(){initNavTree('md_src_2observability_2pmark_2README.h
   <div class="headertitle"><div class="title">pmark — SciTags packet marking</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md296"></a> Network flow tagging for nginx-xrootd, compatible with XRootD's <code>pmark</code> directive family and the <a href="https://www.scitags.org">SciTags</a> initiative (WLCG / ESnet / GÉANT). Each data flow is labelled with an <code>(experiment, activity)</code> pair so R&amp;E network operators can account for and engineer traffic per-VO / per-activity.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md301"></a> Network flow tagging for nginx-xrootd, compatible with XRootD's <code>pmark</code> directive family and the <a href="https://www.scitags.org">SciTags</a> initiative (WLCG / ESnet / GÉANT). Each data flow is labelled with an <code>(experiment, activity)</code> pair so R&amp;E network operators can account for and engineer traffic per-VO / per-activity.</p>
 <p>Design doc: `docs/refactor/phase-34-packet-marking-scitags.md`.</p>
-<h1><a class="anchor" id="autotoc_md297"></a>
+<h1><a class="anchor" id="autotoc_md302"></a>
 Overview</h1>
 <p>A flow-id is a 16-bit value <code>(experiment &lt;&lt; 6) | activity</code> (10-bit experiment 1–1023, 6-bit activity 1–63). Two SciTags techniques are implemented, both <b>fail-open</b> (a misconfiguration, an unreachable collector, or a kernel that refuses a label degrades to "not marked" and never blocks/slows/fails a transfer):</p>
 <ol type="1">
 <li><b>Firefly UDP</b> (<code><a class="el" href="firefly_8c.html">firefly.c</a></code>) — out-of-band RFC5424-syslog-wrapped JSON flow-lifecycle documents (<code>start</code> / <code>ongoing</code> / <code>end</code>) sent to a collector (default UDP port 10514). Byte-for-byte compatible with XRootD's <code>XrdNetPMarkFF</code> so existing <code>flowd</code> collectors and dashboards just work.</li>
 <li><b>IPv6 Flow Label</b> (<code><a class="el" href="flowlabel_8c.html">flowlabel.c</a></code>) — in-band stamping of the 20-bit IPv6 flow label via <code>setsockopt(IPV6_FLOWLABEL_MGR)</code> + <code>IPV6_FLOWINFO_SEND</code>. This completes the path XRootD only stubbed (<code>// { TODO??? }</code>). No-op on IPv4 / IPv4-mapped, and self-disables (one-time probe) where the host kernel forbids setting a specific label (sysctls / <code>CAP_NET_ADMIN</code>).</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md298"></a>
+<h1><a class="anchor" id="autotoc_md303"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -124,7 +124,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="flowlabel_8c.html">flowlabel.c</a></code>   </td><td class="markdownTableBodyNone">IPv6 flow-label encode + apply + one-time capability probe (Linux-only; no-op stubs elsewhere).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md299"></a>
+<h1><a class="anchor" id="autotoc_md304"></a>
 Configuration</h1>
 <p>Per-server / per-location directives (live in the shared <code>common</code> config preamble, so the same set works in the stream <code>server {}</code>, WebDAV, and S3 location blocks). See doc §4 for the full list and the XRootD <code>pmark</code> equivalence table. Common case:</p>
 <div class="fragment"><div class="line">brix_pmark            on;</div>
@@ -135,14 +135,14 @@ Configuration</h1>
 <div class="line">brix_pmark_map_activity   atlas default   default;</div>
 <div class="line"># brix_pmark_flowlabel on;   # default on (IPv6 only)</div>
 <div class="line"># brix_pmark_http_plain on;  # also mark plain WebDAV/S3 GET/PUT (default: TPC only)</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md300"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md305"></a>
 Control &amp; data flow</h1>
 <p>A flow is begun once per transfer at the protocol's open/handler site and ended at teardown (firefly <code>end</code> reads the final TCP_INFO before the fd closes):</p>
 <ul>
 <li><b>root://</b> (stream): begun in <a class="el" href="md_src_2protocols_2root_2read_2README.html">`../read/open_request.c`</a> on the first local data open; ended in <a class="el" href="md_src_2protocols_2root_2connection_2README.html">`../connection/disconnect.c`</a>. Handle stored on <code>brix_ctx_t.pmark_flow</code>.</li>
 <li><b>WebDAV / S3</b> (HTTP): begun in <a class="el" href="md_src_2protocols_2webdav_2README.html">`../webdav/dispatch.c`</a> / <a class="el" href="md_src_2protocols_2s3_2README.html">`../s3/handler.c`</a> post-auth; ended via an <code>ngx_pool_cleanup</code>. TPC (COPY) always marked; plain GET/PUT only with <code>brix_pmark_http_plain</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md301"></a>
+<h1><a class="anchor" id="autotoc_md306"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Fail-open, always.</b> Marking never returns an error to the data plane; UDP and <code>setsockopt</code> failures are dropped/counted, not surfaced.</li>
@@ -151,7 +151,7 @@ Invariants, security &amp; gotchas</h1>
 <li>The flow-label <b>bit layout</b> is the WLCG SciTags spec (<code>draft-cc-v6ops-wlcg-flow-label-marking</code>): activity at bits 2–7, community (experiment) at bits 9–17 <b>in reversed bit order</b>, 5 random entropy bits at 0,1,8,18,19. It is pinned in the single <code><a class="el" href="pmark_8h.html#ab87de76dc4571c43c70f1ac022f3ea3b">brix_pmark_flowlabel_encode()</a></code> (+ the entropy OR in <code><a class="el" href="flowlabel_8c.html">flowlabel.c</a></code>). A CMS client's <code>scitag.flow=206</code> (exp 3, act 14) therefore appears on the wire as flow label <code>196664</code> — the value cms-sw/cmssw <code>c2797da</code> reads back. Match this layout to the deployed spec version before declaring interop.</li>
 <li>TCP_INFO byte fields are read by fixed kernel-ABI offset because glibc's <code>&lt;netinet/tcp.h&gt;</code> <code>struct tcp_info</code> omits them and <code>&lt;linux/tcp.h&gt;</code> conflicts with it; rtt is always available, byte counts where the kernel provides them.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md302"></a>
+<h1><a class="anchor" id="autotoc_md307"></a>
 See also</h1>
 <ul>
 <li>`../../docs/refactor/phase-34-packet-marking-scitags.md` — full design + XRootD ground truth.</li>

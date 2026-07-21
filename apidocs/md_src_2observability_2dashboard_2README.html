@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2observability_2dashboard_2READ
   <div class="headertitle"><div class="title">dashboard — live HTTPS transfer monitor + REST admin write API</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md279"></a> </p>
-<h1><a class="anchor" id="autotoc_md280"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md284"></a> </p>
+<h1><a class="anchor" id="autotoc_md285"></a>
 Overview</h1>
 <p>The <code>dashboard</code> subsystem is a self-contained operator console served over the HTTP module at <code>/xrootd/</code>. It gives a site operator real-time visibility into every active transfer (who, which file, which protocol, how many bytes, how fast), plus a recent-events ring buffer, rolling history sparkline, cache health, and CMS cluster state — and, since Phase 23, a guarded REST API that <em>mutates</em> runtime state (register/drain data servers, add/drain dynamic WebDAV proxy backends). It exists so operators can replace the XRootD monitoring daemons with the same nginx process that serves data, with no external collector required.</p>
 <p>The subsystem spans <b>both nginx module worlds</b>, which is the single most important fact about its layout. The data producers run inside the <b>stream</b> module: stream workers (and HTTP method handlers, via <code><a class="el" href="http__tracking_8c.html">http_tracking.c</a></code>) write into three shared-memory zones — the active-transfer table, the event ring buffer, and the history ring. The consumers run inside a dedicated <b>HTTP</b> module (<code>ngx_http_brix_dashboard_module</code>): when a request hits a location that has <code>brix_dashboard on</code>, the content handler renders the HTML page, serves JSON snapshots, handles login, or dispatches admin writes. The two sides never share a request context — they communicate only through SHM — so the headers are deliberately split: stream-visible types live in <code><a class="el" href="dashboard_8h.html">dashboard.h</a></code>, HTTP-only declarations in <code><a class="el" href="dashboard__http_8h.html">dashboard_http.h</a></code>.</p>
 <p>In the request lifecycle, dashboard tracking is a <em>side effect</em> of the four data lifecycles, not part of any of them. A <code>root://</code> open calls <code><a class="el" href="dashboard_8h.html#a13e4a980e9e99df75209ec72f122ba03">brix_transfer_slot_alloc()</a></code>, each read/write calls <code><a class="el" href="dashboard_8h.html#a002b92ef458e8a7c04c872d74e2501d8">brix_transfer_slot_update()</a></code>, close/disconnect frees the slot; a WebDAV or S3 request does the equivalent through the <code>brix_dashboard_http_*</code> helpers in <code><a class="el" href="http__tracking_8c.html">http_tracking.c</a></code>, which attach a pool-cleanup so the slot is always freed when the request ends. Tracking failures are silent (table full → transfer proceeds untracked): the dashboard is display-only and must never affect data movement.</p>
 <p>The dashboard is <b>firewalled-admin-only by design</b>. It exposes client identities, file paths, and IP addresses, and the page password lives in <code>nginx.conf</code> in plaintext; the module provides no IP-level access control for the <em>page</em> (the operator must restrict the location via nginx <code>allow</code>/<code>deny</code> or a firewall). The Phase 23 <em>admin write API</em> is separately and more strictly guarded (CIDR allowlist and/or bearer secret, fail-closed).</p>
-<h1><a class="anchor" id="autotoc_md281"></a>
+<h1><a class="anchor" id="autotoc_md286"></a>
 Files</h1>
 <p>The build compiles these in two groups (see <code>config</code>): the <b>stream</b> group (<code>config.c</code>, <code><a class="el" href="transfer__table_8c.html">transfer_table.c</a></code>, <code>events.c</code>, <code><a class="el" href="history_8c.html">history.c</a></code>) registers and feeds the SHM zones; the <b>HTTP</b> group (<code>module.c</code>, <code>auth.c</code>, <code><a class="el" href="api_8c.html">api.c</a></code>, <code><a class="el" href="api__admin_8c.html">api_admin.c</a></code>, <code><a class="el" href="http__tracking_8c.html">http_tracking.c</a></code>, <code><a class="el" href="page_8c.html">page.c</a></code>) serves requests.</p>
 <table class="markdownTable">
@@ -155,7 +155,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>noop.c</code>   </td><td class="markdownTableBodyNone">Weak fallback stubs for every public dashboard symbol, returning "untracked"/empty. Lets the HTTP dashboard module link in a build without the stream module. <b>Not referenced by the current <code>config</code></b> (both groups are compiled), but kept so the API stays linkable standalone.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md282"></a>
+<h1><a class="anchor" id="autotoc_md287"></a>
 Key types &amp; data structures</h1>
 <p>All live in <code><a class="el" href="dashboard_8h.html">dashboard.h</a></code> and reside in shared memory; <code>ngx_shmtx_sh_t lock</code> is always the first field of each root table (an <code>ngx_shmtx_create()</code> requirement, identical to the session/metrics registries).</p>
 <ul>
@@ -166,12 +166,12 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a></code>** (<code><a class="el" href="dashboard__http_8h.html">dashboard_http.h</a></code>) — per-location config: enable flag, page password / <code>users</code> array, session TTL, cookie path, idle/stalled/cluster-stale thresholds, and the Phase 23 admin fields (<code>admin_allow</code> CIDR list, <code>admin_secret</code>, <code>admin_require_both</code>, <code>admin_proxy_allow</code>).</li>
 <li>**<code>brix_dashboard_api_endpoint_e</code>** (<code><a class="el" href="dashboard__http_8h.html">dashboard_http.h</a></code>) — the routed endpoint, set by <code>module.c</code>'s dispatcher and consumed by the <code><a class="el" href="api_8c.html">api.c</a></code> switch.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md283"></a>
+<h1><a class="anchor" id="autotoc_md288"></a>
 Control &amp; data flow</h1>
 <p><b>Producer side (writes into SHM):</b> <code>../config/postconfiguration.c</code> calls <code><a class="el" href="config_2config_8h.html#ae28a0667ee6abd226cec51ad33525de7">brix_configure_dashboard()</a></code> (<code>config.c</code>) to register the three zones against <code>ngx_stream_brix_module</code>. At runtime, stream op handlers in <code>../read/</code> and <code>../write/</code> call the <code>brix_transfer_slot_*</code> functions in <code><a class="el" href="transfer__table_8c.html">transfer_table.c</a></code>; HTTP handlers in <code>../webdav/</code> and <code>../s3/</code> call the <code>brix_dashboard_http_*</code> wrappers in <code><a class="el" href="http__tracking_8c.html">http_tracking.c</a></code>, which in turn call the same slot functions. Errors and notable actions anywhere call <code><a class="el" href="dashboard_8h.html#a6b198774b0de1698169dd64c9615ec2e">brix_dashboard_event_add()</a></code> (<code>events.c</code>). <code><a class="el" href="history_8c.html">history.c</a></code> reads both the transfer table and the metrics SHM (<code>../metrics/</code>) to fill the current bucket — it is driven lazily from the API handler (<code><a class="el" href="dashboard_8h.html#a2ca22c78a3b7cf96f0752fa6d8e7f215">brix_dashboard_history_sample()</a></code> is called on each API hit).</p>
 <p><b>Consumer side (reads SHM, serves HTTP):</b> a request to a <code>brix_dashboard on</code> location enters <code>ngx_http_brix_dashboard_main_handler</code> (<code>module.c</code>), which routes by URI. Page → <code><a class="el" href="page_8c.html">page.c</a></code> (auth-gated, else 302 to login). Login → <code>auth.c</code>. JSON → <code><a class="el" href="api_8c.html">api.c</a></code> (<code>check_auth</code> → GET/HEAD → <code>history.sample</code> → collect totals → build the requested endpoint with jansson → <code>json_dumpb</code> into a pool buffer → memory-backed <code>b-&gt;memory=1</code> chain). Admin → <code>brix_admin_dispatch</code> (<code><a class="el" href="api__admin_8c.html">api_admin.c</a></code>).</p>
 <p><b>Outbound dependencies</b> beyond siblings already named: <code><a class="el" href="api_8c.html">api.c</a></code> reads the TPC SHM registry (<code>../tpc/</code>), the manager/CMS server registry (<code>../manager/</code>), filesystem usage (<code>../compat/fs_usage.h</code>), and rate-limit zones (<code>../ratelimit/</code>). <code><a class="el" href="api__admin_8c.html">api_admin.c</a></code> writes the manager registry (<code>../manager/</code>) and the dynamic proxy pool (<code>../webdav/proxy_pool.h</code>), and parses bearer tokens via <code>../compat/http_headers.h</code>. Auth uses OpenSSL HMAC/<code>CRYPTO_memcmp</code> directly (not <code>../crypto/</code>).</p>
-<h1><a class="anchor" id="autotoc_md284"></a>
+<h1><a class="anchor" id="autotoc_md289"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Two compilation contexts, one SHM bridge.</b> <code><a class="el" href="dashboard_8h.html">dashboard.h</a></code> must stay free of <code>ngx_http_request_t</code>; HTTP-only types belong in <code><a class="el" href="dashboard__http_8h.html">dashboard_http.h</a></code> (<code><a class="el" href="dashboard__http_8h.html">dashboard_http.h</a>:6-14</code>). Producers run in stream workers, consumers in HTTP workers; they share <em>only</em> the three SHM zones, never a request ctx.</li>
@@ -187,7 +187,7 @@ Invariants, security &amp; gotchas</h1>
 <li>**<code>addr_text</code> is not NUL-terminated.** <code><a class="el" href="http__tracking_8c.html">http_tracking.c</a></code> must copy <code>r-&gt;connection-&gt;addr_text</code> into a bounded buffer before handing it to the <code>ngx_cpystrn</code>-based slot copier (Phase 27 / Valgrind finding, <code><a class="el" href="http__tracking_8c.html">http_tracking.c</a>:31-57</code>).</li>
 <li><b>Login POST is async.</b> <code>ngx_http_brix_dashboard_login_handler</code> returns <code>NGX_DONE</code> and finalizes inside the body callback; it issues a 302 via <code>headers_out.location</code> rather than <code>send_header</code> alone, because a bare <code>send_header</code> in a body callback leaves headers unflushed (<code>auth.c:682-710</code>).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md285"></a>
+<h1><a class="anchor" id="autotoc_md290"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a read JSON endpoint:</b> add a value to <code>brix_dashboard_api_endpoint_e</code> (<code><a class="el" href="dashboard__http_8h.html">dashboard_http.h</a></code>) → route its URI in <code>…_main_handler</code> (<code>module.c</code>) → add a <code>dashboard_build_v1_*</code> builder and a <code>case</code> in <code>ngx_http_brix_dashboard_api_handler</code> (<code><a class="el" href="api_8c.html">api.c</a></code>). Build the body with jansson leaf builders; return through <code>dashboard_send_json</code> (it owns/decrefs <code>root</code>).</li>
@@ -195,7 +195,7 @@ Entry points / extending</h1>
 <li><b>Add an admin write op:</b> add a handler in <code><a class="el" href="api__admin_8c.html">api_admin.c</a></code>, route it in <code>brix_admin_dispatch</code> (gated on method), whitelist-validate every input, call <code><a class="el" href="api__admin_8c.html#a166197a7899a0d33631e20796bddbb7e">admin_audit()</a></code>, and (for body-bearing ops) go through <code>brix_admin_read_body</code>.</li>
 <li><b>Add a directive:</b> declare the field in <code><a class="el" href="structngx__http__brix__dashboard__loc__conf__t.html">ngx_http_brix_dashboard_loc_conf_t</a></code> (<code><a class="el" href="dashboard__http_8h.html">dashboard_http.h</a></code>), add an <code>ngx_command_t</code> + setter in <code>module.c</code>, and merge it in <code>…_merge_loc_conf</code> — no <code>./configure</code> needed (no new source file).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md286"></a>
+<h1><a class="anchor" id="autotoc_md291"></a>
 See also</h1>
 <ul>
 <li><code>../metrics/README.md</code> — the metrics SHM that <code><a class="el" href="api_8c.html">api.c</a></code>/<code><a class="el" href="history_8c.html">history.c</a></code> aggregate.</li>
@@ -206,7 +206,7 @@ See also</h1>
 <li><code>../config/README.md</code> — postconfiguration that registers the SHM zones.</li>
 <li><code>../README.md</code> — master subsystem index.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md287"></a>
+<h1><a class="anchor" id="autotoc_md292"></a>
 VFS export browser (&lt;tt&gt;brix_dashboard_vfs_browse on&lt;/tt&gt;)</h1>
 <p>Admin-auth-only, read-only, <b>off by default</b> (it exposes stored user data through the dashboard). Three endpoints, every operation routed through <code>brix_vfs_*</code> — so the listing is the export's LOGICAL namespace for ANY backend the registry composed (a pblock export shows its files, not <code>catalog.db</code> + packed blobs; posix/ceph/xroot the same): </p><pre class="fragment">GET /xrootd/api/v1/vfs                       export census (root, backend, origin)
 GET /xrootd/api/v1/vfs/files?export=&amp;path=   JSON directory listing (name/type/size/mtime)

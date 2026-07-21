@@ -24,5 +24,7 @@ var cks__verify_8c =
     [ "ckv_read_sidecar_blob", "cks__verify_8c.html#a9cdf5472c3cc96cdc789055d3642b7ee", null ],
     [ "ckv_read_xmeta", "cks__verify_8c.html#af4db3a2ba8380f319d9505bb4f384528", null ],
     [ "ckv_verify_one", "cks__verify_8c.html#ad41d3260774339b8b4b19ad15ee03a7a", null ],
-    [ "ckv_xmeta_origin", "cks__verify_8c.html#a999e92f3435fbc1b520f28a34e359924", null ]
+    [ "ckv_xmeta_ext_locate", "cks__verify_8c.html#aadc7f6137fcc4d1ae2a1eef53ea43ae5", null ],
+    [ "ckv_xmeta_origin", "cks__verify_8c.html#a999e92f3435fbc1b520f28a34e359924", null ],
+    [ "ckv_xmeta_origin_decode", "cks__verify_8c.html#aaa23b45adc484708899f48627566c37b", null ]
 ];

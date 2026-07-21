@@ -93,17 +93,17 @@ $(document).ready(function(){initNavTree('md_src_2core_2compat_2README.html','')
   <div class="headertitle"><div class="title">compat — Cross-protocol shared primitives (checksums, paths, filesystem, SSRF)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md90"></a> </p>
-<h1><a class="anchor" id="autotoc_md91"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md92"></a> </p>
+<h1><a class="anchor" id="autotoc_md93"></a>
 Overview</h1>
 <p><code>src/core/compat</code> is the module's library of <b>protocol-neutral building blocks</b>: small, focused helpers that the three protocol front-ends (<code>root://</code> stream, WebDAV/HTTP, S3 REST) plus the cluster/proxy/TPC machinery all share so they cannot drift apart. Nothing here owns a request lifecycle or a wire dialect; each file does one job — compute a CRC32c, parse a Range header, mutate the namespace under kernel confinement, resolve a URL host against an SSRF policy — and does it identically for every caller. The directory's reason to exist is the project's core rule: <em>use helpers, never reimplement path/auth/metrics/framing</em> (see the root <code>CLAUDE.md</code>). When a checksum, error-code mapping, or path-confinement decision needs to change, it changes here once.</p>
 <p>Despite the historical name "compat", this is not a thin compatibility shim over nginx — it is the de-duplication layer. Earlier files such as <code><a class="el" href="cors_8c.html">cors.c</a></code>, <code>io.c</code>, <code>http_protocol_vars.c</code>, <code>kxr_errno.c</code>, and <code>result_mapper.c</code> have been <b>folded into the surviving consolidated files</b> (e.g. <code><a class="el" href="error__mapping_8c.html">error_mapping.c</a></code> now carries the errno→kXR, errno→HTTP, and namespace-status→HTTP maps that three separate files used to). <code><a class="el" href="result__mapper_8h.html">result_mapper.h</a></code> survives only as a back-compat alias header whose two prototypes are now defined in <code><a class="el" href="error__mapping_8c.html">error_mapping.c</a></code>.</p>
 <p><b>The HTTP-semantics cluster moved out (2026-07-02):</b> <code>http_headers</code>, <code>http_body</code>, <code>http_file_response</code>, <code>http_conditionals</code>, <code>http_query</code>, <code>http_xml</code>, <code>http_compress</code>, and <code>etag</code> now live in <a class="el" href="md_src_2core_2http_2README.html">`../http`</a> — they are security-load-bearing HTTP request/response semantics, not portability glue, and deserve to be discoverable by name. What remains here is the genuinely protocol-neutral layer: checksums, namespace mutation, path/range/URI/XML primitives, SSRF, time/log/SHM utilities.</p>
 <p>These helpers sit <em>below</em> the protocol handlers in every request lifecycle. A WebDAV <code>GET</code> calls <code>brix_http_parse_range</code> (<code><a class="el" href="range_8c.html">range.c</a></code>) before the serve pipeline in <code>core/http</code> takes over; an S3 <code>ListObjectsV2</code> calls <code>brix_fs_walk</code> + <code>brix_xml_write_text_element</code>; a native <code>kXR_Qcksum</code> calls <code>brix_integrity_get_fd</code> → <code>brix_checksum_hex_fd</code>; every mutating op (<code>rm</code>, <code>mkdir</code>, <code>mv</code>, WebDAV <code>MKCOL</code>/<code>DELETE</code>/<code>MOVE</code>, S3 <code>PutObject</code>/<code>DeleteObjects</code>) routes through <code>brix_ns_*</code> in <code><a class="el" href="namespace__ops_8c.html">namespace_ops.c</a></code>. Outbound transfers (native TPC, WebDAV HTTP-TPC) gate on <code><a class="el" href="net__target_8c.html">net_target.c</a></code>'s SSRF policy.</p>
 <p>Two invariants make this directory load-bearing for security: (1) every namespace mutation and staged write here re-resolves the client path under the export root with the kernel's <code>openat2(RESOLVE_BENEATH)</code> API (via <code>../path/beneath.h</code>) — confinement is enforced at the syscall, not assumed from an upstream check; and (2) all outbound network targets pass a DNS-rebind-safe SSRF classifier before any byte is sent.</p>
-<h1><a class="anchor" id="autotoc_md92"></a>
+<h1><a class="anchor" id="autotoc_md94"></a>
 Files</h1>
-<h2><a class="anchor" id="autotoc_md93"></a>
+<h2><a class="anchor" id="autotoc_md95"></a>
 Checksums &amp; hex</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -121,7 +121,7 @@ Checksums &amp; hex</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="crypto_8c.html">crypto.c</a></code> / <code><a class="el" href="crypto_8h.html">crypto.h</a></code>   </td><td class="markdownTableBodyNone">Worker-lifecycle OpenSSL HMAC-SHA256 + SHA-256 singletons. <code>EVP_MAC</code>/<code>EVP_MD</code> fetched once at <code>init_process</code>, freed at <code>exit_process</code>; per-call cost is just a CTX alloc. Used by GSI <code>kXR_sigver</code> and S3 SigV4.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md94"></a>
+<h2><a class="anchor" id="autotoc_md96"></a>
 HTTP-adjacent primitives</h2>
 <p>The request/response-semantics files (<code>http_*</code>, <code>etag</code>) live in <a class="el" href="md_src_2core_2http_2README.html">`../http`</a>. These remain here because they serve non-HTTP planes too:</p>
 <table class="markdownTable">
@@ -137,7 +137,7 @@ HTTP-adjacent primitives</h2>
 <p>| <code>xml.c</code> / <code>xml.h</code> | XML escaping (&lsquo;&amp; &lt; &gt; " &amp;rsquo;&lt;tt&gt;, optional&lt;/tt&gt;&amp;apos;&lt;tt&gt;and control-char&lt;/tt&gt;%XX&lt;tt&gt;),&lt;/tt&gt;&lt;name&gt;escaped&lt;/name&gt;&lt;tt&gt;element builder with name validation, and WebDAV&lt;/tt&gt;&lt;lockinfo&gt;&lt;tt&gt;parsing via **libxml2** (&lt;/tt&gt;XML_PARSE_NONET|NOERROR|NOWARNING&lt;tt&gt;,&lt;/tt&gt;XML_PARSE_NO_XXE&lt;tt&gt;when available).&lt;/tt&gt;brix_xml_backend_name()&lt;tt&gt;returns&lt;/tt&gt;"libxml2"&lt;tt&gt;. |
 |&lt;/tt&gt;protocol_caps.c&lt;tt&gt;/&lt;/tt&gt;protocol_caps.h&lt;tt&gt;| Shared HTTP-operation descriptor (&lt;/tt&gt;brix_http_operation_t&lt;tt&gt;: name, method, metric slot, access-op, capability flags) plus method→op lookup and flag-filtered&lt;/tt&gt;Allow&lt;tt&gt;/&lt;/tt&gt;Access-Control-Allow-Methods` builder. WebDAV &amp; S3 keep their own tables; these helpers just search/format. |
 
-@subsection autotoc_md95 Filesystem &amp; namespace mutation
+@subsection autotoc_md97 Filesystem &amp; namespace mutation
 
 &lt;table class="markdownTable"&gt;
   &lt;tr class="markdownTableHead"&gt;    &lt;th class="markdownTableHeadNone"&gt; File   </p>
@@ -156,7 +156,7 @@ HTTP-adjacent primitives</h2>
 <p><code>copy_file_range(2)</code> zero-copy with <code>pread</code>/<code>pwrite</code> 256 KB fallback on <code>EXDEV/ENOSYS/EOPNOTSUPP/EINVAL/EPERM</code>. <b>Blocking</b> — thread-pool/post-accept only. Backs kXR_clone, kXR_chkpoint, ns local copy, HTTP body→fd.    </p>
 <p><code>path.c</code> / <code>path.h</code>   </p>
 <p><code>BRIX_PATH_MAX</code>/<code>_MIN</code> constants and <code>brix_http_resolve_path</code>: validates depth + rejects <code>.</code>/<code>..</code> components, then produces the lexical <code>root_canon</code>+<code>decoded_path</code> join for ACL/logging. Does NO existence check and NO <code>realpath</code> — real confinement happens at the op via RESOLVE_BENEATH. Returns 0 or an HTTP status (400/403/414).   </p>
-<h2><a class="anchor" id="autotoc_md96"></a>
+<h2><a class="anchor" id="autotoc_md98"></a>
 Networking, async, time, logging, SHM</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -178,7 +178,7 @@ Networking, async, time, logging, SHM</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="shm__slots_8h.html">shm_slots.h</a></code>   </td><td class="markdownTableBodyNone">Inline SHM-slot helpers: <code>slot_expired</code> (msec compare) and <code>remember_free_slot</code> (first-candidate-wins). For TPC key registry, cache origin slots.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md97"></a>
+<h1><a class="anchor" id="autotoc_md99"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code>brix_checksum_alg_t</code>** (<code><a class="el" href="checksum_8h.html">checksum.h</a></code>) — adler32 / crc32 / crc32c / crc64 / crc64nvme / md5 / sha1 / sha256; classified u32 (8 hex) vs u64 (16 hex) vs digest to pick the compute path and the hex width.</li>
@@ -192,7 +192,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__fs__usage__t.html">brix_fs_usage_t</a></code>** (<code><a class="el" href="fs__usage_8h.html">fs_usage.h</a></code>) — computed byte totals + occupancy ppm.</li>
 <li>**<code><a class="el" href="structbrix__async__job__t.html">brix_async_job_t</a></code>** (<code><a class="el" href="async__job_8h.html">async_job.h</a></code>) — background-job lifecycle with idempotent cleanup.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md98"></a>
+<h1><a class="anchor" id="autotoc_md100"></a>
 Control &amp; data flow</h1>
 <p>Execution always <b>enters from a caller above</b> — a protocol handler or a subsystem — never on its own:</p>
 <ul>
@@ -202,7 +202,7 @@ Control &amp; data flow</h1>
 <li><b>TPC / proxy / CMS</b> (<code>../tpc/</code>, <code>../proxy/</code>, <code>../cms/</code>): outbound target validation → <code><a class="el" href="net__target_8c.html">net_target.c</a></code>; background job teardown → <code><a class="el" href="async__job_8c.html">async_job.c</a></code>; SHM slot bookkeeping → <code><a class="el" href="shm__slots_8h.html">shm_slots.h</a></code>.</li>
 </ul>
 <p>What this directory <b>calls out to</b>: the filesystem helpers depend on the kernel-confinement primitives in <a class="el" href="md_src_2fs_2path_2README.html">`../path/beneath.h`</a> (<code>brix_*_beneath</code>, <code>brix_beneath_open_root</code>, <code>brix_beneath_strip_root</code>) and on <a class="el" href="md_src_2protocols_2root_2fattr_2README.html">`../fattr`</a> xattr key constants; <code><a class="el" href="copy__range_8c.html">copy_range.c</a></code> and the body/checksum loops are <b>blocking</b> and run under the <a class="el" href="md_src_2core_2aio_2README.html">`../aio`</a> thread pool; status mappings feed the response framing in <a class="el" href="md_src_2protocols_2root_2response_2README.html">`../response`</a> and the counters in <a class="el" href="md_src_2observability_2metrics_2README.html">`../metrics`</a>. It depends on nginx core/HTTP, OpenSSL, zlib, and libxml2.</p>
-<h1><a class="anchor" id="autotoc_md99"></a>
+<h1><a class="anchor" id="autotoc_md101"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Kernel confinement is enforced here, at the op.</b> <code><a class="el" href="namespace__ops_8c.html">namespace_ops.c</a></code>, <code><a class="el" href="staged__file_8c.html">staged_file.c</a></code>, and <code><a class="el" href="fs__walk_8c.html">fs_walk.c</a></code>'s <code>remove_tree</code> open a <code>RESOLVE_BENEATH</code> rootfd and route every mutating syscall through it; a path that does not strip cleanly under <code>root_canon</code> is refused with <code>EXDEV</code> (<code><a class="el" href="namespace__ops_8c.html">namespace_ops.c</a>:67</code>, <code><a class="el" href="staged__file_8c.html">staged_file.c</a>:91</code>) rather than touched raw. <code>path.c</code> deliberately does <b>no</b> <code>realpath</code> and <b>no</b> existence check (<code>path.c:1-14</code>) — it only rejects <code>.</code>/<code>..</code> and builds the lexical join; confinement is the kernel's job at the actual op.</li>
@@ -217,7 +217,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Hex case asymmetry.</b> <code>brix_hex_encode</code> is lowercase (checksums/ETags); <code>brix_hex_nibble</code> is uppercase (<code>xml.c</code> <code>XX</code>). Don't assume one casing.</li>
 <li><b>XML backend.</b> Despite the header mentioning a fallback scanner, <code>xml.c</code> compiles <b>only</b> the libxml2 path; the build depends on libxml2 and <code><a class="el" href="core_2compat_2xml_8c.html#a33302de07017ce2220d7b8a70a9676ba">brix_xml_backend_name()</a></code> always returns <code>"libxml2"</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md100"></a>
+<h1><a class="anchor" id="autotoc_md102"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>New checksum algorithm:</b> add the enum in <code><a class="el" href="checksum_8h.html">checksum.h</a></code>, the name/EVP/u32 branches in <code>checksum.c</code>, and the name to <code>s_algorithms[]</code> in <code><a class="el" href="integrity__info_8c.html">integrity_info.c</a></code> (so the xattr cache invalidates it).</li>
@@ -227,7 +227,7 @@ Entry points / extending</h1>
 <li><b>New status mapping:</b> add the case to the appropriate section of <code><a class="el" href="error__mapping_8c.html">error_mapping.c</a></code> (errno→kXR, errno→HTTP, ns→HTTP) — one place, every protocol.</li>
 <li><b>New <code>.c</code>/<code>.h</code> in this directory:</b> register it in the top-level <code>config</code> source list (nginx addon <code>ngx_addon_srcs</code>); incremental builds use <code>make -j$(nproc)</code>, a new file requires re-running <code>./configure</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md101"></a>
+<h1><a class="anchor" id="autotoc_md103"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2fs_2path_2README.html">`../path/README.md`</a> — <code><a class="el" href="beneath_8h.html">beneath.h</a></code> RESOLVE_BENEATH confinement, canonicalisation, ACL/authdb (this directory's confinement backend).</li>

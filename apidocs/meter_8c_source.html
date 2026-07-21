@@ -210,204 +210,253 @@ $(document).ready(function(){initNavTree('meter_8c_source.html',''); initResizab
 </div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00106" data-start="{" data-end="}">
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno"><a class="line" href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">  106</a></span><a class="code hl_function" href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">brix_cms_meter_parse_netdev</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *buf, uint64_t *total_bytes)</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>{</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>  *p;</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    uint64_t     sum = 0;</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    <span class="keywordtype">int</span>          seen = 0;</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span> </div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordflow">if</span> (buf == NULL) {</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    }</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span> </div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment">     * Per-interface lines: &quot;  eth0: rx_bytes ... (8 fields) tx_bytes ...&quot;.</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment">     * The two header lines carry no &#39;:&#39; followed by digits, so keying on the</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment">     * colon is sufficient.  Loopback is skipped — lo traffic is not network</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment">     * load and would double-count proxy-to-local-backend transfers.</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    <span class="keywordflow">for</span> (p = buf; p != NULL &amp;&amp; *p != <span class="charliteral">&#39;\0&#39;</span>; p = p ? strchr(p, <span class="charliteral">&#39;\n&#39;</span>) : NULL,</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>         p = p ? p + 1 : NULL)</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    {</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        <span class="keyword">const</span> <span class="keywordtype">char</span>  *colon, *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>;</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        <span class="keywordtype">char</span>        *end;</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> <span class="keywordtype">long</span>  rx, tx;</div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        <span class="keywordtype">int</span>          f;</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span> </div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        colon = strchr(p, <span class="charliteral">&#39;:&#39;</span>);</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        <span class="keywordflow">if</span> (colon == NULL) {</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>            <span class="keywordflow">break</span>;                      <span class="comment">/* no interface lines left */</span></div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        }</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        {</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>            <span class="keyword">const</span> <span class="keywordtype">char</span> *nl = strchr(p, <span class="charliteral">&#39;\n&#39;</span>);</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>            <span class="keywordflow">if</span> (nl != NULL &amp;&amp; colon &gt; nl) {</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>                <span class="keywordflow">continue</span>;               <span class="comment">/* header line — colon is further down */</span></div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>            }</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        }</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span> </div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> = p;</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <span class="keywordflow">while</span> (*<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> == <span class="charliteral">&#39; &#39;</span>) {</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>            <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>++;</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        }</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>        <span class="keywordflow">if</span> (strncmp(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <span class="stringliteral">&quot;lo:&quot;</span>, 3) == 0) {</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>        }</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span> </div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        rx = strtoull(colon + 1, &amp;end, 10);</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <span class="keywordflow">if</span> (end == colon + 1) {</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>            <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        }</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>        <span class="comment">/* tx_bytes is field 9 after the colon; skip fields 2-8. */</span></div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        <span class="keywordflow">for</span> (f = 0; f &lt; 7; f++) {</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>            <span class="keyword">const</span> <span class="keywordtype">char</span> *v = end;</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>            (void) strtoull(v, &amp;end, 10);</div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>            <span class="keywordflow">if</span> (end == v) {</div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>            }</div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>        }</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        {</div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>            <span class="keyword">const</span> <span class="keywordtype">char</span> *v = end;</div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>            tx = strtoull(v, &amp;end, 10);</div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>            <span class="keywordflow">if</span> (end == v) {</div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>                <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>            }</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>        }</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span> </div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>        sum += (uint64_t) rx + (uint64_t) tx;</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>        seen = 1;</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    }</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span> </div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    <span class="keywordflow">if</span> (!seen) {</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    *total_bytes = sum;</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>}</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment">/* Parse one /proc/net/dev interface line&#39;s counters starting just past the</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> * &#39;:&#39; — rx_bytes first, tx_bytes as field 9 (skip fields 2-8).  Returns 0</span></div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> * with *bytes = rx + tx, -1 on a malformed field. */</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00109" data-start="{" data-end="}">
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno"><a class="line" href="meter_8c.html#a688856d40cdc90528e1fdaf905f91e9a">  109</a></span><a class="code hl_function" href="meter_8c.html#a688856d40cdc90528e1fdaf905f91e9a">meter_netdev_line_bytes</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *colon, uint64_t *bytes)</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>{</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordtype">char</span>                *end;</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> <span class="keywordtype">long</span>   rx, tx;</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <span class="keywordtype">int</span>                  f;</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span> </div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    rx = strtoull(colon + 1, &amp;end, 10);</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="keywordflow">if</span> (end == colon + 1) {</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    }</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    <span class="comment">/* tx_bytes is field 9 after the colon; skip fields 2-8. */</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <span class="keywordflow">for</span> (f = 0; f &lt; 7; f++) {</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *v = end;</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        (void) strtoull(v, &amp;end, 10);</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        <span class="keywordflow">if</span> (end == v) {</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>        }</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    }</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    {</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        <span class="keyword">const</span> <span class="keywordtype">char</span> *v = end;</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        tx = strtoull(v, &amp;end, 10);</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <span class="keywordflow">if</span> (end == v) {</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        }</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    }</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span> </div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    *bytes = (uint64_t) rx + (uint64_t) tx;</div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>}</div>
 </div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span> </div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="keywordtype">int</span></div>
-<div class="foldopen" id="foldopen00182" data-start="{" data-end="}">
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno"><a class="line" href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">  182</a></span><a class="code hl_function" href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">brix_cms_meter_parse_vmstat</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *buf, uint64_t *pgmajfault)</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>{</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    <span class="keywordflow">if</span> (buf == NULL) {</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    }</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="meter_8c.html#ae9f17bb4921e14b3c40e13fea8b4ccd1">meter_find_counter</a>(buf, <span class="stringliteral">&quot;pgmajfault&quot;</span>, pgmajfault);</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>}</div>
-</div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span> </div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span> </div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00141" data-start="{" data-end="}">
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno"><a class="line" href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">  141</a></span><a class="code hl_function" href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">brix_cms_meter_parse_netdev</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *buf, uint64_t *total_bytes)</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>{</div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>    <span class="keyword">const</span> <span class="keywordtype">char</span>  *p;</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    uint64_t     sum = 0;</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    <span class="keywordtype">int</span>          seen = 0;</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span> </div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    <span class="keywordflow">if</span> (buf == NULL) {</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    }</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span> </div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment">     * Per-interface lines: &quot;  eth0: rx_bytes ... (8 fields) tx_bytes ...&quot;.</span></div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="comment">     * The two header lines carry no &#39;:&#39; followed by digits, so keying on the</span></div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span><span class="comment">     * colon is sufficient.  Loopback is skipped — lo traffic is not network</span></div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span><span class="comment">     * load and would double-count proxy-to-local-backend transfers.</span></div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    <span class="keywordflow">for</span> (p = buf; p != NULL &amp;&amp; *p != <span class="charliteral">&#39;\0&#39;</span>; p = p ? strchr(p, <span class="charliteral">&#39;\n&#39;</span>) : NULL,</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>         p = p ? p + 1 : NULL)</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    {</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>        <span class="keyword">const</span> <span class="keywordtype">char</span>  *colon, *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>;</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        uint64_t     line_bytes;</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span> </div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        colon = strchr(p, <span class="charliteral">&#39;:&#39;</span>);</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        <span class="keywordflow">if</span> (colon == NULL) {</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>            <span class="keywordflow">break</span>;                      <span class="comment">/* no interface lines left */</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>        }</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>        {</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>            <span class="keyword">const</span> <span class="keywordtype">char</span> *nl = strchr(p, <span class="charliteral">&#39;\n&#39;</span>);</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>            <span class="keywordflow">if</span> (nl != NULL &amp;&amp; colon &gt; nl) {</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>                <span class="keywordflow">continue</span>;               <span class="comment">/* header line — colon is further down */</span></div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>            }</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        }</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span> </div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> = p;</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        <span class="keywordflow">while</span> (*<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> == <span class="charliteral">&#39; &#39;</span>) {</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>            <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>++;</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>        }</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        <span class="keywordflow">if</span> (strncmp(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <span class="stringliteral">&quot;lo:&quot;</span>, 3) == 0) {</div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>        }</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span> </div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="meter_8c.html#a688856d40cdc90528e1fdaf905f91e9a">meter_netdev_line_bytes</a>(colon, &amp;line_bytes) != 0) {</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>            <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        }</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span> </div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        sum += line_bytes;</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        seen = 1;</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    }</div>
 <div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span> </div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span> </div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>uint8_t</div>
-<div class="foldopen" id="foldopen00192" data-start="{" data-end="}">
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno"><a class="line" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">  192</a></span><a class="code hl_function" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a>(uint64_t delta, uint64_t elapsed_ms,</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    uint64_t ref_per_sec)</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>{</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    uint64_t  per_sec;</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    <span class="keywordflow">if</span> (!seen) {</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    }</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    *total_bytes = sum;</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>}</div>
+</div>
 <div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span> </div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>    <span class="keywordflow">if</span> (elapsed_ms == 0 || ref_per_sec == 0) {</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    }</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>    per_sec = delta * 1000 / elapsed_ms;</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="meter_8c.html#a8af4cd3e1b78fdfb4d4b8cb5779896c5">meter_clamp_pct</a>((<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span>) (per_sec * 100 / ref_per_sec));</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>}</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span> </div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00199" data-start="{" data-end="}">
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno"><a class="line" href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">  199</a></span><a class="code hl_function" href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">brix_cms_meter_parse_vmstat</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *buf, uint64_t *pgmajfault)</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>{</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    <span class="keywordflow">if</span> (buf == NULL) {</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    }</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="meter_8c.html#ae9f17bb4921e14b3c40e13fea8b4ccd1">meter_find_counter</a>(buf, <span class="stringliteral">&quot;pgmajfault&quot;</span>, pgmajfault);</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>}</div>
 </div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span> </div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span> </div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span><span class="comment">/* Slurp a small /proc file into buf (NUL-terminated).  Returns 0 on success.</span></div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span><span class="comment"> * stdio (not raw syscalls) keeps this out of the VFS seam — /proc is host</span></div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="comment"> * introspection, not storage. */</span></div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span> </div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span> </div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>uint8_t</div>
 <div class="foldopen" id="foldopen00209" data-start="{" data-end="}">
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno"><a class="line" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">  209</a></span><a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keywordtype">char</span> *buf, <span class="keywordtype">size_t</span> bufsz)</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>{</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    FILE    *f;</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="keywordtype">size_t</span>   n;</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno"><a class="line" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">  209</a></span><a class="code hl_function" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a>(uint64_t delta, uint64_t elapsed_ms,</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    uint64_t ref_per_sec)</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>{</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    uint64_t  per_sec;</div>
 <div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span> </div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    f = fopen(path, <span class="stringliteral">&quot;r&quot;</span>);</div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <span class="keywordflow">if</span> (f == NULL) {</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    }</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    n = fread(buf, 1, bufsz - 1, f);</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    fclose(f);</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>    <span class="keywordflow">if</span> (n == 0) {</div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>    }</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    buf[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>}</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    <span class="keywordflow">if</span> (elapsed_ms == 0 || ref_per_sec == 0) {</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    }</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    per_sec = delta * 1000 / elapsed_ms;</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="meter_8c.html#a8af4cd3e1b78fdfb4d4b8cb5779896c5">meter_clamp_pct</a>((<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span>) (per_sec * 100 / ref_per_sec));</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>}</div>
 </div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span> </div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span> </div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00229" data-start="{" data-end="}">
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno"><a class="line" href="meter_8c.html#afc8bfe73e32623d2f3c318e88cd54a18">  229</a></span><a class="code hl_function" href="meter_8c.html#afc8bfe73e32623d2f3c318e88cd54a18">brix_cms_meter_sample</a>(<a class="code hl_struct" href="structbrix__cms__meter__t.html">brix_cms_meter_t</a> *m, uint64_t now_ms, uint8_t out5[5])</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>{</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    <span class="keywordtype">char</span>      buf[8192];</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    uint8_t   pct;</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    uint64_t  net_bytes = 0, pgmaj = 0;</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    <span class="keywordtype">int</span>       have_net, have_pag;</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    uint64_t  elapsed;</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span> </div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    memset(out5, 0, 5);</div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span> </div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/loadavg&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        &amp;&amp; <a class="code hl_function" href="meter_8c.html#a8248621156204f904b3241b3f933a823">brix_cms_meter_parse_loadavg</a>(buf, sysconf(_SC_NPROCESSORS_ONLN),</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>                                        &amp;pct) == 0)</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    {</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>        out5[0] = pct;                                  <span class="comment">/* cpu */</span></div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    }</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span> </div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    <span class="comment">/* out5[2] (xeq) stays 0 — no request queue to report. */</span></div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span> </div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/meminfo&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>        &amp;&amp; <a class="code hl_function" href="meter_8c.html#a947f9a56702b3cf67d8d88e1f37a8944">brix_cms_meter_parse_meminfo</a>(buf, &amp;pct) == 0)</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    {</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>        out5[3] = pct;                                  <span class="comment">/* mem */</span></div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    }</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span> </div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    have_net = (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/net/dev&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>                &amp;&amp; <a class="code hl_function" href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">brix_cms_meter_parse_netdev</a>(buf, &amp;net_bytes) == 0);</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    have_pag = (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/vmstat&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>                &amp;&amp; <a class="code hl_function" href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">brix_cms_meter_parse_vmstat</a>(buf, &amp;pgmaj) == 0);</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span> </div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    elapsed = now_ms &gt; m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a3aa59530d90169039f4dd29ad79e4261">prev_ms</a> ? now_ms - m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a3aa59530d90169039f4dd29ad79e4261">prev_ms</a> : 0;</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span> </div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    <span class="keywordflow">if</span> (m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a205b28c507a43fd825588a7649426976">primed</a> &amp;&amp; elapsed &gt; 0) {</div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>        <span class="keywordflow">if</span> (have_net &amp;&amp; net_bytes &gt;= m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a4a23bae4c9f8a0ce6bb58cae66d71a03">prev_net_bytes</a>) {</div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>            out5[1] = <a class="code hl_function" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a>(          <span class="comment">/* net */</span></div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>                net_bytes - m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a4a23bae4c9f8a0ce6bb58cae66d71a03">prev_net_bytes</a>, elapsed,</div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>                <a class="code hl_define" href="meter_8h.html#afe6dee71f352dc792006880746fdea83">BRIX_CMS_METER_NET_REF_BYTES_PER_SEC</a>);</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>        }</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>        <span class="keywordflow">if</span> (have_pag &amp;&amp; pgmaj &gt;= m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a76cdcb4be1dfa7debe1ca920588a0c18">prev_pgmajfault</a>) {</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>            out5[4] = <a class="code hl_function" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a>(          <span class="comment">/* pag */</span></div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>                pgmaj - m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a76cdcb4be1dfa7debe1ca920588a0c18">prev_pgmajfault</a>, elapsed,</div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>                <a class="code hl_define" href="meter_8h.html#a8b74de1c1e8dd2cf4f983d519e60a36a">BRIX_CMS_METER_PAG_REF_FAULTS_PER_SEC</a>);</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>        }</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>    }</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span> </div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    <span class="keywordflow">if</span> (have_net) {</div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>        m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a4a23bae4c9f8a0ce6bb58cae66d71a03">prev_net_bytes</a> = net_bytes;</div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    }</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    <span class="keywordflow">if</span> (have_pag) {</div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>        m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a76cdcb4be1dfa7debe1ca920588a0c18">prev_pgmajfault</a> = pgmaj;</div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    }</div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a3aa59530d90169039f4dd29ad79e4261">prev_ms</a> = now_ms;</div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a205b28c507a43fd825588a7649426976">primed</a>  = (have_net || have_pag) ? 1 : m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a205b28c507a43fd825588a7649426976">primed</a>;</div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>}</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span> </div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span> </div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="comment">/* Slurp a small /proc file into buf (NUL-terminated).  Returns 0 on success.</span></div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span><span class="comment"> * stdio (not raw syscalls) keeps this out of the VFS seam — /proc is host</span></div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span><span class="comment"> * introspection, not storage. */</span></div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00226" data-start="{" data-end="}">
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno"><a class="line" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">  226</a></span><a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keywordtype">char</span> *buf, <span class="keywordtype">size_t</span> bufsz)</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>{</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    FILE    *f;</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    <span class="keywordtype">size_t</span>   n;</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span> </div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    f = fopen(path, <span class="stringliteral">&quot;r&quot;</span>);</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    <span class="keywordflow">if</span> (f == NULL) {</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    }</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    n = fread(buf, 1, bufsz - 1, f);</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    fclose(f);</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="keywordflow">if</span> (n == 0) {</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    }</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    buf[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>}</div>
+</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span> </div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span> </div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span><span class="comment">/* Sample the point-in-time gauges (cpu, mem) straight into out5; any slurp</span></div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span><span class="comment"> * or parse failure leaves that byte 0. */</span></div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00248" data-start="{" data-end="}">
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno"><a class="line" href="meter_8c.html#acca9caefa29ab84003c942b40ab6c4f2">  248</a></span><a class="code hl_function" href="meter_8c.html#acca9caefa29ab84003c942b40ab6c4f2">meter_sample_gauges</a>(uint8_t out5[5])</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>{</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    <span class="keywordtype">char</span>     buf[8192];</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    uint8_t  pct;</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/loadavg&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>        &amp;&amp; <a class="code hl_function" href="meter_8c.html#a8248621156204f904b3241b3f933a823">brix_cms_meter_parse_loadavg</a>(buf, sysconf(_SC_NPROCESSORS_ONLN),</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>                                        &amp;pct) == 0)</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    {</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>        out5[0] = pct;                                  <span class="comment">/* cpu */</span></div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    }</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span> </div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    <span class="comment">/* out5[2] (xeq) stays 0 — no request queue to report. */</span></div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span> </div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/meminfo&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>        &amp;&amp; <a class="code hl_function" href="meter_8c.html#a947f9a56702b3cf67d8d88e1f37a8944">brix_cms_meter_parse_meminfo</a>(buf, &amp;pct) == 0)</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>    {</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>        out5[3] = pct;                                  <span class="comment">/* mem */</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    }</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>}</div>
+</div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span> </div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span> </div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span><span class="comment">/* Fold the delta-based figures (net, pag) into out5 and roll the previous</span></div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span><span class="comment"> * counters forward.  The first successful sample only primes the counters. */</span></div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00273" data-start="{" data-end="}">
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno"><a class="line" href="meter_8c.html#a04a7263f99133204f3811be8b3ead088">  273</a></span><a class="code hl_function" href="meter_8c.html#a04a7263f99133204f3811be8b3ead088">meter_fold_deltas</a>(<a class="code hl_struct" href="structbrix__cms__meter__t.html">brix_cms_meter_t</a> *m, uint64_t now_ms,</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    <span class="keywordtype">int</span> have_net, uint64_t net_bytes, <span class="keywordtype">int</span> have_pag, uint64_t pgmaj,</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    uint8_t out5[5])</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>{</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>    uint64_t  elapsed;</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span> </div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    elapsed = now_ms &gt; m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a3aa59530d90169039f4dd29ad79e4261">prev_ms</a> ? now_ms - m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a3aa59530d90169039f4dd29ad79e4261">prev_ms</a> : 0;</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span> </div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    <span class="keywordflow">if</span> (m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a205b28c507a43fd825588a7649426976">primed</a> &amp;&amp; elapsed &gt; 0) {</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>        <span class="keywordflow">if</span> (have_net &amp;&amp; net_bytes &gt;= m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a4a23bae4c9f8a0ce6bb58cae66d71a03">prev_net_bytes</a>) {</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>            out5[1] = <a class="code hl_function" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a>(          <span class="comment">/* net */</span></div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>                net_bytes - m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a4a23bae4c9f8a0ce6bb58cae66d71a03">prev_net_bytes</a>, elapsed,</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>                <a class="code hl_define" href="meter_8h.html#afe6dee71f352dc792006880746fdea83">BRIX_CMS_METER_NET_REF_BYTES_PER_SEC</a>);</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>        }</div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>        <span class="keywordflow">if</span> (have_pag &amp;&amp; pgmaj &gt;= m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a76cdcb4be1dfa7debe1ca920588a0c18">prev_pgmajfault</a>) {</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>            out5[4] = <a class="code hl_function" href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a>(          <span class="comment">/* pag */</span></div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>                pgmaj - m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a76cdcb4be1dfa7debe1ca920588a0c18">prev_pgmajfault</a>, elapsed,</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>                <a class="code hl_define" href="meter_8h.html#a8b74de1c1e8dd2cf4f983d519e60a36a">BRIX_CMS_METER_PAG_REF_FAULTS_PER_SEC</a>);</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>        }</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    }</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span> </div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>    <span class="keywordflow">if</span> (have_net) {</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>        m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a4a23bae4c9f8a0ce6bb58cae66d71a03">prev_net_bytes</a> = net_bytes;</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>    }</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>    <span class="keywordflow">if</span> (have_pag) {</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>        m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a76cdcb4be1dfa7debe1ca920588a0c18">prev_pgmajfault</a> = pgmaj;</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>    }</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>    m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a3aa59530d90169039f4dd29ad79e4261">prev_ms</a> = now_ms;</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>    m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a205b28c507a43fd825588a7649426976">primed</a>  = (have_net || have_pag) ? 1 : m-&gt;<a class="code hl_variable" href="structbrix__cms__meter__t.html#a205b28c507a43fd825588a7649426976">primed</a>;</div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>}</div>
+</div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span> </div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span> </div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00306" data-start="{" data-end="}">
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno"><a class="line" href="meter_8c.html#afc8bfe73e32623d2f3c318e88cd54a18">  306</a></span><a class="code hl_function" href="meter_8c.html#afc8bfe73e32623d2f3c318e88cd54a18">brix_cms_meter_sample</a>(<a class="code hl_struct" href="structbrix__cms__meter__t.html">brix_cms_meter_t</a> *m, uint64_t now_ms, uint8_t out5[5])</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>{</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>    <span class="keywordtype">char</span>      buf[8192];</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    uint64_t  net_bytes = 0, pgmaj = 0;</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>    <span class="keywordtype">int</span>       have_net, have_pag;</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span> </div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>    memset(out5, 0, 5);</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span> </div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>    <a class="code hl_function" href="meter_8c.html#acca9caefa29ab84003c942b40ab6c4f2">meter_sample_gauges</a>(out5);</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span> </div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>    have_net = (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/net/dev&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>                &amp;&amp; <a class="code hl_function" href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">brix_cms_meter_parse_netdev</a>(buf, &amp;net_bytes) == 0);</div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>    have_pag = (<a class="code hl_function" href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a>(<span class="stringliteral">&quot;/proc/vmstat&quot;</span>, buf, <span class="keyword">sizeof</span>(buf)) == 0</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>                &amp;&amp; <a class="code hl_function" href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">brix_cms_meter_parse_vmstat</a>(buf, &amp;pgmaj) == 0);</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span> </div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>    <a class="code hl_function" href="meter_8c.html#a04a7263f99133204f3811be8b3ead088">meter_fold_deltas</a>(m, now_ms, have_net, net_bytes, have_pag, pgmaj, out5);</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>}</div>
 </div>
 <div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
+<div class="ttc" id="ameter_8c_html_a04a7263f99133204f3811be8b3ead088"><div class="ttname"><a href="meter_8c.html#a04a7263f99133204f3811be8b3ead088">meter_fold_deltas</a></div><div class="ttdeci">static void meter_fold_deltas(brix_cms_meter_t *m, uint64_t now_ms, int have_net, uint64_t net_bytes, int have_pag, uint64_t pgmaj, uint8_t out5[5])</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00273">meter.c:273</a></div></div>
+<div class="ttc" id="ameter_8c_html_a688856d40cdc90528e1fdaf905f91e9a"><div class="ttname"><a href="meter_8c.html#a688856d40cdc90528e1fdaf905f91e9a">meter_netdev_line_bytes</a></div><div class="ttdeci">static int meter_netdev_line_bytes(const char *colon, uint64_t *bytes)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00109">meter.c:109</a></div></div>
 <div class="ttc" id="ameter_8c_html_a8248621156204f904b3241b3f933a823"><div class="ttname"><a href="meter_8c.html#a8248621156204f904b3241b3f933a823">brix_cms_meter_parse_loadavg</a></div><div class="ttdeci">int brix_cms_meter_parse_loadavg(const char *buf, long ncpu, uint8_t *pct)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00035">meter.c:35</a></div></div>
-<div class="ttc" id="ameter_8c_html_a8a616977f8d01f260221e27b3a4ff164"><div class="ttname"><a href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">brix_cms_meter_parse_vmstat</a></div><div class="ttdeci">int brix_cms_meter_parse_vmstat(const char *buf, uint64_t *pgmajfault)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00182">meter.c:182</a></div></div>
+<div class="ttc" id="ameter_8c_html_a8a616977f8d01f260221e27b3a4ff164"><div class="ttname"><a href="meter_8c.html#a8a616977f8d01f260221e27b3a4ff164">brix_cms_meter_parse_vmstat</a></div><div class="ttdeci">int brix_cms_meter_parse_vmstat(const char *buf, uint64_t *pgmajfault)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00199">meter.c:199</a></div></div>
 <div class="ttc" id="ameter_8c_html_a8af4cd3e1b78fdfb4d4b8cb5779896c5"><div class="ttname"><a href="meter_8c.html#a8af4cd3e1b78fdfb4d4b8cb5779896c5">meter_clamp_pct</a></div><div class="ttdeci">static uint8_t meter_clamp_pct(unsigned long v)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00028">meter.c:28</a></div></div>
 <div class="ttc" id="ameter_8c_html_a947f9a56702b3cf67d8d88e1f37a8944"><div class="ttname"><a href="meter_8c.html#a947f9a56702b3cf67d8d88e1f37a8944">brix_cms_meter_parse_meminfo</a></div><div class="ttdeci">int brix_cms_meter_parse_meminfo(const char *buf, uint8_t *pct)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00085">meter.c:85</a></div></div>
-<div class="ttc" id="ameter_8c_html_abff3dce3d77aa9b3a88c4fee59d8c4a8"><div class="ttname"><a href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">brix_cms_meter_parse_netdev</a></div><div class="ttdeci">int brix_cms_meter_parse_netdev(const char *buf, uint64_t *total_bytes)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00106">meter.c:106</a></div></div>
-<div class="ttc" id="ameter_8c_html_add5ae7e1f227e6021f4398069293a4f5"><div class="ttname"><a href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a></div><div class="ttdeci">static int meter_slurp(const char *path, char *buf, size_t bufsz)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00209">meter.c:209</a></div></div>
+<div class="ttc" id="ameter_8c_html_abff3dce3d77aa9b3a88c4fee59d8c4a8"><div class="ttname"><a href="meter_8c.html#abff3dce3d77aa9b3a88c4fee59d8c4a8">brix_cms_meter_parse_netdev</a></div><div class="ttdeci">int brix_cms_meter_parse_netdev(const char *buf, uint64_t *total_bytes)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00141">meter.c:141</a></div></div>
+<div class="ttc" id="ameter_8c_html_acca9caefa29ab84003c942b40ab6c4f2"><div class="ttname"><a href="meter_8c.html#acca9caefa29ab84003c942b40ab6c4f2">meter_sample_gauges</a></div><div class="ttdeci">static void meter_sample_gauges(uint8_t out5[5])</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00248">meter.c:248</a></div></div>
+<div class="ttc" id="ameter_8c_html_add5ae7e1f227e6021f4398069293a4f5"><div class="ttname"><a href="meter_8c.html#add5ae7e1f227e6021f4398069293a4f5">meter_slurp</a></div><div class="ttdeci">static int meter_slurp(const char *path, char *buf, size_t bufsz)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00226">meter.c:226</a></div></div>
 <div class="ttc" id="ameter_8c_html_ae9f17bb4921e14b3c40e13fea8b4ccd1"><div class="ttname"><a href="meter_8c.html#ae9f17bb4921e14b3c40e13fea8b4ccd1">meter_find_counter</a></div><div class="ttdeci">static int meter_find_counter(const char *buf, const char *key, uint64_t *out)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00057">meter.c:57</a></div></div>
-<div class="ttc" id="ameter_8c_html_af64a6649bcc05deb1d7bec00fc13de66"><div class="ttname"><a href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a></div><div class="ttdeci">uint8_t brix_cms_meter_rate_pct(uint64_t delta, uint64_t elapsed_ms, uint64_t ref_per_sec)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00192">meter.c:192</a></div></div>
-<div class="ttc" id="ameter_8c_html_afc8bfe73e32623d2f3c318e88cd54a18"><div class="ttname"><a href="meter_8c.html#afc8bfe73e32623d2f3c318e88cd54a18">brix_cms_meter_sample</a></div><div class="ttdeci">void brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00229">meter.c:229</a></div></div>
+<div class="ttc" id="ameter_8c_html_af64a6649bcc05deb1d7bec00fc13de66"><div class="ttname"><a href="meter_8c.html#af64a6649bcc05deb1d7bec00fc13de66">brix_cms_meter_rate_pct</a></div><div class="ttdeci">uint8_t brix_cms_meter_rate_pct(uint64_t delta, uint64_t elapsed_ms, uint64_t ref_per_sec)</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00209">meter.c:209</a></div></div>
+<div class="ttc" id="ameter_8c_html_afc8bfe73e32623d2f3c318e88cd54a18"><div class="ttname"><a href="meter_8c.html#afc8bfe73e32623d2f3c318e88cd54a18">brix_cms_meter_sample</a></div><div class="ttdeci">void brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])</div><div class="ttdef"><b>Definition</b> <a href="meter_8c_source.html#l00306">meter.c:306</a></div></div>
 <div class="ttc" id="ameter_8h_html"><div class="ttname"><a href="meter_8h.html">meter.h</a></div></div>
 <div class="ttc" id="ameter_8h_html_a8b74de1c1e8dd2cf4f983d519e60a36a"><div class="ttname"><a href="meter_8h.html#a8b74de1c1e8dd2cf4f983d519e60a36a">BRIX_CMS_METER_PAG_REF_FAULTS_PER_SEC</a></div><div class="ttdeci">#define BRIX_CMS_METER_PAG_REF_FAULTS_PER_SEC</div><div class="ttdef"><b>Definition</b> <a href="meter_8h_source.html#l00042">meter.h:42</a></div></div>
 <div class="ttc" id="ameter_8h_html_afe6dee71f352dc792006880746fdea83"><div class="ttname"><a href="meter_8h.html#afe6dee71f352dc792006880746fdea83">BRIX_CMS_METER_NET_REF_BYTES_PER_SEC</a></div><div class="ttdeci">#define BRIX_CMS_METER_NET_REF_BYTES_PER_SEC</div><div class="ttdef"><b>Definition</b> <a href="meter_8h_source.html#l00041">meter.h:41</a></div></div>

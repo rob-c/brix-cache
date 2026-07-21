@@ -8,6 +8,7 @@ var runtime__server__backend_8c =
     [ "brix_storage_backend_posix_root", "runtime__server__backend_8c.html#a054941aaec4ccef22bf7c25dcef215b6", null ],
     [ "brix_tier_default_stage_dir", "runtime__server__backend_8c.html#a8e4fa89f7909738054d3aa70b97db2e0", null ],
     [ "brix_tier_default_stage_store", "runtime__server__backend_8c.html#ad6fa0c6d561117ade94bda469352f2ef", null ],
+    [ "brix_tier_fill_cache_policy", "runtime__server__backend_8c.html#a6aadf1da426296a4845cc0d27c95d4f0", null ],
     [ "brix_tier_load_master_key", "runtime__server__backend_8c.html#aba13a9d29924446d1d8d6f50bdaee56c", null ],
     [ "brix_tier_register_cache_peers", "runtime__server__backend_8c.html#a23da44bcc66bdc1f7d2d832667be42f1", null ],
     [ "brix_tier_register_cache_store", "runtime__server__backend_8c.html#a5fb980fe66df0c9e43bc79984b4f79d9", null ],

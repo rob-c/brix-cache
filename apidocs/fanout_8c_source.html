@@ -272,176 +272,233 @@ $(document).ready(function(){initNavTree('fanout_8c_source.html',''); initResiza
 <div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>}</div>
 </div>
 <div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span> </div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00166" data-start="{" data-end="}">
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno"><a class="line" href="fanout_8c.html#a67f6cec0eb882b0df236c3facee35f47">  166</a></span><a class="code hl_function" href="fanout_8c.html#a67f6cec0eb882b0df236c3facee35f47">brix_cms_fanout_mutation</a>(<a class="code hl_struct" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>,</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <span class="keyword">const</span> <span class="keywordtype">char</span> *path)</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>{</div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <a class="code hl_struct" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a>      *node;</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <a class="code hl_struct" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a>      *elig[<a class="code hl_define" href="fanout_8c.html#a86ae73fa9b5f527ba0646e2777996633">BRIX_CMS_FANOUT_NODES</a>];</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <a class="code hl_struct" href="structbrix__cms__fanout__slot__t.html">brix_cms_fanout_slot_t</a>  *slot;</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    ngx_uint_t               i, n_elig, sent;</div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    uint32_t                 sid;</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    u_char                   <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>;</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <span class="keywordtype">char</span>                     ident[64];</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span> </div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordflow">if</span> (!conf-&gt;cms.fanout) {</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="comment">/* Map the client&#39;s request opcode to the CMS request code.  Returns 0 with</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="comment"> * *code set, -1 for anything outside the v1 fan-out scope. */</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="keyword">static</span> <span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00168" data-start="{" data-end="}">
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno"><a class="line" href="fanout_8c.html#a98a1d13447cf87fe06d8ff7de10dba01">  168</a></span><a class="code hl_function" href="fanout_8c.html#a98a1d13447cf87fe06d8ff7de10dba01">brix_cms_fanout_op_code</a>(uint16_t reqid, u_char *<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>)</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>{</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <span class="keywordflow">switch</span> (reqid) {</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="keywordflow">case</span> <a class="code hl_define" href="opcodes_8h.html#a6943df3a4e213d80d5e9b61293f1a1f6">kXR_rm</a>:</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        *<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = <a class="code hl_define" href="cms__internal_8h.html#a3f3c7d794eb21e819965896540514dff">CMS_RR_RM</a>;</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <span class="keywordflow">case</span> <a class="code hl_define" href="opcodes_8h.html#a6d22685b6696bcc0e343fdb8d6c521d2">kXR_rmdir</a>:</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        *<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = <a class="code hl_define" href="cms__internal_8h.html#a0b73ba081fd9931fdcf4e1ef367d1c2f">CMS_RR_RMDIR</a>;</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordflow">default</span>:</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>        <span class="keywordflow">return</span> -1;    <span class="comment">/* v1 scope: single-path deletes only */</span></div>
 <div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    }</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    <span class="keywordflow">switch</span> (ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#a37cc4f3113318507618916ce0bc2a267">cur_reqid</a>) {</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    <span class="keywordflow">case</span> <a class="code hl_define" href="opcodes_8h.html#a6943df3a4e213d80d5e9b61293f1a1f6">kXR_rm</a>:</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>        <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = <a class="code hl_define" href="cms__internal_8h.html#a3f3c7d794eb21e819965896540514dff">CMS_RR_RM</a>;</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    <span class="keywordflow">case</span> <a class="code hl_define" href="opcodes_8h.html#a6d22685b6696bcc0e343fdb8d6c521d2">kXR_rmdir</a>:</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a> = <a class="code hl_define" href="cms__internal_8h.html#a0b73ba081fd9931fdcf4e1ef367d1c2f">CMS_RR_RMDIR</a>;</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>        <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordflow">default</span>:</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>        <span class="keywordflow">return</span> NGX_DECLINED;    <span class="comment">/* v1 scope: single-path deletes only */</span></div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    }</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span> </div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    n_elig = 0;</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    <span class="keywordflow">for</span> (i = 0; i &lt; <a class="code hl_function" href="server_8h.html#a9e14669d62db71e598a076d878794965">brix_cms_srv_node_count</a>()</div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>                &amp;&amp; n_elig &lt; <a class="code hl_define" href="fanout_8c.html#a86ae73fa9b5f527ba0646e2777996633">BRIX_CMS_FANOUT_NODES</a>; i++)</div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>    {</div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>        node = <a class="code hl_function" href="server_8h.html#a93d7e173a9b1b2e4b8f0c113eb455e8c">brix_cms_srv_node_at</a>(i);</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <span class="keywordflow">if</span> (node == NULL || !node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ae94ea08c41bc6b69417e1b335586c971">logged_in</a> || node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a60542886939cc1e3663c653e633bdc78">c</a> == NULL</div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>            || !<a class="code hl_function" href="net_2manager_2registry_8h.html#abbab6193b5b0506115fae6d171ca4331">brix_srv_paths_cover</a>(node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">paths</a>, path)</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>            || <a class="code hl_function" href="net_2manager_2registry_8h.html#ac515e5c6b1db5ecc07abc8f34af66c9c">brix_srv_is_blacklisted</a>(node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a268fe60eb83ecfe0f1381a693d825b77">host</a>, node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">port</a>))</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        {</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>        }</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>        elig[n_elig++] = node;</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    }</div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span> </div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    <span class="comment">/* Engage only for a genuinely replicated path this worker can settle</span></div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="comment">     * alone: &gt;=2 eligible local connections covering EVERY registry holder.</span></div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span><span class="comment">     * Any shortfall (single holder, a holder connected to another worker, a</span></div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span><span class="comment">     * drained holder) falls back to the shipped single-node redirect. */</span></div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    <span class="keywordflow">if</span> (n_elig &lt; 2 || (<span class="keywordtype">int</span>) n_elig != <a class="code hl_function" href="net_2manager_2registry_8h.html#adde892d67f034583e7cd05951046f700">brix_srv_count_matching</a>(path)) {</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    }</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span> </div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    slot = NULL;</div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>    <span class="keywordflow">for</span> (i = 0; i &lt; <a class="code hl_define" href="fanout_8c.html#a488d873d3f9edf908094b03894348189">BRIX_CMS_FANOUT_SLOTS</a>; i++) {</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>        <span class="keywordflow">if</span> (!<a class="code hl_variable" href="fanout_8c.html#a709b8549bb4c2112497b100315c74b82">brix_fanout_slots</a>[i].<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd374dc544502235efa3c6533c75820f">in_use</a>) {</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>            slot = &amp;<a class="code hl_variable" href="fanout_8c.html#a709b8549bb4c2112497b100315c74b82">brix_fanout_slots</a>[i];</div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>        }</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>    }</div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    <span class="keywordflow">if</span> (slot == NULL) {</div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        <span class="keywordflow">return</span> NGX_DECLINED;    <span class="comment">/* table full — redirect still deletes one */</span></div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    }</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span> </div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    sid = <a class="code hl_function" href="server_8h.html#a19e7e5dfdad9250f06e1af64c59d2157">brix_cms_srv_next_streamid</a>();</div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="pending_8c.html#a1a0e8bda0d038366733e777515426818">brix_pending_insert</a>(sid, ngx_pid, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;fd, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;number,</div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>                              ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#aeff530ba9fbf23e6838d581b1df1efb0">cur_streamid</a>,</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>                              conf-&gt;cms.fanout_window * 2) != NGX_OK)</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    {</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    }</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span> </div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    ngx_snprintf((u_char *) ident, <span class="keyword">sizeof</span>(ident) - 1, <span class="stringliteral">&quot;brix.%d:%d@mgr%Z&quot;</span>,</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>                 (<span class="keywordtype">int</span>) ngx_pid, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;fd);</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span> </div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    sent = 0;</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n_elig; i++) {</div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net_2cms_2forward_8c.html#ae34da1597cc6d0a046d27163686c878c">brix_cms_forward_to_node</a>(elig[i]-&gt;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, sid, ident, path,</div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>                                       NULL, NULL, NULL) == NGX_OK)</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        {</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>            sent++;</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>            ngx_log_error(NGX_LOG_WARN, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>                          <span class="stringliteral">&quot;brix: CMS fan-out: forward of \&quot;%s\&quot; to %s:%d &quot;</span></div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>                          <span class="stringliteral">&quot;failed&quot;</span>, path, elig[i]-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a268fe60eb83ecfe0f1381a693d825b77">host</a>, (<span class="keywordtype">int</span>) elig[i]-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">port</a>);</div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        }</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    }</div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span> </div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="keywordflow">if</span> (sent == 0) {</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>        <a class="code hl_function" href="pending_8c.html#a1bdfeadd94dd96d679ec00604e1244d1">brix_pending_remove</a>(sid, ngx_pid);</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    }</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span> </div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    ngx_memzero(slot, <span class="keyword">sizeof</span>(*slot));</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#ab6261e93a36dd976996dd7cc701c581b">sid</a> = sid;</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a5d2735180ae83470fd1dd80da1c665d3">expected</a> = sent;</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0748886065eff43fc2f46d3b4b15488e">in_use</a> = 1;</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>.handler = <a class="code hl_function" href="fanout_8c.html#a90ae8d3bf473009927ba536ea8c7ac5f">brix_cms_fanout_deadline</a>;</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>.data = slot;</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>.log = ngx_cycle-&gt;log;</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    ngx_add_timer(&amp;slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>, conf-&gt;cms.fanout_window);</div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <span class="comment">/* Park the client exactly like a pending locate; the read timer is only</span></div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span><span class="comment">     * the backstop should the deadline event be lost (its timeout path sends</span></div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span><span class="comment">     * kXR_wait and drops the pending entry, making finalize a no-op). */</span></div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#a8f5de72dab54ec2631deedb1b9e7d1ad">cms_wait_streamid</a> = sid;</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>    ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ab0416c80c35ffc8c2987012ffa0fa015">state</a> = <a class="code hl_enumvalue" href="state_8h.html#a99dd53c16fcead63c871cc12c95544f5a07df8340011ccad4f2c06d2f4df8f822">XRD_ST_WAITING_CMS</a>;</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    ngx_add_timer(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, conf-&gt;cms.fanout_window * 2);</div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span> </div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    ngx_log_error(NGX_LOG_INFO, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>                  <span class="stringliteral">&quot;brix: CMS fan-out: op=%ui \&quot;%s\&quot; -&gt; %ui nodes &quot;</span></div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>                  <span class="stringliteral">&quot;(sid=%uD window=%M)&quot;</span>,</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>                  (ngx_uint_t) ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#a37cc4f3113318507618916ce0bc2a267">cur_reqid</a>, path, sent, sid,</div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>                  conf-&gt;cms.fanout_window);</div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span> </div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <span class="keywordflow">return</span> NGX_AGAIN;</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>}</div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>}</div>
 </div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span> </div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00280" data-start="{" data-end="}">
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno"><a class="line" href="fanout_8c.html#a8566d5948edd871f09b70af4e9aee266">  280</a></span><a class="code hl_function" href="fanout_8c.html#a8566d5948edd871f09b70af4e9aee266">brix_cms_fanout_note_error</a>(uint32_t streamid, uint32_t ecode,</div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *text, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>{</div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>    <a class="code hl_struct" href="structbrix__cms__fanout__slot__t.html">brix_cms_fanout_slot_t</a>  *slot;</div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    <span class="keywordtype">size_t</span>                   i;</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span> </div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment">/* Collect this worker&#39;s logged-in, non-blacklisted node connections whose</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment"> * exports cover path (at most BRIX_CMS_FANOUT_NODES).  Returns the count. */</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="keyword">static</span> ngx_uint_t</div>
+<div class="foldopen" id="foldopen00185" data-start="{" data-end="}">
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno"><a class="line" href="fanout_8c.html#af1e8ad5c8af7024dad2492504dda6ee5">  185</a></span><a class="code hl_function" href="fanout_8c.html#af1e8ad5c8af7024dad2492504dda6ee5">brix_cms_fanout_collect_eligible</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *path, <a class="code hl_struct" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> **elig)</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>{</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    <a class="code hl_struct" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a>  *node;</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    ngx_uint_t           i, n_elig;</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span> </div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    n_elig = 0;</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    <span class="keywordflow">for</span> (i = 0; i &lt; <a class="code hl_function" href="server_8h.html#a9e14669d62db71e598a076d878794965">brix_cms_srv_node_count</a>()</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                &amp;&amp; n_elig &lt; <a class="code hl_define" href="fanout_8c.html#a86ae73fa9b5f527ba0646e2777996633">BRIX_CMS_FANOUT_NODES</a>; i++)</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>    {</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>        node = <a class="code hl_function" href="server_8h.html#a93d7e173a9b1b2e4b8f0c113eb455e8c">brix_cms_srv_node_at</a>(i);</div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span>        <span class="keywordflow">if</span> (node == NULL || !node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ae94ea08c41bc6b69417e1b335586c971">logged_in</a> || node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a60542886939cc1e3663c653e633bdc78">c</a> == NULL</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>            || !<a class="code hl_function" href="net_2manager_2registry_8h.html#abbab6193b5b0506115fae6d171ca4331">brix_srv_paths_cover</a>(node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">paths</a>, path)</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>            || <a class="code hl_function" href="net_2manager_2registry_8h.html#ac515e5c6b1db5ecc07abc8f34af66c9c">brix_srv_is_blacklisted</a>(node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a268fe60eb83ecfe0f1381a693d825b77">host</a>, node-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">port</a>))</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>        {</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        }</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        elig[n_elig++] = node;</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    }</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    <span class="keywordflow">return</span> n_elig;</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>}</div>
+</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span> </div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span><span class="comment">/* Grab a free aggregation slot, or NULL when the table is full. */</span></div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span><span class="keyword">static</span> <a class="code hl_struct" href="structbrix__cms__fanout__slot__t.html">brix_cms_fanout_slot_t</a> *</div>
+<div class="foldopen" id="foldopen00208" data-start="{" data-end="}">
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno"><a class="line" href="fanout_8c.html#ac4c41985b0885dc2221a9d3b609ccdb0">  208</a></span><a class="code hl_function" href="fanout_8c.html#ac4c41985b0885dc2221a9d3b609ccdb0">brix_cms_fanout_slot_alloc</a>(<span class="keywordtype">void</span>)</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>{</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    ngx_uint_t  i;</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="keywordflow">for</span> (i = 0; i &lt; <a class="code hl_define" href="fanout_8c.html#a488d873d3f9edf908094b03894348189">BRIX_CMS_FANOUT_SLOTS</a>; i++) {</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>        <span class="keywordflow">if</span> (!<a class="code hl_variable" href="fanout_8c.html#a709b8549bb4c2112497b100315c74b82">brix_fanout_slots</a>[i].<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd374dc544502235efa3c6533c75820f">in_use</a>) {</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>            <span class="keywordflow">return</span> &amp;<a class="code hl_variable" href="fanout_8c.html#a709b8549bb4c2112497b100315c74b82">brix_fanout_slots</a>[i];</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>        }</div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    }</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>}</div>
+</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span> </div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment">/* Forward the op to every eligible node, warning per failed forward.</span></div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment"> * Returns how many forwards actually went out. */</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="keyword">static</span> ngx_uint_t</div>
+<div class="foldopen" id="foldopen00223" data-start="{" data-end="}">
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno"><a class="line" href="fanout_8c.html#a12ec235a4a29fd0de9713e0540e6bb25">  223</a></span><a class="code hl_function" href="fanout_8c.html#a12ec235a4a29fd0de9713e0540e6bb25">brix_cms_fanout_send_all</a>(<a class="code hl_struct" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> **elig, ngx_uint_t n_elig,</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    u_char <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, uint32_t sid, <span class="keyword">const</span> <span class="keywordtype">char</span> *ident, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>    ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>{</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    ngx_uint_t  i, sent;</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span> </div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    sent = 0;</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    <span class="keywordflow">for</span> (i = 0; i &lt; n_elig; i++) {</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net_2cms_2forward_8c.html#ae34da1597cc6d0a046d27163686c878c">brix_cms_forward_to_node</a>(elig[i]-&gt;<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, sid, ident, path,</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>                                       NULL, NULL, NULL) == NGX_OK)</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        {</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>            sent++;</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>            ngx_log_error(NGX_LOG_WARN, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, 0,</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>                          <span class="stringliteral">&quot;brix: CMS fan-out: forward of \&quot;%s\&quot; to %s:%d &quot;</span></div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>                          <span class="stringliteral">&quot;failed&quot;</span>, path, elig[i]-&gt;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, (<span class="keywordtype">int</span>) elig[i]-&gt;<a class="code hl_variable" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>);</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>        }</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    }</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <span class="keywordflow">return</span> sent;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>}</div>
+</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span> </div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00245" data-start="{" data-end="}">
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno"><a class="line" href="fanout_8c.html#a67f6cec0eb882b0df236c3facee35f47">  245</a></span><a class="code hl_function" href="fanout_8c.html#a67f6cec0eb882b0df236c3facee35f47">brix_cms_fanout_mutation</a>(<a class="code hl_struct" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>,</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <span class="keyword">const</span> <span class="keywordtype">char</span> *path)</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>{</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    <a class="code hl_struct" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a>      *elig[<a class="code hl_define" href="fanout_8c.html#a86ae73fa9b5f527ba0646e2777996633">BRIX_CMS_FANOUT_NODES</a>];</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <a class="code hl_struct" href="structbrix__cms__fanout__slot__t.html">brix_cms_fanout_slot_t</a>  *slot;</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    ngx_uint_t               n_elig, sent;</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    uint32_t                 sid;</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    u_char                   <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>;</div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <span class="keywordtype">char</span>                     ident[64];</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span> </div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    <span class="keywordflow">if</span> (!conf-&gt;cms.fanout) {</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    }</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span> </div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="fanout_8c.html#a98a1d13447cf87fe06d8ff7de10dba01">brix_cms_fanout_op_code</a>(ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#a37cc4f3113318507618916ce0bc2a267">cur_reqid</a>, &amp;<a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>) != 0) {</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    }</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    n_elig = <a class="code hl_function" href="fanout_8c.html#af1e8ad5c8af7024dad2492504dda6ee5">brix_cms_fanout_collect_eligible</a>(path, elig);</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span> </div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    <span class="comment">/* Engage only for a genuinely replicated path this worker can settle</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment">     * alone: &gt;=2 eligible local connections covering EVERY registry holder.</span></div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment">     * Any shortfall (single holder, a holder connected to another worker, a</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span><span class="comment">     * drained holder) falls back to the shipped single-node redirect. */</span></div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    <span class="keywordflow">if</span> (n_elig &lt; 2 || (<span class="keywordtype">int</span>) n_elig != <a class="code hl_function" href="net_2manager_2registry_8h.html#adde892d67f034583e7cd05951046f700">brix_srv_count_matching</a>(path)) {</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    }</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span> </div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    slot = <a class="code hl_function" href="fanout_8c.html#ac4c41985b0885dc2221a9d3b609ccdb0">brix_cms_fanout_slot_alloc</a>();</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    <span class="keywordflow">if</span> (slot == NULL) {</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>        <span class="keywordflow">return</span> NGX_DECLINED;    <span class="comment">/* table full — redirect still deletes one */</span></div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    }</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span> </div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    sid = <a class="code hl_function" href="server_8h.html#a19e7e5dfdad9250f06e1af64c59d2157">brix_cms_srv_next_streamid</a>();</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="pending_8c.html#a1a0e8bda0d038366733e777515426818">brix_pending_insert</a>(sid, ngx_pid, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;fd, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;number,</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>                              ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#aeff530ba9fbf23e6838d581b1df1efb0">cur_streamid</a>,</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>                              conf-&gt;cms.fanout_window * 2) != NGX_OK)</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>    {</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    }</div>
 <div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span> </div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    slot = <a class="code hl_function" href="fanout_8c.html#acb078f05cc37b55301dd46a10ad6258f">brix_cms_fanout_slot_get</a>(streamid);</div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    <span class="keywordflow">if</span> (slot == NULL) {</div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>        <span class="keywordflow">return</span>;    <span class="comment">/* late reply — the window already settled this fan-out */</span></div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>    }</div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span> </div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a692a2036fd0e6a20fe00fc3f33c7ea0e">got_err</a>++;</div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    <span class="keywordflow">if</span> (slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a75b7f82b32dd1ed0ad6d69df29ae9cba">worst_err</a> == 0) {</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>        slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a75b7f82b32dd1ed0ad6d69df29ae9cba">worst_err</a> = (ecode != 0) ? ecode : 1;</div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>        <span class="comment">/* The text is peer-controlled and is relayed to the client verbatim:</span></div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span><span class="comment">         * keep printable ASCII (spaces included), squash everything else so</span></div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span><span class="comment">         * a hostile node cannot smuggle control bytes into the reply. */</span></div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>        <span class="keywordflow">for</span> (i = 0; text != NULL &amp;&amp; text[i] != <span class="charliteral">&#39;\0&#39;</span></div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>                    &amp;&amp; i &lt; <span class="keyword">sizeof</span>(slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>) - 1; i++)</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>        {</div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>            slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>[i] = (text[i] &gt;= 0x20 &amp;&amp; text[i] &lt; 0x7f)</div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>                                   ? text[i] : <span class="charliteral">&#39;?&#39;</span>;</div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>        }</div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>        slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>[i] = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    }</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    ngx_snprintf((u_char *) ident, <span class="keyword">sizeof</span>(ident) - 1, <span class="stringliteral">&quot;brix.%d:%d@mgr%Z&quot;</span>,</div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>                 (<span class="keywordtype">int</span>) ngx_pid, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;fd);</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span> </div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>    sent = <a class="code hl_function" href="fanout_8c.html#a12ec235a4a29fd0de9713e0540e6bb25">brix_cms_fanout_send_all</a>(elig, n_elig, <a class="code hl_variable" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, sid, ident, path,</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>                                    <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log);</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span> </div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    <span class="keywordflow">if</span> (sent == 0) {</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>        <a class="code hl_function" href="pending_8c.html#a1bdfeadd94dd96d679ec00604e1244d1">brix_pending_remove</a>(sid, ngx_pid);</div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>        <span class="keywordflow">return</span> NGX_DECLINED;</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>    }</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span> </div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>    ngx_memzero(slot, <span class="keyword">sizeof</span>(*slot));</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#ab6261e93a36dd976996dd7cc701c581b">sid</a> = sid;</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a5d2735180ae83470fd1dd80da1c665d3">expected</a> = sent;</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0748886065eff43fc2f46d3b4b15488e">in_use</a> = 1;</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>.handler = <a class="code hl_function" href="fanout_8c.html#a90ae8d3bf473009927ba536ea8c7ac5f">brix_cms_fanout_deadline</a>;</div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>.data = slot;</div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>.log = ngx_cycle-&gt;log;</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    ngx_add_timer(&amp;slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a0177980872c58bb925bbb18a21088948">deadline</a>, conf-&gt;cms.fanout_window);</div>
 <div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span> </div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    ngx_log_error(NGX_LOG_NOTICE, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, 0,</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>                  <span class="stringliteral">&quot;brix: CMS fan-out: node error %ui/%ui for sid=%uD: %s&quot;</span>,</div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>                  slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a692a2036fd0e6a20fe00fc3f33c7ea0e">got_err</a>, slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a5d2735180ae83470fd1dd80da1c665d3">expected</a>, streamid,</div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>                  slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>);</div>
-<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span> </div>
-<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    <span class="keywordflow">if</span> (slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a692a2036fd0e6a20fe00fc3f33c7ea0e">got_err</a> &gt;= slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a5d2735180ae83470fd1dd80da1c665d3">expected</a>) {</div>
-<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>        <a class="code hl_function" href="fanout_8c.html#a25e5b71f5046abf06ca758cb71650ceb">brix_cms_fanout_finalize</a>(slot, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>);    <span class="comment">/* every node answered */</span></div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>    }</div>
-<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>}</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    <span class="comment">/* Park the client exactly like a pending locate; the read timer is only</span></div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span><span class="comment">     * the backstop should the deadline event be lost (its timeout path sends</span></div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span><span class="comment">     * kXR_wait and drops the pending entry, making finalize a no-op). */</span></div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#a8f5de72dab54ec2631deedb1b9e7d1ad">cms_wait_streamid</a> = sid;</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>    ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ab0416c80c35ffc8c2987012ffa0fa015">state</a> = <a class="code hl_enumvalue" href="state_8h.html#a99dd53c16fcead63c871cc12c95544f5a07df8340011ccad4f2c06d2f4df8f822">XRD_ST_WAITING_CMS</a>;</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    ngx_add_timer(<a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, conf-&gt;cms.fanout_window * 2);</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span> </div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>    ngx_log_error(NGX_LOG_INFO, <a class="code hl_variable" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>                  <span class="stringliteral">&quot;brix: CMS fan-out: op=%ui \&quot;%s\&quot; -&gt; %ui nodes &quot;</span></div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>                  <span class="stringliteral">&quot;(sid=%uD window=%M)&quot;</span>,</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>                  (ngx_uint_t) ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#a37cc4f3113318507618916ce0bc2a267">cur_reqid</a>, path, sent, sid,</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>                  conf-&gt;cms.fanout_window);</div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span> </div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>    <span class="keywordflow">return</span> NGX_AGAIN;</div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>}</div>
+</div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span> </div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00323" data-start="{" data-end="}">
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno"><a class="line" href="fanout_8c.html#a8566d5948edd871f09b70af4e9aee266">  323</a></span><a class="code hl_function" href="fanout_8c.html#a8566d5948edd871f09b70af4e9aee266">brix_cms_fanout_note_error</a>(uint32_t streamid, uint32_t ecode,</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *text, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>{</div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>    <a class="code hl_struct" href="structbrix__cms__fanout__slot__t.html">brix_cms_fanout_slot_t</a>  *slot;</div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    <span class="keywordtype">size_t</span>                   i;</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span> </div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>    slot = <a class="code hl_function" href="fanout_8c.html#acb078f05cc37b55301dd46a10ad6258f">brix_cms_fanout_slot_get</a>(streamid);</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>    <span class="keywordflow">if</span> (slot == NULL) {</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>        <span class="keywordflow">return</span>;    <span class="comment">/* late reply — the window already settled this fan-out */</span></div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>    }</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span> </div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>    slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a692a2036fd0e6a20fe00fc3f33c7ea0e">got_err</a>++;</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>    <span class="keywordflow">if</span> (slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a75b7f82b32dd1ed0ad6d69df29ae9cba">worst_err</a> == 0) {</div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>        slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a75b7f82b32dd1ed0ad6d69df29ae9cba">worst_err</a> = (ecode != 0) ? ecode : 1;</div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>        <span class="comment">/* The text is peer-controlled and is relayed to the client verbatim:</span></div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span><span class="comment">         * keep printable ASCII (spaces included), squash everything else so</span></div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span><span class="comment">         * a hostile node cannot smuggle control bytes into the reply. */</span></div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>        <span class="keywordflow">for</span> (i = 0; text != NULL &amp;&amp; text[i] != <span class="charliteral">&#39;\0&#39;</span></div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>                    &amp;&amp; i &lt; <span class="keyword">sizeof</span>(slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>) - 1; i++)</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>        {</div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>            slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>[i] = (text[i] &gt;= 0x20 &amp;&amp; text[i] &lt; 0x7f)</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>                                   ? text[i] : <span class="charliteral">&#39;?&#39;</span>;</div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>        }</div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>        slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>[i] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>    }</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span> </div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>    ngx_log_error(NGX_LOG_NOTICE, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, 0,</div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>                  <span class="stringliteral">&quot;brix: CMS fan-out: node error %ui/%ui for sid=%uD: %s&quot;</span>,</div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>                  slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a692a2036fd0e6a20fe00fc3f33c7ea0e">got_err</a>, slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a5d2735180ae83470fd1dd80da1c665d3">expected</a>, streamid,</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>                  slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#acd6134541732e06ce0085969b8b7c86e">errtext</a>);</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span> </div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    <span class="keywordflow">if</span> (slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a692a2036fd0e6a20fe00fc3f33c7ea0e">got_err</a> &gt;= slot-&gt;<a class="code hl_variable" href="structbrix__cms__fanout__slot__t.html#a5d2735180ae83470fd1dd80da1c665d3">expected</a>) {</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>        <a class="code hl_function" href="fanout_8c.html#a25e5b71f5046abf06ca758cb71650ceb">brix_cms_fanout_finalize</a>(slot, <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>);    <span class="comment">/* every node answered */</span></div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    }</div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>}</div>
 </div>
 <div class="ttc" id="abasic_8c_html_a3bb0965e1cf62be0fa2a2681fdb9095d"><div class="ttname"><a href="basic_8c.html#a3bb0965e1cf62be0fa2a2681fdb9095d">brix_send_error</a></div><div class="ttdeci">ngx_int_t brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c, uint16_t errcode, const char *msg)</div><div class="ttdef"><b>Definition</b> <a href="basic_8c_source.html#l00067">basic.c:67</a></div></div>
 <div class="ttc" id="abasic_8c_html_a92044f57c42b1d164212dbd304be599d"><div class="ttname"><a href="basic_8c.html#a92044f57c42b1d164212dbd304be599d">brix_send_ok</a></div><div class="ttdeci">ngx_int_t brix_send_ok(brix_ctx_t *ctx, ngx_connection_t *c, const void *body, uint32_t bodylen)</div><div class="ttdef"><b>Definition</b> <a href="basic_8c_source.html#l00043">basic.c:43</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a41c3a180b50c6b2ddcc1b6843a48f205"><div class="ttname"><a href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a></div><div class="ttdeci">char host[256]</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00131">brix_fault_proxy.c:131</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a63c89c04d1feae07ca35558055155ffb"><div class="ttname"><a href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a></div><div class="ttdeci">int port</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00131">brix_fault_proxy.c:131</a></div></div>
 <div class="ttc" id="acms__internal_8h_html"><div class="ttname"><a href="cms__internal_8h.html">cms_internal.h</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a0b73ba081fd9931fdcf4e1ef367d1c2f"><div class="ttname"><a href="cms__internal_8h.html#a0b73ba081fd9931fdcf4e1ef367d1c2f">CMS_RR_RMDIR</a></div><div class="ttdeci">#define CMS_RR_RMDIR</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00071">cms_internal.h:71</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a3f3c7d794eb21e819965896540514dff"><div class="ttname"><a href="cms__internal_8h.html#a3f3c7d794eb21e819965896540514dff">CMS_RR_RM</a></div><div class="ttdeci">#define CMS_RR_RM</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00070">cms_internal.h:70</a></div></div>
 <div class="ttc" id="aevent__sched_8c_html_a11191f5f8e5e2779264e350db88ad99c"><div class="ttname"><a href="event__sched_8c.html#a11191f5f8e5e2779264e350db88ad99c">brix_schedule_read_resume</a></div><div class="ttdeci">ngx_int_t brix_schedule_read_resume(ngx_connection_t *c)</div><div class="ttdef"><b>Definition</b> <a href="event__sched_8c_source.html#l00006">event_sched.c:6</a></div></div>
 <div class="ttc" id="aevent__sched_8h_html"><div class="ttname"><a href="event__sched_8h.html">event_sched.h</a></div></div>
+<div class="ttc" id="afanout_8c_html_a12ec235a4a29fd0de9713e0540e6bb25"><div class="ttname"><a href="fanout_8c.html#a12ec235a4a29fd0de9713e0540e6bb25">brix_cms_fanout_send_all</a></div><div class="ttdeci">static ngx_uint_t brix_cms_fanout_send_all(brix_cms_srv_ctx_t **elig, ngx_uint_t n_elig, u_char code, uint32_t sid, const char *ident, const char *path, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00223">fanout.c:223</a></div></div>
 <div class="ttc" id="afanout_8c_html_a25e5b71f5046abf06ca758cb71650ceb"><div class="ttname"><a href="fanout_8c.html#a25e5b71f5046abf06ca758cb71650ceb">brix_cms_fanout_finalize</a></div><div class="ttdeci">static void brix_cms_fanout_finalize(brix_cms_fanout_slot_t *slot, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00094">fanout.c:94</a></div></div>
 <div class="ttc" id="afanout_8c_html_a488d873d3f9edf908094b03894348189"><div class="ttname"><a href="fanout_8c.html#a488d873d3f9edf908094b03894348189">BRIX_CMS_FANOUT_SLOTS</a></div><div class="ttdeci">#define BRIX_CMS_FANOUT_SLOTS</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00038">fanout.c:38</a></div></div>
-<div class="ttc" id="afanout_8c_html_a67f6cec0eb882b0df236c3facee35f47"><div class="ttname"><a href="fanout_8c.html#a67f6cec0eb882b0df236c3facee35f47">brix_cms_fanout_mutation</a></div><div class="ttdeci">ngx_int_t brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf, const char *path)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00166">fanout.c:166</a></div></div>
+<div class="ttc" id="afanout_8c_html_a67f6cec0eb882b0df236c3facee35f47"><div class="ttname"><a href="fanout_8c.html#a67f6cec0eb882b0df236c3facee35f47">brix_cms_fanout_mutation</a></div><div class="ttdeci">ngx_int_t brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf, const char *path)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00245">fanout.c:245</a></div></div>
 <div class="ttc" id="afanout_8c_html_a709b8549bb4c2112497b100315c74b82"><div class="ttname"><a href="fanout_8c.html#a709b8549bb4c2112497b100315c74b82">brix_fanout_slots</a></div><div class="ttdeci">static brix_cms_fanout_slot_t brix_fanout_slots[16]</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00051">fanout.c:51</a></div></div>
-<div class="ttc" id="afanout_8c_html_a8566d5948edd871f09b70af4e9aee266"><div class="ttname"><a href="fanout_8c.html#a8566d5948edd871f09b70af4e9aee266">brix_cms_fanout_note_error</a></div><div class="ttdeci">void brix_cms_fanout_note_error(uint32_t streamid, uint32_t ecode, const char *text, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00280">fanout.c:280</a></div></div>
+<div class="ttc" id="afanout_8c_html_a8566d5948edd871f09b70af4e9aee266"><div class="ttname"><a href="fanout_8c.html#a8566d5948edd871f09b70af4e9aee266">brix_cms_fanout_note_error</a></div><div class="ttdeci">void brix_cms_fanout_note_error(uint32_t streamid, uint32_t ecode, const char *text, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00323">fanout.c:323</a></div></div>
 <div class="ttc" id="afanout_8c_html_a86ae73fa9b5f527ba0646e2777996633"><div class="ttname"><a href="fanout_8c.html#a86ae73fa9b5f527ba0646e2777996633">BRIX_CMS_FANOUT_NODES</a></div><div class="ttdeci">#define BRIX_CMS_FANOUT_NODES</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00039">fanout.c:39</a></div></div>
 <div class="ttc" id="afanout_8c_html_a90ae8d3bf473009927ba536ea8c7ac5f"><div class="ttname"><a href="fanout_8c.html#a90ae8d3bf473009927ba536ea8c7ac5f">brix_cms_fanout_deadline</a></div><div class="ttdeci">static void brix_cms_fanout_deadline(ngx_event_t *ev)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00059">fanout.c:59</a></div></div>
+<div class="ttc" id="afanout_8c_html_a98a1d13447cf87fe06d8ff7de10dba01"><div class="ttname"><a href="fanout_8c.html#a98a1d13447cf87fe06d8ff7de10dba01">brix_cms_fanout_op_code</a></div><div class="ttdeci">static int brix_cms_fanout_op_code(uint16_t reqid, u_char *code)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00168">fanout.c:168</a></div></div>
+<div class="ttc" id="afanout_8c_html_ac4c41985b0885dc2221a9d3b609ccdb0"><div class="ttname"><a href="fanout_8c.html#ac4c41985b0885dc2221a9d3b609ccdb0">brix_cms_fanout_slot_alloc</a></div><div class="ttdeci">static brix_cms_fanout_slot_t * brix_cms_fanout_slot_alloc(void)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00208">fanout.c:208</a></div></div>
 <div class="ttc" id="afanout_8c_html_acb078f05cc37b55301dd46a10ad6258f"><div class="ttname"><a href="fanout_8c.html#acb078f05cc37b55301dd46a10ad6258f">brix_cms_fanout_slot_get</a></div><div class="ttdeci">static brix_cms_fanout_slot_t * brix_cms_fanout_slot_get(uint32_t sid)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00065">fanout.c:65</a></div></div>
 <div class="ttc" id="afanout_8c_html_adfdfd5045a6f1be1331a90b2c5de982f"><div class="ttname"><a href="fanout_8c.html#adfdfd5045a6f1be1331a90b2c5de982f">brix_cms_fanout_slot_free</a></div><div class="ttdeci">static void brix_cms_fanout_slot_free(brix_cms_fanout_slot_t *slot)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00078">fanout.c:78</a></div></div>
+<div class="ttc" id="afanout_8c_html_af1e8ad5c8af7024dad2492504dda6ee5"><div class="ttname"><a href="fanout_8c.html#af1e8ad5c8af7024dad2492504dda6ee5">brix_cms_fanout_collect_eligible</a></div><div class="ttdeci">static ngx_uint_t brix_cms_fanout_collect_eligible(const char *path, brix_cms_srv_ctx_t **elig)</div><div class="ttdef"><b>Definition</b> <a href="fanout_8c_source.html#l00185">fanout.c:185</a></div></div>
 <div class="ttc" id="afanout_8h_html"><div class="ttname"><a href="fanout_8h.html">fanout.h</a></div></div>
 <div class="ttc" id="anegcache_8c_html_a05c4e5ac379ae60715b73cca5b1ebe88"><div class="ttname"><a href="negcache_8c.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_module</div><div class="ttdef"><b>Definition</b> <a href="module__definition_8c_source.html#l00029">module_definition.c:29</a></div></div>
 <div class="ttc" id="anet_2cms_2forward_8c_html_ae34da1597cc6d0a046d27163686c878c"><div class="ttname"><a href="net_2cms_2forward_8c.html#ae34da1597cc6d0a046d27163686c878c">brix_cms_forward_to_node</a></div><div class="ttdeci">ngx_int_t brix_cms_forward_to_node(ngx_connection_t *c, u_char code, uint32_t streamid, const char *ident, const char *path, const char *path2, const char *mode, const char *opaque)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2forward_8c_source.html#l00015">forward.c:15</a></div></div>

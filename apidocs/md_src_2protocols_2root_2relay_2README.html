@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2relay_2README
   <div class="headertitle"><div class="title">relay — transparent pass-through relay with a passive observation tap</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md388"></a> </p>
-<h1><a class="anchor" id="autotoc_md389"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md394"></a> </p>
+<h1><a class="anchor" id="autotoc_md395"></a>
 Overview</h1>
 <p>When <code>brix_transparent_proxy host:port</code> is configured, every connection on the port is relayed verbatim to an upstream official XRootD server. The client's auth handshake (anonymous / token / x509 / GSI) travels end-to-end, so the relay holds no credential. In parallel a non-consuming tap decodes the cleartext XRootD frames it forwards and emits them to a JSON audit log, and feeds the bad-actor guard core.</p>
 <p>This exists for operators who want to monitor protocol metadata (opcodes, paths, handles) crossing into a backend storage server without terminating auth or altering the byte stream. It observes whatever travels in cleartext (classic root:// auth-without-bulk-encryption).</p>
 <p>The engine is a small bidirectional buffered TCP relay (modeled on <a href="../handoff/">../handoff/</a>) plus a per-direction <code>brix_tap_stream</code> (<a href="../../../net/tap/">../../../net/tap/</a>) fed each freshly-received chunk. The client→upstream decoder skips the 20-byte handshake preamble before framing.</p>
-<h1><a class="anchor" id="autotoc_md390"></a>
+<h1><a class="anchor" id="autotoc_md396"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -111,14 +111,14 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="relay__guard_8c.html">relay_guard.c</a></code>   </td><td class="markdownTableBodyNone">maps decoded tap frames onto the pure-C guard core (opcode classification, kXR_error errnum); <code>brix_relay_guard_handshake</code> also runs the first-bytes wire check so a client not speaking root (TLS/HTTP/SSH/junk) is dropped + logged <code>signal=notroot</code> before it reaches the backend   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md391"></a>
+<h1><a class="anchor" id="autotoc_md397"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>Byte-exact passthrough — the tap NEVER consumes or reorders; framing is observed, not terminated.</li>
 <li>Never capture a connection's <code>ngx_log_t</code> into a tap sink: the session's log handler can go stale and SIGSEGV. Keep a scrubbed relay-struct copy with <code>handler</code>/<code>data</code>/<code>action</code> = NULL.</li>
 <li>Engages at the very top of <code><a class="el" href="protocols_2root_2connection_2handler_8c.html#a01239d2db14b9061cc9e311bbe9030dd">ngx_stream_brix_handler()</a></code> — nothing else in the root tree runs for a relayed connection.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md392"></a>
+<h1><a class="anchor" id="autotoc_md398"></a>
 See also</h1>
 <ul>
 <li><a href="../../../net/tap/">../../../net/tap/</a> — the ngx-free decode/fan-out core</li>

@@ -93,11 +93,11 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2srr_2README.html','
   <div class="headertitle"><div class="title">&lt;tt&gt;src/protocols/srr/&lt;/tt&gt; — WLCG Storage Resource Reporting (SRR) endpoint</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md446"></a> A small standalone HTTP sub-module that serves the WLCG <b>Storage Resource Reporting</b> <code>storageservice</code> JSON document (schema v4.x) at an operator-chosen location. WLCG accounting tooling — CRIC, the WLCG storage-space accounting harvester, DIRAC occupancy plugins — pulls this document straight from an HTTP URL to learn a site's total/used space per share and the protocol doors that serve it.</p>
-<h1><a class="anchor" id="autotoc_md447"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md452"></a> A small standalone HTTP sub-module that serves the WLCG <b>Storage Resource Reporting</b> <code>storageservice</code> JSON document (schema v4.x) at an operator-chosen location. WLCG accounting tooling — CRIC, the WLCG storage-space accounting harvester, DIRAC occupancy plugins — pulls this document straight from an HTTP URL to learn a site's total/used space per share and the protocol doors that serve it.</p>
+<h1><a class="anchor" id="autotoc_md453"></a>
 Why this instead of the XRootD UDP monitoring stack</h1>
 <p>This module <b>deliberately does not</b> implement the XRootD UDP f-stream / g-stream binary monitoring protocol. WLCG storage accounting is already HTTP/JSON-native via SRR, so a pull endpoint integrates with the existing WLCG stack with far less effort — no <code>xrootd-monitoring-shoveler</code>, no AMQP collector, no UDP packet format. Transfer/operation counters (bytes, transfers, opens, cache, TPC, cluster) remain on the Prometheus <code>/metrics</code> endpoint (<code>src/observability/metrics/</code>); a site that scrapes Prometheus can forward those to MonIT.</p>
-<h1><a class="anchor" id="autotoc_md448"></a>
+<h1><a class="anchor" id="autotoc_md454"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -111,7 +111,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>handler.c</code>   </td><td class="markdownTableBodyNone"><code><a class="el" href="protocols_2srr_2handler_8c.html#a2acec8a685f52a667b741d9824ecbb13">ngx_http_brix_srr_handler()</a></code> — GET/HEAD only, body discarded, sends <code>application/json</code>. Mirrors <code><a class="el" href="observability_2metrics_2handler_8c.html">src/observability/metrics/handler.c</a></code>.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md449"></a>
+<h1><a class="anchor" id="autotoc_md455"></a>
 Configuration</h1>
 <div class="fragment"><div class="line"># Serve at the conventional well-known path; record THIS URL in CRIC.</div>
 <div class="line">location = /.well-known/wlcg-storage-resource-reporting {</div>
@@ -147,7 +147,7 @@ Configuration</h1>
 <td class="markdownTableBodyNone"><code>brix_srr_endpoint</code>   </td><td class="markdownTableBodyNone"><code>&lt;name&gt; &lt;iftype&gt; &lt;url&gt;</code>   </td><td class="markdownTableBodyNone">one <code>storageendpoints[]</code> entry   </td></tr>
 </table>
 <p><code>implementation</code> is fixed to the product name from <code><a class="el" href="ident_8h.html">core/ident.h</a></code> (currently <code>"BriX-Cache"</code>); <code>servicetype</code> is <code>"disk"</code>. <code>storagecapacity.online.{totalsize,usedsize}</code> is the site-wide sum of the shares. <code>latestupdate</code>/share <code>timestamp</code> are the request-time unix epoch.</p>
-<h1><a class="anchor" id="autotoc_md450"></a>
+<h1><a class="anchor" id="autotoc_md456"></a>
 Semantics &amp; caveats</h1>
 <ul>
 <li><b>Space</b> is live <code>statvfs(2)</code> on each share's local path, computed on every request (cheap; no caching needed). A share whose <code>statvfs</code> fails is reported as <code>0/0</code> with a <code>warn</code> log line so the document still validates. <code>usedsize</code> is statvfs <em>occupancy</em> (<code>(f_blocks - f_bfree) * frsize</code>, i.e. <code>total - free</code>, which includes root-reserved blocks) — the WLCG/GLUE2 convention. A consumer computing <code>free = totalsize - usedsize</code> therefore slightly under-counts the space actually writable by an unprivileged user (by the reserved-block amount).</li>
@@ -157,7 +157,7 @@ Semantics &amp; caveats</h1>
 <li><b>No request input</b> is read — the document is a pure function of the config + filesystem state, so query strings/headers cannot redirect which path is stat'd.</li>
 <li><b>Auth</b>: the endpoint is unauthenticated by default (CRIC harvests anonymously). Wrap the <code>location</code> in nginx access controls (<code>allow</code>/<code>deny</code>, token auth) if your site requires it.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md451"></a>
+<h1><a class="anchor" id="autotoc_md457"></a>
 Schema conformance</h1>
 <p>Required fields emitted unconditionally (WLCG SRR v4.x): <code>storageservice</code> → <code>implementation</code>, <code>implementationversion</code>, <code>storageendpoints[]</code>, <code>storageshares[]</code>; <code>storagecapacity.online</code> → <code>totalsize</code>, <code>usedsize</code>; each endpoint → <code>name</code>, <code>endpointurl</code>, <code>interfacetype</code>, <code>assignedshares[]</code>; each share → <code>timestamp</code>, <code>totalsize</code>, <code>usedsize</code>, <code>vos[]</code>.</p>
 <p>Reference schema: <code>github.com/sjones-hep-ph-liv-ac-uk/json_info_system</code> (<code>srr/v4.2</code>). Tests: <code>tests/test_srr_endpoint.py</code>. </p>

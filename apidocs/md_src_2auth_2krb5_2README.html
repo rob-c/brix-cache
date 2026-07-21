@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2auth_2krb5_2README.html',''); 
   <div class="headertitle"><div class="title">krb5 — Kerberos 5 authentication for the &lt;tt&gt;root://&lt;/tt&gt; stream protocol</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md35"></a> </p>
-<h1><a class="anchor" id="autotoc_md36"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md36"></a> </p>
+<h1><a class="anchor" id="autotoc_md37"></a>
 Overview</h1>
 <p>This subsystem implements the XRootD **<code>krb5</code>** security protocol (the wire equivalent of upstream <code>XrdSeckrb5</code>) for <code>root://</code>/<code>roots://</code> clients. It lets a client authenticate by presenting a Kerberos service ticket for the gateway's host principal; on success the gateway maps the client's Kerberos principal to a local identity and records it as the connection's authenticated DN. It is one of several pluggable stream credential types (<code>gsi</code>, <code>token</code>, <code>sss</code>, <code>unix</code>, <code>krb5</code>), all of which are dispatched from a single <code>kXR_auth</code> handler.</p>
 <p>Kerberos support is <b>optional at build time</b>. The top-level <code>config</code> script probes for <code>krb5</code> via <code>pkg-config</code>; when present it compiles both files with <code>-DBRIX_HAVE_KRB5=1</code> and links libkrb5. When absent, the files still compile (every body is guarded by <code>#if (BRIX_HAVE_KRB5)</code>) but <code>brix_auth krb5</code> becomes a configuration-time error and any runtime <code>krb5</code> credential is rejected with <code>kXR_NotAuthorized</code> ("krb5 support is not compiled in"). This keeps the build green on hosts without a Kerberos toolchain.</p>
 <p>In the request lifecycle this subsystem sits at the <b>stream login/auth stage</b>. After the handshake and <code>kXR_login</code>, the XRootD client sends a <code>kXR_auth</code> request carrying a <code>krb5</code>-prefixed credential blob. The opcode handler in <code>../gsi/auth.c</code> inspects the credential type and, for <code>krb5</code>, calls <code><a class="el" href="src_2auth_2krb5_2auth_8c.html#a55ebe0d6e7750da2af3d961113f5baad">brix_handle_krb5_auth()</a></code> here. Configuration is validated once at <code>postconfiguration</code> time by <code><a class="el" href="auth_2krb5_2config_8c.html#a329bed9a56f8c8b9ff19e0af8385555b">brix_configure_krb5_auth()</a></code>. Only the <code>root://</code> stream path uses Kerberos; the WebDAV/HTTPS and S3 HTTP paths use GSI certs, bearer tokens, and SigV4 respectively and never enter this code.</p>
-<h1><a class="anchor" id="autotoc_md37"></a>
+<h1><a class="anchor" id="autotoc_md38"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -110,7 +110,7 @@ Files</h1>
 <td class="markdownTableBodyNone"><code>auth.c</code>   </td><td class="markdownTableBodyNone"><code>brix_handle_krb5_auth(ctx, c, conf)</code> — per-connection runtime auth. Verifies the client's AP-REQ ticket against the host keytab (<code>krb5_rd_req</code>), maps the client principal to a local name, sets the connection identity/session, emits metrics + access log, and returns success or <code>kXR_NotAuthorized</code>. Contains static helpers: <code>brix_krb5_error</code>/<code>brix_krb5_free_error</code> (error-message lifetime), <code>brix_krb5_peer_addr</code> (optional source-IP binding), <code>brix_krb5_client_name</code> (principal → localname mapping), <code>brix_krb5_track_identity</code> (unique-user metric).   </td></tr>
 </table>
 <p>There are no headers in this directory. The two public entry points are declared in <code>../ngx_brix_module.h</code> (<code>brix_handle_krb5_auth</code>) and <code>../config/config.h</code> (<code>brix_configure_krb5_auth</code>); the persistent Kerberos objects and tunable fields live on <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> in <code>../types/config.h</code>.</p>
-<h1><a class="anchor" id="autotoc_md38"></a>
+<h1><a class="anchor" id="autotoc_md39"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code>** (<code>../types/config.h</code>) — per-server-block config. Kerberos fields:<ul>
@@ -125,7 +125,7 @@ Key types &amp; data structures</h1>
 <li>**<code>BRIX_AUTH_KRB5</code>** (<code>../types/tunables.h</code>, value <code>6</code>) — the configured auth mode the credential is gated against.</li>
 <li><b>libkrb5 types</b> — <code>krb5_auth_context</code>, <code>krb5_ticket</code>, <code>krb5_data</code>, <code>krb5_address</code>, <code>krb5_error_code</code> are used transiently inside <code>brix_handle_krb5_auth</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md39"></a>
+<h1><a class="anchor" id="autotoc_md40"></a>
 Control &amp; data flow</h1>
 <p>Entry into this subsystem:</p>
 <ol type="1">
@@ -152,7 +152,7 @@ Control &amp; data flow</h1>
 <li><code>../types/identity.h</code> — <code><a class="el" href="identity_8c.html#a4c055ec83a24b9bb0c22e80cb72f086b">brix_identity_set_dn()</a></code> stores the DN with the <code>BRIX_AUTHN_KRB5</code> method on the unified identity object.</li>
 <li><code>../gsi/README.md</code> — the upstream dispatcher that routes the <code>krb5</code> credential type here.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md40"></a>
+<h1><a class="anchor" id="autotoc_md41"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Fail-closed gating (two layers).</b> The dispatcher in <code>../gsi/auth.c</code> rejects <code>krb5</code> credentials unless <code>conf-&gt;auth == BRIX_AUTH_KRB5</code>; this handler independently re-checks that the Kerberos objects are non-NULL before touching the wire payload. A misconfigured or non-Kerberos build can never fall through to a permissive path.</li>
@@ -166,14 +166,14 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Identity precedence.</b> On success <code>token_auth</code> is explicitly cleared so a later code path does not mistake a Kerberos session for a token session.</li>
 <li><b>Build guard discipline.</b> Both files compile unconditionally but every Kerberos-touching body is inside <code>#if (BRIX_HAVE_KRB5)</code>. New code here must preserve the <code>#else</code> arms so the no-Kerberos build keeps producing clean config-time and runtime errors.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md41"></a>
+<h1><a class="anchor" id="autotoc_md42"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a krb5 tunable directive</b> (e.g. a new mapping option): add the field to the Kerberos block of <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> in <code>../types/config.h</code>, register the <code>ngx_command_t</code> in the live <code>ngx_stream_brix_commands[]</code> table in <code>../stream/module.c</code> (<code>NGX_STREAM_SRV_CONF</code>). Set its default in the srv-conf merge, and consume it in <code>brix_configure_krb5_auth</code> (validation) and/or <code>brix_handle_krb5_auth</code> (runtime). No new top-level config block, so no <code>./configure</code> re-run is needed unless you add a new source file.</li>
 <li><b>Add a new stream credential type</b> (not krb5): follow this subsystem as the template — implement an <code>brix_configure_&lt;type&gt;_auth</code> (call it from <code>../config/postconfiguration.c</code>) and an <code>brix_handle_&lt;type&gt;_auth</code>, declare both in <code>../config/config.h</code> / <code>../ngx_brix_module.h</code>, add the credtype branch in <code>../gsi/auth.c</code>, register the auth-mode constant in <code>../types/tunables.h</code> and the auth-method slot in <code>../metrics/unified.h</code>, and list the new <code>.c</code> files in the top-level <code>config</code> build script.</li>
 <li><b>The two public symbols</b> are <code>brix_configure_krb5_auth</code> (config) and <code>brix_handle_krb5_auth</code> (runtime); everything else in this directory is file-static.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md42"></a>
+<h1><a class="anchor" id="autotoc_md43"></a>
 See also</h1>
 <ul>
 <li><code>../gsi/README.md</code> — <code>kXR_auth</code> dispatcher that routes credential types (gsi/token/sss/unix/krb5).</li>

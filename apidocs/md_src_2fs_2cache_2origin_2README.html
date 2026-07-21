@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2fs_2cache_2origin_2README.html
   <div class="headertitle"><div class="title">&lt;tt&gt;src/fs/cache/origin/&lt;/tt&gt; — pluggable origin transports for the read-through cache</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md142"></a> </p>
-<h1><a class="anchor" id="autotoc_md143"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md146"></a> </p>
+<h1><a class="anchor" id="autotoc_md147"></a>
 Overview</h1>
 <p>This directory holds the <b>origin-transport seam</b> for the read-through cache (<code>src/fs/cache/</code>). The cache's fill engine (<code>../fetch.c</code>, <code>../slice_fill.c</code>) knows how to stage bytes into a local <code>.part</code> file, verify a checksum, and atomically publish — but it must not know <em>where</em> those bytes come from. That "where" is a driver vtable (<code><a class="el" href="structbrix__cache__transport__t.html">brix_cache_transport_t</a></code>, declared in <code><a class="el" href="transport_8h.html">transport.h</a></code>) selected from the origin URL scheme. A driver only has to (a) stream a byte range to a local fd and (b) report the origin's advertised content digest; the single fill engine and the single checksum-on-fill integration (<code>../verify.c</code>) then work identically for every protocol. This mirrors the storage-driver seam in <code><a class="el" href="sd_8h.html">src/fs/backend/sd.h</a></code>.</p>
 <p>The native XRootD origin client (<code>root://</code> / <code>roots://</code>) lives one level up in <code>../origin_protocol.c</code> / <code>../io.c</code>; this directory adds the <b>HTTP-family</b> drivers that reach origins the XRootD wire protocol cannot: XrdHttp, dCache, plain object stores, and Pelican/OSDF federations.</p>
 <p>Everything here runs in an <b>nginx thread-pool worker</b> (blocking libcurl / socket I/O with timeouts), never on the event loop; completion resumes the client back on the single-threaded loop via the shared fill-done path.</p>
-<h1><a class="anchor" id="autotoc_md144"></a>
+<h1><a class="anchor" id="autotoc_md148"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -113,7 +113,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="pelican__register_8c.html">pelican_register.c</a></code> / <code>.h</code>   </td><td class="markdownTableBodyNone">Pelican-federation <b>publisher</b>: a per-worker timer that POSTs a signed <code>OriginAdvertiseV2</code> (short-lived ES256 advertise JWT) to the Director's <code>registerCache</code> endpoint so the Director redirects clients here. Re-advertises on a ~1-minute cadence.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md145"></a>
+<h1><a class="anchor" id="autotoc_md149"></a>
 Invariants</h1>
 <ul>
 <li><b>Thread-pool only.</b> No driver call touches the event loop; all I/O is blocking with explicit timeouts.</li>
@@ -122,7 +122,7 @@ Invariants</h1>
 <li><b>Borrowed URL views.</b> <code><a class="el" href="transport_8h.html#a0cb35618819f58a524fe8ed47f8edb00">brix_cache_origin_url_parse()</a></code> copies nothing; the parsed <code>ngx_str_t</code> views point into the caller's storage.</li>
 <li><b>Registration prerequisite.</b> <code><a class="el" href="pelican__register_8c.html">pelican_register.c</a></code> assumes the cache's public key is already registered with the federation registry — that handshake is an out-of-band operator step, not performed here.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md146"></a>
+<h1><a class="anchor" id="autotoc_md150"></a>
 See also</h1>
 <ul>
 <li><code>../README.md</code> — the cache subsystem overview (fill engine, write-through).</li>

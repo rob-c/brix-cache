@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2core_2http_2README.html',''); 
   <div class="headertitle"><div class="title">http — Shared HTTP request/response semantics (headers, body, conditionals, ETag)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md110"></a> </p>
-<h1><a class="anchor" id="autotoc_md111"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md112"></a> </p>
+<h1><a class="anchor" id="autotoc_md113"></a>
 Overview</h1>
 <p><code>src/core/http</code> is the single home of the module's <b>protocol-neutral HTTP semantics</b>: the helpers that decide what an HTTP request <em>means</em> — which header selects a representation, whether a precondition passes, what ETag a resource carries, how a request body reaches an fd — shared by every HTTP front-end (WebDAV, S3, dashboard, metrics, SRR) so their behaviour cannot drift apart.</p>
 <p>This directory was split out of <a class="el" href="md_src_2core_2compat_2README.html">`../compat`</a> (2026-07-02) because the name "compat" told an auditor <em>portability glue — skim it</em>, when these files are in fact <b>security-load-bearing</b>: precondition evaluation gates overwrites (<code>If-None-Match: *</code> exclusive create), Bearer extraction is an auth boundary, and header-value validation is the response-splitting defence. The split makes the audit-critical shared HTTP surface discoverable by name — and gives new cross-protocol HTTP logic an obvious home, so it does not grow as a private copy inside one protocol handler again.</p>
 <p>The rule is unchanged from compat: nothing here owns a request lifecycle or a wire dialect. Each file does one job identically for every caller. When conditional-request or ETag behaviour needs to change, it changes here once.</p>
-<h1><a class="anchor" id="autotoc_md112"></a>
+<h1><a class="anchor" id="autotoc_md114"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -121,10 +121,10 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="etag_8c.html">etag.c</a></code> / <code><a class="el" href="etag_8h.html">etag.h</a></code>   </td><td class="markdownTableBodyNone">RFC 7232 ETag string from mtime+size, strong or <code>W/</code>-weak (<code>BRIX_ETAG_WEAK</code>), matching XrdHttp's <code>"%lx-%llx"</code> convention. Every synthetic validator in the module comes from here.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md113"></a>
+<h1><a class="anchor" id="autotoc_md115"></a>
 Boundary — what stays in &lt;tt&gt;../compat&lt;/tt&gt;</h1>
 <p>Multi-plane primitives that HTTP merely <em>also</em> uses remain in compat: <code><a class="el" href="range_8c.html">range.c</a></code>/<code><a class="el" href="range__vector_8c.html">range_vector.c</a></code> (multi-range engine is shared with native <code>kXR_readv</code> coalescing), <code>uri.c</code> (percent-codec feeds S3 SigV4 canonicalisation), <code>xml.c</code> (generic XML escaping/parsing, also WebDAV <code>&lt;lockinfo&gt;</code>), <code><a class="el" href="protocol__caps_8c.html">protocol_caps.c</a></code> (method descriptor tables), and everything non-HTTP (checksums, namespace ops, SSRF guard, …).</p>
-<h1><a class="anchor" id="autotoc_md114"></a>
+<h1><a class="anchor" id="autotoc_md116"></a>
 Control &amp; data flow</h1>
 <p>Callers are the HTTP front-ends and HTTP-facing subsystems only:</p><ul>
 <li><b>WebDAV</b> (<code>protocols/webdav/</code>): GET → <code><a class="el" href="http__file__response_8c.html">http_file_response.c</a></code> (via <code><a class="el" href="file__serve_8c.html">protocols/shared/file_serve.c</a></code>); PUT → <code><a class="el" href="http__body_8c.html">http_body.c</a></code> + <code><a class="el" href="http__conditionals_8c.html">http_conditionals.c</a></code>; PROPFIND → <code><a class="el" href="http__xml_8c.html">http_xml.c</a></code> + <code><a class="el" href="etag_8c.html">etag.c</a></code>; COPY/MOVE preconditions → <code><a class="el" href="http__conditionals_8c.html">http_conditionals.c</a></code>.</li>
@@ -132,7 +132,7 @@ Control &amp; data flow</h1>
 <li><b>Observability &amp; other HTTP surfaces</b> (<code>observability/dashboard/</code>, <code>metrics/</code>, <code>srr</code>, <code><a class="el" href="ratelimit__http_8c.html">net/ratelimit/ratelimit_http.c</a></code>, <code><a class="el" href="http__mirror_8c.html">net/mirror/http_mirror.c</a></code>, <code><a class="el" href="scan__http_8c.html">fs/scan/scan_http.c</a></code>): header lookup/insertion + status mapping.</li>
 </ul>
 <p>The stream (<code>root://</code>) plane has no <code>ngx_http_request_t</code> and takes nothing from here except protocol-neutral constants (<code><a class="el" href="etag_8h.html">etag.h</a></code>'s string builder; <code><a class="el" href="write__compress_8c.html">write_compress.c</a></code> borrows <code>BRIX_DECODE_MAX_RATIO</code> from <code><a class="el" href="http__body_8h.html">http_body.h</a></code>).</p>
-<h1><a class="anchor" id="autotoc_md115"></a>
+<h1><a class="anchor" id="autotoc_md117"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Fail-closed auth helpers.</b> Bearer extraction returns <code>NGX_DECLINED</code>/<code>NGX_ERROR</code> unless the scheme and a non-empty token are both present; <code>If-Match</code> with an absent resource is 412.</li>
@@ -142,13 +142,13 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Blocking calls stay off the event loop.</b> The <code>pread</code>/<code>pwrite</code> loops in <code><a class="el" href="http__body_8c.html">http_body.c</a></code> block; call them from a thread-pool task or post-accept context only.</li>
 <li>**<code>ngx_str_t</code> is not NUL-terminated**; these helpers honour <code>.len</code> throughout.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md116"></a>
+<h1><a class="anchor" id="autotoc_md118"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>New shared HTTP helper:</b> add it to the relevant <code>http_*.c</code>/<code>.h</code> pair — keep the WHAT/WHY/HOW block; every HTTP front-end should be able to call it without protocol knowledge. New <code>.c</code> files register in the top-level <code>config</code> and require re-running <code>./configure</code>.</li>
 <li><b>New conditional-request behaviour:</b> extend <code>brix_http_eval_preconditions</code> (flags), never a protocol-local evaluator.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md117"></a>
+<h1><a class="anchor" id="autotoc_md119"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2core_2compat_2README.html">`../compat/README.md`</a> — the remaining protocol-neutral primitives (checksums, namespace ops, SSRF, ranges, XML).</li>

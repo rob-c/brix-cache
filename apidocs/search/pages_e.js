@@ -22,6 +22,6 @@ var searchData=
   ['local_20filesystem_20copy_20engine_20for_20webdav_20copy_20move_19',['webdav/fs — Confined local-filesystem copy engine for WebDAV COPY/MOVE',['../md_src_2protocols_2webdav_2fs_2README.html',1,'']]],
   ['lock_20request_20header_20body_20parsers_20',['webdav/locks — WebDAV LOCK request-header &amp; body parsers',['../md_src_2protocols_2webdav_2locks_2README.html',1,'']]],
   ['locks_20—_20webdav_20lock_20request_20header_20body_20parsers_21',['webdav/locks — WebDAV LOCK request-header &amp; body parsers',['../md_src_2protocols_2webdav_2locks_2README.html',1,'']]],
-  ['logging_22',['logging',['../md_src_2fs_2path_2README.html',1,'path — untrusted-path confinement, resolution, ACL/auth gating, and access logging'],['../md_src_2observability_2sesslog_2README.html',1,'Session Lifecycle Logging']]],
+  ['logging_22',['logging',['../md_src_2observability_2accesslog_2README.html',1,'Access Logging'],['../md_src_2fs_2path_2README.html',1,'path — untrusted-path confinement, resolution, ACL/auth gating, and access logging'],['../md_src_2observability_2sesslog_2README.html',1,'Session Lifecycle Logging']]],
   ['logs_23',['observability — metrics, packet marking, dashboard, and access logs',['../md_src_2observability_2README.html',1,'']]]
 ];

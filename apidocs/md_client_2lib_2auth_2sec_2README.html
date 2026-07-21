@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_client_2lib_2auth_2sec_2README.html
   <div class="headertitle"><div class="title">&lt;tt&gt;client/lib/sec/&lt;/tt&gt; — native client authentication modules</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md587"></a> </p>
-<h1><a class="anchor" id="autotoc_md588"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md593"></a> </p>
+<h1><a class="anchor" id="autotoc_md594"></a>
 Overview</h1>
 <p>The client-side XRootD <code>kXR_auth</code> protocol modules — one per credential type. Each builds the credential and drives its handshake against the nginx-xrootd server dialect, with <b>no libXrdSec dependency</b> (pure C). The shared DH / session-cipher / bucket math used by the crypto-bearing modules (GSI, pwd) lives in the common <code>gsi_core</code> (compiled into both this client and the server module), so these files are mostly orchestration plus their protocol-specific framing.</p>
 <p><code>client/lib/auth.c</code> selects which module to offer based on what the server advertises, trying strongest-first; the weak host/unix/pwd schemes are preferred <b>last</b> and are intended for trusted/closed networks (under TLS).</p>
-<h1><a class="anchor" id="autotoc_md589"></a>
+<h1><a class="anchor" id="autotoc_md595"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -120,14 +120,14 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="sec__unix_8c.html">sec_unix.c</a></code>   </td><td class="markdownTableBodyNone"><code>unix</code>   </td><td class="markdownTableBodyNone">1   </td><td class="markdownTableBodyNone">Sends the local username; the server trusts it only for loopback peers.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md590"></a>
+<h1><a class="anchor" id="autotoc_md596"></a>
 Invariants</h1>
 <ul>
 <li><b>No libXrdSec.</b> Every credential is built from first principles here + <code>gsi_core</code> + libxrdproto primitives (e.g. <code>brix_sha256</code>).</li>
 <li><b>Strongest-first selection</b> with the spoofable/cleartext-adjacent schemes (<code>host</code>, <code>unix</code>, <code>pwd</code>) preferred last — see <code>client/lib/auth.c</code>.</li>
 <li><b>Wire-exact framing.</b> Each payload matches the server decoder byte-for-byte (the <code>XProtocol.hh kXR_auth</code> credtype tag + the scheme's body); the per-file header docblocks cite the exact server-side counterpart.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md591"></a>
+<h1><a class="anchor" id="autotoc_md597"></a>
 See also</h1>
 <ul>
 <li><code>../README.md</code> — the <code>libbrix</code> library overview.</li>

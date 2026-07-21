@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2core_2types_2README.html','');
   <div class="headertitle"><div class="title">src/core/types — Core type definitions, tunables, and the canonical identity object</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md127"></a> </p>
-<h1><a class="anchor" id="autotoc_md128"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md131"></a> </p>
+<h1><a class="anchor" id="autotoc_md132"></a>
 Overview</h1>
 <p><code>src/core/types/</code> is the <b>type vocabulary of the entire module</b>. It holds the per-connection context (<code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code>), the per-server configuration block (<code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code>), the per-open-file slot (<code><a class="el" href="structbrix__file__t.html">brix_file_t</a></code>), the connection state-machine enum (<code>brix_state_t</code>), the compile-time tunables and metric macros, and the one piece of behaviour that lives here: the protocol-agnostic authenticated principal (<code><a class="el" href="structbrix__identity__t.html">brix_identity_t</a></code>, with <code><a class="el" href="identity_8c.html">identity.c</a></code>). Almost every other subsystem includes one of these headers — they are the shared data shapes that the stream handlers, HTTP handlers, auth code, cache, cluster, and metrics all read and write. (<code>grep</code> confirms ~30+ subsystems include <code>types/*.h</code>, directly or via the umbrella header.)</p>
 <p>These files began life as focused sub-headers carved out of the umbrella header <code><a class="el" href="ngx__brix__module_8h.html">src/core/ngx_brix_module.h</a></code> so a contributor can read exactly one concept without wading through the whole module. The umbrella header includes them <b>in a fixed dependency order</b> (<code><a class="el" href="tunables_8h.html">tunables.h</a> → <a class="el" href="identity_8h.html">identity.h</a> → <a class="el" href="state_8h.html">state.h</a> → file.h → <a class="el" href="context_8h.html">context.h</a> → config.h</code>, see <code><a class="el" href="ngx__brix__module_8h.html">src/core/ngx_brix_module.h</a>:105</code>), each after the nginx, OpenSSL, <code>protocol/</code>, <code>metrics/</code>, and <code>token/</code> prerequisites they depend on. <b>None of these headers are self-contained</b> — do not include them directly before those prerequisites are in scope; include the umbrella header instead.</p>
 <p>Where they sit in the request lifecycle: a <code>root://</code> TCP accept allocates one <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code> from the connection pool (<code>ngx_pcalloc(c-&gt;pool, sizeof(brix_ctx_t))</code> in <code>../connection/handler.c:33</code>) and zero-fills it; the handler then marks every file slot free (<code>files[i].fd = -1</code>, <code>handler.c:73</code>), generates the 16-byte session ID, and points <code>ctx-&gt;metrics</code> at the SHM slot (<code>handler.c:95-102</code>). That struct then carries <em>all</em> session state — input accumulation, auth identity, the open-file table, the pipelined output ring, AIO tasks, GSI/sigver crypto, bind/proxy/CMS state — across every handshake, dispatch, async I/O, and send phase until disconnect. The matching <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> (one per <code>server {}</code> block) is the immutable, merged config the handlers consult on each request. This subsystem contains almost no logic; it defines the contracts everything else obeys.</p>
 <p>This directory is <b>stream-plane-centric</b> (the <code>root://</code> protocol). The HTTP plane (WebDAV, S3) keeps its own per-request structs in <code>../webdav/</code> and <code>../s3/</code>, but shares the tunables, the auth-mode constants, and the <code><a class="el" href="structbrix__identity__t.html">brix_identity_t</a></code> principal defined here.</p>
-<h1><a class="anchor" id="autotoc_md129"></a>
+<h1><a class="anchor" id="autotoc_md133"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -120,7 +120,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="identity_8c.html">identity.c</a></code>   </td><td class="markdownTableBodyNone">The only <code>.c</code> here: implements the <code>brix_identity_*</code> builders/accessors — <code>_alloc</code>, <code>_set_dn</code>/<code>_set_subject</code>/<code>_set_vos_csv</code>/<code>_set_token_claims</code>, CSV/space splitters, <code>_check_token_scope</code> (delegates to <code>brix_token_check_read/write</code>), <code>_method_name</code>, and <code>_describe</code>. All allocation is pool-based (<code>ngx_pcalloc</code>/<code>ngx_pnalloc</code>). Registered for build in the top-level <code>config</code> file (<code>NGX_ADDON_SRCS</code>, <code>config:268</code>), <b>not</b> in <code><a class="el" href="config_2config_8h.html">src/core/config/config.h</a></code>.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md130"></a>
+<h1><a class="anchor" id="autotoc_md134"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code> (<code><a class="el" href="context_8h.html">context.h</a></code>)** — one per TCP connection, allocated from <code>c-&gt;pool</code>. The state machine runs single-threaded on one nginx worker; only one request is logically "in flight" at a time (XRootD multiplexes via streamid on the <em>client</em> side, the server serialises responses). Notable sections:<ul>
@@ -140,7 +140,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__identity__t.html">brix_identity_t</a></code> (<code><a class="el" href="identity_8h.html">identity.h</a></code>)** — DN/subject/issuer + VO/scope arrays + the <code>BRIX_AUTHN_*</code> method bitmask; the deliberate bridge that lets one policy/audit code path serve GSI, token, SSS, krb5, unix, and S3-SigV4 sessions alike. Keeps both structured arrays (<code>vo_list</code>, <code>scopes</code>) and flat "compatibility views" (<code>vo_csv</code>, <code>scope_raw</code>, <code>token_scopes[]</code>) in sync so hot paths can migrate incrementally.</li>
 <li>**<code>brix_state_t</code> (<code><a class="el" href="state_8h.html">state.h</a></code>)** — the enum the connection event handlers switch on; the comment block documents which read/write events are armed in each state.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md131"></a>
+<h1><a class="anchor" id="autotoc_md135"></a>
 Control &amp; data flow</h1>
 <p>Nothing "runs" in <code>src/core/types/</code> except the <code><a class="el" href="identity_8c.html">identity.c</a></code> helpers — these headers are <b>included, not called</b>. The flow is:</p>
 <ol type="1">
@@ -151,7 +151,7 @@ Control &amp; data flow</h1>
 <li><code><a class="el" href="identity_8c.html">identity.c</a></code>'s <code>brix_identity_check_token_scope</code> delegates to <code>../token/</code> (<code>brix_token_check_read/write</code>); <code>brix_identity_set_token_claims</code> consumes a <code><a class="el" href="structbrix__token__claims__t.html">brix_token_claims_t</a></code> produced there.</li>
 </ol>
 <p>Sibling subsystems that consume these types most directly: <code>../connection/README.md</code> (allocates/drives the ctx), <code>../config/README.md</code> (creates and merges the srv_conf), <code>../read/README.md</code> and <code>../write/README.md</code> (use <code>files[]</code>, scratch buffers, AIO tasks), <code>../path/README.md</code> (resolves the ACL rules), <code>../token/README.md</code> and <code>../gsi/README.md</code> (produce the identity), and <code>../metrics/README.md</code> (the SHM struct <code>ctx-&gt;metrics</code> points at).</p>
-<h1><a class="anchor" id="autotoc_md132"></a>
+<h1><a class="anchor" id="autotoc_md136"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Array index <em>is</em> the handle.</b> <code>ctx-&gt;files[i]</code> is addressed directly by the 4-byte XRootD file handle (<code>file.h</code>). A slot is free iff <code>fd &lt; 0</code>; the handler frees via <code><a class="el" href="fd__table_8h.html#a2d3f662dc0e7327aec827d73e7ac678c">brix_free_fhandle()</a></code> (resets to <code>-1</code>). Never assume handles are dense or stable across reuse.</li>
@@ -165,7 +165,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Several fields are <code>void*</code> on purpose</b> (<code>wmirror</code>, <code>rl_bw_rule</code>, <code>rl_conc_rule</code>) to keep <code>mirror</code>/<code>ratelimit</code> headers out of this very widely-included header — cast at the use site, don't add the include here. Likewise <code><a class="el" href="state_8h.html">state.h</a></code> uses opaque forward decls for the upstream/proxy/CMS contexts.</li>
 <li><b>Legacy/anchor naming.</b> Phase numbers in the comments (Phase 29/31/32/33) are historical markers; the <code>wbuf</code>/<code>wchain</code>/<code>read_fast_*</code> send state now lives <em>per slot</em> in <code><a class="el" href="structbrix__resp__slot__t.html">brix_resp_slot_t</a></code>, not as connection singletons. Read the struct, not the phase label.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md133"></a>
+<h1><a class="anchor" id="autotoc_md137"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a config directive →</b> add the field to <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> (<code>config.h</code>, init to <code>NGX_CONF_UNSET*</code>), annotate it with its <code>[directive]</code>, declare the <code>ngx_command_t</code> and merge it in <code>../config/</code>. No <code>./configure</code> re-run unless it's a new top-level block. (See the build-governance note in <code>CLAUDE.md</code>.)</li>
@@ -174,7 +174,7 @@ Entry points / extending</h1>
 <li><b>Add per-handle state →</b> add to <code><a class="el" href="structbrix__file__t.html">brix_file_t</a></code> (<code>file.h</code>) and ensure <code><a class="el" href="fd__table_8h.html#a2d3f662dc0e7327aec827d73e7ac678c">brix_free_fhandle()</a></code> (<code>../connection/fd_table.c</code>) resets/frees it on close.</li>
 <li><b>Add an auth method →</b> add an <code>BRIX_AUTHN_*</code> bit (<code><a class="el" href="identity_8h.html">identity.h</a></code>), teach <code><a class="el" href="identity_8c.html#a056f3781915019148ac6a04f27c1fed9">brix_identity_method_name()</a></code> (<code><a class="el" href="identity_8c.html">identity.c</a></code>) about it, and have the verifier call the appropriate <code>brix_identity_set_*</code> builder. If it's a wire mode, also add an <code>BRIX_AUTH_*</code> constant in <code><a class="el" href="tunables_8h.html">tunables.h</a></code>. <b>Remember:</b> new <code>.c</code> files must be registered in the top-level <code>config</code> (<code>NGX_ADDON_SRCS</code>) — that is where <code><a class="el" href="identity_8c.html">identity.c</a></code> lives (<code>config:268</code>), not <code><a class="el" href="config_2config_8h.html">src/core/config/config.h</a></code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md134"></a>
+<h1><a class="anchor" id="autotoc_md138"></a>
 See also</h1>
 <ul>
 <li><code>../README.md</code> — master source-tree index</li>

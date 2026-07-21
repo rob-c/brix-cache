@@ -93,7 +93,7 @@ $(document).ready(function(){initNavTree('md_src_2net_2httpguard_2README.html','
   <div class="headertitle"><div class="title">net/httpguard — HTTP adapter for the bad-actor guard</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md227"></a> <code>ngx_http_brix_guard_module</code>: puts nginx in front of an ARC CE or an XrdHttp/WebDAV server as a credential-preserving reverse proxy that bounces obvious junk <b>before</b> the backend sees it (ACCESS phase) and emits one fail2ban audit line per bad-actor signal (LOG phase). All classification lives in the pure-C core <a class="el" href="md_src_2net_2guard_2README.html">`src/net/guard/`</a>; stock <code>ngx_http_proxy_module</code> moves the bytes. The <code>root://</code> equivalent is the stream relay sink <a href="../../protocols/root/relay/relay_guard.c"><code>src/protocols/root/relay/relay_guard.c</code></a> (<code>brix_guard_stream on;</code> — enforcement = connection drop).</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md231"></a> <code>ngx_http_brix_guard_module</code>: puts nginx in front of an ARC CE or an XrdHttp/WebDAV server as a credential-preserving reverse proxy that bounces obvious junk <b>before</b> the backend sees it (ACCESS phase) and emits one fail2ban audit line per bad-actor signal (LOG phase). All classification lives in the pure-C core <a class="el" href="md_src_2net_2guard_2README.html">`src/net/guard/`</a>; stock <code>ngx_http_proxy_module</code> moves the bytes. The <code>root://</code> equivalent is the stream relay sink <a href="../../protocols/root/relay/relay_guard.c"><code>src/protocols/root/relay/relay_guard.c</code></a> (<code>brix_guard_stream on;</code> — enforcement = connection drop).</p>
 <table class="markdownTable">
 <tr class="markdownTableHead">
 <th class="markdownTableHeadNone">File   </th><th class="markdownTableHeadNone">Responsibility    </th></tr>
@@ -108,7 +108,7 @@ $(document).ready(function(){initNavTree('md_src_2net_2httpguard_2README.html','
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="guard__http__req_8c.html">guard_http_req.c</a></code>   </td><td class="markdownTableBodyNone">Shared <code><a class="el" href="structguard__request__t.html">guard_request_t</a></code> builder (method→op, cred detection, sanitized path/ip) + atomic audit-log writer.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md228"></a>
+<h1><a class="anchor" id="autotoc_md232"></a>
 Directives</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -130,7 +130,7 @@ Directives</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>brix_guard_valid_method &lt;m&gt; [m…]</code>   </td><td class="markdownTableBodyNone">profile   </td><td class="markdownTableBodyNone">restrict allowed HTTP methods   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md229"></a>
+<h1><a class="anchor" id="autotoc_md233"></a>
 ARC deployment recipe</h1>
 <div class="fragment"><div class="line">server {</div>
 <div class="line">    listen 443 ssl;</div>
@@ -149,10 +149,10 @@ ARC deployment recipe</h1>
 <div class="line">    }</div>
 <div class="line">}</div>
 </div><!-- fragment --><p>For XrdHttp/WebDAV swap <code>brix_guard_profile xrdhttp;</code> and add <code>brix_guard_valid_prefix /store;</code> (or your export roots).</p>
-<h1><a class="anchor" id="autotoc_md230"></a>
+<h1><a class="anchor" id="autotoc_md234"></a>
 fail2ban wiring</h1>
 <p>Install <a href="../../../deploy/fail2ban/filter.d/"><code>deploy/fail2ban/filter.d/xrootd-guard-*.conf</code></a> and <a href="../../../deploy/fail2ban/jail.d/xrootd-guard.conf"><code>deploy/fail2ban/jail.d/xrootd-guard.conf</code></a>, point <code>logpath</code> at the <code>brix_guard_audit_log</code> file. Per-signal jails: signature = 1 hit → 24h ban; grammar = 2/10min → 12h; notfound = 20/min → 1h; authfail = 5/2min → 2h (nftables banaction).</p>
-<h1><a class="anchor" id="autotoc_md231"></a>
+<h1><a class="anchor" id="autotoc_md235"></a>
 Tests</h1>
 <div class="fragment"><div class="line">TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest \</div>
 <div class="line">    tests/test_arc_guard.py tests/test_xrdhttp_guard.py \</div>

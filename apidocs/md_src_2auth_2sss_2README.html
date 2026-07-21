@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2auth_2sss_2README.html',''); i
   <div class="headertitle"><div class="title">sss — Simple Shared Secret authentication (Blowfish-CFB64 + CRC32)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md48"></a> </p>
-<h1><a class="anchor" id="autotoc_md49"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md50"></a> </p>
+<h1><a class="anchor" id="autotoc_md51"></a>
 Overview</h1>
 <p>SSS (Simple Shared Secret) is XRootD's native symmetric authentication scheme. A shared secret key is distributed to clients and servers out-of-band (a keytab file, typically owner-only <code>0600</code>); the client encrypts a self-describing identity credential with Blowfish-CFB64 under that key, and the server decrypts it, checks integrity and freshness, and extracts the user/group identity. SSS is the workhorse for production grid sites that cannot deploy x509 certificate infrastructure, and for trusted server-to-server links. It is selected by <code>brix_auth sss</code> (<code>BRIX_AUTH_SSS</code>, value 4) plus an <code>brix_sss_keytab</code> directive.</p>
 <p>This subsystem sits on the <b>stream</b> (<code>root://</code>) authentication path. After the client <code>kXR_login</code>, it sends a <code>kXR_auth</code> request whose credential <code>protocol</code> field is <code>"sss"</code>; the opcode dispatcher in <a href="../../protocols/root/handshake/"><code>../handshake/</code></a> routes through <a href="../gsi/auth.c"><code>../gsi/auth.c</code></a> (<code>brix_handle_auth</code>), which dispatches on credential type to <code><a class="el" href="gsi__internal_8h.html#adde66bd9d15d22bc8afe6fbc063707ae">brix_handle_sss_auth()</a></code> in <code><a class="el" href="auth__request_8c.html">auth_request.c</a></code>. On success the handler populates <code>ctx-&gt;dn</code> / <code>ctx-&gt;vo_list</code> / <code>ctx-&gt;primary_vo</code>, sets the unified <code>ctx-&gt;identity</code> (<code>BRIX_AUTHN_SSS</code>), registers the session in <a href="../../protocols/root/session/registry.h"><code>../session/</code></a>, and tracks per-VO / unique-user metrics.</p>
 <p>The same credential machinery is reused in two other places. In <b>proxy mode</b>, when an upstream XRootD server demands SSS, <a href="../../net/proxy/"><code>../proxy/</code></a> calls <code><a class="el" href="auth__proxy__credential_8c.html#a95d232637426a5ff41b1ee2d785cde66">brix_sss_build_proxy_credential()</a></code> (<code><a class="el" href="auth__proxy__credential_8c.html">auth_proxy_credential.c</a></code>) to mint a credential <em>as a client</em>. In <b>CMS cluster mode</b>, the <code>kYR_xauth</code> handshake in <a href="../../net/cms/"><code>../cms/</code></a> verifies a peer's self-contained SSS blob with the transport-independent <code><a class="el" href="auth__crypto__helpers_8c.html#a6556b1b0d5f99f98b563aa4f5ea72ff1">brix_sss_verify_blob()</a></code> (<code><a class="el" href="auth__crypto__helpers_8c.html">auth_crypto_helpers.c</a></code>), and loads its keytab through the shared <code><a class="el" href="auth_2sss_2config_8c.html#a7714df4679a2c6784fc5eb1e3e2a7a0b">brix_sss_load_keytab()</a></code> (<code>config.c</code>).</p>
 <p>SSS is purely an auth/identity establishment layer: it issues no I/O, touches no filesystem path, and returns control to the normal opcode dispatcher once the session identity is set. Kernel path confinement (<a href="../../fs/path/"><code>../path/beneath.c</code></a>) and ACL enforcement of that identity happen later in <a href="../../fs/path/"><code>../path/</code></a> (<code>authdb</code>, <code>auth_gate</code>, VO rules) — never inside this subsystem.</p>
-<h1><a class="anchor" id="autotoc_md50"></a>
+<h1><a class="anchor" id="autotoc_md52"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -125,7 +125,7 @@ Files</h1>
 <blockquote class="doxtable">
 <p>&zwj;Note: this subsystem was reorganized — the historical <code>auth.c</code> / <code>key_parse.c</code> files no longer exist; their logic now lives in <code><a class="el" href="auth__request_8c.html">auth_request.c</a></code> and <code>config.c</code> respectively. </p>
 </blockquote>
-<h1><a class="anchor" id="autotoc_md51"></a>
+<h1><a class="anchor" id="autotoc_md53"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a></code>** (defined in <a href="../../core/types/config.h"><code>../types/config.h</code></a>) — one parsed keytab entry: <code>id</code> (<code>int64_t</code> wire key-id), <code>exp</code> (expiry <code>time_t</code>, 0 = never), <code>opts</code> (policy bitmask), <code>key[BRIX_SSS_KEY_MAX]</code> + <code>key_len</code> (raw secret, max 128 bytes), and the <code>name[BRIX_SSS_NAME_MAX]</code> / <code>user[BRIX_SSS_USER_MAX]</code> / <code>group[BRIX_SSS_GROUP_MAX]</code> strings. Lives in <code>conf-&gt;sss_keys</code> (an <code>ngx_array_t</code>).</li>
@@ -135,7 +135,7 @@ Key types &amp; data structures</h1>
   credential),ANYGRP0x04&lt;tt&gt;(take groups from the credential),USRGRP0x08<code> (derive group from user → no group set),</code>NOIPCK0x10<code>(keytab</code>name<code>ends in </code>+<code>). These are set from sentinel keytab values (</code>anybody<code>,</code>allusers<code>, </code>anygroup<code>,</code>usrgroup<code>). **Distinct from** the *on-the-wire* option byte values </code>BRIX_SSS_OPT_USEDATA0x00<code>/</code>SNDLID0x01<code>declared in</code><a class="el" href="sss__internal_8h.html">sss_internal.h</a><code>.</code></li>
 <li><code>**TLV field types** (</code><a class="el" href="sss__internal_8h.html">sss_internal.h</a><code>):</code>NAME0x01<code>,</code>GRPS0x04<code>,</code>RAND<code> </code>0x07<code>,</code>LGID0x10<code>,</code>HOST0x20`.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md52"></a>
+<h1><a class="anchor" id="autotoc_md54"></a>
 Control &amp; data flow</h1>
 <p><b>Inbound (stream <code>kXR_auth</code>):</b></p>
 <ol type="1">
@@ -147,7 +147,7 @@ Control &amp; data flow</h1>
 <p><b>Outbound (proxy mode):</b> <a href="../../net/proxy/"><code>../proxy/</code></a> (<code><a class="el" href="events__bootstrap_8c.html">events_bootstrap.c</a></code>) calls <code><a class="el" href="auth__proxy__credential_8c.html#a95d232637426a5ff41b1ee2d785cde66">brix_sss_build_proxy_credential()</a></code> to encrypt a credential with the local keytab key (selected via <code>conf-&gt;sss_keyname</code>, or the first key when empty), then sends it as a <code>kXR_auth</code> to the upstream.</p>
 <p><b>CMS peer auth:</b> <a href="../../net/cms/"><code>../cms/</code></a> (<code><a class="el" href="server__auth_8c.html">server_auth.c</a>:72</code>) calls <code>brix_sss_verify_blob(ctx-&gt;conf-&gt;sss_keys, CMS_SSS_LIFETIME, ...)</code> to validate a peer's self-contained credential out of the <code>kYR_xauth</code> frame; the keytab itself is loaded at config time by <code><a class="el" href="auth_2sss_2config_8c.html#a7714df4679a2c6784fc5eb1e3e2a7a0b">brix_sss_load_keytab()</a></code> from <a href="../../net/cms/"><code>../cms/</code></a> <code><a class="el" href="server__module_8c.html">server_module.c</a></code>.</p>
 <p><b>Startup:</b> <a href="../../core/config/postconfiguration.c"><code>../config/postconfiguration.c</code></a> calls <code><a class="el" href="auth_2sss_2config_8c.html#a73b1a4676324552e83c21a0ee16e994f">brix_configure_sss_auth()</a></code> alongside the GSI/token loaders; any failure aborts nginx start (fail-closed).</p>
-<h1><a class="anchor" id="autotoc_md53"></a>
+<h1><a class="anchor" id="autotoc_md55"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>CRC32, not HMAC — and integer compare, not <code>memcmp</code>.</b> Integrity is a CRC32 appended to the cleartext <em>before</em> encryption. After decrypt it is read as a BE <code>uint32_t</code> and compared with <code>got_crc != want_crc</code> (<code><a class="el" href="auth__request_8c.html">auth_request.c</a>:101</code>, <code><a class="el" href="auth__crypto__helpers_8c.html">auth_crypto_helpers.c</a>:260</code>). This is safe: the CRC is not secret — secrecy is the Blowfish key — and a mismatch is the <b>wrong-key / tampering</b> signal, so timing-attack concerns about the compare do not apply.</li>
@@ -159,7 +159,7 @@ Invariants, security &amp; gotchas</h1>
 <li>**<code>auth == BRIX_AUTH_SSS</code> is enforced twice.** The dispatcher rejects <code>"sss"</code> unless SSS is the configured mode (<code><a class="el" href="src_2auth_2gsi_2auth_8c.html">gsi/auth.c</a>:126</code>), and <code>config.c</code> only loads a keytab in that mode — SSS is not silently usable alongside other schemes.</li>
 <li><b>nginx discipline:</b> stream-path allocation uses the connection pool (<code>ngx_palloc(c-&gt;pool, ...)</code>); responses are framed via <code>brix_build_resp_hdr</code> + <code>brix_queue_response</code> (<a href="../../protocols/root/response/"><code>../response/</code></a>), never raw writes. Wire strings reaching logs go through <code>brix_sanitize_log_string</code>. The keytab loader runs at config time and is the <em>only</em> place blocking file I/O (<code>open</code>/<code>fgets</code>/<code>fstat</code>) is permitted — never on a live connection.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md54"></a>
+<h1><a class="anchor" id="autotoc_md56"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a new keytab field:</b> add a <code>case</code> in <code><a class="el" href="auth_2sss_2config_8c.html#ad77fa302eaf70d3ac7616503baeeb32d">brix_sss_parse_key_line()</a></code> (<code>config.c</code>) switching on the field prefix char; extend <code><a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a></code> (<a href="../../core/types/config.h"><code>../types/config.h</code></a>) if it needs new state; keep unknown fields ignored for keytab compatibility but fail-closed on malformed <em>required</em> fields (<code>N:</code> id, <code>k:</code> key).</li>
@@ -167,7 +167,7 @@ Entry points / extending</h1>
 <li><b>Add a new key policy option:</b> define <code>BRIX_SSS_OPT_*</code> in <a href="../../core/types/tunables.h"><code>../types/tunables.h</code></a>, set it from a sentinel user/group/name value in <code><a class="el" href="auth_2sss_2config_8c.html#ad77fa302eaf70d3ac7616503baeeb32d">brix_sss_parse_key_line()</a></code>, and apply it where <code>key-&gt;opts</code> is consulted in <code><a class="el" href="auth__request_8c.html">auth_request.c</a></code>.</li>
 <li><b>Reuse SSS over a new transport:</b> call <code><a class="el" href="auth__crypto__helpers_8c.html#a6556b1b0d5f99f98b563aa4f5ea72ff1">brix_sss_verify_blob()</a></code> (verify) or <code><a class="el" href="auth__proxy__credential_8c.html#a95d232637426a5ff41b1ee2d785cde66">brix_sss_build_proxy_credential()</a></code> (mint) — they are transport-independent and allocate nothing; do not re-implement the decrypt/CRC/replay chain.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md55"></a>
+<h1><a class="anchor" id="autotoc_md57"></a>
 See also</h1>
 <ul>
 <li><a href="../gsi/"><code>../gsi/</code></a> — credential-type dispatch (<code>brix_handle_auth</code>) and the x509/GSI auth path.</li>

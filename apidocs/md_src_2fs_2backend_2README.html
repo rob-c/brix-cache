@@ -93,9 +93,9 @@ $(document).ready(function(){initNavTree('md_src_2fs_2backend_2README.html','');
   <div class="headertitle"><div class="title">fs/backend — Storage Driver (SD) layer</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md135"></a> The <b>Storage Driver</b> layer sits directly <b>below the VFS</b> (<code>src/fs/</code>). The VFS owns policy — confinement re-check, metrics, access log, cache, page-CRC, buffer shaping — and calls a driver for the raw "move these bytes / mutate this name" primitives. POSIX is the default driver; block and object/S3 drivers register the same way so an object store can become a first-class (ultimately primary) backend without any protocol handler, metric, cache, or access-log code changing above the seam.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md139"></a> The <b>Storage Driver</b> layer sits directly <b>below the VFS</b> (<code>src/fs/</code>). The VFS owns policy — confinement re-check, metrics, access log, cache, page-CRC, buffer shaping — and calls a driver for the raw "move these bytes / mutate this name" primitives. POSIX is the default driver; block and object/S3 drivers register the same way so an object store can become a first-class (ultimately primary) backend without any protocol handler, metric, cache, or access-log code changing above the seam.</p>
 <p>Full design: `../../../docs/refactor/phase-55-storage-backend-abstraction.md`.</p>
-<h1><a class="anchor" id="autotoc_md136"></a>
+<h1><a class="anchor" id="autotoc_md140"></a>
 Status — POSIX driver mediates the VFS handle data plane + lifecycle</h1>
 <p>This directory ships the <b>interface + the POSIX driver + the registry</b>, and the VFS now dispatches its handle operations through the driver rather than issuing POSIX syscalls itself. What goes through a driver slot:</p>
 <ul>
@@ -112,7 +112,7 @@ Status — POSIX driver mediates the VFS handle data plane + lifecycle</h1>
 <li><b>Namespace mutation + path-stat</b> (mkdir/rename/unlink/lstat/xattr) — the metered VFS + <code>brix_ns_*</code> tier; driver slots exist but these entry points carry impersonation / <code>nofollow</code> / <code>parents</code> / <code>overwrite</code> semantics the minimal vtable does not yet express. Migrating them belongs with the object backend (55.E), where a real second backend justifies extending the namespace contract.</li>
 <li>Plain socket / log / temp-fd I/O — not file-data movement.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md137"></a>
+<h1><a class="anchor" id="autotoc_md141"></a>
 Layout — one subdirectory per driver</h1>
 <p>Each storage driver lives in its own subdirectory; the shared seam (<code><a class="el" href="sd_8h.html">sd.h</a></code>), the registry (<code><a class="el" href="sd__registry_8c.html">sd_registry.c</a></code>), the integrity tagstore (<code>csi_*</code>), and this README stay at the top level:</p>
 <div class="fragment"><div class="line">fs/backend/</div>
@@ -125,7 +125,7 @@ Layout — one subdirectory per driver</h1>
 <div class="line">  remote/  sd_remote.{c,h}                       ← read-only S3 remote-origin driver (cache)</div>
 <div class="line">  xroot/   sd_xroot.{c,h}                        ← read-only root:// remote-origin driver (cache)</div>
 </div><!-- fragment --><p>A moved driver keeps its own header includes same-directory; it reaches the seam via <code>../sd.h</code> and the rest of the tree via <code>../../…</code>. The registry references a driver header by its subdir (<code><a class="el" href="sd__ceph_8h.html">rados/sd_ceph.h</a></code>). The client/libxrdproto build (<code>shared/xrdproto/Makefile</code>) and the standalone unit harnesses point at the subdir paths.</p>
-<h1><a class="anchor" id="autotoc_md138"></a>
+<h1><a class="anchor" id="autotoc_md142"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -167,17 +167,17 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="csi__unittest_8c.html">csi_unittest.c</a></code>   </td><td class="markdownTableBodyNone">Standalone suite for the CSI tagstore + verify logic (tag-header layout, per-page CRC round-trip, partial-page RMW, hole handling), run outside the module build.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md139"></a>
+<h1><a class="anchor" id="autotoc_md143"></a>
 Contract</h1>
 <ul>
 <li><b>Worker-safe raw ops.</b> <code>pread</code>/<code>pwrite</code>/<code>ftruncate</code>/<code>fsync</code>/<code>fstat</code> (and <code>staged_write</code>) must not touch an nginx pool, emit metrics/logs, or read cache state — they run on AIO worker threads. The POSIX bodies are exactly today's VFS raw-I/O primitives.</li>
 <li><b>Confinement is the driver's job.</b> Instance-keyed ops take an already-confined <em>logical</em> path; the POSIX driver enforces physical confinement via the kernel <code>RESOLVE_BENEATH</code> API. An <code>EXDEV</code> still means an escape attempt.</li>
 <li><b>Errno facts, not wire codes.</b> Drivers return <code>errno</code>-style facts; the VFS / protocol layers map them to <code>kXR_*</code> / HTTP / S3 status.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md140"></a>
+<h1><a class="anchor" id="autotoc_md144"></a>
 Adding a driver</h1>
 <p>Create a subdirectory <code>&lt;name&gt;/</code> and add <code>&lt;name&gt;/sd_&lt;name&gt;.c</code> defining a <code>const brix_sd_driver_t</code> (include the seam as <code>../sd.h</code>). Append the driver's <code>extern</code> to <code><a class="el" href="sd_8h.html">sd.h</a></code>, add a row to the <code>sd_drivers[]</code> table in <code><a class="el" href="sd__registry_8c.html">sd_registry.c</a></code> (referencing any driver header by its subdir, e.g. <code>#include "&lt;name&gt;/sd_&lt;name&gt;.h"</code>), register the <code>.c</code> at its subdir path in the top-level <code>config</code> (<code>NGX_ADDON_SRCS</code>), and re-run <code>./configure</code>. Set only the capabilities the backend genuinely has — the VFS degrades or rejects on the absent ones.</p>
-<h1><a class="anchor" id="autotoc_md141"></a>
+<h1><a class="anchor" id="autotoc_md145"></a>
 See also</h1>
 <p><b>Storage backend drivers deep-dive (the SD seam, <code>pblock</code>/<code>s3</code>/remote-<code>root://</code>, the cache "fold", the origin auth matrix, and every lesson learned — ASCII diagrams throughout):</b> `docs/09-developer-guide/storage-backend-drivers-deep-dive.md`.</p>
 <p>**<code>pblock</code> deep-dive (block-striping, the SQLite catalog, the VFS↔backend wiring, server-vs-client sharing — with ASCII diagrams throughout):** `docs/09-developer-guide/pblock-storage-backend.md`.</p>

@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2auth_2voms_2README.html',''); 
   <div class="headertitle"><div class="title">voms — Optional VOMS virtual-organisation extraction from X.509 proxies</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md72"></a> </p>
-<h1><a class="anchor" id="autotoc_md73"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md74"></a> </p>
+<h1><a class="anchor" id="autotoc_md75"></a>
 Overview</h1>
 <p>This subsystem extracts <b>VO (Virtual Organisation) membership</b> from VOMS Attribute Certificates (ACs) embedded inside an X.509 grid proxy. In HEP/grid deployments, a user's proxy certificate carries VOMS extensions naming the virtual organisations the user belongs to (e.g. <code>cms</code>, <code>atlas</code>, <code>alice</code>) and their Fully-Qualified Attribute Names (FQANs, e.g. <code>/cms/Production/Role=pilot</code>). This subsystem turns those ACs into two flat strings — a single <code>primary_vo</code> and a comma-separated <code>vo_list</code> — that the rest of the module uses for VO-scoped authorization (<code>brix_require_vo</code>).</p>
 <p>It exists so that authorization can be driven by <em>VO membership</em> rather than just the proxy's subject DN. After the GSI authentication path verifies a proxy chain (<code><a class="el" href="src_2auth_2gsi_2auth_8c.html">gsi/auth.c</a></code> for <code>root://</code>, <code><a class="el" href="auth__cert_8c.html">webdav/auth_cert.c</a></code> for <code>davs://</code>), it calls <code><a class="el" href="auth_2voms_2extract_8c.html#abd12931b7c2a67a387f7daa4d6c88c8a">brix_extract_voms_info()</a></code> here to populate the per-connection identity. Those VO strings then flow to the ACL layer (<code>../path/acl.c</code>, <code>../path/auth_gate.c</code>), which enforces per-path <code>brix_require_vo</code> rules via <code><a class="el" href="auth_2authz_2acl_8c.html#ad84dcc30b3f35f4c0b9d765d15b0538f">brix_vo_list_contains()</a></code>.</p>
 <p>The defining design decision is <b>runtime, link-time-free dependency on libvomsapi</b>. The module never links against <code>libvomsapi.so.1</code>; instead it <code>dlopen</code>s it at nginx startup (<code><a class="el" href="loader_8c.html">loader.c</a></code>). If the library is absent, the server still starts — VOMS extraction is simply disabled and <code><a class="el" href="loader_8c.html#a00773d4a6cc3e2f0b96a11f7d8195c42">brix_voms_available()</a></code> returns false. This lets a single binary run on hosts with or without the grid VOMS stack installed. (The three <code>.c</code> files are <em>always</em> compiled and linked; they are registered unconditionally in the top-level <code>config</code> build script, lines 415-417. There is no <code>BRIX_HAVE_VOMS</code> compile guard.)</p>
 <p>VOMS extraction is <b>strictly optional and fail-soft on the data path</b>: a proxy with no VOMS extensions (a plain grid proxy) yields <code>NGX_DECLINED</code>, which callers treat as "no VOs" rather than an error. Hard enforcement happens elsewhere — at config time, <code>brix_require_vo</code> is <em>rejected</em> if <code>libvomsapi</code> could not be loaded (<code>../config/policy.c</code>), so an operator who asks for VO ACLs cannot silently get a server that ignores them.</p>
-<h1><a class="anchor" id="autotoc_md74"></a>
+<h1><a class="anchor" id="autotoc_md76"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -116,7 +116,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="voms__http_8h.html">voms_http.h</a></code>   </td><td class="markdownTableBodyNone">Thin re-declaration of <code><a class="el" href="auth_2voms_2extract_8c.html#abd12931b7c2a67a387f7daa4d6c88c8a">brix_extract_voms_info()</a></code> for <b>HTTP</b> handlers (<code><a class="el" href="auth__cert_8c.html">webdav/auth_cert.c</a></code>). Uses only <code>&lt;ngx_core.h&gt;</code> + <code>&lt;openssl/x509.h&gt;</code> so HTTP code can call VOMS extraction <em>without</em> including <code><a class="el" href="ngx__brix__module_8h.html">ngx_brix_module.h</a></code>, which drags in <code>ngx_stream.h</code> and conflicts with the HTTP layer. Never include both headers together.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md75"></a>
+<h1><a class="anchor" id="autotoc_md77"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code>struct <a class="el" href="structvoms__data.html">voms_data</a></code>** — top-level container returned by <code>VOMS_Init()</code> / populated by <code>VOMS_Retrieve()</code>. The field that matters is <code>data</code> — a NULL-terminated array of <code>voms_entry*</code>, one per VO AC found. <code>real</code> is opaque internal library state and must never be freed directly (only via <code>destroy()</code>).</li>
@@ -125,7 +125,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__voms__api__t.html">brix_voms_api_t</a></code>** — the dlopen handle plus four function pointers (<code>init</code>, <code>retrieve</code>, <code>destroy</code>, <code>error_message</code>). Written once during <code><a class="el" href="loader_8c.html#a2e63babe7aca3e8da328cff688529a72">brix_voms_init()</a></code> and read-only afterward, so it is lock-free.</li>
 <li><b>Output strings (caller-owned, not a type here)</b> — <code>primary_vo</code> (single VO) and <code>vo_list</code> (comma-separated all VOs). They live in <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code> (<code>../types/context.h</code>) for <code>root://</code> and in the request <code>identity</code> (<code>../types/identity.c</code>) for HTTP, with caller-supplied buffer sizes (256 / 1024 bytes at the GSI and WebDAV call sites).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md76"></a>
+<h1><a class="anchor" id="autotoc_md78"></a>
 Control &amp; data flow</h1>
 <p><b>Startup.</b> <code>../config/postconfiguration.c</code> calls <code>brix_voms_init(cf-&gt;log)</code> once. It <code>dlopen</code>s the library and resolves symbols, or logs a notice and declines. Later, <code>../config/policy.c</code> consults <code><a class="el" href="loader_8c.html#a00773d4a6cc3e2f0b96a11f7d8195c42">brix_voms_available()</a></code> and the configured <code>vomsdir</code>/<code>voms_cert_dir</code> to validate any <code>brix_require_vo</code> rules.</p>
 <p><b>Per-connection (entry into this subsystem).</b> Two callers, both <em>after</em> the proxy chain is cryptographically verified:</p>
@@ -136,7 +136,7 @@ Control &amp; data flow</h1>
 <p>Both guard the call with <code><a class="el" href="loader_8c.html#a00773d4a6cc3e2f0b96a11f7d8195c42">brix_voms_available()</a> &amp;&amp; vomsdir.len &gt; 0 &amp;&amp; voms_cert_dir.len &gt; 0</code>, and both treat a non-<code>NGX_OK</code> result as "no VOs".</p>
 <p><b>Internal flow.</b> <code>extract.c</code> → <code>brix_voms_api.init/retrieve</code> → on success <code>collect.c::brix_collect_voms_vos()</code> walks the entries and builds the strings → <code>extract.c</code> frees the chain and calls <code>destroy()</code>.</p>
 <p><b>Downstream (calls out to).</b> The produced VO strings are consumed by <code>../path/acl.c</code> (<code><a class="el" href="auth_2authz_2acl_8c.html#ad84dcc30b3f35f4c0b9d765d15b0538f">brix_vo_list_contains()</a></code>, <code><a class="el" href="auth_2authz_2acl_8c.html#ae0be10aa6d0363d98353719de4b00027">brix_check_vo_acl()</a></code>) and <code>../path/auth_gate.c</code> to enforce <code>brix_require_vo</code>, and by <code>../metrics</code> indirectly via <code><a class="el" href="observability_2metrics_2metrics_8h.html#a67b6c80fa0112f0ea9c8f07f6fb2aa6f">brix_track_vo_activity()</a></code> (VO-keyed activity, low cardinality).</p>
-<h1><a class="anchor" id="autotoc_md77"></a>
+<h1><a class="anchor" id="autotoc_md79"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>No link-time VOMS dependency.</b> All VOMS access goes through the <code>brix_voms_api</code> function pointers; the symbols are resolved with <code>RTLD_NOW | RTLD_LOCAL</code> (<code><a class="el" href="loader_8c.html">loader.c</a>:39</code>) — <code>RTLD_LOCAL</code> prevents symbol pollution between nginx modules, <code>RTLD_NOW</code> forces eager resolution so a partial library fails fast. On any <code>dlsym</code> miss the handle is <code>dlclose</code>d and the table zeroed.</li>
@@ -149,7 +149,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>HTTP/stream header split.</b> HTTP code must include <code><a class="el" href="voms__http_8h.html">voms_http.h</a></code>, never <code><a class="el" href="voms__internal_8h.html">voms_internal.h</a></code>/<code><a class="el" href="ngx__brix__module_8h.html">ngx_brix_module.h</a></code> — the stream umbrella header redefines types that clash with nginx's HTTP layer.</li>
 <li><b>Lock-free after startup.</b> <code>brix_voms_api</code> and <code>brix_voms_loaded</code> are set once during single-threaded postconfiguration and only read thereafter, so the per-request path needs no synchronization.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md78"></a>
+<h1><a class="anchor" id="autotoc_md80"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a new VO-name source within an AC</b> (e.g. derive VOs from a different field): extend <code><a class="el" href="collect_8c.html#ae37c80c556123506bcd5d64715d34ec8">brix_collect_voms_vos()</a></code> in <code><a class="el" href="collect_8c.html">collect.c</a></code> and route the new string through <code><a class="el" href="collect_8c.html#aecafcecc62a91f72b247122a339ca529">brix_append_vo_token()</a></code> so dedup, the comma-join, and <code><a class="el" href="collect_8c.html#ac0bbbece0f0675cdf5c83431378416c1">brix_vo_token_safe()</a></code> validation are applied uniformly. Do not hand-build the list.</li>
@@ -157,7 +157,7 @@ Entry points / extending</h1>
 <li><b>Bind to a different VOMS library symbol</b>: add a function-pointer typedef + field in <code><a class="el" href="structbrix__voms__api__t.html">brix_voms_api_t</a></code> (<code><a class="el" href="voms__internal_8h.html">voms_internal.h</a></code>) and a matching <code><a class="el" href="loader_8c.html#a4ab545488d06065f939bf4f4e66cf3ec">LOAD_SYM(...)</a></code> line in <code><a class="el" href="loader_8c.html#a2e63babe7aca3e8da328cff688529a72">brix_voms_init()</a></code> (<code><a class="el" href="loader_8c.html">loader.c</a></code>). A new symbol that fails to resolve must abort the whole load (the macro already does this).</li>
 <li><b>Enforce a new VO policy directive</b>: that work lives in <code>../config/policy.c</code> and <code>../path/acl.c</code>, not here — this subsystem only <em>produces</em> the VO strings.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md79"></a>
+<h1><a class="anchor" id="autotoc_md81"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2auth_2gsi_2README.html">`../gsi/README.md`</a> — X.509 proxy verification; primary stream caller of <code>brix_extract_voms_info</code>.</li>

@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2stream_2READM
   <div class="headertitle"><div class="title">stream — &lt;tt&gt;ngx_stream_brix_module&lt;/tt&gt; descriptor &amp; directive table</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md409"></a> </p>
-<h1><a class="anchor" id="autotoc_md410"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md415"></a> </p>
+<h1><a class="anchor" id="autotoc_md416"></a>
 Overview</h1>
 <p>This subsystem is the <b>nginx stream-module glue</b> for the XRootD native (<code>root://</code> / <code>roots://</code>) protocol. It contains <em>no</em> protocol logic, no I/O, and no per-request state. Its entire job is to make a stock nginx build aware of the module: declare the static <code>ngx_module_t</code> descriptor, register the full <code>ngx_stream_brix_commands[]</code> directive table that nginx parses inside <code>stream { server { … } }</code> blocks, and define the small enum lookup tables (<code>brix_auth_modes</code>, <code>brix_security_levels</code>, <code>brix_hc_types</code>) that map config keywords onto internal constants. Everything substantive is delegated to callbacks declared in <code>../ngx_brix_module.h</code> and implemented under <code>../config/</code>.</p>
 <p>It sits at the very top of the <code>root://</code> request lifecycle — <em>before any connection exists</em>. When nginx parses a <code>stream</code> block and sees the <code>xrootd</code> flag, the custom setter <code>ngx_stream_brix_enable</code> (in <code>../config/server_conf.c</code>) swaps the stream-core server handler for <code>ngx_stream_brix_handler</code>. From that point on, every TCP connection on the listen port enters the module via <code>../connection/handler.c</code> → <code>../handshake/dispatch.c</code>. None of that dispatch code lives here; this directory only wires the module into nginx so the handler gets installed and so the per-server <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> is populated from <code>nginx.conf</code>.</p>
 <p>The module context (<code>ngx_stream_brix_module_ctx</code>) deliberately registers <b>no main-conf callbacks</b> (<code>create_main_conf</code>/<code>init_main_conf</code> are <code>NULL</code>): each stream <code>server {}</code> block owns its configuration independently — there is no stream-wide aggregation. It <em>does</em> register <code>create_srv_conf</code>, <code>merge_srv_conf</code> (parent→child inheritance), <code>postconfiguration</code> (final validation / resource setup), <code>init_process</code> (per-worker startup: opens the <code>RESOLVE_BENEATH</code> root fd; arms the CMS / health-check / CRL / JWKS timers), and <code>exit_process</code> (worker teardown). All five implementations live under <code>../config/</code>.</p>
 <p>The directive table is the canonical, single-source list of every <code>brix_*</code> directive the module accepts for the <code>root://</code> stream protocol. It lives entirely in **<code>module.c</code>**, with the module wiring in **<code><a class="el" href="module__definition_8c.html">module_definition.c</a></code>** — both compiled via <code>NGX_ADDON_SRCS</code> (<code>config:236-237</code>). Treat <code>module.c</code> as ground truth.</p>
-<h1><a class="anchor" id="autotoc_md411"></a>
+<h1><a class="anchor" id="autotoc_md417"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -110,7 +110,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="module__definition_8c.html">module_definition.c</a></code>   </td><td class="markdownTableBodyNone"><b>Compiled.</b> Declares the static module wiring: <code>ngx_stream_brix_module_ctx</code> (<code>ngx_stream_module_t</code> lifecycle hooks — <code>postconfiguration</code>, <code>create_srv_conf</code>, <code>merge_srv_conf</code>; main-conf slots <code>NULL</code>) and the <code>ngx_module_t ngx_stream_brix_module</code> descriptor (<code>NGX_STREAM_MODULE</code>, with <code>init_process</code> = <code>ngx_stream_brix_init_process</code> and <code>exit_process</code> = <code>brix_exit_process</code>). Holds an <code>extern</code> reference to <code>ngx_stream_brix_commands[]</code>.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md412"></a>
+<h1><a class="anchor" id="autotoc_md418"></a>
 Key types &amp; data structures</h1>
 <p>This subsystem defines no runtime structs of its own — it only references them. The ones a reviewer must know:</p>
 <ul>
@@ -120,7 +120,7 @@ Key types &amp; data structures</h1>
 <li>**<code>ngx_conf_enum_t</code> tables** — <code>brix_auth_modes</code> (<code>none|gsi|token|both|sss|unix|krb5</code> → <code>BRIX_AUTH_*</code>), <code>brix_security_levels</code> (<code>none|compatible|standard|intense|pedantic</code> → <code>0..4</code>, the kXR_sigver enforcement level), and <code>brix_hc_types</code> (<code>ping|stat</code> → <code>BRIX_HC_TYPE_*</code>). Each is NUL-terminated with <code>{ ngx_null_string, 0 }</code>.</li>
 <li>**<code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code>** — the per-server config struct every directive writes into. Defined in <code>../config/config.h</code>, allocated by <code>ngx_stream_brix_create_srv_conf</code> (<code>../config/server_conf.c</code>). This subsystem references its field offsets only; it does not declare it.</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md413"></a>
+<h2><a class="anchor" id="autotoc_md419"></a>
 Directive groups (authoritative &lt;tt&gt;module.c&lt;/tt&gt; set)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -156,12 +156,12 @@ Directive groups (authoritative &lt;tt&gt;module.c&lt;/tt&gt; set)</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">Tuning / misc   </td><td class="markdownTableBodyNone"><code>brix_thread_pool</code>, <code>brix_memory_budget</code>, <code>brix_readv_segment_size</code> (per-<code>kXR_readv</code>-element cap = official <code>maxReadv_ior</code>; default 2 MiB−16, advertised via Qconfig <code>readv_ior_max</code>), <code>brix_ckscan_depth</code>/<code>_max_files</code>, <code>brix_prepare_command</code>   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md414"></a>
+<h1><a class="anchor" id="autotoc_md420"></a>
 Control &amp; data flow</h1>
 <p><b>Config-parse time (single-threaded master).</b> nginx discovers <code>ngx_stream_brix_module</code> (via <code><a class="el" href="module__definition_8c.html">module_definition.c</a></code>), reads <code>stream {}</code>, and for each directive in <code>ngx_stream_brix_commands[]</code> invokes its setter, which writes into the <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> produced by <code>ngx_stream_brix_create_srv_conf</code> (<code>../config/server_conf.c</code>). The <code>xrootd</code> flag's setter <code>ngx_stream_brix_enable</code> additionally fetches the stream-core srv conf and sets <code>cscf-&gt;handler = ngx_stream_brix_handler</code>. After all blocks parse, <code>ngx_stream_brix_postconfiguration</code> (<code>../config/postconfiguration.c</code>) runs final validation / resource setup. Parent→child inheritance is resolved by <code>ngx_stream_brix_merge_srv_conf</code> (<code>NGX_CONF_UNSET*</code> sentinels distinguish unset from explicit).</p>
 <p><b>Worker startup.</b> <code>ngx_stream_brix_init_process</code> (<code>../config/process.c</code>) runs once per worker: opens the per-worker <code>O_PATH</code> export-root fd used for <code>RESOLVE_BENEATH</code> confinement (see <code>../path/README.md</code>), initialises the proxy pool, and arms the CMS heartbeat client (<code>../cms/README.md</code>), active health-check probes (<code>../manager/health_check.h</code>), the CRL-reload timer, and the JWKS hot-refresh timer where configured.</p>
 <p><b>Request time — this subsystem is not on the path.</b> Once installed, <code>ngx_stream_brix_handler</code> is the entry; it lives in <code>../connection/README.md</code> and routes to <code>../handshake/README.md</code> → <code>../session/README.md</code> (login/auth) → opcode handlers (<code>../read/README.md</code>, <code>../write/README.md</code>, <code>../dirlist/README.md</code>, <code>../query/README.md</code>). Cache / proxy / manager / mirror behaviour is driven entirely by the config fields populated here but executed in <code>../cache/</code>, <code>../proxy/</code>, <code>../manager/</code>, <code>../mirror/</code>, <code>../ratelimit/</code>.</p>
-<h1><a class="anchor" id="autotoc_md415"></a>
+<h1><a class="anchor" id="autotoc_md421"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li>**<code>module.c</code> owns the live directive array.** <code>module.c</code> and <code><a class="el" href="module__definition_8c.html">module_definition.c</a></code> are the only directive sources in <code>NGX_ADDON_SRCS</code> (<code>config:236-237</code>); always add or change directives in <code>module.c</code>'s <code>ngx_stream_brix_commands[]</code>.</li>
@@ -174,7 +174,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Enum tables must stay NUL-terminated.</b> Each <code>ngx_conf_enum_t[]</code> ends with <code>{ ngx_null_string, 0 }</code>; nginx's enum setter walks until that sentinel. Dropping it causes an out-of-bounds scan.</li>
 <li><b>No main-conf callbacks by design.</b> <code>create_main_conf</code> / <code>init_main_conf</code> are <code>NULL</code> in <code><a class="el" href="module__definition_8c.html">module_definition.c</a></code> — each server block self-manages. Do not add cross-server aggregation here; process-wide state belongs in SHM (<code>../shm/</code>, <code>../manager/</code>) initialised from <code>init_process</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md416"></a>
+<h1><a class="anchor" id="autotoc_md422"></a>
 Entry points / extending</h1>
 <p><b>Add a new <code>brix_*</code> directive:</b></p><ol type="1">
 <li>Add the destination field to <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> in <code>../types/config.h</code> (initialise to <code>NGX_CONF_UNSET*</code> / <code>NULL</code> in <code>create_srv_conf</code>, and merge in <code>merge_srv_conf</code> — both in <code>../config/server_conf.c</code>).</li>
@@ -184,7 +184,7 @@ Entry points / extending</h1>
 <li>Document it (this README's <code>Directive groups</code> table) and add tests (success + error + security-negative).</li>
 </ol>
 <p><b>Add a new lifecycle hook</b> (e.g. a new per-worker timer): wire the callback slot in <code>ngx_stream_brix_module_ctx</code> / <code>ngx_module_t</code> in <code><a class="el" href="module__definition_8c.html">module_definition.c</a></code>, but implement the body under <code>../config/</code> — keep this directory glue-only.</p>
-<h1><a class="anchor" id="autotoc_md417"></a>
+<h1><a class="anchor" id="autotoc_md423"></a>
 See also</h1>
 <ul>
 <li><code>../config/README.md</code> — the lifecycle callbacks (<code>create/merge_srv_conf</code>, <code>postconfiguration</code>, <code>init_process</code>, <code>exit_process</code>) this descriptor points at. The <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code> struct itself is defined in <code>../types/config.h</code>.</li>

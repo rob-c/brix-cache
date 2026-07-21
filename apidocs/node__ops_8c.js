@@ -10,5 +10,6 @@ var node__ops_8c =
     [ "K_RMDIR", "node__ops_8c.html#a664352b2bc430e2093f2c9fdc13bc2cd", null ],
     [ "K_TRUNC", "node__ops_8c.html#aa98ac29e8c88e43bd0a0f9148484c423", null ],
     [ "brix_cms_node_plan", "node__ops_8c.html#a205941b846c68b07d8af0ef6b3e43f9c", null ],
-    [ "field_str", "node__ops_8c.html#a33a035a2129127ae8eb40a2a5432fade", null ]
+    [ "field_str", "node__ops_8c.html#a33a035a2129127ae8eb40a2a5432fade", null ],
+    [ "node_plan_mode_op", "node__ops_8c.html#aad6bdfa7a8a38a73c51360f4111e32ba", null ]
 ];

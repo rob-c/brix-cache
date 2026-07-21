@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_src_2fs_2scan_2README.html',''); in
   <div class="headertitle"><div class="title">&lt;tt&gt;src/fs/scan/&lt;/tt&gt; — bulk storage scan / verify / inventory engine</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md189"></a> A throttled, confined, streaming, resumable, <b>backend-neutral</b> engine that enumerates storage and runs a per-object action, streaming one NDJSON record per object to an admin. Drives POSIX, pblock, S3 and <b>Ceph/RADOS</b> identically, because every filesystem touch goes through the VFS seam (<code>brix_vfs_*</code>) — no backend symbol appears here.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md193"></a> A throttled, confined, streaming, resumable, <b>backend-neutral</b> engine that enumerates storage and runs a per-object action, streaming one NDJSON record per object to an admin. Drives POSIX, pblock, S3 and <b>Ceph/RADOS</b> identically, because every filesystem touch goes through the VFS seam (<code>brix_vfs_*</code>) — no backend symbol appears here.</p>
 <p>Design: `../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md` and the folded sysadmin-tooling menu `../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md`.</p>
-<h1><a class="anchor" id="autotoc_md190"></a>
+<h1><a class="anchor" id="autotoc_md194"></a>
 Layering</h1>
 <p><code>scan_record</code>, <code>scan_throttle</code>, <code>scan_emit</code> (and the orchestration in <code>scan_engine</code>) are <b>ngx-free and protocol-agnostic</b> — they take a <code>rootfd</code>, a parsed options struct, and an emit callback. <code><a class="el" href="scan__http_8c.html">scan_http.c</a></code> is the <em>only</em> nginx-coupled file; it owns the <code>ngx_http_request_t</code>, admin auth, param parse, and chunked NDJSON output. This boundary lets a future <code>root://</code> scan opcode reuse the engine unchanged.</p>
-<h1><a class="anchor" id="autotoc_md191"></a>
+<h1><a class="anchor" id="autotoc_md195"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -116,7 +116,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="scan__http_8c.html">scan_http.c</a></code>   </td><td class="markdownTableBodyNone">admin HTTP endpoint <code>GET /xrootd/api/v1/scan</code>: auth, param parse, <code>openat2</code> confinement, buffered NDJSON body   </td><td class="markdownTableBodyNone"><code>tests/test_scan.py</code>   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md192"></a>
+<h1><a class="anchor" id="autotoc_md196"></a>
 Endpoint</h1>
 <p><code>GET /xrootd/api/v1/scan?mode=dump|verify|fill|compare|inspect|health&amp;path=&lt;rel&gt;&amp;alg=&lt;name&gt;&amp;max_files=&lt;n&gt;</code> — admin-auth (same gate as the dashboard file browser), confined under <code>brix_scan_root</code>. <code>dump</code>/<code>verify</code>/<code>fill</code>/<code>compare</code>/<code>inspect</code> emit one record per object + a final <code>summary</code>; <code>health</code> emits a single capacity record. Config:</p>
 <div class="fragment"><div class="line">location /xrootd {</div>
@@ -124,7 +124,7 @@ Endpoint</h1>
 <div class="line">    brix_scan_root      /export;   # empty (default) ⇒ endpoint 404 (disabled)</div>
 <div class="line">    brix_scan_max_files 100000;    # operator cap per request</div>
 <div class="line">}</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md193"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md197"></a>
 Status</h1>
 <ul>
 <li><b>Phase 2a (done):</b> the three ngx-free cores, TDD'd, run standalone (<code>tests/test_scan.py::test_scan_core_suite</code> — no server): <div class="fragment"><div class="line">gcc -Wall -Wextra -Werror -I src/fs/scan -o /tmp/scan_ut \</div>

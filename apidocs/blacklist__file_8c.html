@@ -117,16 +117,122 @@ Functions</h2></td></tr>
 <tr class="separator:ad6682e673b8669258d3438e5db6e25a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af2df2e9f17eca6c28c9772e8420ae48e" id="r_af2df2e9f17eca6c28c9772e8420ae48e"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#af2df2e9f17eca6c28c9772e8420ae48e">blfile_parse_uint</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, size_t len, long max)</td></tr>
 <tr class="separator:af2df2e9f17eca6c28c9772e8420ae48e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeab54d67813f44df55aea650446a8e48" id="r_aeab54d67813f44df55aea650446a8e48"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#aeab54d67813f44df55aea650446a8e48">blfile_parse_cidr</a> (const char *line, size_t len, const char *slash, <a class="el" href="structbrix__cms__blfile__entry__t.html">brix_cms_blfile_entry_t</a> *out)</td></tr>
+<tr class="separator:aeab54d67813f44df55aea650446a8e48"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a736c54f81a063d33e6bc5c11d1b77fd7" id="r_a736c54f81a063d33e6bc5c11d1b77fd7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#a736c54f81a063d33e6bc5c11d1b77fd7">blfile_find_port_colon</a> (const char *line, size_t len, const char **colon)</td></tr>
+<tr class="separator:a736c54f81a063d33e6bc5c11d1b77fd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7c1df46a8ba7b75832c2020cf605b3c4" id="r_a7c1df46a8ba7b75832c2020cf605b3c4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#a7c1df46a8ba7b75832c2020cf605b3c4">brix_cms_blfile_parse_line</a> (const char *line, size_t len, <a class="el" href="structbrix__cms__blfile__entry__t.html">brix_cms_blfile_entry_t</a> *out)</td></tr>
 <tr class="separator:a7c1df46a8ba7b75832c2020cf605b3c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a290b3d53a7c12261373c87450591c505" id="r_a290b3d53a7c12261373c87450591c505"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#a290b3d53a7c12261373c87450591c505">brix_cms_blfile_entry_matches</a> (const <a class="el" href="structbrix__cms__blfile__entry__t.html">brix_cms_blfile_entry_t</a> *e, const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint16_t <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:a290b3d53a7c12261373c87450591c505"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab06a5c197dc3d71ca68f5f400e7d9f38" id="r_ab06a5c197dc3d71ca68f5f400e7d9f38"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#ab06a5c197dc3d71ca68f5f400e7d9f38">blfile_scan_line</a> (const char *buf, size_t got, size_t *pos, size_t *start, size_t *end)</td></tr>
+<tr class="separator:ab06a5c197dc3d71ca68f5f400e7d9f38"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a168b7629c35775a3dd69ca6b72b6ee33" id="r_a168b7629c35775a3dd69ca6b72b6ee33"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#a168b7629c35775a3dd69ca6b72b6ee33">blfile_reload</a> (<a class="el" href="structbrix__cms__blfile__t.html">brix_cms_blfile_t</a> *bl, const char *path, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:a168b7629c35775a3dd69ca6b72b6ee33"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae0d130904c8de02873d5faac147923f8" id="r_ae0d130904c8de02873d5faac147923f8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="blacklist__file_8c.html#ae0d130904c8de02873d5faac147923f8">brix_cms_blfile_poll</a> (<a class="el" href="structbrix__cms__blfile__t.html">brix_cms_blfile_t</a> *bl, const ngx_str_t *path, ngx_msec_t blacklist_ms, ngx_uint_t force, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:ae0d130904c8de02873d5faac147923f8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a736c54f81a063d33e6bc5c11d1b77fd7" name="a736c54f81a063d33e6bc5c11d1b77fd7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a736c54f81a063d33e6bc5c11d1b77fd7">&#9670;&#160;</a></span>blfile_find_port_colon()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int blfile_find_port_colon </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>line</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char **&#160;</td>
+          <td class="paramname"><em>colon</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00092">92</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00120">brix_cms_blfile_parse_line()</a>.</p>
+
+</div>
+</div>
+<a id="aeab54d67813f44df55aea650446a8e48" name="aeab54d67813f44df55aea650446a8e48"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeab54d67813f44df55aea650446a8e48">&#9670;&#160;</a></span>blfile_parse_cidr()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int blfile_parse_cidr </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>line</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>slash</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__cms__blfile__entry__t.html">brix_cms_blfile_entry_t</a> *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00066">66</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
+
+<p class="reference">References <a class="el" href="blacklist__file_8c_source.html#l00023">blfile_parse_ipv4()</a>, <a class="el" href="blacklist__file_8c_source.html#l00043">blfile_parse_uint()</a>, <a class="el" href="blacklist__file_8h_source.html#l00040">brix_cms_blfile_entry_t::is_cidr</a>, <a class="el" href="blacklist__file_8h_source.html#l00038">brix_cms_blfile_entry_t::mask</a>, and <a class="el" href="blacklist__file_8h_source.html#l00037">brix_cms_blfile_entry_t::net</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00120">brix_cms_blfile_parse_line()</a>.</p>
+
+</div>
+</div>
 <a id="ad6682e673b8669258d3438e5db6e25a6" name="ad6682e673b8669258d3438e5db6e25a6"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad6682e673b8669258d3438e5db6e25a6">&#9670;&#160;</a></span>blfile_parse_ipv4()</h2>
 
@@ -171,7 +277,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00142">brix_cms_blfile_entry_matches()</a>, and <a class="el" href="blacklist__file_8c_source.html#l00064">brix_cms_blfile_parse_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00066">blfile_parse_cidr()</a>, and <a class="el" href="blacklist__file_8c_source.html#l00163">brix_cms_blfile_entry_matches()</a>.</p>
 
 </div>
 </div>
@@ -219,7 +325,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00064">brix_cms_blfile_parse_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00066">blfile_parse_cidr()</a>, and <a class="el" href="blacklist__file_8c_source.html#l00120">brix_cms_blfile_parse_line()</a>.</p>
 
 </div>
 </div>
@@ -263,11 +369,69 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00170">170</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00218">218</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="blacklist__file_8h_source.html#l00032">BRIX_CMS_BLFILE_MAX_BYTES</a>, <a class="el" href="blacklist__file_8h_source.html#l00031">BRIX_CMS_BLFILE_MAX_ENTRIES</a>, <a class="el" href="blacklist__file_8c_source.html#l00064">brix_cms_blfile_parse_line()</a>, <a class="el" href="blacklist__file_8h_source.html#l00044">brix_cms_blfile_t::entries</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="blacklist__file_8h_source.html#l00045">brix_cms_blfile_t::nentries</a>.</p>
+<p class="reference">References <a class="el" href="blacklist__file_8c_source.html#l00191">blfile_scan_line()</a>, <a class="el" href="blacklist__file_8h_source.html#l00032">BRIX_CMS_BLFILE_MAX_BYTES</a>, <a class="el" href="blacklist__file_8h_source.html#l00031">BRIX_CMS_BLFILE_MAX_ENTRIES</a>, <a class="el" href="blacklist__file_8c_source.html#l00120">brix_cms_blfile_parse_line()</a>, <a class="el" href="blacklist__file_8h_source.html#l00044">brix_cms_blfile_t::entries</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="blacklist__file_8h_source.html#l00045">brix_cms_blfile_t::nentries</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00238">brix_cms_blfile_poll()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00272">brix_cms_blfile_poll()</a>.</p>
+
+</div>
+</div>
+<a id="ab06a5c197dc3d71ca68f5f400e7d9f38" name="ab06a5c197dc3d71ca68f5f400e7d9f38"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab06a5c197dc3d71ca68f5f400e7d9f38">&#9670;&#160;</a></span>blfile_scan_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void blfile_scan_line </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>got</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>pos</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>start</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>end</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00191">191</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00218">blfile_reload()</a>.</p>
 
 </div>
 </div>
@@ -303,11 +467,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00142">142</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00163">163</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
 
 <p class="reference">References <a class="el" href="blacklist__file_8c_source.html#l00023">blfile_parse_ipv4()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="blacklist__file_8h_source.html#l00036">brix_cms_blfile_entry_t::host</a>, <a class="el" href="blacklist__file_8h_source.html#l00040">brix_cms_blfile_entry_t::is_cidr</a>, <a class="el" href="blacklist__file_8h_source.html#l00038">brix_cms_blfile_entry_t::mask</a>, <a class="el" href="blacklist__file_8h_source.html#l00037">brix_cms_blfile_entry_t::net</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, and <a class="el" href="blacklist__file_8h_source.html#l00039">brix_cms_blfile_entry_t::port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00238">brix_cms_blfile_poll()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00272">brix_cms_blfile_poll()</a>.</p>
 
 </div>
 </div>
@@ -343,11 +507,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00064">64</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00120">120</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="blacklist__file_8c_source.html#l00023">blfile_parse_ipv4()</a>, <a class="el" href="blacklist__file_8c_source.html#l00043">blfile_parse_uint()</a>, <a class="el" href="blacklist__file_8h_source.html#l00036">brix_cms_blfile_entry_t::host</a>, <a class="el" href="blacklist__file_8h_source.html#l00040">brix_cms_blfile_entry_t::is_cidr</a>, <a class="el" href="blacklist__file_8h_source.html#l00038">brix_cms_blfile_entry_t::mask</a>, <a class="el" href="blacklist__file_8h_source.html#l00037">brix_cms_blfile_entry_t::net</a>, and <a class="el" href="blacklist__file_8h_source.html#l00039">brix_cms_blfile_entry_t::port</a>.</p>
+<p class="reference">References <a class="el" href="blacklist__file_8c_source.html#l00092">blfile_find_port_colon()</a>, <a class="el" href="blacklist__file_8c_source.html#l00066">blfile_parse_cidr()</a>, <a class="el" href="blacklist__file_8c_source.html#l00043">blfile_parse_uint()</a>, <a class="el" href="blacklist__file_8h_source.html#l00036">brix_cms_blfile_entry_t::host</a>, and <a class="el" href="blacklist__file_8h_source.html#l00039">brix_cms_blfile_entry_t::port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00170">blfile_reload()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="blacklist__file_8c_source.html#l00218">blfile_reload()</a>.</p>
 
 </div>
 </div>
@@ -395,9 +559,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00238">238</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="blacklist__file_8c_source.html#l00272">272</a> of file <a class="el" href="blacklist__file_8c_source.html">blacklist_file.c</a>.</p>
 
-<p class="reference">References <a class="el" href="blacklist__file_8c_source.html#l00170">blfile_reload()</a>, <a class="el" href="blacklist__file_8c_source.html#l00142">brix_cms_blfile_entry_matches()</a>, <a class="el" href="blacklist__file_8h_source.html#l00033">BRIX_CMS_BLFILE_POLL_MS</a>, <a class="el" href="registry__select_8c_source.html#l00492">brix_srv_blacklist()</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00024">BRIX_SRV_REGISTRY_SLOTS</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="blacklist__file_8h_source.html#l00044">brix_cms_blfile_t::entries</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00059">brix_srv_snapshot_entry_t::host</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="blacklist__file_8h_source.html#l00046">brix_cms_blfile_t::mtime</a>, <a class="el" href="blacklist__file_8h_source.html#l00045">brix_cms_blfile_t::nentries</a>, <a class="el" href="blacklist__file_8h_source.html#l00047">brix_cms_blfile_t::next_poll</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00060">brix_srv_snapshot_entry_t::port</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="blacklist__file_8c_source.html#l00218">blfile_reload()</a>, <a class="el" href="blacklist__file_8c_source.html#l00163">brix_cms_blfile_entry_matches()</a>, <a class="el" href="blacklist__file_8h_source.html#l00033">BRIX_CMS_BLFILE_POLL_MS</a>, <a class="el" href="registry__select_8c_source.html#l00492">brix_srv_blacklist()</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00024">BRIX_SRV_REGISTRY_SLOTS</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="blacklist__file_8h_source.html#l00044">brix_cms_blfile_t::entries</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00059">brix_srv_snapshot_entry_t::host</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="blacklist__file_8h_source.html#l00046">brix_cms_blfile_t::mtime</a>, <a class="el" href="blacklist__file_8h_source.html#l00045">brix_cms_blfile_t::nentries</a>, <a class="el" href="blacklist__file_8h_source.html#l00047">brix_cms_blfile_t::next_poll</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00060">brix_srv_snapshot_entry_t::port</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00049">cms_srv_blfile_tick()</a>.</p>
 

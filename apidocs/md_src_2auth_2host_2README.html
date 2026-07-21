@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2auth_2host_2README.html',''); 
   <div class="headertitle"><div class="title">host — host-based authentication for the &lt;tt&gt;root://&lt;/tt&gt; stream protocol</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md25"></a> </p>
-<h1><a class="anchor" id="autotoc_md26"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md26"></a> </p>
+<h1><a class="anchor" id="autotoc_md27"></a>
 Overview</h1>
 <p>This subsystem implements the XRootD **<code>host</code>** security protocol (the wire equivalent of upstream <code>XrdSecProtocolhost</code>) for <code>root://</code>/<code>roots://</code> clients. It is XRootD's weakest and oldest scheme: the client merely <em>selects</em> <code>host</code> and asserts no identity of its own. The server reverse-resolves the peer's socket address to a hostname and, if that hostname matches a configured allowlist, authenticates the connection <b>as that hostname</b>. It is one of several pluggable stream credential types (<code>gsi</code>, <code>token</code>, <code>sss</code>, <code>unix</code>, <code>krb5</code>, <code>pwd</code>, <code>host</code>), all dispatched from the single <code>kXR_auth</code> handler in <code>../gsi/auth.c</code>.</p>
 <p>Because a hostname (and, lacking DNSSEC, DNS itself) is spoofable, <code>host</code> is <b>fail-closed and for trusted closed networks only</b>: it must be explicitly selected (<code>brix_auth host</code>), an allowlist <b>must</b> be configured (<code>brix_host_allow</code>; empty = deny all), and the identity always comes from the socket's reverse-DNS — never from any client-asserted name. Isolating the scheme in this one file keeps the spoofable surface in a single auditable place.</p>
 <p>In the request lifecycle this sits at the <b>stream login/auth stage</b>. After the handshake and <code>kXR_login</code>, the client sends a <code>kXR_auth</code> request whose credential type is <code>host</code>; the dispatcher in <code>../gsi/auth.c</code> calls <code><a class="el" href="src_2auth_2host_2auth_8c.html#aa94e485e0270d7697635924b817781de">brix_handle_host_auth()</a></code> here. Only the <code>root://</code> stream path uses it; the WebDAV/HTTPS and S3 paths use GSI certs, bearer tokens, and SigV4 and never enter this code.</p>
-<h1><a class="anchor" id="autotoc_md27"></a>
+<h1><a class="anchor" id="autotoc_md28"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
