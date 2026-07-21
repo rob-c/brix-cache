@@ -21,39 +21,45 @@ jobs:
         with:
           fetch-depth: 0          # guards use `git ls-files`
       - name: config coverage — every .c built or reasoned
-        run: tools/ci/check_config_coverage.sh
+        run: tools/ci/check_config_coverage.py
       - name: vfs seam — no new storage-plane bypasses
         if: '!cancelled()'
-        run: tools/ci/check_vfs_seam.sh
+        run: tools/ci/check_vfs_seam.py
       - name: http helper reimplementation
         if: '!cancelled()'
-        run: tools/ci/check_http_helper_reimpl.sh
+        run: tools/ci/check_http_helper_reimpl.py
       - name: auth verdict sentinel — no unsanctioned auth_done setters (C-3)
         if: '!cancelled()'
-        run: tools/ci/check_auth_verdict_sentinel.sh
+        run: tools/ci/check_auth_verdict_sentinel.py
       - name: metric cardinality — no unbounded Prometheus label values
         if: '!cancelled()'
-        run: tools/ci/check_metric_cardinality.sh
+        run: tools/ci/check_metric_cardinality.py
       - name: sd driver conformance
         if: '!cancelled()'
-        run: tools/ci/check_sd_driver_conformance.sh
+        run: tools/ci/check_sd_driver_conformance.py
+      - name: shm mutex — no bare ngx_shmtx_create (INVARIANT 10)
+        if: '!cancelled()'
+        run: tools/ci/check_shm_mutex.py
       - name: file-size ratchet (500-line soft cap)
         if: '!cancelled()'
-        run: tools/ci/check_file_size.sh
+        run: tools/ci/check_file_size.py
       - name: complexity ratchet (CCN 15 cap)
         if: '!cancelled()'
         run: |
           pip install --quiet lizard
-          tools/ci/check_complexity.sh
+          tools/ci/check_complexity.py
+      - name: todo/fixme ratchet (no new deferred-work markers)
+        if: '!cancelled()'
+        run: tools/ci/check_todo_fixme.py
       - name: doc path drift — CLAUDE.md/README/index reference real paths
         if: '!cancelled()'
-        run: tools/ci/check_doc_paths.sh
+        run: tools/ci/check_doc_paths.py
       - name: doc links — relative markdown links resolve
         if: '!cancelled()'
-        run: tools/ci/check_doc_links.sh
+        run: tools/ci/check_doc_links.py
       - name: readme coverage — substantial src/ dirs are documented
         if: '!cancelled()'
-        run: tools/ci/check_readme_coverage.sh
+        run: tools/ci/check_readme_coverage.py
       - name: ports registry — settings.py constants all documented
         if: '!cancelled()'
-        run: tools/ci/check_ports_doc.sh
+        run: tools/ci/check_ports_doc.py

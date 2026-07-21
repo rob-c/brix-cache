@@ -1,7 +1,28 @@
 # Phase-64 follow-up — generic slice/partial fill + read-fill admission
 
-**Status:** BACKLOG (surfaced by the read-cache partial-fill test suite,
-`tests/test_cache_partial_fill.py`, 2026-07-01).
+**Status:** ~~BACKLOG~~ **DONE — both items landed (verified against the tree
+2026-07-21, phase-89 doc truth sweep).**
+
+> **SUPERSEDED (2026-07-21).** Both gaps below are closed in the tree:
+> - **§1 generic slice fill:** the Group-2 strict-xfails in
+>   `tests/test_cache_partial_fill.py` are now passing capability tests — the
+>   composable `sd_cache` range-fills any backend (the test comment reads
+>   "Formerly a strict xfail: the legacy…"; the phase-64 umbrella §14 status
+>   block records the flip landing with the legacy-grammar removal).
+> - **§2 read-fill admission:** `test_admission_prefix_regex_gating` is an
+>   active (un-skipped) test asserting the `sd_cache` read-fill enforces the
+>   deny/allow-prefix + include-regex admission policy, bridged from the srv
+>   conf into the tier policy — read parity with write-through
+>   (`src/fs/cache/writethrough_decision.c` includes `cache_admit.h`
+>   "shared admission filter (read+write parity)").
+>
+> Only the Group-5 env-gated heavy-backend legs still skip on a bare box (by
+> design). Remaining phase-64 work is tracked in
+> `phase-89-design-backlog-burndown.md` §D. The text below is the historical
+> record of the original findings.
+
+(Original status: BACKLOG — surfaced by the read-cache partial-fill test suite,
+`tests/test_cache_partial_fill.py`, 2026-07-01.)
 
 ## 1. Generic slice/partial fill over any backend
 

@@ -161,3 +161,56 @@ def test_firefly_out_of_range_scitag_ignored(lifecycle, tmp_path):
 
     assert rc.stdout.strip() == "200"      # transfer succeeds (fail-open)
     assert flies == []                     # but nothing was marked
+
+
+# --------------------------------------------------------------------------- #
+# phase-34 ffecho: config-time minimum-interval clamp (XRootD parity — stock  #
+# pmark enforces a 30s floor on the ongoing-flow refresh).                    #
+# --------------------------------------------------------------------------- #
+def _echo_conf(tmp_path, echo_directive):
+    """Minimal stream root:// server carrying one brix_pmark_echo directive."""
+    (tmp_path / "logs").mkdir(exist_ok=True)
+    root = tmp_path / "data"
+    root.mkdir(exist_ok=True)
+    conf = tmp_path / "nginx.conf"
+    conf.write_text(
+        f"""daemon off; error_log {tmp_path / 'logs' / 'e.log'} info; pid {tmp_path / 'nginx.pid'};
+thread_pool default threads=2;
+events {{ worker_connections 64; }}
+stream {{ server {{
+    listen 127.0.0.1:{free_port()}; brix_root on; brix_auth none;
+    brix_storage_backend posix:{root};
+    brix_pmark on; {echo_directive}
+}} }}
+""",
+        encoding="utf-8",
+    )
+    return conf
+
+
+def _nginx_t(conf):
+    r = subprocess.run(
+        [NGINX_BIN, "-p", str(conf.parent), "-c", str(conf), "-t"],
+        capture_output=True, text=True, timeout=30)
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+
+def test_pmark_echo_below_min_clamped_with_warning(tmp_path):
+    """5s is below the 30s floor: config still loads, but warns + raises."""
+    rc, out = _nginx_t(_echo_conf(tmp_path, "brix_pmark_echo 5s;"))
+    assert rc == 0, out
+    assert "below the 30s minimum" in out, out
+
+
+def test_pmark_echo_at_min_accepted_silently(tmp_path):
+    """45s satisfies the floor — no clamp warning."""
+    rc, out = _nginx_t(_echo_conf(tmp_path, "brix_pmark_echo 45s;"))
+    assert rc == 0, out
+    assert "below the 30s minimum" not in out, out
+
+
+def test_pmark_echo_off_no_warning(tmp_path):
+    """0 = one-shot only (echo disabled) must not trip the clamp."""
+    rc, out = _nginx_t(_echo_conf(tmp_path, "brix_pmark_echo 0;"))
+    assert rc == 0, out
+    assert "below the 30s minimum" not in out, out

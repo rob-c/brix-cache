@@ -325,6 +325,26 @@ brix_merge_srv_cache_origin(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->cache_eviction_threshold,
                               prev->cache_eviction_threshold, 900000);
 
+    /* Phase-88 loose end: brix_cache_evict_at/_to (tier grammar, PERCENT) are
+     * an alternate spelling of the watermark pair — an explicitly-set pair
+     * seeds the reaper (percent -> ppm); the ppm-native brix_cache_high/
+     * low_watermark directives win when both are given. A lone evict_at takes
+     * the documented 80% target, a lone evict_to the 90% trigger. Percent
+     * range/order is validated in runtime_server.c BEFORE the ppm check so a
+     * unit mistake gets the percent-worded error. */
+    if (conf->common.cache_evict_at != NGX_CONF_UNSET_UINT
+        || conf->common.cache_evict_to != NGX_CONF_UNSET_UINT)
+    {
+        ngx_conf_merge_uint_value(conf->reaper.high_watermark,
+            prev->reaper.high_watermark,
+            (conf->common.cache_evict_at == NGX_CONF_UNSET_UINT
+                 ? 90 : conf->common.cache_evict_at) * 10000);
+        ngx_conf_merge_uint_value(conf->reaper.low_watermark,
+            prev->reaper.low_watermark,
+            (conf->common.cache_evict_to == NGX_CONF_UNSET_UINT
+                 ? 80 : conf->common.cache_evict_to) * 10000);
+    }
+
     /* Watermark reaper: HIGH defaults to the on-fill eviction threshold so an
      * existing config keeps its bound; LOW defaults 50000 ppm (5%) below HIGH for
      * hysteresis; the timer runs every 60s by default. The ordering invariant

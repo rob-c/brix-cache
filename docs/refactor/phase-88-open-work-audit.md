@@ -190,7 +190,13 @@ Plan-only phases: **70** (full credential delegation — not started), **27/28**
 storage-backend abstraction — check overlap with landed 63/64/71 before
 starting). Design-only: **60** (Ceph beyond the basic `sd_ceph.c` driver),
 **61** (CMS parity spec), **64** (fully-tiered composable storage +
-generic-slice-fill BACKLOG). Partial: **59** (staged CSI-counter + W3b
+generic-slice-fill BACKLOG) — *re-verified against the tree 2026-07-21 and
+reduced to an implementation umbrella,
+`phase-89-design-backlog-burndown.md`: 60 is ~half landed (remainder = the
+namespace plane), 61 is fully open (~9 wk, W2 re-grounded on the
+stage-request registry), 64 is substantially landed (slice-fill follow-up
+DONE; remainder = directive-grammar decision + infra-blocked/deferred tail)*.
+Partial: **59** (staged CSI-counter + W3b
 reservation TPC call-site rows; deferred W2 per-page CSI+scrub), **58**
 (remaining wire wrappers; 5g test deferred), **80** stretch (P80.11–14,
 P80.21–25 zero-provisioning multi-user), **56** (remaining VFS perf-audit
@@ -198,14 +204,40 @@ migrations, e.g. `webdav_handle_mkcol`), **49** tail (low-value client
 code-sharing sweep), **38** (6 of 28 files still unsplit), **83**
 (`pblock-fsck --replay` deferred).
 
-Loose ends with a missing producer/consumer: `evict_at`/`evict_to` directives
-have **no consumer**; `xrdckverify --cache` has **no producer** (server never
-populates `.cinfo`/`.meta` cks fields on fill); generic S3 `listxattr` over
-`x-amz-meta-*` needs a transport extension; CSI `.xrdt` tag entry not hidden
-from dirlist; TPC outbound GSI still advertises unsigned-DH 10300 (kernel
-supports signed 10600 — easy, unverified flip); phase-71 deferred e2e wire
-tests for read-only-backend EPERM/ENOTSUP; phase-34 `ffecho` interval
-unimplemented; phase-22 probe path has no TLS upgrade (as-built divergence).
+> **SUPERSEDED 2026-07-21 — all 8 loose ends below CLOSED** (implemented +
+> tested in one sweep; each item annotated inline):
+
+1. `evict_at`/`evict_to` no consumer — **FIXED**: watermark scan consumer
+   landed + parse-tested (`test_cmd_cache_watermark_config.py`).
+2. `xrdckverify --cache` no producer — **FIXED**: verified-fill now records
+   the checksum server-side; client xmeta reader + 13-unit suite + live e2e
+   (`test_cache_verify_require.py`, `test_xrdckverify.py`).
+3. Generic S3 `listxattr` over `x-amz-meta-*` — **FIXED**: `resp_headers_raw`
+   transport extension + `sd_s3_list_meta`/`sd_remote_listxattr`; live smoke
+   (`cmdscripts.metadata_live_ports sd-s3-meta`). Gotcha: the mid-struct
+   vtable insert required a stale-object purge in ALL THREE build systems
+   (shared/xrdproto has zero dep tracking — ABI skew crashed `resp_free`).
+4. CSI `.xrdt` hidden from dirlist — **FIXED** + 4 tests.
+5. TPC outbound GSI 10300→10600 signed-DH — **FIXED**, live-verified vs stock
+   (`test_tpc_gsi_stock_source_only.py`, `test_tpc_tls.py`).
+6. Phase-71 deferred e2e wire tests — **DONE**: `test_readonly_backend_wire.py`
+   proves kXR_mkdir/mv → kXR_NotAuthorized and truncate → kXR_Unsupported over
+   the root wire on an s3 backend, with a byte-exact read success leg.
+7. Phase-34 `ffecho` — the "unimplemented" claim above was **STALE**: the
+   root:// echo timer already existed; the real gap was the min-30s clamp,
+   now landed + tested (`test_pmark.py`).
+8. Phase-22 probe TLS upgrade (Step F) — **IMPLEMENTED** via the shared
+   `brix_outbound_start_tls()` seam; TLS-capable probes advertise
+   `kXR_ableTLS` and defer login past the protocol verdict (a pipelined
+   plaintext login corrupts the server's TLS handshake). Deep/verify-fail/
+   shallow-fallback legs in `test_phase22_health_check.py` §4.
+
+Original register (kept for the record): `evict_at`/`evict_to` directives
+had no consumer; `xrdckverify --cache` no producer; generic S3 `listxattr`
+needed a transport extension; CSI `.xrdt` not hidden from dirlist; TPC
+outbound GSI advertised unsigned-DH 10300; phase-71 e2e wire tests deferred;
+phase-34 `ffecho` (mis)flagged unimplemented; phase-22 probe path had no TLS
+upgrade (as-built divergence).
 
 Standing refactor backlog: `docs/refactor/QUALITY_ROADMAP.md` (score 6.5→9.5
 target) remains the primary live code-quality queue.

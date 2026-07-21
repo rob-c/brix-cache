@@ -234,6 +234,62 @@ test_striper_layout(void)
     }
 }
 
+/* ---- Assert one-level child classification for the stripe-collapse listing ----
+ *
+ * WHAT: Exercises sd_ceph_path_child over root/deep listings: file children,
+ * synthetic-directory children, non-children (the dir itself, siblings whose
+ * name merely prefixes the dir, out-of-tree paths), and the unrepresentable-
+ * name skip. Bumps the shared failures counter on any misclassification.
+ *
+ * WHY: This is the collapse step of the phase-89 §B.1 directory listing: a
+ * wrong match either leaks entries across directories (a sibling whose name
+ * shares the dir as a string prefix) or drops/duplicates listing rows.
+ *
+ * HOW:
+ *   1. Assert root-listing file and dir children.
+ *   2. Assert deep-listing file and dir children.
+ *   3. Assert the non-child rejections (self, prefix-sibling, out-of-tree).
+ *   4. Assert the tiny-cap unrepresentable-name skip returns 0.
+ */
+static void
+test_path_child(void)
+{
+    char name[256];
+    char tiny[3];
+
+    if (sd_ceph_path_child("/", "/f.root", name, sizeof(name)) != 1
+        || strcmp(name, "f.root") != 0) {
+        fprintf(stderr, "FAIL path_child root file\n");
+        failures++;
+    }
+    if (sd_ceph_path_child("/", "/d/x/y", name, sizeof(name)) != 2
+        || strcmp(name, "d") != 0) {
+        fprintf(stderr, "FAIL path_child root dir\n");
+        failures++;
+    }
+    if (sd_ceph_path_child("/a/b", "/a/b/f", name, sizeof(name)) != 1
+        || strcmp(name, "f") != 0) {
+        fprintf(stderr, "FAIL path_child deep file\n");
+        failures++;
+    }
+    if (sd_ceph_path_child("/a/b", "/a/b/c/f", name, sizeof(name)) != 2
+        || strcmp(name, "c") != 0) {
+        fprintf(stderr, "FAIL path_child deep dir\n");
+        failures++;
+    }
+    if (sd_ceph_path_child("/a/b", "/a/b",   name, sizeof(name)) != 0   /* self */
+        || sd_ceph_path_child("/a/b", "/a/bc/f", name, sizeof(name)) != 0 /* prefix sibling */
+        || sd_ceph_path_child("/a/b", "/a/x/f",  name, sizeof(name)) != 0 /* out of tree */
+        || sd_ceph_path_child("/a/b", "/z",      name, sizeof(name)) != 0) {
+        fprintf(stderr, "FAIL path_child non-child rejection\n");
+        failures++;
+    }
+    if (sd_ceph_path_child("/", "/longname", tiny, sizeof(tiny)) != 0) {
+        fprintf(stderr, "FAIL path_child unrepresentable-name skip\n");
+        failures++;
+    }
+}
+
 /* ---- Run every pure-mapping check group and report the aggregate result ----
  *
  * WHAT: Invokes each check-group helper in order, then prints a pass line and
@@ -258,6 +314,7 @@ main(void)
     test_key_composition();
     test_ino_hash();
     test_striper_layout();
+    test_path_child();
 
     if (failures == 0) {
         printf("sd_ceph_unittest: all checks passed\n");

@@ -143,6 +143,50 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         )
     )
 
+    # phase-88 loose end: the percent-spelled evict pair now seeds the reaper
+    # watermarks (evict_at*10000 ppm) when set; watermark directives win.
+    evict = base / "evict"
+    results.append(
+        expect_ok(
+            nginx_bin,
+            write_cache_config(evict, "brix_cache_evict_at 90;", "brix_cache_evict_to 80;"),
+            "evict_at/evict_to percent pair accepted",
+        )
+    )
+
+    evict_inverted = base / "evict_inverted"
+    results.append(
+        expect_reject(
+            nginx_bin,
+            write_cache_config(evict_inverted, "brix_cache_evict_at 70;", "brix_cache_evict_to 80;"),
+            "evict_to must be a percent greater than 0",
+            "inverted evict pair rejected",
+        )
+    )
+
+    evict_full = base / "evict_full"
+    results.append(
+        expect_reject(
+            nginx_bin,
+            write_cache_config(evict_full, "brix_cache_evict_at 100;"),
+            "evict_to must be a percent greater than 0",
+            "evict_at 100 rejected (must stay below full)",
+        )
+    )
+
+    evict_both = base / "evict_and_watermark"
+    results.append(
+        expect_ok(
+            nginx_bin,
+            write_cache_config(
+                evict_both,
+                "brix_cache_evict_at 95; brix_cache_evict_to 85;",
+                "brix_cache_high_watermark 90%; brix_cache_low_watermark 80%;",
+            ),
+            "evict pair coexists with explicit watermarks",
+        )
+    )
+
     return results
 
 

@@ -16,6 +16,7 @@
 #include "cvmfs.h"
 #include "fs/path/path.h"
 #include "net/guard/guard.h"
+#include "core/fnv.h"
 
 /* --- negative cache (T13) --------------------------------------------------
  * Per-worker fixed-size direct-mapped memo of recent 404s (the deliberate
@@ -38,11 +39,11 @@ static cvmfs_neg_slot  cvmfs_neg[CVMFS_NEG_SLOTS];
 static uint64_t
 cvmfs_neg_hash(const ngx_str_t *uri)
 {
-    uint64_t h = 0xcbf29ce484222325ull;
+    uint64_t h = BRIX_FNV1A64_OFFSET_BASIS;
     size_t   i;
 
     for (i = 0; i < uri->len; i++) {
-        h = (h ^ uri->data[i]) * 0x100000001b3ull;
+        h = (h ^ uri->data[i]) * BRIX_FNV1A64_PRIME;
     }
     return (h != 0) ? h : 1;            /* 0 is the empty-slot marker      */
 }

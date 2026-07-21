@@ -22,14 +22,18 @@
 
 /*
  * A server-internal connector owns a fixed streamid {0,1} and presents the
- * anonymous "xrd" identity with no TLS-capability flags in the protocol request
- * (TLS, when required, is driven by the server's kXR_gotoTLS response, not by a
- * client-side wantTLS flag). The wire layout itself lives in bootstrap_pack.h.
+ * anonymous "xrd" identity. By default the protocol request carries no
+ * TLS-capability flags (TLS, when required, is driven by the server's
+ * kXR_gotoTLS response, not by a client-side wantTLS flag); a caller that CAN
+ * upgrade — one holding an outbound TLS ctx, e.g. the Step-F health probe —
+ * uses the _flags variant to advertise kXR_ableTLS, since a brix server only
+ * answers kXR_gotoTLS to TLS-capable clients. The wire layout itself lives in
+ * bootstrap_pack.h.
  */
 static const uint8_t brix_upstream_streamid[2] = { 0, 1 };
 
 void
-brix_upstream_build_bootstrap(u_char *buf)
+brix_upstream_build_bootstrap_flags(u_char *buf, uint8_t protocol_flags)
 {
     u_char *cursor = buf;
 
@@ -37,12 +41,18 @@ brix_upstream_build_bootstrap(u_char *buf)
     cursor += sizeof(ClientInitHandShake);
 
     xrd_pack_protocol_request((ClientProtocolRequest *) (void *) cursor,
-                              brix_upstream_streamid, 0);
+                              brix_upstream_streamid, protocol_flags);
     cursor += sizeof(ClientProtocolRequest);
 
     xrd_pack_login_request((ClientLoginRequest *) (void *) cursor,
                            brix_upstream_streamid, (int32_t) ngx_pid,
                            "xrd", kXR_ver005);
+}
+
+void
+brix_upstream_build_bootstrap(u_char *buf)
+{
+    brix_upstream_build_bootstrap_flags(buf, 0);
 }
 
 /*

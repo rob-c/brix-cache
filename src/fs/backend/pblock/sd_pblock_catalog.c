@@ -31,6 +31,7 @@
 
 #include "sd_pblock_catalog.h"
 #include "sd_pblock_catalog_internal.h"
+#include "core/fnv.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -51,10 +52,10 @@
 static uint32_t
 nscache_hash(const char *p)
 {
-    uint32_t h = 2166136261u;
+    uint32_t h = BRIX_FNV1A32_OFFSET_BASIS;
 
     for (; *p != '\0'; p++) {
-        h = (h ^ (unsigned char) *p) * 16777619u;
+        h = (h ^ (unsigned char) *p) * BRIX_FNV1A32_PRIME;
     }
     return h & (PBLOCK_NSCACHE_BUCKETS - 1u);
 }

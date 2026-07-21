@@ -28,7 +28,9 @@ typedef enum {
     XRDCMS_NACT_RM,
     XRDCMS_NACT_MV,
     XRDCMS_NACT_CHMOD,
-    XRDCMS_NACT_TRUNC
+    XRDCMS_NACT_TRUNC,
+    XRDCMS_NACT_PREPADD,
+    XRDCMS_NACT_PREPDEL
 } brix_cms_node_action_t;
 
 typedef struct {
@@ -37,6 +39,9 @@ typedef struct {
     const char *path2;   /* mv destination */
     mode_t      mode;    /* mkdir/mkpath/chmod permission bits */
     long long   size;    /* trunc target size */
+    const char *reqid;   /* prepadd/prepdel: manager's request id */
+    const char *notify;  /* prepadd: notification target (may be NULL) */
+    const char *prty;    /* prepadd: priority string (may be NULL) */
 } brix_cms_node_plan_t;
 
 #define XRDCMS_NODE_DEFAULT_DIR_MODE 0755

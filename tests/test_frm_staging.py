@@ -44,6 +44,7 @@ import time
 
 import pytest
 
+from cmdscripts import frm_stagecmd
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
@@ -156,30 +157,6 @@ def test_nearline_xattr_not_a_stat_signal(posix_stat):
 
 
 # ------------------------------------------------------------- frm://exec fixture
-def _stagecmd(tape, failkey, recall_log):
-    """Exec MSS adapter: $BRIX_FRM_STAGECMD <verb> <key> <online>.  Every recall is
-    appended to `recall_log` so the dedup test can count them; `recall` of
-    `failkey` exits non-zero so an unrecallable object errors rather than hangs.
-    The tape dir / fail key / log path are baked in (not passed via env) because
-    nginx rewrites its worker environ — a spawned command sees only argv plus the
-    one variable the config re-exports (BRIX_FRM_STAGECMD)."""
-    return (
-        "#!/bin/bash\n"
-        'verb="$1"; key="${2#/}"; online="$3"\n'
-        f"tape='{tape}'\n"
-        f"failkey='{failkey}'\n"
-        f"log='{recall_log}'\n"
-        'case "$verb" in\n'
-        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
-        '  recall)  echo "recall $key" >> "$log"\n'
-        '           [ "$key" = "$failkey" ] && exit 1\n'
-        '           mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
-        '  migrate) cp "$online" "$tape/$key" ;;\n'
-        '  purge)   rm -f "$online" ;;\n'
-        "esac\n"
-    )
-
-
 @pytest.fixture
 def frm_recall(lifecycle, tmp_path):
     """The live nearline surface: frm://exec MSS backend + posix cache store."""
@@ -200,9 +177,13 @@ def frm_recall(lifecycle, tmp_path):
     # failfile.dat is present on tape but its recall verb fails.
     (tape / "failfile.dat").write_bytes(b"unrecallable\n")
 
-    stagecmd = d / "stage.sh"
-    stagecmd.write_text(_stagecmd(str(tape), "failfile.dat", str(recall_log)))
-    stagecmd.chmod(0o755)
+    # Exec MSS adapter: every recall appends "recall <key>" to recall_log so the
+    # dedup test can count them; recall of the fail key exits non-zero so an
+    # unrecallable object errors rather than hangs. Config rides in a JSON
+    # sidecar (nginx rewrites its worker environ — a spawned command sees only
+    # argv plus BRIX_FRM_STAGECMD).
+    stagecmd = frm_stagecmd.install(
+        d, tape=str(tape), failkey="failfile.dat", recall_log=str(recall_log))
 
     try:
         ep = lifecycle.start(NginxInstanceSpec(

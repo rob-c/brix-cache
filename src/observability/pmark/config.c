@@ -40,8 +40,6 @@ char *
 brix_pmark_conf_merge(ngx_conf_t *cf, brix_pmark_conf_t *prev,
     brix_pmark_conf_t *conf)
 {
-    (void) cf;
-
     ngx_conf_merge_value(conf->enable,         prev->enable,         0);
     ngx_conf_merge_value(conf->firefly,        prev->firefly,        1);
     ngx_conf_merge_value(conf->flowlabel,      prev->flowlabel,      1);
@@ -49,6 +47,16 @@ brix_pmark_conf_merge(ngx_conf_t *cf, brix_pmark_conf_t *prev,
     ngx_conf_merge_value(conf->firefly_origin, prev->firefly_origin, 0);
     ngx_conf_merge_value(conf->http_plain,     prev->http_plain,     0);
     ngx_conf_merge_msec_value(conf->echo,      prev->echo,           0);
+    /* XRootD's pmark ffecho enforces a 30s floor on the "ongoing" refresh —
+     * a shorter interval multiplies firefly UDP per active flow for no
+     * monitoring benefit. Mirror it: warn and raise rather than reject so a
+     * config written against stock xrootd semantics keeps working. */
+    if (conf->echo > 0 && conf->echo < 30000) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix_pmark_echo %M ms is below the 30s minimum; raised to 30s",
+            conf->echo);
+        conf->echo = 30000;
+    }
     ngx_conf_merge_uint_value(conf->domain,    prev->domain,
                               BRIX_PMARK_DOMAIN_REMOTE);
     ngx_conf_merge_str_value(conf->appname,    prev->appname,        "nginx-xrootd");

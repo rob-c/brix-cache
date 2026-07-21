@@ -79,6 +79,9 @@ brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
         conf->sss_keytab = prev->sss_keytab;
     }
 
+    /* Phase-89 W6′ (unset = feature off; blfile poll state stays zeroed). */
+    ngx_conf_merge_str_value(conf->blacklist_file, prev->blacklist_file, "");
+
     return NGX_CONF_OK;
 }
 
@@ -261,6 +264,15 @@ static ngx_command_t  brix_cms_srv_commands[] = {
       ngx_conf_set_msec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_cms_srv_conf_t, tcp_user_timeout),
+      NULL },
+
+    /* Phase-89 W6′: operator blacklist file (host / host:port / IPv4 CIDR
+     * per line; mtime-polled, re-asserted — the file wins over undrain). */
+    { ngx_string("brix_cms_blacklist_file"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_cms_srv_conf_t, blacklist_file),
       NULL },
 
     ngx_null_command

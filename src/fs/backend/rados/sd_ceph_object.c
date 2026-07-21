@@ -265,15 +265,31 @@ sd_ceph_close(brix_sd_obj_t *obj)
 
 /* namespace (logical paths) */
 
-/* sd_ceph_stat — rados_stat on the object id for a logical path. */
+/* sd_ceph_stat — rados_stat on the object id for a logical path. The export
+ * root ("/") is the one always-present SYNTHETIC directory (phase-89 ADR-1:
+ * directories are prefixes, not objects) and is answered without touching the
+ * cluster; deeper synthetic directories are served by opendir only — a
+ * per-stat child probe would turn every stat-miss into a pool scan. */
 ngx_int_t
 sd_ceph_stat(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out)
 {
     sd_ceph_state_t *st = inst->state;
     char             oid[1024];
+    char             norm[1024];
     uint64_t         size = 0;
     time_t           mtime = 0;
+
+    if (sd_ceph_normalize(path, norm, sizeof(norm)) == 0
+        && norm[0] == '/' && norm[1] == '\0')
+    {
+        ngx_memzero(out, sizeof(*out));
+        out->mode   = S_IFDIR | 0755;
+        out->is_dir = 1;
+        out->ino    = (ino_t) sd_ceph_ino(
+                          st->key_prefix != NULL ? st->key_prefix : "/");
+        return NGX_OK;
+    }
 
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return NGX_ERROR;
@@ -285,20 +301,421 @@ sd_ceph_stat(brix_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
-/* sd_ceph_unlink — remove the object for a logical path. There are no real
- * directories in this basic backend, so is_dir is advisory only. */
+/* sd_ceph_child_probe_t / _cb — bounded "does this prefix have any child?"
+ * probe over the catalog enumeration, aborting on the first hit. */
+typedef struct {
+    const char *dir;
+    int         found;
+} sd_ceph_child_probe_t;
+
+static int
+sd_ceph_child_probe_cb(void *ctx, const brix_sd_catalog_ent_t *ent)
+{
+    sd_ceph_child_probe_t *c = ctx;
+    char                   name[sizeof(((brix_sd_dirent_t *) 0)->name)];
+
+    if (ent->path != NULL
+        && sd_ceph_path_child(c->dir, ent->path, name, sizeof(name)) != 0)
+    {
+        c->found = 1;
+        return 1;                              /* first hit — stop the pass */
+    }
+    return 0;
+}
+
+/* sd_ceph_rmdir_synthetic — directory removal on a flat namespace (phase-89
+ * ADR-1): a synthetic directory holds no object of its own, so "removing" an
+ * empty one succeeds without touching the cluster, a non-empty one is
+ * ENOTEMPTY, and the export root is never removable (EBUSY). */
+static ngx_int_t
+sd_ceph_rmdir_synthetic(brix_sd_instance_t *inst, const char *path)
+{
+    char                  norm[1024];
+    sd_ceph_child_probe_t c;
+
+    if (sd_ceph_normalize(path, norm, sizeof(norm)) != 0) {
+        return NGX_ERROR;
+    }
+    if (norm[0] == '/' && norm[1] == '\0') {
+        errno = EBUSY;
+        return NGX_ERROR;
+    }
+
+    c.dir   = norm;
+    c.found = 0;
+    if (sd_ceph_enumerate(inst, 0, sd_ceph_child_probe_cb, &c) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (c.found) {
+        errno = ENOTEMPTY;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* sd_ceph_unlink — remove the object for a logical path. A directory unlink
+ * dispatches to the synthetic-directory semantics (nothing stored to remove;
+ * non-empty prefixes refuse with ENOTEMPTY). */
 ngx_int_t
 sd_ceph_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
     sd_ceph_state_t *st = inst->state;
     char             oid[1024];
 
-    (void) is_dir;
+    if (is_dir) {
+        return sd_ceph_rmdir_synthetic(inst, path);
+    }
 
     if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
         return NGX_ERROR;
     }
     if (sd_ceph_set_errno(rados_remove(st->ioctx, oid))) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* sd_ceph_mkdir — synthetic-directory create (phase-89 ADR-1: no marker
+ * objects). A directory exists iff objects live under its prefix, so creating
+ * one is a confined no-op success: the path is validated/confined through the
+ * key map and nothing is stored. WebDAV MKCOL / mkpath flows over a rados
+ * export succeed and the subsequent PUTs materialize the prefix. */
+ngx_int_t
+sd_ceph_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
+{
+    sd_ceph_state_t *st = inst->state;
+    char             oid[1024];
+
+    (void) mode;
+
+    if (sd_ceph_key(st->key_prefix, path, oid, sizeof(oid)) != 0) {
+        return NGX_ERROR;                      /* escape/overflow — confined */
+    }
+    return NGX_OK;
+}
+
+/* ---- rename (copy + delete; phase-89 §B.2 / ADR-5) ----------------------- */
+
+/* Chunk size for the rename copy loop (matches the striper object-size class). */
+#define SD_CEPH_COPY_CHUNK (4u * 1024 * 1024)
+
+/* sd_ceph_path_probe_t / sd_ceph_probe_oid — existence/layout probe for a
+ * bare oid (no open request): striper view first (a striped object must be
+ * copied through the striper to reassemble), then flat. 0 on success (present
+ * or cleanly absent), negative errno on a hard stat error. */
+typedef struct {
+    int      present;
+    int      striped;
+    uint64_t size;
+} sd_ceph_path_probe_t;
+
+static int
+sd_ceph_probe_oid(sd_ceph_state_t *st, const char *oid,
+    sd_ceph_path_probe_t *pr)
+{
+    uint64_t size = 0;
+    time_t   mtime = 0;
+    int      rc;
+
+    ngx_memzero(pr, sizeof(*pr));
+
+#if defined(BRIX_HAVE_RADOSSTRIPER)
+    {
+        rados_striper_t s = sd_ceph_striper(st);
+
+        if (s != NULL && sd_ceph_striper_stat(s, oid, &size, &mtime) == 0) {
+            pr->present = 1;
+            pr->striped = 1;
+            pr->size    = size;
+            return 0;
+        }
+    }
+#endif
+    rc = rados_stat(st->ioctx, oid, &size, &mtime);
+    if (rc == 0) {
+        pr->present = 1;
+        pr->size    = size;
+        return 0;
+    }
+    return (rc == -ENOENT) ? 0 : rc;
+}
+
+/* sd_ceph_remove_oid — remove an object through the layout it was found in. */
+static int
+sd_ceph_remove_oid(sd_ceph_state_t *st, const char *oid, int striped)
+{
+#if defined(BRIX_HAVE_RADOSSTRIPER)
+    if (striped) {
+        rados_striper_t s = sd_ceph_striper(st);
+
+        return (s != NULL) ? sd_ceph_striper_remove(s, oid) : -EIO;
+    }
+#else
+    (void) striped;
+#endif
+    return rados_remove(st->ioctx, oid);
+}
+
+/* sd_ceph_copy_bytes — chunked byte copy src → dst. A striped source is read
+ * AND written through the striper so the destination keeps the stock-XrdCeph
+ * layout; a flat source copies flat. An empty source is created flat (the
+ * caller forces striped=0 for size 0 — a zero-length striper write would not
+ * materialize the first stripe). 0 or negative errno. */
+static int
+sd_ceph_copy_bytes(sd_ceph_state_t *st, const char *src, int striped,
+    uint64_t size, const char *dst)
+{
+    char     *buf;
+    uint64_t  off = 0;
+
+    if (size == 0) {
+        return rados_write_full(st->ioctx, dst, "", 0);
+    }
+
+    buf = malloc(SD_CEPH_COPY_CHUNK);
+    if (buf == NULL) {
+        return -ENOMEM;
+    }
+
+    while (off < size) {
+        size_t  want = (size - off < SD_CEPH_COPY_CHUNK)
+                       ? (size_t) (size - off) : SD_CEPH_COPY_CHUNK;
+        ssize_t n;
+        ssize_t wrc;
+
+#if defined(BRIX_HAVE_RADOSSTRIPER)
+        if (striped) {
+            rados_striper_t s = sd_ceph_striper(st);
+
+            if (s == NULL) {
+                free(buf);
+                return -EIO;
+            }
+            n = sd_ceph_striper_read(s, src, buf, want, off);
+            if (n > 0) {
+                wrc = sd_ceph_striper_write(s, dst, buf, (size_t) n, off);
+            } else {
+                wrc = 0;
+            }
+        } else
+#endif
+        {
+            n = rados_read(st->ioctx, src, buf, want, off);
+            wrc = (n > 0) ? rados_write(st->ioctx, dst, buf, (size_t) n, off)
+                          : 0;
+        }
+
+        if (n < 0) {
+            free(buf);
+            return (int) n;
+        }
+        if (n == 0) {
+            free(buf);
+            return -EIO;                       /* source shrank mid-copy */
+        }
+        if (wrc < 0) {
+            free(buf);
+            return (int) wrc;
+        }
+        off += (uint64_t) n;
+    }
+
+    free(buf);
+    return 0;
+}
+
+/* sd_ceph_copy_xattrs — carry the object xattrs across the copy (the cache
+ * cinfo/meta/checksum-at-rest records must survive a rename). Striper-internal
+ * "striper.*" layout attrs are never copied — the destination's own write path
+ * stamps its layout. Values are bounded by SD_CEPH_XATTR_MAX (the driver's
+ * existing xattr value bound). 0 or negative errno. */
+static int
+sd_ceph_copy_xattrs(sd_ceph_state_t *st, const char *src, int src_striped,
+    const char *dst, int dst_striped)
+{
+#if defined(BRIX_HAVE_RADOSSTRIPER)
+    if (src_striped) {
+        rados_striper_t s = sd_ceph_striper(st);
+        char           *names;
+        char           *val;
+        ssize_t         total;
+        ssize_t         used = 0;
+        int             rc = 0;
+
+        if (s == NULL) {
+            return -EIO;
+        }
+        names = malloc(SD_CEPH_XATTR_MAX);
+        val   = malloc(SD_CEPH_XATTR_MAX);
+        if (names == NULL || val == NULL) {
+            free(names);
+            free(val);
+            return -ENOMEM;
+        }
+        total = sd_ceph_striper_listxattr(s, src, names, SD_CEPH_XATTR_MAX);
+        if (total < 0) {
+            free(names);
+            free(val);
+            return (int) total;
+        }
+        while (rc == 0 && used < total) {
+            const char *nm = names + used;
+            ssize_t     vlen;
+
+            used += (ssize_t) strlen(nm) + 1;
+            if (strncmp(nm, "striper.", 8) == 0) {
+                continue;                      /* layout attrs: never copied */
+            }
+            vlen = sd_ceph_striper_getxattr(s, src, nm, val,
+                                            SD_CEPH_XATTR_MAX);
+            if (vlen < 0) {
+                rc = (int) vlen;
+                break;
+            }
+            rc = dst_striped
+                 ? sd_ceph_striper_setxattr(s, dst, nm, val, (size_t) vlen)
+                 : rados_setxattr(st->ioctx, dst, nm, val, (size_t) vlen);
+        }
+        free(names);
+        free(val);
+        return rc;
+    }
+#else
+    (void) src_striped;
+#endif
+
+    {
+        rados_xattrs_iter_t it;
+        int                 rc;
+
+        rc = rados_getxattrs(st->ioctx, src, &it);
+        if (rc < 0) {
+            return rc;
+        }
+        for (;;) {
+            const char *nm = NULL;
+            const char *vv = NULL;
+            size_t      vlen = 0;
+
+            rc = rados_getxattrs_next(it, &nm, &vv, &vlen);
+            if (rc < 0 || nm == NULL) {
+                break;
+            }
+#if defined(BRIX_HAVE_RADOSSTRIPER)
+            if (dst_striped) {
+                rados_striper_t s = sd_ceph_striper(st);
+
+                rc = (s != NULL)
+                     ? sd_ceph_striper_setxattr(s, dst, nm, vv, vlen) : -EIO;
+            } else
+#endif
+            {
+                rc = rados_setxattr(st->ioctx, dst, nm, vv, vlen);
+            }
+            if (rc < 0) {
+                break;
+            }
+        }
+        rados_getxattrs_end(it);
+#if !defined(BRIX_HAVE_RADOSSTRIPER)
+        (void) dst_striped;
+#endif
+        return (rc < 0) ? rc : 0;
+    }
+}
+
+/* sd_ceph_rename — copy + delete on the flat namespace (phase-89 §B.2).
+ * NON-ATOMIC by design (the driver honestly does not advertise
+ * CAP_HARD_RENAME — same posture as the other object backends): the source is
+ * removed only after the destination's bytes AND xattrs landed and a size
+ * verify passed, so a mid-copy failure leaves the source intact (the partial
+ * destination is cleaned up best-effort). `noreplace` is honoured by a probe
+ * (racy by nature on an object store — documented). Directory rename is
+ * refused (EISDIR): a flat namespace has no atomic prefix move, and a
+ * recursive key rewrite is out of scope (ADR-5). */
+ngx_int_t
+sd_ceph_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
+    int noreplace)
+{
+    sd_ceph_state_t     *st = inst->state;
+    char                 so[1024];
+    char                 dm[1024];
+    sd_ceph_path_probe_t sp, dp;
+    int                  dst_striped;
+    int                  rc;
+
+    if (sd_ceph_key(st->key_prefix, src, so, sizeof(so)) != 0
+        || sd_ceph_key(st->key_prefix, dst, dm, sizeof(dm)) != 0)
+    {
+        return NGX_ERROR;
+    }
+    if (strcmp(so, dm) == 0) {
+        return NGX_OK;                         /* same object — nothing to do */
+    }
+
+    rc = sd_ceph_probe_oid(st, so, &sp);
+    if (rc < 0) {
+        errno = -rc;
+        return NGX_ERROR;
+    }
+    if (!sp.present) {
+        /* No object: a populated synthetic-directory source is EISDIR (no
+         * collection rename on a flat namespace), a bare miss is ENOENT. */
+        char                  norm[1024];
+        sd_ceph_child_probe_t c;
+
+        errno = ENOENT;
+        if (sd_ceph_normalize(src, norm, sizeof(norm)) == 0) {
+            c.dir   = norm;
+            c.found = 0;
+            if (sd_ceph_enumerate(inst, 0, sd_ceph_child_probe_cb, &c)
+                    == NGX_OK && c.found)
+            {
+                errno = EISDIR;
+            }
+        }
+        return NGX_ERROR;
+    }
+
+    rc = sd_ceph_probe_oid(st, dm, &dp);
+    if (rc < 0) {
+        errno = -rc;
+        return NGX_ERROR;
+    }
+    if (dp.present && noreplace) {
+        errno = EEXIST;
+        return NGX_ERROR;
+    }
+    if (dp.present) {
+        rc = sd_ceph_remove_oid(st, dm, dp.striped);
+        if (rc < 0) {
+            errno = -rc;
+            return NGX_ERROR;
+        }
+    }
+
+    dst_striped = (sp.striped && sp.size > 0);
+    rc = sd_ceph_copy_bytes(st, so, dst_striped, sp.size, dm);
+    if (rc == 0) {
+        rc = sd_ceph_copy_xattrs(st, so, sp.striped, dm, dst_striped);
+    }
+    if (rc == 0) {
+        sd_ceph_path_probe_t vp;
+
+        rc = sd_ceph_probe_oid(st, dm, &vp);
+        if (rc == 0 && (!vp.present || vp.size != sp.size)) {
+            rc = -EIO;                         /* verify: dst must hold src's bytes */
+        }
+    }
+    if (rc < 0) {
+        (void) sd_ceph_remove_oid(st, dm, dst_striped);  /* best-effort cleanup */
+        errno = -rc;
+        return NGX_ERROR;
+    }
+
+    rc = sd_ceph_remove_oid(st, so, sp.striped);
+    if (rc < 0) {
+        errno = -rc;                           /* dst intact; src survived too */
         return NGX_ERROR;
     }
     return NGX_OK;

@@ -18,6 +18,15 @@ and `config.c`/`mapping.c` implement the nginx directives and SciTags mapping
 rules. Keep the sections below as the source-verified rationale, not as a
 future TODO list.
 
+**Update (2026-07-21, phase-88 loose-end closure):** the "ongoing" echo timer
+(`brix_pmark_echo`, D4/§ timer in `firefly.c`) had been implemented from the
+start — the only genuinely missing piece was the **min-30s clamp** the table
+below specifies (`ffecho <sec>` min 30). That clamp now exists in `config.c`
+(values 1..29999ms are raised to 30s with a config warning; `0`/unset stays
+off) and is covered by 3 tests in `tests/test_pmark.py`. Note the table rows
+below describe *stock XRootD* behavior, where ffecho is parsed but its refresh
+thread is commented out — "unimplemented" there refers to XRootD, not brix.
+
 ---
 
 ## 1. What this is and why

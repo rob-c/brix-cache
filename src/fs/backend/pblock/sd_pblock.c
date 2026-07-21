@@ -144,6 +144,126 @@ brix_pblock_drop_privilege(const char *want_user)
     return 0;
 }
 
+/* ---- lab / feature arming (phase-83) -------------------------------------- */
+
+/* Arm the lab control plane + its perf knob from the sidecar opts. With lab OFF
+ * (the default — no sidecar) this is a no-op and the driver stays byte-for-byte
+ * the production backend: st->lab stays NULL, the hot path never consults it. */
+static void
+pblock_arm_lab(brix_sd_instance_t *inst, pblock_state_t *st,
+    const pblock_opts_t *opts)
+{
+    if (opts->mem) {                                     /* F16 */
+        (void) pblock_ctl_mem_pragmas(st->cat);
+    }
+    if (opts->lab) {
+        inst->caps = pblock_caps_apply(inst->caps, opts);    /* F2 */
+        st->lab    = pblock_lab_state_create(st->cat);       /* F1/F8 */
+        if (st->lab != NULL) {
+            /* F9 rides the lab master gate (an anomaly simulator is a lab toy
+             * by definition). Best-effort: with no `recent` table the event
+             * writers no-op and consultation finds nothing. */
+            (void) pblock_anomaly_init(st);
+        }
+    }
+}
+
+/* Arm the per-instance data features that each advertise/enable only when their
+ * catalog table actually installed — an init failure for any one leaves that
+ * feature off and the byte-for-byte production path intact. */
+static void
+pblock_arm_data_features(brix_sd_instance_t *inst, pblock_state_t *st,
+    const pblock_opts_t *opts)
+{
+    if (opts->audit) {                                   /* F17 */
+        /* Independent of the lab gate (its own opt): only turn audit on if the
+         * oplog table is actually present. */
+        st->audit = (pblock_audit_init(st->cat) == 0);
+    }
+    if (opts->csi) {                                     /* F3 */
+        /* Advertise CAP_FSCS only when the csi table installed — an honest
+         * per-instance capability the driver will really honour. */
+        if (pblock_csi_init(st->cat) == 0) {
+            st->csi     = 1;
+            inst->caps |= BRIX_SD_CAP_FSCS;
+        }
+    }
+    if (opts->nearline) {                                /* F4 */
+        /* Advertise CAP_NEARLINE only when the residency table installed (the
+         * residency seam and the cache tier's recall-at-fill key off it). */
+        if (pblock_nearline_init(st) == 0) {
+            st->nearline = 1;
+            inst->caps  |= BRIX_SD_CAP_NEARLINE;
+        }
+    }
+    if (opts->locks) {                                   /* F15 */
+        /* Mandatory lease enforcement only arms when the locks table installed;
+         * a failure leaves the production path (no lease reads anywhere). */
+        st->locks = (pblock_locks_init(st) == 0);
+    }
+    if (opts->dedup) {                                   /* F10 */
+        /* Refcounted blobs + dedup only arm when the blobs table installed. */
+        st->refs = (pblock_refs_init(st) == 0);
+    }
+}
+
+/* Arm the F12/F13 per-block transform — the one HARD config gate. A bad spec
+ * (unknown transform, unreadable crypt keyfile, `zstd` without libzstd) fails
+ * instance init fail-closed rather than silently serving unreadable transformed
+ * bytes as raw. Returns 0 (incl. no xform requested), or -1 with errno set from
+ * pblock_xform_config; the caller owns st->cat/st cleanup on -1. A transformed
+ * export cannot hand out a block-0 fd, so the zero-copy caps are dropped. */
+static int
+pblock_arm_xform(brix_sd_instance_t *inst, pblock_state_t *st,
+    const pblock_opts_t *opts)
+{
+    if (opts->xform_len == 0) {
+        return 0;
+    }
+    if (pblock_xform_config(&st->xform, opts->xform, opts->xform_len) != 0) {
+        return -1;                                       /* errno set by config */
+    }
+    if (pblock_xform_active(&st->xform)) {
+        inst->caps &= ~(uint32_t) (BRIX_SD_CAP_SENDFILE | BRIX_SD_CAP_IOURING);
+    }
+    return 0;
+}
+
+/* Arm the retention/accounting features. Snapshots (F6) and versioning/trash
+ * (F11) both HOLD prior blobs, so they build ON refcounted blobs (F10): arm
+ * refs first (idempotent), then the history tables — armed only when both
+ * installed, else the byte-for-byte production path is untouched. */
+static void
+pblock_arm_storage_features(pblock_state_t *st, const pblock_opts_t *opts)
+{
+    if (opts->snapshots) {                               /* F6 */
+        if (!st->refs) {
+            st->refs = (pblock_refs_init(st) == 0);
+        }
+        if (st->refs && pblock_snap_init(st) == 0) {
+            st->snap = 1;
+        }
+    }
+    if (opts->versions > 0 || opts->trash) {             /* F11 */
+        if (!st->refs) {
+            st->refs = (pblock_refs_init(st) == 0);
+        }
+        if (st->refs && pblock_hist_init(st) == 0) {
+            st->versions = opts->versions;
+            st->trash    = opts->trash;
+        }
+    }
+    if (opts->quota_bytes > 0 || opts->quota_inodes > 0) {  /* F5 */
+        /* Its own opt: quota only arms when the rollup table + triggers actually
+         * installed, so an init failure leaves the production catalog path. */
+        if (pblock_quota_init(st) == 0) {
+            st->quota        = 1;
+            st->quota_bytes  = opts->quota_bytes;
+            st->quota_inodes = opts->quota_inodes;
+        }
+    }
+}
+
 /* ---- instance lifecycle --------------------------------------------------- */
 
 static ngx_int_t
@@ -207,115 +327,22 @@ sd_pblock_init(brix_sd_instance_t *inst, void *driver_conf)
 
         (void) pblock_opts_load_sidecar(st->root, &opts);   /* absent ⇒ all-zero */
 
-        if (opts.mem) {                                      /* F16 */
-            (void) pblock_ctl_mem_pragmas(st->cat);
-        }
-        if (opts.lab) {
-            inst->caps = pblock_caps_apply(inst->caps, &opts);   /* F2 */
-            st->lab = pblock_lab_state_create(st->cat);          /* F1/F8 */
-            if (st->lab != NULL) {
-                /* F9 rides the lab master gate (an anomaly simulator is a lab
-                 * toy by definition). Best-effort: with no `recent` table the
-                 * event writers no-op and consultation finds nothing. */
-                (void) pblock_anomaly_init(st);
-            }
-        }
-        if (opts.audit) {                                    /* F17 */
-            /* Independent of the lab gate (its own opt): only turn audit on if
-             * the oplog table is actually present, so a create failure leaves
-             * the driver in the byte-for-byte production path (audit off). */
-            st->audit = (pblock_audit_init(st->cat) == 0);
-        }
-        if (opts.csi) {                                      /* F3 */
-            /* Its own opt (integrity, not a lab toy). Advertise CAP_FSCS only
-             * when the csi table is actually present — an honest per-instance
-             * capability the driver will really honour. */
-            if (pblock_csi_init(st->cat) == 0) {
-                st->csi = 1;
-                inst->caps |= BRIX_SD_CAP_FSCS;
-            }
-        }
-        if (opts.nearline) {                                 /* F4 */
-            /* Its own opt: advertise CAP_NEARLINE only when the residency
-             * table actually installed — an honest per-instance capability
-             * (the residency seam and the cache tier's recall-at-fill key off
-             * it). Init failure ⇒ production driver, no nearline claims. */
-            if (pblock_nearline_init(st) == 0) {
-                st->nearline = 1;
-                inst->caps |= BRIX_SD_CAP_NEARLINE;
-            }
-        }
-        if (opts.locks) {                                    /* F15 */
-            /* Its own opt: mandatory lease enforcement only arms when the
-             * locks table actually installed — an init failure leaves the
-             * byte-for-byte production path (no lease reads anywhere). */
-            st->locks = (pblock_locks_init(st) == 0);
-        }
-        if (opts.dedup) {                                    /* F10 */
-            /* Its own opt: refcounted blobs + dedup only arm when the blobs
-             * table actually installed — an init failure leaves the
-             * byte-for-byte production path (no refcount reads anywhere). */
-            st->refs = (pblock_refs_init(st) == 0);
-        }
-        if (opts.snapshots) {                                /* F6 */
-            /* Snapshots build ON refcounted blobs (F10): a delete between take
-             * and restore must decrement a shared blob, never physically remove
-             * it. Arm refs first (idempotent), then the snapshot tables — armed
-             * only when both installed, else the production path is untouched. */
-            if (!st->refs) {
-                st->refs = (pblock_refs_init(st) == 0);
-            }
-            if (st->refs && pblock_snap_init(st) == 0) {
-                st->snap = 1;
-            }
-        }
-        if (opts.versions > 0 || opts.trash) {               /* F11 */
-            /* Versioning and trash both HOLD prior blobs (an overwrite/unlink
-             * decrements a shared blob instead of freeing it), so they build ON
-             * refcounted blobs (F10) exactly like snapshots. Arm refs first
-             * (idempotent), then the history tables — armed only when both
-             * installed, else the byte-for-byte production path is untouched. */
-            if (!st->refs) {
-                st->refs = (pblock_refs_init(st) == 0);
-            }
-            if (st->refs && pblock_hist_init(st) == 0) {
-                st->versions = opts.versions;
-                st->trash    = opts.trash;
-            }
-        }
-        if (opts.xform_len > 0) {                            /* F12/F13 */
-            /* Per-block transform. Unlike the lab toys this is a hard config
-             * gate: a bad spec (unknown transform, unreadable crypt keyfile,
-             * `zstd` without libzstd) fails instance init fail-closed — the
-             * pblock store is never built for the export (logged "backend init
-             * failed"), rather than silently serving unreadable transformed
-             * bytes as raw. A transformed export cannot hand out a block-0 fd,
-             * so drop the zero-copy caps at build (per-export mask, doc §5). */
-            if (pblock_xform_config(&st->xform, opts.xform, opts.xform_len)
-                != 0)
-            {
-                int err = errno;
+        pblock_arm_lab(inst, st, &opts);
+        pblock_arm_data_features(inst, st, &opts);
 
-                pblock_catalog_close(st->cat);
-                free(st);
-                errno = err;
-                return NGX_ERROR;
-            }
-            if (pblock_xform_active(&st->xform)) {
-                inst->caps &= ~(uint32_t) (BRIX_SD_CAP_SENDFILE
-                                           | BRIX_SD_CAP_IOURING);
-            }
+        /* F12/F13 transform is the one hard config gate — fail instance init
+         * fail-closed on a bad spec (the store is never built for the export,
+         * logged "backend init failed") rather than serving garbage as raw. */
+        if (pblock_arm_xform(inst, st, &opts) != 0) {
+            int err = errno;
+
+            pblock_catalog_close(st->cat);
+            free(st);
+            errno = err;
+            return NGX_ERROR;
         }
-        if (opts.quota_bytes > 0 || opts.quota_inodes > 0) {  /* F5 */
-            /* Its own opt like csi/audit: quota only arms when the rollup
-             * table + triggers actually installed, so an init failure leaves
-             * the byte-for-byte production catalog path. */
-            if (pblock_quota_init(st) == 0) {
-                st->quota        = 1;
-                st->quota_bytes  = opts.quota_bytes;
-                st->quota_inodes = opts.quota_inodes;
-            }
-        }
+
+        pblock_arm_storage_features(st, &opts);
     }
 
     /* The export root "/" always exists (a directory), like a POSIX mount point —
@@ -559,6 +586,86 @@ pblock_open_existing(brix_sd_instance_t *inst, const char *path,
     return obj;
 }
 
+/* F15: mandatory lease gate — before both the create and overwrite lanes, since
+ * a whole-file lease guards the *name* (a create under a foreign lease is as much
+ * a conflicting write as an overwrite). Live foreign 'X' refuses everyone; a live
+ * foreign whole-file 'W' refuses write-intent opens. EBUSY maps to kXR_FileLocked
+ * / HTTP 423 at the protocol edge. Returns 1 if the open must be refused (errno +
+ * *err_out set), 0 to proceed. */
+static int
+pblock_open_locked(pblock_state_t *st, const char *path, int sd_flags,
+    uint32_t uid, int *err_out)
+{
+    if (st->locks
+        && pblock_locks_open_check(st, path,
+               (sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE
+                            | BRIX_SD_O_TRUNC | BRIX_SD_O_APPEND)) != 0,
+               uid) != 0)
+    {
+        if (err_out != NULL) { *err_out = errno; }
+        return 1;
+    }
+    return 0;
+}
+
+/* Existing-file open after the dir/lock gates: the F9 visibility-lag hide, the
+ * O_CREATE|O_EXCL conflict, and the F4 nearline recall, then the real open. */
+static brix_sd_obj_t *
+pblock_open_existing_gated(brix_sd_instance_t *inst, pblock_state_t *st,
+    const char *path, pblock_meta *meta, int sd_flags, int *err_out)
+{
+    /* F9: visibility lag — a freshly created path is ENOENT to other readers
+     * for the armed window. Write-intent opens are exempt: the writer/overwriter
+     * lane must never see its own phantom ENOENT (the S3 session monotonic-read
+     * guarantee — a handle that wrote reads through its own open snapshot and is
+     * untouched by design). */
+    if (st->lab != NULL
+        && !(sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE
+                         | BRIX_SD_O_TRUNC))
+        && pblock_anomaly_hidden(st, path))
+    {
+        if (err_out != NULL) { *err_out = ENOENT; }
+        return NULL;
+    }
+    if ((sd_flags & BRIX_SD_O_CREATE) && (sd_flags & BRIX_SD_O_EXCL)) {
+        if (err_out != NULL) { *err_out = EEXIST; }
+        return NULL;
+    }
+    /* F4: a demoted (nearline/offline) file must be recalled before it serves —
+     * a bounded synchronous recall like sd_frm's, so a plain export exercises the
+     * lane without a cache tier in front. A LOST object or failed recall errors
+     * out (never silently serves the bytes a real tape system could not). O_TRUNC
+     * replaces the content, so it skips the recall and comes back ONLINE below via
+     * the write path. */
+    if (st->nearline && !(sd_flags & BRIX_SD_O_TRUNC)
+        && pblock_nearline_recall(st, path) != 0)
+    {
+        if (err_out != NULL) { *err_out = errno; }
+        return NULL;
+    }
+    return pblock_open_existing(inst, path, meta, sd_flags, err_out);
+}
+
+/* Absent path: create it when O_CREATE is set (recording the F9 anomaly on the
+ * new name), else ENOENT. */
+static brix_sd_obj_t *
+pblock_open_absent(brix_sd_instance_t *inst, pblock_state_t *st,
+    const char *path, mode_t mode, uint32_t uid, uint32_t gid,
+    int sd_flags, int *err_out)
+{
+    brix_sd_obj_t *obj;
+
+    if (!(sd_flags & BRIX_SD_O_CREATE)) {
+        if (err_out != NULL) { *err_out = ENOENT; }
+        return NULL;
+    }
+    obj = pblock_open_create(inst, path, mode, uid, gid, err_out);
+    if (obj != NULL && st->lab != NULL) {
+        pblock_anomaly_created(st, path);                     /* F9 */
+    }
+    return obj;
+}
+
 /* sd_pblock_open_as — the open implementation, parameterized by the owner
  * (uid, gid) recorded on a CREATE. The plain vtable slot passes 0/0 (the
  * service); the identity-aware open_cred slot (sd_pblock_cred.c) passes the
@@ -577,18 +684,7 @@ pblock_open_as_inner(brix_sd_instance_t *inst, const char *path, int sd_flags,
         return NULL;
     }
 
-    /* F15: mandatory lease gate — before both branches, since a whole-file
-     * lease guards the *name* (a create under a foreign lease is as much a
-     * conflicting write as an overwrite). Live foreign 'X' refuses everyone;
-     * a live foreign whole-file 'W' refuses write-intent opens. EBUSY maps
-     * to kXR_FileLocked / HTTP 423 at the protocol edge. */
-    if (st->locks
-        && pblock_locks_open_check(st, path,
-               (sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE
-                            | BRIX_SD_O_TRUNC | BRIX_SD_O_APPEND)) != 0,
-               uid) != 0)
-    {
-        if (err_out != NULL) { *err_out = errno; }
+    if (pblock_open_locked(st, path, sd_flags, uid, err_out)) {
         return NULL;
     }
 
@@ -601,52 +697,11 @@ pblock_open_as_inner(brix_sd_instance_t *inst, const char *path, int sd_flags,
     }
 
     if (rc == 0) {   /* existing file */
-        /* F9: visibility lag — a freshly created path is ENOENT to other
-         * readers for the armed window. Write-intent opens are exempt: the
-         * writer/overwriter lane must never see its own phantom ENOENT (the
-         * S3 session monotonic-read guarantee — a handle that wrote reads
-         * through its own open snapshot and is untouched by design). */
-        if (st->lab != NULL
-            && !(sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE
-                             | BRIX_SD_O_TRUNC))
-            && pblock_anomaly_hidden(st, path))
-        {
-            if (err_out != NULL) { *err_out = ENOENT; }
-            return NULL;
-        }
-        if ((sd_flags & BRIX_SD_O_CREATE) && (sd_flags & BRIX_SD_O_EXCL)) {
-            if (err_out != NULL) { *err_out = EEXIST; }
-            return NULL;
-        }
-        /* F4: a demoted (nearline/offline) file must be recalled before it
-         * serves — a bounded synchronous recall like sd_frm's, so a plain
-         * export exercises the lane without a cache tier in front. A LOST
-         * object or failed recall errors out (never silently serves the bytes
-         * a real tape system could not). O_TRUNC replaces the content, so it
-         * skips the recall and comes back ONLINE below via the write path. */
-        if (st->nearline && !(sd_flags & BRIX_SD_O_TRUNC)
-            && pblock_nearline_recall(st, path) != 0)
-        {
-            if (err_out != NULL) { *err_out = errno; }
-            return NULL;
-        }
-        return pblock_open_existing(inst, path, &meta, sd_flags, err_out);
+        return pblock_open_existing_gated(inst, st, path, &meta, sd_flags,
+                                          err_out);
     }
 
-    /* absent */
-    if (!(sd_flags & BRIX_SD_O_CREATE)) {
-        if (err_out != NULL) { *err_out = ENOENT; }
-        return NULL;
-    }
-    {
-        brix_sd_obj_t *obj;
-
-        obj = pblock_open_create(inst, path, mode, uid, gid, err_out);
-        if (obj != NULL && st->lab != NULL) {
-            pblock_anomaly_created(st, path);                     /* F9 */
-        }
-        return obj;
-    }
+    return pblock_open_absent(inst, st, path, mode, uid, gid, sd_flags, err_out);
 }
 
 /* sd_pblock_open_as — the identity-parameterised open, wrapping the real

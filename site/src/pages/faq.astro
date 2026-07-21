@@ -69,7 +69,7 @@ const architecture: Faq[] = [
         was tracked as a monotone counter, 56 violations down to 0, and it is not allowed to grow back.
         That is why POSIX, block-store, and S3 backends sit under the same protocol front-ends without
         the front-ends knowing.`,
-    cite: 'tools/ci/check_vfs_seam.sh · docs/11-architecture/overview.md',
+    cite: 'tools/ci/check_vfs_seam.py · docs/11-architecture/overview.md',
   },
   {
     q: '“So it’s really just XRootD-flavoured HTTP underneath.”',
@@ -254,7 +254,7 @@ const security: Faq[] = [
         S3 UploadPartCopy path that bypassed the resolver, it was fixed by routing it through the same
         confined-open helper — and that class of bug is exactly what the single-seam CI guard exists to
         prevent recurring.`,
-    cite: 'src/fs/path/beneath.c · tools/ci/check_vfs_seam.sh',
+    cite: 'src/fs/path/beneath.c · tools/ci/check_vfs_seam.py',
   },
   {
     q: '“Multi-user means it runs as root, and an nginx module running as root is a nightmare.”',

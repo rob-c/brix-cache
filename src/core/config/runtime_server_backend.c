@@ -584,8 +584,12 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
     pol.deny_prefixes  = common->cache_deny_prefixes;
     pol.allow_prefixes = common->cache_allow_prefixes;
     pol.include_regex  = common->cache_include_re;
-    pol.evict_at      = common->cache_evict_at;
-    pol.evict_to      = common->cache_evict_to;
+    /* Documented defaults (90/80) applied here: the merge keeps the pair UNSET
+     * so the stream reaper merge can detect an explicit setting. */
+    pol.evict_at      = (common->cache_evict_at == NGX_CONF_UNSET_UINT)
+                      ? 90 : common->cache_evict_at;
+    pol.evict_to      = (common->cache_evict_to == NGX_CONF_UNSET_UINT)
+                      ? 80 : common->cache_evict_to;
     pol.meta_mode     = (int) common->cache_meta_mode;
     pol.batch_cinfo   = (common->cache_batch_cinfo == 2)
                       ? -1 : (int) common->cache_batch_cinfo;

@@ -1,5 +1,31 @@
 # Phase 64 — Fully-tiered composable storage: backend + read-cache + write-stage as interchangeable filesystems, FRM/tape migrated into a backend FS, one cache + one stage
 
+> **STATUS UPDATE (2026-07-21 — phase-89 tree verification).** This phase has
+> **substantially landed**: the §3 matrix is closed ("every driver serves in
+> every role"), the §14 legacy removal landed (see its own status block), SP4
+> durable recovery is done, and the P6 dissolution is real — `src/frm/` is
+> gone; the generic substrate lives in `src/fs/xfer/stage_engine*` +
+> `stage_request_registry*` + `stage_waiter*`, tape residency in
+> `src/fs/backend/frm/sd_frm*` (exec/stub MSS adapters), `tape://` (alias
+> `frm://`) is a tier scheme, and both the root:// open stage gate and the
+> WLCG tape REST API drive the engine.
+>
+> **One divergence from the plan:** §13c step 4 (delete the `brix_frm_*`
+> directives) was **not** executed as written — the directives survive in
+> `src/protocols/root/stream/directives_net.inc` as the engine/adapter knobs
+> (`brix_frm`, `brix_frm_queue_path`, `brix_frm_stagecmd`,
+> `brix_frm_stage_ttl`, …) and live code gates on `conf->frm.*`. Resolving
+> that divergence (ratify-as-engine-knobs vs. finish the migration —
+> **ADR-3 recommendation: ratify**, per phase-89 §D.1; the surviving 21-knob
+> grammar is now frozen by `tests/test_frm_directive_pin.py` [2026-07-21]
+> until the OP confirms, so either outcome trips a deliberate red test rather
+> than silent drift) plus the
+> remaining long tail (HPSS/CTA native MSS adapters — infra-blocked;
+> object-store eviction scan; serve off-load beyond `xroot`; the §21 open
+> questions) is tracked in `phase-89-design-backlog-burndown.md` §D. The
+> companion `phase-64-generic-slice-fill.md` backlog is **DONE** (see its
+> status block).
+
 **Status: DESIGN (2026-06-30) — implementation-ready, self-contained.** Builds on
 phase-63 (composable cache/stage/backend stack), phase-62 (VFS namespace + metadata
 seam closure), phase-55+ (the SD-driver seam), the §14 `xrootd_credential` block, the

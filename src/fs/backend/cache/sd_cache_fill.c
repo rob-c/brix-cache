@@ -34,6 +34,7 @@
 #include "fs/path/path.h"               /* brix_sanitize_log_string          */
 #include "net/guard/guard.h"            /* signal=cvmfs_tamper audit line    */
 #include "core/compat/checksum.h"       /* brix_checksum_hex_name_fd         */
+#include "core/fnv.h"                    /* BRIX_FNV1A64_* hash constants     */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -74,6 +75,10 @@ typedef struct {
                                           * (kXR_Qcksum), captured while the
                                           * source object is still open        */
     char                origin_hex[129]; /* origin-advertised digest hex       */
+    char                cks_alg[16];   /* locally VERIFIED digest algorithm —
+                                        * persisted into the cinfo on commit so
+                                        * xrdckverify --cache has a producer   */
+    char                cks_hex[129];  /* locally verified digest, hex         */
     struct timespec     t0;        /* T16: per-upstream fill duration         */
 } sd_cache_fill_state_t;
 
@@ -487,6 +492,12 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
     }
 
     fs->verified = 1;
+    /* Persisted into the cinfo at commit: the digest we just computed and
+     * matched (normalised name preferred over the origin's raw spelling). */
+    ngx_cpystrn((u_char *) fs->cks_alg,
+                (u_char *) (norm[0] != '\0' ? norm : fs->origin_alg),
+                sizeof(fs->cks_alg));
+    ngx_cpystrn((u_char *) fs->cks_hex, (u_char *) hex, sizeof(fs->cks_hex));
     return NGX_OK;
 }
 
@@ -526,7 +537,8 @@ cache_fill_verify(sd_cache_inst_state *st, const char *key,
 
     if (st->policy.verify == BRIX_CACHE_VERIFY_CVMFS_CAS) {
         vr = (pp != NULL)
-           ? brix_cache_verify_cvmfs_cas(pp, key, st->log, NULL, NULL)
+           ? brix_cache_verify_cvmfs_cas(pp, key, st->log,
+                                           fs->cks_alg, fs->cks_hex)
            : BRIX_CACHE_VERIFY_ERROR;
         if (vr == BRIX_CACHE_VERIFY_MISMATCH) {
             return cache_fill_verify_reject(st, key, fs, pp);
@@ -610,6 +622,17 @@ cache_fill_commit(sd_cache_inst_state *st, const char *key,
     ci.flags      = BRIX_CINFO_F_COMPLETE
                   | (fs->verified ? BRIX_CINFO_F_VERIFIED : 0);
     ci.filled_at  = (uint64_t) time(NULL);
+    if (fs->verified && fs->cks_alg[0] != '\0' && fs->cks_hex[0] != '\0') {
+        /* The verified digest — the producer side of xrdckverify --cache.
+         * Only a MATCHED digest is recorded; an unverified fill leaves the
+         * fields empty rather than asserting bytes nobody checked. */
+        ngx_cpystrn((u_char *) ci.cks_alg, (u_char *) fs->cks_alg,
+                    sizeof(ci.cks_alg));
+        ci.cks_alg_len = (uint8_t) ngx_strlen(ci.cks_alg);
+        ngx_cpystrn((u_char *) ci.cks_hex, (u_char *) fs->cks_hex,
+                    sizeof(ci.cks_hex));
+        ci.cks_len = (uint8_t) ngx_strlen(ci.cks_hex);
+    }
     if (st->policy.cvmfs_manifest_ttl > 0 && sd_cache_is_manifest_key(key)) {
         brix_cache_cinfo_set_expires(&ci,
             (time_t) ci.filled_at + st->policy.cvmfs_manifest_ttl);
@@ -677,15 +700,15 @@ sd_cache_fill_attempt(sd_cache_inst_state *st, const char *key,
 static uint64_t
 sd_cache_hrw_fnv1a64(const char *label, const char *key)
 {
-    uint64_t     h = 14695981039346656037ULL;
+    uint64_t     h = BRIX_FNV1A64_OFFSET_BASIS;
     const char  *p;
 
     for (p = label; *p != '\0'; p++) {
-        h = (h ^ (uint64_t) (unsigned char) *p) * 1099511628211ULL;
+        h = (h ^ (uint64_t) (unsigned char) *p) * BRIX_FNV1A64_PRIME;
     }
-    h = (h ^ (uint64_t) '\n') * 1099511628211ULL;
+    h = (h ^ (uint64_t) '\n') * BRIX_FNV1A64_PRIME;
     for (p = key; *p != '\0'; p++) {
-        h = (h ^ (uint64_t) (unsigned char) *p) * 1099511628211ULL;
+        h = (h ^ (uint64_t) (unsigned char) *p) * BRIX_FNV1A64_PRIME;
     }
     return h;
 }

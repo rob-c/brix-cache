@@ -12,6 +12,7 @@
  * layout diagram and the shm.addr / slab-pool-safety contract.
  */
 #include "core/ngx_brix_module.h"   /* full ngx core + stream types */
+#include "core/fnv.h"
 #include "kv.h"
 #include "kv_internal.h"
 
@@ -20,12 +21,12 @@ static uint64_t
 brix_kv_hash(const void *key, size_t len)
 {
     const uint8_t *p = key;
-    uint64_t       h = 14695981039346656037ULL;   /* FNV offset basis */
+    uint64_t       h = BRIX_FNV1A64_OFFSET_BASIS;
     size_t         i;
 
     for (i = 0; i < len; i++) {
         h ^= p[i];
-        h *= 1099511628211ULL;                     /* FNV prime */
+        h *= BRIX_FNV1A64_PRIME;
     }
     return h;
 }

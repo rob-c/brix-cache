@@ -32,4 +32,14 @@ int sd_ceph_oid_to_pfn(const char *oid, char *pfn, size_t cap);
  * returns 0 (it IS its own catalog entry). */
 int sd_ceph_oid_is_stripe_data(const char *oid);
 
+/* Classify a normalized logical `path` as a one-level child of the normalized
+ * directory `dir` (both "/"-rooted, as sd_ceph_normalize emits). On a match the
+ * child's name (the first component after `dir`) is copied NUL-terminated into
+ * `name`. Returns 0 = not a child (also: path == dir, or the name would not fit
+ * `cap` — an unrepresentable entry is skipped, matching the enumerator's
+ * unrepresentable-pfn policy), 1 = file child (no further components),
+ * 2 = directory child (more components follow — a synthetic subdirectory). */
+int sd_ceph_path_child(const char *dir, const char *path,
+                       char *name, size_t cap);
+
 #endif /* BRIX_SD_CEPH_COMPAT_H */

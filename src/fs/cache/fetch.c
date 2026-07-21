@@ -49,6 +49,8 @@ brix_cache_commit_staged(brix_cache_fill_t *t, brix_sd_instance_t *inst,
 {
     ngx_log_t        *log = (t->c != NULL) ? t->c->log : NULL;
     brix_sd_stat_t  sst;
+    char              cks_alg[16] = "";     /* verified digest, kept for the */
+    char              cks_hex[129] = "";    /* .meta sidecar written below   */
 
     if (inst->driver->stat(inst, key, &sst) != NGX_OK) {
         brix_cache_set_syserror(t, kXR_IOError, "cache commit stat failed");
@@ -84,6 +86,12 @@ brix_cache_commit_staged(brix_cache_fill_t *t, brix_sd_instance_t *inst,
                         "cache fill checksum mismatch (entry evicted)");
                     return -1;
                 }
+                /* Matched: persist the verified digest into the .meta sidecar
+                 * below — the producer side of xrdckverify --cache. */
+                ngx_cpystrn((u_char *) cks_alg, (u_char *) alg_name,
+                            sizeof(cks_alg));
+                ngx_cpystrn((u_char *) cks_hex, (u_char *) hex,
+                            sizeof(cks_hex));
             }
         }
     }
@@ -107,6 +115,14 @@ brix_cache_commit_staged(brix_cache_fill_t *t, brix_sd_instance_t *inst,
             && brix_cache_sidecar_path((const char *) t->conf->cache_root.data,
                    state_root, t->cache_path, sidecar, sizeof(sidecar)) == 0)
         {
+            if (cks_alg[0] != '\0' && cks_hex[0] != '\0') {
+                ngx_cpystrn((u_char *) meta.cks_alg, (u_char *) cks_alg,
+                            sizeof(meta.cks_alg));
+                meta.cks_alg_len = (uint8_t) ngx_strlen(meta.cks_alg);
+                ngx_cpystrn((u_char *) meta.cks_hex, (u_char *) cks_hex,
+                            sizeof(meta.cks_hex));
+                meta.cks_len = (uint8_t) ngx_strlen(meta.cks_hex);
+            }
             (void) brix_cache_meta_write(log, sidecar, &meta);
         }
     }

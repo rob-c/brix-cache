@@ -3,6 +3,7 @@
  * Phase-38 split of api.c; behavior-identical.
  */
 #include "dashboard_api_internal.h"
+#include "core/fnv.h"
 
 const char *
 dashboard_direction_name(uint8_t direction)
@@ -111,17 +112,17 @@ dashboard_event_class_name(uint8_t class_id)
  * WHY:  The dashboard exposes a short "session_hash" so an operator can
  *       correlate rows without leaking the raw session id. NOT for security —
  *       it is non-cryptographic and only needs to be stable per session.
- * HOW:  Standard FNV-1a: 2166136261 offset basis, 16777619 prime.
+ * HOW:  Standard FNV-1a: BRIX_FNV1A32_OFFSET_BASIS, BRIX_FNV1A32_PRIME.
  */
 uint32_t
 dashboard_session_hash(const u_char sessid[16])
 {
-    uint32_t   h = 2166136261u;
+    uint32_t   h = BRIX_FNV1A32_OFFSET_BASIS;
     ngx_uint_t i;
 
     for (i = 0; i < 16; i++) {
         h ^= sessid[i];
-        h *= 16777619u;
+        h *= BRIX_FNV1A32_PRIME;
     }
     return h;
 }

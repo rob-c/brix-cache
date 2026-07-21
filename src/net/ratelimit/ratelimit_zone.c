@@ -15,6 +15,7 @@
 #include "ratelimit.h"
 #include "observability/metrics/metrics_macros.h"
 #include "core/compat/alloc_guard.h"
+#include "core/fnv.h"
 
 #define BRIX_RL_MAX_ZONES   16
 #define BRIX_RL_MIN_SIZE    (64 * 1024)
@@ -36,12 +37,12 @@ uint32_t
 brix_rl_hash(const char *key, size_t len)
 {
     const uint8_t *p = (const uint8_t *) key;
-    uint32_t       h = 2166136261u;     /* FNV offset basis (32-bit) */
+    uint32_t       h = BRIX_FNV1A32_OFFSET_BASIS;
     size_t         i;
 
     for (i = 0; i < len; i++) {
         h ^= p[i];
-        h *= 16777619u;                  /* FNV prime (32-bit) */
+        h *= BRIX_FNV1A32_PRIME;
     }
     return h;
 }

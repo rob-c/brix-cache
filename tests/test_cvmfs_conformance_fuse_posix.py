@@ -85,7 +85,7 @@ class Rig:
 def _tree():
     return {
         "hello.txt": File(HELLO),
-        "exec.sh": File(b"#!/bin/sh\necho hi\n", mode=0o755),
+        "exec.sh": File(b"executable-file payload\n", mode=0o755),  # opaque bytes; only the exec bit is under test
         "chunky.bin": Chunked([Chunk(c) for c in CHUNKS]),
         "sub": Dir({"leaf.txt": File(LEAF), "inner": Dir({})}),
         "sub2": Dir({}),

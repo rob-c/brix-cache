@@ -3343,6 +3343,10 @@ design section and a test (cross-ref §R).
   only token-native group rules? (Lean: authdb `g` reuse.)
 - **NN-3.** CSI inline (`prefix=`) mode — hide `.xrdt` from dirlist/stat like
   upstream; confirm our namespace-hiding (`dirlist` artifact filter) covers it.
+  *(CLOSED 2026-07-21, phase-88 loose-end sweep: `.xrdt` added to the reserved
+  sidecar suffixes in `src/fs/path/reserved_names.h`, so it is hidden from
+  WebDAV PROPFIND, root kXR_dirlist, and stat, and 404s on direct GET —
+  4 tests in `tests/test_mu_sidecar_hidden.py`.)*
 - **NN-4.** Loadshed fraction semantics — per-connection random vs per-user
   deterministic; pick to match stock qualitatively.
 - **NN-5.** HTTP GET + CSI: ADR-6 disables sendfile when CSI is on. Is the

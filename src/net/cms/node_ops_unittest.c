@@ -20,6 +20,7 @@
 #define K_RMDIR   9
 #define K_TRUNC  23
 #define K_PREPADD 6
+#define K_PREPDEL 7
 
 static int g_fail;
 #define CHECK(cond) do { \
@@ -136,10 +137,56 @@ test_missing_path_rejected(void)
 static void
 test_non_executed_opcode(void)
 {
-    /* prepadd is staging, not a confined namespace op handled here */
+    /* an opcode this node does not execute at all (kYR_statfs = 21 routes
+     * elsewhere; use an unmapped code) */
     brix_cms_rrdata_t d = rr("/x", NULL, "0");
     brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(99, &d, &p) == -1);
+}
+
+static void
+test_prepadd_plan(void)
+{
+    /* prepadd needs path + reqid; notify/prty pass through when present. */
+    brix_cms_rrdata_t d = rr("/atlas/f.root", NULL, NULL);
+    brix_cms_node_plan_t p;
+    d.reqid  = (const unsigned char *) "42.7@mgr"; d.reqid_len  = 8;
+    d.notify = (const unsigned char *) "udp://n:1"; d.notify_len = 9;
+    d.prty   = (const unsigned char *) "2";         d.prty_len   = 1;
+    CHECK(brix_cms_node_plan(K_PREPADD, &d, &p) == 0);
+    CHECK(p.action == XRDCMS_NACT_PREPADD);
+    CHECK(p.path && strcmp(p.path, "/atlas/f.root") == 0);
+    CHECK(p.reqid && strcmp(p.reqid, "42.7@mgr") == 0);
+    CHECK(p.notify && strcmp(p.notify, "udp://n:1") == 0);
+    CHECK(p.prty && strcmp(p.prty, "2") == 0);
+}
+
+static void
+test_prepadd_requires_reqid(void)
+{
+    brix_cms_rrdata_t d = rr("/atlas/f.root", NULL, NULL);
+    brix_cms_node_plan_t p;
     CHECK(brix_cms_node_plan(K_PREPADD, &d, &p) == -1);
+}
+
+static void
+test_prepdel_plan(void)
+{
+    /* prepdel carries only ident+reqid — no path required. */
+    brix_cms_rrdata_t d = rr(NULL, NULL, NULL);
+    brix_cms_node_plan_t p;
+    d.reqid = (const unsigned char *) "42.7@mgr"; d.reqid_len = 8;
+    CHECK(brix_cms_node_plan(K_PREPDEL, &d, &p) == 0);
+    CHECK(p.action == XRDCMS_NACT_PREPDEL);
+    CHECK(p.reqid && strcmp(p.reqid, "42.7@mgr") == 0);
+}
+
+static void
+test_prepdel_requires_reqid(void)
+{
+    brix_cms_rrdata_t d = rr(NULL, NULL, NULL);
+    brix_cms_node_plan_t p;
+    CHECK(brix_cms_node_plan(K_PREPDEL, &d, &p) == -1);
 }
 
 int
@@ -156,6 +203,10 @@ main(void)
     test_rm_and_rmdir();
     test_missing_path_rejected();
     test_non_executed_opcode();
+    test_prepadd_plan();
+    test_prepadd_requires_reqid();
+    test_prepdel_plan();
+    test_prepdel_requires_reqid();
 
     if (g_fail) { printf("%d check(s) FAILED\n", g_fail); return 1; }
     printf("all node_ops checks passed\n");

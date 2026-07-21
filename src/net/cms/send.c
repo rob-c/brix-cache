@@ -63,15 +63,17 @@ ngx_brix_cms_send_error(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
 ngx_int_t
 ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
 {
-    u_char      payload[1024];
+    u_char      payload[1280];
     u_char     *payload_cursor;
     u_char      sid[256];
     u_char      pathbuf[640];
+    u_char      envbuf[80];
     u_char      hostbuf[200];
     u_char     *pp;
     ngx_str_t   paths;
     size_t      sid_len;
     size_t      path_len;
+    size_t      env_len;
     size_t      i;
     size_t      seg_start;
     uint32_t    total_gb;
@@ -182,15 +184,25 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
 
     /*
      * Trailing Pup strings in wire order: SID, Paths, then ifList and envCGI.
-     * The two NULL/0 puts emit empty (but present) ifList and envCGI strings —
-     * the manager still expects the length-prefixed slots, so they cannot be
-     * omitted even though we have nothing to advertise there.
+     * ifList is always empty; envCGI carries "vnid=<id>" when brix_cms_vnid is
+     * configured (Phase-89 W9), else stays empty.  Empty slots are still
+     * emitted as length-prefixed strings — the manager expects all four.
+     * The vnid value is truncated to 63 chars, the manager-side buffer bound.
      */
+    env_len = 0;
+    if (ctx->conf->cms.vnid.len > 0) {
+        env_len = (size_t) (ngx_snprintf(envbuf, sizeof(envbuf), "vnid=%*s",
+                                         ngx_min(ctx->conf->cms.vnid.len, 63),
+                                         ctx->conf->cms.vnid.data) - envbuf);
+    }
+
     payload_cursor = ngx_brix_cms_put_string(payload_cursor, sid, sid_len);
     payload_cursor = ngx_brix_cms_put_string(payload_cursor, pathbuf,
                                                path_len);
     payload_cursor = ngx_brix_cms_put_string(payload_cursor, NULL, 0);
-    payload_cursor = ngx_brix_cms_put_string(payload_cursor, NULL, 0);
+    payload_cursor = ngx_brix_cms_put_string(payload_cursor,
+                                               env_len > 0 ? envbuf : NULL,
+                                               env_len);
 
     return ngx_brix_cms_send_frame(ctx, 0, CMS_RR_LOGIN, 0, payload,
                                      (size_t) (payload_cursor - payload));
@@ -229,12 +241,15 @@ ngx_brix_cms_send_load(ngx_brix_cms_ctx_t *ctx)
     u_char    payload[32];
     u_char   *payload_cursor;
     uint32_t  free_mb;
+    uint32_t  util_pct;
+    uint8_t   load5[5];
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
                    "brix: send_load: conn=%p", ctx->connection);
 
     free_mb = 0;
-    (void) ngx_brix_cms_stat_space(ctx->conf, NULL, &free_mb, NULL);
+    util_pct = 0;
+    (void) ngx_brix_cms_stat_space(ctx->conf, NULL, &free_mb, &util_pct);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->cycle->log, 0,
                    "brix: send_load: free_mb=%uD", free_mb);
@@ -250,9 +265,12 @@ ngx_brix_cms_send_load(ngx_brix_cms_ctx_t *ctx)
     /*
      * kYR_load payload (CmsLoadRequest / lodArgs): theLoad is a Pup char-blob
      * of 6 load bytes (cpu,net,xeq,mem,pag,dsk) — a bare [2-byte len][data] with
-     * NO scalar type tag — followed by dskFree as a tagged int.  Zero load bytes
-     * report an idle node; the manager only uses them for balancing.
+     * NO scalar type tag — followed by dskFree as a tagged int.  The first five
+     * bytes come from the Phase-89 W4 /proc meter (a meter fault degrades to
+     * zeros, never a failed heartbeat); dsk is the export-fs utilisation.
      */
+    brix_cms_meter_sample(&ctx->meter, (uint64_t) ngx_current_msec, load5);
+
     /*
      * Hand-packed (put16 + manual cursor advance) rather than via put_string:
      * put16 only writes the 2-byte length, so the cursor must be advanced by
@@ -262,7 +280,8 @@ ngx_brix_cms_send_load(ngx_brix_cms_ctx_t *ctx)
     payload_cursor = payload;
     ngx_brix_cms_put16(payload_cursor, 6);    /* blob length: 6 load bytes */
     payload_cursor += 2;                          /* skip the 2-byte length */
-    ngx_memzero(payload_cursor, 6);             /* cpu,net,xeq,mem,pag,dsk = 0 */
+    ngx_memcpy(payload_cursor, load5, 5);       /* cpu,net,xeq,mem,pag */
+    payload_cursor[5] = (u_char) (util_pct > 100 ? 100 : util_pct); /* dsk */
     payload_cursor += 6;                          /* advance past the 6 bytes */
     payload_cursor = ngx_brix_cms_put_int(payload_cursor, free_mb);
 

@@ -203,7 +203,7 @@ class TestChmod:
 
     def test_chmod_file_to_executable(self):
         p = disk(f"{PREFIX}chmod_exec.sh")
-        open(p, "w").write("#!/bin/sh\n")
+        open(p, "w").write("chmod payload\n")  # opaque bytes; the test only flips the exec bit
         os.chmod(p, 0o644)
         worker_own(p)
         fs = anon_fs()

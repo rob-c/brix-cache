@@ -55,10 +55,14 @@ brix_is_internal_name(const char *path)
         return 0;
     }
 
-    /* Cache metadata sidecars (block-present bitmap + origin metadata). */
+    /* Cache metadata sidecars (block-present bitmap + origin metadata) and the
+     * XrdOssCsi per-page-checksum tag sidecar (.xrdt: written by stock XRootD
+     * deployments and the CSI migration tooling next to the data file; xmeta
+     * superseded it here, but interop trees still carry them). */
     if (brix_name_has_suffix(name, n, ".cinfo", 6)
         || brix_name_has_suffix(name, n, ".xrdcinfo", 9)
-        || brix_name_has_suffix(name, n, ".meta", 5))
+        || brix_name_has_suffix(name, n, ".meta", 5)
+        || brix_name_has_suffix(name, n, ".xrdt", 5))
     {
         return 1;
     }

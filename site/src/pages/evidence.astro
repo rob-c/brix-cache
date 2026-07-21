@@ -21,7 +21,7 @@ const defenses = [
   {
     t: 'One storage seam, mechanically enforced',
     d: 'All raw file I/O lives in one place — the storage backend under the VFS. A CI guard fails the build if a protocol handler reaches around it, so confinement and identity checks cannot be bypassed by new code.',
-    cite: 'src/fs/backend/ · tools/ci/check_vfs_seam.sh',
+    cite: 'src/fs/backend/ · tools/ci/check_vfs_seam.py',
   },
   {
     t: 'Hardened builds by default',

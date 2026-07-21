@@ -12,6 +12,31 @@ open (the W-plan below):** live-traffic *selection*/routing of the bound
 `xrootd_sd_obj_t` to this driver, libradosstriper interop with stock XrdCeph,
 directory listing, rename, xattr, and staged commit. See
 [`../../src/fs/backend/README.md`](../../src/fs/backend/README.md).
+
+> **SUPERSEDED (2026-07-21 — phase-89 tree verification).** Four of the six
+> "still open" items above have since LANDED; the driver now lives split
+> across `src/fs/backend/rados/` (`sd_ceph.c` + `_io`/`_object`/`_cred`/
+> `_striper` TUs, `brix_` naming):
+> - **live routing** — `tier_build.c` has the `rados` arm;
+>   `brix_storage_backend rados://pool` serves live (`ceph_export_smoke`,
+>   `tests/test_ceph_live.py`);
+> - **xattr** — all four slots + `CAP_XATTR`/`CAP_XATTR_WRITE` (also unlocks
+>   the phase-64 cache-store role with XATTR cinfo);
+> - **staged commit** — all four `staged_*` slots (temp-soid commit);
+> - **libradosstriper** — `sd_ceph_striper.c` wrappers with stock-XrdCeph
+>   layout, lazily bound in `sd_ceph_io.c`, validated by
+>   `tests/run_rados_parity.sh` (env-gated on `BRIX_TEST_RADOS_POOL`).
+>
+> Landed beyond this plan: per-user CephX credential scoping (`open_cred` +
+> refcounted pinned connection LRU), `enumerate` catalog scan
+> (`CAP_CATALOG`), and a read-only CephFS driver (`sd_cephfs_ro*`).
+>
+> **Genuinely remaining:** directory listing (`opendir/readdir/closedir` via
+> stripe-collapse over `enumerate`, `CAP_DIRS`), rename (copy+delete), and
+> the dir-marker/mkdir decision — implementation tracked in
+> `phase-89-design-backlog-burndown.md` §B. This doc remains the design
+> authority for those (§6 listing, §7 slot mapping, §10 directives), with
+> pre-rebrand `xrootd_*` naming throughout.
 **Date:** 2026-06-27 · **Revised:** 2026-06-28 (re-baselined onto the unified `vfs`+`backend` core)
 **Owner decisions:** see §Z (ADR log)
 **Scope:** (a) finish de-POSIX-pinning the VFS data plane and (b) add one Ceph

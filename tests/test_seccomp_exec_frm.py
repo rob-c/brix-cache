@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 import settings
+from cmdscripts import frm_stagecmd
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -68,25 +69,6 @@ def _worker_seccomp(prefix: str) -> "str | None":
     return None
 
 
-def _mock_stagecmd(tape: str, audit: str) -> str:
-    """A minimal exec MSS adapter in POSIX shell: `<stagecmd> <verb> <key> <online>`.
-    tape/audit are baked in (nginx rewrites environ, so a spawned command cannot
-    rely on inherited env — only argv + $BRIX_FRM_STAGECMD survive)."""
-    return (
-        "#!/bin/bash\n"
-        'verb="$1"; key="${2#/}"; online="$3"\n'
-        f"audit='{audit}'\n"
-        f"tape='{tape}'\n"
-        'echo "$verb $key" >> "$audit" 2>/dev/null || true\n'
-        'case "$verb" in\n'
-        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
-        '  recall)  mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
-        '  migrate) cp "$online" "$tape/$key" ;;\n'
-        '  purge)   rm -f "$online" ;;\n'
-        "esac\n"
-    )
-
-
 def _start(harness, name: str, allow_exec: bool):
     root = os.path.join(BASE, name)
     base = os.path.join(root, "base")     # frm://exec<base> — online buffer root
@@ -100,10 +82,12 @@ def _start(harness, name: str, allow_exec: bool):
     audit = os.path.join(root, "audit.log")
     open(audit, "w").close()
     os.chmod(audit, 0o666)
-    stagecmd = os.path.join(root, "stage.sh")
-    with open(stagecmd, "w", encoding="utf-8") as fh:
-        fh.write(_mock_stagecmd(tape, audit))
-    os.chmod(stagecmd, 0o755)
+    # Exec MSS adapter — logs "verb key" best-effort (unprivileged worker may
+    # lack write perms). Tape dir + audit path ride in a JSON sidecar (nginx
+    # rewrites its worker environ; only argv + BRIX_FRM_STAGECMD survive).
+    stagecmd = frm_stagecmd.install(
+        root, tape=tape, audit=audit, audit_format="verb_key",
+        audit_best_effort=True)
     _traversable(stagecmd)
     _traversable(tape)
     _traversable(cache)

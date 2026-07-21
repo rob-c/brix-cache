@@ -389,6 +389,10 @@ brix_srv_snapshot(brix_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
         out[n].error_count      = e->error_count;
         out[n].hc_last_ok       = e->hc_last_ok;
         out[n].hc_fail_count    = e->hc_fail_count;
+        ngx_cpystrn((u_char *) out[n].vnid, (u_char *) e->vnid,
+                    sizeof(out[n].vnid));
+        out[n].stage            = e->stage;
+        out[n].load_pct         = e->load_pct;
         n++;
     }
 

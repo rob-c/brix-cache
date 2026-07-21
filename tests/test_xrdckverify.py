@@ -78,17 +78,38 @@ def _write_meta(path, algo, hexval, size, mtime=0):
         f.write(rec)
 
 
-def _write_cinfo(path, algo, hexval, size, block_size=1 << 20, mtime=0):
-    """src/fs/cache/cinfo.h brix_cache_cinfo_t header (272 bytes) + a bitmap."""
+def _xmeta_record(algo, hexval, size, block_size=1 << 20):
+    """Unified xmeta record (src/fs/meta/): stock v4 cinfo prefix + "XCX1"
+    extension block with one ORIGIN (0x0004) section carrying the digest.
+    Section/record CRCs are zeroed — the reader walks by lengths only."""
     nblocks = (size + block_size - 1) // block_size if size else 0
-    hdr = struct.pack(
-        "<I H H I I Q Q Q Q Q Q B 55s B 16s B 129s 5x",
-        0x58434931, 2, 1, block_size, 0, size, mtime, nblocks, 0, 0, 0,
-        0, b"", len(algo), algo.encode(), len(hexval), hexval.encode())
-    assert len(hdr) == 272, len(hdr)
-    bitmap = b"\xff" * ((nblocks + 7) // 8)
+    store = bytearray(48)                       # 48-byte Store POD
+    store[0:8] = struct.pack("<q", block_size)
+    store[8:16] = struct.pack("<q", size)
+    store[44:48] = struct.pack("<i", 0)         # astatn = 0
+    rec = struct.pack("<i", 4) + bytes(store) + b"\0\0\0\0"   # version+Store+crc
+    rec += b"\xff" * ((nblocks + 7) // 8)       # present bitmap (all filled)
+    rec += b"\0\0\0\0"                          # (no AStat entries) + crc
+    payload = (struct.pack("<BBBB", 0, len(algo), len(hexval), 0)
+               + algo.encode() + hexval.encode())
+    rec += struct.pack("<IHH", 0x31584358, 0, 1)              # XCX1 + nsec=1
+    rec += struct.pack("<HHI", 0x0004, 0, len(payload)) + payload + b"\0\0\0\0"
+    return rec
+
+
+def _write_cinfo(path, algo, hexval, size, block_size=1 << 20, mtime=0):
+    """xmeta record via its "<path>.cinfo" sidecar carrier."""
     with open(path + ".cinfo", "wb") as f:
-        f.write(hdr + bitmap)
+        f.write(_xmeta_record(algo, hexval, size, block_size))
+
+
+def _write_cinfo_xattr(path, algo, hexval, size, block_size=1 << 20, mtime=0):
+    """xmeta record via its primary carrier, the user.xrd.cinfo xattr."""
+    try:
+        os.setxattr(path, "user.xrd.cinfo", _xmeta_record(algo, hexval, size,
+                                                          block_size))
+    except OSError as e:
+        pytest.skip("user xattrs unsupported here: %s" % e)
 
 
 # --------------------------------------------------------------------------- #
@@ -162,8 +183,9 @@ def test_storage_md5_via_xattr(datafile):
 # --------------------------------------------------------------------------- #
 # Proxy cache: the .cinfo / .meta recorded digest.                            #
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("writer", [_write_cinfo, _write_meta],
-                         ids=["cinfo", "meta"])
+@pytest.mark.parametrize("writer", [_write_cinfo, _write_cinfo_xattr,
+                                    _write_meta],
+                         ids=["cinfo", "cinfo-xattr", "meta"])
 def test_cache_sidecar_ok_and_mismatch(datafile, writer):
     path, data = datafile
     writer(path, "adler32", _adler32(data), len(data))
@@ -173,6 +195,17 @@ def test_cache_sidecar_ok_and_mismatch(datafile, writer):
     writer(path, "adler32", "00000000", len(data))
     rc, out, _ = _run("--cache", path)
     assert rc == 1 and "MISMATCH" in out, out
+
+
+def test_cache_truncated_xmeta_record_is_rejected(datafile):
+    """A record cut mid-ORIGIN-section must read as 'no checksum', not crash
+    or return garbage (bounds-check security negative)."""
+    path, data = datafile
+    rec = _xmeta_record("adler32", _adler32(data), len(data))
+    with open(path + ".cinfo", "wb") as f:
+        f.write(rec[:len(rec) - 6])
+    rc, _out, err = _run("--cache", path)
+    assert rc == 2 and "no recorded checksum" in err, err
 
 
 def test_auto_finds_cache_record(datafile):

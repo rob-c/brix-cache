@@ -14,7 +14,7 @@ implemented and wired**: the registry carries the HC fields and claim/pass/fail
 API, `src/net/manager/health_check.{c,h}` runs the probe state machine + timer,
 six directives configure it (off by default), and cluster metrics export the
 results. Several details diverge from this plan; the one genuinely *reduced*
-piece is TLS probing (Step F).
+piece was TLS probing (Step F) — **closed 2026-07-21**, see row F.
 
 | Step | Capability | Status | Evidence / divergence |
 |------|-----------|--------|-----------------------|
@@ -23,7 +23,7 @@ piece is TLS probing (Step F).
 | **C** | Health-check timer | ✅ **Done — different start hook** | `xrootd_hc_mgr_t`, `xrootd_hc_timer_handler` (`:487`), `xrootd_hc_manager_start` (`:504`), `xrootd_hc_start` (`:368`). Started from **`src/core/config/process.c:163`** (the module's `init_process`), **not** `src/protocols/root/stream/module.c` as the file map said. Scan interval = `interval / slots`, min 100 ms. |
 | **D** | Config directives | ✅ **Done** | All six `xrootd_health_check[_interval/_timeout/_threshold/_blacklist/_type]` directives are registered in **`src/protocols/root/stream/module.c`** (not `src/core/config/directives.c`); conf fields `hc_enabled/hc_interval_ms/hc_timeout_ms/hc_threshold/hc_blacklist_ms/hc_type` in `src/core/types/config.h:357-362`. Off by default. |
 | **E** | Metrics | ✅ **Done — different counter set** | `src/observability/metrics/cluster.c` exports `xrootd_cluster_hc_{probes,pass,fail,blacklist}_total` (fields in `metrics.h:490-493`). Diverges from the plan: there is an **extra `hc_probes_total`** (probes started) and **no `hc_probe_active` gauge**. Per-server `hc_last_ok`/`hc_fail_count` are in the snapshot for the dashboard. |
-| **F** | TLS support for probes | ⚠️ **Not implemented as designed** | There is **no TLS upgrade** on the probe path and **no `xrootd_tls_upgrade_ctx_t` refactor** of `src/net/upstream/tls.c`. Instead, when a server advertises `kXR_gotoTLS` in its protocol response, the probe **stops at the protocol stage and counts it as alive (pass)** — see `health_check.c` `XRD_HC_PROTOCOL` (~`:240-256`). So TLS servers get a shallower liveness check (TCP + handshake + protocol), not the full login+ping/stat probe. |
+| **F** | TLS support for probes | ✅ **Done (2026-07-21, via a shared-function seam rather than the planned ctx struct)** | `brix_outbound_start_tls()` extracted from `src/net/upstream/tls.c` (declared in `upstream_internal.h`), `brix_upstream_start_tls()` is now a thin wrapper over it. With `brix_upstream_tls on` + `brix_upstream_tls_ca` on the manager block, a probe advertises `kXR_ableTLS`, **defers login past the protocol verdict** (see below), and on `kXR_gotoTLS` upgrades the connection, re-sends a fresh login over TLS, and completes the full login+ping/stat probe (`brix_hc_tls_handshake_done`). Handshake or peer-verify failure = probe **failure**. Without an outbound TLS ctx, the old shallow protocol-OK-alive behavior is preserved byte-identically. Tests: `test_phase22_health_check.py` §4 (deep pass / untrusted-CA fail / shallow fallback). |
 
 ### As-built divergences (none are correctness defects)
 
@@ -38,10 +38,16 @@ piece is TLS probing (Step F).
 
 ### Pending / not done
 
-- **Step F (TLS-upgraded probes):** not implemented. TLS-requiring servers are
-  marked alive at the protocol stage rather than being probed through a TLS
-  handshake + login + ping/stat. If a deep probe of TLS data servers is required,
-  the `xrootd_upstream_start_tls()` sharing refactor in Step F is the path.
+- ~~**Step F (TLS-upgraded probes):** not implemented.~~ **DONE 2026-07-21** —
+  see row F above and § Step F below. Two wire facts discovered while landing it:
+  1. a brix server only answers `kXR_gotoTLS` to clients that advertised
+     `kXR_ableTLS`/`kXR_wantTLS` (`session/protocol.c`) — a flagless probe is
+     simply allowed to finish in cleartext, silently skipping the deep path —
+     so TLS-capable probes send the flag (`brix_upstream_build_bootstrap_flags`);
+  2. a TLS-capable probe must **not pipeline the plaintext login** behind the
+     protocol request: on `kXR_gotoTLS` the server hands all pending cleartext
+     bytes to `SSL_do_handshake` ("packet length too long"). The probe now sends
+     handshake+protocol only and sends login after the verdict (cleartext or TLS).
 - The shared `xrootd_do_bootstrap()` extraction (Risk Notes) was **not** done — the
   HC bootstrap is a parallel implementation of the upstream bootstrap phases.
 
@@ -538,13 +544,21 @@ Additionally, expose per-server health state via the existing dashboard snapshot
 
 ## Step F — TLS Support for Health Probes
 
-> **Status: ⚠️ NOT implemented as designed.** The probe path has no TLS upgrade and
-> `src/net/upstream/tls.c` was not refactored to a shared `xrootd_tls_upgrade_ctx_t`.
-> Instead, when a data server advertises `kXR_gotoTLS` in its protocol response, the
-> probe stops at the protocol stage and records the server as **alive (pass)** — a
-> shallower liveness check than the full login + ping/stat probe used for cleartext
-> servers (`health_check.c`, `XRD_HC_PROTOCOL`). The design below is the path to a
-> deep TLS probe if that is ever required.
+> **Status: ✅ IMPLEMENTED 2026-07-21** — via a shared *function* seam instead of the
+> wrapper-struct below: `brix_outbound_start_tls(ssl_ctx, conn, sni, handler)` was
+> extracted from `src/net/upstream/tls.c` (declared in `upstream_internal.h`);
+> `brix_upstream_start_tls()` wraps it and `health_check.c` calls it directly with
+> its own handshake-done callback (`brix_hc_tls_handshake_done`), which verifies the
+> peer, restores the probe handlers, and re-sends a fresh login over TLS — then the
+> probe continues LOGIN → PROBE at full depth. Gated on the manager block's
+> `brix_upstream_tls on` + `brix_upstream_tls_ca`; without a ctx the pre-Step-F
+> shallow protocol-OK-alive behavior is preserved. Two wire preconditions (found
+> the hard way, see "Pending / not done" above): the probe must advertise
+> `kXR_ableTLS` or a brix server never answers `kXR_gotoTLS`, and it must NOT
+> pipeline the plaintext login (the server feeds pending cleartext bytes to the
+> TLS handshake). Tests: `test_phase22_health_check.py` §4 + template
+> `tests/configs/nginx_hc_tls_cluster.conf`. The original design sketch below is
+> kept for the record.
 
 If `xrootd_upstream_tls on` is configured, data servers advertise `kXR_gotoTLS` in
 the protocol response. The health check bootstrap must handle TLS upgrade the same way

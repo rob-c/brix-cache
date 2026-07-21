@@ -305,7 +305,7 @@ per-op data-plane metrics.
 
 ## The CI seam guard (three tiers)
 
-`tools/ci/check_vfs_seam.sh` enforces "the VFS is the sole source of storage
+`tools/ci/check_vfs_seam.py` enforces "the VFS is the sole source of storage
 truth" and is **green on all three tiers with every backlog at 0**. Run it in CI;
 `--regen` re-snapshots the backlogs after a deliberate migration.
 
@@ -352,7 +352,7 @@ design, not omission. See
   variants, `brix_vfs_unlink_path`/`unlink_at`/`mkdir_path`/`rename_path` for
   off-loop namespace mutation. A raw call to a separate svc-owned domain or a
   non-export resource is allowed but MUST carry a same-line `vfs-seam-allow`
-  marker (see "The CI seam guard"). `tools/ci/check_vfs_seam.sh` rejects an
+  marker (see "The CI seam guard"). `tools/ci/check_vfs_seam.py` rejects an
   unmarked new raw namespace/metadata syscall.
 - **Add a new open flag:** define `BRIX_VFS_O_*` in `vfs.h` and map it in
   `brix_vfs_open_flags()` (`vfs_open.c`); cache-affecting flags also belong in

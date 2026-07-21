@@ -40,6 +40,21 @@
       offsetof(ngx_stream_brix_srv_conf_t, caps.collapse_redir_ttl),
       NULL },
 
+    /* Phase-89 W3: dynamic location (kYR_state fan-out + loc cache). */
+    { ngx_string("brix_cms_locate_window"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, caps.cms_locate_window),
+      NULL },
+
+    { ngx_string("brix_cms_state_fanout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, caps.cms_state_fanout),
+      NULL },
+
     { ngx_string("brix_recover_writes"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,

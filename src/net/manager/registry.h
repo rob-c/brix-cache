@@ -35,6 +35,13 @@ typedef struct {
     ngx_msec_t  blacklisted_until;       /* 0 = available; future ms = skip */
     uint32_t    error_count;             /* consecutive CMS disconnect count */
 
+    /* Phase 89 W9 — kYR_status/login attributes. */
+    char        vnid[64];                /* virtual network id from login envCGI */
+    ngx_uint_t  stage;                   /* 1 = staging available (status stage bit) */
+
+    /* Phase 89 W4 — machine-load figure from the heartbeat theLoad bytes. */
+    uint32_t    load_pct;                /* 0-100; max of cpu/net/xeq/mem/pag */
+
     /* Phase 22 — active health checks (off unless brix_health_check on). */
     ngx_msec_t  hc_next_check;           /* ngx_current_msec when next probe is due */
     ngx_msec_t  hc_last_ok;              /* ngx_current_msec of last passing probe */
@@ -59,6 +66,9 @@ typedef struct {
     uint32_t    error_count;
     ngx_msec_t  hc_last_ok;      /* Phase 22: last passing health probe */
     uint32_t    hc_fail_count;   /* Phase 22: consecutive probe failures */
+    char        vnid[64];        /* Phase 89 W9: login virtual network id */
+    ngx_uint_t  stage;           /* Phase 89 W9: staging available */
+    uint32_t    load_pct;        /* Phase 89 W4: heartbeat machine load 0-100 */
 } brix_srv_snapshot_entry_t;
 
 extern ngx_shm_zone_t *brix_srv_shm_zone;
@@ -100,6 +110,49 @@ void brix_srv_blacklist(const char *host, uint16_t port,
 
 /* Phase 23 — clear a drain/blacklist (admin "undrain"); 1 if found. */
 int brix_srv_undrain(const char *host, uint16_t port);
+
+/*
+ * Phase 89 W9 — kYR_status/login attribute writers.
+ *
+ * brix_srv_reset(): a node sent kYR_status(reset) — forget its cached
+ *   metrics/fault state (free_mb, util_pct, error/blacklist/health-check
+ *   counters) but keep the registration and paths; the node re-announces via
+ *   its next load/avail heartbeat.  Returns 1 if a matching entry was found.
+ * brix_srv_set_vnid(): record the virtual network id a node advertised in
+ *   its login envCGI (empty string clears).
+ * brix_srv_set_stage(): record staging availability from the status
+ *   stage/nostage bits.
+ */
+int  brix_srv_reset(const char *host, uint16_t port);
+void brix_srv_set_vnid(const char *host, uint16_t port, const char *vnid);
+void brix_srv_set_stage(const char *host, uint16_t port, ngx_uint_t stage);
+
+/*
+ * Phase 89 W4 — load-weighted selection.
+ *
+ * brix_srv_set_machine_load(): record a node's machine-load percentage (the
+ *   max of its heartbeat cpu/net/xeq/mem/pag bytes; clamped to 100).
+ * brix_srv_set_load_weight(): set the selection weight w (0-100) once at
+ *   config time (before fork) from brix_cms_load_weight.  w = 0 keeps the
+ *   current space/util-only scoring byte-identical; w > 0 blends machine
+ *   load into the metric (reads: (100-w)*util + w*load; writes: free_mb
+ *   scaled down by w*load).
+ */
+void brix_srv_set_machine_load(const char *host, uint16_t port,
+    uint32_t load_pct);
+void brix_srv_set_load_weight(ngx_uint_t weight);
+
+/*
+ * Phase 89 W5 — path-affinity sticky selection.
+ *
+ * brix_srv_set_affinity(): enable (once at config time, before fork, from
+ *   brix_cms_affinity) hashing the request path over the FRESH candidate set
+ *   so repeated selections of one path stick to one server.  Precedence is
+ *   locked (phase-61 note 2): blacklist/staleness filter first, affinity only
+ *   among the eligible fresh tier, score otherwise — a drained host is never
+ *   sticky, and an empty fresh tier falls back to the normal ladder.
+ */
+void brix_srv_set_affinity(ngx_uint_t on);
 
 /*
  * Phase 22 — active health checks.
@@ -150,6 +203,21 @@ int brix_srv_select(const char *path, int for_write,
  * how many distinct data servers a client could be redirected to.
  */
 int brix_srv_count_matching(const char *path);
+
+/*
+ * Phase-89 W3: does a colon-delimited export list cover path?  Public wrapper
+ * over the registry's longest-prefix matcher so the CMS server side can apply
+ * the kYR_have security gate ("a node may only assert have for paths under its
+ * login Paths") with the exact matching rule selection uses.  Pure, lock-free.
+ */
+int brix_srv_paths_cover(const char *paths, const char *path);
+
+/*
+ * Phase-89 W3: is host:port currently blacklisted/draining?  Used to refuse
+ * caching a kYR_have from a drained node (the operator blacklist must not be
+ * bypassed by the dynamic location plane).  Returns 0 for unknown servers.
+ */
+int brix_srv_is_blacklisted(const char *host, uint16_t port);
 
 /*
  * Like brix_srv_select(), but when no live (non-blacklisted) server matches it

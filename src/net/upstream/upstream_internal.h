@@ -91,6 +91,11 @@ void brix_upstream_abort(brix_upstream_t *up, const char *reason);
  * if it answers kXR_gotoTLS (login is then re-sent over TLS). */
 void brix_upstream_build_bootstrap(u_char *buf);
 
+/* Same, but with an explicit kXR_protocol capability byte (kXR_ableTLS et al.)
+ * for callers that can complete a kXR_gotoTLS upgrade — a brix server only
+ * answers gotoTLS to clients that advertised TLS capability. */
+void brix_upstream_build_bootstrap_flags(u_char *buf, uint8_t protocol_flags);
+
 /* Fill a single kXR_login frame in caller-provided `req` (used to re-send login over
  * TLS after a gotoTLS upgrade). Zeroes then populates the struct; never fails. */
 void brix_upstream_build_login(ClientLoginRequest *req);
@@ -139,6 +144,17 @@ ngx_int_t brix_upstream_flush(brix_upstream_t *up);
 ngx_int_t brix_upstream_send_request(brix_upstream_t *up);
 
 #if (NGX_SSL)
+/* Generic outbound kXR_gotoTLS upgrade (phase-22 Step F sharing seam): wrap an
+ * already-connected outbound TCP conn in a client SSL connection with the given
+ * SNI, install `handler` as the handshake-done callback, and start the
+ * handshake (invoking `handler` synchronously if the handshake does not yield
+ * NGX_AGAIN). The caller owns all protocol state; `handler` receives the conn
+ * and must consult conn->ssl->handshaked + SSL_get_verify_result() itself.
+ * Returns NGX_OK once the handshake is initiated, NGX_ERROR if the SSL
+ * connection cannot be created. */
+ngx_int_t brix_outbound_start_tls(ngx_ssl_t *ssl_ctx, ngx_connection_t *c,
+    const char *sni, void (*handler)(ngx_connection_t *c));
+
 /* Wrap the live upstream TCP conn in a client SSL connection (SNI = upstream_tls_name
  * else upstream_host), install the handshake-done callback, set bs_phase = XRD_UP_BS_TLS,
  * and start the handshake (completing synchronously if it does not yield NGX_AGAIN).

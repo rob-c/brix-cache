@@ -377,6 +377,155 @@ sd_pblock_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     }
 }
 
+/* F10 CoW copy: dst shares src's blob — O(metadata), no bytes move; the first
+ * write to either row breaks the share at open. The dst row is owned by
+ * (uid, gid). Returns NGX_OK / NGX_ERROR. */
+static ngx_int_t
+pblock_copy_cow(pblock_state_t *st, const pblock_meta *smeta, const char *dst,
+    uint32_t uid, uint32_t gid, off_t *bytes_out)
+{
+    pblock_meta dexist, dmeta;
+    int         dhad = pblock_catalog_lookup(st->cat, dst, &dexist) == 0;
+
+    if (pblock_refs_bump(st, smeta->blob_id, smeta->size,
+                         smeta->block_size) != 0)
+    {
+        return NGX_ERROR;
+    }
+    memset(&dmeta, 0, sizeof(dmeta));
+    memcpy(dmeta.blob_id, smeta->blob_id, sizeof(dmeta.blob_id));
+    dmeta.is_dir     = 0;
+    dmeta.size       = smeta->size;
+    dmeta.block_size = smeta->block_size;
+    dmeta.mtime      = dmeta.ctime = pblock_now();
+    dmeta.mode       = smeta->mode;
+    dmeta.uid        = uid;
+    dmeta.gid        = gid;
+    if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
+        int err = errno;
+
+        pblock_refs_release(st, smeta->blob_id, smeta->size,
+                            smeta->block_size);
+        errno = err;
+        return NGX_ERROR;
+    }
+    if (dhad && !dexist.is_dir) {    /* the replaced dst's blob loses a ref */
+        pblock_refs_release(st, dexist.blob_id, dexist.size,
+                            dexist.block_size);
+    }
+    if (st->lab != NULL) {                           /* F9 */
+        if (dhad) {
+            pblock_anomaly_updated(st, dst, dexist.size, dexist.mtime);
+        } else {
+            pblock_anomaly_created(st, dst);
+        }
+    }
+    if (bytes_out != NULL) {
+        *bytes_out = (off_t) smeta->size;
+    }
+    /* No csi flush: the shared blob's integrity rows already exist. */
+    if (st->audit) {                                 /* F17 */
+        char aux[32];
+
+        snprintf(aux, sizeof(aux), "cow=1 w=%lld", (long long) smeta->size);
+        pblock_audit_log(st->cat, "copy", dst, aux, uid, gid, 0, 0);
+    }
+    return NGX_OK;
+}
+
+/* Physically copy every block of `src_blob` to `dst_blob`. Returns 0, or -1
+ * with errno set from the failing call (the caller unwinds the partial dst). */
+static int
+pblock_copy_blocks(pblock_state_t *st, const char *src_blob,
+    const char *dst_blob, int64_t size, int64_t block_size)
+{
+    int64_t last = pblock_last_block(size, block_size);
+    int64_t i;
+
+    for (i = 0; i <= last; i++) {
+        char sp[PATH_MAX], dp[PATH_MAX];
+
+        if (pblock_block_path(st, src_blob, i, sp, sizeof(sp)) != 0
+            || pblock_block_path(st, dst_blob, i, dp, sizeof(dp)) != 0
+            || pblock_copy_one_block(sp, dp) < 0)
+        {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* Full byte copy: allocate a fresh blob, copy every block, then publish the dst
+ * row owned by (uid, gid). Returns NGX_OK / NGX_ERROR (partial blob unwound). */
+static ngx_int_t
+pblock_copy_physical(pblock_state_t *st, const pblock_meta *smeta,
+    const char *dst, uint32_t uid, uint32_t gid, off_t *bytes_out)
+{
+    pblock_meta dmeta, dexist;
+    int         dhad = 0;
+
+    memset(&dmeta, 0, sizeof(dmeta));
+    if (pblock_gen_blob_id(dmeta.blob_id) != 0
+        || pblock_ensure_obj_dir(st, dmeta.blob_id) != 0)
+    {
+        return NGX_ERROR;
+    }
+
+    if (pblock_copy_blocks(st, smeta->blob_id, dmeta.blob_id, smeta->size,
+                           smeta->block_size) != 0)
+    {
+        int err = errno;
+
+        pblock_remove_blocks(st, dmeta.blob_id, smeta->size,
+                             smeta->block_size);
+        errno = err;
+        return NGX_ERROR;
+    }
+
+    dmeta.is_dir     = 0;
+    dmeta.size       = smeta->size;
+    dmeta.block_size = smeta->block_size;
+    dmeta.mtime      = dmeta.ctime = pblock_now();
+    dmeta.mode       = smeta->mode;
+    dmeta.uid        = uid;
+    dmeta.gid        = gid;
+
+    /* F9: is this copy a create or an overwrite of dst? The pre-put row is what
+     * a stale stat will serve. */
+    if (st->lab != NULL) {
+        dhad = pblock_catalog_lookup(st->cat, dst, &dexist) == 0;
+    }
+    if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
+        int err = errno;
+
+        pblock_remove_blocks(st, dmeta.blob_id, smeta->size,
+                             smeta->block_size);
+        errno = err;
+        return NGX_ERROR;
+    }
+    if (st->lab != NULL) {
+        if (dhad) {
+            pblock_anomaly_updated(st, dst, dexist.size, dexist.mtime);
+        } else {
+            pblock_anomaly_created(st, dst);
+        }
+    }
+    if (bytes_out != NULL) {
+        *bytes_out = (off_t) smeta->size;
+    }
+    if (st->csi) {                                       /* F3: tag the copy */
+        (void) pblock_csi_flush(st, dmeta.blob_id, dmeta.size,
+                                dmeta.block_size, 0, INT64_MAX);
+    }
+    if (st->audit) {                                     /* F17 */
+        char aux[32];
+
+        snprintf(aux, sizeof(aux), "w=%lld", (long long) smeta->size);
+        pblock_audit_log(st->cat, "copy", dst, aux, uid, gid, 0, 0);
+    }
+    return NGX_OK;
+}
+
 /* sd_pblock_server_copy_as — server-side copy whose destination row is owned
  * by (uid, gid): the copier, not the source's owner (POSIX cp semantics). The
  * plain slot passes 0/0 (service); server_copy_cred passes the requester. */
@@ -385,8 +534,7 @@ sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out, uint32_t uid, uint32_t gid)
 {
     pblock_state_t *st = inst->state;
-    pblock_meta     smeta, dmeta;
-    int64_t         last, i;
+    pblock_meta     smeta;
     int             rc;
 
     rc = pblock_catalog_lookup(st->cat, src, &smeta);
@@ -415,129 +563,9 @@ sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
     }
 
     if (st->refs) {                                      /* F10: CoW copy */
-        /* O(metadata) copy: both rows share the source blob; the first write
-         * to either breaks the share at open. No bytes move. */
-        pblock_meta dexist;
-        int         dhad = pblock_catalog_lookup(st->cat, dst, &dexist) == 0;
-
-        if (pblock_refs_bump(st, smeta.blob_id, smeta.size,
-                             smeta.block_size) != 0)
-        {
-            return NGX_ERROR;
-        }
-        memset(&dmeta, 0, sizeof(dmeta));
-        memcpy(dmeta.blob_id, smeta.blob_id, sizeof(dmeta.blob_id));
-        dmeta.is_dir     = 0;
-        dmeta.size       = smeta.size;
-        dmeta.block_size = smeta.block_size;
-        dmeta.mtime      = dmeta.ctime = pblock_now();
-        dmeta.mode       = smeta.mode;
-        dmeta.uid        = uid;
-        dmeta.gid        = gid;
-        if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
-            int err = errno;
-
-            pblock_refs_release(st, smeta.blob_id, smeta.size,
-                                smeta.block_size);
-            errno = err;
-            return NGX_ERROR;
-        }
-        if (dhad && !dexist.is_dir) {    /* the replaced dst's blob loses a ref */
-            pblock_refs_release(st, dexist.blob_id, dexist.size,
-                                dexist.block_size);
-        }
-        if (st->lab != NULL) {                           /* F9 */
-            if (dhad) {
-                pblock_anomaly_updated(st, dst, dexist.size, dexist.mtime);
-            } else {
-                pblock_anomaly_created(st, dst);
-            }
-        }
-        if (bytes_out != NULL) {
-            *bytes_out = (off_t) smeta.size;
-        }
-        /* No csi flush: the shared blob's integrity rows already exist. */
-        if (st->audit) {                                 /* F17 */
-            char aux[32];
-
-            snprintf(aux, sizeof(aux), "cow=1 w=%lld",
-                     (long long) smeta.size);
-            pblock_audit_log(st->cat, "copy", dst, aux, uid, gid, 0, 0);
-        }
-        return NGX_OK;
+        return pblock_copy_cow(st, &smeta, dst, uid, gid, bytes_out);
     }
-
-    memset(&dmeta, 0, sizeof(dmeta));
-    if (pblock_gen_blob_id(dmeta.blob_id) != 0
-        || pblock_ensure_obj_dir(st, dmeta.blob_id) != 0)
-    {
-        return NGX_ERROR;
-    }
-
-    last = pblock_last_block(smeta.size, smeta.block_size);
-    for (i = 0; i <= last; i++) {
-        char sp[PATH_MAX], dp[PATH_MAX];
-
-        if (pblock_block_path(st, smeta.blob_id, i, sp, sizeof(sp)) != 0
-            || pblock_block_path(st, dmeta.blob_id, i, dp, sizeof(dp)) != 0
-            || pblock_copy_one_block(sp, dp) < 0)
-        {
-            int err = errno;
-
-            pblock_remove_blocks(st, dmeta.blob_id, smeta.size,
-                                 smeta.block_size);
-            errno = err;
-            return NGX_ERROR;
-        }
-    }
-
-    dmeta.is_dir     = 0;
-    dmeta.size       = smeta.size;
-    dmeta.block_size = smeta.block_size;
-    dmeta.mtime      = dmeta.ctime = pblock_now();
-    dmeta.mode       = smeta.mode;
-    dmeta.uid        = uid;
-    dmeta.gid        = gid;
-
-    {
-        pblock_meta dexist;
-        int         dhad = 0;
-
-        /* F9: is this copy a create or an overwrite of dst? The pre-put row
-         * is what a stale stat will serve. */
-        if (st->lab != NULL) {
-            dhad = pblock_catalog_lookup(st->cat, dst, &dexist) == 0;
-        }
-        if (pblock_catalog_put(st->cat, dst, &dmeta) != 0) {
-            int err = errno;
-
-            pblock_remove_blocks(st, dmeta.blob_id, smeta.size,
-                                 smeta.block_size);
-            errno = err;
-            return NGX_ERROR;
-        }
-        if (st->lab != NULL) {
-            if (dhad) {
-                pblock_anomaly_updated(st, dst, dexist.size, dexist.mtime);
-            } else {
-                pblock_anomaly_created(st, dst);
-            }
-        }
-    }
-    if (bytes_out != NULL) {
-        *bytes_out = (off_t) smeta.size;
-    }
-    if (st->csi) {                                       /* F3: tag the copy */
-        (void) pblock_csi_flush(st, dmeta.blob_id, dmeta.size,
-                                dmeta.block_size, 0, INT64_MAX);
-    }
-    if (st->audit) {                                     /* F17 */
-        char aux[32];
-
-        snprintf(aux, sizeof(aux), "w=%lld", (long long) smeta.size);
-        pblock_audit_log(st->cat, "copy", dst, aux, uid, gid, 0, 0);
-    }
-    return NGX_OK;
+    return pblock_copy_physical(st, &smeta, dst, uid, gid, bytes_out);
 }
 
 ngx_int_t

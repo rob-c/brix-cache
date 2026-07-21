@@ -352,6 +352,129 @@ ev_eb_arm_read(ngx_connection_t *c)
 }
 
 
+/* One step of the block reader's state machine.  RET means the helper already
+ * completed the transfer (finish/done/arm) and the caller must return; MORE means
+ * the header is still partial and the caller should loop again; OK means proceed. */
+typedef enum {
+    EV_EB_STEP_RET = 0,
+    EV_EB_STEP_MORE,
+    EV_EB_STEP_OK
+} ev_eb_step_t;
+
+
+/* A fully-unpacked payload block: bounds-check its extent, reject overflow or a
+ * range overlapping an already-reserved one, then reserve it (before reading the
+ * payload, so a concurrent stream's overlap check sees it) and arm ch to drain. */
+static ev_eb_step_t
+ev_eb_reserve_range(ftp_ev_eb_conn_t *ch, ftp_ev_dc_t *dc,
+                    uint64_t count, uint64_t offset)
+{
+    off_t lo, hi;
+
+    if (count > (uint64_t) INT64_MAX
+        || offset > (uint64_t) INT64_MAX - count)
+    {
+        brix_ftp_ev_data_finish(dc, NGX_ERROR);       /* overflow */
+        return EV_EB_STEP_RET;
+    }
+    lo = (off_t) offset;
+    hi = (off_t) (offset + count);
+    if (dc->eb_nranges >= BRIX_FTP_EV_EB_MAX_RANGES
+        || ftp_eb_range_overlaps(dc->eb_ranges, dc->eb_nranges, lo, hi))
+    {
+        brix_ftp_ev_data_finish(dc, NGX_ERROR);       /* overlap */
+        return EV_EB_STEP_RET;
+    }
+    dc->eb_ranges[dc->eb_nranges].lo = lo;
+    dc->eb_ranges[dc->eb_nranges].hi = hi;
+    dc->eb_nranges++;
+    ch->count = count;
+    ch->at    = lo;
+    return EV_EB_STEP_OK;
+}
+
+
+/* Accumulate the 17-byte extended-block header; once complete, unpack it and set
+ * up the next block (EOF descriptors carry the EOD total in OFFSET and no payload;
+ * a non-empty block reserves its range). */
+static ev_eb_step_t
+ev_eb_recv_header(ngx_connection_t *c, ftp_ev_eb_conn_t *ch, ftp_ev_dc_t *dc)
+{
+    uint64_t count, offset;
+    ssize_t  n = c->recv(c, ch->hdr + ch->hdr_got, FTP_EB_HDR - ch->hdr_got);
+
+    if (n == NGX_AGAIN) {
+        if (ev_eb_arm_read(c) != NGX_OK) {
+            brix_ftp_ev_data_finish(dc, NGX_ERROR);
+        }
+        return EV_EB_STEP_RET;
+    }
+    if (n == 0) {
+        if (ch->hdr_got == 0) {
+            ev_eb_child_done(ch);                     /* clean close at a boundary  */
+        } else {
+            brix_ftp_ev_data_finish(dc, NGX_ERROR);   /* EOF mid-header */
+        }
+        return EV_EB_STEP_RET;
+    }
+    if (n < 0) {
+        brix_ftp_ev_data_finish(dc, NGX_ERROR);
+        return EV_EB_STEP_RET;
+    }
+    ch->hdr_got += (size_t) n;
+    if (ch->hdr_got < FTP_EB_HDR) {
+        return EV_EB_STEP_MORE;
+    }
+
+    /* Full header: unpack and set up the block. */
+    ftp_eb_unpack(ch->hdr, &ch->desc, &count, &offset);
+    ch->hdr_got  = 0;
+    ch->have_hdr = 1;
+    ch->count    = 0;
+
+    if (ch->desc & FTP_EB_EOF) {
+        dc->eb_eof_total = (long) offset;   /* no payload; EOD total is in OFFSET */
+        return EV_EB_STEP_OK;
+    }
+    if (count > 0) {
+        return ev_eb_reserve_range(ch, dc, count, offset);
+    }
+    return EV_EB_STEP_OK;
+}
+
+
+/* Drain this block's reserved payload into the writer at its absolute offset. */
+static ev_eb_step_t
+ev_eb_drain_payload(ngx_connection_t *c, ftp_ev_eb_conn_t *ch, ftp_ev_dc_t *dc)
+{
+    while (ch->count > 0) {
+        size_t  want = (ch->count > BRIX_FTP_EV_XFER_BUF)
+                       ? BRIX_FTP_EV_XFER_BUF : (size_t) ch->count;
+        ssize_t n    = c->recv(c, dc->buf, want);
+        if (n == NGX_AGAIN) {
+            if (ev_eb_arm_read(c) != NGX_OK) {
+                brix_ftp_ev_data_finish(dc, NGX_ERROR);
+            }
+            return EV_EB_STEP_RET;
+        }
+        if (n <= 0) {
+            brix_ftp_ev_data_finish(dc, NGX_ERROR);   /* EOF mid-payload / err */
+            return EV_EB_STEP_RET;
+        }
+        if (brix_vfs_writer_write(dc->writer, dc->buf, (size_t) n, ch->at)
+            != NGX_OK)
+        {
+            brix_ftp_ev_data_finish(dc, NGX_ERROR);
+            return EV_EB_STEP_RET;
+        }
+        ch->at          += n;
+        ch->count       -= (uint64_t) n;
+        dc->eb_received += n;
+    }
+    return EV_EB_STEP_OK;
+}
+
+
 /* Per-stream block reader: accumulate the 17-byte header, then drain `count`
  * payload bytes into the writer at their absolute offset, block after block,
  * until an EOD ends the stream or a clean close lands on a block boundary. */
@@ -373,95 +496,17 @@ ev_eb_child_read(ngx_event_t *rev)
 
     for ( ;; ) {
         if (!ch->have_hdr) {
-            ssize_t n = c->recv(c, ch->hdr + ch->hdr_got,
-                                FTP_EB_HDR - ch->hdr_got);
-            if (n == NGX_AGAIN) {
-                if (ev_eb_arm_read(c) != NGX_OK) {
-                    brix_ftp_ev_data_finish(dc, NGX_ERROR);
-                }
+            ev_eb_step_t st = ev_eb_recv_header(c, ch, dc);
+            if (st == EV_EB_STEP_RET) {
                 return;
             }
-            if (n == 0) {
-                if (ch->hdr_got == 0) {
-                    ev_eb_child_done(ch);         /* clean close at a boundary  */
-                } else {
-                    brix_ftp_ev_data_finish(dc, NGX_ERROR);   /* EOF mid-header */
-                }
-                return;
-            }
-            if (n < 0) {
-                brix_ftp_ev_data_finish(dc, NGX_ERROR);
-                return;
-            }
-            ch->hdr_got += (size_t) n;
-            if (ch->hdr_got < FTP_EB_HDR) {
+            if (st == EV_EB_STEP_MORE) {
                 continue;
-            }
-
-            /* Full header: unpack and set up the block. */
-            {
-                uint64_t count, offset;
-                ftp_eb_unpack(ch->hdr, &ch->desc, &count, &offset);
-                ch->hdr_got  = 0;
-                ch->have_hdr = 1;
-                ch->count    = 0;
-
-                if (ch->desc & FTP_EB_EOF) {
-                    /* No payload; globus puts the total EOD count in OFFSET. */
-                    dc->eb_eof_total = (long) offset;
-
-                } else if (count > 0) {
-                    off_t lo, hi;
-                    if (count > (uint64_t) INT64_MAX
-                        || offset > (uint64_t) INT64_MAX - count)
-                    {
-                        brix_ftp_ev_data_finish(dc, NGX_ERROR);   /* overflow    */
-                        return;
-                    }
-                    lo = (off_t) offset;
-                    hi = (off_t) (offset + count);
-                    if (dc->eb_nranges >= BRIX_FTP_EV_EB_MAX_RANGES
-                        || ftp_eb_range_overlaps(dc->eb_ranges, dc->eb_nranges,
-                                                 lo, hi))
-                    {
-                        brix_ftp_ev_data_finish(dc, NGX_ERROR);   /* overlap      */
-                        return;
-                    }
-                    /* Reserve the range before reading the payload so a concurrent
-                     * stream's overlap check sees it. */
-                    dc->eb_ranges[dc->eb_nranges].lo = lo;
-                    dc->eb_ranges[dc->eb_nranges].hi = hi;
-                    dc->eb_nranges++;
-                    ch->count = count;
-                    ch->at    = lo;
-                }
             }
         }
 
-        /* Drain this block's payload into the writer at its absolute offset. */
-        while (ch->count > 0) {
-            size_t  want = (ch->count > BRIX_FTP_EV_XFER_BUF)
-                           ? BRIX_FTP_EV_XFER_BUF : (size_t) ch->count;
-            ssize_t n    = c->recv(c, dc->buf, want);
-            if (n == NGX_AGAIN) {
-                if (ev_eb_arm_read(c) != NGX_OK) {
-                    brix_ftp_ev_data_finish(dc, NGX_ERROR);
-                }
-                return;
-            }
-            if (n <= 0) {
-                brix_ftp_ev_data_finish(dc, NGX_ERROR);   /* EOF mid-payload / err */
-                return;
-            }
-            if (brix_vfs_writer_write(dc->writer, dc->buf, (size_t) n, ch->at)
-                != NGX_OK)
-            {
-                brix_ftp_ev_data_finish(dc, NGX_ERROR);
-                return;
-            }
-            ch->at          += n;
-            ch->count       -= (uint64_t) n;
-            dc->eb_received += n;
+        if (ev_eb_drain_payload(c, ch, dc) == EV_EB_STEP_RET) {
+            return;
         }
 
         /* Block complete: emit progress markers on the marker threshold. */

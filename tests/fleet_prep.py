@@ -140,36 +140,30 @@ def prepare(env=None) -> dict:
             encoding="utf-8",
         )
 
-    # 8) kXR_prepare stage hook (bash generated a shell heredoc; keep it minimal
-    # and executable — brix_prepare_command execs it with the staged paths).
+    # 8) kXR_prepare stage hook — a committed self-contained Python script
+    # (cmdscripts.prepare_stage_hook) copied in with its log-path sidecar;
+    # brix_prepare_command execs it with the staged paths.
     _write_stage_hook(test_root)
 
     return env
 
 
 def _write_stage_hook(test_root: Path) -> None:
-    """Write the prepare-command staging hook the ``prepare-command`` role execs.
+    """Install the prepare-command staging hook the ``prepare-command`` role execs.
 
     Logs ``BRIX_PREPARE_COLOC`` (when set) then each staged path to
-    ``data-prepare-command/staged.log`` — a faithful port of the bash heredoc,
-    still a ``/bin/sh`` script (nginx execs it directly, no interpreter choice
-    matters) so the on-disk contract the test reads is byte-for-byte identical.
+    ``data-prepare-command/staged.log``. The hook is the committed
+    ``cmdscripts/prepare_stage_hook.py`` script; its log path travels in a JSON
+    sidecar so the executable stays generic. The on-disk log contract is
+    byte-for-byte identical to the retired shell hook.
     """
+    from cmdscripts import prepare_stage_hook
+
     hook_dir = test_root / "dedicated" / "prepare-command"
     hook_dir.mkdir(parents=True, exist_ok=True)
-    log_path = test_root / "data-prepare-command" / "staged.log"
     (test_root / "data-prepare-command").mkdir(parents=True, exist_ok=True)
-    hook = hook_dir / "stage_hook.sh"
-    hook.write_text(
-        "#!/bin/sh\n"
-        "# Log BRIX_PREPARE_COLOC env var if set (for test verification).\n"
-        'if [ -n "$BRIX_PREPARE_COLOC" ]; then\n'
-        f"    printf 'COLOC=%s\\n' \"$BRIX_PREPARE_COLOC\" >> {log_path}\n"
-        "fi\n"
-        f"printf '%s\\n' \"$@\" >> {log_path}\n",
-        encoding="utf-8",
-    )
-    hook.chmod(0o755)
+    log_path = test_root / "data-prepare-command" / "staged.log"
+    prepare_stage_hook.install(hook_dir, log=log_path)
 
 
 if __name__ == "__main__":

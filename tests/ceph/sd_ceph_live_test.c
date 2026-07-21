@@ -5,7 +5,9 @@
  * Unlike src/fs/backend/rados/sd_ceph_unittest.c (cluster-free key-map only),
  * this compiles the driver body with BRIX_HAVE_CEPH and drives the vtable
  * directly — open/pwrite/pread/fstat/stat/setxattr/getxattr/listxattr/
- * removexattr/unlink — proving the librados data + metadata plane end to end,
+ * removexattr/unlink plus the phase-89 namespace plane (mkdir/opendir/
+ * readdir/closedir/rename) — proving the librados data + metadata plane
+ * end to end,
  * independent of the nginx export wiring.
  *
  * Build (inside the xrd-ceph-build container, where librados-devel exists):
@@ -164,6 +166,71 @@ main(void)
             drv->close(o);
         }
         drv->unlink(&inst, sp, 0);
+    }
+
+    /* --- phase-89 namespace plane: mkdir / list / rename / rmdir ---
+     * success: listing collapses stripes into one file row + one synthetic
+     * subdir row; rename lands byte-identical under the new name.
+     * error: opendir on an unpopulated prefix is ENOENT; rmdir of a
+     * populated synthetic dir is ENOTEMPTY.
+     * security-neg: noreplace rename onto an existing object is EEXIST,
+     * never a silent clobber. */
+    {
+        const char       *da = "/livetest/nsdir/a.dat";
+        const char       *db = "/livetest/nsdir/sub/b.dat";
+        const char       *rn = "/livetest/nsdir/a-renamed.dat";
+        brix_sd_dir_t    *d;
+        brix_sd_dirent_t  de;
+        int               derr = 0, seen_a = 0, seen_sub = 0;
+
+        drv->unlink(&inst, da, 0);
+        drv->unlink(&inst, db, 0);
+        drv->unlink(&inst, rn, 0);
+
+        CHECK(drv->mkdir(&inst, "/livetest/nsdir", 0755) == NGX_OK,
+              "mkdir synthetic no-op");
+
+        o = drv->open(&inst, da,
+                      BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC,
+                      0644, &err);
+        CHECK(o != NULL && drv->pwrite(o, payload, plen, 0) == (ssize_t) plen
+              && drv->close(o) == NGX_OK, "create nsdir/a.dat");
+        o = drv->open(&inst, db,
+                      BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC,
+                      0644, &err);
+        CHECK(o != NULL && drv->pwrite(o, "b", 1, 0) == 1
+              && drv->close(o) == NGX_OK, "create nsdir/sub/b.dat");
+
+        d = drv->opendir(&inst, "/livetest/nsdir", &derr);
+        CHECK(d != NULL, "opendir populated dir");
+        while (d != NULL && drv->readdir(d, &de) == NGX_OK) {
+            if (strcmp(de.name, "a.dat") == 0) { seen_a = 1; }
+            if (strcmp(de.name, "sub") == 0)   { seen_sub = 1; }
+        }
+        if (d != NULL) { drv->closedir(d); }
+        CHECK(seen_a && seen_sub,
+              "listing collapses stripes: file row + synthetic subdir row");
+
+        derr = 0;
+        CHECK(drv->opendir(&inst, "/livetest/no-such-dir", &derr) == NULL
+              && derr == ENOENT, "opendir missing dir is ENOENT");
+
+        CHECK(drv->rename(&inst, da, rn, 0) == NGX_OK, "rename copy+delete");
+        CHECK(drv->stat(&inst, da, &stbuf) != NGX_OK && errno == ENOENT,
+              "rename source gone");
+        CHECK(drv->stat(&inst, rn, &stbuf) == NGX_OK
+              && stbuf.size == (off_t) plen, "rename dest size matches");
+
+        CHECK(drv->rename(&inst, db, rn, 1) != NGX_OK && errno == EEXIST,
+              "rename noreplace onto existing dest is EEXIST");
+
+        CHECK(drv->unlink(&inst, "/livetest/nsdir", 1) != NGX_OK
+              && errno == ENOTEMPTY, "rmdir populated synthetic dir is ENOTEMPTY");
+
+        drv->unlink(&inst, rn, 0);
+        drv->unlink(&inst, db, 0);
+        CHECK(drv->unlink(&inst, "/livetest/nsdir", 1) == NGX_OK,
+              "rmdir empty synthetic dir");
     }
 
     /* --- unlink → stat is ENOENT --- */

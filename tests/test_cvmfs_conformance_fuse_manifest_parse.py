@@ -27,6 +27,7 @@ import pytest
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
+from cmdscripts import exec_wrapper
 from conformance_common import BRIXMOUNT, PortBlock, check_repo, fuse_mount
 from repo_forge import Dir, File, RepoForge
 
@@ -105,10 +106,8 @@ def brixcvmfs(forge):
     """A `brixcvmfs`-shaped shim: `brixMount cvmfs "$@"` so `--check <fqrn>` routes
     to the CVMFS driver's check path (check_repo runs `<bin> --check <fqrn>`)."""
     d = tempfile.mkdtemp(prefix="brixcvmfs_wrap.")
-    wrap = os.path.join(d, "brixcvmfs")
-    with open(wrap, "w") as fh:
-        fh.write(f'#!/bin/sh\nexec "{os.path.abspath(BRIXMOUNT)}" cvmfs "$@"\n')
-    os.chmod(wrap, 0o755)
+    wrap = exec_wrapper.install(
+        d, "brixcvmfs", target=os.path.abspath(BRIXMOUNT), prepend=["cvmfs"])
     try:
         yield wrap
     finally:

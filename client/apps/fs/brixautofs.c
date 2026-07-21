@@ -395,6 +395,55 @@ static int af_opendir(const char *path, struct fuse_file_info *fi) {
 
 /* readdir("/") = "." ".." ∪ mounted repos ∪ configured repos (ghost listing:
  * CVMFS_REPOSITORIES + the config.d .conf entries). NEVER spawns a mount. */
+/* Copy the idx-th token of a comma/colon/space-separated repo list into out.
+ * Returns 1 if that token exists, 0 once the list is exhausted. */
+static int af_repos_nth_token(const char *list, int idx, char *out, size_t outsz) {
+    const char *p = list;
+    int tok = 0;
+    while (*p) {
+        while (*p == ',' || *p == ':' || *p == ' ') p++;
+        const char *s = p;
+        while (*p && *p != ',' && *p != ':' && *p != ' ') p++;
+        if (p == s) break;
+        if (tok++ == idx) {
+            snprintf(out, outsz, "%.*s", (int)(p - s), s);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* The idx-th ghost-candidate name for source src (0 = the ghost array, 1 = the
+ * configured repos list).  Returns 1 with the name in out, or 0 to stop src. */
+static int af_ghost_name(int src, int idx, char *out, size_t outsz) {
+    if (src == 0) {
+        if (idx >= g_af.nghost) return 0;
+        snprintf(out, outsz, "%s", g_af.ghost[idx]);
+        return 1;
+    }
+    return af_repos_nth_token(g_af.repos, idx, out, outsz);
+}
+
+/* 1 if name is already in the first nseen entries of seen. */
+static int af_seen_has(char seen[][BRIXAUTOFS_FQRN_MAX], int nseen,
+                       const char *name) {
+    for (int k = 0; k < nseen; k++)
+        if (strcmp(seen[k], name) == 0) return 1;
+    return 0;
+}
+
+/* Emit the live-mounted repos (under the table lock), recording each in seen. */
+static void af_fill_mounted(void *buf, fuse_fill_dir_t fill,
+                            char seen[][BRIXAUTOFS_FQRN_MAX], int *nseen) {
+    pthread_mutex_lock(&g_af.tab.mu);
+    for (int i = 0; i < BRIXAUTOFS_MAX_REPOS; i++) {
+        if (g_af.tab.slot[i].st == BRIXAUTOFS_FREE) continue;
+        snprintf(seen[*nseen], BRIXAUTOFS_FQRN_MAX, "%s", g_af.tab.slot[i].fqrn);
+        fill(buf, seen[(*nseen)++], NULL, 0, 0);
+    }
+    pthread_mutex_unlock(&g_af.tab.mu);
+}
+
 static int af_readdir(const char *path, void *buf, fuse_fill_dir_t fill,
                       off_t off, struct fuse_file_info *fi,
                       enum fuse_readdir_flags flags) {
@@ -406,41 +455,15 @@ static int af_readdir(const char *path, void *buf, fuse_fill_dir_t fill,
     char seen[BRIXAUTOFS_MAX_REPOS * 2][BRIXAUTOFS_FQRN_MAX];
     int  nseen = 0;
 
-    pthread_mutex_lock(&g_af.tab.mu);
-    for (int i = 0; i < BRIXAUTOFS_MAX_REPOS; i++) {
-        if (g_af.tab.slot[i].st == BRIXAUTOFS_FREE) continue;
-        snprintf(seen[nseen], BRIXAUTOFS_FQRN_MAX, "%s", g_af.tab.slot[i].fqrn);
-        fill(buf, seen[nseen++], NULL, 0, 0);
-    }
-    pthread_mutex_unlock(&g_af.tab.mu);
+    af_fill_mounted(buf, fill, seen, &nseen);
 
     /* ghost entries: configured but not (yet) mounted */
     for (int src = 0; src < 2; src++) {
         for (int i = 0; ; i++) {
             char name[BRIXAUTOFS_FQRN_MAX] = "";
-            if (src == 0) {
-                if (i >= g_af.nghost) break;
-                snprintf(name, sizeof(name), "%s", g_af.ghost[i]);
-            } else {
-                /* i-th token of the repos list */
-                const char *p = g_af.repos;
-                int tok = 0, got = 0;
-                while (*p && !got) {
-                    while (*p == ',' || *p == ':' || *p == ' ') p++;
-                    const char *s = p;
-                    while (*p && *p != ',' && *p != ':' && *p != ' ') p++;
-                    if (p == s) break;
-                    if (tok++ == i) {
-                        snprintf(name, sizeof(name), "%.*s", (int)(p - s), s);
-                        got = 1;
-                    }
-                }
-                if (!got) break;
-            }
-            int dup = 0;
-            for (int k = 0; k < nseen && !dup; k++)
-                if (strcmp(seen[k], name) == 0) dup = 1;
-            if (dup || !brixautofs_valid_fqrn(name)) continue;
+            if (!af_ghost_name(src, i, name, sizeof(name))) break;
+            if (af_seen_has(seen, nseen, name) || !brixautofs_valid_fqrn(name))
+                continue;
             if (nseen >= (int)(sizeof(seen) / sizeof(seen[0]))) break;
             snprintf(seen[nseen], BRIXAUTOFS_FQRN_MAX, "%s", name);
             fill(buf, seen[nseen++], NULL, 0, 0);
@@ -640,30 +663,12 @@ static void af_scan_configured(const char *etc_root) {
 
 /* brixautofs entry — dispatched by the brixMount umbrella:
  *   brixMount autofs <etc-root|-> <mountdir> [-f|-d] [-o idle=…,…] */
-int brixautofs_main(int argc, char **argv) {
-    if (argc < 3) {
-        fprintf(stderr,
-            "usage: brixMount autofs <etc-root|-> <mountdir> [-f|-d] [-o opts]\n"
-            "  -o idle=<s>       unmount idle repos after <s> seconds (default 600, 0=off)\n"
-            "  -o timeout=<s>    per-repo mount bring-up timeout (default 60)\n"
-            "  -o cachebase=<d>  child cache dirs under <d>/<fqrn> (default /var/lib/brixcvmfs)\n"
-            "  -o mntbase=<d>    child mount farm; repos appear as symlinks to <d>/<fqrn>\n"
-            "                    (default <cachebase>/.mnt)\n"
-            "  -o repos=a:b      restrict/ghost-list repos (overrides CVMFS_REPOSITORIES)\n"
-            "  -o allow_other    let other users read the mounts (needs root or user_allow_other)\n");
-        return 2;
-    }
-
-    memset(&g_af.tab, 0, sizeof(g_af.tab));
-    brixautofs_table_init(&g_af.tab);
-    if (strcmp(argv[1], "-") != 0)
-        snprintf(g_af.etc, sizeof(g_af.etc), "%s", argv[1]);
-    snprintf(g_af.mnt, sizeof(g_af.mnt), "%s", argv[2]);
-    size_t ml = strlen(g_af.mnt);
-    while (ml > 1 && g_af.mnt[ml - 1] == '/') g_af.mnt[--ml] = '\0';
-    af_parse_opts(argc, argv, 3, &g_af.o);
-
-    /* child mount farm: an absolute dir the umbrella never path-walks itself */
+/* Resolve + create the child mount farm (an absolute dir the umbrella never
+ * path-walks itself) and reject a farm nested under the umbrella mountpoint.
+ * Fills g_af.farm.  Returns 0 on success, 1 on error. */
+static int
+af_setup_mount_farm(void)
+{
     char farm_raw[512];
     if (g_af.o.mnt_base[0])
         snprintf(farm_raw, sizeof(farm_raw), "%s", g_af.o.mnt_base);
@@ -688,10 +693,16 @@ int brixautofs_main(int argc, char **argv) {
         af_log("mount farm %s must not live under the umbrella %s", g_af.farm, g_af.mnt);
         return 1;
     }
+    return 0;
+}
 
-    /* children resolve their own repo config from the same etc root */
-    if (g_af.etc[0]) setenv("BRIXCVMFS_ETC", g_af.etc, 1);
 
+/* Load the cascaded CVMFS config for repo gating: the strict-mount flag and the
+ * repo allow/ghost list (option override wins), then scan the configured set.
+ * Fills g_af.{strict,repos}. */
+static void
+af_load_repo_config(void)
+{
     cvmfs_conf_t cf;
     cvmfs_conf_init(&cf);
     cvmfs_conf_load_cascade(&cf, g_af.etc[0] ? g_af.etc : NULL, "");
@@ -706,17 +717,22 @@ int brixautofs_main(int argc, char **argv) {
         af_log("warning: CVMFS_STRICT_MOUNT set with no CVMFS_REPOSITORIES — "
                "every mount will be refused");
     af_scan_configured(g_af.etc);
+}
 
-    mkdir(g_af.mnt, 0755);          /* mount(2) will fail loudly if unusable */
 
-    /* umbrella libfuse args (mountpoint goes to fuse_mount, not the arg list) */
+/* Build the umbrella libfuse args (mountpoint goes to fuse_mount, not the arg
+ * list), create the session, mount it, and daemonize.  Returns 0 with g_af.fuse
+ * live, or 1 after cleaning up any partial state. */
+static int
+af_fuse_bringup(char *argv0)
+{
     char oarg[600];
     snprintf(oarg, sizeof(oarg), "fsname=brixautofs,subtype=cvmfs%s%s%s",
              g_af.o.allow_other ? ",allow_other" : "",
              g_af.o.fuse_extra[0] ? "," : "", g_af.o.fuse_extra);
     char *fargv[8];
     int fargc = 0;
-    fargv[fargc++] = argv[0];
+    fargv[fargc++] = argv0;
     if (g_af.o.debug) fargv[fargc++] = (char *) "-d";
     fargv[fargc++] = (char *) "-o";
     fargv[fargc++] = oarg;
@@ -735,8 +751,16 @@ int brixautofs_main(int argc, char **argv) {
         fuse_destroy(g_af.fuse);
         return 1;
     }
+    return 0;
+}
 
-    /* threads AFTER daemonize (fork drops them); self-pipe carries signals */
+
+/* Self-pipe + signal handlers, installed AFTER daemonize (fork drops threads;
+ * the self-pipe carries signals to the control thread).  Returns 0, or 1 after
+ * unmount/destroy if the pipe cannot be created. */
+static int
+af_install_signals(void)
+{
     if (pipe(g_af.sigpipe) != 0) {
         af_log("pipe: %s", strerror(errno));
         fuse_unmount(g_af.fuse);
@@ -751,7 +775,16 @@ int brixautofs_main(int argc, char **argv) {
     sigaction(SIGINT,  &sa, NULL);
     sigaction(SIGCHLD, &sa, NULL);
     signal(SIGPIPE, SIG_IGN);
+    return 0;
+}
 
+
+/* Spin the control + optional idle threads, run the umbrella event loop, then
+ * (on external unmount) tear the children down and join.  Returns the process
+ * exit code. */
+static int
+af_run(void)
+{
     pthread_t ctl, idle;
     pthread_create(&ctl, NULL, af_control_thread, NULL);
     int have_idle = g_af.o.idle_s > 0;
@@ -761,7 +794,6 @@ int brixautofs_main(int argc, char **argv) {
            g_af.etc[0] ? g_af.etc : "/etc/cvmfs", g_af.o.idle_s, g_af.strict);
     int rc = fuse_loop_mt(g_af.fuse, 0);
 
-    /* normal exit path (external unmount): tear children down too */
     af_teardown_children();
     close(g_af.sigpipe[1]);         /* control thread read() returns 0 → exits */
     pthread_join(ctl, NULL);
@@ -769,6 +801,49 @@ int brixautofs_main(int argc, char **argv) {
     fuse_unmount(g_af.fuse);
     fuse_destroy(g_af.fuse);
     return rc == 0 ? 0 : 1;
+}
+
+
+int brixautofs_main(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr,
+            "usage: brixMount autofs <etc-root|-> <mountdir> [-f|-d] [-o opts]\n"
+            "  -o idle=<s>       unmount idle repos after <s> seconds (default 600, 0=off)\n"
+            "  -o timeout=<s>    per-repo mount bring-up timeout (default 60)\n"
+            "  -o cachebase=<d>  child cache dirs under <d>/<fqrn> (default /var/lib/brixcvmfs)\n"
+            "  -o mntbase=<d>    child mount farm; repos appear as symlinks to <d>/<fqrn>\n"
+            "                    (default <cachebase>/.mnt)\n"
+            "  -o repos=a:b      restrict/ghost-list repos (overrides CVMFS_REPOSITORIES)\n"
+            "  -o allow_other    let other users read the mounts (needs root or user_allow_other)\n");
+        return 2;
+    }
+
+    memset(&g_af.tab, 0, sizeof(g_af.tab));
+    brixautofs_table_init(&g_af.tab);
+    if (strcmp(argv[1], "-") != 0)
+        snprintf(g_af.etc, sizeof(g_af.etc), "%s", argv[1]);
+    snprintf(g_af.mnt, sizeof(g_af.mnt), "%s", argv[2]);
+    size_t ml = strlen(g_af.mnt);
+    while (ml > 1 && g_af.mnt[ml - 1] == '/') g_af.mnt[--ml] = '\0';
+    af_parse_opts(argc, argv, 3, &g_af.o);
+
+    if (af_setup_mount_farm() != 0)
+        return 1;
+
+    /* children resolve their own repo config from the same etc root */
+    if (g_af.etc[0]) setenv("BRIXCVMFS_ETC", g_af.etc, 1);
+
+    af_load_repo_config();
+
+    mkdir(g_af.mnt, 0755);          /* mount(2) will fail loudly if unusable */
+
+    if (af_fuse_bringup(argv[0]) != 0)
+        return 1;
+
+    if (af_install_signals() != 0)
+        return 1;
+
+    return af_run();
 }
 
 #endif /* BRIXAUTOFS_UNIT */

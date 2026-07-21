@@ -69,6 +69,104 @@ sd_s3_get_meta(sd_s3_file *f, const char *name, const sd_s3_meta_buf *out,
     return (ssize_t) strlen(out->buf);
 }
 
+/* One "user.<name>" listxattr entry from a raw "x-amz-meta-<name>: v" header
+ * line. Appends to buf[*used..cap) when buf is non-NULL and always advances
+ * *need by the entry size; the caller compares need vs cap at the end. */
+static void
+sd_s3_list_meta_emit(const char *name, size_t nlen, char *buf, size_t cap,
+                     size_t *need)
+{
+    size_t entry = sizeof("user.") - 1 + nlen + 1;
+
+    if (buf != NULL && *need + entry <= cap) {
+        memcpy(buf + *need, "user.", sizeof("user.") - 1);
+        memcpy(buf + *need + sizeof("user.") - 1, name, nlen);
+        buf[*need + entry - 1] = '\0';
+    }
+    *need += entry;
+}
+
+ssize_t
+sd_s3_list_meta(sd_s3_file *f, char *buf, size_t cap,
+                char *errbuf, size_t errcap)
+{
+    static const char pfx[] = "x-amz-meta-";
+    const size_t      pfxlen = sizeof(pfx) - 1;
+    char              auth[SD_S3_AUTH_HDRS_CAP];
+    brix_s3_resp_t    resp;
+    const char       *hdrs, *p;
+    size_t            need = 0;
+
+    if (f == NULL) {
+        sd_s3_set_err(errbuf, errcap, "s3 list-meta: bad parameters");
+        errno = EINVAL;
+        return -1;
+    }
+    if (f->transport->resp_headers_raw == NULL) {
+        sd_s3_set_err(errbuf, errcap,
+                      "s3 list-meta: transport cannot enumerate headers");
+        errno = ENOTSUP;
+        return -1;
+    }
+    if (sd_s3_sign(f, "HEAD", "", auth, sizeof(auth)) != 0) {
+        sd_s3_set_err(errbuf, errcap, "s3 HEAD: SigV4 sign failed on %s", f->key);
+        errno = EIO;
+        return -1;
+    }
+    if (f->transport->request(f->tctx, f->host, f->port, f->tls, "HEAD",
+                              f->key, auth, NULL, 0, f->timeout_ms, &resp,
+                              errbuf, errcap) != 0)
+    {
+        errno = EIO;
+        return -1;
+    }
+    if (resp.status != 200) {
+        int rc = sd_s3_status_err(resp.status, "HEAD", f->key, errbuf, errcap);
+        f->transport->resp_free(&resp);
+        return rc;   /* -1, errno mapped from the HTTP status */
+    }
+    hdrs = f->transport->resp_headers_raw(&resp);
+    if (hdrs == NULL) {
+        f->transport->resp_free(&resp);
+        sd_s3_set_err(errbuf, errcap, "s3 list-meta: no raw header block");
+        errno = ENOTSUP;
+        return -1;
+    }
+
+    for (p = hdrs; *p != '\0'; ) {
+        const char *eol = p + strcspn(p, "\r\n");
+        const char *colon;
+
+        if ((size_t) (eol - p) > pfxlen
+            && strncasecmp(p, pfx, pfxlen) == 0
+            && (colon = memchr(p, ':', (size_t) (eol - p))) != NULL
+            && colon > p + pfxlen)
+        {
+            const char *name = p + pfxlen;
+            size_t      nlen = (size_t) (colon - name);
+
+            /* The advisory blob surfaces as POSIX attrs, not as a user xattr. */
+            if (nlen != sizeof(BRIX_META_ADVISORY_S3META) - 1
+                || strncasecmp(name, BRIX_META_ADVISORY_S3META, nlen) != 0)
+            {
+                sd_s3_list_meta_emit(name, nlen, buf, cap, &need);
+            }
+        }
+        p = eol + strspn(eol, "\r\n");
+    }
+    f->transport->resp_free(&resp);
+
+    if (buf == NULL || cap == 0) {
+        return (ssize_t) need;   /* listxattr(2) size probe */
+    }
+    if (need > cap) {
+        sd_s3_set_err(errbuf, errcap, "s3 list-meta: buffer too small");
+        errno = ERANGE;
+        return -1;
+    }
+    return (ssize_t) need;
+}
+
 int
 sd_s3_get_unixattr(sd_s3_file *f, brix_meta_advisory_t *out,
                    char *errbuf, size_t errcap)

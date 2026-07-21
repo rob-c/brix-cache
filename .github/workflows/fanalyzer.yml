@@ -38,7 +38,7 @@ jobs:
       - name: Run analyzer ratchet
         run: |
           NGX_BUILD=/tmp/nginx-1.28.3 FANALYZER_RAW=/tmp/fanalyzer-raw.txt \
-            tools/ci/run_fanalyzer.sh 2>&1 | tee /tmp/fanalyzer-report.txt
+            tools/ci/run_fanalyzer.py 2>&1 | tee /tmp/fanalyzer-report.txt
       - name: Upload findings
         if: always()
         uses: actions/upload-artifact@v4

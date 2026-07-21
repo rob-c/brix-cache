@@ -82,6 +82,46 @@ def build_sanitizer(nginx_src: Path) -> list[tuple[bool, str]]:
     return [result(True, f"sanitizer build complete: {nginx_src / 'objs' / 'nginx'}")]
 
 
+def build_coverage(nginx_src: Path) -> list[tuple[bool, str]]:
+    """Configure+build objs/nginx and the client with gcov instrumentation.
+
+    Mirrors build_sanitizer: --coverage (== -fprofile-arcs -ftest-coverage) with
+    -O0 -g so line/branch mapping is accurate. The instrumented binary drops
+    .gcno next to each object at build time and .gcda at run time; tools/ci/
+    coverage.sh drives lcov over both trees afterwards.
+    """
+    configure = nginx_src / "configure"
+    if not configure.is_file() or not os.access(configure, os.X_OK):
+        return [result(False, f"nginx source not found at {nginx_src}")]
+    cov = "--coverage -O0 -g"
+    configured = run(
+        [
+            "./configure",
+            "--with-stream",
+            "--with-stream_ssl_module",
+            "--with-http_ssl_module",
+            "--with-http_dav_module",
+            "--with-threads",
+            f"--add-module={REPO_ROOT}",
+            f"--with-cc-opt={cov}",
+            f"--with-ld-opt={cov}",
+        ],
+        cwd=nginx_src,
+    )
+    if configured.returncode != 0:
+        return [result(False, f"coverage configure failed: {(configured.stderr or configured.stdout)[-3000:]}")]
+    built = run(["make", f"-j{nproc()}"], cwd=nginx_src)
+    if built.returncode != 0:
+        return [result(False, f"coverage nginx build failed: {(built.stderr or built.stdout)[-3000:]}")]
+    client = run(
+        ["make", f"-j{nproc()}", f"CFLAGS={cov}", f"LDFLAGS={cov}"],
+        cwd=REPO_ROOT / "client",
+    )
+    if client.returncode != 0:
+        return [result(False, f"coverage client build failed: {(client.stderr or client.stdout)[-3000:]}")]
+    return [result(True, f"coverage build complete: {nginx_src / 'objs' / 'nginx'} (gcov-instrumented)")]
+
+
 def build_dynamic_modules(nginx_src: Path, build_root: Path) -> list[tuple[bool, str]]:
     if not (nginx_src / "configure").is_file() or not (nginx_src / "src/core/nginx.c").is_file():
         return [result(True, f"SKIP nginx source not found at {nginx_src}")]
@@ -137,6 +177,8 @@ def run_checks(base: Path, names: list[str] | None = None) -> list[tuple[bool, s
             results.extend(brutal_teardown(Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test"))))
         elif name == "build_sanitizer":
             results.extend(build_sanitizer(Path(os.environ.get("NGINX_SRC", "/tmp/nginx-1.28.3"))))
+        elif name == "build_coverage":
+            results.extend(build_coverage(Path(os.environ.get("NGINX_SRC", "/tmp/nginx-1.28.3"))))
         elif name == "build_dynamic_modules":
             results.extend(build_dynamic_modules(Path(os.environ.get("NGINX_SRC", "/tmp/nginx-1.28.3")), base / "xrd-build-matrix"))
         else:

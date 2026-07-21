@@ -104,6 +104,7 @@
 #define FP_OK    0   /* clean terminal action (--help / --version) or success */
 #define FP_RUN   1   /* runtime failure (bind failed) */
 #define FP_USAGE 2   /* command-line error */
+#define FP_CONTINUE (-1) /* internal: argument parsing/setup ok, keep going */
 
 #define FP_MAX_TARGETS 8
 
@@ -298,6 +299,114 @@ sever(int cfd, int ufd, int abortive)
     }
 }
 
+/* Count a severed stream and honour one-shot (clear all levers after firing).
+ * Returns -1 so a caller can `return fault_sever();`. */
+static int
+fault_sever(void)
+{
+    CBUMP(severs, 1);
+    if (g_one_shot) {
+        clear_all();
+    }
+    return -1;
+}
+
+/* Clamp the outgoing segment to the chunk `piece` and, if truncation is armed,
+ * to the exact remaining distance to the cut. Returns the clamped length, or -1
+ * when the truncation point is already reached (caller must sever). */
+static ssize_t
+fault_clamp_seg(ssize_t seg, int piece, long trunc, unsigned long conn_ctr)
+{
+    if (seg > piece) {
+        seg = piece;
+    }
+    /* Cap at the truncation boundary so the cut is exact rather than firing
+     * only after the whole (possibly 64 KiB) read is delivered. */
+    if (trunc > 0) {
+        long remaining = trunc - (long) conn_ctr;
+        if (remaining <= 0) {
+            return -1;
+        }
+        if (seg > remaining) {
+            seg = remaining;
+        }
+    }
+    return seg;
+}
+
+/* Apply direction `L`'s pacing/jitter/reorder delays before a segment write. */
+static void
+fault_delays(ssize_t seg, unsigned *seed, const lever_t *L)
+{
+    if (L->jitter_ms > 0) {
+        usleep((useconds_t) (rand_r(seed) % (unsigned) (L->jitter_ms + 1)) * 1000);
+    }
+    if (L->reorder_ppm > 0 && (int) (rand_r(seed) % 1000000u) < L->reorder_ppm) {
+        usleep((useconds_t) L->reorder_ms * 1000);
+    }
+    if (L->rate_kbps > 0) {
+        usleep((useconds_t) ((long long) seg * 1000000
+                             / ((long long) L->rate_kbps * 1024)));
+    }
+}
+
+/* Flip random bits in buf[off, off+seg) at the configured per-byte rate. */
+static void
+fault_corrupt(char *buf, ssize_t off, ssize_t seg, unsigned *seed, int cor)
+{
+    if (cor <= 0) {
+        return;
+    }
+    for (ssize_t k = 0; k < seg; k++) {
+        if ((int) (rand_r(seed) % 1000000u) < cor) {
+            buf[off + k] ^= (char) (1u << (rand_r(seed) % 8u));
+            CBUMP(corrupt, 1);
+        }
+    }
+}
+
+/* Deliver one segment starting at buf+off, applying `L`'s active faults. On
+ * success writes the delivered length to *wrote and returns 0; returns -1 when
+ * the stream should be severed (truncate cut, lossy drop, write error) or
+ * silently dropped (block/epoch change). */
+static int
+forward_segment(int to, char *buf, ssize_t off, ssize_t n, unsigned epoch,
+                const lever_t *L, unsigned *seed, unsigned long *conn_ctr,
+                unsigned long *glob_ctr, int piece, ssize_t *wrote)
+{
+    ssize_t seg = fault_clamp_seg(n - off, piece, L->truncate_at, *conn_ctr);
+    if (seg < 0) {
+        return fault_sever();
+    }
+
+    fault_delays(seg, seed, L);
+
+    if (L->lossy_ppm > 0 && (int) (rand_r(seed) % 1000000u) < L->lossy_ppm) {
+        return fault_sever();   /* application-visible "loss" = sever the stream */
+    }
+    if (g_blocked || g_drop_epoch != epoch) {
+        return -1;
+    }
+
+    fault_corrupt(buf, off, seg, seed, L->corrupt_ppm);
+
+    if (write_all(to, buf + off, seg) != 0) {
+        return -1;
+    }
+    if (L->dup_ppm > 0 && (int) (rand_r(seed) % 1000000u) < L->dup_ppm) {
+        (void) write_all(to, buf + off, seg);   /* duplicate delivery */
+        CBUMP(dups, 1);
+    }
+
+    CBUMP2(conn_ctr, glob_ctr, seg);
+    *wrote = seg;
+
+    if (L->truncate_at > 0 && (long) *conn_ctr >= L->truncate_at) {
+        return fault_sever();   /* deterministic mid-transfer cut */
+    }
+    return 0;
+}
+
 /*
  * Forward n bytes to `to`, applying direction `L`'s active fault levers.  Bytes
  * may be mutated in place (corruption).  Returns 0 on success, -1 if the
@@ -310,80 +419,29 @@ static int
 forward_faulted(int to, char *buf, ssize_t n, unsigned epoch, volatile lever_t *L,
                 unsigned *seed, unsigned long *conn_ctr, unsigned long *glob_ctr)
 {
-    int  lat  = L->latency_ms, jit = L->jitter_ms, ch = L->chunk_bytes;
-    int  dr   = L->drip_bytes,  dms = L->drip_ms,  rate = L->rate_kbps;
-    int  lossy = L->lossy_ppm,  reo = L->reorder_ppm, rdl = L->reorder_ms;
-    int  cor  = L->corrupt_ppm, dup = L->dup_ppm;
-    long trunc = L->truncate_at;
-    int  piece = (dr > 0) ? dr : (ch > 0 ? ch : (int) n);
-    ssize_t off = 0;
+    /* Snapshot the levers once so a mid-buffer control-plane change can't split
+     * this read across two fault configurations (matches the original). */
+    lever_t snap  = *L;
+    int     piece = (snap.drip_bytes > 0) ? snap.drip_bytes
+                  : (snap.chunk_bytes > 0 ? snap.chunk_bytes : (int) n);
+    ssize_t off   = 0;
 
     if (piece <= 0) {
         piece = (int) n;   /* n >= 1 (read returned >0) */
     }
-    if (lat > 0) {
-        usleep((useconds_t) lat * 1000);
+    if (snap.latency_ms > 0) {
+        usleep((useconds_t) snap.latency_ms * 1000);
     }
 
     while (off < n) {
-        ssize_t seg = n - off;
-        if (seg > piece) {
-            seg = piece;
-        }
-        /* Cap the segment at the truncation boundary so the cut is exact rather
-         * than firing only after the whole (possibly 64 KiB) read is delivered. */
-        if (trunc > 0) {
-            long remaining = trunc - (long) *conn_ctr;
-            if (remaining <= 0) {
-                CBUMP(severs, 1);
-                if (g_one_shot) { clear_all(); }
-                return -1;
-            }
-            if (seg > remaining) {
-                seg = remaining;
-            }
-        }
-        if (jit > 0) {
-            usleep((useconds_t) (rand_r(seed) % (unsigned) (jit + 1)) * 1000);
-        }
-        if (reo > 0 && (int) (rand_r(seed) % 1000000u) < reo) {
-            usleep((useconds_t) rdl * 1000);
-        }
-        if (rate > 0) {
-            usleep((useconds_t) ((long long) seg * 1000000 / ((long long) rate * 1024)));
-        }
-        if (lossy > 0 && (int) (rand_r(seed) % 1000000u) < lossy) {
-            CBUMP(severs, 1);
-            if (g_one_shot) { clear_all(); }
-            return -1;   /* application-visible "loss" = sever the stream */
-        }
-        if (g_blocked || g_drop_epoch != epoch) {
+        ssize_t wrote = 0;
+        if (forward_segment(to, buf, off, n, epoch, &snap, seed,
+                            conn_ctr, glob_ctr, piece, &wrote) != 0) {
             return -1;
         }
-        if (cor > 0) {
-            for (ssize_t k = 0; k < seg; k++) {
-                if ((int) (rand_r(seed) % 1000000u) < cor) {
-                    buf[off + k] ^= (char) (1u << (rand_r(seed) % 8u));
-                    CBUMP(corrupt, 1);
-                }
-            }
-        }
-        if (write_all(to, buf + off, seg) != 0) {
-            return -1;
-        }
-        if (dup > 0 && (int) (rand_r(seed) % 1000000u) < dup) {
-            (void) write_all(to, buf + off, seg);   /* duplicate delivery */
-            CBUMP(dups, 1);
-        }
-        off += seg;
-        CBUMP2(conn_ctr, glob_ctr, seg);
-        if (trunc > 0 && (long) *conn_ctr >= trunc) {
-            CBUMP(severs, 1);
-            if (g_one_shot) { clear_all(); }
-            return -1;   /* deterministic mid-transfer cut */
-        }
-        if (dr > 0 && off < n) {
-            usleep((useconds_t) dms * 1000);
+        off += wrote;
+        if (snap.drip_bytes > 0 && off < n) {
+            usleep((useconds_t) snap.drip_ms * 1000);
         }
     }
     return 0;
@@ -395,24 +453,18 @@ typedef struct {
     unsigned long conn_id;
 } relay_arg;
 
-static void *
-relay_thread(void *arg)
+/* Pre-dial dispositions that answer the client without ever reaching upstream:
+ * the fail-nth sever and the hang/black-hole hold.  Returns 1 if the connection
+ * was handled (closed + CDEC), 0 to proceed with dialling upstream. */
+static int
+relay_predial(int cfd, unsigned epoch, unsigned long conn_id)
 {
-    relay_arg *ra = (relay_arg *) arg;
-    int        cfd = ra->client_fd;
-    unsigned   epoch = ra->epoch;
-    unsigned long conn_id = ra->conn_id;
-    free(ra);
-
-    unsigned      seed = g_seed + (unsigned) conn_id * 2654435761u;
-    unsigned long up_ctr = 0, down_ctr = 0;
-
     /* fail-nth: sever exactly the Nth accepted connection, then pass the rest. */
     if (g_fail_nth > 0 && conn_id == (unsigned long) g_fail_nth) {
         CBUMP(severs, 1);
         sever(cfd, -1, g_abortive);
         CDEC(active);
-        return NULL;
+        return 1;
     }
 
     /* hang / black hole: accept but never relay — hold the client open. */
@@ -425,26 +477,52 @@ relay_thread(void *arg)
         }
         close(cfd);
         CDEC(active);
-        return NULL;
+        return 1;
     }
+    return 0;
+}
 
-    int ufd = dial_any();
-    if (ufd < 0) {
-        close(cfd);
+
+/* Relay one poll-ready direction through the fault engine.  Returns 0 to keep
+ * looping, 1 on EOF/read error (caller closes both ends), 2 if a fault severed
+ * the pair (already closed + CDEC, caller just returns). */
+static int
+relay_pump_dir(int i, struct pollfd *pfd, int cfd, int ufd,
+               char *buf, size_t bufsz, unsigned epoch,
+               unsigned *seed, unsigned long *up_ctr, unsigned long *down_ctr)
+{
+    if (!(pfd[i].revents & (POLLIN | POLLHUP | POLLERR))) {
+        return 0;
+    }
+    int from = pfd[i].fd;
+    int to   = pfd[i ^ 1].fd;
+    ssize_t nr = read(from, buf, bufsz);
+    if (nr <= 0) {
+        return 1;
+    }
+    volatile lever_t *L = (i == 0) ? &g_up : &g_down;
+    unsigned long *conn_ctr = (i == 0) ? up_ctr : down_ctr;
+    unsigned long *glob_ctr = (i == 0) ? &C.up_bytes : &C.down_bytes;
+    if (forward_faulted(to, buf, nr, epoch, L, seed, conn_ctr, glob_ctr) != 0) {
+        sever(cfd, ufd, g_abortive);
         CDEC(active);
-        return NULL;
+        return 2;
     }
-    /* Egress NODELAY on BOTH ends so chunk/drip pieces are delivered as separate
-     * segments (otherwise the kernel coalesces them and the peer never sees a
-     * partial PDU).  The accept side already set NODELAY on cfd. */
-    { int one = 1;
-      setsockopt(ufd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-      setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)); }
+    return 0;
+}
 
+
+/* Bidirectional relay loop: shuttle bytes each way through the fault engine
+ * until EOF, a control-plane sever, or a poll error.  Closes both ends + CDEC
+ * before returning. */
+static void
+relay_pump(int cfd, int ufd, unsigned epoch, unsigned seed)
+{
     struct pollfd pfd[2];
     pfd[0].fd = cfd;   /* client   -> upstream (up)   */
     pfd[1].fd = ufd;   /* upstream -> client   (down) */
     char buf[65536];
+    unsigned long up_ctr = 0, down_ctr = 0;
     unsigned hc_epoch = g_halfclose_epoch;
     int      hc_done  = 0;
 
@@ -452,7 +530,7 @@ relay_thread(void *arg)
         if (g_blocked || g_drop_epoch != epoch) {
             sever(cfd, ufd, g_abortive);
             CDEC(active);
-            return NULL;
+            return;
         }
         /* half-close: FIN the up path, keep the down path flowing. */
         if (!hc_done && g_halfclose_epoch != hc_epoch) {
@@ -473,22 +551,13 @@ relay_thread(void *arg)
             continue;   /* re-check fault flags */
         }
         for (int i = 0; i < 2; i++) {
-            if (!(pfd[i].revents & (POLLIN | POLLHUP | POLLERR))) {
-                continue;
+            int r = relay_pump_dir(i, pfd, cfd, ufd, buf, sizeof(buf),
+                                   epoch, &seed, &up_ctr, &down_ctr);
+            if (r == 2) {
+                return;         /* severed + CDEC already done */
             }
-            int from = pfd[i].fd;
-            int to   = pfd[i ^ 1].fd;
-            ssize_t nr = read(from, buf, sizeof(buf));
-            if (nr <= 0) {
-                goto done;
-            }
-            volatile lever_t *L = (i == 0) ? &g_up : &g_down;
-            unsigned long *conn_ctr = (i == 0) ? &up_ctr : &down_ctr;
-            unsigned long *glob_ctr = (i == 0) ? &C.up_bytes : &C.down_bytes;
-            if (forward_faulted(to, buf, nr, epoch, L, &seed, conn_ctr, glob_ctr) != 0) {
-                sever(cfd, ufd, g_abortive);
-                CDEC(active);
-                return NULL;
+            if (r == 1) {
+                goto done;      /* EOF */
             }
         }
     }
@@ -496,6 +565,38 @@ done:
     close(cfd);
     close(ufd);
     CDEC(active);
+}
+
+
+static void *
+relay_thread(void *arg)
+{
+    relay_arg *ra = (relay_arg *) arg;
+    int        cfd = ra->client_fd;
+    unsigned   epoch = ra->epoch;
+    unsigned long conn_id = ra->conn_id;
+    free(ra);
+
+    unsigned seed = g_seed + (unsigned) conn_id * 2654435761u;
+
+    if (relay_predial(cfd, epoch, conn_id)) {
+        return NULL;
+    }
+
+    int ufd = dial_any();
+    if (ufd < 0) {
+        close(cfd);
+        CDEC(active);
+        return NULL;
+    }
+    /* Egress NODELAY on BOTH ends so chunk/drip pieces are delivered as separate
+     * segments (otherwise the kernel coalesces them and the peer never sees a
+     * partial PDU).  The accept side already set NODELAY on cfd. */
+    { int one = 1;
+      setsockopt(ufd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+      setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)); }
+
+    relay_pump(cfd, ufd, epoch, seed);
     return NULL;
 }
 
@@ -562,17 +663,12 @@ heal_thread(void *arg)
     return NULL;
 }
 
-/* Parse and apply one control command.  `line` is mutated.  `reply` (may be NULL)
- * receives a human-readable response of up to `rsz` bytes. */
-static void
-apply_command(char *line, char *reply, size_t rsz)
+/* Directional traffic levers (latency/bandwidth/corruption). Each strips an
+ * optional up/down/both token via dir_of() then sets the field on the selected
+ * direction(s). `args` is mutated. Returns 1 if `verb` was a lever, else 0. */
+static int
+cmd_set_lever(const char *verb, char *args)
 {
-    char verb[32] = "", args[224] = "";
-    sscanf(line, "%31s %223[^\n]", verb, args);
-    if (reply && rsz) {
-        snprintf(reply, rsz, "ok\n");
-    }
-
     if (strcmp(verb, "latency") == 0) {
         int d = dir_of(args); SET_DIR(d, latency_ms, atoi(args));
     } else if (strcmp(verb, "jitter") == 0) {
@@ -601,19 +697,18 @@ apply_command(char *line, char *reply, size_t rsz)
         if (m >= 0) { SET_DIR(d, reorder_ms, m); }
     } else if (strcmp(verb, "truncate-at") == 0) {
         int d = dir_of(args); SET_DIR(d, truncate_at, atol(args));
-    } else if (strcmp(verb, "fail-nth") == 0) {
-        g_fail_nth = atoi(args);
-    } else if (strcmp(verb, "heal-after") == 0) {
-        pthread_t h;
-        if (pthread_create(&h, NULL, heal_thread,
-                           (void *) (intptr_t) atol(args)) == 0) {
-            pthread_detach(h);
-        }
-    } else if (strcmp(verb, "one-shot") == 0) {
-        g_one_shot = 1;
-    } else if (strcmp(verb, "abortive") == 0) {
-        g_abortive = atoi(args) ? 1 : 0;
-    } else if (strcmp(verb, "drop") == 0) {
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/* Connection-lifecycle controls: bump the live epoch (drop/reset/half-close/
+ * block) or toggle a persistent outage/hang state. Returns 1 if handled. */
+static int
+cmd_set_epoch(const char *verb)
+{
+    if (strcmp(verb, "drop") == 0) {
         g_abortive = 0;
         __atomic_add_fetch(&g_drop_epoch, 1, __ATOMIC_SEQ_CST);
     } else if (strcmp(verb, "reset") == 0) {
@@ -630,29 +725,81 @@ apply_command(char *line, char *reply, size_t rsz)
         __atomic_add_fetch(&g_drop_epoch, 1, __ATOMIC_SEQ_CST);
     } else if (strcmp(verb, "unblock") == 0) {
         g_blocked = 0;
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/* One-off controls: fault counters, the deferred heal timer, reset-all.
+ * Returns 1 if handled. */
+static int
+cmd_set_misc(const char *verb, const char *args)
+{
+    if (strcmp(verb, "fail-nth") == 0) {
+        g_fail_nth = atoi(args);
+    } else if (strcmp(verb, "heal-after") == 0) {
+        pthread_t h;
+        if (pthread_create(&h, NULL, heal_thread,
+                           (void *) (intptr_t) atol(args)) == 0) {
+            pthread_detach(h);
+        }
+    } else if (strcmp(verb, "one-shot") == 0) {
+        g_one_shot = 1;
+    } else if (strcmp(verb, "abortive") == 0) {
+        g_abortive = atoi(args) ? 1 : 0;
     } else if (strcmp(verb, "clear") == 0) {
         clear_all();
-    } else if (strcmp(verb, "status") == 0) {
-        if (reply && rsz) {
-            snprintf(reply, rsz,
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/* Emit the full lever + counter snapshot into `reply` (no-op if NULL/empty). */
+static void
+cmd_status_report(char *reply, size_t rsz)
+{
+    if (!reply || !rsz) {
+        return;
+    }
+    snprintf(reply, rsz,
 "up[lat=%d jit=%d chunk=%d drip=%d/%dms rate=%d lossy=%.4f%% reorder=%.4f%%/%dms "
 "corrupt=%.4f%% dup=%.4f%% trunc=%ld] "
 "down[lat=%d jit=%d chunk=%d drip=%d/%dms rate=%d lossy=%.4f%% reorder=%.4f%%/%dms "
 "corrupt=%.4f%% dup=%.4f%% trunc=%ld] "
 "blocked=%d hang=%d abortive=%d one_shot=%d fail_nth=%d epoch=%u | "
 "conns=%lu active=%lu up=%luB down=%luB severs=%lu corrupt=%lu dups=%lu refused=%lu\n",
-                g_up.latency_ms, g_up.jitter_ms, g_up.chunk_bytes, g_up.drip_bytes,
-                g_up.drip_ms, g_up.rate_kbps, g_up.lossy_ppm / 10000.0,
-                g_up.reorder_ppm / 10000.0, g_up.reorder_ms, g_up.corrupt_ppm / 10000.0,
-                g_up.dup_ppm / 10000.0, g_up.truncate_at,
-                g_down.latency_ms, g_down.jitter_ms, g_down.chunk_bytes, g_down.drip_bytes,
-                g_down.drip_ms, g_down.rate_kbps, g_down.lossy_ppm / 10000.0,
-                g_down.reorder_ppm / 10000.0, g_down.reorder_ms, g_down.corrupt_ppm / 10000.0,
-                g_down.dup_ppm / 10000.0, g_down.truncate_at,
-                g_blocked, g_hang, g_abortive, g_one_shot, g_fail_nth, g_drop_epoch,
-                C.conns, C.active, C.up_bytes, C.down_bytes,
-                C.severs, C.corrupt, C.dups, C.refused);
-        }
+        g_up.latency_ms, g_up.jitter_ms, g_up.chunk_bytes, g_up.drip_bytes,
+        g_up.drip_ms, g_up.rate_kbps, g_up.lossy_ppm / 10000.0,
+        g_up.reorder_ppm / 10000.0, g_up.reorder_ms, g_up.corrupt_ppm / 10000.0,
+        g_up.dup_ppm / 10000.0, g_up.truncate_at,
+        g_down.latency_ms, g_down.jitter_ms, g_down.chunk_bytes, g_down.drip_bytes,
+        g_down.drip_ms, g_down.rate_kbps, g_down.lossy_ppm / 10000.0,
+        g_down.reorder_ppm / 10000.0, g_down.reorder_ms, g_down.corrupt_ppm / 10000.0,
+        g_down.dup_ppm / 10000.0, g_down.truncate_at,
+        g_blocked, g_hang, g_abortive, g_one_shot, g_fail_nth, g_drop_epoch,
+        C.conns, C.active, C.up_bytes, C.down_bytes,
+        C.severs, C.corrupt, C.dups, C.refused);
+}
+
+/* Parse and apply one control command.  `line` is mutated.  `reply` (may be NULL)
+ * receives a human-readable response of up to `rsz` bytes. */
+static void
+apply_command(char *line, char *reply, size_t rsz)
+{
+    char verb[32] = "", args[224] = "";
+    sscanf(line, "%31s %223[^\n]", verb, args);
+    if (reply && rsz) {
+        snprintf(reply, rsz, "ok\n");
+    }
+
+    if (cmd_set_lever(verb, args) || cmd_set_epoch(verb)
+        || cmd_set_misc(verb, args)) {
+        return;
+    }
+    if (strcmp(verb, "status") == 0) {
+        cmd_status_report(reply, rsz);
     } else if (verb[0] != '\0' && reply && rsz) {
         snprintf(reply, rsz, "err: unknown command\n");
     }
@@ -791,20 +938,117 @@ listen_sa(const struct sockaddr_storage *tmpl, socklen_t slen, int port)
     return fd;
 }
 
-int
-main(int argc, char **argv)
+/* Parsed command-line configuration for the proxy run. Lever options
+ * (--latency, --block, …) are not carried here: they mutate the global
+ * fault levers via apply_command() as they are parsed. */
+typedef struct {
+    int         listen_port;
+    int         control_port;
+    const char *bind_str;
+    const char *script_path;
+    int         insecure;
+    int         quiet;
+} fp_config;
+
+/* Route an initial-lever long option (--latency, --block, …) through the same
+ * command parser as the live control port. Returns 1 if `opt` was a lever
+ * option (handled), 0 otherwise so the core option switch can claim it. */
+static int
+fp_apply_lever_opt(int opt, const char *optarg)
 {
-    int         listen_port  = 0;
-    int         control_port = 0;
-    const char *bind_str     = "127.0.0.1";
-    const char *script_path  = NULL;
-    int         insecure     = 0;
-    int         quiet        = 0;
-    char        cmd[256];
+    static const struct { int code; const char *name; } lever[] = {
+        {1000, "latency"}, {1001, "jitter"},  {1002, "chunk"},   {1003, "drip"},
+        {1004, "lossy"},   {1005, "reorder"}, {1007, "corrupt"}, {1008, "dup"},
+        {1009, "rate"},    {1010, "truncate-at"}, {1011, "fail-nth"},
+        {1012, "heal-after"},
+    };
+    char   cmd[256];
+    size_t i;
 
-    reset_lever(&g_up);
-    reset_lever(&g_down);
+    if (opt == 1006) { apply_command((char[]){"block"}, NULL, 0); return 1; }
+    if (opt == 1013) { apply_command((char[]){"hang"},  NULL, 0); return 1; }
 
+    for (i = 0; i < sizeof(lever) / sizeof(lever[0]); i++) {
+        if (lever[i].code == opt) {
+            snprintf(cmd, sizeof(cmd), "%s %s", lever[i].name, optarg);
+            apply_command(cmd, NULL, 0);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Apply a single core (non-lever) option to `cfg`. Returns FP_CONTINUE to keep
+ * parsing, or a terminal exit code (FP_OK for --help/--version, FP_USAGE on
+ * an unknown option or a rejected --target). */
+static int
+fp_apply_core_opt(int opt, fp_config *cfg)
+{
+    switch (opt) {
+    case 'l': cfg->listen_port = atoi(optarg); break;
+    case 't':
+        if (add_target(optarg) != 0) {
+            return FP_USAGE;
+        }
+        break;
+    case 'c': cfg->control_port = atoi(optarg); break;
+    case 'b': cfg->bind_str = optarg; break;
+    case 'I': cfg->insecure = 1; break;
+    case 'q': cfg->quiet = 1; break;
+    case 1014: g_seed = (unsigned) strtoul(optarg, NULL, 0); break;
+    case 1015: g_max_conns = atoi(optarg); break;
+    case 1016: cfg->script_path = optarg; break;
+    case 'h': usage(stdout); return FP_OK;
+    case 'V':
+        printf("brix-fault-proxy (BriX-Cache client) %s\n", brix_client_version());
+        return FP_OK;
+    default:
+        usage(stderr);
+        return FP_USAGE;
+    }
+    return FP_CONTINUE;
+}
+
+/* Fold any positional arguments into `cfg` and validate the required config.
+ *
+ * Positional back-compat: `brix-fault-proxy LISTEN HOST PORT CONTROL`.
+ * Accepted only when no --listen/--target/--control were given, so the two
+ * calling conventions never half-mix into a confusing partial config. */
+static int
+fp_finalize_config(int argc, char **argv, fp_config *cfg)
+{
+    int npos = argc - optind;
+
+    if (cfg->listen_port == 0 && cfg->control_port == 0 && g_ntargets == 0
+        && npos == 4) {
+        cfg->listen_port = atoi(argv[optind]);
+        char hp[512];
+        snprintf(hp, sizeof(hp), "%s:%s", argv[optind + 1], argv[optind + 2]);
+        if (add_target(hp) != 0) {
+            return FP_USAGE;
+        }
+        cfg->control_port = atoi(argv[optind + 3]);
+    } else if (npos != 0) {
+        fprintf(stderr, "brix-fault-proxy: unexpected argument '%s'\n", argv[optind]);
+        usage(stderr);
+        return FP_USAGE;
+    }
+
+    if (cfg->listen_port <= 0 || cfg->control_port <= 0 || g_ntargets == 0) {
+        fprintf(stderr, "brix-fault-proxy: --listen, --target and --control "
+                        "are all required\n");
+        usage(stderr);
+        return FP_USAGE;
+    }
+    return FP_CONTINUE;
+}
+
+/* Parse argv into `cfg`, applying lever options as a side effect. Returns
+ * FP_CONTINUE when the caller should proceed to run, otherwise a terminal
+ * exit code. */
+static int
+fp_parse_args(int argc, char **argv, fp_config *cfg)
+{
     static const struct option longopts[] = {
         {"listen",        required_argument, NULL, 'l'},
         {"target",        required_argument, NULL, 't'},
@@ -833,75 +1077,28 @@ main(int argc, char **argv)
         {"version",       no_argument,       NULL, 'V'},
         {0, 0, 0, 0},
     };
+    int opt, rc;
 
-    int opt;
     while ((opt = getopt_long(argc, argv, "l:t:c:b:qhV", longopts, NULL)) != -1) {
-        switch (opt) {
-        case 'l': listen_port = atoi(optarg); break;
-        case 't':
-            if (add_target(optarg) != 0) {
-                return FP_USAGE;
-            }
-            break;
-        case 'c': control_port = atoi(optarg); break;
-        case 'b': bind_str = optarg; break;
-        case 'I': insecure = 1; break;
-        case 'q': quiet = 1; break;
-        case 1014: g_seed = (unsigned) strtoul(optarg, NULL, 0); break;
-        case 1015: g_max_conns = atoi(optarg); break;
-        case 1016: script_path = optarg; break;
-        /* Initial levers route through the same parser as the control port. */
-        case 1000: snprintf(cmd, sizeof(cmd), "latency %s", optarg); apply_command(cmd, NULL, 0); break;
-        case 1001: snprintf(cmd, sizeof(cmd), "jitter %s", optarg);  apply_command(cmd, NULL, 0); break;
-        case 1002: snprintf(cmd, sizeof(cmd), "chunk %s", optarg);   apply_command(cmd, NULL, 0); break;
-        case 1003: snprintf(cmd, sizeof(cmd), "drip %s", optarg);    apply_command(cmd, NULL, 0); break;
-        case 1004: snprintf(cmd, sizeof(cmd), "lossy %s", optarg);   apply_command(cmd, NULL, 0); break;
-        case 1005: snprintf(cmd, sizeof(cmd), "reorder %s", optarg); apply_command(cmd, NULL, 0); break;
-        case 1006: apply_command((char[]){"block"}, NULL, 0); break;
-        case 1007: snprintf(cmd, sizeof(cmd), "corrupt %s", optarg); apply_command(cmd, NULL, 0); break;
-        case 1008: snprintf(cmd, sizeof(cmd), "dup %s", optarg);     apply_command(cmd, NULL, 0); break;
-        case 1009: snprintf(cmd, sizeof(cmd), "rate %s", optarg);    apply_command(cmd, NULL, 0); break;
-        case 1010: snprintf(cmd, sizeof(cmd), "truncate-at %s", optarg); apply_command(cmd, NULL, 0); break;
-        case 1011: snprintf(cmd, sizeof(cmd), "fail-nth %s", optarg); apply_command(cmd, NULL, 0); break;
-        case 1012: snprintf(cmd, sizeof(cmd), "heal-after %s", optarg); apply_command(cmd, NULL, 0); break;
-        case 1013: apply_command((char[]){"hang"}, NULL, 0); break;
-        case 'h': usage(stdout); return FP_OK;
-        case 'V':
-            printf("brix-fault-proxy (BriX-Cache client) %s\n", brix_client_version());
-            return FP_OK;
-        default:
-            usage(stderr);
-            return FP_USAGE;
+        if (fp_apply_lever_opt(opt, optarg)) {
+            continue;
+        }
+        if ((rc = fp_apply_core_opt(opt, cfg)) != FP_CONTINUE) {
+            return rc;
         }
     }
+    return fp_finalize_config(argc, argv, cfg);
+}
 
-    /* Positional back-compat: `brix-fault-proxy LISTEN HOST PORT CONTROL`.
-     * Accepted only when no --listen/--target/--control were given, so the two
-     * calling conventions never half-mix into a confusing partial config. */
-    int npos = argc - optind;
-    if (listen_port == 0 && control_port == 0 && g_ntargets == 0 && npos == 4) {
-        listen_port  = atoi(argv[optind]);
-        char hp[512];
-        snprintf(hp, sizeof(hp), "%s:%s", argv[optind + 1], argv[optind + 2]);
-        if (add_target(hp) != 0) {
-            return FP_USAGE;
-        }
-        control_port = atoi(argv[optind + 3]);
-    } else if (npos != 0) {
-        fprintf(stderr, "brix-fault-proxy: unexpected argument '%s'\n", argv[optind]);
-        usage(stderr);
-        return FP_USAGE;
-    }
-
-    if (listen_port <= 0 || control_port <= 0 || g_ntargets == 0) {
-        fprintf(stderr, "brix-fault-proxy: --listen, --target and --control "
-                        "are all required\n");
-        usage(stderr);
-        return FP_USAGE;
-    }
-
-    /* Resolve the bind address (IPv4 or IPv6) once; reuse for both listeners. */
+/* Resolve `bind_str` into `bind_ss`/`bind_len` and enforce the loopback gate.
+ * The control port is unauthenticated, so a non-loopback bind must be a
+ * deliberate, explicit act (--insecure-bind). Returns FP_CONTINUE or FP_USAGE. */
+static int
+fp_setup_bind(const char *bind_str, int insecure,
+    struct sockaddr_storage *bind_ss, socklen_t *bind_len)
+{
     struct addrinfo hints, *bres = NULL;
+
     memset(&hints, 0, sizeof(hints));
     hints.ai_family   = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -910,56 +1107,30 @@ main(int argc, char **argv)
         fprintf(stderr, "brix-fault-proxy: invalid --bind address '%s'\n", bind_str);
         return FP_USAGE;
     }
-    struct sockaddr_storage bind_ss;
-    socklen_t               bind_len = bres->ai_addrlen;
-    memcpy(&bind_ss, bres->ai_addr, bres->ai_addrlen);
+    *bind_len = bres->ai_addrlen;
+    memcpy(bind_ss, bres->ai_addr, bres->ai_addrlen);
     freeaddrinfo(bres);
 
-    /* Fail closed on a non-loopback bind: the control port is unauthenticated,
-     * so widening it beyond loopback must be a deliberate, explicit act. */
-    if (!sa_is_loopback((struct sockaddr *) &bind_ss) && !insecure) {
+    /* Fail closed on a non-loopback bind unless the operator opts in. */
+    if (!sa_is_loopback((struct sockaddr *) bind_ss) && !insecure) {
         fprintf(stderr, "brix-fault-proxy: refusing to bind the unauthenticated "
                         "control port to non-loopback '%s' without "
                         "--insecure-bind\n", bind_str);
         return FP_USAGE;
     }
-    if (!sa_is_loopback((struct sockaddr *) &bind_ss)) {
+    if (!sa_is_loopback((struct sockaddr *) bind_ss)) {
         fprintf(stderr, "brix-fault-proxy: WARNING binding control port to %s — "
                         "the control plane is UNAUTHENTICATED\n", bind_str);
     }
+    return FP_CONTINUE;
+}
 
-    signal(SIGPIPE, SIG_IGN);
-
-    int lfd   = listen_sa(&bind_ss, bind_len, listen_port);
-    int ctlfd = listen_sa(&bind_ss, bind_len, control_port);
-    if (lfd < 0 || ctlfd < 0) {
-        fprintf(stderr, "brix-fault-proxy: bind failed (listen=%d control=%d)\n",
-                listen_port, control_port);
-        return FP_RUN;
-    }
-
-    pthread_t ct;
-    int *cfdp = malloc(sizeof(int));
-    *cfdp = ctlfd;
-    pthread_create(&ct, NULL, control_thread, cfdp);
-
-    if (script_path != NULL) {
-        pthread_t st;
-        if (pthread_create(&st, NULL, script_thread, (void *) script_path) == 0) {
-            pthread_detach(st);
-        }
-    }
-
-    if (!quiet) {
-        printf("brix-fault-proxy: %s:%d -> %s:%d", bind_str, listen_port,
-               g_targets[0].host, g_targets[0].port);
-        for (int i = 1; i < g_ntargets; i++) {
-            printf(",%s:%d", g_targets[i].host, g_targets[i].port);
-        }
-        printf("  (control %s:%d)\n", bind_str, control_port);
-        fflush(stdout);
-    }
-
+/* Accept clients on `lfd` forever, spawning a detached relay thread per
+ * connection (subject to the outage/connection-cap levers). Returns FP_OK when
+ * the accept loop terminates on a non-EINTR error. */
+static int
+fp_accept_loop(int lfd)
+{
     for (;;) {
         int client = accept(lfd, NULL, NULL);
         if (client < 0) {
@@ -996,4 +1167,65 @@ main(int argc, char **argv)
         pthread_detach(t);
     }
     return FP_OK;
+}
+
+/* Print the startup banner (target chain + control endpoint). */
+static void
+fp_print_banner(const fp_config *cfg)
+{
+    printf("brix-fault-proxy: %s:%d -> %s:%d", cfg->bind_str, cfg->listen_port,
+           g_targets[0].host, g_targets[0].port);
+    for (int i = 1; i < g_ntargets; i++) {
+        printf(",%s:%d", g_targets[i].host, g_targets[i].port);
+    }
+    printf("  (control %s:%d)\n", cfg->bind_str, cfg->control_port);
+    fflush(stdout);
+}
+
+int
+main(int argc, char **argv)
+{
+    fp_config               cfg = { .bind_str = "127.0.0.1" };
+    struct sockaddr_storage bind_ss;
+    socklen_t               bind_len;
+    int                     rc;
+
+    reset_lever(&g_up);
+    reset_lever(&g_down);
+
+    if ((rc = fp_parse_args(argc, argv, &cfg)) != FP_CONTINUE) {
+        return rc;
+    }
+    if ((rc = fp_setup_bind(cfg.bind_str, cfg.insecure, &bind_ss, &bind_len))
+        != FP_CONTINUE) {
+        return rc;
+    }
+
+    signal(SIGPIPE, SIG_IGN);
+
+    int lfd   = listen_sa(&bind_ss, bind_len, cfg.listen_port);
+    int ctlfd = listen_sa(&bind_ss, bind_len, cfg.control_port);
+    if (lfd < 0 || ctlfd < 0) {
+        fprintf(stderr, "brix-fault-proxy: bind failed (listen=%d control=%d)\n",
+                cfg.listen_port, cfg.control_port);
+        return FP_RUN;
+    }
+
+    pthread_t ct;
+    int *cfdp = malloc(sizeof(int));
+    *cfdp = ctlfd;
+    pthread_create(&ct, NULL, control_thread, cfdp);
+
+    if (cfg.script_path != NULL) {
+        pthread_t st;
+        if (pthread_create(&st, NULL, script_thread, (void *) cfg.script_path) == 0) {
+            pthread_detach(st);
+        }
+    }
+
+    if (!cfg.quiet) {
+        fp_print_banner(&cfg);
+    }
+
+    return fp_accept_loop(lfd);
 }

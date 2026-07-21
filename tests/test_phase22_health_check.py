@@ -221,3 +221,129 @@ def test_probe_passes_live_server(hc_cluster):
             break
         time.sleep(0.5)
     assert passed >= 1, f"no passing health-check probe recorded (got {passed})"
+
+
+# --------------------------------------------------------------------------- #
+# 4. Step F: TLS-upgraded deep probes against a kXR_gotoTLS data server       #
+# --------------------------------------------------------------------------- #
+
+import shutil
+import subprocess
+
+
+def _make_pki(base):
+    """One CA + a host cert signed by it + a second UNRELATED CA (for the
+    verification-failure leg).  Returns a dict of paths."""
+    import socket as _socket
+    fqdn = _socket.getfqdn()
+    ca, certs, srv, evil = (base / d for d in ("ca", "certs", "srv", "evil"))
+    for d in (ca, certs, srv, evil):
+        d.mkdir(parents=True, exist_ok=True)
+
+    def osl(*a):
+        r = subprocess.run(["openssl", *a], capture_output=True, text=True,
+                           timeout=60)
+        assert r.returncode == 0, f"openssl {a}: {r.stderr}"
+        return r.stdout
+
+    osl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
+        "-subj", "/O=HcTlsTest/CN=HcTlsTest CA",
+        "-keyout", str(ca / "ca.key"), "-out", str(ca / "ca.pem"))
+    chash = osl("x509", "-in", str(ca / "ca.pem"), "-noout", "-hash").strip()
+    shutil.copy(ca / "ca.pem", certs / f"{chash}.0")
+
+    csr = base / "host.csr"
+    osl("req", "-nodes", "-newkey", "rsa:2048",
+        "-subj", f"/O=HcTlsTest/CN={fqdn}",
+        "-keyout", str(srv / "hostkey.pem"), "-out", str(csr))
+    osl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
+        "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
+        "-out", str(srv / "hostcert.pem"))
+
+    # A CA that did NOT sign the host cert — trusting it must fail the probe.
+    osl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
+        "-subj", "/O=HcTlsTest/CN=Unrelated CA",
+        "-keyout", str(evil / "ca.key"), "-out", str(evil / "ca.pem"))
+
+    return {"ca_pem": str(ca / "ca.pem"), "ca_dir": str(certs),
+            "cert": str(srv / "hostcert.pem"), "key": str(srv / "hostkey.pem"),
+            "evil_ca_pem": str(evil / "ca.pem"), "fqdn": fqdn}
+
+
+def _tls_cluster(lifecycle, tmp_path, name, mgr_tls_knobs, pki):
+    data = tmp_path / "data"
+    data.mkdir(exist_ok=True)
+    (data / "f.txt").write_text("x\n")
+    cms_port, ds_port, metrics_port = settings.free_ports(3)
+    lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_hc_tls_cluster.conf",
+        data_root=str(data),
+        extra_ports={"CMS_PORT": cms_port, "DS_PORT": ds_port,
+                     "METRICS_PORT": metrics_port},
+        template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
+                         "MGR_TLS_KNOBS": mgr_tls_knobs,
+                         "CERT_FILE": pki["cert"], "KEY_FILE": pki["key"],
+                         "CA_DIR": pki["ca_dir"]},
+        reason="Step F TLS deep-probe cluster (gotoTLS data server)",
+    ))
+    if not (_wait_port(ds_port) and _wait_port(metrics_port)):
+        pytest.skip("hc TLS cluster did not become fully ready")
+    return metrics_port
+
+
+def _await_counter(metrics_port, name, timeout=20):
+    deadline = time.time() + timeout
+    val = 0
+    while time.time() < deadline:
+        val = _counter(_metrics(metrics_port), name)
+        if val >= 1:
+            break
+        time.sleep(0.5)
+    return val
+
+
+@pytest.fixture(scope="module")
+def hc_pki(tmp_path_factory):
+    if not shutil.which("openssl"):
+        pytest.skip("openssl not installed")
+    return _make_pki(tmp_path_factory.mktemp("hcpki"))
+
+
+def test_tls_deep_probe_passes(lifecycle, tmp_path, hc_pki):
+    """Success: manager trusts the DS's CA -> the probe upgrades on
+    kXR_gotoTLS, re-logins over TLS, and the full-depth ping PASSES."""
+    knobs = ("        brix_upstream_tls on;\n"
+             f"        brix_upstream_tls_ca {hc_pki['ca_pem']};\n"
+             f"        brix_upstream_tls_name {hc_pki['fqdn']};\n")
+    mp = _tls_cluster(lifecycle, tmp_path, "lc-hc-tls-deep", knobs, hc_pki)
+    passed = _await_counter(mp, "brix_cluster_hc_pass_total")
+    assert passed >= 1, "TLS-upgraded deep probe never passed"
+    failed = _counter(_metrics(mp), "brix_cluster_hc_fail_total")
+    assert failed == 0, f"deep probe recorded failures: {failed}"
+
+
+def test_tls_untrusted_ca_probe_fails(lifecycle, tmp_path, hc_pki):
+    """Security-negative: the manager trusts a CA that did NOT sign the DS
+    cert -> the TLS handshake/verify fails and the probe records a FAILURE
+    (never a shallow pass — a TLS-demanding server we can't verify is down)."""
+    knobs = ("        brix_upstream_tls on;\n"
+             f"        brix_upstream_tls_ca {hc_pki['evil_ca_pem']};\n"
+             f"        brix_upstream_tls_name {hc_pki['fqdn']};\n")
+    mp = _tls_cluster(lifecycle, tmp_path, "lc-hc-tls-badca", knobs, hc_pki)
+    failed = _await_counter(mp, "brix_cluster_hc_fail_total")
+    assert failed >= 1, "untrusted-CA probe never recorded a failure"
+    passed = _counter(_metrics(mp), "brix_cluster_hc_pass_total")
+    assert passed == 0, f"untrusted-CA probe must not pass (got {passed})"
+
+
+def test_tls_no_upstream_ctx_shallow_alive(lifecycle, tmp_path, hc_pki):
+    """Compat: without brix_upstream_tls the pre-Step-F behavior is kept —
+    a gotoTLS answer at the protocol stage counts as alive (shallow pass),
+    so fleets without outbound-TLS config see no behavior change."""
+    mp = _tls_cluster(lifecycle, tmp_path, "lc-hc-tls-shallow", "", hc_pki)
+    passed = _await_counter(mp, "brix_cluster_hc_pass_total")
+    assert passed >= 1, "shallow gotoTLS-alive fallback regressed"
+    failed = _counter(_metrics(mp), "brix_cluster_hc_fail_total")
+    assert failed == 0, f"shallow fallback recorded failures: {failed}"
+

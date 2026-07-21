@@ -1,5 +1,6 @@
 #include "metrics_internal.h"
 #include "core/config/config.h"
+#include "core/fnv.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +12,7 @@
  *      as label strings (INVARIANT #8: low-cardinality labels only). FNV-1a hash provides fast 32-bit identity
  *      deduplication; VO slots track bytes_tx/bytes_rx per organization; user slots track session counts and unique count.
  * HOW: Two tracking functions share the same pattern — iterate fixed-size slot array, find match via comparison (VO=string compare, USER=hash),
- *      increment atomic counters on match or allocate new slot on miss with eviction fallback when array fills. FNV-1a hash uses 0x811c9dc5 seed + XOR-multiply loop.
+ *      increment atomic counters on match or allocate new slot on miss with eviction fallback when array fills. FNV-1a hash uses BRIX_FNV1A32_OFFSET_BASIS seed + XOR-multiply loop.
  */
 
 /* brix_fnv1a_hash — 32-bit FNV-1a over arbitrary data, used to dedup identities
@@ -23,11 +24,11 @@ static ngx_inline uint32_t
 brix_fnv1a_hash(const void *data, size_t len)
 {
     const u_char *p = (const u_char *) data;
-    uint32_t      h = 0x811c9dc5u;
+    uint32_t      h = BRIX_FNV1A32_OFFSET_BASIS;
 
     while (len--) {
         h ^= *p++;
-        h *= 0x01000193u;
+        h *= BRIX_FNV1A32_PRIME;
     }
     return h;
 }

@@ -74,7 +74,7 @@ from here except protocol-neutral constants (`etag.h`'s string builder;
   call `brix_http_eval_preconditions` (or the WebDAV subset) so RFC 9110
   precedence and the 304/412 split stay uniform. Guarded by
   `tests/test_cross_protocol_shared_helpers.py` and
-  `tools/ci/check_http_helper_reimpl.sh`.
+  `tools/ci/check_http_helper_reimpl.py`.
 - **Header values are attacker input.** Anything copied into a response
   header goes through the control-byte check (`brix_http_str_has_ctl`) —
   that is the response-splitting defence (see S3 `response-*` overrides).

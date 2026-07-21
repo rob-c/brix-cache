@@ -570,6 +570,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/net/cms/rrdata.h \
                         $ngx_addon_dir/src/net/cms/node_ops.h \
                         $ngx_addon_dir/src/net/cms/forward.h \
+                        $ngx_addon_dir/src/net/cms/fanout.h \
                         $ngx_addon_dir/src/observability/metrics/metrics.h \
                         $ngx_addon_dir/src/observability/metrics/metrics_cvmfs.h \
                         $ngx_addon_dir/src/observability/metrics/metrics_proxy.h \
@@ -812,6 +813,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_io.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_object.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_cred.c \
+    $ngx_addon_dir/src/fs/backend/rados/sd_ceph_dir.c \
     $ngx_addon_dir/src/fs/backend/rados/cephfs_denc.c \
     $ngx_addon_dir/src/fs/backend/rados/cephfs_layout.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_cephfs_ro.c \
@@ -942,6 +944,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/mirror/stream_mirror_io.c \
     $ngx_addon_dir/src/net/manager/redir_cache.c \
     $ngx_addon_dir/src/net/manager/pending.c \
+    $ngx_addon_dir/src/net/manager/loc_cache.c \
     $ngx_addon_dir/src/tpc/engine/key_registry.c \
     $ngx_addon_dir/src/tpc/common/credential.c \
     $ngx_addon_dir/src/tpc/common/auth.c \
@@ -1093,14 +1096,19 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/cms/wire.c \
     $ngx_addon_dir/src/net/cms/router.c \
     $ngx_addon_dir/src/net/cms/rrdata.c \
+    $ngx_addon_dir/src/net/cms/meter.c \
+    $ngx_addon_dir/src/net/cms/blacklist_file.c \
     $ngx_addon_dir/src/net/cms/node_ops.c \
     $ngx_addon_dir/src/net/cms/forward.c \
+    $ngx_addon_dir/src/net/cms/fanout.c \
     $ngx_addon_dir/src/net/cms/frame_io.c \
     $ngx_addon_dir/src/net/cms/space.c \
     $ngx_addon_dir/src/net/cms/send.c \
     $ngx_addon_dir/src/net/cms/recv.c \
     $ngx_addon_dir/src/net/cms/recv_frame.c \
     $ngx_addon_dir/src/net/cms/recv_forward.c \
+    $ngx_addon_dir/src/net/cms/recv_prepare.c \
+    $ngx_addon_dir/src/net/cms/reqid_map.c \
     $ngx_addon_dir/src/net/cms/cns.c \
     $ngx_addon_dir/src/net/cms/connect.c \
     $ngx_addon_dir/src/auth/token/b64url.c \

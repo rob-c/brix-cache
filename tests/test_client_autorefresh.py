@@ -18,11 +18,12 @@ import base64
 import json
 import os
 import socket
-import stat
 import subprocess
 import time
 
 import pytest
+
+from cmdscripts import fake_exec
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -54,17 +55,13 @@ def _jwt(claims):
     return f"{_b64(json.dumps({'alg':'none'}).encode())}.{_b64(json.dumps(claims).encode())}.sig"
 
 
-def _stub_oidc(dir_path, body):
-    """Write an executable `oidc-token` stub running `body` (sh)."""
-    p = os.path.join(dir_path, "oidc-token")
-    with open(p, "w") as f:
-        f.write("#!/bin/sh\n" + body + "\n")
-    os.chmod(p, os.stat(p).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    return p
+def _run_autorefresh(tmp_path, *, token=None, exit_code=0, account="test",
+                     set_account=True, extra_env=None):
+    """Drive `xrdcp --auto-refresh` with a fake `oidc-token` on PATH.
 
-
-def _run_autorefresh(tmp_path, stub_body, account="test", set_account=True,
-                     extra_env=None):
+    `token` (when set) is what the stub prints on stdout (a freshly-minted JWT);
+    `exit_code` non-zero models an oidc-token failure. The token path is isolated
+    from any real proxy/cert."""
     env = dict(os.environ)
     env.pop("BEARER_TOKEN", None)
     # Isolate the token path: no real proxy / cert in play.
@@ -72,7 +69,7 @@ def _run_autorefresh(tmp_path, stub_body, account="test", set_account=True,
     env["X509_USER_CERT"] = "/nonexistent/cert"
     stubdir = tmp_path / "bin"
     stubdir.mkdir()
-    _stub_oidc(str(stubdir), stub_body)
+    fake_exec.install(stubdir, "oidc-token", stdout=token, exit=exit_code)
     env["PATH"] = f"{stubdir}:{env['PATH']}"
     if set_account:
         env["OIDC_ACCOUNT"] = account
@@ -90,7 +87,7 @@ def test_autorefresh_fetches_token(tmp_path):
     """A configured account + working oidc-token → token refreshed, transfer OK."""
     fresh = _jwt({"exp": int(time.time()) + 3600,
                   "scope": "storage.read:/ storage.modify:/"})
-    proc, dest = _run_autorefresh(tmp_path, f'echo "{fresh}"')
+    proc, dest = _run_autorefresh(tmp_path, token=fresh)
     assert "refreshed bearer token via oidc-agent (account test)" in proc.stderr, proc.stderr
     assert proc.returncode == 0, proc.stderr
     assert open(dest, "rb").read() == b"hello from nginx-xrootd\n"
@@ -98,7 +95,7 @@ def test_autorefresh_fetches_token(tmp_path):
 
 def test_autorefresh_failsoft_on_oidc_error(tmp_path):
     """oidc-token failing must NOT break the transfer — it is best-effort."""
-    proc, dest = _run_autorefresh(tmp_path, "exit 1")
+    proc, dest = _run_autorefresh(tmp_path, exit_code=1)
     assert "token auto-refresh skipped" in proc.stderr, proc.stderr
     # Transfer still completes against the anon server (fail-soft).
     assert proc.returncode == 0, proc.stderr
@@ -108,7 +105,7 @@ def test_autorefresh_failsoft_on_oidc_error(tmp_path):
 def test_autorefresh_no_account_does_not_attempt(tmp_path):
     """Without an account, the token branch is not attempted (no crash, no fetch)."""
     fresh = _jwt({"exp": int(time.time()) + 3600, "scope": "storage.read:/"})
-    proc, dest = _run_autorefresh(tmp_path, f'echo "{fresh}"', set_account=False)
+    proc, dest = _run_autorefresh(tmp_path, token=fresh, set_account=False)
     assert "refreshed bearer token" not in proc.stderr, proc.stderr
     assert proc.returncode == 0, proc.stderr
     assert os.path.exists(dest)

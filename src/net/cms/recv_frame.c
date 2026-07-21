@@ -6,7 +6,7 @@
  * manager — PING→PONG, SPACE→AVAIL, STATUS→suspend/resume, SELECT/TRY→redirect
  * a waiting client, STATE→kYR_have existence probe, forwarded namespace ops,
  * UPDATE, DISC — plus the pending-client redirect/wake plumbing
- * (cms_wake_pending_session / cms_find_client_connection), the frame dispatch
+ * (brix_cms_wake_pending_session / brix_cms_client_conn_by_fd), the frame dispatch
  * table, and the router ngx_brix_cms_process_frame().
  *
  * WHY: Split (Phase-79 file-size split) from recv.c so the opcode-handler set
@@ -36,16 +36,48 @@
 #include <errno.h>
 #include <unistd.h>
 
-static ngx_connection_t *cms_find_client_connection(int fd);
+/* Resolve a saved client fd to its live connection (recycle-guarded by the
+ * caller via c->number).  Exported (recv_internal.h) since Phase-89 W8: the
+ * rm/rmdir fan-out finalizer (fanout.c) resolves its parked client the same
+ * way the locate wake below does. */
+ngx_connection_t *
+brix_cms_client_conn_by_fd(int fd)
+{
+    ngx_uint_t        i;
+    ngx_connection_t *c;
 
-/* cms_wake_pending_session — parse the first host:port from a kYR_select/kYR_try
- * payload and wake the suspended XRootD client waiting on its locate: look up the
- * pending entry by streamid+pid, resolve its saved fd to the live connection (same
- * worker, per-worker design), set XRD_ST_REQ_HEADER, brix_send_redirect to the
- * resolved server, and resume reading. */
+    if (fd < 0) {
+        return NULL;
+    }
 
-static ngx_int_t
-cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
+    if (ngx_cycle->files != NULL && (ngx_uint_t) fd < ngx_cycle->files_n) {
+        c = ngx_cycle->files[fd];
+        if (c != NULL && c->fd == fd) {
+            return c;
+        }
+        return NULL;
+    }
+
+    for (i = 0; i < ngx_cycle->connection_n; i++) {
+        c = &ngx_cycle->connections[i];
+        if (c->fd == fd) {
+            return c;
+        }
+    }
+
+    return NULL;
+}
+
+/* brix_cms_wake_pending_session — wake the suspended XRootD client waiting on
+ * a pending locate: look up the pending entry by streamid+pid, resolve its
+ * saved fd to the live connection (same worker, per-worker design), set
+ * XRD_ST_REQ_HEADER, brix_send_redirect to the resolved server, and resume
+ * reading.  Exported (recv_internal.h) because two ingest paths converge on it:
+ * kYR_select/kYR_try from a parent manager (this file) and — Phase-89 W3 —
+ * kYR_have from a child node (server_recv_frame.c, state fan-out wake). */
+
+ngx_int_t
+brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
     const char *host, uint16_t port)
 {
     brix_pending_locate_t  *pending;
@@ -58,7 +90,7 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
 
     pending = brix_pending_lookup(streamid, ngx_pid);
     if (pending == NULL) {
-        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, cms_ctx->cycle->log, 0,
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, log, 0,
                        "brix: CMS wake: streamid=%uD not found in pending table",
                        streamid);
         return NGX_OK;  /* session timed out and was already removed */
@@ -72,7 +104,7 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
 
     brix_pending_remove(streamid, ngx_pid);
 
-    client_conn = cms_find_client_connection(conn_fd);
+    client_conn = brix_cms_client_conn_by_fd(conn_fd);
     if (client_conn == NULL || client_conn->number != conn_number) {
         return NGX_OK;  /* fd was recycled after the client disconnected */
     }
@@ -101,13 +133,13 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
     {
         char  safe[256];
         brix_sanitize_log_string(host, safe, sizeof(safe));
-        ngx_log_error(NGX_LOG_WARN, cms_ctx->cycle->log, 0,
+        ngx_log_error(NGX_LOG_WARN, log, 0,
                       "brix: CMS select: rejected redirect to invalid host "
                       "\"%s\" for fd=%d", safe, conn_fd);
         return NGX_OK;
     }
 
-    ngx_log_error(NGX_LOG_INFO, cms_ctx->cycle->log, 0,
+    ngx_log_error(NGX_LOG_INFO, log, 0,
                   "brix: CMS select: redirecting client fd=%d to %s:%u",
                   conn_fd, host, (unsigned) port);
 
@@ -116,41 +148,13 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
     xrd_ctx->recv.cur_streamid[0] = client_streamid[0];
     xrd_ctx->recv.cur_streamid[1] = client_streamid[1];
     if (brix_send_redirect(xrd_ctx, client_conn, host, port) == NGX_ERROR) {
-        ngx_log_error(NGX_LOG_ERR, cms_ctx->cycle->log, 0,
+        ngx_log_error(NGX_LOG_ERR, log, 0,
                       "brix: CMS select: failed to queue redirect for fd=%d",
                       conn_fd);
         return NGX_ERROR;
     }
     brix_schedule_read_resume(client_conn);
     return NGX_OK;
-}
-
-static ngx_connection_t *
-cms_find_client_connection(int fd)
-{
-    ngx_uint_t        i;
-    ngx_connection_t *c;
-
-    if (fd < 0) {
-        return NULL;
-    }
-
-    if (ngx_cycle->files != NULL && (ngx_uint_t) fd < ngx_cycle->files_n) {
-        c = ngx_cycle->files[fd];
-        if (c != NULL && c->fd == fd) {
-            return c;
-        }
-        return NULL;
-    }
-
-    for (i = 0; i < ngx_cycle->connection_n; i++) {
-        c = &ngx_cycle->connections[i];
-        if (c->fd == fd) {
-            return c;
-        }
-    }
-
-    return NULL;
 }
 
 /* cms_frame_ping — kYR_ping: answer the manager's liveness probe with a PONG
@@ -220,7 +224,7 @@ cms_frame_redirect(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     }
 
     port = ngx_brix_cms_get16(payload + host_len + 1);
-    return cms_wake_pending_session(ctx, streamid, host, port);
+    return brix_cms_wake_pending_session(ctx->cycle->log, streamid, host, port);
 }
 
 /* cms_state_extract_path — pure validation of a kYR_state payload: bound the
@@ -335,6 +339,17 @@ cms_frame_forward(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     return cms_node_exec_forward(ctx, code, streamid, payload, plen);
 }
 
+/* cms_frame_prepare — kYR_prepadd/kYR_prepdel (Plane B staging): a manager-
+ * forwarded stage-in admission or cancellation.  Routed to the registry-backed
+ * executor in recv_prepare.c. */
+static ngx_int_t
+cms_frame_prepare(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
+{
+    const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
+    size_t         plen    = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
+    return cms_node_exec_prepare(ctx, code, streamid, payload, plen);
+}
+
 /* cms_frame_update — kYR_update: manager asks us to resend state
  * (do_Update -> sendState). */
 static ngx_int_t
@@ -385,6 +400,8 @@ static const struct {
     { CMS_RR_RM,     cms_frame_forward  },
     { CMS_RR_RMDIR,  cms_frame_forward  },
     { CMS_RR_TRUNC,  cms_frame_forward  },
+    { CMS_RR_PREPADD, cms_frame_prepare },
+    { CMS_RR_PREPDEL, cms_frame_prepare },
     { CMS_RR_UPDATE, cms_frame_update   },
     { CMS_RR_DISC,   cms_frame_disc     },
 };

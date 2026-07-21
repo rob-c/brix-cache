@@ -26,6 +26,7 @@ import urllib.request
 
 import pytest
 
+from cmdscripts import frm_oracle_online
 from settings import NGINX_BIN, HOST, BIND_HOST, free_port
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
@@ -72,8 +73,7 @@ def f3(lifecycle, tmp_path):
     shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
     os.chmod(copycmd, 0o755)
     # residency oracle: always reports "online" (exit 0) → agent skips the copy.
-    oracle = d / "oracle.sh"; oracle.write_text("#!/bin/sh\nexit 0\n")
-    os.chmod(str(oracle), 0o755)
+    oracle = frm_oracle_online.install(d)
 
     # nearline-marked file that ALREADY has its real bytes on disk; the tape copy
     # is DIFFERENT so we can tell whether the (skipped) copy ran.
@@ -91,7 +91,7 @@ def f3(lifecycle, tmp_path):
             "DATA_DIR": str(data),
             "QUEUE_PATH": str(d / "frm.queue"),
             "COPY_CMD": copycmd,
-            "ORACLE_CMD": str(oracle),
+            "ORACLE_CMD": oracle,
         },
         env={
             "FRM_DATA_DIR": os.path.realpath(str(data)),

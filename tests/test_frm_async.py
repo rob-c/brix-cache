@@ -20,12 +20,12 @@ dropped and the test now asserts the behaviour that surface actually guarantees:
 Self-contained; skips cleanly without nginx or xrdcp.
 """
 
-import os
 import shutil
 import subprocess
 
 import pytest
 
+from cmdscripts import frm_stagecmd
 from settings import HOST
 from server_registry import NginxInstanceSpec
 
@@ -33,29 +33,6 @@ pytestmark = pytest.mark.uses_lifecycle_harness
 
 XRDCP = shutil.which("xrdcp")
 TAPE_BYTES = b"ASYNC-TAPE-CONTENT-" + b"y" * 256 + b"\n"
-
-
-def _stagecmd(tape, failkey):
-    """Exec MSS adapter: $BRIX_FRM_STAGECMD <verb> <key> <online>.
-
-    `recall` of `failkey` exits non-zero (an object that IS on tape but whose
-    recall genuinely fails) so the read errors rather than hangs; every other
-    key recalls normally.  The tape dir and fail key are baked in because nginx
-    rewrites its environ (a spawned command sees only argv + BRIX_FRM_STAGECMD).
-    """
-    return (
-        "#!/bin/bash\n"
-        'verb="$1"; key="${2#/}"; online="$3"\n'
-        f"tape='{tape}'\n"
-        f"failkey='{failkey}'\n"
-        'case "$verb" in\n'
-        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
-        '  recall)  [ "$key" = "$failkey" ] && exit 1\n'
-        '           mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
-        '  migrate) cp "$online" "$tape/$key" ;;\n'
-        '  purge)   rm -f "$online" ;;\n'
-        "esac\n"
-    )
 
 
 @pytest.fixture
@@ -73,9 +50,11 @@ def srv(lifecycle, tmp_path):
     # nearline object present on tape but whose recall verb fails
     (tape / "failfile.dat").write_bytes(b"unrecallable\n")
 
-    stagecmd = d / "stage.sh"
-    stagecmd.write_text(_stagecmd(str(tape), "failfile.dat"))
-    stagecmd.chmod(0o755)
+    # Exec MSS adapter ($BRIX_FRM_STAGECMD <verb> <key> <online>): recall of the
+    # fail key exits non-zero so the read errors rather than hangs. Config (tape
+    # dir, fail key) rides in a JSON sidecar because nginx rewrites its environ
+    # (a spawned command sees only argv + BRIX_FRM_STAGECMD).
+    stagecmd = frm_stagecmd.install(d, tape=str(tape), failkey="failfile.dat")
 
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-frm-async",

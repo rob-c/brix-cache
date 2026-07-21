@@ -1,6 +1,6 @@
 # codechecker baseline — clangsa + clang-tidy findings, keyed by content hash.
 # Format: <repo-relative path> │ <checker> │ <report_hash>
-# Regenerate with: tools/ci/run_codechecker.sh --regen   (review the diff!)
+# Regenerate with: tools/ci/run_codechecker.py --regen   (review the diff!)
 src/auth/authz/auth_gate.c │ deadcode.DeadStores │ d746ed43b02db90ff1f5ce5358a9cce2
 src/auth/crypto/pki_build.c │ cert-err33-c │ 6f1a68d35496ff113a2a91b856bf0eb1
 src/auth/crypto/pki_load.c │ cert-err33-c │ 8aebfe3b2c934eb2a79fcb74160f125b

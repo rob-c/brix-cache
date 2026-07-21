@@ -433,12 +433,13 @@ sd_ceph_cleanup(brix_sd_instance_t *inst)
     }
 }
 
-/* The Ceph driver descriptor. Honest caps: range read, random write, truncate —
- * no CAP_FD/SENDFILE (no fd; VFS serves memory-backed), no CAP_DIRS (flat key
- * namespace), no CAP_HARD_RENAME (no atomic rename). Directory iteration, rename,
- * xattr and staged commit are deliberately absent from this basic backend.
+/* The Ceph driver descriptor. Honest caps: range read, random write, truncate,
+ * xattr, staged write, catalog enumeration, and synthetic directories (CAP_DIRS,
+ * phase-89 §B: the opendir/readdir slots collapse the flat key namespace to one
+ * hierarchical level per listing). No CAP_FD/SENDFILE (no fd; VFS serves
+ * memory-backed) and no CAP_HARD_RENAME — rename is copy+delete (ADR-5).
  * The op functions live in the sibling TUs (sd_ceph_io.c / sd_ceph_object.c /
- * sd_ceph_cred.c) and are declared in sd_ceph_internal.h. */
+ * sd_ceph_dir.c / sd_ceph_cred.c) and are declared in sd_ceph_internal.h. */
 const brix_sd_driver_t brix_sd_ceph_driver = {
     .name = "ceph",
     /* XATTR: the get/set/removexattr slots store object xattrs via rados_*xattr,
@@ -447,7 +448,7 @@ const brix_sd_driver_t brix_sd_ceph_driver = {
     .caps = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE
           | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_XATTR
           | BRIX_SD_CAP_XATTR_WRITE | BRIX_SD_CAP_MEMFILE
-          | BRIX_SD_CAP_CATALOG,
+          | BRIX_SD_CAP_CATALOG | BRIX_SD_CAP_DIRS,
 
     .init    = sd_ceph_init,
     .cleanup = sd_ceph_cleanup,
@@ -466,6 +467,12 @@ const brix_sd_driver_t brix_sd_ceph_driver = {
 
     .stat   = sd_ceph_stat,
     .unlink = sd_ceph_unlink,
+    .mkdir  = sd_ceph_mkdir,      /* synthetic no-op create (phase-89 ADR-1) */
+    .rename = sd_ceph_rename,     /* copy+delete, no CAP_HARD_RENAME (ADR-5) */
+
+    .opendir  = sd_ceph_opendir,  /* stripe-collapse listing (phase-89 §B.1) */
+    .readdir  = sd_ceph_readdir,
+    .closedir = sd_ceph_closedir,
 
     .getxattr    = sd_ceph_getxattr,
     .listxattr   = sd_ceph_listxattr,
