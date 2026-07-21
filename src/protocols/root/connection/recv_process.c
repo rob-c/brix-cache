@@ -287,6 +287,8 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
      */
     if (brix_recv_should_defer(ctx)) {
         ctx->out.recv_deferred = 1;
+        ctx->out.deferred_streamid[0] = ctx->recv.cur_streamid[0];
+        ctx->out.deferred_streamid[1] = ctx->recv.cur_streamid[1];
         ctx->state = XRD_ST_SENDING;
         BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
         return BRIX_RECV_STEP_RETURN;
@@ -363,6 +365,8 @@ brix_recv_after_payload(ngx_stream_session_t *s, ngx_connection_t *c,
      */
     if (brix_recv_should_defer(ctx)) {
         ctx->out.recv_deferred = 1;
+        ctx->out.deferred_streamid[0] = ctx->recv.cur_streamid[0];
+        ctx->out.deferred_streamid[1] = ctx->recv.cur_streamid[1];
         ctx->state = XRD_ST_SENDING;
         BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
         return BRIX_RECV_STEP_RETURN;

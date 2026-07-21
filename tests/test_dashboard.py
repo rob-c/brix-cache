@@ -299,6 +299,7 @@ class TestDashboardThrottledState:
             assert isinstance(row["avg_bps"], int) and row["avg_bps"] >= 0
 
     @pytest.mark.skipif(not _HAVE_XROOTD, reason="pyxrootd not available")
+    @pytest.mark.timeout(90)   # _wait_for_state alone may poll up to 45s
     def test_paced_transfer_shows_throttled_not_stalled(self):
         """A transfer that moved data and is then idle past the stalled threshold
         is reported as 'throttled' (making scheduled progress), not 'stalled'."""
@@ -316,6 +317,7 @@ class TestDashboardThrottledState:
             f.close()
 
     @pytest.mark.skipif(not _HAVE_XROOTD, reason="pyxrootd not available")
+    @pytest.mark.timeout(90)   # _wait_for_state alone may poll up to 45s
     def test_idle_no_progress_transfer_still_shows_stalled(self):
         """Negative guard: the throttled relabel must NOT mask a genuinely stuck
         transfer.  A handle opened but never read (avg_bps == 0) past the stalled

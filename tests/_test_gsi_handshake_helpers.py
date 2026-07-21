@@ -641,7 +641,10 @@ def nginx_root_sigver(pki):
 # roots), guarded by a cross-process flock so concurrent workers generate once.
 # Only the short-lived proxy (xrdgsiproxy -valid 1:00) is minted fresh per run.
 # --------------------------------------------------------------------------- #
-_PKI_CACHE_ROOT = "/tmp/brix-gsi-pki-cache"
+# Per-uid cache root: a root-run cache is unreadable/undeletable for a later
+# unprivileged run (0600 keys, foreign-owned entries defeat the rmtree+rename
+# swap), so users must never share one.
+_PKI_CACHE_ROOT = f"/tmp/brix-gsi-pki-cache.{os.getuid()}"
 _PKI_CACHE_TAG = "rsa4096-v1"          # bump on any layout/parameter change
 
 

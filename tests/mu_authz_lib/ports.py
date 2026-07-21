@@ -35,9 +35,12 @@ class MU:
     # root:// anon node — verifies internal metadata sidecars are never listed/served.
     SIDECAR_ROOT  = _p("TEST_MU_SIDECAR_ROOT",  12150)
 
-    # Directory layout (kept out of the shared /tmp/xrd-test fleet roots).
-    MU_ROOT    = os.environ.get("TEST_MU_ROOT", "/tmp/xrd-test/mu")
-    PKI_DIR    = os.environ.get("TEST_MU_PKI_DIR", "/tmp/xrd-test/pki")
+    # Directory layout (kept out of the shared fleet data/registry roots but
+    # under the same TEST_ROOT, so postures with different roots — e.g. the
+    # unprivileged runner's /tmp/xrd-test-brixtest — never collide on /tmp/xrd-test).
+    _TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+    MU_ROOT    = os.environ.get("TEST_MU_ROOT", os.path.join(_TEST_ROOT, "mu"))
+    PKI_DIR    = os.environ.get("TEST_MU_PKI_DIR", os.path.join(_TEST_ROOT, "pki"))
     CA_DIR     = os.path.join(PKI_DIR, "ca")
     TOKENS_DIR = os.path.join(MU_ROOT, "tokens")
     DATA_ROOT  = os.path.join(MU_ROOT, "data")     # the export origin

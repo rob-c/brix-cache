@@ -133,9 +133,9 @@ def _write_file(path: Path | str, content: bytes):
 def _setup_file(backend_url: str, filename: str, content: bytes) -> Path:
     """Write a test file to the filesystem so the backend can serve it."""
     if "8443" in backend_url or "8444" in backend_url or "9001" in backend_url:
-        data_dir = Path("/tmp/xrd-test/data")
+        data_dir = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")) / "data"
     else:
-        data_dir = Path("/tmp/xrd-test/data-xrdhttp")
+        data_dir = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")) / "data-xrdhttp"
     data_dir.mkdir(parents=True, exist_ok=True)
     filepath = data_dir / filename
     filepath.write_bytes(content)

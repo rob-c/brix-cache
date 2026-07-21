@@ -151,7 +151,7 @@ def test_copy_preserves_xattrs():
     
     # Map virtual path to physical path
     # TEST_ROOT is /tmp/xrd-test, export root is /tmp/xrd-test/data
-    src_phys = os.path.join("/tmp/xrd-test/data", src.lstrip("/"))
+    src_phys = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "data", src.lstrip("/"))
     
     # Set an XRootD-mapped xattr: user.U.testkey
     xattr_name = "user.U.testkey"
@@ -165,7 +165,7 @@ def test_copy_preserves_xattrs():
     r = _copy(src, dst)
     assert r.status_code == 201
     
-    dst_phys = os.path.join("/tmp/xrd-test/data", dst.lstrip("/"))
+    dst_phys = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "data", dst.lstrip("/"))
     
     # Verify xattr was copied
     try:

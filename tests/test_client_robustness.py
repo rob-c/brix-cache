@@ -30,7 +30,9 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
 ROOT_HOST, ROOT_PORT = "127.0.0.1", 11094
-DATA_DIR = "/tmp/xrd-test/data"
+# The export of the :11094 server for the ACTIVE posture — never a literal
+# /tmp/xrd-test, which under the unprivileged runner is the (stale) root tree.
+DATA_DIR = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "data")
 SMALL = "//test.txt"          # 24 bytes, "hello from nginx-xrootd"
 BIG = "//large200.bin"        # 200 MiB — big enough to interrupt mid-flight
 

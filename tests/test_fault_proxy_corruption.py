@@ -60,6 +60,8 @@ _DETECT_MARKERS = (
     "crc", "pgread", "mismatch", "checksum", "cksum", "header",
     "handshake", "status", "invalid", "corrupt", "decode", "protocol",
     "time",   # "read timed out" / "timeout" — framing desync from a flipped header
+    "directory",  # "source is a directory" — a flipped stat-flags bit in the open/stat
+                  # reply makes xrdcp refuse the source outright: loud, not silent
 )
 
 _PROXY_MISSING = not os.path.isfile(FAULT_PROXY)

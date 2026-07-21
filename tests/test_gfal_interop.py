@@ -20,7 +20,7 @@ NATIVE_XRDCRC32C = os.path.join(REPO, "client", "bin", "xrdcrc32c")
 
 ROOT_BASE = "root://127.0.0.1:11094"
 DAVS_BASE = "davs://127.0.0.1:8443"
-CA_DIR = "/tmp/xrd-test/pki/ca"
+CA_DIR = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "pki", "ca")
 
 
 def _clean_env():

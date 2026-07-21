@@ -202,6 +202,9 @@ typedef struct {
     ngx_uint_t         tail;           /* slot currently being built */
     ngx_uint_t         count;          /* number of slots in use (responses queued) */
     unsigned           recv_deferred:1;    /* drain barrier: parked non-pipelinable req awaits count==0 */
+    u_char             deferred_streamid[2]; /* parked request's sid: a pipelined AIO ack completing
+                                              * during the park clobbers recv.cur_streamid, so the
+                                              * deferred dispatch must reinstall its own sid */
     unsigned           resp_pipelinable:1; /* current response is a single-chunk sendfile read */
     ngx_uint_t         wr_inflight;        /* plain-write pwrites posted, not yet acked */
     unsigned           resp_async:1;       /* ack drains without disturbing recv */

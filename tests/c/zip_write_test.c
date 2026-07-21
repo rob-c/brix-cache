@@ -192,6 +192,16 @@ expect_member(membuf *arc, const char *member, const uint8_t *want, size_t want_
     brix_zip_dir_free(&dir);
 }
 
+/* Per-uid scratch path: a root-run leftover of a fixed /tmp name is not
+ * writable (or unlinkable, /tmp is sticky) by a later unprivileged run. */
+static const char *
+zwt_path(const char *name)
+{
+    static char buf[256];
+    snprintf(buf, sizeof(buf), "/tmp/zwt_%d_%s", (int)getuid(), name);
+    return buf;
+}
+
 /* Write membuf to `path`. Returns 0 on success. */
 static int
 membuf_to_file(membuf *m, const char *path)
@@ -288,10 +298,10 @@ test_create_two_members(const uint8_t *a, size_t alen,
     expect_member(&arc, "nested/beta.txt", b, blen);
 
     /* (2) round-trip through stock unzip. */
-    CHECK(membuf_to_file(&arc, "/tmp/zwt_two.zip") == 0, "persist two.zip");
-    expect_unzip_t_ok("/tmp/zwt_two.zip");
-    expect_unzip_p("/tmp/zwt_two.zip", "alpha.bin",       a, alen);
-    expect_unzip_p("/tmp/zwt_two.zip", "nested/beta.txt", b, blen);
+    CHECK(membuf_to_file(&arc, zwt_path("two.zip")) == 0, "persist two.zip");
+    expect_unzip_t_ok(zwt_path("two.zip"));
+    expect_unzip_p(zwt_path("two.zip"), "alpha.bin",       a, alen);
+    expect_unzip_p(zwt_path("two.zip"), "nested/beta.txt", b, blen);
 
     free(arc.data);
     printf("  ok   create 2 STORE members (lib reader + unzip -t/-p)\n");
@@ -372,10 +382,10 @@ test_append_member(const uint8_t *a, size_t alen,
         expect_member(&app_arc, "first.dat",  a, alen);
         expect_member(&app_arc, "second.dat", b, blen);
 
-        CHECK(membuf_to_file(&app_arc, "/tmp/zwt_append.zip") == 0, "persist append.zip");
-        expect_unzip_t_ok("/tmp/zwt_append.zip");
-        expect_unzip_p("/tmp/zwt_append.zip", "first.dat",  a, alen);
-        expect_unzip_p("/tmp/zwt_append.zip", "second.dat", b, blen);
+        CHECK(membuf_to_file(&app_arc, zwt_path("append.zip")) == 0, "persist append.zip");
+        expect_unzip_t_ok(zwt_path("append.zip"));
+        expect_unzip_p(zwt_path("append.zip"), "first.dat",  a, alen);
+        expect_unzip_p(zwt_path("append.zip"), "second.dat", b, blen);
     }
 
     free(seed);
@@ -420,10 +430,10 @@ test_empty_member(void)
     expect_member(&arc, "empty.dat",  NULL, 0);
     expect_member(&arc, "filled.dat", payload, sizeof(payload) - 1);
 
-    CHECK(membuf_to_file(&arc, "/tmp/zwt_empty.zip") == 0, "persist empty.zip");
-    expect_unzip_t_ok("/tmp/zwt_empty.zip");
-    expect_unzip_p("/tmp/zwt_empty.zip", "empty.dat",  NULL, 0);
-    expect_unzip_p("/tmp/zwt_empty.zip", "filled.dat", payload, sizeof(payload) - 1);
+    CHECK(membuf_to_file(&arc, zwt_path("empty.zip")) == 0, "persist empty.zip");
+    expect_unzip_t_ok(zwt_path("empty.zip"));
+    expect_unzip_p(zwt_path("empty.zip"), "empty.dat",  NULL, 0);
+    expect_unzip_p(zwt_path("empty.zip"), "filled.dat", payload, sizeof(payload) - 1);
 
     free(arc.data);
     printf("  ok   empty (0-byte) member stores/reads as 0 bytes\n");

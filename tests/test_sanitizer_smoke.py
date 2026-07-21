@@ -47,7 +47,7 @@ pytestmark = pytest.mark.skipif(
 
 # Must match the log_path written by manage_test_servers.sh when SANITIZE=1.
 # manage_test_servers.sh: log_path=${SANITIZE_LOG_DIR}/asan  → files are asan.<pid>
-SANITIZE_LOG_DIR = os.environ.get("SANITIZE_LOG_DIR", "/tmp/xrd-test/sanitize")
+SANITIZE_LOG_DIR = os.environ.get("SANITIZE_LOG_DIR", os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "sanitize"))
 
 _ANON_BASE = f"root://{HOST}:{NGINX_ANON_PORT}"
 
