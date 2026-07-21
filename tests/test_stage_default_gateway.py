@@ -43,10 +43,20 @@ pytestmark = pytest.mark.uses_lifecycle_harness
 
 
 def _san(url):
-    """Mirror brix_tier_default_stage_dir: [A-Za-z0-9._-] kept, else '_'."""
-    return "".join(
+    """Mirror brix_tier_default_stage_dir: [A-Za-z0-9._-] kept, else '_',
+    then the runtime worker uid suffix (leaves are per-identity so instances
+    of different users never fight over one 0700 spool)."""
+    sanitised = "".join(
         c if (c.isalnum() or c in "._-") else "_" for c in url[:160]
     )
+    return f"{sanitised}.{_worker_uid()}"
+
+
+def _worker_uid():
+    if os.geteuid() != 0:
+        return os.geteuid()
+    import pwd
+    return pwd.getpwnam(os.environ.get("BRIX_WORKER_USER", "nobody")).pw_uid
 
 
 def _spec(name, backend, stage_directives="", allow_write="on"):

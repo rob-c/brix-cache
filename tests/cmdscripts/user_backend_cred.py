@@ -178,14 +178,15 @@ def _install_cred(source: Path | str, dest: Path) -> None:
 
 def _start_prefixed(run: LiveRun, prefix: Path, conf: Path) -> tuple[bool, str]:
     # These per-scenario configs carry no `user` directive, so under the root
-    # harness the master starts as root but workers drop to `nobody` — which
-    # cannot write the root-owned export/stage trees or read the root-owned
-    # credential files, so the PUT fails (Permission denied / cred "refusing").
-    # run.call() bypasses cmdscripts.run(), so mirror its `-g "user root;"`
-    # injection here (the same fix start_nginx already applies).
-    from cmdscripts import _maybe_force_nginx_root_worker
-    argv = _maybe_force_nginx_root_worker([str(run.nginx), "-p", str(prefix), "-c", str(conf)])
-    result = run.call(argv, check=False)
+    # harness the master starts as root and the always-on de-escalation drops
+    # workers to `nobody` — which cannot traverse the 0700 mkdtemp tree, write
+    # the export/stage trees, or read the root-owned credential files.
+    # run.call() bypasses cmdscripts.run(), so mirror its tree-opening here
+    # (whole LiveRun root: creds/ and the minted user proxies are siblings of
+    # the nginx prefix).
+    from cmdscripts import open_tree_for_worker
+    open_tree_for_worker(run.root, conf)
+    result = run.call([str(run.nginx), "-p", str(prefix), "-c", str(conf)], check=False)
     if result.returncode == 0:
         pidfile = prefix / "nginx.pid"
         if pidfile not in run.pidfiles:

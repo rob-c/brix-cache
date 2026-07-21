@@ -185,6 +185,15 @@ brix_sd_instance_t *brix_tier_build(const brix_tier_cfg_t *t,
 brix_sd_instance_t *brix_tier_build_stack(brix_tier_stack_t *s,
     ngx_log_t *log);
 
+/* Hand a pblock store's master-created on-disk state (root dir, data dir,
+ * catalog.db + sidecars) to the RUNTIME worker identity. The config-time
+ * validation build runs in the root master and CREATES that state root-owned;
+ * the de-escalated worker (brix_worker_user/nobody) then EACCESes on every
+ * catalog write / block-dir mkdir. Same contract as the default credential
+ * store / stage spool provisioning (brix_imp_worker_runtime_ids). No-op in a
+ * worker or when not root. */
+void brix_tier_pblock_hand_to_worker(const char *root, ngx_log_t *log);
+
 /* ---- registry glue (phase-64 config wiring) -------------------------------
  * These register a parsed cache/stage tier on the per-export backend registry
  * (vfs_backend_registry.c) at config time, so brix_vfs_backend_resolve composes

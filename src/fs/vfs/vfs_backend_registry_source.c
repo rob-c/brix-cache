@@ -330,6 +330,7 @@ brix_vbr_build_pblock(brix_vfs_backend_entry_t *e, ngx_log_t *log)
             "brix: pblock backend init failed for export \"%s\"",
             e->root_canon);
     } else {
+        brix_tier_pblock_hand_to_worker(e->root_canon, log);
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
             "brix: pblock storage backend ready at \"%s\" "
             "(block_size=%uz)", e->root_canon, (size_t) e->block_size);

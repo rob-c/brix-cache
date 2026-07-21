@@ -91,6 +91,15 @@ def _pgrep_name(name: str) -> list[int]:
 
 
 def clean_test_fleet(test_root: Path = Path("/tmp/xrd-test")) -> None:
+    # Cross-lane shared state: the default credential store on tmpfs is owned
+    # by whichever lane's worker identity touched it last (root lane -> nobody,
+    # unprivileged lane -> the test user).  A store left by the OTHER lane is
+    # 0700 foreign-owned, so this lane's workers EACCES every delegation PUT
+    # and the config-time ensure shouts ownership warnings that trip the
+    # credential tests.  It holds only throwaway test delegations — wipe it
+    # (best-effort: unprivileged we may not own it, but then the pre-existing
+    # skip guards apply).
+    shutil.rmtree("/dev/shm/brix-creds", ignore_errors=True)
     for name in ("nginx", "xrootd", "krb5kdc", "kadmind"):
         for pid in _pgrep_name(name):
             cmdline = _process_cmdline(pid)

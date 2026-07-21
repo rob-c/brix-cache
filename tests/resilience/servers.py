@@ -19,6 +19,7 @@ HOW:  reuse the repo's PKI helpers (own PKI dir under a dedicated prefix), the
 
 Nothing here touches the main suite's ports, data, or PKI.
 """
+import getpass
 import os
 import shutil
 import socket
@@ -38,8 +39,12 @@ XRDCP = os.path.join(CLIENT_BIN, "xrdcp")
 FAULT_PROXY = os.path.join(CLIENT_BIN, "brix-fault-proxy")
 
 # Dedicated prefix + port block, both overridable but defaulting well clear of
-# the main suite (which lives in 11094-12126 under /tmp/xrd-test).
-PREFIX = os.environ.get("RESIL_PREFIX", "/tmp/xrd-resilience")
+# the main suite (which lives in 11094-12126 under /tmp/xrd-test). The default
+# prefix is per-invoking-user: a root lane hands server trees to the
+# de-escalated worker (nobody) and would otherwise leave debris an
+# unprivileged lane on the same host cannot write over.
+PREFIX = os.environ.get(
+    "RESIL_PREFIX", f"/tmp/xrd-resilience-{getpass.getuser()}")
 NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 BRIX_BIN = os.environ.get("RESIL_BRIX_BIN") or shutil.which("xrootd")
 
@@ -383,6 +388,9 @@ class XrootdGsi:
             if os.path.isfile(SERVER_KEY):
                 shutil.chown(SERVER_KEY, runas)
                 os.chmod(SERVER_KEY, 0o400)
+            # Same stale-state hazard as XrootdAnon: a prior unprivileged lane's
+            # admin/.xrd under this fixed prefix blocks xrootd-as-`runas`.
+            _chmod(["chown", "-R", runas, self.prefix])
             argv += ["-R", runas]
         self.proc = subprocess.Popen(
             argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
@@ -467,8 +475,24 @@ class XrootdAnon:
                 extra=extra))
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
+        argv = [BRIX_BIN, "-c", self.cfg, "-l", self.log]
+        # Stock xrootd refuses to run as superuser (exit 8) — same handling as
+        # the GSI server above: drop to `nobody` via `-R` and open the paths the
+        # dropped user must traverse/write (no certs here — anonymous).
+        if os.geteuid() == 0:
+            runas = os.environ.get("REF_RUNAS_USER", "nobody")
+            _chmod(["chmod", "a+rx", PREFIX, self.prefix])
+            _chmod(["chmod", "-R", "a+rwX", self.data, self.admin,
+                    self.run, self.logs])
+            # The prefix is FIXED shared state: a prior unprivileged lane leaves
+            # admin/.xrd etc. owned by its user, and xrootd-as-`runas` cannot
+            # chmod dirs it does not own ("Unable to set permission for admin
+            # path ... operation not permitted").  These trees are throwaway —
+            # hand them to the runas account wholesale.
+            _chmod(["chown", "-R", runas, self.prefix])
+            argv += ["-R", runas]
         self.proc = subprocess.Popen(
-            [BRIX_BIN, "-c", self.cfg, "-l", self.log],
+            argv,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
         )
         _wait_port(self.port, proc=self.proc)
