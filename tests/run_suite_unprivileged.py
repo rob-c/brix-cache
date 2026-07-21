@@ -126,6 +126,12 @@ def _clear_foreign_fleet() -> None:
     # this process).  Two passes: TERM, settle, then KILL.
     for sig in ("-TERM", "-KILL"):
         _reap_test_servers(sig)
+    # Cross-lane shared state: a root lane leaves /dev/shm/brix-creds owned by
+    # its de-escalated worker (`nobody`), which this lane's user can neither
+    # write nor (sticky /dev/shm) delete — every delegation test then fails on
+    # a foreign-owned 0700 store.  Wipe it while we are still root; the suite
+    # recreates it at config time with the right owner.
+    shutil.rmtree("/dev/shm/brix-creds", ignore_errors=True)
 
 
 def _reap_test_servers(sig: str) -> None:

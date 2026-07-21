@@ -183,7 +183,9 @@ def run_checks(
             stderr=subprocess.PIPE,
         )
         waited = False
-        deadline = time.time() + 6
+        # Generous deadline: under a fully parallel suite the metric scrape and
+        # the throttled write can each lag several seconds; success exits early.
+        deadline = time.time() + 30
         try:
             while time.time() < deadline:
                 wait_m = fetch_metrics(wait_metrics)
@@ -191,8 +193,13 @@ def run_checks(
                     waited = True
                     break
                 if wait_proc.poll() is not None:
+                    # The client may finish between polls — the counter is
+                    # already committed server-side, so scrape once more.
+                    wait_m = fetch_metrics(wait_metrics)
+                    waited = metric_positive(
+                        wait_m, 'brix_wt_stage_throttled_total{action="wait"}')
                     break
-                time.sleep(1)
+                time.sleep(0.5)
         finally:
             if wait_proc.poll() is None:
                 wait_proc.terminate()

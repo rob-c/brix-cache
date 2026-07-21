@@ -599,15 +599,16 @@ stream {{ server {{ listen 127.0.0.1:{dstp}; brix_root on; brix_export {dst}/roo
   brix_tpc_allow_local on; brix_tpc_allow_private on; brix_tpc_delegate on;
   brix_certificate {sc}; brix_certificate_key {sk}; brix_trusted_ca {ca}; }} }}
 """)
-        # Root harness: these configs pin no `user`, so nginx drops workers to
-        # `nobody`, which cannot traverse the 0700 mkdtemp tree — the export's
-        # confined-ops open then EACCESes, the node never serves, and the delegated
-        # TPC pull to it times out. Keep the worker root (the invoking user owns the
-        # ephemeral tree). This launch bypasses ForwardHarness._start_nginx, so the
-        # injection is repeated here.
-        root_g = ["-g", "user root;"] if os.geteuid() == 0 else []
+        # Root harness: these configs pin no `user`, so the always-on
+        # de-escalation drops workers to `nobody`, which cannot traverse the
+        # 0700 mkdtemp tree — the export's confined-ops open then EACCESes, the
+        # node never serves, and the delegated TPC pull to it times out. Open
+        # the tree for that worker (this launch bypasses
+        # ForwardHarness._start_nginx, so the opening is repeated here).
+        from cmdscripts import open_tree_for_worker  # noqa: PLC0415
         for name, conf in (("src", src_conf), ("dst", dst_conf)):
-            proc = _call([run.nginx, "-p", run.root / name, "-c", conf, *root_g],
+            open_tree_for_worker(run.root, conf)
+            proc = _call([run.nginx, "-p", run.root / name, "-c", conf],
                          env_drop=("NGINX",))
             if proc.returncode:
                 print(f"{name}-fail\n{proc.stderr}")

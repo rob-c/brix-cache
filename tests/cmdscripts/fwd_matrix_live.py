@@ -258,20 +258,15 @@ class ForwardHarness:
     # -- node spawners ------------------------------------------------------
     def _start_nginx(self, d: Path, conf: Path, label: str) -> bool:
         cmd: list[str | Path] = [self.run.nginx, "-p", d, "-c", conf]
-        # Root harness: nginx drops workers to `nobody`, which cannot traverse the
-        # 0700 mkdtemp LiveRun tree — so the confined-ops open of the export root
-        # fails EACCES ("cannot open export root for kernel-confined path
-        # operations"), the node never serves, and a TPC pull to it just times out
-        # (rc=51). Keep the worker as root (the invoking user already owns the
-        # ephemeral tree, so this is not a privilege leak). Skip if the config
-        # already pins `user` (nginx forbids a duplicate `user` from `-g`).
-        if os.geteuid() == 0:
-            try:
-                has_user = re.search(r"(?m)^\s*user\s+\S", Path(conf).read_text(errors="ignore"))
-            except OSError:
-                has_user = None
-            if not has_user:
-                cmd += ["-g", "user root;"]
+        # Root harness: the always-on de-escalation drops workers to `nobody`,
+        # which cannot traverse the 0700 mkdtemp LiveRun tree — so the
+        # confined-ops open of the export root fails EACCES ("cannot open
+        # export root for kernel-confined path operations"), the node never
+        # serves, and a TPC pull to it just times out (rc=51). Open the whole
+        # LiveRun tree (per-node dirs, minted proxies and credential stores are
+        # spread across it) for that worker.
+        from cmdscripts import open_tree_for_worker  # noqa: PLC0415
+        open_tree_for_worker(self.run.root, conf)
         proc = _call(cmd, env_drop=("NGINX",))
         if proc.returncode:
             print(f"  (start failed for {label}: {proc.stderr.strip()})", file=sys.stderr)
@@ -1285,14 +1280,15 @@ stream {{ server {{
     brix_transparent_proxy 127.0.0.1:{origin_port};
 }} }}
 """)
-        # Root harness: these configs pin no `user`, so nginx drops workers to
-        # `nobody`, which cannot traverse the 0700 mkdtemp tree — the export's
-        # confined-ops open EACCESes and the node never serves. Keep the worker
-        # root (the invoking user owns the ephemeral tree). This direct launch
-        # bypasses ForwardHarness._start_nginx, so the injection is repeated here.
-        root_g = ["-g", "user root;"] if os.geteuid() == 0 else []
+        # Root harness: these configs pin no `user`, so the always-on
+        # de-escalation drops workers to `nobody`, which cannot traverse the
+        # 0700 mkdtemp tree — the export's confined-ops open EACCESes and the
+        # node never serves. Open the tree for that worker (this direct launch
+        # bypasses ForwardHarness._start_nginx, so the opening is repeated here).
+        from cmdscripts import open_tree_for_worker  # noqa: PLC0415
         for prefix, conf, port in ((origin, origin_conf, origin_port), (relay, relay_conf, relay_port)):
-            result = _call([run.nginx, "-p", prefix, "-c", conf, *root_g],
+            open_tree_for_worker(run.root, conf)
+            result = _call([run.nginx, "-p", prefix, "-c", conf],
                            env_drop=("NGINX",))
             if result.returncode:
                 print(f"start failed: {result.stderr.strip()}")
