@@ -67,8 +67,9 @@ def _gfal(*argv, timeout=90):
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="module")
 def ctx():
-    base = tempfile.mkdtemp(prefix="gfal_ops_", dir="/tmp/xrd-test/tmp"
-                            if os.path.isdir("/tmp/xrd-test/tmp") else None)
+    _tr_tmp = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "tmp")
+    base = tempfile.mkdtemp(prefix="gfal_ops_", dir=_tr_tmp
+                            if os.path.isdir(_tr_tmp) else None)
     try:
         procs, c = L.start_pair(base, our_port=OUR_PORT, off_port=OFF_PORT)
     except RuntimeError as exc:                       # setup failure → skip

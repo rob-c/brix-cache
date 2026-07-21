@@ -26,10 +26,20 @@ def in_scope() -> list[Path]:
         "utils/*.py",
     ]
     proc = run(["git", "-C", str(REPO_ROOT), "ls-files", *patterns], cwd=REPO_ROOT)
-    if proc.returncode != 0:
+    if proc.returncode == 0:
+        lines = proc.stdout.splitlines()
+    elif "not a git repository" in (proc.stderr or proc.stdout):
+        # Synced checkout without .git (the unprivileged runner's rsync copy):
+        # walk the tree with the same pathspecs (git's * matches across slashes).
+        lines = []
+        for pattern in patterns:
+            top, glob = pattern.split("/", 1)
+            for p in (REPO_ROOT / top).rglob(glob):
+                lines.append(str(p.relative_to(REPO_ROOT)))
+    else:
         raise RuntimeError(proc.stderr or proc.stdout)
     paths = []
-    for line in proc.stdout.splitlines():
+    for line in sorted(set(lines)):
         if line.startswith("shared/xrdproto/"):
             continue
         path = REPO_ROOT / line

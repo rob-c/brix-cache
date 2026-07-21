@@ -77,6 +77,19 @@ def gsi_tpc(lifecycle, tmp_path_factory):
         d.mkdir(parents=True, exist_ok=True)
     fqdn = socket.getfqdn()
 
+    # The rendezvous on the stock source is a raw strcmp (XrdOfsTPCInfo::Match):
+    # the grant's org host is the source's reverse-name of the CLIENT connection
+    # and must equal the nginx destination's reverse-name of that same client on
+    # ITS leg.  Every leg must therefore ride the SAME address family on the
+    # same loopback address: numeric 127.0.0.1 forces IPv4 everywhere, so both
+    # sides derive the identical string (the "[::ffff:127.0.0.1]" literal where
+    # glibc cannot name the v4-MAPPED form, "localhost" where it can).  Anything
+    # else splits the horizon: getfqdn() routes via the public NIC (its PTR name
+    # is unreachable from a loopback leg), and a "localhost" URL lets the client
+    # reach the dual-stack source over ::1 ("localhost") while the v4-only nginx
+    # dest names the same client "[::ffff:127.0.0.1]".
+    loop = "127.0.0.1"
+
     def osl(*a):
         r = _run(["openssl", *a])
         assert r.returncode == 0, f"openssl {a}: {r.stderr}"
@@ -208,8 +221,8 @@ def gsi_tpc(lifecycle, tmp_path_factory):
     ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst.port,
            "env": penv, "certs": str(certs), "base": str(base),
            "dst_data": str(dst_data), "logs": dst_logs,
-           "src_url": f"root://{fqdn}:{src_port}",
-           "dst_url": f"root://127.0.0.1:{dst.port}"}
+           "src_url": f"root://{loop}:{src_port}",
+           "dst_url": f"root://{loop}:{dst.port}"}
     yield ctx
     src.terminate()
     try:

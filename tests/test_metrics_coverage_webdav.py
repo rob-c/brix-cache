@@ -16,7 +16,7 @@ import subprocess
 
 import pytest
 
-from settings import NGINX_HTTP_WEBDAV_PORT, HOST, TOKENS_DIR
+from settings import NGINX_HTTP_WEBDAV_PORT, HOST, TOKENS_DIR, TMP_DIR
 from metrics_helpers import Snapshot, fetch, value, scalar
 
 try:
@@ -25,6 +25,13 @@ except Exception:                                       # pragma: no cover
     TokenIssuer = None
 
 WEBDAV = f"http://{HOST}:{NGINX_HTTP_WEBDAV_PORT}"
+
+
+def _local(name):
+    """Scratch file under TEST_ROOT/tmp — unique per posture/user, so a
+    root-run leftover in shared /tmp can never break an unprivileged run."""
+    os.makedirs(TMP_DIR, exist_ok=True)
+    return os.path.join(TMP_DIR, name)
 _TOKEN = ""
 
 
@@ -75,7 +82,7 @@ class TestWebdavLifecycleCounters:
         assert _resp2xx(snap, "MKCOL", after) >= 1
 
     def test_put_create_then_get_download(self):
-        local = "/tmp/cov_wd_put.txt"
+        local = _local("cov_wd_put.txt")
         with open(local, "wb") as fh:
             fh.write(b"webdav-create-" + b"x" * 4096)
         snap = Snapshot()
@@ -91,7 +98,7 @@ class TestWebdavLifecycleCounters:
         assert _resp2xx(snap, "GET", after) >= 1
 
     def test_put_overwrite_modify(self):
-        local = "/tmp/cov_wd_mod.txt"
+        local = _local("cov_wd_mod.txt")
         with open(local, "wb") as fh:
             fh.write(b"v1")
         _curl("-T", local, _url("/cov_wd_mod.txt"))
@@ -102,7 +109,7 @@ class TestWebdavLifecycleCounters:
         assert _req(snap, "PUT") >= 1                   # MODIFY (overwrite)
 
     def test_move_rename(self):
-        local = "/tmp/cov_wd_mv.txt"
+        local = _local("cov_wd_mv.txt")
         with open(local, "wb") as fh:
             fh.write(b"to-be-moved")
         _curl("-T", local, _url("/cov_wd_mv_src.txt"))
@@ -116,7 +123,7 @@ class TestWebdavLifecycleCounters:
         assert _req(snap, "OTHER") >= 1                 # RENAME
 
     def test_copy(self):
-        local = "/tmp/cov_wd_cp.txt"
+        local = _local("cov_wd_cp.txt")
         with open(local, "wb") as fh:
             fh.write(b"to-be-copied")
         _curl("-T", local, _url("/cov_wd_cp_src.txt"))
@@ -128,7 +135,7 @@ class TestWebdavLifecycleCounters:
         assert _req(snap, "COPY") >= 1
 
     def test_delete_remove_file(self):
-        local = "/tmp/cov_wd_del.txt"
+        local = _local("cov_wd_del.txt")
         with open(local, "wb") as fh:
             fh.write(b"delete-me")
         _curl("-T", local, _url("/cov_wd_del.txt"))
@@ -148,7 +155,7 @@ class TestWebdavLifecycleCounters:
 class TestWebdavByteCounters:
 
     def test_put_increments_bytes_rx(self):
-        local = "/tmp/cov_wd_bytes.bin"
+        local = _local("cov_wd_bytes.bin")
         payload = 256 * 1024
         with open(local, "wb") as fh:
             fh.write(os.urandom(payload))
@@ -160,7 +167,7 @@ class TestWebdavByteCounters:
         assert d >= payload, f"webdav bytes_rx delta {d} < {payload}"
 
     def test_get_increments_bytes_tx(self):
-        local = "/tmp/cov_wd_bytes_tx.bin"
+        local = _local("cov_wd_bytes_tx.bin")
         payload = 256 * 1024
         with open(local, "wb") as fh:
             fh.write(os.urandom(payload))

@@ -104,7 +104,7 @@ def test_query_token_not_in_module_access_log():
     marker = _ISSUER.generate(scope="storage.read:/", lifetime=600)
     path = _put_seed()
     requests.get(_url(path), params={"authz": marker}, verify=False, timeout=10)
-    logdir = "/tmp/xrd-test/logs"
+    logdir = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "logs")
     hits = []
     if os.path.isdir(logdir):
         for fn in os.listdir(logdir):

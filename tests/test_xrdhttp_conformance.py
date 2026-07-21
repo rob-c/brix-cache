@@ -130,9 +130,9 @@ def xrdhttp_backend():
 
 def _setup_file(backend_url: str, filename: str, content: bytes) -> None:
     if "8443" in backend_url or "8444" in backend_url or "9001" in backend_url:
-        data_dir = Path("/tmp/xrd-test/data")
+        data_dir = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")) / "data"
     else:
-        data_dir = Path("/tmp/xrd-test/data-xrdhttp")
+        data_dir = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")) / "data-xrdhttp"
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / filename).write_bytes(content)
 

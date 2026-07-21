@@ -40,6 +40,19 @@ brix_recv_run_deferred(ngx_stream_session_t *s, ngx_connection_t *c,
     }
 
     ctx->out.recv_deferred = 0;
+
+    /*
+     * Reinstall the parked request's stream-id: a pipelined pwrite/read ack
+     * completing during the park went through brix_aio_restore_stream(), which
+     * overwrote recv.cur_streamid with the completed op's sid.  Dispatching the
+     * deferred request with that stale sid misdirects its reply onto a sid the
+     * client has already retired (and may have recycled for a newer request),
+     * while the deferred request itself never gets answered — the client's
+     * stream timeout then kills the whole multiplexed connection.
+     */
+    ctx->recv.cur_streamid[0] = ctx->out.deferred_streamid[0];
+    ctx->recv.cur_streamid[1] = ctx->out.deferred_streamid[1];
+
     BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
     *rx_pending = 0;
     rc = brix_dispatch(ctx, c, conf);

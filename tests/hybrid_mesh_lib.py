@@ -57,7 +57,7 @@ from mesh_config import render
 
 # A dedicated working tree, separate from the cms-mesh tree, so the two meshes
 # never share a config/data/run directory or a teardown sweep.
-MESH_DIR = os.environ.get("HYBRID_MESH_DIR", "/tmp/xrd-test/hybrid-mesh")
+MESH_DIR = os.environ.get("HYBRID_MESH_DIR", os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "hybrid-mesh"))
 
 # Dedicated, env-overridable band 11300-11330 (verified disjoint from the fleet
 # 11094-11123, cluster-* ~11160-12600, and the cms-mesh 21610-21749 bands).

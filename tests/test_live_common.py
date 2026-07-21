@@ -6,11 +6,14 @@ walk into it — including the whole session teardown sweeping /tmp/xrd-test.
 These tests pin the reaper hermetically: no real mount, daemon, or kill.
 """
 
+import os
 from pathlib import Path
 
 import pytest
 
 from cmdscripts import live_common
+
+_TR = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 
 
 @pytest.fixture
@@ -46,7 +49,7 @@ def _mock_mounts(monkeypatch, sequence):
 
 
 def test_reaper_unmounts_and_kills_the_orphan_daemon(monkeypatch, reaper_probe):
-    root = Path("/tmp/xrd-test/tmp/cvmfs_bench.fake")
+    root = Path(_TR + "/tmp/cvmfs_bench.fake")
     _mock_mounts(monkeypatch, [[f"{root}/sm15"], []])
     reaper_probe["pgrep_out"] = "4242\n"
 
@@ -59,7 +62,7 @@ def test_reaper_unmounts_and_kills_the_orphan_daemon(monkeypatch, reaper_probe):
 
 def test_reaper_is_a_noop_without_leftover_mounts(monkeypatch, reaper_probe):
     _mock_mounts(monkeypatch, [[]])
-    live_common._reap_fuse_mounts(Path("/tmp/xrd-test/tmp/clean.fake"))
+    live_common._reap_fuse_mounts(Path(_TR + "/tmp/clean.fake"))
     assert reaper_probe["run"] == []
     assert reaper_probe["killed"] == []
 
@@ -67,7 +70,7 @@ def test_reaper_is_a_noop_without_leftover_mounts(monkeypatch, reaper_probe):
 def test_reaper_never_kills_its_own_process_or_garbage_pids(monkeypatch, reaper_probe):
     """The pgrep sweep must skip the running interpreter and unparseable rows."""
     import os as real_os
-    root = Path("/tmp/xrd-test/tmp/cvmfs_bench.fake2")
+    root = Path(_TR + "/tmp/cvmfs_bench.fake2")
     _mock_mounts(monkeypatch, [[f"{root}/sm0"], []])
     reaper_probe["pgrep_out"] = f"{real_os.getpid()}\nnot-a-pid\n5151\n"
 
@@ -94,15 +97,15 @@ def test_close_reaps_before_removing_the_tree(monkeypatch, tmp_path):
 
 def test_fuse_mounts_under_parses_proc_mounts(monkeypatch):
     fake = (
-        "/dev/fuse /tmp/xrd-test/tmp/cvmfs_bench.x/sm15 fuse ro 0 0\n"
+        f"/dev/fuse {_TR}/tmp/cvmfs_bench.x/sm15 fuse ro 0 0\n"
         "portal /run/user/1000/doc fuse.portal rw 0 0\n"
-        "/dev/sda1 /tmp/xrd-test/tmp/cvmfs_bench.x/other ext4 rw 0 0\n"
+        f"/dev/sda1 {_TR}/tmp/cvmfs_bench.x/other ext4 rw 0 0\n"
         "garbage-line\n"
     )
     monkeypatch.setattr(live_common.Path, "read_text",
                         lambda self, *a, **k: fake)
-    points = live_common._fuse_mounts_under("/tmp/xrd-test/tmp/cvmfs_bench.x/")
-    assert points == ["/tmp/xrd-test/tmp/cvmfs_bench.x/sm15"]
+    points = live_common._fuse_mounts_under(_TR + "/tmp/cvmfs_bench.x/")
+    assert points == [_TR + "/tmp/cvmfs_bench.x/sm15"]
 
 
 # --------------------------------------------------------------------------- #

@@ -277,9 +277,10 @@ class TestCrossProtocolCredentialConfusion:
     def test_gsi_cert_pem_as_bearer_rejected(self):
         # Feed an entire X.509 cert PEM as if it were a bearer token.
         pem = ""
-        for p in ("/tmp/xrd-test/pki/user/proxy_std.pem",
-                  "/tmp/xrd-test/pki/user/usercert.pem"):
-            if os.path.exists(p):
+        import settings as _settings
+        for p in (os.path.join(_settings.PKI_DIR, "user", "proxy_std.pem"),
+                  os.path.join(_settings.PKI_DIR, "user", "usercert.pem")):
+            if os.path.exists(p) and os.access(p, os.R_OK):
                 with open(p) as fh:
                     pem = fh.read().replace("\n", "")
                 break

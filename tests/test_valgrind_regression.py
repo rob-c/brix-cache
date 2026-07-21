@@ -125,7 +125,7 @@ def test_harness_reports_module_clean(tmp_path):
     """
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    pki = Path(os.environ.get("PKI_DIR", "/tmp/xrd-test/pki"))
+    pki = Path(os.environ.get("PKI_DIR", os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "pki")))
     if not (pki / "ca" / "ca.pem").exists():
         pytest.skip("test PKI fixtures missing; run manage_test_servers.sh start-all")
 

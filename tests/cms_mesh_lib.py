@@ -54,7 +54,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 
 # Where the harness drops the mesh's generated configs/data/logs.
-MESH_DIR = os.environ.get("CMS_MESH_DIR", "/tmp/xrd-test/cms-mesh")
+MESH_DIR = os.environ.get("CMS_MESH_DIR", os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "cms-mesh"))
 
 # Unauthenticated XRootD client env (keep any ambient GSI proxy out).
 _XRD_ENV = {

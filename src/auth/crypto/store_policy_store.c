@@ -72,6 +72,114 @@ brix_sp_proxy_check_issued(X509_STORE_CTX *ctx, X509 *subject, X509 *issuer)
     return 0;
 }
 
+/* True when `crl` has a later lastUpdate than `than` (NULL `than` loses). */
+static int
+brix_crl_is_newer(X509_CRL *crl, X509_CRL *than)
+{
+    int day, sec;
+
+    if (than == NULL) {
+        return 1;
+    }
+    if (!ASN1_TIME_diff(&day, &sec, X509_CRL_get0_lastUpdate(than),
+                        X509_CRL_get0_lastUpdate(crl)))
+    {
+        return 0;
+    }
+    return day > 0 || (day == 0 && sec > 0);
+}
+
+/*
+ * WHAT: CRL selector making multi-CRL revocation FAIL-SAFE and deterministic.
+ * WHY:  With several CRLs for one issuer in the trust dir (rollover overlap,
+ *       base+delta published as <hash>.r0/.r1), OpenSSL's default get_crl
+ *       picks a single "best" CRL by lastUpdate and, on exact ties, by load
+ *       order — i.e. readdir order, which varies per filesystem.  The brix
+ *       decision (clause corpus CRL-068/077/080) is conservative: if ANY CRL
+ *       from the issuer lists the serial, the certificate is revoked.
+ * HOW:  Collect the issuer-matching CRLs; return the first that lists the
+ *       certificate's serial as revoked (a removeFromCRL entry in a full CRL
+ *       is non-revoking: X509_CRL_get0_by_serial() == 2).  In "try" mode a
+ *       full-CRL revocation is superseded by a delta CRL's removeFromCRL
+ *       entry (decisions CRL-074/CRL-075).  Otherwise return
+ *       the newest full CRL by lastUpdate, skipping delta CRLs — a delta
+ *       returned as the sole CRL would fail on its critical DeltaCRLIndicator
+ *       and turn a clean base+delta pair into a spurious reject.  Signature,
+ *       validity-window and extension checks of the chosen CRL still happen
+ *       in OpenSSL's check_crl().
+ */
+static int
+brix_failsafe_get_crl(X509_STORE_CTX *ctx, X509_CRL **out, X509 *x)
+{
+    STACK_OF(X509_CRL) *crls;
+    X509_CRL           *chosen = NULL;
+    X509_CRL           *best = NULL;
+    int                 i;
+
+    crls = X509_STORE_CTX_get1_crls(ctx, X509_get_issuer_name(x));
+    if (crls == NULL) {
+        return 0;
+    }
+
+    for (i = 0; i < sk_X509_CRL_num(crls) && chosen == NULL; i++) {
+        X509_CRL     *crl = sk_X509_CRL_value(crls, i);
+        X509_REVOKED *rev;
+
+        if (X509_CRL_get0_by_serial(crl, &rev, X509_get_serialNumber(x)) == 1) {
+            chosen = crl;
+        }
+    }
+
+    /*
+     * Delta un-revocation (removeFromCRL in a delta CRL) is honored only in
+     * "try" mode: a full-CRL revocation superseded by a delta's removeFromCRL
+     * entry hands OpenSSL the delta, whose ==2 lookup is non-revoking
+     * (decision CRL-074).  "require" stays fail-safe: the base revocation
+     * stands regardless of any delta (decision CRL-075).
+     */
+    if (chosen != NULL
+        && brix_store_crl_mode(ctx) != BRIX_CRL_MODE_REQUIRE
+        && X509_CRL_get_ext_by_NID(chosen, NID_delta_crl, -1) < 0)
+    {
+        for (i = 0; i < sk_X509_CRL_num(crls); i++) {
+            X509_CRL     *crl = sk_X509_CRL_value(crls, i);
+            X509_REVOKED *rev;
+
+            if (X509_CRL_get_ext_by_NID(crl, NID_delta_crl, -1) >= 0
+                && X509_CRL_get0_by_serial(crl, &rev,
+                                           X509_get_serialNumber(x)) == 2)
+            {
+                chosen = crl;
+                break;
+            }
+        }
+    }
+
+    if (chosen == NULL) {
+        for (i = 0; i < sk_X509_CRL_num(crls); i++) {
+            X509_CRL *crl = sk_X509_CRL_value(crls, i);
+
+            if (X509_CRL_get_ext_by_NID(crl, NID_delta_crl, -1) >= 0) {
+                continue;
+            }
+            if (brix_crl_is_newer(crl, best)) {
+                best = crl;
+            }
+        }
+        chosen = best;
+    }
+
+    if (chosen == NULL) {
+        sk_X509_CRL_pop_free(crls, X509_CRL_free);
+        return 0;
+    }
+
+    X509_CRL_up_ref(chosen);
+    *out = chosen;
+    sk_X509_CRL_pop_free(crls, X509_CRL_free);
+    return 1;
+}
+
 /*
  * WHAT: verify callback used only in BRIX_CRL_MODE_TRY.
  * WHY:  "try" checks revocation where a CRL exists but tolerates a CA that has
@@ -115,6 +223,7 @@ brix_store_configure(X509_STORE *store, const char *cadir,
     {
         X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK
             | X509_V_FLAG_CRL_CHECK_ALL | X509_V_FLAG_USE_DELTAS);
+        X509_STORE_set_get_crl(store, brix_failsafe_get_crl);
     }
     if (crl_mode == BRIX_CRL_MODE_TRY) {
         X509_STORE_set_verify_cb(store, brix_crl_try_verify_cb);

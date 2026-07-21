@@ -27,6 +27,13 @@ def test_ceph_harness_lifecycle():
         pytest.skip("PHASE81_RUN_CEPH_PORTS=0 set — skipping the Docker Ceph harness")
     if not ceph_harness.have_docker():
         pytest.skip("docker not found")
+    # Rootless podman/docker can exist on PATH yet be unable to RUN containers
+    # for this user (no subuid/subgid mapping, no session runtime dir).  The
+    # harness's own probe distinguishes that: it must yield a CIDR before the
+    # lab can start, so treat a dead probe as "no usable container runtime".
+    if not os.environ.get("MON_IP") and not ceph_harness.detect_container_cidr():
+        pytest.skip("container runtime cannot run containers as this user "
+                    "(rootless subuid/subgid missing?) — Docker Ceph lab unavailable")
     assert ceph_harness.cmd_start() == 0
     assert ceph_harness.cmd_env() == 0
     assert ceph_harness.cmd_status() == 0
