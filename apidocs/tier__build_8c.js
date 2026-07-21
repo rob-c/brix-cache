@@ -2,6 +2,7 @@ var tier__build_8c =
 [
     [ "brix_tier_build", "tier__build_8c.html#a2f4f8ffdf56680d293826cb98e27c79d", null ],
     [ "brix_tier_build_stack", "tier__build_8c.html#a640e93ed143ba688fbc700266e3ad22c", null ],
+    [ "brix_tier_pblock_hand_to_worker", "tier__build_8c.html#aa6cfe53b29936569c28ebd001e8bb5b9", null ],
     [ "tier_build_ceph", "tier__build_8c.html#a6a9e8cb2487c022bae9d4644617f9389", null ],
     [ "tier_build_http", "tier__build_8c.html#adf938066b8dadee29de9443b7bd65195", null ],
     [ "tier_build_pblock", "tier__build_8c.html#a28a2a9be705ca801c48ec03cf81e9bcd", null ],

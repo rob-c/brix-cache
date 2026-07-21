@@ -70,8 +70,8 @@
 <area shape="poly" id="edge45_Node000010_Node000302" title=" " alt="" coords="2545,349,2565,386,2568,410,2565,435,2551,475,2546,474,2560,433,2562,410,2559,387,2541,351"/>
 <area shape="poly" id="edge47_Node000010_Node000491" title=" " alt="" coords="2613,320,3300,341,3776,360,4262,384,4859,412,5120,432,5453,472,5495,479,5494,485,5452,477,5119,437,4859,417,4262,389,3775,365,3299,347,2612,325"/>
 <area shape="poly" id="edge48_Node000010_Node000492" title=" " alt="" coords="2613,318,3133,322,3903,333,4695,352,5027,367,5277,384,5426,402,5573,426,5809,474,5808,479,5572,432,5425,408,5276,389,5026,372,4695,358,3903,338,3132,327,2613,323"/>
-<area shape="rect" id="Node000203" href="$open__or__fill_8c.html" title=" " alt="" coords="1637,387,1791,427"/>
-<area shape="poly" id="edge39_Node000010_Node000203" title=" " alt="" coords="2424,328,2145,349,1974,367,1804,389,1792,391,1791,386,1803,384,1974,362,2145,344,2423,323"/>
+<area shape="rect" id="Node000204" href="$open__or__fill_8c.html" title=" " alt="" coords="1637,387,1791,427"/>
+<area shape="poly" id="edge39_Node000010_Node000204" title=" " alt="" coords="2424,328,2145,349,1974,367,1804,389,1792,391,1791,386,1803,384,1974,362,2145,344,2423,323"/>
 <area shape="rect" id="Node000244" href="$protocols_2cvmfs_2handler_8c.html" title=" " alt="" coords="1815,387,1965,427"/>
 <area shape="poly" id="edge40_Node000010_Node000244" title=" " alt="" coords="2424,332,2218,355,1977,389,1966,391,1965,386,1976,384,2218,349,2423,326"/>
 <area shape="rect" id="Node000503" href="$protocols_2root_2fattr_2helpers_8c.html" title=" " alt="" coords="1989,387,2124,427"/>

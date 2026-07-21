@@ -141,7 +141,7 @@ var searchData=
   ['maxconn_138',['maxconn',['../structbrix__throttle__uc__rule__t.html#a1293ac1752d4513eed19d0f92762b68b',1,'brix_throttle_uc_rule_t']]],
   ['maxdepth_139',['maxdepth',['../structtree__opts.html#ad466d44e2bd9a038ce9293523861112a',1,'tree_opts']]],
   ['mb_5faggregate_140',['mb_aggregate',['../metabench__run_8c.html#a573463e5e961452b306e895809cbd734',1,'metabench_run.c']]],
-  ['mb_5fcreate_141',['mb_create',['../metabench_8h.html#a3941fc91b8800859eb0dcc02c4b6589fac9ac875ac0f20b3713fd1f6bd6394f52',1,'MB_CREATE:&#160;metabench.h'],['../metabench__run_8c.html#a402cb5c655830e6dc562e405d869bd2e',1,'mb_create(mb_worker *w, brix_conn *c):&#160;metabench_run.c']]],
+  ['mb_5fcreate_141',['mb_create',['../metabench__run_8c.html#a402cb5c655830e6dc562e405d869bd2e',1,'mb_create(mb_worker *w, brix_conn *c):&#160;metabench_run.c'],['../metabench_8h.html#a3941fc91b8800859eb0dcc02c4b6589fac9ac875ac0f20b3713fd1f6bd6394f52',1,'MB_CREATE:&#160;metabench.h']]],
   ['mb_5finit_5fworkers_142',['mb_init_workers',['../metabench__run_8c.html#a1f8fe8f5310162c5b106ec616f26a66b',1,'metabench_run.c']]],
   ['mb_5frecord_143',['mb_record',['../metabench__run_8c.html#a1a1e1b2506174881309ee8f34c06a2a5',1,'metabench_run.c']]],
   ['mb_5fremove_144',['mb_remove',['../metabench_8h.html#a3941fc91b8800859eb0dcc02c4b6589fab2d0dc301f46838bb6f3a80dcde4f583',1,'MB_REMOVE:&#160;metabench.h'],['../metabench__run_8c.html#af91878e6c32351d36f44794b9a693f03',1,'mb_remove(mb_worker *w, brix_conn *c):&#160;metabench_run.c']]],
