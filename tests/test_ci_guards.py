@@ -68,9 +68,11 @@ def test_ci_guard_green(guard: str) -> None:
 
 
 # --- lizard-backed ratchets ---------------------------------------------------
-# check_duplication runs lizard over three trees (~18s here), so lift the cap.
+# check_duplication runs lizard over three trees: ~18s on an 8-core CI runner
+# but ~130s on a 4-core box, so the cap has to clear the slowest hardware we run
+# on. (guards.yml invokes the guard directly, without this pytest timeout.)
 @pytest.mark.skipif(not _have("lizard"), reason="lizard not installed (pip install --user lizard)")
-@pytest.mark.timeout(120)
+@pytest.mark.timeout(300)
 @pytest.mark.parametrize("guard", ["check_complexity", "check_duplication"])
 def test_ci_lizard_guard_green(guard: str) -> None:
     rc, out = _run(guard)
