@@ -98,6 +98,7 @@ $(document).ready(function(){initNavTree('cms__internal_8h.html',''); initResiza
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="ngx__brix__module_8h_source.html">core/ngx_brix_module.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="meter_8h_source.html">meter.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for cms_internal.h:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -236,6 +237,22 @@ Macros</h2></td></tr>
 <tr class="separator:ab2a5748171e6b3a33eac23b23f3f345f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a13e2a8af006f37ecac68d2244d6add7c" id="r_a13e2a8af006f37ecac68d2244d6add7c"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#a13e2a8af006f37ecac68d2244d6add7c">CMS_PT_INT</a>&#160;&#160;&#160;0xa0   /* 4-byte big-endian value follows */</td></tr>
 <tr class="separator:a13e2a8af006f37ecac68d2244d6add7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab918ead79819318123fb552094ed5029" id="r_ab918ead79819318123fb552094ed5029"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#ab918ead79819318123fb552094ed5029">CMS_TRY_MISS</a>&#160;&#160;&#160;0x00000000   /* kYR_tryMISS: file not found            */</td></tr>
+<tr class="separator:ab918ead79819318123fb552094ed5029"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae9de860fdc4056c62102e66cb6c13b25" id="r_ae9de860fdc4056c62102e66cb6c13b25"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#ae9de860fdc4056c62102e66cb6c13b25">CMS_TRY_IOER</a>&#160;&#160;&#160;0x00010000   /* kYR_tryIOER: I/O error on the server   */</td></tr>
+<tr class="separator:ae9de860fdc4056c62102e66cb6c13b25"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1e24fedec7258a244bac3bec29951173" id="r_a1e24fedec7258a244bac3bec29951173"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#a1e24fedec7258a244bac3bec29951173">CMS_TRY_FSER</a>&#160;&#160;&#160;0x00020000   /* kYR_tryFSER: filesystem error          */</td></tr>
+<tr class="separator:a1e24fedec7258a244bac3bec29951173"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab2a2f1219e0454b1edb077568efcdd41" id="r_ab2a2f1219e0454b1edb077568efcdd41"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#ab2a2f1219e0454b1edb077568efcdd41">CMS_TRY_SVER</a>&#160;&#160;&#160;0x00030000   /* kYR_trySVER: server error              */</td></tr>
+<tr class="separator:ab2a2f1219e0454b1edb077568efcdd41"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:accf206ea2733c3f76d445b052dce77e4" id="r_accf206ea2733c3f76d445b052dce77e4"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#accf206ea2733c3f76d445b052dce77e4">CMS_TRY_MASK</a>&#160;&#160;&#160;0x00030000   /* mask over the reason bits              */</td></tr>
+<tr class="separator:accf206ea2733c3f76d445b052dce77e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1ea71759635bcc1812a3661e4079c319" id="r_a1ea71759635bcc1812a3661e4079c319"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#a1ea71759635bcc1812a3661e4079c319">CMS_TRY_SHFT</a>&#160;&#160;&#160;16           /* shift to extract the reason value      */</td></tr>
+<tr class="separator:a1ea71759635bcc1812a3661e4079c319"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a01559536144d2e2fe2f6fe3bfe8011cc" id="r_a01559536144d2e2fe2f6fe3bfe8011cc"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#a01559536144d2e2fe2f6fe3bfe8011cc">CMS_TRY_RSEL</a>&#160;&#160;&#160;0x00040000   /* kYR_tryRSEL: retry the selection       */</td></tr>
+<tr class="separator:a01559536144d2e2fe2f6fe3bfe8011cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8987692239dae94de6d69700fee7dc96" id="r_a8987692239dae94de6d69700fee7dc96"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#a8987692239dae94de6d69700fee7dc96">CMS_TRY_RSEG</a>&#160;&#160;&#160;0x00080000   /* kYR_tryRSEG: retry within the segment  */</td></tr>
+<tr class="separator:a8987692239dae94de6d69700fee7dc96"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a556575750f782c496615614bc63ed960" id="r_a556575750f782c496615614bc63ed960"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#a556575750f782c496615614bc63ed960">CMS_LOGIN_VERSION</a>&#160;&#160;&#160;3</td></tr>
 <tr class="separator:a556575750f782c496615614bc63ed960"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3d20092949b6dc10c651d4eb9c5f364d" id="r_a3d20092949b6dc10c651d4eb9c5f364d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cms__internal_8h.html#a3d20092949b6dc10c651d4eb9c5f364d">CMS_LOGIN_MODE</a>&#160;&#160;&#160;0x00000008  /* kYR_server: this node exports data */</td></tr>
@@ -307,7 +324,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00093">93</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00094">94</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -323,7 +340,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00124">124</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00125">125</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -339,7 +356,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00141">141</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00161">161</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -357,7 +374,7 @@ Functions</h2></td></tr>
 <b>Value:</b><div class="fragment"><div class="line">                                             0x00000002  <span class="comment">/* kYR_manager: also manages servers</span></div>
 <div class="line"><span class="comment">                                             * (real LoginMode bit; 0x10 is proxy) */</span></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00142">142</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00162">162</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -373,7 +390,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00140">140</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00160">160</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -389,7 +406,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00123">123</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00124">124</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -405,7 +422,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00132">132</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00133">133</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -421,7 +438,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00131">131</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00132">132</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -437,7 +454,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00094">94</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00095">95</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -453,7 +470,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00062">62</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00063">63</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -469,7 +486,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00072">72</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00073">73</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -485,7 +502,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00095">95</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00096">96</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -501,7 +518,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00096">96</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00097">97</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -517,7 +534,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00097">97</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00098">98</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -533,7 +550,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00063">63</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00064">64</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -549,7 +566,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00061">61</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00062">62</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -565,7 +582,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00064">64</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00065">65</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -581,7 +598,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00065">65</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00066">66</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -597,7 +614,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00066">66</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00067">67</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -613,7 +630,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00099">99</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00100">100</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -629,7 +646,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00100">100</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00101">101</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -645,7 +662,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00067">67</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00068">68</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -661,7 +678,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00068">68</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00069">69</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -677,7 +694,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00069">69</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00070">70</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -693,7 +710,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00070">70</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00071">71</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -709,7 +726,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00098">98</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00099">99</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -725,7 +742,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00101">101</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00102">102</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -741,7 +758,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00102">102</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00103">103</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -757,7 +774,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00073">73</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00074">74</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -773,7 +790,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00071">71</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00072">72</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -789,7 +806,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00103">103</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00104">104</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -805,7 +822,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00074">74</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00075">75</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -821,7 +838,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00104">104</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00105">105</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -837,7 +854,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00075">75</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00076">76</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -853,7 +870,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00076">76</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00077">77</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -869,7 +886,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00105">105</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00106">106</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -885,7 +902,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00083">83</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00084">84</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -901,7 +918,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00084">84</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00085">85</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -917,7 +934,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00085">85</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00086">86</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -933,7 +950,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00113">113</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00114">114</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -949,7 +966,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00116">116</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00117">117</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -965,7 +982,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00114">114</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00115">115</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -981,7 +998,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00112">112</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00113">113</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -997,7 +1014,135 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00115">115</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00116">116</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="a1e24fedec7258a244bac3bec29951173" name="a1e24fedec7258a244bac3bec29951173"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1e24fedec7258a244bac3bec29951173">&#9670;&#160;</a></span>CMS_TRY_FSER</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_FSER&#160;&#160;&#160;0x00020000   /* kYR_tryFSER: filesystem error          */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00147">147</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="ae9de860fdc4056c62102e66cb6c13b25" name="ae9de860fdc4056c62102e66cb6c13b25"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae9de860fdc4056c62102e66cb6c13b25">&#9670;&#160;</a></span>CMS_TRY_IOER</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_IOER&#160;&#160;&#160;0x00010000   /* kYR_tryIOER: I/O error on the server   */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00146">146</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="accf206ea2733c3f76d445b052dce77e4" name="accf206ea2733c3f76d445b052dce77e4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#accf206ea2733c3f76d445b052dce77e4">&#9670;&#160;</a></span>CMS_TRY_MASK</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_MASK&#160;&#160;&#160;0x00030000   /* mask over the reason bits              */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00149">149</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="ab918ead79819318123fb552094ed5029" name="ab918ead79819318123fb552094ed5029"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab918ead79819318123fb552094ed5029">&#9670;&#160;</a></span>CMS_TRY_MISS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_MISS&#160;&#160;&#160;0x00000000   /* kYR_tryMISS: file not found            */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00145">145</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="a8987692239dae94de6d69700fee7dc96" name="a8987692239dae94de6d69700fee7dc96"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8987692239dae94de6d69700fee7dc96">&#9670;&#160;</a></span>CMS_TRY_RSEG</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_RSEG&#160;&#160;&#160;0x00080000   /* kYR_tryRSEG: retry within the segment  */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00152">152</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="a01559536144d2e2fe2f6fe3bfe8011cc" name="a01559536144d2e2fe2f6fe3bfe8011cc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a01559536144d2e2fe2f6fe3bfe8011cc">&#9670;&#160;</a></span>CMS_TRY_RSEL</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_RSEL&#160;&#160;&#160;0x00040000   /* kYR_tryRSEL: retry the selection       */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00151">151</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="a1ea71759635bcc1812a3661e4079c319" name="a1ea71759635bcc1812a3661e4079c319"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1ea71759635bcc1812a3661e4079c319">&#9670;&#160;</a></span>CMS_TRY_SHFT</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_SHFT&#160;&#160;&#160;16           /* shift to extract the reason value      */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00150">150</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="ab2a2f1219e0454b1edb077568efcdd41" name="ab2a2f1219e0454b1edb077568efcdd41"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab2a2f1219e0454b1edb077568efcdd41">&#9670;&#160;</a></span>CMS_TRY_SVER</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CMS_TRY_SVER&#160;&#160;&#160;0x00030000   /* kYR_trySVER: server error              */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00148">148</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1013,7 +1158,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00019">19</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00020">20</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1029,7 +1174,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00020">20</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00021">21</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1045,7 +1190,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00021">21</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00022">22</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1061,7 +1206,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00043">43</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00044">44</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1077,7 +1222,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00041">41</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00042">42</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1093,7 +1238,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00042">42</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00043">43</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1109,7 +1254,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00044">44</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00045">45</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1125,7 +1270,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00045">45</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00046">46</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1141,7 +1286,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00046">46</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00047">47</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1157,7 +1302,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00039">39</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00040">40</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1173,7 +1318,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00040">40</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00041">41</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1189,7 +1334,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00018">18</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00019">19</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1205,7 +1350,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00047">47</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00048">48</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1221,7 +1366,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00054">54</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00055">55</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1237,7 +1382,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00055">55</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00056">56</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1253,7 +1398,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00037">37</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cms__internal_8h_source.html#l00038">38</a> of file <a class="el" href="cms__internal_8h_source.html">cms_internal.h</a>.</p>
 
 </div>
 </div>
@@ -1300,9 +1445,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00255">255</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00454">brix_sess_end()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00047">ngx_brix_cms_end_reason()</a>, and <a class="el" href="cms__internal_8h_source.html#l00046">NGX_BRIX_CMS_HDR_LEN</a>.</p>
+<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00454">brix_sess_end()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00047">ngx_brix_cms_end_reason()</a>, and <a class="el" href="cms__internal_8h_source.html#l00047">NGX_BRIX_CMS_HDR_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00351">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00366">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -1346,7 +1491,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="wire_8c_source.html#l00027">27</a> of file <a class="el" href="wire_8c_source.html">wire.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00201">cms_frame_redirect()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00050">cms_recv_accumulate()</a>, <a class="el" href="server__recv_8c_source.html#l00138">cms_srv_dispatch_frame()</a>, <a class="el" href="server__recv_8c_source.html#l00081">cms_srv_read_accumulate()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00071">cms_srv_read_string()</a>, and <a class="el" href="server__recv__parse_8c_source.html#l00036">tlv_read_next()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00205">cms_frame_redirect()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00050">cms_recv_accumulate()</a>, <a class="el" href="server__recv_8c_source.html#l00138">cms_srv_dispatch_frame()</a>, <a class="el" href="server__recv_8c_source.html#l00081">cms_srv_read_accumulate()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00071">cms_srv_read_string()</a>, and <a class="el" href="server__recv__parse_8c_source.html#l00036">tlv_read_next()</a>.</p>
 
 </div>
 </div>
@@ -1368,7 +1513,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="wire_8c_source.html#l00034">34</a> of file <a class="el" href="wire_8c_source.html">wire.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00138">cms_srv_dispatch_frame()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00399">ngx_brix_cms_process_frame()</a>, and <a class="el" href="server__recv__parse_8c_source.html#l00036">tlv_read_next()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00138">cms_srv_dispatch_frame()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00416">ngx_brix_cms_process_frame()</a>, and <a class="el" href="server__recv__parse_8c_source.html#l00036">tlv_read_next()</a>.</p>
 
 </div>
 </div>
@@ -1388,9 +1533,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00336">336</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00355">355</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00021">brix_open_cms_locate()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00266">brix_qcksum_manager_bounce()</a>, <a class="el" href="locate_8c_source.html#l00140">locate_try_cms_parent()</a>, and <a class="el" href="stat_8c_source.html#l00187">stat_manager_route()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00021">brix_open_cms_locate()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00266">brix_qcksum_manager_bounce()</a>, <a class="el" href="locate_8c_source.html#l00142">locate_try_cms_parent()</a>, and <a class="el" href="stat_8c_source.html#l00187">stat_manager_route()</a>.</p>
 
 </div>
 </div>
@@ -1422,7 +1567,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="wire_8c_source.html#l00044">44</a> of file <a class="el" href="wire_8c_source.html">wire.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="frame__io_8c_source.html#l00064">brix_cms_send_frame()</a>, <a class="el" href="wire_8c_source.html#l00064">ngx_brix_cms_put_short()</a>, <a class="el" href="wire_8c_source.html#l00092">ngx_brix_cms_put_string()</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00227">ngx_brix_cms_send_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="frame__io_8c_source.html#l00064">brix_cms_send_frame()</a>, <a class="el" href="server__send_8c_source.html#l00080">brix_cms_srv_send_load()</a>, <a class="el" href="wire_8c_source.html#l00064">ngx_brix_cms_put_short()</a>, <a class="el" href="wire_8c_source.html#l00092">ngx_brix_cms_put_string()</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00239">ngx_brix_cms_send_load()</a>.</p>
 
 </div>
 </div>
@@ -1486,9 +1631,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="wire_8c_source.html#l00077">77</a> of file <a class="el" href="wire_8c_source.html">wire.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00132">CMS_PT_INT</a>, and <a class="el" href="wire_8c_source.html#l00052">ngx_brix_cms_put32()</a>.</p>
+<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00133">CMS_PT_INT</a>, and <a class="el" href="wire_8c_source.html#l00052">ngx_brix_cms_put32()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2send_8c_source.html#l00284">ngx_brix_cms_send_avail()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00227">ngx_brix_cms_send_load()</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00064">ngx_brix_cms_send_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__send_8c_source.html#l00080">brix_cms_srv_send_load()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00303">ngx_brix_cms_send_avail()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00239">ngx_brix_cms_send_load()</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00064">ngx_brix_cms_send_login()</a>.</p>
 
 </div>
 </div>
@@ -1520,7 +1665,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="wire_8c_source.html#l00064">64</a> of file <a class="el" href="wire_8c_source.html">wire.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00131">CMS_PT_SHORT</a>, and <a class="el" href="wire_8c_source.html#l00044">ngx_brix_cms_put16()</a>.</p>
+<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00132">CMS_PT_SHORT</a>, and <a class="el" href="wire_8c_source.html#l00044">ngx_brix_cms_put16()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2send_8c_source.html#l00064">ngx_brix_cms_send_login()</a>.</p>
 
@@ -1584,7 +1729,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2recv_8c_source.html#l00107">107</a> of file <a class="el" href="net_2cms_2recv_8c_source.html">recv.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>, <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00050">cms_recv_accumulate()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00134">ngx_brix_cms_arm_read_deadline()</a>, <a class="el" href="cms__internal_8h_source.html#l00046">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="cms__internal_8h_source.html#l00054">NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</a>, and <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00399">ngx_brix_cms_process_frame()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00134">BRIX_RESIL_METRIC_INC</a>, <a class="el" href="sesslog_8h_source.html#l00066">BRIX_SESS_END_ERROR</a>, <a class="el" href="sesslog_8h_source.html#l00064">BRIX_SESS_END_TIMEOUT</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv_8c_source.html#l00050">cms_recv_accumulate()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00134">ngx_brix_cms_arm_read_deadline()</a>, <a class="el" href="cms__internal_8h_source.html#l00047">NGX_BRIX_CMS_HDR_LEN</a>, <a class="el" href="cms__internal_8h_source.html#l00055">NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</a>, and <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00416">ngx_brix_cms_process_frame()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00403">ngx_brix_cms_connect()</a>.</p>
 
@@ -1640,9 +1785,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00180">180</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="cms__internal_8h_source.html#l00020">NGX_BRIX_CMS_BACKOFF_MAX</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00151">ngx_brix_cms_schedule()</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="cms__internal_8h_source.html#l00021">NGX_BRIX_CMS_BACKOFF_MAX</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00151">ngx_brix_cms_schedule()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00351">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00403">ngx_brix_cms_connect()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00366">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00403">ngx_brix_cms_connect()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -1672,11 +1817,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00284">284</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00303">303</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="cms__internal_8h_source.html#l00094">CMS_RR_AVAIL</a>, <a class="el" href="wire_8c_source.html#l00077">ngx_brix_cms_put_int()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="net_2cms_2space_8c_source.html#l00020">ngx_brix_cms_stat_space()</a>.</p>
+<p class="reference">References <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="cms__internal_8h_source.html#l00095">CMS_RR_AVAIL</a>, <a class="el" href="wire_8c_source.html#l00077">ngx_brix_cms_put_int()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="net_2cms_2space_8c_source.html#l00020">ngx_brix_cms_stat_space()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00167">cms_frame_space()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00171">cms_frame_space()</a>.</p>
 
 </div>
 </div>
@@ -1720,9 +1865,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00032">32</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00084">CMS_RSP_ERROR</a>, <a class="el" href="wire_8c_source.html#l00052">ngx_brix_cms_put32()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00085">CMS_RSP_ERROR</a>, <a class="el" href="wire_8c_source.html#l00052">ngx_brix_cms_put32()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="recv__forward_8c_source.html#l00147">cms_forward_via_driver()</a>, <a class="el" href="recv__forward_8c_source.html#l00236">cms_forward_via_posix()</a>, and <a class="el" href="recv__forward_8c_source.html#l00272">cms_node_exec_forward()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="recv__forward_8c_source.html#l00147">cms_forward_via_driver()</a>, <a class="el" href="recv__forward_8c_source.html#l00236">cms_forward_via_posix()</a>, <a class="el" href="recv__forward_8c_source.html#l00272">cms_node_exec_forward()</a>, <a class="el" href="recv__prepare_8c_source.html#l00129">cms_node_exec_prepare()</a>, and <a class="el" href="recv__prepare_8c_source.html#l00053">cms_prep_add()</a>.</p>
 
 </div>
 </div>
@@ -1764,11 +1909,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00384">384</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00403">403</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00025">BRIX_SRV_MAX_PATHS</a>, <a class="el" href="cms__internal_8h_source.html#l00124">CMS_HAVE_ONLINE</a>, <a class="el" href="cms__internal_8h_source.html#l00123">CMS_MOD_RAW</a>, <a class="el" href="cms__internal_8h_source.html#l00096">CMS_RR_HAVE</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00025">BRIX_SRV_MAX_PATHS</a>, <a class="el" href="cms__internal_8h_source.html#l00125">CMS_HAVE_ONLINE</a>, <a class="el" href="cms__internal_8h_source.html#l00124">CMS_MOD_RAW</a>, <a class="el" href="cms__internal_8h_source.html#l00097">CMS_RR_HAVE</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00272">cms_frame_state()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00276">cms_frame_state()</a>.</p>
 
 </div>
 </div>
@@ -1788,9 +1933,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00227">227</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00239">239</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="cms__internal_8h_source.html#l00097">CMS_RR_LOAD</a>, <a class="el" href="wire_8c_source.html#l00044">ngx_brix_cms_put16()</a>, <a class="el" href="wire_8c_source.html#l00077">ngx_brix_cms_put_int()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="net_2cms_2space_8c_source.html#l00020">ngx_brix_cms_stat_space()</a>.</p>
+<p class="reference">References <a class="el" href="meter_8c_source.html#l00229">brix_cms_meter_sample()</a>, <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="cms__internal_8h_source.html#l00098">CMS_RR_LOAD</a>, <a class="el" href="wire_8c_source.html#l00044">ngx_brix_cms_put16()</a>, <a class="el" href="wire_8c_source.html#l00077">ngx_brix_cms_put_int()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, <a class="el" href="net_2cms_2space_8c_source.html#l00020">ngx_brix_cms_stat_space()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
@@ -1828,11 +1973,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00356">356</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00375">375</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00025">BRIX_SRV_MAX_PATHS</a>, <a class="el" href="cms__internal_8h_source.html#l00063">CMS_RR_LOCATE</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00025">BRIX_SRV_MAX_PATHS</a>, <a class="el" href="cms__internal_8h_source.html#l00064">CMS_RR_LOCATE</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00021">brix_open_cms_locate()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00266">brix_qcksum_manager_bounce()</a>, <a class="el" href="locate_8c_source.html#l00140">locate_try_cms_parent()</a>, and <a class="el" href="stat_8c_source.html#l00187">stat_manager_route()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00021">brix_open_cms_locate()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00266">brix_qcksum_manager_bounce()</a>, <a class="el" href="locate_8c_source.html#l00142">locate_try_cms_parent()</a>, and <a class="el" href="stat_8c_source.html#l00187">stat_manager_route()</a>.</p>
 
 </div>
 </div>
@@ -1854,7 +1999,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00064">64</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="cms__internal_8h_source.html#l00141">CMS_LOGIN_MODE</a>, <a class="el" href="cms__internal_8h_source.html#l00142">CMS_LOGIN_MODE_MANAGER</a>, <a class="el" href="cms__internal_8h_source.html#l00140">CMS_LOGIN_VERSION</a>, <a class="el" href="cms__internal_8h_source.html#l00061">CMS_RR_LOGIN</a>, <a class="el" href="net_2cms_2space_8c_source.html#l00007">ngx_brix_cms_export_paths()</a>, <a class="el" href="cms__internal_8h_source.html#l00055">NGX_BRIX_CMS_MIN_FREE_MB</a>, <a class="el" href="wire_8c_source.html#l00077">ngx_brix_cms_put_int()</a>, <a class="el" href="wire_8c_source.html#l00064">ngx_brix_cms_put_short()</a>, <a class="el" href="wire_8c_source.html#l00092">ngx_brix_cms_put_string()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, <a class="el" href="net_2cms_2space_8c_source.html#l00020">ngx_brix_cms_stat_space()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="cms__internal_8h_source.html#l00161">CMS_LOGIN_MODE</a>, <a class="el" href="cms__internal_8h_source.html#l00162">CMS_LOGIN_MODE_MANAGER</a>, <a class="el" href="cms__internal_8h_source.html#l00160">CMS_LOGIN_VERSION</a>, <a class="el" href="cms__internal_8h_source.html#l00062">CMS_RR_LOGIN</a>, <a class="el" href="net_2cms_2space_8c_source.html#l00007">ngx_brix_cms_export_paths()</a>, <a class="el" href="cms__internal_8h_source.html#l00056">NGX_BRIX_CMS_MIN_FREE_MB</a>, <a class="el" href="wire_8c_source.html#l00077">ngx_brix_cms_put_int()</a>, <a class="el" href="wire_8c_source.html#l00064">ngx_brix_cms_put_short()</a>, <a class="el" href="wire_8c_source.html#l00092">ngx_brix_cms_put_string()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>, <a class="el" href="net_2cms_2space_8c_source.html#l00020">ngx_brix_cms_stat_space()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
@@ -1886,11 +2031,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00321">321</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00340">340</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00100">CMS_RR_PONG</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>.</p>
+<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00101">CMS_RR_PONG</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00159">cms_frame_ping()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00163">cms_frame_ping()</a>.</p>
 
 </div>
 </div>
@@ -1910,11 +2055,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00209">209</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2cms_2send_8c_source.html#l00221">221</a> of file <a class="el" href="net_2cms_2send_8c_source.html">send.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00103">CMS_RR_STATUS</a>, <a class="el" href="cms__internal_8h_source.html#l00113">CMS_ST_NOSTAGE</a>, <a class="el" href="cms__internal_8h_source.html#l00114">CMS_ST_RESUME</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>.</p>
+<p class="reference">References <a class="el" href="cms__internal_8h_source.html#l00104">CMS_RR_STATUS</a>, <a class="el" href="cms__internal_8h_source.html#l00114">CMS_ST_NOSTAGE</a>, <a class="el" href="cms__internal_8h_source.html#l00115">CMS_ST_RESUME</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00018">ngx_brix_cms_send_frame()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00341">cms_frame_update()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00356">cms_frame_update()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -1946,7 +2091,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2connect_8c_source.html#l00036">36</a> of file <a class="el" href="net_2cms_2connect_8c_source.html">connect.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00351">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv_8c_source.html#l00034">cms_conn_fail()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00366">cms_frame_disc()</a>, <a class="el" href="net_2cms_2connect_8c_source.html#l00473">ngx_brix_cms_timer()</a>, and <a class="el" href="net_2cms_2connect_8c_source.html#l00286">ngx_brix_cms_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -1990,7 +2135,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2cms_2space_8c_source.html#l00020">20</a> of file <a class="el" href="net_2cms_2space_8c_source.html">space.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2cms_2send_8c_source.html#l00284">ngx_brix_cms_send_avail()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00227">ngx_brix_cms_send_load()</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00064">ngx_brix_cms_send_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2send_8c_source.html#l00303">ngx_brix_cms_send_avail()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00239">ngx_brix_cms_send_load()</a>, and <a class="el" href="net_2cms_2send_8c_source.html#l00064">ngx_brix_cms_send_login()</a>.</p>
 
 </div>
 </div>

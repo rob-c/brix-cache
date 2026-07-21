@@ -136,6 +136,10 @@ Variables</h2></td></tr>
 <tr class="separator:ab3922dc267ef04339d3a6aa2c04cf37e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a77371a96cc62ab39f578a762cf96564d" id="r_a77371a96cc62ab39f578a762cf96564d"><td class="memItemLeft" align="right" valign="top">ngx_msec_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__internal_8h.html#a77371a96cc62ab39f578a762cf96564d">brix_srv_stale_after_ms</a></td></tr>
 <tr class="separator:a77371a96cc62ab39f578a762cf96564d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a14eae3291fa0c18a6a636cb7fcf1ad5a" id="r_a14eae3291fa0c18a6a636cb7fcf1ad5a"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__internal_8h.html#a14eae3291fa0c18a6a636cb7fcf1ad5a">brix_srv_load_weight</a></td></tr>
+<tr class="separator:a14eae3291fa0c18a6a636cb7fcf1ad5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad17fc6344873861216ac26d0bd8914e9" id="r_ad17fc6344873861216ac26d0bd8914e9"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__internal_8h.html#ad17fc6344873861216ac26d0bd8914e9">brix_srv_affinity</a></td></tr>
+<tr class="separator:ad17fc6344873861216ac26d0bd8914e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a96428191770f2b003f294f0bcbc190f9" name="a96428191770f2b003f294f0bcbc190f9"></a>
@@ -164,9 +168,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00010">10</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00011">11</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="registry__select_8c_source.html#l00312">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, and <a class="el" href="registry__select_8c_source.html#l00222">srv_select_core()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="registry__select_8c_source.html#l00381">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, <a class="el" href="registry__select_8c_source.html#l00563">brix_srv_paths_cover()</a>, and <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
 
 </div>
 </div>
@@ -220,11 +224,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00222">222</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00281">281</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00035">brix_srv_entry_t::blacklisted_until</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00008">brix_srv_mutex</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00047">brix_srv_table_t::capacity</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00028">brix_srv_entry_t::host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00034">brix_srv_entry_t::in_use</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00030">brix_srv_entry_t::paths</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00029">brix_srv_entry_t::port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00048">brix_srv_table_t::slots</a>, <a class="el" href="registry__select_8c_source.html#l00010">srv_path_matches()</a>, <a class="el" href="registry__select_8c_source.html#l00150">srv_sel_state_consider()</a>, <a class="el" href="registry__select_8c_source.html#l00104">srv_sel_state_init()</a>, <a class="el" href="registry__select_8c_source.html#l00186">srv_sel_state_winner()</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00023">srv_table()</a>.</p>
+<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00035">brix_srv_entry_t::blacklisted_until</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00016">brix_srv_affinity</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00008">brix_srv_mutex</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00054">brix_srv_table_t::capacity</a>, <a class="el" href="registry__select_8c_source.html#l00093">srv_sel_state_t::fresh_cands</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00028">brix_srv_entry_t::host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00034">brix_srv_entry_t::in_use</a>, <a class="el" href="registry__select_8c_source.html#l00094">srv_sel_state_t::n_fresh</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00030">brix_srv_entry_t::paths</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00029">brix_srv_entry_t::port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00055">brix_srv_table_t::slots</a>, <a class="el" href="registry__select_8c_source.html#l00011">srv_path_matches()</a>, <a class="el" href="registry__select_8c_source.html#l00228">srv_sel_path_hash()</a>, <a class="el" href="registry__select_8c_source.html#l00187">srv_sel_state_consider()</a>, <a class="el" href="registry__select_8c_source.html#l00115">srv_sel_state_init()</a>, <a class="el" href="registry__select_8c_source.html#l00245">srv_sel_state_winner()</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00041">srv_table()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="registry__select_8c_source.html#l00278">brix_srv_select()</a>, and <a class="el" href="registry__select_8c_source.html#l00289">brix_srv_select_or_blacklisted()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="registry__select_8c_source.html#l00347">brix_srv_select()</a>, and <a class="el" href="registry__select_8c_source.html#l00358">brix_srv_select_or_blacklisted()</a>.</p>
 
 </div>
 </div>
@@ -244,15 +248,67 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2manager_2registry_8c_source.html#l00023">23</a> of file <a class="el" href="net_2manager_2registry_8c_source.html">registry.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2manager_2registry_8c_source.html#l00041">41</a> of file <a class="el" href="net_2manager_2registry_8c_source.html">registry.c</a>.</p>
 
 <p class="reference">References <a class="el" href="net_2manager_2registry_8c_source.html#l00007">brix_srv_shm_zone</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="registry__select_8c_source.html#l00423">brix_srv_blacklist()</a>, <a class="el" href="registry__select_8c_source.html#l00312">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00010">brix_srv_hc_claim()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00138">brix_srv_register()</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="registry__select_8c_source.html#l00459">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00282">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00238">brix_srv_update_load()</a>, and <a class="el" href="registry__select_8c_source.html#l00222">srv_select_core()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="registry__select_8c_source.html#l00492">brix_srv_blacklist()</a>, <a class="el" href="registry__select_8c_source.html#l00381">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00010">brix_srv_hc_claim()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="registry__select_8c_source.html#l00574">brix_srv_is_blacklisted()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00156">brix_srv_register()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00362">brix_srv_reset()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00431">brix_srv_set_machine_load()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00412">brix_srv_set_stage()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00392">brix_srv_set_vnid()</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="registry__select_8c_source.html#l00528">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00300">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00256">brix_srv_update_load()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00333">srv_find_locked()</a>, and <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Variable Documentation</h2>
+<a id="ad17fc6344873861216ac26d0bd8914e9" name="ad17fc6344873861216ac26d0bd8914e9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad17fc6344873861216ac26d0bd8914e9">&#9670;&#160;</a></span>brix_srv_affinity</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_uint_t brix_srv_affinity</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">extern</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2manager_2registry_8c_source.html#l00016">16</a> of file <a class="el" href="net_2manager_2registry_8c_source.html">registry.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2manager_2registry_8c_source.html#l00034">brix_srv_set_affinity()</a>, and <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
+
+</div>
+</div>
+<a id="a14eae3291fa0c18a6a636cb7fcf1ad5a" name="a14eae3291fa0c18a6a636cb7fcf1ad5a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a14eae3291fa0c18a6a636cb7fcf1ad5a">&#9670;&#160;</a></span>brix_srv_load_weight</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_uint_t brix_srv_load_weight</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">extern</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2manager_2registry_8c_source.html#l00014">14</a> of file <a class="el" href="net_2manager_2registry_8c_source.html">registry.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2manager_2registry_8c_source.html#l00027">brix_srv_set_load_weight()</a>, and <a class="el" href="registry__select_8c_source.html#l00171">srv_sel_load_metric()</a>.</p>
+
+</div>
+</div>
 <a id="adc2ed342a6d863c65501376a2779c23b" name="adc2ed342a6d863c65501376a2779c23b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#adc2ed342a6d863c65501376a2779c23b">&#9670;&#160;</a></span>brix_srv_mutex</h2>
 
@@ -275,7 +331,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2manager_2registry_8c_source.html#l00008">8</a> of file <a class="el" href="net_2manager_2registry_8c_source.html">registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="registry__select_8c_source.html#l00423">brix_srv_blacklist()</a>, <a class="el" href="registry__select_8c_source.html#l00312">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00010">brix_srv_hc_claim()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00138">brix_srv_register()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00055">brix_srv_shm_init_zone()</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="registry__select_8c_source.html#l00459">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00282">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00238">brix_srv_update_load()</a>, and <a class="el" href="registry__select_8c_source.html#l00222">srv_select_core()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="registry__health_8c_source.html#l00311">brix_srv_aggregate_space()</a>, <a class="el" href="registry__select_8c_source.html#l00492">brix_srv_blacklist()</a>, <a class="el" href="registry__select_8c_source.html#l00381">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00010">brix_srv_hc_claim()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="registry__select_8c_source.html#l00574">brix_srv_is_blacklisted()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00156">brix_srv_register()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00362">brix_srv_reset()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00431">brix_srv_set_machine_load()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00412">brix_srv_set_stage()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00392">brix_srv_set_vnid()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00073">brix_srv_shm_init_zone()</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="registry__select_8c_source.html#l00528">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00300">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00256">brix_srv_update_load()</a>, and <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
 
 </div>
 </div>
@@ -301,7 +357,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2manager_2registry_8c_source.html#l00010">10</a> of file <a class="el" href="net_2manager_2registry_8c_source.html">registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2manager_2registry_8c_source.html#l00095">brix_srv_configure_registry()</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00055">brix_srv_shm_init_zone()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2manager_2registry_8c_source.html#l00113">brix_srv_configure_registry()</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00073">brix_srv_shm_init_zone()</a>.</p>
 
 </div>
 </div>
@@ -327,7 +383,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="net_2manager_2registry_8c_source.html#l00012">12</a> of file <a class="el" href="net_2manager_2registry_8c_source.html">registry.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2manager_2registry_8c_source.html#l00016">brix_srv_set_stale_after()</a>, and <a class="el" href="registry__select_8c_source.html#l00150">srv_sel_state_consider()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2manager_2registry_8c_source.html#l00020">brix_srv_set_stale_after()</a>, and <a class="el" href="registry__select_8c_source.html#l00187">srv_sel_state_consider()</a>.</p>
 
 </div>
 </div>

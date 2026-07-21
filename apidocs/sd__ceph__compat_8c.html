@@ -125,6 +125,8 @@ Functions</h2></td></tr>
 <tr class="separator:a362bf26fd928737a6912f8480e319485"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac4262d5c90677bf45cab4bd504f9c348" id="r_ac4262d5c90677bf45cab4bd504f9c348"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph__compat_8c.html#ac4262d5c90677bf45cab4bd504f9c348">sd_ceph_oid_is_stripe_data</a> (const char *oid)</td></tr>
 <tr class="separator:ac4262d5c90677bf45cab4bd504f9c348"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab2a41bac533cebe5be81f081d505d943" id="r_ab2a41bac533cebe5be81f081d505d943"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__ceph__compat_8c.html#ab2a41bac533cebe5be81f081d505d943">sd_ceph_path_child</a> (const char *dir, const char *path, char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t cap)</td></tr>
+<tr class="separator:ab2a41bac533cebe5be81f081d505d943"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a54e38498e51683b1e6424fd523e0e9ed" name="a54e38498e51683b1e6424fd523e0e9ed"></a>
@@ -283,6 +285,52 @@ Functions</h2></td></tr>
 <p class="reference">References <a class="el" href="sd__ceph__compat_8c_source.html#l00030">sd_ceph_oid_is_first_stripe()</a>, and <a class="el" href="sd__ceph__compat_8c_source.html#l00010">SUFFIX_LEN</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00211">test_striper_layout()</a>.</p>
+
+</div>
+</div>
+<a id="ab2a41bac533cebe5be81f081d505d943" name="ab2a41bac533cebe5be81f081d505d943"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab2a41bac533cebe5be81f081d505d943">&#9670;&#160;</a></span>sd_ceph_path_child()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_ceph_path_child </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>dir</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__ceph__compat_8c_source.html#l00086">86</a> of file <a class="el" href="sd__ceph__compat_8c_source.html">sd_ceph_compat.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__ceph__unittest_8c_source.html#l00255">test_path_child()</a>.</p>
 
 </div>
 </div>

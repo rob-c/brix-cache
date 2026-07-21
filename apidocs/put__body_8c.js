@@ -7,6 +7,8 @@ var put__body_8c =
       [ "WEBDAV_DIGEST_FOUND", "put__body_8c.html#af2b2d21f34b87660173aea91c04cd237aeca5752c473d28802d2b04317434a368", null ],
       [ "WEBDAV_DIGEST_BAD", "put__body_8c.html#af2b2d21f34b87660173aea91c04cd237ad06e8b0c049c46ce6d7649e838fc5f3b", null ]
     ] ],
+    [ "webdav_digest_match", "put__body_8c.html#a60eca8f5df0a69b9cd56c890ff387e05", null ],
+    [ "webdav_digest_scan", "put__body_8c.html#a746e21dc84eee0726b4827c6ca0f6e41", null ],
     [ "webdav_digest_select", "put__body_8c.html#a99c7a9cce16c5a3de8986aaf2c66b50c", null ],
     [ "webdav_digest_value_hex", "put__body_8c.html#acd07e26d079f2eddceea5ecb209ae60e", null ],
     [ "webdav_hex_norm_equal", "put__body_8c.html#ac9570882de6befd6093da6168cd5e823", null ],
@@ -18,6 +20,7 @@ var put__body_8c =
     [ "webdav_put_try_threaded", "put__body_8c.html#a8ebbee4d3dffcae1cca7d867375c165f", null ],
     [ "webdav_put_verify_ingest_digest", "put__body_8c.html#a2347aedf321aafea0af2fc11ffc6fa81", null ],
     [ "webdav_put_write_sync", "put__body_8c.html#ace82e59d5ee64f75d7bc924b457eedb4", null ],
+    [ "webdav_tok_trim", "put__body_8c.html#aba610e7c820964b99764ae853f488905", null ],
     [ "alg", "put__body_8c.html#ae48d2453ec0367fc860bebcac33fcb23", null ],
     [ "b64", "put__body_8c.html#a26fb6aba7e3d85fd207e00d8f548d529", null ],
     [ "tok", "put__body_8c.html#a245cabc3bef72dcd807971c43731f28d", null ],

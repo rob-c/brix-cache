@@ -183,6 +183,14 @@ Functions</h2></td></tr>
 <tr class="separator:aca45d811253dbd5367aa4e1eba474dc9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d681b9f982531a7f44e886add761626" id="r_a2d681b9f982531a7f44e886add761626"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a2d681b9f982531a7f44e886add761626">af_opendir</a> (const char *path, struct fuse_file_info *fi)</td></tr>
 <tr class="separator:a2d681b9f982531a7f44e886add761626"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5c73ffe341d9eeb79b1f8d82e2f11e91" id="r_a5c73ffe341d9eeb79b1f8d82e2f11e91"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a5c73ffe341d9eeb79b1f8d82e2f11e91">af_repos_nth_token</a> (const char *list, int idx, char *out, size_t outsz)</td></tr>
+<tr class="separator:a5c73ffe341d9eeb79b1f8d82e2f11e91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a16bce379a2401ad3851bda1cf406a75e" id="r_a16bce379a2401ad3851bda1cf406a75e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a16bce379a2401ad3851bda1cf406a75e">af_ghost_name</a> (int src, int idx, char *out, size_t outsz)</td></tr>
+<tr class="separator:a16bce379a2401ad3851bda1cf406a75e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afb7aa35aa7a2b13854961bb4fcfbae42" id="r_afb7aa35aa7a2b13854961bb4fcfbae42"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#afb7aa35aa7a2b13854961bb4fcfbae42">af_seen_has</a> (char seen[][256], int nseen, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:afb7aa35aa7a2b13854961bb4fcfbae42"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afad7793254d7a56ece885b465f76224b" id="r_afad7793254d7a56ece885b465f76224b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#afad7793254d7a56ece885b465f76224b">af_fill_mounted</a> (void *buf, fuse_fill_dir_t fill, char seen[][256], int *nseen)</td></tr>
+<tr class="separator:afad7793254d7a56ece885b465f76224b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a523150a4e8f8180b14ee31e0fe8cf1ab" id="r_a523150a4e8f8180b14ee31e0fe8cf1ab"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a523150a4e8f8180b14ee31e0fe8cf1ab">af_readdir</a> (const char *path, void *buf, fuse_fill_dir_t fill, off_t off, struct fuse_file_info *fi, enum fuse_readdir_flags flags)</td></tr>
 <tr class="separator:a523150a4e8f8180b14ee31e0fe8cf1ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac0e129c55a9fb3018e03a1dd1be04f24" id="r_ac0e129c55a9fb3018e03a1dd1be04f24"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#ac0e129c55a9fb3018e03a1dd1be04f24">af_signal</a> (int sig)</td></tr>
@@ -201,6 +209,16 @@ Functions</h2></td></tr>
 <tr class="separator:ac6023e1c08b26bce0baf364ba2e1b9e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae77dd0d3b72ecfb0c4b8281b80fb8dc6" id="r_ae77dd0d3b72ecfb0c4b8281b80fb8dc6"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#ae77dd0d3b72ecfb0c4b8281b80fb8dc6">af_scan_configured</a> (const char *etc_root)</td></tr>
 <tr class="separator:ae77dd0d3b72ecfb0c4b8281b80fb8dc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a46355b22c48ae1a870d5c8c780dc0eec" id="r_a46355b22c48ae1a870d5c8c780dc0eec"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a46355b22c48ae1a870d5c8c780dc0eec">af_setup_mount_farm</a> (void)</td></tr>
+<tr class="separator:a46355b22c48ae1a870d5c8c780dc0eec"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a068070164faee570f1142c939ddb1e91" id="r_a068070164faee570f1142c939ddb1e91"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a068070164faee570f1142c939ddb1e91">af_load_repo_config</a> (void)</td></tr>
+<tr class="separator:a068070164faee570f1142c939ddb1e91"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afd7385b2a19e2fe330401c3e3cef684e" id="r_afd7385b2a19e2fe330401c3e3cef684e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#afd7385b2a19e2fe330401c3e3cef684e">af_fuse_bringup</a> (char *argv0)</td></tr>
+<tr class="separator:afd7385b2a19e2fe330401c3e3cef684e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3acdf59f775a94acb8f6cb6759fc199c" id="r_a3acdf59f775a94acb8f6cb6759fc199c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a3acdf59f775a94acb8f6cb6759fc199c">af_install_signals</a> (void)</td></tr>
+<tr class="separator:a3acdf59f775a94acb8f6cb6759fc199c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08f29238279241bd6e634b073345d0c0" id="r_a08f29238279241bd6e634b073345d0c0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a08f29238279241bd6e634b073345d0c0">af_run</a> (void)</td></tr>
+<tr class="separator:a08f29238279241bd6e634b073345d0c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a110d68d44d218aaa086de58286b7b49a" id="r_a110d68d44d218aaa086de58286b7b49a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brixautofs_8c.html#a110d68d44d218aaa086de58286b7b49a">brixautofs_main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a110d68d44d218aaa086de58286b7b49a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -353,7 +371,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8c_source.html#l00150">autofs_state_t::farm</a>, and <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00352">af_fill_link_stat()</a>, <a class="el" href="brixautofs_8c_source.html#l00549">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00379">af_readlink()</a>, <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00493">af_teardown_children()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00352">af_fill_link_stat()</a>, <a class="el" href="brixautofs_8c_source.html#l00572">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00379">af_readlink()</a>, <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00516">af_teardown_children()</a>.</p>
 
 </div>
 </div>
@@ -381,11 +399,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00528">528</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00551">551</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00493">af_teardown_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00213">af_umount_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixautofs_8c_source.html#l00158">autofs_state_t::fuse</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brixautofs_8c_source.html#l00159">autofs_state_t::sigpipe</a>.</p>
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00516">af_teardown_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00213">af_umount_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixautofs_8c_source.html#l00158">autofs_state_t::fuse</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brixautofs_8c_source.html#l00159">autofs_state_t::sigpipe</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00786">af_run()</a>.</p>
 
 </div>
 </div>
@@ -493,6 +511,92 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a id="afad7793254d7a56ece885b465f76224b" name="afad7793254d7a56ece885b465f76224b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afad7793254d7a56ece885b465f76224b">&#9670;&#160;</a></span>af_fill_mounted()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void af_fill_mounted </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">fuse_fill_dir_t&#160;</td>
+          <td class="paramname"><em>fill</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>seen</em>[][256], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>nseen</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00436">436</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8h_source.html#l00020">BRIXAUTOFS_FREE</a>, <a class="el" href="brixautofs_8h_source.html#l00016">BRIXAUTOFS_MAX_REPOS</a>, <a class="el" href="brixautofs_8h_source.html#l00026">brixautofs_slot_t::fqrn</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8h_source.html#l00033">brixautofs_table_t::mu</a>, <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>, <a class="el" href="brixautofs_8h_source.html#l00027">brixautofs_slot_t::st</a>, and <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00447">af_readdir()</a>.</p>
+
+</div>
+</div>
+<a id="afd7385b2a19e2fe330401c3e3cef684e" name="afd7385b2a19e2fe330401c3e3cef684e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afd7385b2a19e2fe330401c3e3cef684e">&#9670;&#160;</a></span>af_fuse_bringup()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int af_fuse_bringup </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>argv0</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00727">727</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00475">af_ops</a>, <a class="el" href="brixautofs_8c_source.html#l00139">autofs_opts_t::allow_other</a>, <a class="el" href="brixautofs_8c_source.html#l00141">autofs_opts_t::debug</a>, <a class="el" href="brixautofs_8c_source.html#l00140">autofs_opts_t::foreground</a>, <a class="el" href="brixautofs_8c_source.html#l00158">autofs_state_t::fuse</a>, <a class="el" href="brixautofs_8c_source.html#l00145">autofs_opts_t::fuse_extra</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, and <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>.</p>
+
+</div>
+</div>
 <a id="a31a35d85469b070353aa78877c6443ef" name="a31a35d85469b070353aa78877c6443ef"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a31a35d85469b070353aa78877c6443ef">&#9670;&#160;</a></span>af_getattr()</h2>
 
@@ -539,6 +643,60 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a id="a16bce379a2401ad3851bda1cf406a75e" name="a16bce379a2401ad3851bda1cf406a75e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a16bce379a2401ad3851bda1cf406a75e">&#9670;&#160;</a></span>af_ghost_name()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int af_ghost_name </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>idx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00418">418</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00400">af_repos_nth_token()</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00155">autofs_state_t::ghost</a>, <a class="el" href="brixautofs_8c_source.html#l00156">autofs_state_t::nghost</a>, and <a class="el" href="brixautofs_8c_source.html#l00154">autofs_state_t::repos</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00447">af_readdir()</a>.</p>
+
+</div>
+</div>
 <a id="a391724062178623728afcf629e62e4f8" name="a391724062178623728afcf629e62e4f8"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a391724062178623728afcf629e62e4f8">&#9670;&#160;</a></span>af_idle_thread()</h2>
 
@@ -563,11 +721,43 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00549">549</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00572">572</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00193">af_child_path()</a>, <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8h_source.html#l00016">BRIXAUTOFS_MAX_REPOS</a>, <a class="el" href="brixautofs_8h_source.html#l00022">BRIXAUTOFS_MOUNTED</a>, <a class="el" href="brixautofs_8h_source.html#l00026">brixautofs_slot_t::fqrn</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00137">autofs_opts_t::idle_s</a>, <a class="el" href="brixautofs_8h_source.html#l00033">brixautofs_table_t::mu</a>, <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>, <a class="el" href="brixautofs_8c_source.html#l00160">autofs_state_t::shutting_down</a>, <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>, <a class="el" href="brixautofs_8h_source.html#l00027">brixautofs_slot_t::st</a>, and <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00786">af_run()</a>.</p>
+
+</div>
+</div>
+<a id="a3acdf59f775a94acb8f6cb6759fc199c" name="a3acdf59f775a94acb8f6cb6759fc199c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3acdf59f775a94acb8f6cb6759fc199c">&#9670;&#160;</a></span>af_install_signals()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int af_install_signals </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00762">762</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00484">af_signal()</a>, <a class="el" href="brixautofs_8c_source.html#l00158">autofs_state_t::fuse</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, and <a class="el" href="brixautofs_8c_source.html#l00159">autofs_state_t::sigpipe</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>.</p>
 
 </div>
 </div>
@@ -599,7 +789,39 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00213">af_umount_path()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00213">af_umount_path()</a>.</p>
+
+</div>
+</div>
+<a id="a068070164faee570f1142c939ddb1e91" name="a068070164faee570f1142c939ddb1e91"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a068070164faee570f1142c939ddb1e91">&#9670;&#160;</a></span>af_load_repo_config()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void af_load_repo_config </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00704">704</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00647">af_scan_configured()</a>, <a class="el" href="brixautofs_8c_source.html#l00151">autofs_state_t::etc</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>, <a class="el" href="brixautofs_8c_source.html#l00144">autofs_opts_t::repos</a>, <a class="el" href="brixautofs_8c_source.html#l00154">autofs_state_t::repos</a>, and <a class="el" href="brixautofs_8c_source.html#l00153">autofs_state_t::strict</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>.</p>
 
 </div>
 </div>
@@ -639,7 +861,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00165">165</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00314">af_ensure_repo()</a>, <a class="el" href="brixautofs_8c_source.html#l00549">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00314">af_ensure_repo()</a>, <a class="el" href="brixautofs_8c_source.html#l00727">af_fuse_bringup()</a>, <a class="el" href="brixautofs_8c_source.html#l00572">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00762">af_install_signals()</a>, <a class="el" href="brixautofs_8c_source.html#l00704">af_load_repo_config()</a>, <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00786">af_run()</a>, <a class="el" href="brixautofs_8c_source.html#l00670">af_setup_mount_farm()</a>, and <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>.</p>
 
 </div>
 </div>
@@ -669,7 +891,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00198">198</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00670">af_setup_mount_farm()</a>, and <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>.</p>
 
 </div>
 </div>
@@ -745,11 +967,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00579">579</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00602">602</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00139">autofs_opts_t::allow_other</a>, <a class="el" href="brixautofs_8c_source.html#l00142">autofs_opts_t::cache_base</a>, <a class="el" href="brixautofs_8c_source.html#l00145">autofs_opts_t::fuse_extra</a>, <a class="el" href="brixautofs_8c_source.html#l00137">autofs_opts_t::idle_s</a>, <a class="el" href="brixautofs_8c_source.html#l00143">autofs_opts_t::mnt_base</a>, <a class="el" href="brixautofs_8c_source.html#l00144">autofs_opts_t::repos</a>, and <a class="el" href="brixautofs_8c_source.html#l00138">autofs_opts_t::spawn_timeout_s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00599">af_parse_opts()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00622">af_parse_opts()</a>.</p>
 
 </div>
 </div>
@@ -799,11 +1021,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00599">599</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00622">622</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00579">af_opts_o_list()</a>, <a class="el" href="brixautofs_8c_source.html#l00142">autofs_opts_t::cache_base</a>, <a class="el" href="brixautofs_8c_source.html#l00141">autofs_opts_t::debug</a>, <a class="el" href="brixautofs_8c_source.html#l00140">autofs_opts_t::foreground</a>, <a class="el" href="brixautofs_8c_source.html#l00137">autofs_opts_t::idle_s</a>, and <a class="el" href="brixautofs_8c_source.html#l00138">autofs_opts_t::spawn_timeout_s</a>.</p>
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00602">af_opts_o_list()</a>, <a class="el" href="brixautofs_8c_source.html#l00142">autofs_opts_t::cache_base</a>, <a class="el" href="brixautofs_8c_source.html#l00141">autofs_opts_t::debug</a>, <a class="el" href="brixautofs_8c_source.html#l00140">autofs_opts_t::foreground</a>, <a class="el" href="brixautofs_8c_source.html#l00137">autofs_opts_t::idle_s</a>, and <a class="el" href="brixautofs_8c_source.html#l00138">autofs_opts_t::spawn_timeout_s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>.</p>
 
 </div>
 </div>
@@ -865,9 +1087,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00398">398</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00447">447</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8h_source.html#l00020">BRIXAUTOFS_FREE</a>, <a class="el" href="brixautofs_8h_source.html#l00016">BRIXAUTOFS_MAX_REPOS</a>, <a class="el" href="brixautofs_8c_source.html#l00037">brixautofs_valid_fqrn()</a>, <a class="el" href="brixautofs_8h_source.html#l00026">brixautofs_slot_t::fqrn</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00155">autofs_state_t::ghost</a>, <a class="el" href="brixautofs_8h_source.html#l00033">brixautofs_table_t::mu</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="brixautofs_8c_source.html#l00156">autofs_state_t::nghost</a>, <a class="el" href="brixautofs_8c_source.html#l00154">autofs_state_t::repos</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>, <a class="el" href="brixautofs_8h_source.html#l00027">brixautofs_slot_t::st</a>, <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00436">af_fill_mounted()</a>, <a class="el" href="brixautofs_8c_source.html#l00418">af_ghost_name()</a>, <a class="el" href="brixautofs_8c_source.html#l00428">af_seen_has()</a>, <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8h_source.html#l00016">BRIXAUTOFS_MAX_REPOS</a>, <a class="el" href="brixautofs_8c_source.html#l00037">brixautofs_valid_fqrn()</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
 </div>
 </div>
@@ -941,11 +1163,97 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00469">469</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00492">492</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00193">af_child_path()</a>, <a class="el" href="brixautofs_8c_source.html#l00176">af_is_mounted()</a>, <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00213">af_umount_path()</a>, <a class="el" href="brixautofs_8c_source.html#l00106">brixautofs_find_pid_locked()</a>, <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8c_source.html#l00102">brixautofs_release_locked()</a>, <a class="el" href="brixautofs_8h_source.html#l00026">brixautofs_slot_t::fqrn</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8h_source.html#l00033">brixautofs_table_t::mu</a>, <a class="el" href="brixautofs_8c_source.html#l00160">autofs_state_t::shutting_down</a>, <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>, and <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00528">af_control_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00551">af_control_thread()</a>.</p>
+
+</div>
+</div>
+<a id="a5c73ffe341d9eeb79b1f8d82e2f11e91" name="a5c73ffe341d9eeb79b1f8d82e2f11e91"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5c73ffe341d9eeb79b1f8d82e2f11e91">&#9670;&#160;</a></span>af_repos_nth_token()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int af_repos_nth_token </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>list</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>idx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>outsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00400">400</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00418">af_ghost_name()</a>.</p>
+
+</div>
+</div>
+<a id="a08f29238279241bd6e634b073345d0c0" name="a08f29238279241bd6e634b073345d0c0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a08f29238279241bd6e634b073345d0c0">&#9670;&#160;</a></span>af_run()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int af_run </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00786">786</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00551">af_control_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00572">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00516">af_teardown_children()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixautofs_8c_source.html#l00151">autofs_state_t::etc</a>, <a class="el" href="brixautofs_8c_source.html#l00158">autofs_state_t::fuse</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00137">autofs_opts_t::idle_s</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>, <a class="el" href="brixautofs_8c_source.html#l00159">autofs_state_t::sigpipe</a>, and <a class="el" href="brixautofs_8c_source.html#l00153">autofs_state_t::strict</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>.</p>
 
 </div>
 </div>
@@ -973,11 +1281,91 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00624">624</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00647">647</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8h_source.html#l00016">BRIXAUTOFS_MAX_REPOS</a>, <a class="el" href="brixautofs_8c_source.html#l00037">brixautofs_valid_fqrn()</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00155">autofs_state_t::ghost</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="brixautofs_8c_source.html#l00156">autofs_state_t::nghost</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00704">af_load_repo_config()</a>.</p>
+
+</div>
+</div>
+<a id="afb7aa35aa7a2b13854961bb4fcfbae42" name="afb7aa35aa7a2b13854961bb4fcfbae42"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afb7aa35aa7a2b13854961bb4fcfbae42">&#9670;&#160;</a></span>af_seen_has()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int af_seen_has </td>
+          <td>(</td>
+          <td class="paramtype">char&#160;</td>
+          <td class="paramname"><em>seen</em>[][256], </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>nseen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00428">428</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00447">af_readdir()</a>.</p>
+
+</div>
+</div>
+<a id="a46355b22c48ae1a870d5c8c780dc0eec" name="a46355b22c48ae1a870d5c8c780dc0eec"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a46355b22c48ae1a870d5c8c780dc0eec">&#9670;&#160;</a></span>af_setup_mount_farm()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int af_setup_mount_farm </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00670">670</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00198">af_mkdir_p()</a>, <a class="el" href="brixautofs_8c_source.html#l00142">autofs_opts_t::cache_base</a>, <a class="el" href="brixautofs_8c_source.html#l00150">autofs_state_t::farm</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, <a class="el" href="brixautofs_8c_source.html#l00143">autofs_opts_t::mnt_base</a>, <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>, and <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>.</p>
 
 </div>
 </div>
@@ -1005,11 +1393,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00461">461</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00484">484</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, and <a class="el" href="brixautofs_8c_source.html#l00159">autofs_state_t::sigpipe</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00762">af_install_signals()</a>.</p>
 
 </div>
 </div>
@@ -1069,11 +1457,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00493">493</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00516">516</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00193">af_child_path()</a>, <a class="el" href="brixautofs_8c_source.html#l00213">af_umount_path()</a>, <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="brixautofs_8h_source.html#l00020">BRIXAUTOFS_FREE</a>, <a class="el" href="brixautofs_8h_source.html#l00016">BRIXAUTOFS_MAX_REPOS</a>, <a class="el" href="brixautofs_8c_source.html#l00102">brixautofs_release_locked()</a>, <a class="el" href="brixautofs_8h_source.html#l00026">brixautofs_slot_t::fqrn</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8h_source.html#l00033">brixautofs_table_t::mu</a>, <a class="el" href="brixautofs_8h_source.html#l00028">brixautofs_slot_t::pid</a>, <a class="el" href="brixautofs_8c_source.html#l00160">autofs_state_t::shutting_down</a>, <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>, <a class="el" href="brixautofs_8h_source.html#l00027">brixautofs_slot_t::st</a>, and <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00528">af_control_thread()</a>, and <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00551">af_control_thread()</a>, and <a class="el" href="brixautofs_8c_source.html#l00786">af_run()</a>.</p>
 
 </div>
 </div>
@@ -1105,7 +1493,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00176">af_is_mounted()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00528">af_control_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00493">af_teardown_children()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00551">af_control_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, and <a class="el" href="brixautofs_8c_source.html#l00516">af_teardown_children()</a>.</p>
 
 </div>
 </div>
@@ -1247,7 +1635,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00020">BRIXAUTOFS_FREE</a>, <a class="el" href="brixautofs_8h_source.html#l00016">BRIXAUTOFS_MAX_REPOS</a>, <a class="el" href="brixautofs_8h_source.html#l00028">brixautofs_slot_t::pid</a>, <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>, and <a class="el" href="brixautofs_8h_source.html#l00027">brixautofs_slot_t::st</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00076">test_table()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00076">test_table()</a>.</p>
 
 </div>
 </div>
@@ -1277,9 +1665,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00643">643</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00807">807</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00528">af_control_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00549">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00165">af_log()</a>, <a class="el" href="brixautofs_8c_source.html#l00198">af_mkdir_p()</a>, <a class="el" href="brixautofs_8c_source.html#l00452">af_ops</a>, <a class="el" href="brixautofs_8c_source.html#l00599">af_parse_opts()</a>, <a class="el" href="brixautofs_8c_source.html#l00624">af_scan_configured()</a>, <a class="el" href="brixautofs_8c_source.html#l00461">af_signal()</a>, <a class="el" href="brixautofs_8c_source.html#l00493">af_teardown_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00139">autofs_opts_t::allow_other</a>, <a class="el" href="brixautofs_8c_source.html#l00074">brixautofs_table_init()</a>, <a class="el" href="brixautofs_8c_source.html#l00142">autofs_opts_t::cache_base</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixautofs_8c_source.html#l00141">autofs_opts_t::debug</a>, <a class="el" href="brixautofs_8c_source.html#l00151">autofs_state_t::etc</a>, <a class="el" href="brixautofs_8c_source.html#l00150">autofs_state_t::farm</a>, <a class="el" href="brixautofs_8c_source.html#l00140">autofs_opts_t::foreground</a>, <a class="el" href="brixautofs_8c_source.html#l00158">autofs_state_t::fuse</a>, <a class="el" href="brixautofs_8c_source.html#l00145">autofs_opts_t::fuse_extra</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00137">autofs_opts_t::idle_s</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, <a class="el" href="brixautofs_8c_source.html#l00143">autofs_opts_t::mnt_base</a>, <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="brixautofs_8c_source.html#l00144">autofs_opts_t::repos</a>, <a class="el" href="brixautofs_8c_source.html#l00154">autofs_state_t::repos</a>, <a class="el" href="brixautofs_8c_source.html#l00159">autofs_state_t::sigpipe</a>, <a class="el" href="brixautofs_8c_source.html#l00153">autofs_state_t::strict</a>, and <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>.</p>
+<p class="reference">References <a class="el" href="brixautofs_8c_source.html#l00727">af_fuse_bringup()</a>, <a class="el" href="brixautofs_8c_source.html#l00762">af_install_signals()</a>, <a class="el" href="brixautofs_8c_source.html#l00704">af_load_repo_config()</a>, <a class="el" href="brixautofs_8c_source.html#l00622">af_parse_opts()</a>, <a class="el" href="brixautofs_8c_source.html#l00786">af_run()</a>, <a class="el" href="brixautofs_8c_source.html#l00670">af_setup_mount_farm()</a>, <a class="el" href="brixautofs_8c_source.html#l00074">brixautofs_table_init()</a>, <a class="el" href="brixautofs_8c_source.html#l00151">autofs_state_t::etc</a>, <a class="el" href="brixautofs_8c_source.html#l00163">g_af</a>, <a class="el" href="brixautofs_8c_source.html#l00149">autofs_state_t::mnt</a>, <a class="el" href="brixautofs_8c_source.html#l00152">autofs_state_t::o</a>, and <a class="el" href="brixautofs_8c_source.html#l00157">autofs_state_t::tab</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="brixmount_8c_source.html#l00144">main()</a>.</p>
 
@@ -1315,7 +1703,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00314">af_ensure_repo()</a>, <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00493">af_teardown_children()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00076">test_table()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00314">af_ensure_repo()</a>, <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00516">af_teardown_children()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00076">test_table()</a>.</p>
 
 </div>
 </div>
@@ -1373,7 +1761,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00033">brixautofs_table_t::mu</a>, and <a class="el" href="brixautofs_8h_source.html#l00032">brixautofs_table_t::slot</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00076">test_table()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00076">test_table()</a>.</p>
 
 </div>
 </div>
@@ -1397,7 +1785,7 @@ Variables</h2></td></tr>
 
 <p class="reference">References <a class="el" href="brixautofs_8h_source.html#l00017">BRIXAUTOFS_FQRN_MAX</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00303">af_admit()</a>, <a class="el" href="brixautofs_8c_source.html#l00398">af_readdir()</a>, <a class="el" href="brixautofs_8c_source.html#l00624">af_scan_configured()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00019">test_valid_fqrn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00303">af_admit()</a>, <a class="el" href="brixautofs_8c_source.html#l00447">af_readdir()</a>, <a class="el" href="brixautofs_8c_source.html#l00647">af_scan_configured()</a>, and <a class="el" href="brixautofs__unittest_8c_source.html#l00019">test_valid_fqrn()</a>.</p>
 
 </div>
 </div>
@@ -1429,12 +1817,12 @@ Variables</h2></td></tr>
 <div class="line">}</div>
 <div class="ttc" id="abrixautofs_8c_html_a2d681b9f982531a7f44e886add761626"><div class="ttname"><a href="brixautofs_8c.html#a2d681b9f982531a7f44e886add761626">af_opendir</a></div><div class="ttdeci">static int af_opendir(const char *path, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixautofs_8c_source.html#l00390">brixautofs.c:390</a></div></div>
 <div class="ttc" id="abrixautofs_8c_html_a31a35d85469b070353aa78877c6443ef"><div class="ttname"><a href="brixautofs_8c.html#a31a35d85469b070353aa78877c6443ef">af_getattr</a></div><div class="ttdeci">static int af_getattr(const char *path, struct stat *st, struct fuse_file_info *fi)</div><div class="ttdef"><b>Definition</b> <a href="brixautofs_8c_source.html#l00367">brixautofs.c:367</a></div></div>
-<div class="ttc" id="abrixautofs_8c_html_a523150a4e8f8180b14ee31e0fe8cf1ab"><div class="ttname"><a href="brixautofs_8c.html#a523150a4e8f8180b14ee31e0fe8cf1ab">af_readdir</a></div><div class="ttdeci">static int af_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t off, struct fuse_file_info *fi, enum fuse_readdir_flags flags)</div><div class="ttdef"><b>Definition</b> <a href="brixautofs_8c_source.html#l00398">brixautofs.c:398</a></div></div>
+<div class="ttc" id="abrixautofs_8c_html_a523150a4e8f8180b14ee31e0fe8cf1ab"><div class="ttname"><a href="brixautofs_8c.html#a523150a4e8f8180b14ee31e0fe8cf1ab">af_readdir</a></div><div class="ttdeci">static int af_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t off, struct fuse_file_info *fi, enum fuse_readdir_flags flags)</div><div class="ttdef"><b>Definition</b> <a href="brixautofs_8c_source.html#l00447">brixautofs.c:447</a></div></div>
 <div class="ttc" id="abrixautofs_8c_html_aca45d811253dbd5367aa4e1eba474dc9"><div class="ttname"><a href="brixautofs_8c.html#aca45d811253dbd5367aa4e1eba474dc9">af_readlink</a></div><div class="ttdeci">static int af_readlink(const char *path, char *buf, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="brixautofs_8c_source.html#l00379">brixautofs.c:379</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00452">452</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00475">475</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00727">af_fuse_bringup()</a>.</p>
 
 </div>
 </div>
@@ -1460,7 +1848,7 @@ Variables</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="brixautofs_8c_source.html#l00163">163</a> of file <a class="el" href="brixautofs_8c_source.html">brixautofs.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00303">af_admit()</a>, <a class="el" href="brixautofs_8c_source.html#l00242">af_child_opts()</a>, <a class="el" href="brixautofs_8c_source.html#l00193">af_child_path()</a>, <a class="el" href="brixautofs_8c_source.html#l00528">af_control_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00314">af_ensure_repo()</a>, <a class="el" href="brixautofs_8c_source.html#l00549">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00398">af_readdir()</a>, <a class="el" href="brixautofs_8c_source.html#l00469">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00624">af_scan_configured()</a>, <a class="el" href="brixautofs_8c_source.html#l00461">af_signal()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, <a class="el" href="brixautofs_8c_source.html#l00493">af_teardown_children()</a>, and <a class="el" href="brixautofs_8c_source.html#l00643">brixautofs_main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brixautofs_8c_source.html#l00303">af_admit()</a>, <a class="el" href="brixautofs_8c_source.html#l00242">af_child_opts()</a>, <a class="el" href="brixautofs_8c_source.html#l00193">af_child_path()</a>, <a class="el" href="brixautofs_8c_source.html#l00551">af_control_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00314">af_ensure_repo()</a>, <a class="el" href="brixautofs_8c_source.html#l00436">af_fill_mounted()</a>, <a class="el" href="brixautofs_8c_source.html#l00727">af_fuse_bringup()</a>, <a class="el" href="brixautofs_8c_source.html#l00418">af_ghost_name()</a>, <a class="el" href="brixautofs_8c_source.html#l00572">af_idle_thread()</a>, <a class="el" href="brixautofs_8c_source.html#l00762">af_install_signals()</a>, <a class="el" href="brixautofs_8c_source.html#l00704">af_load_repo_config()</a>, <a class="el" href="brixautofs_8c_source.html#l00492">af_reap_children()</a>, <a class="el" href="brixautofs_8c_source.html#l00786">af_run()</a>, <a class="el" href="brixautofs_8c_source.html#l00647">af_scan_configured()</a>, <a class="el" href="brixautofs_8c_source.html#l00670">af_setup_mount_farm()</a>, <a class="el" href="brixautofs_8c_source.html#l00484">af_signal()</a>, <a class="el" href="brixautofs_8c_source.html#l00254">af_spawn_child()</a>, <a class="el" href="brixautofs_8c_source.html#l00516">af_teardown_children()</a>, and <a class="el" href="brixautofs_8c_source.html#l00807">brixautofs_main()</a>.</p>
 
 </div>
 </div>

@@ -21,5 +21,6 @@ var health__check_8c =
     [ "brix_hc_timeout_handler", "health__check_8c.html#af63fd5dc35949cc9c07915371478ab7a", null ],
     [ "brix_hc_timer_handler", "health__check_8c.html#adcff90c12735d459b61d0eab3da6f08a", null ],
     [ "brix_hc_write_handler", "health__check_8c.html#a795e24c0ec02740b875f3520a5f68f5b", null ],
-    [ "brix_upstream_build_bootstrap", "health__check_8c.html#ae710b61b62fec14972c4be7b3aaca8c4", null ]
+    [ "brix_upstream_build_bootstrap_flags", "health__check_8c.html#a5a35f62fd990d8c2b76c0b30966affb6", null ],
+    [ "brix_upstream_build_login", "health__check_8c.html#a1a37ecdc99deb7901368ebd66bb04c12", null ]
 ];

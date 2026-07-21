@@ -189,11 +189,52 @@ $(document).ready(function(){initNavTree('sd__ceph__compat_8c_source.html',''); 
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__ceph__compat_8c.html#a87e548688ff32ac2afb4c7cfdb0cb876">sd_ceph_oid_is_first_stripe</a>(oid) ? 0 : 1;</div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>}</div>
 </div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="keywordtype">int</span></div>
+<div class="foldopen" id="foldopen00086" data-start="{" data-end="}">
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno"><a class="line" href="sd__ceph__compat_8c.html#ab2a41bac533cebe5be81f081d505d943">   86</a></span><a class="code hl_function" href="sd__ceph__compat_8c.html#ab2a41bac533cebe5be81f081d505d943">sd_ceph_path_child</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *dir, <span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keywordtype">char</span> *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <span class="keywordtype">size_t</span> cap)</div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>{</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    <span class="keywordtype">size_t</span>      dlen;</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *rest;</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *slash;</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    <span class="keywordtype">size_t</span>      n;</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span> </div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    <span class="keywordflow">if</span> (dir == NULL || path == NULL || <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> == NULL</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>        || dir[0] != <span class="charliteral">&#39;/&#39;</span> || path[0] != <span class="charliteral">&#39;/&#39;</span>)</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    {</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    }</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span> </div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    dlen = strlen(dir);</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    <span class="keywordflow">if</span> (dlen == 1) {</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>        rest = path + 1;                       <span class="comment">/* listing the root */</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        <span class="keywordflow">if</span> (strncmp(path, dir, dlen) != 0 || path[dlen] != <span class="charliteral">&#39;/&#39;</span>) {</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>            <span class="keywordflow">return</span> 0;                          <span class="comment">/* outside dir (or a sibling</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment">                                                * sharing dir as a name prefix) */</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>        }</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>        rest = path + dlen + 1;</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    }</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    <span class="keywordflow">if</span> (*rest == <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>        <span class="keywordflow">return</span> 0;                              <span class="comment">/* path IS dir — not a child */</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    }</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    slash = strchr(rest, <span class="charliteral">&#39;/&#39;</span>);</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    n = (slash != NULL) ? (<span class="keywordtype">size_t</span>) (slash - rest) : strlen(rest);</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <span class="keywordflow">if</span> (n == 0 || n + 1 &gt; cap) {</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        <span class="keywordflow">return</span> 0;                              <span class="comment">/* empty / unrepresentable name */</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    }</div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    memcpy(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, rest, n);</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <span class="keywordflow">return</span> (slash != NULL) ? 2 : 1;</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>}</div>
+</div>
 <div class="ttc" id="aparse__x509__internal_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="parse__x509__internal_8h_source.html#l00035">parse_x509_internal.h:35</a></div></div>
 <div class="ttc" id="asd__ceph__compat_8c_html_a362bf26fd928737a6912f8480e319485"><div class="ttname"><a href="sd__ceph__compat_8c.html#a362bf26fd928737a6912f8480e319485">sd_ceph_oid_to_pfn</a></div><div class="ttdeci">int sd_ceph_oid_to_pfn(const char *oid, char *pfn, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="sd__ceph__compat_8c_source.html#l00045">sd_ceph_compat.c:45</a></div></div>
 <div class="ttc" id="asd__ceph__compat_8c_html_a54e38498e51683b1e6424fd523e0e9ed"><div class="ttname"><a href="sd__ceph__compat_8c.html#a54e38498e51683b1e6424fd523e0e9ed">SUFFIX</a></div><div class="ttdeci">#define SUFFIX</div><div class="ttdef"><b>Definition</b> <a href="sd__ceph__compat_8c_source.html#l00009">sd_ceph_compat.c:9</a></div></div>
 <div class="ttc" id="asd__ceph__compat_8c_html_a5a10308ce506a5645ae1e8b5e18dfded"><div class="ttname"><a href="sd__ceph__compat_8c.html#a5a10308ce506a5645ae1e8b5e18dfded">SUFFIX_LEN</a></div><div class="ttdeci">#define SUFFIX_LEN</div><div class="ttdef"><b>Definition</b> <a href="sd__ceph__compat_8c_source.html#l00010">sd_ceph_compat.c:10</a></div></div>
 <div class="ttc" id="asd__ceph__compat_8c_html_a87e548688ff32ac2afb4c7cfdb0cb876"><div class="ttname"><a href="sd__ceph__compat_8c.html#a87e548688ff32ac2afb4c7cfdb0cb876">sd_ceph_oid_is_first_stripe</a></div><div class="ttdeci">int sd_ceph_oid_is_first_stripe(const char *oid)</div><div class="ttdef"><b>Definition</b> <a href="sd__ceph__compat_8c_source.html#l00030">sd_ceph_compat.c:30</a></div></div>
+<div class="ttc" id="asd__ceph__compat_8c_html_ab2a41bac533cebe5be81f081d505d943"><div class="ttname"><a href="sd__ceph__compat_8c.html#ab2a41bac533cebe5be81f081d505d943">sd_ceph_path_child</a></div><div class="ttdeci">int sd_ceph_path_child(const char *dir, const char *path, char *name, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="sd__ceph__compat_8c_source.html#l00086">sd_ceph_compat.c:86</a></div></div>
 <div class="ttc" id="asd__ceph__compat_8c_html_ac4262d5c90677bf45cab4bd504f9c348"><div class="ttname"><a href="sd__ceph__compat_8c.html#ac4262d5c90677bf45cab4bd504f9c348">sd_ceph_oid_is_stripe_data</a></div><div class="ttdeci">int sd_ceph_oid_is_stripe_data(const char *oid)</div><div class="ttdef"><b>Definition</b> <a href="sd__ceph__compat_8c_source.html#l00063">sd_ceph_compat.c:63</a></div></div>
 <div class="ttc" id="asd__ceph__compat_8c_html_ae0759bc30b9fca8cc767875025310eef"><div class="ttname"><a href="sd__ceph__compat_8c.html#ae0759bc30b9fca8cc767875025310eef">sd_ceph_first_stripe</a></div><div class="ttdeci">int sd_ceph_first_stripe(const char *name, char *oid, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="sd__ceph__compat_8c_source.html#l00013">sd_ceph_compat.c:13</a></div></div>
 <div class="ttc" id="asd__ceph__compat_8h_html"><div class="ttname"><a href="sd__ceph__compat_8h.html">sd_ceph_compat.h</a></div></div>

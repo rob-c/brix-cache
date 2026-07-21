@@ -37,7 +37,7 @@ Every new implementation of a 20-year-old protocol earns skepticism, and it shou
         fails the build if any protocol handler reaches around the seam — the migration to that rule
         was tracked as a monotone counter, 56 violations down to 0, and it is not allowed to grow back.
         That is why POSIX, block-store, and S3 backends sit under the same protocol front-ends without
-        the front-ends knowing.</p> <p class="mono faq-cite" data-astro-cid-6kmwghhu>tools/ci/check_vfs_seam.sh · docs/11-architecture/overview.md</p> </div> </details><details class="faq-item" data-astro-cid-6kmwghhu> <summary class="faq-q" data-astro-cid-6kmwghhu>“So it’s really just XRootD-flavoured HTTP underneath.”</summary> <div class="faq-a" data-astro-cid-6kmwghhu> <p class="muted" data-astro-cid-6kmwghhu>No — it is one binary with two native fronts. The <span class="mono">stream&nbsp;{}</span>
+        the front-ends knowing.</p> <p class="mono faq-cite" data-astro-cid-6kmwghhu>tools/ci/check_vfs_seam.py · docs/11-architecture/overview.md</p> </div> </details><details class="faq-item" data-astro-cid-6kmwghhu> <summary class="faq-q" data-astro-cid-6kmwghhu>“So it’s really just XRootD-flavoured HTTP underneath.”</summary> <div class="faq-a" data-astro-cid-6kmwghhu> <p class="muted" data-astro-cid-6kmwghhu>No — it is one binary with two native fronts. The <span class="mono">stream&nbsp;{}</span>
         block speaks the binary <span class="mono">kXR</span> protocol; the
         <span class="mono">http&nbsp;{}</span> block speaks WebDAV, S3, and metrics. Both converge on
         the same auth layer, the same path confinement, the same VFS, the same cache — written once.
@@ -131,7 +131,7 @@ Every new implementation of a 20-year-old protocol earns skepticism, and it shou
         symlink cannot walk out of the export even if a check were missed above. When an audit found an
         S3 UploadPartCopy path that bypassed the resolver, it was fixed by routing it through the same
         confined-open helper — and that class of bug is exactly what the single-seam CI guard exists to
-        prevent recurring.</p> <p class="mono faq-cite" data-astro-cid-6kmwghhu>src/fs/path/beneath.c · tools/ci/check_vfs_seam.sh</p> </div> </details><details class="faq-item" data-astro-cid-6kmwghhu> <summary class="faq-q" data-astro-cid-6kmwghhu>“Multi-user means it runs as root, and an nginx module running as root is a nightmare.”</summary> <div class="faq-a" data-astro-cid-6kmwghhu> <p class="muted" data-astro-cid-6kmwghhu>Workers are standard unprivileged nginx workers. Per-request UNIX identity is applied through a
+        prevent recurring.</p> <p class="mono faq-cite" data-astro-cid-6kmwghhu>src/fs/path/beneath.c · tools/ci/check_vfs_seam.py</p> </div> </details><details class="faq-item" data-astro-cid-6kmwghhu> <summary class="faq-q" data-astro-cid-6kmwghhu>“Multi-user means it runs as root, and an nginx module running as root is a nightmare.”</summary> <div class="faq-a" data-astro-cid-6kmwghhu> <p class="muted" data-astro-cid-6kmwghhu>Workers are standard unprivileged nginx workers. Per-request UNIX identity is applied through a
         small privileged broker process holding only <span class="mono">CAP_SETUID/SETGID</span>,
         double-forked away from worker memory — and that boundary has been through nine adversarial
         red-team rounds (224 growing to 3,842 checks) without a breach. Backend credentials go further:

@@ -7,5 +7,8 @@ var ftp__ev__xfer_8c =
     [ "ev_list_fill", "ftp__ev__xfer_8c.html#a17ad43a3e81c7c98c4156a49d6f5c9b1", null ],
     [ "ev_list_write", "ftp__ev__xfer_8c.html#aa1bc8abe9fd5605aaff9ccb22ac6c38b", null ],
     [ "ev_retr_write", "ftp__ev__xfer_8c.html#a862a3bfce37f8056b2b96d389b5cab89", null ],
-    [ "ev_stor_read", "ftp__ev__xfer_8c.html#a24827a8855d27de427b656946090ed2d", null ]
+    [ "ev_stor_read", "ftp__ev__xfer_8c.html#a24827a8855d27de427b656946090ed2d", null ],
+    [ "ev_xfer_alloc_dc", "ftp__ev__xfer_8c.html#ac95c82d4174bf207fd9304df6ceb1de6", null ],
+    [ "ev_xfer_guards", "ftp__ev__xfer_8c.html#a707a83b2bf552cf3f2b993b94db2ba83", null ],
+    [ "ev_xfer_resolve_start", "ftp__ev__xfer_8c.html#ac189177bfb94451d1c98153cbd83d185", null ]
 ];

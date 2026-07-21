@@ -350,108 +350,170 @@ $(document).ready(function(){initNavTree('server__recv__parse_8c_source.html',''
 <div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span> </div>
 <div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <a class="code hl_function" href="server__recv__parse_8c.html#a9bce8c37b262c18c014480047e71951c">cms_srv_login_scalars</a>(ctx, &amp;p, end);</div>
 <div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span> </div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <span class="comment">/* SID (ignored) then Paths (extracted). ifList/envCGI ignored. */</span></div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    (void) <a class="code hl_function" href="server__recv__parse_8c.html#a64e7f93749641a6a24636c21fc1d515e">cms_srv_read_string</a>(&amp;p, end, &amp;sid, &amp;sid_len);</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="server__recv__parse_8c.html#a64e7f93749641a6a24636c21fc1d515e">cms_srv_read_string</a>(&amp;p, end, &amp;paths, &amp;paths_len)) {</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>        paths = NULL;</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        paths_len = 0;</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    }</div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span> </div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span><span class="comment">     * Convert &quot;&lt;type&gt; &lt;path&gt;\n&lt;type&gt; &lt;path&gt;...&quot; -&gt; colon-delimited bare paths.</span></div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span><span class="comment">     * Each newline segment is &quot;&lt;type&gt; &lt;path&gt;&quot;; the path follows the first</span></div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span><span class="comment">     * space.  A segment without a space is taken verbatim as the path.</span></div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    dst     = (u_char *) ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">paths</a>;</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    dst_end = dst + <span class="keyword">sizeof</span>(ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">paths</a>) - 1;</div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    i = 0;</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    <span class="keywordflow">while</span> (dst &lt; dst_end</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>           &amp;&amp; <a class="code hl_function" href="server__recv__parse_8c.html#aef961dfb5d72d8a1869fe80a7754cd2a">cms_srv_login_next_path</a>(paths, paths_len, &amp;i, &amp;<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, &amp;tok_len))</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>    {</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>        <a class="code hl_function" href="server__recv__parse_8c.html#ae2d5a69a0d99d005b456e37b24853baf">cms_srv_login_append_path</a>(ctx, &amp;dst, dst_end, <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, tok_len);</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    }</div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    *dst = <span class="charliteral">&#39;\0&#39;</span>;</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span> </div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    <span class="comment">/* Default XRootD port if the data server didn&#39;t advertise one. */</span></div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <span class="keywordflow">if</span> (ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">port</a> == 0) {</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>        ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">port</a> = <a class="code hl_define" href="opcodes_8h.html#ab32b2b7d84ae27914609baafd86d3095">BRIX_DEFAULT_PORT</a>;</div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    }</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span> </div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>    <span class="keywordflow">return</span> 1;</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>}</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    <span class="comment">/* SID (ignored) then Paths (extracted); ifList ignored, envCGI scanned</span></div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span><span class="comment">     * for the vnid token below. */</span></div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    (void) <a class="code hl_function" href="server__recv__parse_8c.html#a64e7f93749641a6a24636c21fc1d515e">cms_srv_read_string</a>(&amp;p, end, &amp;sid, &amp;sid_len);</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    <span class="keywordflow">if</span> (!<a class="code hl_function" href="server__recv__parse_8c.html#a64e7f93749641a6a24636c21fc1d515e">cms_srv_read_string</a>(&amp;p, end, &amp;paths, &amp;paths_len)) {</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        paths = NULL;</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>        paths_len = 0;</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>    }</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span> </div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span><span class="comment">     * Convert &quot;&lt;type&gt; &lt;path&gt;\n&lt;type&gt; &lt;path&gt;...&quot; -&gt; colon-delimited bare paths.</span></div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span><span class="comment">     * Each newline segment is &quot;&lt;type&gt; &lt;path&gt;&quot;; the path follows the first</span></div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span><span class="comment">     * space.  A segment without a space is taken verbatim as the path.</span></div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    dst     = (u_char *) ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">paths</a>;</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    dst_end = dst + <span class="keyword">sizeof</span>(ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">paths</a>) - 1;</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    i = 0;</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    <span class="keywordflow">while</span> (dst &lt; dst_end</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>           &amp;&amp; <a class="code hl_function" href="server__recv__parse_8c.html#aef961dfb5d72d8a1869fe80a7754cd2a">cms_srv_login_next_path</a>(paths, paths_len, &amp;i, &amp;<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, &amp;tok_len))</div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    {</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>        <a class="code hl_function" href="server__recv__parse_8c.html#ae2d5a69a0d99d005b456e37b24853baf">cms_srv_login_append_path</a>(ctx, &amp;dst, dst_end, <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, tok_len);</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    }</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    *dst = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span><span class="comment">     * Phase-89 W9: extract the virtual network id from envCGI (&quot;&amp;&quot;-separated</span></div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span><span class="comment">     * CGI tokens; stock cmsd emits &quot;vnid=&lt;id&gt;&quot;).  ifList is skipped to reach</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment">     * it in wire order.  Absent/empty → ctx-&gt;vnid stays &quot;&quot;.</span></div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a04b85a488e19a2a3745f74cb831dd3dd">vnid</a>[0] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    {</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>        <span class="keyword">const</span> u_char  *iflist, *env, *<a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>;</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>        <span class="keywordtype">size_t</span>         iflist_len, env_len, i, vl;</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span> </div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="server__recv__parse_8c.html#a64e7f93749641a6a24636c21fc1d515e">cms_srv_read_string</a>(&amp;p, end, &amp;iflist, &amp;iflist_len)</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>            &amp;&amp; <a class="code hl_function" href="server__recv__parse_8c.html#a64e7f93749641a6a24636c21fc1d515e">cms_srv_read_string</a>(&amp;p, end, &amp;env, &amp;env_len))</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>        {</div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>            <span class="keywordflow">for</span> (i = 0; i + 5 &lt;= env_len; i++) {</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>                <span class="keywordflow">if</span> ((i == 0 || env[i - 1] == <span class="charliteral">&#39;&amp;&#39;</span>)</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>                    &amp;&amp; ngx_strncmp(env + i, <span class="stringliteral">&quot;vnid=&quot;</span>, 5) == 0)</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>                {</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>                    <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a> = env + i + 5;</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>                    vl  = 0;</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>                    <span class="keywordflow">while</span> (i + 5 + vl &lt; env_len &amp;&amp; <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>[vl] != <span class="charliteral">&#39;&amp;&#39;</span></div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>                           &amp;&amp; <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>[vl] != <span class="charliteral">&#39;\0&#39;</span> &amp;&amp; vl &lt; <span class="keyword">sizeof</span>(ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a04b85a488e19a2a3745f74cb831dd3dd">vnid</a>) - 1)</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>                    {</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>                        ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a04b85a488e19a2a3745f74cb831dd3dd">vnid</a>[vl] = (char) <a class="code hl_variable" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>[vl];</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>                        vl++;</div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>                    }</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>                    ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#a04b85a488e19a2a3745f74cb831dd3dd">vnid</a>[vl] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>                    <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>                }</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>            }</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>        }</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>    }</div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span> </div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>    <span class="comment">/* Default XRootD port if the data server didn&#39;t advertise one. */</span></div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>    <span class="keywordflow">if</span> (ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">port</a> == 0) {</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>        ctx-&gt;<a class="code hl_variable" href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">port</a> = <a class="code hl_define" href="opcodes_8h.html#ab32b2b7d84ae27914609baafd86d3095">BRIX_DEFAULT_PORT</a>;</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>    }</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span> </div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>    <span class="keywordflow">return</span> 1;</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>}</div>
 </div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span> </div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span><span class="comment">/* LOAD/AVAIL payload parsers */</span></div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span> </div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span><span class="comment"> * LOAD payload (from cms/send.c):</span></div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span><span class="comment"> *   PT_SHORT  count=6      (3 bytes)</span></div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span><span class="comment"> *   &lt;6 raw bytes&gt;          (cpu load values, ignored)</span></div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span><span class="comment"> *   PT_INT    free_mb      (5 bytes)  ← extracted</span></div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>uint32_t</div>
-<div class="foldopen" id="foldopen00279" data-start="{" data-end="}">
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno"><a class="line" href="server__recv__internal_8h.html#ac5dfd88d69b11f64f4c3676aaaaadea6">  279</a></span><a class="code hl_function" href="server__recv__parse_8c.html#ac5dfd88d69b11f64f4c3676aaaaadea6">cms_srv_parse_load_free_mb</a>(<span class="keyword">const</span> u_char *payload, <span class="keywordtype">size_t</span> payload_len)</div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>{</div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    <span class="keyword">const</span> u_char  *p   = payload;</div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>    <span class="keyword">const</span> u_char  *end = payload + payload_len;</div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span> </div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    <span class="comment">/* count field */</span></div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    (void) <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span> </div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    <span class="comment">/* skip 6 raw CPU bytes */</span></div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    <span class="keywordflow">if</span> (end - p &gt;= 6) {</div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>        p += 6;</div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>    } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    }</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span> </div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>}</div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span> </div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span><span class="comment">/* LOAD/AVAIL payload parsers */</span></div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span> </div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span><span class="comment"> * LOAD payload (from cms/send.c):</span></div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span><span class="comment"> *   PT_SHORT  count=6      (3 bytes)</span></div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span><span class="comment"> *   &lt;6 raw bytes&gt;          (cpu load values, ignored)</span></div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span><span class="comment"> *   PT_INT    free_mb      (5 bytes)  ← extracted</span></div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>uint32_t</div>
+<div class="foldopen" id="foldopen00312" data-start="{" data-end="}">
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno"><a class="line" href="server__recv__internal_8h.html#ac5dfd88d69b11f64f4c3676aaaaadea6">  312</a></span><a class="code hl_function" href="server__recv__parse_8c.html#ac5dfd88d69b11f64f4c3676aaaaadea6">cms_srv_parse_load_free_mb</a>(<span class="keyword">const</span> u_char *payload, <span class="keywordtype">size_t</span> payload_len)</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>{</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>    <span class="keyword">const</span> u_char  *p   = payload;</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>    <span class="keyword">const</span> u_char  *end = payload + payload_len;</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span> </div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    <span class="comment">/* count field */</span></div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>    (void) <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span> </div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>    <span class="comment">/* skip 6 raw CPU bytes */</span></div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>    <span class="keywordflow">if</span> (end - p &gt;= 6) {</div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>        p += 6;</div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>    } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>    }</div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span> </div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>}</div>
 </div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span> </div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span><span class="comment"> * AVAIL payload (from cms/send.c):</span></div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span><span class="comment"> *   PT_INT    free_mb      (5 bytes)  ← extracted</span></div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span><span class="comment"> *   PT_INT    util_pct     (5 bytes)  ← extracted</span></div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span><span class="comment"> * Used for both CMS_RR_AVAIL and CMS_RR_SPACE.</span></div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00305" data-start="{" data-end="}">
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno"><a class="line" href="server__recv__internal_8h.html#ade71a6bca966cb4ab359caa0d0d10467">  305</a></span><a class="code hl_function" href="server__recv__parse_8c.html#ade71a6bca966cb4ab359caa0d0d10467">cms_srv_parse_avail</a>(<span class="keyword">const</span> u_char *payload, <span class="keywordtype">size_t</span> payload_len,</div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    uint32_t *free_mb, uint32_t *util_pct)</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>{</div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>    <span class="keyword">const</span> u_char  *p   = payload;</div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    <span class="keyword">const</span> u_char  *end = payload + payload_len;</div>
-<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span> </div>
-<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    *free_mb  = <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
-<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>    *util_pct = <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>}</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span> </div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span><span class="comment"> * cms_srv_parse_load_machine_pct — extract the machine-load percentage from</span></div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span><span class="comment"> * the LOAD payload&#39;s 6 theLoad bytes: the max of cpu/net/xeq/mem/pag (the</span></div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span><span class="comment"> * bottleneck resource; dsk is excluded — disk fill is already tracked as</span></div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span><span class="comment"> * util_pct/free_mb).  Returns 0-100; a short payload reads as 0 (idle),</span></div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span><span class="comment"> * matching the parser&#39;s general missing-field-decodes-as-zero posture.</span></div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>uint32_t</div>
+<div class="foldopen" id="foldopen00338" data-start="{" data-end="}">
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno"><a class="line" href="server__recv__internal_8h.html#a4fb9406ab65a9d409cee39c5455922a1">  338</a></span><a class="code hl_function" href="server__recv__parse_8c.html#a4fb9406ab65a9d409cee39c5455922a1">cms_srv_parse_load_machine_pct</a>(<span class="keyword">const</span> u_char *payload, <span class="keywordtype">size_t</span> payload_len)</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>{</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>    uint32_t  best = 0;</div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>    <span class="keywordtype">size_t</span>    i;</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span> </div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>    <span class="comment">/* [2-byte blob len][6 load bytes ...] — the 5 machine bytes start at 2. */</span></div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>    <span class="keywordflow">if</span> (payload_len &lt; 2 + 5) {</div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>    }</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>    <span class="keywordflow">for</span> (i = 2; i &lt; 2 + 5; i++) {</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>        <span class="keywordflow">if</span> (payload[i] &gt; best) {</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>            best = payload[i];</div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>        }</div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    }</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    <span class="keywordflow">return</span> best &gt; 100 ? 100 : best;</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>}</div>
+</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span> </div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span><span class="comment"> * AVAIL payload (from cms/send.c):</span></div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span><span class="comment"> *   PT_INT    free_mb      (5 bytes)  ← extracted</span></div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span><span class="comment"> *   PT_INT    util_pct     (5 bytes)  ← extracted</span></div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span><span class="comment"> * Used for both CMS_RR_AVAIL and CMS_RR_SPACE.</span></div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00363" data-start="{" data-end="}">
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno"><a class="line" href="server__recv__internal_8h.html#ade71a6bca966cb4ab359caa0d0d10467">  363</a></span><a class="code hl_function" href="server__recv__parse_8c.html#ade71a6bca966cb4ab359caa0d0d10467">cms_srv_parse_avail</a>(<span class="keyword">const</span> u_char *payload, <span class="keywordtype">size_t</span> payload_len,</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    uint32_t *free_mb, uint32_t *util_pct)</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>{</div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>    <span class="keyword">const</span> u_char  *p   = payload;</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    <span class="keyword">const</span> u_char  *end = payload + payload_len;</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span> </div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>    *free_mb  = <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>    *util_pct = <a class="code hl_function" href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a>(&amp;p, end);</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>}</div>
 </div>
 <div class="ttc" id="acms__internal_8h_html_a0b5e6fe14a9ab73cf4fa4f2389cb0228"><div class="ttname"><a href="cms__internal_8h.html#a0b5e6fe14a9ab73cf4fa4f2389cb0228">ngx_brix_cms_get32</a></div><div class="ttdeci">uint32_t ngx_brix_cms_get32(const u_char *p)</div><div class="ttdef"><b>Definition</b> <a href="wire_8c_source.html#l00034">wire.c:34</a></div></div>
-<div class="ttc" id="acms__internal_8h_html_a13e2a8af006f37ecac68d2244d6add7c"><div class="ttname"><a href="cms__internal_8h.html#a13e2a8af006f37ecac68d2244d6add7c">CMS_PT_INT</a></div><div class="ttdeci">#define CMS_PT_INT</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00132">cms_internal.h:132</a></div></div>
+<div class="ttc" id="acms__internal_8h_html_a13e2a8af006f37ecac68d2244d6add7c"><div class="ttname"><a href="cms__internal_8h.html#a13e2a8af006f37ecac68d2244d6add7c">CMS_PT_INT</a></div><div class="ttdeci">#define CMS_PT_INT</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00133">cms_internal.h:133</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a512bd94b14d58ca0c566a023ff4259c2"><div class="ttname"><a href="cms__internal_8h.html#a512bd94b14d58ca0c566a023ff4259c2">ngx_brix_cms_get16</a></div><div class="ttdeci">uint16_t ngx_brix_cms_get16(const u_char *p)</div><div class="ttdef"><b>Definition</b> <a href="wire_8c_source.html#l00027">wire.c:27</a></div></div>
-<div class="ttc" id="acms__internal_8h_html_ab2a5748171e6b3a33eac23b23f3f345f"><div class="ttname"><a href="cms__internal_8h.html#ab2a5748171e6b3a33eac23b23f3f345f">CMS_PT_SHORT</a></div><div class="ttdeci">#define CMS_PT_SHORT</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00131">cms_internal.h:131</a></div></div>
+<div class="ttc" id="acms__internal_8h_html_ab2a5748171e6b3a33eac23b23f3f345f"><div class="ttname"><a href="cms__internal_8h.html#ab2a5748171e6b3a33eac23b23f3f345f">CMS_PT_SHORT</a></div><div class="ttdeci">#define CMS_PT_SHORT</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00132">cms_internal.h:132</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ab32b2b7d84ae27914609baafd86d3095"><div class="ttname"><a href="opcodes_8h.html#ab32b2b7d84ae27914609baafd86d3095">BRIX_DEFAULT_PORT</a></div><div class="ttdeci">#define BRIX_DEFAULT_PORT</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00008">opcodes.h:8</a></div></div>
 <div class="ttc" id="aput__body_8c_html_a245cabc3bef72dcd807971c43731f28d"><div class="ttname"><a href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a></div><div class="ttdeci">const char * tok</div><div class="ttdef"><b>Definition</b> <a href="put__body_8c_source.html#l00052">put_body.c:52</a></div></div>
 <div class="ttc" id="aserver_8h_html"><div class="ttname"><a href="server_8h.html">server.h</a></div></div>
 <div class="ttc" id="aserver__recv__internal_8h_html"><div class="ttname"><a href="server__recv__internal_8h.html">server_recv_internal.h</a></div></div>
 <div class="ttc" id="aserver__recv__parse_8c_html_a20c1afafcec420d6cf4691e09ce9a082"><div class="ttname"><a href="server__recv__parse_8c.html#a20c1afafcec420d6cf4691e09ce9a082">cms_srv_parse_login</a></div><div class="ttdeci">int cms_srv_parse_login(brix_cms_srv_ctx_t *ctx, const u_char *payload, size_t payload_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00223">server_recv_parse.c:223</a></div></div>
+<div class="ttc" id="aserver__recv__parse_8c_html_a4fb9406ab65a9d409cee39c5455922a1"><div class="ttname"><a href="server__recv__parse_8c.html#a4fb9406ab65a9d409cee39c5455922a1">cms_srv_parse_load_machine_pct</a></div><div class="ttdeci">uint32_t cms_srv_parse_load_machine_pct(const u_char *payload, size_t payload_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00338">server_recv_parse.c:338</a></div></div>
 <div class="ttc" id="aserver__recv__parse_8c_html_a64e7f93749641a6a24636c21fc1d515e"><div class="ttname"><a href="server__recv__parse_8c.html#a64e7f93749641a6a24636c21fc1d515e">cms_srv_read_string</a></div><div class="ttdeci">static int cms_srv_read_string(const u_char **p, const u_char *end, const u_char **out, size_t *out_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00071">server_recv_parse.c:71</a></div></div>
 <div class="ttc" id="aserver__recv__parse_8c_html_a9bce8c37b262c18c014480047e71951c"><div class="ttname"><a href="server__recv__parse_8c.html#a9bce8c37b262c18c014480047e71951c">cms_srv_login_scalars</a></div><div class="ttdeci">static void cms_srv_login_scalars(brix_cms_srv_ctx_t *ctx, const u_char **p, const u_char *end)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00112">server_recv_parse.c:112</a></div></div>
 <div class="ttc" id="aserver__recv__parse_8c_html_aa1a03a1530fd1d10a5ddf0420a8bb65b"><div class="ttname"><a href="server__recv__parse_8c.html#aa1a03a1530fd1d10a5ddf0420a8bb65b">tlv_read_next</a></div><div class="ttdeci">static uint32_t tlv_read_next(const u_char **p, const u_char *end)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00036">server_recv_parse.c:36</a></div></div>
 <div class="ttc" id="aserver__recv__parse_8c_html_ab5e12a1c5a8f7b128961d75c755aa884"><div class="ttname"><a href="server__recv__parse_8c.html#ab5e12a1c5a8f7b128961d75c755aa884">cms_srv_login_seg_path</a></div><div class="ttdeci">static void cms_srv_login_seg_path(const u_char **tok, size_t *tok_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00134">server_recv_parse.c:134</a></div></div>
-<div class="ttc" id="aserver__recv__parse_8c_html_ac5dfd88d69b11f64f4c3676aaaaadea6"><div class="ttname"><a href="server__recv__parse_8c.html#ac5dfd88d69b11f64f4c3676aaaaadea6">cms_srv_parse_load_free_mb</a></div><div class="ttdeci">uint32_t cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00279">server_recv_parse.c:279</a></div></div>
-<div class="ttc" id="aserver__recv__parse_8c_html_ade71a6bca966cb4ab359caa0d0d10467"><div class="ttname"><a href="server__recv__parse_8c.html#ade71a6bca966cb4ab359caa0d0d10467">cms_srv_parse_avail</a></div><div class="ttdeci">void cms_srv_parse_avail(const u_char *payload, size_t payload_len, uint32_t *free_mb, uint32_t *util_pct)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00305">server_recv_parse.c:305</a></div></div>
+<div class="ttc" id="aserver__recv__parse_8c_html_ac5dfd88d69b11f64f4c3676aaaaadea6"><div class="ttname"><a href="server__recv__parse_8c.html#ac5dfd88d69b11f64f4c3676aaaaadea6">cms_srv_parse_load_free_mb</a></div><div class="ttdeci">uint32_t cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00312">server_recv_parse.c:312</a></div></div>
+<div class="ttc" id="aserver__recv__parse_8c_html_ade71a6bca966cb4ab359caa0d0d10467"><div class="ttname"><a href="server__recv__parse_8c.html#ade71a6bca966cb4ab359caa0d0d10467">cms_srv_parse_avail</a></div><div class="ttdeci">void cms_srv_parse_avail(const u_char *payload, size_t payload_len, uint32_t *free_mb, uint32_t *util_pct)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00363">server_recv_parse.c:363</a></div></div>
 <div class="ttc" id="aserver__recv__parse_8c_html_ae2d5a69a0d99d005b456e37b24853baf"><div class="ttname"><a href="server__recv__parse_8c.html#ae2d5a69a0d99d005b456e37b24853baf">cms_srv_login_append_path</a></div><div class="ttdeci">static void cms_srv_login_append_path(brix_cms_srv_ctx_t *ctx, u_char **dst, u_char *dst_end, const u_char *tok, size_t tok_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00202">server_recv_parse.c:202</a></div></div>
 <div class="ttc" id="aserver__recv__parse_8c_html_aef961dfb5d72d8a1869fe80a7754cd2a"><div class="ttname"><a href="server__recv__parse_8c.html#aef961dfb5d72d8a1869fe80a7754cd2a">cms_srv_login_next_path</a></div><div class="ttdeci">static int cms_srv_login_next_path(const u_char *paths, size_t paths_len, size_t *i, const u_char **tok, size_t *tok_len)</div><div class="ttdef"><b>Definition</b> <a href="server__recv__parse_8c_source.html#l00165">server_recv_parse.c:165</a></div></div>
-<div class="ttc" id="astructbrix__cms__srv__ctx__t_html"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a></div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00036">server.h:36</a></div></div>
-<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_a22d32341b8078e946d50ffa563b4c143"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#a22d32341b8078e946d50ffa563b4c143">brix_cms_srv_ctx_t::free_mb</a></div><div class="ttdeci">uint32_t free_mb</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00046">server.h:46</a></div></div>
-<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_a8878034af7867eb9e4a398d3b16cd168"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">brix_cms_srv_ctx_t::paths</a></div><div class="ttdeci">char paths[1024]</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00045">server.h:45</a></div></div>
-<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_a8c00bbdcc05f9f698f31f165a16ee2cf"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#a8c00bbdcc05f9f698f31f165a16ee2cf">brix_cms_srv_ctx_t::util_pct</a></div><div class="ttdeci">uint32_t util_pct</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00047">server.h:47</a></div></div>
-<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_ad481886b6c54488d571cd1244b262548"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">brix_cms_srv_ctx_t::port</a></div><div class="ttdeci">uint16_t port</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00044">server.h:44</a></div></div>
+<div class="ttc" id="astructbrix__cms__srv__ctx__t_html"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a></div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00037">server.h:37</a></div></div>
+<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_a04b85a488e19a2a3745f74cb831dd3dd"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#a04b85a488e19a2a3745f74cb831dd3dd">brix_cms_srv_ctx_t::vnid</a></div><div class="ttdeci">char vnid[64]</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00047">server.h:47</a></div></div>
+<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_a22d32341b8078e946d50ffa563b4c143"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#a22d32341b8078e946d50ffa563b4c143">brix_cms_srv_ctx_t::free_mb</a></div><div class="ttdeci">uint32_t free_mb</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00048">server.h:48</a></div></div>
+<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_a8878034af7867eb9e4a398d3b16cd168"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168">brix_cms_srv_ctx_t::paths</a></div><div class="ttdeci">char paths[1024]</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00046">server.h:46</a></div></div>
+<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_a8c00bbdcc05f9f698f31f165a16ee2cf"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#a8c00bbdcc05f9f698f31f165a16ee2cf">brix_cms_srv_ctx_t::util_pct</a></div><div class="ttdeci">uint32_t util_pct</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00049">server.h:49</a></div></div>
+<div class="ttc" id="astructbrix__cms__srv__ctx__t_html_ad481886b6c54488d571cd1244b262548"><div class="ttname"><a href="structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548">brix_cms_srv_ctx_t::port</a></div><div class="ttdeci">uint16_t port</div><div class="ttdef"><b>Definition</b> <a href="server_8h_source.html#l00045">server.h:45</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

@@ -101,6 +101,7 @@ $(document).ready(function(){initNavTree('geo__answer_8c.html',''); initResizabl
 <div class="textblock"><code>#include &quot;<a class="el" href="cvmfs_8h_source.html">cvmfs.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="origin__geo_8h_source.html">origin_geo.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2core_2aio_2aio_8h_source.html">core/aio/aio.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="fnv_8h_source.html">core/fnv.h</a>&quot;</code><br />
 <code>#include &lt;stdint.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
@@ -182,7 +183,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00036">36</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00037">37</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
 </div>
 </div>
@@ -198,7 +199,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00042">42</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00043">43</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
 </div>
 </div>
@@ -214,7 +215,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00041">41</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00042">42</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
 </div>
 </div>
@@ -230,7 +231,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00034">34</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00035">35</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
 </div>
 </div>
@@ -246,7 +247,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00035">35</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00036">36</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
 </div>
 </div>
@@ -277,11 +278,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00414">414</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00415">415</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00058">cvmfs_geo_task_t::body</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="cvmfs_8h_source.html#l00157">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="geo__answer_8c_source.html#l00272">cvmfs_geo_cache_read()</a>, <a class="el" href="geo__answer_8c_source.html#l00377">cvmfs_geo_done()</a>, <a class="el" href="geo__answer_8c_source.html#l00236">cvmfs_geo_parse()</a>, <a class="el" href="geo__answer_8c_source.html#l00316">cvmfs_geo_thread()</a>, <a class="el" href="cvmfs_8h_source.html#l00125">brix_cvmfs_conf_t::geo_cache_ttl</a>, <a class="el" href="cvmfs_8h_source.html#l00126">brix_cvmfs_conf_t::geo_max_servers</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00055">cvmfs_geo_task_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00266">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf_8h_source.html#l00265">ngx_http_brix_shared_conf_t::thread_pool_name</a>, and <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::ttl</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00059">cvmfs_geo_task_t::body</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="cvmfs_8h_source.html#l00157">ngx_http_brix_cvmfs_loc_conf_t::common</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="geo__answer_8c_source.html#l00273">cvmfs_geo_cache_read()</a>, <a class="el" href="geo__answer_8c_source.html#l00378">cvmfs_geo_done()</a>, <a class="el" href="geo__answer_8c_source.html#l00237">cvmfs_geo_parse()</a>, <a class="el" href="geo__answer_8c_source.html#l00317">cvmfs_geo_thread()</a>, <a class="el" href="cvmfs_8h_source.html#l00125">brix_cvmfs_conf_t::geo_cache_ttl</a>, <a class="el" href="cvmfs_8h_source.html#l00126">brix_cvmfs_conf_t::geo_max_servers</a>, <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00266">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf_8h_source.html#l00265">ngx_http_brix_shared_conf_t::thread_pool_name</a>, and <a class="el" href="geo__answer_8c_source.html#l00058">cvmfs_geo_task_t::ttl</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00263">brix_cvmfs_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00264">brix_cvmfs_gate()</a>.</p>
 
 </div>
 </div>
@@ -319,11 +320,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00298">298</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00299">299</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00071">cvmfs_geo_cache</a>, <a class="el" href="geo__answer_8c_source.html#l00036">CVMFS_GEO_CACHE_SLOTS</a>, <a class="el" href="geo__answer_8c_source.html#l00074">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00046">cvmfs_geo_entry_t::host</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::port</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="geo__answer_8c_source.html#l00051">cvmfs_geo_entry_t::sample_us</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00072">cvmfs_geo_cache</a>, <a class="el" href="geo__answer_8c_source.html#l00037">CVMFS_GEO_CACHE_SLOTS</a>, <a class="el" href="geo__answer_8c_source.html#l00075">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::host</a>, <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::port</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, and <a class="el" href="geo__answer_8c_source.html#l00052">cvmfs_geo_entry_t::sample_us</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00334">cvmfs_geo_render()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00335">cvmfs_geo_render()</a>.</p>
 
 </div>
 </div>
@@ -361,11 +362,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00272">272</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00273">273</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00050">cvmfs_geo_entry_t::cached_ewma</a>, <a class="el" href="geo__answer_8c_source.html#l00071">cvmfs_geo_cache</a>, <a class="el" href="geo__answer_8c_source.html#l00036">CVMFS_GEO_CACHE_SLOTS</a>, <a class="el" href="geo__answer_8c_source.html#l00074">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00060">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00046">cvmfs_geo_entry_t::host</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::port</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::ttl</a>, and <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::valid</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00051">cvmfs_geo_entry_t::cached_ewma</a>, <a class="el" href="geo__answer_8c_source.html#l00072">cvmfs_geo_cache</a>, <a class="el" href="geo__answer_8c_source.html#l00037">CVMFS_GEO_CACHE_SLOTS</a>, <a class="el" href="geo__answer_8c_source.html#l00075">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00061">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::host</a>, <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00050">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::port</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>, <a class="el" href="geo__answer_8c_source.html#l00058">cvmfs_geo_task_t::ttl</a>, and <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::valid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00414">brix_cvmfs_geo_answer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00415">brix_cvmfs_geo_answer()</a>.</p>
 
 </div>
 </div>
@@ -393,11 +394,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00377">377</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00378">378</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00058">cvmfs_geo_task_t::body</a>, <a class="el" href="geo__answer_8c_source.html#l00059">cvmfs_geo_task_t::body_len</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="geo__answer_8c_source.html#l00334">cvmfs_geo_render()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="geo__answer_8c_source.html#l00055">cvmfs_geo_task_t::r</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00059">cvmfs_geo_task_t::body</a>, <a class="el" href="geo__answer_8c_source.html#l00060">cvmfs_geo_task_t::body_len</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="geo__answer_8c_source.html#l00335">cvmfs_geo_render()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::r</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00414">brix_cvmfs_geo_answer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00415">brix_cvmfs_geo_answer()</a>.</p>
 
 </div>
 </div>
@@ -435,11 +436,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00074">74</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00075">75</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
+<p class="reference">References <a class="el" href="fnv_8h_source.html#l00023">BRIX_FNV1A64_OFFSET_BASIS</a>, <a class="el" href="fnv_8h_source.html#l00024">BRIX_FNV1A64_PRIME</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00298">cvmfs_geo_cache_fold()</a>, and <a class="el" href="geo__answer_8c_source.html#l00272">cvmfs_geo_cache_read()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00299">cvmfs_geo_cache_fold()</a>, and <a class="el" href="geo__answer_8c_source.html#l00273">cvmfs_geo_cache_read()</a>.</p>
 
 </div>
 </div>
@@ -483,11 +484,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00236">236</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00237">237</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00034">CVMFS_GEO_MAX_ENTRIES</a>, <a class="el" href="geo__answer_8c_source.html#l00205">cvmfs_geo_parse_entry()</a>, <a class="el" href="geo__answer_8c_source.html#l00060">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::n</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::valid</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00035">CVMFS_GEO_MAX_ENTRIES</a>, <a class="el" href="geo__answer_8c_source.html#l00206">cvmfs_geo_parse_entry()</a>, <a class="el" href="geo__answer_8c_source.html#l00061">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::n</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::valid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00414">brix_cvmfs_geo_answer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00415">brix_cvmfs_geo_answer()</a>.</p>
 
 </div>
 </div>
@@ -531,11 +532,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00205">205</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00206">206</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00050">cvmfs_geo_entry_t::cached_ewma</a>, <a class="el" href="geo__answer_8c_source.html#l00092">cvmfs_geo_port_allowed()</a>, <a class="el" href="geo__answer_8c_source.html#l00118">cvmfs_geo_scan_host()</a>, <a class="el" href="geo__answer_8c_source.html#l00161">cvmfs_geo_scan_port()</a>, <a class="el" href="geo__answer_8c_source.html#l00046">cvmfs_geo_entry_t::host</a>, <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::port</a>, <a class="el" href="geo__answer_8c_source.html#l00051">cvmfs_geo_entry_t::sample_us</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::valid</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00051">cvmfs_geo_entry_t::cached_ewma</a>, <a class="el" href="geo__answer_8c_source.html#l00093">cvmfs_geo_port_allowed()</a>, <a class="el" href="geo__answer_8c_source.html#l00119">cvmfs_geo_scan_host()</a>, <a class="el" href="geo__answer_8c_source.html#l00162">cvmfs_geo_scan_port()</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::host</a>, <a class="el" href="geo__answer_8c_source.html#l00050">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::port</a>, <a class="el" href="geo__answer_8c_source.html#l00052">cvmfs_geo_entry_t::sample_us</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::valid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00236">cvmfs_geo_parse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00237">cvmfs_geo_parse()</a>.</p>
 
 </div>
 </div>
@@ -563,11 +564,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00092">92</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00093">93</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00205">cvmfs_geo_parse_entry()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00206">cvmfs_geo_parse_entry()</a>.</p>
 
 </div>
 </div>
@@ -605,11 +606,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00334">334</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00335">335</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00058">cvmfs_geo_task_t::body</a>, <a class="el" href="geo__answer_8c_source.html#l00059">cvmfs_geo_task_t::body_len</a>, <a class="el" href="origin__geo_8c_source.html#l00029">brix_cvmfs_rank_by_metric()</a>, <a class="el" href="geo__answer_8c_source.html#l00050">cvmfs_geo_entry_t::cached_ewma</a>, <a class="el" href="geo__answer_8c_source.html#l00298">cvmfs_geo_cache_fold()</a>, <a class="el" href="geo__answer_8c_source.html#l00042">CVMFS_GEO_M_UNPROBED</a>, <a class="el" href="geo__answer_8c_source.html#l00041">CVMFS_GEO_M_UNREACHABLE</a>, <a class="el" href="geo__answer_8c_source.html#l00034">CVMFS_GEO_MAX_ENTRIES</a>, <a class="el" href="geo__answer_8c_source.html#l00060">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="geo__answer_8c_source.html#l00051">cvmfs_geo_entry_t::sample_us</a>, and <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::valid</a>.</p>
+<p class="reference">References <a class="el" href="geo__answer_8c_source.html#l00059">cvmfs_geo_task_t::body</a>, <a class="el" href="geo__answer_8c_source.html#l00060">cvmfs_geo_task_t::body_len</a>, <a class="el" href="origin__geo_8c_source.html#l00029">brix_cvmfs_rank_by_metric()</a>, <a class="el" href="geo__answer_8c_source.html#l00051">cvmfs_geo_entry_t::cached_ewma</a>, <a class="el" href="geo__answer_8c_source.html#l00299">cvmfs_geo_cache_fold()</a>, <a class="el" href="geo__answer_8c_source.html#l00043">CVMFS_GEO_M_UNPROBED</a>, <a class="el" href="geo__answer_8c_source.html#l00042">CVMFS_GEO_M_UNREACHABLE</a>, <a class="el" href="geo__answer_8c_source.html#l00035">CVMFS_GEO_MAX_ENTRIES</a>, <a class="el" href="geo__answer_8c_source.html#l00061">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00050">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="geo__answer_8c_source.html#l00052">cvmfs_geo_entry_t::sample_us</a>, and <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::valid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00377">cvmfs_geo_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00378">cvmfs_geo_done()</a>.</p>
 
 </div>
 </div>
@@ -659,11 +660,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00118">118</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00119">119</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00205">cvmfs_geo_parse_entry()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00206">cvmfs_geo_parse_entry()</a>.</p>
 
 </div>
 </div>
@@ -707,11 +708,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00161">161</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00162">162</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00205">cvmfs_geo_parse_entry()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00206">cvmfs_geo_parse_entry()</a>.</p>
 
 </div>
 </div>
@@ -749,11 +750,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00316">316</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00317">317</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__probe_8c_source.html#l00099">brix_cvmfs_connect_rtt_us()</a>, <a class="el" href="geo__answer_8c_source.html#l00035">CVMFS_GEO_PROBE_TIMEOUT_MS</a>, <a class="el" href="geo__answer_8c_source.html#l00060">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00046">cvmfs_geo_entry_t::host</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="geo__answer_8c_source.html#l00056">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::port</a>, <a class="el" href="geo__answer_8c_source.html#l00051">cvmfs_geo_entry_t::sample_us</a>, and <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::valid</a>.</p>
+<p class="reference">References <a class="el" href="origin__probe_8c_source.html#l00099">brix_cvmfs_connect_rtt_us()</a>, <a class="el" href="geo__answer_8c_source.html#l00036">CVMFS_GEO_PROBE_TIMEOUT_MS</a>, <a class="el" href="geo__answer_8c_source.html#l00061">cvmfs_geo_task_t::e</a>, <a class="el" href="geo__answer_8c_source.html#l00047">cvmfs_geo_entry_t::host</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="geo__answer_8c_source.html#l00057">cvmfs_geo_task_t::n</a>, <a class="el" href="geo__answer_8c_source.html#l00050">cvmfs_geo_entry_t::need_probe</a>, <a class="el" href="geo__answer_8c_source.html#l00048">cvmfs_geo_entry_t::port</a>, <a class="el" href="geo__answer_8c_source.html#l00052">cvmfs_geo_entry_t::sample_us</a>, and <a class="el" href="geo__answer_8c_source.html#l00049">cvmfs_geo_entry_t::valid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00414">brix_cvmfs_geo_answer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00415">brix_cvmfs_geo_answer()</a>.</p>
 
 </div>
 </div>
@@ -778,9 +779,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00071">71</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="geo__answer_8c_source.html#l00072">72</a> of file <a class="el" href="geo__answer_8c_source.html">geo_answer.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00298">cvmfs_geo_cache_fold()</a>, and <a class="el" href="geo__answer_8c_source.html#l00272">cvmfs_geo_cache_read()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="geo__answer_8c_source.html#l00299">cvmfs_geo_cache_fold()</a>, and <a class="el" href="geo__answer_8c_source.html#l00273">cvmfs_geo_cache_read()</a>.</p>
 
 </div>
 </div>

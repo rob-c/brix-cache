@@ -1,6 +1,7 @@
 var structbrix__hc__ctx__t =
 [
     [ "blacklist_ms", "structbrix__hc__ctx__t.html#a89d0e2fa55b152f9ae6481e3cff2b529", null ],
+    [ "conf", "structbrix__hc__ctx__t.html#ac6212c0d13d7169aa1ae0556f1db9771", null ],
     [ "conn", "structbrix__hc__ctx__t.html#a0243df568c6f9b6f3bc330ba1996a7f5", null ],
     [ "connecting", "structbrix__hc__ctx__t.html#aa4c764b0894e28b8debc377189518cdd", null ],
     [ "host", "structbrix__hc__ctx__t.html#ac2cf7eed237c5b2adf3df5e12f7c9e54", null ],
@@ -17,6 +18,8 @@ var structbrix__hc__ctx__t =
     [ "rhdr_pos", "structbrix__hc__ctx__t.html#a2fb5cdf417fbc6026cee1d3d28783d55", null ],
     [ "tev", "structbrix__hc__ctx__t.html#a82d9c081bcfbab7e445ad18e766ad067", null ],
     [ "threshold", "structbrix__hc__ctx__t.html#ae478bf2f251d1218dca3541815445dbb", null ],
+    [ "tls", "structbrix__hc__ctx__t.html#ac1d4229ce870564383f24ca7911f4765", null ],
+    [ "tls_capable", "structbrix__hc__ctx__t.html#af2351ff480dece04dde8fa6c08a26632", null ],
     [ "wbuf", "structbrix__hc__ctx__t.html#a264960702ac6a53d5f53581ecd0f2724", null ],
     [ "wbuf_len", "structbrix__hc__ctx__t.html#ab284212b79e3d6333b5d04fe1ce11a30", null ],
     [ "wbuf_pos", "structbrix__hc__ctx__t.html#ab14d3015d626ccf916dbf921083b9c30", null ]

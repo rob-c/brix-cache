@@ -2,12 +2,12 @@
 <area shape="rect" id="Node000001" title=" " alt="" coords="6184,5,6333,31"/>
 <area shape="rect" id="Node000002" href="$ngx__brix__module_8h.html" title=" " alt="" coords="4013,86,4214,111"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="6170,25,4215,96,4215,91,6170,20"/>
-<area shape="rect" id="Node000606" href="$writethrough__decision_8h.html" title=" " alt="" coords="6263,79,6449,119"/>
-<area shape="poly" id="edge83_Node000001_Node000606" title=" " alt="" coords="6285,37,6334,76,6331,81,6282,41"/>
-<area shape="rect" id="Node000612" href="$pgw__fob_8h.html" title=" " alt="" coords="6474,79,6609,119"/>
-<area shape="poly" id="edge84_Node000001_Node000612" title=" " alt="" coords="6313,32,6475,76,6473,81,6312,37"/>
-<area shape="rect" id="Node000613" href="$wrts__journal_8h.html" title=" " alt="" coords="6084,79,6239,119"/>
-<area shape="poly" id="edge85_Node000001_Node000613" title=" " alt="" coords="6235,41,6186,81,6183,76,6232,37"/>
+<area shape="rect" id="Node000612" href="$writethrough__decision_8h.html" title=" " alt="" coords="6263,79,6449,119"/>
+<area shape="poly" id="edge83_Node000001_Node000612" title=" " alt="" coords="6285,37,6334,76,6331,81,6282,41"/>
+<area shape="rect" id="Node000618" href="$pgw__fob_8h.html" title=" " alt="" coords="6474,79,6609,119"/>
+<area shape="poly" id="edge84_Node000001_Node000618" title=" " alt="" coords="6313,32,6475,76,6473,81,6312,37"/>
+<area shape="rect" id="Node000619" href="$wrts__journal_8h.html" title=" " alt="" coords="6084,79,6239,119"/>
+<area shape="poly" id="edge85_Node000001_Node000619" title=" " alt="" coords="6235,41,6186,81,6183,76,6232,37"/>
 <area shape="rect" id="Node000003" href="$auth_2authz_2acc_2config_8c.html" title=" " alt="" coords="7547,167,7687,207"/>
 <area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="4228,98,4933,105,5965,118,6956,137,7320,150,7535,164,7548,166,7547,171,7534,169,7320,155,6956,143,5965,123,4933,110,4228,104"/>
 <area shape="rect" id="Node000004" href="$auth_2authz_2acl_8c.html" title=" " alt="" coords="1253,262,1401,287"/>
@@ -144,5 +144,5 @@
 <area shape="poly" id="edge78_Node000307_Node000259" title=" " alt="" coords="795,212,802,261,797,262,790,213"/>
 <area shape="poly" id="edge79_Node000307_Node000308" title=" " alt="" coords="829,202,944,252,942,257,827,207"/>
 <area shape="poly" id="edge80_Node000307_Node000309" title=" " alt="" coords="852,200,1087,254,1085,259,851,205"/>
-<area shape="poly" id="edge86_Node000613_Node000135" title=" " alt="" coords="6253,116,6505,139,6720,148,6909,146,7085,140,7262,134,7450,133,7664,141,7915,164,7959,171,7958,177,7914,169,7663,147,7450,138,7262,140,7085,146,6909,152,6720,153,6505,144,6252,121"/>
+<area shape="poly" id="edge86_Node000619_Node000135" title=" " alt="" coords="6253,116,6505,139,6720,148,6909,146,7085,140,7262,134,7450,133,7664,141,7915,164,7959,171,7958,177,7914,169,7663,147,7450,138,7262,140,7085,146,6909,152,6720,153,6505,144,6252,121"/>
 </map>

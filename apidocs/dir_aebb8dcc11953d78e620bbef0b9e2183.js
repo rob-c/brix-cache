@@ -9,6 +9,7 @@ var dir_aebb8dcc11953d78e620bbef0b9e2183 =
     [ "shm", "dir_285a02c2ba6f924aa1329b9acdbc5e76.html", "dir_285a02c2ba6f924aa1329b9acdbc5e76" ],
     [ "types", "dir_db97b24157fb8e7b20e6ca312d148718.html", "dir_db97b24157fb8e7b20e6ca312d148718" ],
     [ "feature_flags.h", "feature__flags_8h.html", "feature__flags_8h" ],
+    [ "fnv.h", "fnv_8h.html", "fnv_8h" ],
     [ "ident.h", "ident_8h.html", "ident_8h" ],
     [ "ngx_brix_module.h", "ngx__brix__module_8h.html", "ngx__brix__module_8h" ]
 ];

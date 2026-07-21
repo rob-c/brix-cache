@@ -8,6 +8,7 @@ var structbrix__cms__srv__ctx__t =
     [ "host", "structbrix__cms__srv__ctx__t.html#a268fe60eb83ecfe0f1381a693d825b77", null ],
     [ "idle_timeout_ms", "structbrix__cms__srv__ctx__t.html#a508417987fd32415f886e899eac22cdc", null ],
     [ "in_need", "structbrix__cms__srv__ctx__t.html#a1a697f424eeb95c4101251dea8700b48", null ],
+    [ "in_node_list", "structbrix__cms__srv__ctx__t.html#a3ebc0b8c6bc7131b4796fda5b81962e9", null ],
     [ "in_pos", "structbrix__cms__srv__ctx__t.html#a89a8abf42ff533f8a858c519d57ca5a9", null ],
     [ "inbuf", "structbrix__cms__srv__ctx__t.html#a566cb2cc7ba70e43573a752159bebec6", null ],
     [ "interval_ms", "structbrix__cms__srv__ctx__t.html#a42b68fa99e47cba9ade41023fb2b865d", null ],
@@ -20,5 +21,6 @@ var structbrix__cms__srv__ctx__t =
     [ "sess_attempt_logged", "structbrix__cms__srv__ctx__t.html#ae71689f61b80cba648ca778a29ebdfd3", null ],
     [ "sess_end_hint", "structbrix__cms__srv__ctx__t.html#afce153b8e7e01a988d4b0627186f6436", null ],
     [ "sess_end_hint_set", "structbrix__cms__srv__ctx__t.html#a7b084ef7b46023b927819c43d1ec0384", null ],
-    [ "util_pct", "structbrix__cms__srv__ctx__t.html#a8c00bbdcc05f9f698f31f165a16ee2cf", null ]
+    [ "util_pct", "structbrix__cms__srv__ctx__t.html#a8c00bbdcc05f9f698f31f165a16ee2cf", null ],
+    [ "vnid", "structbrix__cms__srv__ctx__t.html#a04b85a488e19a2a3745f74cb831dd3dd", null ]
 ];

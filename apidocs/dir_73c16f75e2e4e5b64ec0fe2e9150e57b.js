@@ -2,6 +2,8 @@ var dir_73c16f75e2e4e5b64ec0fe2e9150e57b =
 [
     [ "health_check.c", "health__check_8c.html", "health__check_8c" ],
     [ "health_check.h", "health__check_8h.html", "health__check_8h" ],
+    [ "loc_cache.c", "loc__cache_8c.html", "loc__cache_8c" ],
+    [ "loc_cache.h", "loc__cache_8h.html", "loc__cache_8h" ],
     [ "pending.c", "pending_8c.html", "pending_8c" ],
     [ "pending.h", "pending_8h.html", "pending_8h" ],
     [ "redir_cache.c", "redir__cache_8c.html", "redir__cache_8c" ],

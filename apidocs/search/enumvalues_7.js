@@ -1,5 +1,23 @@
 var searchData=
 [
-  ['mb_5fcreate_0',['MB_CREATE',['../metabench_8h.html#a3941fc91b8800859eb0dcc02c4b6589fac9ac875ac0f20b3713fd1f6bd6394f52',1,'metabench.h']]],
-  ['mb_5fremove_1',['MB_REMOVE',['../metabench_8h.html#a3941fc91b8800859eb0dcc02c4b6589fab2d0dc301f46838bb6f3a80dcde4f583',1,'metabench.h']]]
+  ['imp_5fop_5fchmod_0',['IMP_OP_CHMOD',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da7b0de58cdecf5209c2a462de3babbda6',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fchown_1',['IMP_OP_CHOWN',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da2b0815947bd202864bb89d80ce5b91f1',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fgetxattr_2',['IMP_OP_GETXATTR',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da1d2fcb3d9a64a6dbed98d5baba295eef',1,'impersonate_proto.h']]],
+  ['imp_5fop_5flink_3',['IMP_OP_LINK',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da7772490578316d4b23679d00021da8ff',1,'impersonate_proto.h']]],
+  ['imp_5fop_5flistxattr_4',['IMP_OP_LISTXATTR',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da007f98b99ad0bf573ace0993009ad266',1,'impersonate_proto.h']]],
+  ['imp_5fop_5flstat_5',['IMP_OP_LSTAT',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2daa6227e72cadfcfdfc4d378ca5ce0c68d',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fmkdir_6',['IMP_OP_MKDIR',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da3058bfa143aef5452365ba6e7d38218d',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fopen_7',['IMP_OP_OPEN',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da03b5f4a550f37c71b4d470854e05b951',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fping_8',['IMP_OP_PING',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da27d7303d1a05bc793349ad2266a5ebd3',1,'impersonate_proto.h']]],
+  ['imp_5fop_5freadlink_9',['IMP_OP_READLINK',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2dae5ddd2cec90993bcde487ead33340876',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fremovexattr_10',['IMP_OP_REMOVEXATTR',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da624a9b4c88cea208ddf9dfc606672482',1,'impersonate_proto.h']]],
+  ['imp_5fop_5frename_11',['IMP_OP_RENAME',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da2732ca48ecd4d7bb9e08b74296975f26',1,'impersonate_proto.h']]],
+  ['imp_5fop_5frename_5fnoreplace_12',['IMP_OP_RENAME_NOREPLACE',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2dace0bc090306ac1cb9a8833cd64486af9',1,'impersonate_proto.h']]],
+  ['imp_5fop_5frmdir_13',['IMP_OP_RMDIR',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2dad65722b54c3afe7915852c454946c7a8',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fsetattr_14',['IMP_OP_SETATTR',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da3287250cc0f56776dcce9d607b6eb35c',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fsetxattr_15',['IMP_OP_SETXATTR',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da7c4ab11b00e6a5b1c106bb382d333796',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fstat_16',['IMP_OP_STAT',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da448ec18cd8367a5b2529a647ebbad3d8',1,'impersonate_proto.h']]],
+  ['imp_5fop_5fsymlink_17',['IMP_OP_SYMLINK',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da6df25bc30fb12c17d13da8620562827f',1,'impersonate_proto.h']]],
+  ['imp_5fop_5ftruncate_18',['IMP_OP_TRUNCATE',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da3efe6fa90aa5aa45530d39942bc10f2b',1,'impersonate_proto.h']]],
+  ['imp_5fop_5funlink_19',['IMP_OP_UNLINK',['../impersonate__proto_8h.html#a0411cd49bb5b71852cecd93bcbf0ca2da8a98962ff8d90e34293bd1f0e06d8bac',1,'impersonate_proto.h']]]
 ];

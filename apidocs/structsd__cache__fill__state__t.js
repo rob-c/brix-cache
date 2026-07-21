@@ -1,6 +1,8 @@
 var structsd__cache__fill__state__t =
 [
     [ "buf", "structsd__cache__fill__state__t.html#ad62f428d8820dc5f6529e0885126a476", null ],
+    [ "cks_alg", "structsd__cache__fill__state__t.html#ada3196e0737269ab3570820d46ea9632", null ],
+    [ "cks_hex", "structsd__cache__fill__state__t.html#a2351e3c1c73c5c5a40a02a86164775f0", null ],
     [ "from_cold", "structsd__cache__fill__state__t.html#a87a5a15fcbec561a1d7064c11256f7df", null ],
     [ "from_peer", "structsd__cache__fill__state__t.html#a135b246b37294fca825363769ffb8215", null ],
     [ "off", "structsd__cache__fill__state__t.html#a65f964405bcbf704bcad91dcd2612bdc", null ],

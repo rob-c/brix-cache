@@ -129,350 +129,381 @@ $(document).ready(function(){initNavTree('server__conf__merge__cluster_8c_source
 <div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="preprocessor">#include &quot;<a class="code" href="tpc_2common_2registry_8h.html">tpc/common/registry.h</a>&quot;</span>   <span class="comment">/* Phase 39 (WS5): registry reaper max-age */</span></div>
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#include &quot;<a class="code" href="protocols_2root_2session_2registry_8h.html">protocols/root/session/registry.h</a>&quot;</span>   <span class="comment">/* BRIX_SESSION_REGISTRY_SLOTS default */</span></div>
 <div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="preprocessor">#include &quot;<a class="code" href="health__check_8h.html">net/manager/health_check.h</a>&quot;</span> <span class="comment">/* BRIX_HC_TYPE_PING default */</span></div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span> </div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="comment">/* Third-party copy (TPC): local/private allowances, key TTL, transfer caps and</span></div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="comment"> * the abandoned-slot reaper age, and the outbound OAuth2/bearer credentials. */</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00036" data-start="{" data-end="}">
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno"><a class="line" href="server__conf__internal_8h.html#a0630d9a18a8dc0da797db211d5fb65b2">   36</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a0630d9a18a8dc0da797db211d5fb65b2">brix_merge_srv_tpc</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>{</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    ngx_conf_merge_value(conf-&gt;tpc_allow_local,   prev-&gt;tpc_allow_local,   0);</div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    ngx_conf_merge_value(conf-&gt;tpc_allow_private, prev-&gt;tpc_allow_private, 1);</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    ngx_conf_merge_value(conf-&gt;ssi_enable,        prev-&gt;ssi_enable,        0);</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    ngx_conf_merge_value(conf-&gt;ssi_cta_enable,    prev-&gt;ssi_cta_enable,    0);</div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    <span class="comment">/* defaults mirror BRIX_SSI_MAX_INFLIGHT (8) and the 1 MiB req/resp caps. */</span></div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    ngx_conf_merge_uint_value(conf-&gt;ssi_max_inflight, prev-&gt;ssi_max_inflight, 8);</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    ngx_conf_merge_size_value(conf-&gt;ssi_request_max,  prev-&gt;ssi_request_max,  1u &lt;&lt; 20);</div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    ngx_conf_merge_size_value(conf-&gt;ssi_response_max, prev-&gt;ssi_response_max, 1u &lt;&lt; 20);</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    ngx_conf_merge_str_value(conf-&gt;ssi_cta_journal,   prev-&gt;ssi_cta_journal,  <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    ngx_conf_merge_uint_value(conf-&gt;ssi_cta_executor, prev-&gt;ssi_cta_executor, 0);</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    ngx_conf_merge_uint_value(conf-&gt;cns_mode,     prev-&gt;cns_mode,          <a class="code hl_define" href="cns_8h.html#a265152bf9e3aa7e27f2f19ae17238f90">BRIX_CNS_OFF</a>);</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    <span class="keywordflow">if</span> (conf-&gt;cns_mode == <a class="code hl_define" href="cns_8h.html#a38a6818ccfb764e4e8b20a2124afe480">BRIX_CNS_COLLECT</a>) {</div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        <a class="code hl_function" href="cns_8c.html#ac6608f550a4747136134ab6ac3cdf71c">brix_cns_set_collect</a>(1);   <span class="comment">/* §6: this node maintains the CNS inventory */</span></div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    }</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    ngx_conf_merge_value(conf-&gt;tpc_outbound_tls,  prev-&gt;tpc_outbound_tls,  0);</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    ngx_conf_merge_value(conf-&gt;tpc_delegate,      prev-&gt;tpc_delegate,      0);</div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    <span class="comment">/* Phase-70/opportunistic: passthrough of the client&#39;s own inbound bearer JWT</span></div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment">     * to the TPC source is ON by default so token-authenticated pulls forward the</span></div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment">     * end-user identity without any per-server opt-in. The default path is</span></div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment">     * OPPORTUNISTIC (token_mode &quot;passthrough-opt&quot;, set in tpc_init_dst_file): an</span></div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="comment">     * inbound token is used when present, but its ABSENCE falls back to GSI proxy</span></div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="comment">     * delegation / static bearer file / anonymous exactly as before this default</span></div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment">     * flip — never a new denial. Only an explicit client tpc.token_mode=passthrough</span></div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment">     * stays STRICT/fail-closed. Operators can still set the directive to `off`. */</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    ngx_conf_merge_value(conf-&gt;tpc_outbound_passthrough,</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>                         prev-&gt;tpc_outbound_passthrough, 1);</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    ngx_conf_merge_msec_value(conf-&gt;tpc_key_ttl_ms, prev-&gt;tpc_key_ttl_ms,</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>                              <a class="code hl_define" href="key__registry_8h.html#a2f20b06d22d2fa400ab02da0edb4d96b">BRIX_TPC_KEY_TTL_MS</a>);</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <span class="comment">/* Phase 51 (B2): default native-TPC absolute wall-clock cap to a generous</span></div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="comment">     * 24h so a wedged transfer cannot pin a thread-pool worker forever; 0 still</span></div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment">     * means unlimited (back-compat).  Progress-based stall detection (the curl</span></div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment">     * low-speed bounds, webdav/tpc_config.c) is the primary guard — this is only</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment">     * the absolute backstop, large enough never to clip a real transfer. */</span></div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    ngx_conf_merge_uint_value(conf-&gt;tpc_max_transfer_secs,</div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>                              prev-&gt;tpc_max_transfer_secs, 86400);</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    <span class="comment">/* Hostile-network completion/integrity gates for the native TPC pull, both</span></div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="comment">     * default off (a size mismatch always fails regardless; these only govern the</span></div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment">     * &quot;no size&quot; and &quot;verify content checksum&quot; postures). */</span></div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    ngx_conf_merge_value(conf-&gt;tpc_require_source_size,</div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>                         prev-&gt;tpc_require_source_size, 0);</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    ngx_conf_merge_value(conf-&gt;tpc_verify_checksum,</div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>                         prev-&gt;tpc_verify_checksum, 0);</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    ngx_conf_merge_value(conf-&gt;tpc_transfer_max_age,</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>                         prev-&gt;tpc_transfer_max_age, 0);</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    <span class="comment">/* Phase 39 (WS5): publish the abandoned-slot reaper age to the shared TPC</span></div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="comment">     * registry (config-time, before fork).  Guarded so a 0-default block does not</span></div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="comment">     * disable a sibling block that enabled it. */</span></div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    <span class="keywordflow">if</span> (conf-&gt;tpc_transfer_max_age &gt; 0) {</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        <a class="code hl_function" href="tpc_2common_2registry_8c.html#ad89b49e88ecdb35f9fa1ef2d0e88368c">brix_tpc_registry_set_max_age</a>((time_t) conf-&gt;tpc_transfer_max_age);</div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>    }</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_bearer_file,</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>                             prev-&gt;tpc_outbound_bearer_file, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_token_endpoint,</div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>                             prev-&gt;tpc_outbound_token_endpoint, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_client_id,</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>                             prev-&gt;tpc_outbound_client_id, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_client_secret,</div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>                             prev-&gt;tpc_outbound_client_secret, <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_scope,</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>                             prev-&gt;tpc_outbound_scope, <span class="stringliteral">&quot;storage.read&quot;</span>);</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>}</div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="preprocessor">#include &quot;<a class="code" href="net_2manager_2registry_8h.html">net/manager/registry.h</a>&quot;</span>     <span class="comment">/* Phase 89 (W4): load-weight setter */</span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span> </div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="comment">/* Third-party copy (TPC): local/private allowances, key TTL, transfer caps and</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="comment"> * the abandoned-slot reaper age, and the outbound OAuth2/bearer credentials. */</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00037" data-start="{" data-end="}">
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="server__conf__internal_8h.html#a0630d9a18a8dc0da797db211d5fb65b2">   37</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a0630d9a18a8dc0da797db211d5fb65b2">brix_merge_srv_tpc</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>{</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    ngx_conf_merge_value(conf-&gt;tpc_allow_local,   prev-&gt;tpc_allow_local,   0);</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    ngx_conf_merge_value(conf-&gt;tpc_allow_private, prev-&gt;tpc_allow_private, 1);</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    ngx_conf_merge_value(conf-&gt;ssi_enable,        prev-&gt;ssi_enable,        0);</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    ngx_conf_merge_value(conf-&gt;ssi_cta_enable,    prev-&gt;ssi_cta_enable,    0);</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    <span class="comment">/* defaults mirror BRIX_SSI_MAX_INFLIGHT (8) and the 1 MiB req/resp caps. */</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    ngx_conf_merge_uint_value(conf-&gt;ssi_max_inflight, prev-&gt;ssi_max_inflight, 8);</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    ngx_conf_merge_size_value(conf-&gt;ssi_request_max,  prev-&gt;ssi_request_max,  1u &lt;&lt; 20);</div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    ngx_conf_merge_size_value(conf-&gt;ssi_response_max, prev-&gt;ssi_response_max, 1u &lt;&lt; 20);</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    ngx_conf_merge_str_value(conf-&gt;ssi_cta_journal,   prev-&gt;ssi_cta_journal,  <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    ngx_conf_merge_uint_value(conf-&gt;ssi_cta_executor, prev-&gt;ssi_cta_executor, 0);</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    ngx_conf_merge_uint_value(conf-&gt;cns_mode,     prev-&gt;cns_mode,          <a class="code hl_define" href="cns_8h.html#a265152bf9e3aa7e27f2f19ae17238f90">BRIX_CNS_OFF</a>);</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    <span class="keywordflow">if</span> (conf-&gt;cns_mode == <a class="code hl_define" href="cns_8h.html#a38a6818ccfb764e4e8b20a2124afe480">BRIX_CNS_COLLECT</a>) {</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>        <a class="code hl_function" href="cns_8c.html#ac6608f550a4747136134ab6ac3cdf71c">brix_cns_set_collect</a>(1);   <span class="comment">/* §6: this node maintains the CNS inventory */</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>    }</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    ngx_conf_merge_value(conf-&gt;tpc_outbound_tls,  prev-&gt;tpc_outbound_tls,  0);</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    ngx_conf_merge_value(conf-&gt;tpc_delegate,      prev-&gt;tpc_delegate,      0);</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    <span class="comment">/* Phase-70/opportunistic: passthrough of the client&#39;s own inbound bearer JWT</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="comment">     * to the TPC source is ON by default so token-authenticated pulls forward the</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment">     * end-user identity without any per-server opt-in. The default path is</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="comment">     * OPPORTUNISTIC (token_mode &quot;passthrough-opt&quot;, set in tpc_init_dst_file): an</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="comment">     * inbound token is used when present, but its ABSENCE falls back to GSI proxy</span></div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment">     * delegation / static bearer file / anonymous exactly as before this default</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment">     * flip — never a new denial. Only an explicit client tpc.token_mode=passthrough</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="comment">     * stays STRICT/fail-closed. Operators can still set the directive to `off`. */</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    ngx_conf_merge_value(conf-&gt;tpc_outbound_passthrough,</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>                         prev-&gt;tpc_outbound_passthrough, 1);</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    ngx_conf_merge_msec_value(conf-&gt;tpc_key_ttl_ms, prev-&gt;tpc_key_ttl_ms,</div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>                              <a class="code hl_define" href="key__registry_8h.html#a2f20b06d22d2fa400ab02da0edb4d96b">BRIX_TPC_KEY_TTL_MS</a>);</div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>    <span class="comment">/* Phase 51 (B2): default native-TPC absolute wall-clock cap to a generous</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="comment">     * 24h so a wedged transfer cannot pin a thread-pool worker forever; 0 still</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="comment">     * means unlimited (back-compat).  Progress-based stall detection (the curl</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment">     * low-speed bounds, webdav/tpc_config.c) is the primary guard — this is only</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment">     * the absolute backstop, large enough never to clip a real transfer. */</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    ngx_conf_merge_uint_value(conf-&gt;tpc_max_transfer_secs,</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>                              prev-&gt;tpc_max_transfer_secs, 86400);</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="comment">/* Hostile-network completion/integrity gates for the native TPC pull, both</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="comment">     * default off (a size mismatch always fails regardless; these only govern the</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="comment">     * &quot;no size&quot; and &quot;verify content checksum&quot; postures). */</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    ngx_conf_merge_value(conf-&gt;tpc_require_source_size,</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>                         prev-&gt;tpc_require_source_size, 0);</div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    ngx_conf_merge_value(conf-&gt;tpc_verify_checksum,</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>                         prev-&gt;tpc_verify_checksum, 0);</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    ngx_conf_merge_value(conf-&gt;tpc_transfer_max_age,</div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>                         prev-&gt;tpc_transfer_max_age, 0);</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <span class="comment">/* Phase 39 (WS5): publish the abandoned-slot reaper age to the shared TPC</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="comment">     * registry (config-time, before fork).  Guarded so a 0-default block does not</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="comment">     * disable a sibling block that enabled it. */</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>    <span class="keywordflow">if</span> (conf-&gt;tpc_transfer_max_age &gt; 0) {</div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>        <a class="code hl_function" href="tpc_2common_2registry_8c.html#ad89b49e88ecdb35f9fa1ef2d0e88368c">brix_tpc_registry_set_max_age</a>((time_t) conf-&gt;tpc_transfer_max_age);</div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>    }</div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_bearer_file,</div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>                             prev-&gt;tpc_outbound_bearer_file, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_token_endpoint,</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>                             prev-&gt;tpc_outbound_token_endpoint, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_client_id,</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>                             prev-&gt;tpc_outbound_client_id, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_client_secret,</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>                             prev-&gt;tpc_outbound_client_secret, <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    ngx_conf_merge_str_value(conf-&gt;tpc_outbound_scope,</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>                             prev-&gt;tpc_outbound_scope, <span class="stringliteral">&quot;storage.read&quot;</span>);</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>}</div>
 </div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span> </div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment"> * WHAT: merge the node sizing group — manager mode, staged/resumable uploads,</span></div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> *       and the pipeline/registry/session/redirector-cache slot counts.</span></div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> * WHY:  the pipeline-window clamp is its own decision; isolating it keeps the</span></div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> *       cluster orchestrator flat.</span></div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> * HOW:  standard child&lt;-parent inheritance, then clamp pipeline_depth into</span></div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> *       [MIN, MAX] (the recv-loop ring arithmetic needs a positive bounded</span></div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> *       modulus).</span></div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00111" data-start="{" data-end="}">
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">  111</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">brix_merge_srv_cluster_sizing</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>{</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    ngx_conf_merge_value(conf-&gt;manager_mode,         prev-&gt;manager_mode,         0);</div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <a class="code hl_function" href="conf__structs_8h.html#a357aa46b5375001a1790d3b5f9d2290e">brix_node_caps_conf_merge</a>(&amp;conf-&gt;caps, &amp;prev-&gt;caps);</div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="comment">/* Uploads are staged + resumable by DEFAULT (atomic commit-on-close, resume</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment">     * across a restart).  Set brix_upload_resume off to opt out. */</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    ngx_conf_merge_value(conf-&gt;upload_resume,        prev-&gt;upload_resume,        1);</div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    ngx_conf_merge_str_value(conf-&gt;upload_stage_dir, prev-&gt;upload_stage_dir,     <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    ngx_conf_merge_uint_value(conf-&gt;pipeline_depth,  prev-&gt;pipeline_depth,</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>                              <a class="code hl_define" href="tunables_8h.html#ada909e70571784f409a7948bed071346">BRIX_PIPELINE_DEPTH_DEFAULT</a>);</div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    <span class="comment">/* Clamp the in-flight pipeline window to a sane range: &gt;=1 (the recv loop and</span></div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment">     * ring arithmetic require a positive modulus) and &lt;=MAX (bounds per-connection</span></div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment">     * out_ring/rd_pool memory). */</span></div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    <span class="keywordflow">if</span> (conf-&gt;pipeline_depth &lt; <a class="code hl_define" href="tunables_8h.html#aa0933e90b76ac4406fff723abe5aec96">BRIX_PIPELINE_DEPTH_MIN</a>) {</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>        conf-&gt;pipeline_depth = <a class="code hl_define" href="tunables_8h.html#aa0933e90b76ac4406fff723abe5aec96">BRIX_PIPELINE_DEPTH_MIN</a>;</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (conf-&gt;pipeline_depth &gt; <a class="code hl_define" href="tunables_8h.html#a275b73a799e2f88b9c0b926284b768ea">BRIX_PIPELINE_DEPTH_MAX</a>) {</div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        conf-&gt;pipeline_depth = <a class="code hl_define" href="tunables_8h.html#a275b73a799e2f88b9c0b926284b768ea">BRIX_PIPELINE_DEPTH_MAX</a>;</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>    }</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    ngx_conf_merge_uint_value(conf-&gt;registry_slots,  prev-&gt;registry_slots,  128);</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    ngx_conf_merge_uint_value(conf-&gt;session_slots,   prev-&gt;session_slots,</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>                              <a class="code hl_define" href="protocols_2root_2session_2registry_8h.html#a6cdd31a71bb9bf5f54ae20e2ecebf5ed">BRIX_SESSION_REGISTRY_SLOTS</a>);</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="comment">/* Left UNSET when unconfigured; postconfiguration treats UNSET as</span></div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span><span class="comment">     * &quot;use the compile-time default&quot; (BRIX_REDIR_CACHE_SLOTS). */</span></div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    ngx_conf_merge_uint_value(conf-&gt;redir_cache_slots, prev-&gt;redir_cache_slots,</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>                              NGX_CONF_UNSET_UINT);</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>}</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment"> * WHAT: merge the node sizing group — manager mode, staged/resumable uploads,</span></div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment"> *       and the pipeline/registry/session/redirector-cache slot counts.</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="comment"> * WHY:  the pipeline-window clamp is its own decision; isolating it keeps the</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="comment"> *       cluster orchestrator flat.</span></div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment"> * HOW:  standard child&lt;-parent inheritance, then clamp pipeline_depth into</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment"> *       [MIN, MAX] (the recv-loop ring arithmetic needs a positive bounded</span></div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment"> *       modulus).</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00112" data-start="{" data-end="}">
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">  112</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">brix_merge_srv_cluster_sizing</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>{</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    ngx_conf_merge_value(conf-&gt;manager_mode,         prev-&gt;manager_mode,         0);</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <a class="code hl_function" href="conf__structs_8h.html#a357aa46b5375001a1790d3b5f9d2290e">brix_node_caps_conf_merge</a>(&amp;conf-&gt;caps, &amp;prev-&gt;caps);</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>    <span class="comment">/* Uploads are staged + resumable by DEFAULT (atomic commit-on-close, resume</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment">     * across a restart).  Set brix_upload_resume off to opt out. */</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>    ngx_conf_merge_value(conf-&gt;upload_resume,        prev-&gt;upload_resume,        1);</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    ngx_conf_merge_str_value(conf-&gt;upload_stage_dir, prev-&gt;upload_stage_dir,     <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    ngx_conf_merge_uint_value(conf-&gt;pipeline_depth,  prev-&gt;pipeline_depth,</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>                              <a class="code hl_define" href="tunables_8h.html#ada909e70571784f409a7948bed071346">BRIX_PIPELINE_DEPTH_DEFAULT</a>);</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>    <span class="comment">/* Clamp the in-flight pipeline window to a sane range: &gt;=1 (the recv loop and</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment">     * ring arithmetic require a positive modulus) and &lt;=MAX (bounds per-connection</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span><span class="comment">     * out_ring/rd_pool memory). */</span></div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    <span class="keywordflow">if</span> (conf-&gt;pipeline_depth &lt; <a class="code hl_define" href="tunables_8h.html#aa0933e90b76ac4406fff723abe5aec96">BRIX_PIPELINE_DEPTH_MIN</a>) {</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        conf-&gt;pipeline_depth = <a class="code hl_define" href="tunables_8h.html#aa0933e90b76ac4406fff723abe5aec96">BRIX_PIPELINE_DEPTH_MIN</a>;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (conf-&gt;pipeline_depth &gt; <a class="code hl_define" href="tunables_8h.html#a275b73a799e2f88b9c0b926284b768ea">BRIX_PIPELINE_DEPTH_MAX</a>) {</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        conf-&gt;pipeline_depth = <a class="code hl_define" href="tunables_8h.html#a275b73a799e2f88b9c0b926284b768ea">BRIX_PIPELINE_DEPTH_MAX</a>;</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    }</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    ngx_conf_merge_uint_value(conf-&gt;registry_slots,  prev-&gt;registry_slots,  128);</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    ngx_conf_merge_uint_value(conf-&gt;session_slots,   prev-&gt;session_slots,</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>                              <a class="code hl_define" href="protocols_2root_2session_2registry_8h.html#a6cdd31a71bb9bf5f54ae20e2ecebf5ed">BRIX_SESSION_REGISTRY_SLOTS</a>);</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="comment">/* Left UNSET when unconfigured; postconfiguration treats UNSET as</span></div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="comment">     * &quot;use the compile-time default&quot; (BRIX_REDIR_CACHE_SLOTS). */</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    ngx_conf_merge_uint_value(conf-&gt;redir_cache_slots, prev-&gt;redir_cache_slots,</div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>                              NGX_CONF_UNSET_UINT);</div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>}</div>
 </div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span> </div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment"> * WHAT: merge the active-health-check group (Phase 22) — enable, interval,</span></div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> *       timeout, failure threshold, blacklist duration, and probe type.</span></div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment"> * WHY:  a self-contained directive family; a dedicated helper keeps it out of</span></div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment"> *       the orchestrator&#39;s flow.</span></div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="comment"> * HOW:  plain child&lt;-parent inheritance; disabled by default (non-breaking).</span></div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00147" data-start="{" data-end="}">
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">  147</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">brix_merge_srv_healthcheck</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>{</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>    ngx_conf_merge_value(conf-&gt;hc.enabled,       prev-&gt;hc.enabled,       0);</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    ngx_conf_merge_msec_value(conf-&gt;hc.interval_ms,  prev-&gt;hc.interval_ms,  30000);</div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    ngx_conf_merge_msec_value(conf-&gt;hc.timeout_ms,   prev-&gt;hc.timeout_ms,    5000);</div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    ngx_conf_merge_uint_value(conf-&gt;hc.threshold,    prev-&gt;hc.threshold,        3);</div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>    ngx_conf_merge_msec_value(conf-&gt;hc.blacklist_ms, prev-&gt;hc.blacklist_ms, 60000);</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    ngx_conf_merge_uint_value(conf-&gt;hc.type, prev-&gt;hc.type, <a class="code hl_define" href="health__check_8h.html#a8eb4d5d6a3a3814a18e8a13bab3ce02a">BRIX_HC_TYPE_PING</a>);</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>}</div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span> </div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> * WHAT: merge the active-health-check group (Phase 22) — enable, interval,</span></div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="comment"> *       timeout, failure threshold, blacklist duration, and probe type.</span></div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="comment"> * WHY:  a self-contained directive family; a dedicated helper keeps it out of</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span><span class="comment"> *       the orchestrator&#39;s flow.</span></div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span><span class="comment"> * HOW:  plain child&lt;-parent inheritance; disabled by default (non-breaking).</span></div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00148" data-start="{" data-end="}">
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">  148</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">brix_merge_srv_healthcheck</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>{</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    ngx_conf_merge_value(conf-&gt;hc.enabled,       prev-&gt;hc.enabled,       0);</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>    ngx_conf_merge_msec_value(conf-&gt;hc.interval_ms,  prev-&gt;hc.interval_ms,  30000);</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>    ngx_conf_merge_msec_value(conf-&gt;hc.timeout_ms,   prev-&gt;hc.timeout_ms,    5000);</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>    ngx_conf_merge_uint_value(conf-&gt;hc.threshold,    prev-&gt;hc.threshold,        3);</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    ngx_conf_merge_msec_value(conf-&gt;hc.blacklist_ms, prev-&gt;hc.blacklist_ms, 60000);</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    ngx_conf_merge_uint_value(conf-&gt;hc.type, prev-&gt;hc.type, <a class="code hl_define" href="health__check_8h.html#a8eb4d5d6a3a3814a18e8a13bab3ce02a">BRIX_HC_TYPE_PING</a>);</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>}</div>
 </div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span> </div>
-<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment"> * WHAT: merge the traffic-mirror group (Phase 24) — targets, sample rate, the</span></div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment"> *       opcode/method include+exclude masks, auth-strip, divergence logging,</span></div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> *       timeout, and write-mirroring; then derive the `enabled` flag.</span></div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> * WHY:  the derived `enabled` (targets present ⇒ on) is a distinct rule worth</span></div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> *       isolating.</span></div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="comment"> * HOW:  inherit parent targets when unset, merge the tunables, then set</span></div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="comment"> *       `enabled` from the presence of at least one target.</span></div>
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00168" data-start="{" data-end="}">
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">  168</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">brix_merge_srv_mirror</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>{</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="comment">/* Phase 24: traffic mirror — inherit parent targets if none set locally,</span></div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span><span class="comment">     * then derive `enabled` from the presence of at least one target. */</span></div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    <span class="keywordflow">if</span> (conf-&gt;mirror.targets == NULL) {</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>        conf-&gt;mirror.targets = prev-&gt;mirror.targets;</div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    }</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.sample_pct,  prev-&gt;mirror.sample_pct, 100);</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="comment">/* Default: mirror ALL ops; the operator de-selects with</span></div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span><span class="comment">     * brix_mirror_exclude_opcodes (or restricts with brix_mirror_opcodes). */</span></div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.opcode_mask, prev-&gt;mirror.opcode_mask,</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>                              <a class="code hl_define" href="mirror_8h.html#a5cac8e1a93f19c3f6cc0dc5f5047dfb4">BRIX_MIRROR_OP_ALL</a>);</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.opcode_exclude_mask,</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>                              prev-&gt;mirror.opcode_exclude_mask, 0);</div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.method_mask, prev-&gt;mirror.method_mask,</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>                              <a class="code hl_define" href="mirror_8h.html#a88f87b2bfd7494ad2ce8b53e9bfe4662">BRIX_MIRROR_M_DEFAULT</a>);</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    ngx_conf_merge_value(conf-&gt;mirror.strip_auth,  prev-&gt;mirror.strip_auth,  1);</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    ngx_conf_merge_value(conf-&gt;mirror.log_diverge, prev-&gt;mirror.log_diverge, 1);</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    ngx_conf_merge_msec_value(conf-&gt;mirror.timeout_ms, prev-&gt;mirror.timeout_ms, 5000);</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    ngx_conf_merge_value(conf-&gt;mirror.mirror_writes,</div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>                         prev-&gt;mirror.mirror_writes, 0);</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    conf-&gt;mirror.enabled = (conf-&gt;mirror.targets != NULL</div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>                            &amp;&amp; conf-&gt;mirror.targets-&gt;nelts &gt; 0) ? 1 : 0;</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>}</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span> </div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment"> * WHAT: merge the traffic-mirror group (Phase 24) — targets, sample rate, the</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> *       opcode/method include+exclude masks, auth-strip, divergence logging,</span></div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> *       timeout, and write-mirroring; then derive the `enabled` flag.</span></div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> * WHY:  the derived `enabled` (targets present ⇒ on) is a distinct rule worth</span></div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="comment"> *       isolating.</span></div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="comment"> * HOW:  inherit parent targets when unset, merge the tunables, then set</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span><span class="comment"> *       `enabled` from the presence of at least one target.</span></div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00169" data-start="{" data-end="}">
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">  169</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">brix_merge_srv_mirror</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>{</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    <span class="comment">/* Phase 24: traffic mirror — inherit parent targets if none set locally,</span></div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span><span class="comment">     * then derive `enabled` from the presence of at least one target. */</span></div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>    <span class="keywordflow">if</span> (conf-&gt;mirror.targets == NULL) {</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        conf-&gt;mirror.targets = prev-&gt;mirror.targets;</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    }</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.sample_pct,  prev-&gt;mirror.sample_pct, 100);</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    <span class="comment">/* Default: mirror ALL ops; the operator de-selects with</span></div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span><span class="comment">     * brix_mirror_exclude_opcodes (or restricts with brix_mirror_opcodes). */</span></div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.opcode_mask, prev-&gt;mirror.opcode_mask,</div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>                              <a class="code hl_define" href="mirror_8h.html#a5cac8e1a93f19c3f6cc0dc5f5047dfb4">BRIX_MIRROR_OP_ALL</a>);</div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.opcode_exclude_mask,</div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>                              prev-&gt;mirror.opcode_exclude_mask, 0);</div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>    ngx_conf_merge_uint_value(conf-&gt;mirror.method_mask, prev-&gt;mirror.method_mask,</div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>                              <a class="code hl_define" href="mirror_8h.html#a88f87b2bfd7494ad2ce8b53e9bfe4662">BRIX_MIRROR_M_DEFAULT</a>);</div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>    ngx_conf_merge_value(conf-&gt;mirror.strip_auth,  prev-&gt;mirror.strip_auth,  1);</div>
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    ngx_conf_merge_value(conf-&gt;mirror.log_diverge, prev-&gt;mirror.log_diverge, 1);</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    ngx_conf_merge_msec_value(conf-&gt;mirror.timeout_ms, prev-&gt;mirror.timeout_ms, 5000);</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    ngx_conf_merge_value(conf-&gt;mirror.mirror_writes,</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>                         prev-&gt;mirror.mirror_writes, 0);</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    conf-&gt;mirror.enabled = (conf-&gt;mirror.targets != NULL</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>                            &amp;&amp; conf-&gt;mirror.targets-&gt;nelts &gt; 0) ? 1 : 0;</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>}</div>
 </div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span> </div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="comment"> * WHAT: merge the CMS client group (Phase 50) — locate timeout, paths, the</span></div>
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="comment"> *       heartbeat interval, and the resilience deadlines (read/send/keepalive/</span></div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="comment"> *       tcp_user + the connect-backoff pair left UNSET for worker-time choice).</span></div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="comment"> * WHY:  the read-timeout auto-derivation depends on the just-merged interval;</span></div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="comment"> *       isolating it keeps that ordering explicit.</span></div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment"> * HOW:  merge interval (floored at 1s to avoid a busy-loop heartbeat), then</span></div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment"> *       derive read_timeout = max(3×interval, 90s) when unset, and default</span></div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment"> *       tcp_user_timeout to the read timeout.</span></div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00205" data-start="{" data-end="}">
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">  205</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">brix_merge_srv_cms</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>{</div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    ngx_conf_merge_msec_value(conf-&gt;cms.locate_timeout, prev-&gt;cms.locate_timeout,</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>                              5000);</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    ngx_conf_merge_str_value(conf-&gt;cms.paths,       prev-&gt;cms.paths,       <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    ngx_conf_merge_value(conf-&gt;cms.interval,        prev-&gt;cms.interval,    30);</div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    <span class="keywordflow">if</span> (conf-&gt;cms.interval &lt; 1) {</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>        <span class="comment">/* 0 would arm a 0ms heartbeat timer AND zero the reconnect backoff</span></div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span><span class="comment">         * (connect.c) — both busy-loops. Floor the heartbeat at 1s. */</span></div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>        conf-&gt;cms.interval = 1;</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>    }</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span> </div>
-<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span><span class="comment">     * Phase 50: CMS client resilience deadlines.  Resolve here (after</span></div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span><span class="comment">     * cms_interval is merged) so an unset directive auto-derives a generous</span></div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span><span class="comment">     * ON-by-default value from the heartbeat interval; an explicit 0 disables.</span></div>
-<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span><span class="comment">     *   - read timeout: max(3 x interval, 90s) — a healthy real cmsd pings well</span></div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span><span class="comment">     *     within its interval, so this never trips a conformant manager.</span></div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span><span class="comment">     *   - send timeout: 10s — bounds a manager that stops draining our writes.</span></div>
-<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment">     *   - tcp_user_timeout: defaults to the read-timeout as a kernel backstop.</span></div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    <span class="keywordflow">if</span> (conf-&gt;cms.read_timeout == NGX_CONF_UNSET_MSEC) {</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>        <span class="keywordflow">if</span> (prev-&gt;cms.read_timeout != NGX_CONF_UNSET_MSEC) {</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>            conf-&gt;cms.read_timeout = prev-&gt;cms.read_timeout;</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>            ngx_msec_t d = (ngx_msec_t) conf-&gt;cms.interval * 3 * 1000;</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>            conf-&gt;cms.read_timeout = (d &gt; 90000) ? d : 90000;</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        }</div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span> </div>
+<div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span><span class="comment"> * WHAT: merge the CMS client group (Phase 50) — locate timeout, paths, the</span></div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span><span class="comment"> *       heartbeat interval, and the resilience deadlines (read/send/keepalive/</span></div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span><span class="comment"> *       tcp_user + the connect-backoff pair left UNSET for worker-time choice).</span></div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span><span class="comment"> * WHY:  the read-timeout auto-derivation depends on the just-merged interval;</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span><span class="comment"> *       isolating it keeps that ordering explicit.</span></div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span><span class="comment"> * HOW:  merge interval (floored at 1s to avoid a busy-loop heartbeat), then</span></div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span><span class="comment"> *       derive read_timeout = max(3×interval, 90s) when unset, and default</span></div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span><span class="comment"> *       tcp_user_timeout to the read timeout.</span></div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00206" data-start="{" data-end="}">
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">  206</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">brix_merge_srv_cms</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>{</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>    ngx_conf_merge_msec_value(conf-&gt;cms.locate_timeout, prev-&gt;cms.locate_timeout,</div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>                              5000);</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>    ngx_conf_merge_str_value(conf-&gt;cms.paths,       prev-&gt;cms.paths,       <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    ngx_conf_merge_str_value(conf-&gt;cms.vnid,        prev-&gt;cms.vnid,        <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span> </div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>    <span class="comment">/* Phase-89 W4: load-weighted selection knob (0 = legacy scoring).  Values</span></div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span><span class="comment">     * are clamped, not rejected — the weight is a balancing hint.  Applied</span></div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span><span class="comment">     * process-wide like brix_manager_stale_after (set once before fork). */</span></div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>    ngx_conf_merge_value(conf-&gt;cms.load_weight, prev-&gt;cms.load_weight, 0);</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>    <span class="keywordflow">if</span> (conf-&gt;cms.load_weight &lt; 0) {</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>        conf-&gt;cms.load_weight = 0;</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>    }</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    <span class="keywordflow">if</span> (conf-&gt;cms.load_weight &gt; 100) {</div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>        conf-&gt;cms.load_weight = 100;</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    }</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>    <span class="keywordflow">if</span> (conf-&gt;cms.load_weight &gt; 0) {</div>
+<div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>        <a class="code hl_function" href="net_2manager_2registry_8c.html#a3237afcbf79eded195e180198a25ba24">brix_srv_set_load_weight</a>((ngx_uint_t) conf-&gt;cms.load_weight);</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    }</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span> </div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>    <span class="comment">/* Phase-89 W5: path-affinity sticky selection (process-wide, like the</span></div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="comment">     * load weight — set once before fork) + multi-source locate replies. */</span></div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    ngx_conf_merge_value(conf-&gt;cms.affinity,     prev-&gt;cms.affinity,     0);</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>    ngx_conf_merge_value(conf-&gt;cms.locate_multi, prev-&gt;cms.locate_multi, 0);</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>    <span class="keywordflow">if</span> (conf-&gt;cms.affinity) {</div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        <a class="code hl_function" href="net_2manager_2registry_8c.html#ab088507986aa9e751fc8c6dafe01b020">brix_srv_set_affinity</a>(1);</div>
 <div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    }</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>    ngx_conf_merge_msec_value(conf-&gt;cms.send_timeout, prev-&gt;cms.send_timeout,</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>                              10000);</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    ngx_conf_merge_value(conf-&gt;cms.tcp_keepalive, prev-&gt;cms.tcp_keepalive, 1);</div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>    <span class="keywordflow">if</span> (conf-&gt;cms.tcp_user_timeout == NGX_CONF_UNSET_MSEC) {</div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>        conf-&gt;cms.tcp_user_timeout =</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>            (prev-&gt;cms.tcp_user_timeout != NGX_CONF_UNSET_MSEC)</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>                ? prev-&gt;cms.tcp_user_timeout</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>                : conf-&gt;cms.read_timeout;</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    }</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span> </div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    <span class="comment">/* Leave these UNSET through the merge so connect.c can pick the manager-locality</span></div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span><span class="comment">     * (loopback vs remote) profile default at worker start; an explicit directive</span></div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span><span class="comment">     * still wins and is inherited child&lt;-parent. */</span></div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    ngx_conf_merge_msec_value(conf-&gt;cms.initial_delay, prev-&gt;cms.initial_delay,</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>                              NGX_CONF_UNSET_MSEC);</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>    ngx_conf_merge_msec_value(conf-&gt;cms.connect_retry, prev-&gt;cms.connect_retry,</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>                              NGX_CONF_UNSET_MSEC);</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>}</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span> </div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    <span class="comment">/* Phase-89 W8: rm/rmdir fan-out to all holder nodes + its reply window.</span></div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span><span class="comment">     * The window is the success deadline (node executor is silent on success),</span></div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span><span class="comment">     * so it must be short enough to sit inside any client request timeout. */</span></div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    ngx_conf_merge_value(conf-&gt;cms.fanout, prev-&gt;cms.fanout, 0);</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    ngx_conf_merge_msec_value(conf-&gt;cms.fanout_window,</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>                                prev-&gt;cms.fanout_window, 500);</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    ngx_conf_merge_value(conf-&gt;cms.interval,        prev-&gt;cms.interval,    30);</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>    <span class="keywordflow">if</span> (conf-&gt;cms.interval &lt; 1) {</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        <span class="comment">/* 0 would arm a 0ms heartbeat timer AND zero the reconnect backoff</span></div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span><span class="comment">         * (connect.c) — both busy-loops. Floor the heartbeat at 1s. */</span></div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>        conf-&gt;cms.interval = 1;</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    }</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span> </div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span><span class="comment">     * Phase 50: CMS client resilience deadlines.  Resolve here (after</span></div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span><span class="comment">     * cms_interval is merged) so an unset directive auto-derives a generous</span></div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span><span class="comment">     * ON-by-default value from the heartbeat interval; an explicit 0 disables.</span></div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span><span class="comment">     *   - read timeout: max(3 x interval, 90s) — a healthy real cmsd pings well</span></div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span><span class="comment">     *     within its interval, so this never trips a conformant manager.</span></div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span><span class="comment">     *   - send timeout: 10s — bounds a manager that stops draining our writes.</span></div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span><span class="comment">     *   - tcp_user_timeout: defaults to the read-timeout as a kernel backstop.</span></div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    <span class="keywordflow">if</span> (conf-&gt;cms.read_timeout == NGX_CONF_UNSET_MSEC) {</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>        <span class="keywordflow">if</span> (prev-&gt;cms.read_timeout != NGX_CONF_UNSET_MSEC) {</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>            conf-&gt;cms.read_timeout = prev-&gt;cms.read_timeout;</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>            ngx_msec_t d = (ngx_msec_t) conf-&gt;cms.interval * 3 * 1000;</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>            conf-&gt;cms.read_timeout = (d &gt; 90000) ? d : 90000;</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>        }</div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    }</div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>    ngx_conf_merge_msec_value(conf-&gt;cms.send_timeout, prev-&gt;cms.send_timeout,</div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>                              10000);</div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    ngx_conf_merge_value(conf-&gt;cms.tcp_keepalive, prev-&gt;cms.tcp_keepalive, 1);</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    <span class="keywordflow">if</span> (conf-&gt;cms.tcp_user_timeout == NGX_CONF_UNSET_MSEC) {</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>        conf-&gt;cms.tcp_user_timeout =</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>            (prev-&gt;cms.tcp_user_timeout != NGX_CONF_UNSET_MSEC)</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>                ? prev-&gt;cms.tcp_user_timeout</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>                : conf-&gt;cms.read_timeout;</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>    }</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span> </div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    <span class="comment">/* Leave these UNSET through the merge so connect.c can pick the manager-locality</span></div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span><span class="comment">     * (loopback vs remote) profile default at worker start; an explicit directive</span></div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span><span class="comment">     * still wins and is inherited child&lt;-parent. */</span></div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>    ngx_conf_merge_msec_value(conf-&gt;cms.initial_delay, prev-&gt;cms.initial_delay,</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>                              NGX_CONF_UNSET_MSEC);</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    ngx_conf_merge_msec_value(conf-&gt;cms.connect_retry, prev-&gt;cms.connect_retry,</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>                              NGX_CONF_UNSET_MSEC);</div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>}</div>
 </div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span> </div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span><span class="comment"> * WHAT: inherit the resolved-address fields (CMS manager, HTTP handoff, relay,</span></div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span><span class="comment"> *       and the upstream redirector host/port) from the parent scope.</span></div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span><span class="comment"> * WHY:  these are already-resolved runtime addresses that ngx_conf_merge_* can&#39;t</span></div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span><span class="comment"> *       express; grouping the NULL/len==0 guards keeps them together.</span></div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span><span class="comment"> * HOW:  copy the parent&#39;s address family only when the child left it unset.</span></div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00262" data-start="{" data-end="}">
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">  262</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">brix_merge_srv_cluster_addrs</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>{</div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    <span class="keywordflow">if</span> (conf-&gt;cms.addr == NULL &amp;&amp; prev-&gt;cms.addr != NULL) {</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>        conf-&gt;cms.addr = prev-&gt;cms.addr;</div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>        conf-&gt;cms.manager = prev-&gt;cms.manager;</div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span>    }</div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span> </div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    <span class="keywordflow">if</span> (conf-&gt;http_handoff_addr == NULL &amp;&amp; prev-&gt;http_handoff_addr != NULL) {</div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>        conf-&gt;http_handoff_addr = prev-&gt;http_handoff_addr;</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>        conf-&gt;http_handoff_name = prev-&gt;http_handoff_name;</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    }</div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span> </div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>    <span class="keywordflow">if</span> (conf-&gt;relay_addr == NULL &amp;&amp; prev-&gt;relay_addr != NULL) {</div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>        conf-&gt;relay_addr = prev-&gt;relay_addr;</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>        conf-&gt;relay_name = prev-&gt;relay_name;</div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    }</div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span> </div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    <span class="comment">/* Inherit upstream redirector from parent scope if not set locally */</span></div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>    <span class="keywordflow">if</span> (conf-&gt;upstream_host.len == 0 &amp;&amp; prev-&gt;upstream_host.len &gt; 0) {</div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span>        conf-&gt;upstream_host = prev-&gt;upstream_host;</div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>        conf-&gt;upstream_port = prev-&gt;upstream_port;</div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>        conf-&gt;upstream_addr = prev-&gt;upstream_addr;</div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    }</div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>}</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span> </div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span><span class="comment"> * WHAT: inherit the resolved-address fields (CMS manager, HTTP handoff, relay,</span></div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span><span class="comment"> *       and the upstream redirector host/port) from the parent scope.</span></div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span><span class="comment"> * WHY:  these are already-resolved runtime addresses that ngx_conf_merge_* can&#39;t</span></div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span><span class="comment"> *       express; grouping the NULL/len==0 guards keeps them together.</span></div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span><span class="comment"> * HOW:  copy the parent&#39;s address family only when the child left it unset.</span></div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00293" data-start="{" data-end="}">
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">  293</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">brix_merge_srv_cluster_addrs</a>(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>{</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>    <span class="keywordflow">if</span> (conf-&gt;cms.addr == NULL &amp;&amp; prev-&gt;cms.addr != NULL) {</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>        conf-&gt;cms.addr = prev-&gt;cms.addr;</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>        conf-&gt;cms.manager = prev-&gt;cms.manager;</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>    }</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span> </div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>    <span class="keywordflow">if</span> (conf-&gt;http_handoff_addr == NULL &amp;&amp; prev-&gt;http_handoff_addr != NULL) {</div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>        conf-&gt;http_handoff_addr = prev-&gt;http_handoff_addr;</div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>        conf-&gt;http_handoff_name = prev-&gt;http_handoff_name;</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    }</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span> </div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    <span class="keywordflow">if</span> (conf-&gt;relay_addr == NULL &amp;&amp; prev-&gt;relay_addr != NULL) {</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>        conf-&gt;relay_addr = prev-&gt;relay_addr;</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>        conf-&gt;relay_name = prev-&gt;relay_name;</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    }</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span> </div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    <span class="comment">/* Inherit upstream redirector from parent scope if not set locally */</span></div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>    <span class="keywordflow">if</span> (conf-&gt;upstream_host.len == 0 &amp;&amp; prev-&gt;upstream_host.len &gt; 0) {</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>        conf-&gt;upstream_host = prev-&gt;upstream_host;</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>        conf-&gt;upstream_port = prev-&gt;upstream_port;</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>        conf-&gt;upstream_addr = prev-&gt;upstream_addr;</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>    }</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>}</div>
 </div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span> </div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span><span class="comment"> * WHAT: merge the VO/group/manager-map rule arrays.</span></div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span><span class="comment"> * WHY:  the three arrays share an identical merge-and-fail-check shape; a helper</span></div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span><span class="comment"> *       keeps the NGX_CONF_ERROR handling out of the orchestrator.</span></div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="comment"> * HOW:  brix_merge_arrays() each child array over the parent; a NULL result with</span></div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span><span class="comment"> *       a non-empty parent or child signals allocation failure → NGX_CONF_ERROR.</span></div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00296" data-start="{" data-end="}">
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">  296</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">brix_merge_srv_rules</a>(ngx_conf_t *cf, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>{</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>    ngx_array_t *child_vo_rules;</div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>    ngx_array_t *child_group_rules;</div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>    ngx_array_t *child_manager_map;</div>
-<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span> </div>
-<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>    child_vo_rules = conf-&gt;vo_rules;</div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    conf-&gt;vo_rules = <a class="code hl_function" href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a>(cf, prev-&gt;vo_rules, child_vo_rules,</div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>                                         <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__vo__rule__t.html">brix_vo_rule_t</a>));</div>
-<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    <span class="keywordflow">if</span> (conf-&gt;vo_rules == NULL &amp;&amp; (prev-&gt;vo_rules != NULL || child_vo_rules != NULL)) {</div>
-<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>    }</div>
-<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span> </div>
-<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>    child_group_rules = conf-&gt;group_rules;</div>
-<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    conf-&gt;group_rules = <a class="code hl_function" href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a>(cf, prev-&gt;group_rules,</div>
-<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span>                                            child_group_rules,</div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>                                            <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__group__rule__t.html">brix_group_rule_t</a>));</div>
-<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>    <span class="keywordflow">if</span> (conf-&gt;group_rules == NULL</div>
-<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>        &amp;&amp; (prev-&gt;group_rules != NULL || child_group_rules != NULL)) {</div>
-<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    }</div>
 <div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span> </div>
-<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>    <span class="comment">/* Merge manager_map entries (prefix -&gt; backend mappings) */</span></div>
-<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span>    child_manager_map = conf-&gt;manager_map;</div>
-<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>    conf-&gt;manager_map = <a class="code hl_function" href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a>(cf, prev-&gt;manager_map,</div>
-<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>                                           child_manager_map,</div>
-<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span>                                           <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__manager__map__t.html">brix_manager_map_t</a>));</div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <span class="keywordflow">if</span> (conf-&gt;manager_map == NULL</div>
-<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span>        &amp;&amp; (prev-&gt;manager_map != NULL || child_manager_map != NULL)) {</div>
-<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    }</div>
-<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span> </div>
-<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>}</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span><span class="comment"> * WHAT: merge the VO/group/manager-map rule arrays.</span></div>
+<div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span><span class="comment"> * WHY:  the three arrays share an identical merge-and-fail-check shape; a helper</span></div>
+<div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span><span class="comment"> *       keeps the NGX_CONF_ERROR handling out of the orchestrator.</span></div>
+<div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span><span class="comment"> * HOW:  brix_merge_arrays() each child array over the parent; a NULL result with</span></div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span><span class="comment"> *       a non-empty parent or child signals allocation failure → NGX_CONF_ERROR.</span></div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00327" data-start="{" data-end="}">
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno"><a class="line" href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">  327</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">brix_merge_srv_rules</a>(ngx_conf_t *cf, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>{</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>    ngx_array_t *child_vo_rules;</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>    ngx_array_t *child_group_rules;</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>    ngx_array_t *child_manager_map;</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span> </div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>    child_vo_rules = conf-&gt;vo_rules;</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>    conf-&gt;vo_rules = <a class="code hl_function" href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a>(cf, prev-&gt;vo_rules, child_vo_rules,</div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>                                         <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__vo__rule__t.html">brix_vo_rule_t</a>));</div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>    <span class="keywordflow">if</span> (conf-&gt;vo_rules == NULL &amp;&amp; (prev-&gt;vo_rules != NULL || child_vo_rules != NULL)) {</div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>    }</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span> </div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>    child_group_rules = conf-&gt;group_rules;</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>    conf-&gt;group_rules = <a class="code hl_function" href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a>(cf, prev-&gt;group_rules,</div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>                                            child_group_rules,</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>                                            <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__group__rule__t.html">brix_group_rule_t</a>));</div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>    <span class="keywordflow">if</span> (conf-&gt;group_rules == NULL</div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>        &amp;&amp; (prev-&gt;group_rules != NULL || child_group_rules != NULL)) {</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>    }</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span> </div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>    <span class="comment">/* Merge manager_map entries (prefix -&gt; backend mappings) */</span></div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    child_manager_map = conf-&gt;manager_map;</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    conf-&gt;manager_map = <a class="code hl_function" href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a>(cf, prev-&gt;manager_map,</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>                                           child_manager_map,</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>                                           <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__manager__map__t.html">brix_manager_map_t</a>));</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>    <span class="keywordflow">if</span> (conf-&gt;manager_map == NULL</div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>        &amp;&amp; (prev-&gt;manager_map != NULL || child_manager_map != NULL)) {</div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    }</div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span> </div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>}</div>
 </div>
-<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span> </div>
-<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span><span class="comment">/* Cluster &amp; sessions: manager/redirector mode, write recovery + staged uploads,</span></div>
-<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span><span class="comment"> * pipeline/registry/session sizing, active health checks, the traffic mirror,</span></div>
-<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span><span class="comment"> * the CMS client (+ resilience-timeout derivation), listen port, checksum-scan</span></div>
-<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span><span class="comment"> * limits, and the VO/group/manager-map rule arrays + redirector inheritance. */</span></div>
-<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span><span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00337" data-start="{" data-end="}">
-<div class="line"><a id="l00337" name="l00337"></a><span class="lineno"><a class="line" href="server__conf__internal_8h.html#a6f4a7e9118ba4a94267394059626945d">  337</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a6f4a7e9118ba4a94267394059626945d">brix_merge_srv_cluster</a>(ngx_conf_t *cf, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
-<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
-<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>{</div>
-<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">brix_merge_srv_cluster_sizing</a>(conf, prev);</div>
-<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">brix_merge_srv_healthcheck</a>(conf, prev);</div>
-<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">brix_merge_srv_mirror</a>(conf, prev);</div>
-<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">brix_merge_srv_cms</a>(conf, prev);</div>
-<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span> </div>
-<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>    ngx_conf_merge_value(conf-&gt;listen_port,         prev-&gt;listen_port,     <a class="code hl_define" href="opcodes_8h.html#ab32b2b7d84ae27914609baafd86d3095">BRIX_DEFAULT_PORT</a>);</div>
-<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>    ngx_conf_merge_uint_value(conf-&gt;ckscan_max_depth,</div>
-<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>                              prev-&gt;ckscan_max_depth, 32);</div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>    ngx_conf_merge_uint_value(conf-&gt;ckscan_max_files,</div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>                              prev-&gt;ckscan_max_files, 100000);</div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span> </div>
-<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">brix_merge_srv_cluster_addrs</a>(conf, prev);</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span> </div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">brix_merge_srv_rules</a>(cf, conf, prev);</div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>}</div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span> </div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span><span class="comment">/* Cluster &amp; sessions: manager/redirector mode, write recovery + staged uploads,</span></div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span><span class="comment"> * pipeline/registry/session sizing, active health checks, the traffic mirror,</span></div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span><span class="comment"> * the CMS client (+ resilience-timeout derivation), listen port, checksum-scan</span></div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span><span class="comment"> * limits, and the VO/group/manager-map rule arrays + redirector inheritance. */</span></div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span><span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00368" data-start="{" data-end="}">
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno"><a class="line" href="server__conf__internal_8h.html#a6f4a7e9118ba4a94267394059626945d">  368</a></span><a class="code hl_function" href="server__conf__merge__cluster_8c.html#a6f4a7e9118ba4a94267394059626945d">brix_merge_srv_cluster</a>(ngx_conf_t *cf, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf,</div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *prev)</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>{</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">brix_merge_srv_cluster_sizing</a>(conf, prev);</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">brix_merge_srv_healthcheck</a>(conf, prev);</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">brix_merge_srv_mirror</a>(conf, prev);</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">brix_merge_srv_cms</a>(conf, prev);</div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span> </div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    ngx_conf_merge_value(conf-&gt;listen_port,         prev-&gt;listen_port,     <a class="code hl_define" href="opcodes_8h.html#ab32b2b7d84ae27914609baafd86d3095">BRIX_DEFAULT_PORT</a>);</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>    ngx_conf_merge_uint_value(conf-&gt;ckscan_max_depth,</div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>                              prev-&gt;ckscan_max_depth, 32);</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>    ngx_conf_merge_uint_value(conf-&gt;ckscan_max_files,</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>                              prev-&gt;ckscan_max_files, 100000);</div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span> </div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">brix_merge_srv_cluster_addrs</a>(conf, prev);</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span> </div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">brix_merge_srv_rules</a>(cf, conf, prev);</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>}</div>
 </div>
 <div class="ttc" id="acns_8c_html_ac6608f550a4747136134ab6ac3cdf71c"><div class="ttname"><a href="cns_8c.html#ac6608f550a4747136134ab6ac3cdf71c">brix_cns_set_collect</a></div><div class="ttdeci">void brix_cns_set_collect(ngx_flag_t on)</div><div class="ttdef"><b>Definition</b> <a href="cns_8c_source.html#l00202">cns.c:202</a></div></div>
 <div class="ttc" id="acns_8h_html"><div class="ttname"><a href="cns_8h.html">cns.h</a></div></div>
 <div class="ttc" id="acns_8h_html_a265152bf9e3aa7e27f2f19ae17238f90"><div class="ttname"><a href="cns_8h.html#a265152bf9e3aa7e27f2f19ae17238f90">BRIX_CNS_OFF</a></div><div class="ttdeci">#define BRIX_CNS_OFF</div><div class="ttdef"><b>Definition</b> <a href="cns_8h_source.html#l00041">cns.h:41</a></div></div>
 <div class="ttc" id="acns_8h_html_a38a6818ccfb764e4e8b20a2124afe480"><div class="ttname"><a href="cns_8h.html#a38a6818ccfb764e4e8b20a2124afe480">BRIX_CNS_COLLECT</a></div><div class="ttdeci">#define BRIX_CNS_COLLECT</div><div class="ttdef"><b>Definition</b> <a href="cns_8h_source.html#l00043">cns.h:43</a></div></div>
-<div class="ttc" id="aconf__structs_8h_html_a357aa46b5375001a1790d3b5f9d2290e"><div class="ttname"><a href="conf__structs_8h.html#a357aa46b5375001a1790d3b5f9d2290e">brix_node_caps_conf_merge</a></div><div class="ttdeci">static void brix_node_caps_conf_merge(brix_node_caps_conf_t *c, brix_node_caps_conf_t *p)</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00381">conf_structs.h:381</a></div></div>
+<div class="ttc" id="aconf__structs_8h_html_a357aa46b5375001a1790d3b5f9d2290e"><div class="ttname"><a href="conf__structs_8h.html#a357aa46b5375001a1790d3b5f9d2290e">brix_node_caps_conf_merge</a></div><div class="ttdeci">static void brix_node_caps_conf_merge(brix_node_caps_conf_t *c, brix_node_caps_conf_t *p)</div><div class="ttdef"><b>Definition</b> <a href="conf__structs_8h_source.html#l00416">conf_structs.h:416</a></div></div>
 <div class="ttc" id="ahealth__check_8h_html"><div class="ttname"><a href="health__check_8h.html">health_check.h</a></div></div>
 <div class="ttc" id="ahealth__check_8h_html_a8eb4d5d6a3a3814a18e8a13bab3ce02a"><div class="ttname"><a href="health__check_8h.html#a8eb4d5d6a3a3814a18e8a13bab3ce02a">BRIX_HC_TYPE_PING</a></div><div class="ttdeci">#define BRIX_HC_TYPE_PING</div><div class="ttdef"><b>Definition</b> <a href="health__check_8h_source.html#l00018">health_check.h:18</a></div></div>
 <div class="ttc" id="akey__registry_8h_html"><div class="ttname"><a href="key__registry_8h.html">key_registry.h</a></div></div>
@@ -480,18 +511,21 @@ $(document).ready(function(){initNavTree('server__conf__merge__cluster_8c_source
 <div class="ttc" id="amerge_8c_html_a2d92f01a5f046ae5cdc112cd6e26cce6"><div class="ttname"><a href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a></div><div class="ttdeci">ngx_array_t * brix_merge_arrays(ngx_conf_t *cf, ngx_array_t *parent, ngx_array_t *child, size_t element_size)</div><div class="ttdef"><b>Definition</b> <a href="merge_8c_source.html#l00010">merge.c:10</a></div></div>
 <div class="ttc" id="amirror_8h_html_a5cac8e1a93f19c3f6cc0dc5f5047dfb4"><div class="ttname"><a href="mirror_8h.html#a5cac8e1a93f19c3f6cc0dc5f5047dfb4">BRIX_MIRROR_OP_ALL</a></div><div class="ttdeci">#define BRIX_MIRROR_OP_ALL</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00105">mirror.h:105</a></div></div>
 <div class="ttc" id="amirror_8h_html_a88f87b2bfd7494ad2ce8b53e9bfe4662"><div class="ttname"><a href="mirror_8h.html#a88f87b2bfd7494ad2ce8b53e9bfe4662">BRIX_MIRROR_M_DEFAULT</a></div><div class="ttdeci">#define BRIX_MIRROR_M_DEFAULT</div><div class="ttdef"><b>Definition</b> <a href="mirror_8h_source.html#l00055">mirror.h:55</a></div></div>
+<div class="ttc" id="anet_2manager_2registry_8c_html_a3237afcbf79eded195e180198a25ba24"><div class="ttname"><a href="net_2manager_2registry_8c.html#a3237afcbf79eded195e180198a25ba24">brix_srv_set_load_weight</a></div><div class="ttdeci">void brix_srv_set_load_weight(ngx_uint_t weight)</div><div class="ttdef"><b>Definition</b> <a href="net_2manager_2registry_8c_source.html#l00027">registry.c:27</a></div></div>
+<div class="ttc" id="anet_2manager_2registry_8c_html_ab088507986aa9e751fc8c6dafe01b020"><div class="ttname"><a href="net_2manager_2registry_8c.html#ab088507986aa9e751fc8c6dafe01b020">brix_srv_set_affinity</a></div><div class="ttdeci">void brix_srv_set_affinity(ngx_uint_t on)</div><div class="ttdef"><b>Definition</b> <a href="net_2manager_2registry_8c_source.html#l00034">registry.c:34</a></div></div>
+<div class="ttc" id="anet_2manager_2registry_8h_html"><div class="ttname"><a href="net_2manager_2registry_8h.html">registry.h</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ab32b2b7d84ae27914609baafd86d3095"><div class="ttname"><a href="opcodes_8h.html#ab32b2b7d84ae27914609baafd86d3095">BRIX_DEFAULT_PORT</a></div><div class="ttdeci">#define BRIX_DEFAULT_PORT</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00008">opcodes.h:8</a></div></div>
 <div class="ttc" id="aprotocols_2root_2session_2registry_8h_html"><div class="ttname"><a href="protocols_2root_2session_2registry_8h.html">registry.h</a></div></div>
 <div class="ttc" id="aprotocols_2root_2session_2registry_8h_html_a6cdd31a71bb9bf5f54ae20e2ecebf5ed"><div class="ttname"><a href="protocols_2root_2session_2registry_8h.html#a6cdd31a71bb9bf5f54ae20e2ecebf5ed">BRIX_SESSION_REGISTRY_SLOTS</a></div><div class="ttdeci">#define BRIX_SESSION_REGISTRY_SLOTS</div><div class="ttdef"><b>Definition</b> <a href="protocols_2root_2session_2registry_8h_source.html#l00030">registry.h:30</a></div></div>
 <div class="ttc" id="aserver__conf__internal_8h_html"><div class="ttname"><a href="server__conf__internal_8h.html">server_conf_internal.h</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a0630d9a18a8dc0da797db211d5fb65b2"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a0630d9a18a8dc0da797db211d5fb65b2">brix_merge_srv_tpc</a></div><div class="ttdeci">void brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00036">server_conf_merge_cluster.c:36</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a14f34015dc5145448b48665ebe196699"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">brix_merge_srv_mirror</a></div><div class="ttdeci">static void brix_merge_srv_mirror(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00168">server_conf_merge_cluster.c:168</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a19912953a0450ce09616e84ba4439ec3"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">brix_merge_srv_cms</a></div><div class="ttdeci">static void brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00205">server_conf_merge_cluster.c:205</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a1c96b969e55c779acd77a6e3727f30d5"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">brix_merge_srv_cluster_addrs</a></div><div class="ttdeci">static void brix_merge_srv_cluster_addrs(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00262">server_conf_merge_cluster.c:262</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a682368dc39674d6f810b6a223512e87a"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">brix_merge_srv_rules</a></div><div class="ttdeci">static char * brix_merge_srv_rules(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00296">server_conf_merge_cluster.c:296</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a6f4a7e9118ba4a94267394059626945d"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a6f4a7e9118ba4a94267394059626945d">brix_merge_srv_cluster</a></div><div class="ttdeci">char * brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00337">server_conf_merge_cluster.c:337</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a8ea8b1cdf93a9a596bad0852727bca03"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">brix_merge_srv_healthcheck</a></div><div class="ttdeci">static void brix_merge_srv_healthcheck(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00147">server_conf_merge_cluster.c:147</a></div></div>
-<div class="ttc" id="aserver__conf__merge__cluster_8c_html_ace53f55892bae2f9aa98698895866729"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">brix_merge_srv_cluster_sizing</a></div><div class="ttdeci">static void brix_merge_srv_cluster_sizing(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00111">server_conf_merge_cluster.c:111</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a0630d9a18a8dc0da797db211d5fb65b2"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a0630d9a18a8dc0da797db211d5fb65b2">brix_merge_srv_tpc</a></div><div class="ttdeci">void brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00037">server_conf_merge_cluster.c:37</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a14f34015dc5145448b48665ebe196699"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a14f34015dc5145448b48665ebe196699">brix_merge_srv_mirror</a></div><div class="ttdeci">static void brix_merge_srv_mirror(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00169">server_conf_merge_cluster.c:169</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a19912953a0450ce09616e84ba4439ec3"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a19912953a0450ce09616e84ba4439ec3">brix_merge_srv_cms</a></div><div class="ttdeci">static void brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00206">server_conf_merge_cluster.c:206</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a1c96b969e55c779acd77a6e3727f30d5"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a1c96b969e55c779acd77a6e3727f30d5">brix_merge_srv_cluster_addrs</a></div><div class="ttdeci">static void brix_merge_srv_cluster_addrs(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00293">server_conf_merge_cluster.c:293</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a682368dc39674d6f810b6a223512e87a"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a682368dc39674d6f810b6a223512e87a">brix_merge_srv_rules</a></div><div class="ttdeci">static char * brix_merge_srv_rules(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00327">server_conf_merge_cluster.c:327</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a6f4a7e9118ba4a94267394059626945d"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a6f4a7e9118ba4a94267394059626945d">brix_merge_srv_cluster</a></div><div class="ttdeci">char * brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00368">server_conf_merge_cluster.c:368</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_a8ea8b1cdf93a9a596bad0852727bca03"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#a8ea8b1cdf93a9a596bad0852727bca03">brix_merge_srv_healthcheck</a></div><div class="ttdeci">static void brix_merge_srv_healthcheck(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00148">server_conf_merge_cluster.c:148</a></div></div>
+<div class="ttc" id="aserver__conf__merge__cluster_8c_html_ace53f55892bae2f9aa98698895866729"><div class="ttname"><a href="server__conf__merge__cluster_8c.html#ace53f55892bae2f9aa98698895866729">brix_merge_srv_cluster_sizing</a></div><div class="ttdeci">static void brix_merge_srv_cluster_sizing(ngx_stream_brix_srv_conf_t *conf, ngx_stream_brix_srv_conf_t *prev)</div><div class="ttdef"><b>Definition</b> <a href="server__conf__merge__cluster_8c_source.html#l00112">server_conf_merge_cluster.c:112</a></div></div>
 <div class="ttc" id="astructbrix__group__rule__t_html"><div class="ttname"><a href="structbrix__group__rule__t.html">brix_group_rule_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00080">config.h:80</a></div></div>
 <div class="ttc" id="astructbrix__manager__map__t_html"><div class="ttname"><a href="structbrix__manager__map__t.html">brix_manager_map_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00085">config.h:85</a></div></div>
 <div class="ttc" id="astructbrix__vo__rule__t_html"><div class="ttname"><a href="structbrix__vo__rule__t.html">brix_vo_rule_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00074">config.h:74</a></div></div>

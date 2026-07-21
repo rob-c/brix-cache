@@ -1,5 +1,7 @@
 var structbrix__node__caps__conf__t =
 [
+    [ "cms_locate_window", "structbrix__node__caps__conf__t.html#acf4ff333fa7fd809df79f7ff1a089c20", null ],
+    [ "cms_state_fanout", "structbrix__node__caps__conf__t.html#a8e9ac993e1808e963652750e5a091968", null ],
     [ "collapse_redir", "structbrix__node__caps__conf__t.html#a5d5082aa2fff6082ab9a479bcc7f6d97", null ],
     [ "collapse_redir_ttl", "structbrix__node__caps__conf__t.html#adf1a93fd5d33dd4168f90426f741292d", null ],
     [ "metadata_only", "structbrix__node__caps__conf__t.html#ab248a5df6f884e3edcf6bdad1fa141ad", null ],

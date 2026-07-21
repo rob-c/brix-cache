@@ -132,6 +132,10 @@ Data Structures</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:acea862ec68a6808111bdd2d7223d26e4" id="r_acea862ec68a6808111bdd2d7223d26e4"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__s3__meta_8c.html#acea862ec68a6808111bdd2d7223d26e4">sd_s3_get_meta</a> (<a class="el" href="structsd__s3__file.html">sd_s3_file</a> *f, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const <a class="el" href="structsd__s3__meta__buf.html">sd_s3_meta_buf</a> *out, char *errbuf, size_t errcap)</td></tr>
 <tr class="separator:acea862ec68a6808111bdd2d7223d26e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa0e5431dfbb55d7b5e1df9054875bacc" id="r_aa0e5431dfbb55d7b5e1df9054875bacc"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__s3__meta_8c.html#aa0e5431dfbb55d7b5e1df9054875bacc">sd_s3_list_meta_emit</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, size_t nlen, char *buf, size_t cap, size_t *need)</td></tr>
+<tr class="separator:aa0e5431dfbb55d7b5e1df9054875bacc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2a1404f403db647c4b804779684c0584" id="r_a2a1404f403db647c4b804779684c0584"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__s3__meta_8c.html#a2a1404f403db647c4b804779684c0584">sd_s3_list_meta</a> (<a class="el" href="structsd__s3__file.html">sd_s3_file</a> *f, char *buf, size_t cap, char *errbuf, size_t errcap)</td></tr>
+<tr class="separator:a2a1404f403db647c4b804779684c0584"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1f613261d2b7ff2190a0cf4e7a4e3209" id="r_a1f613261d2b7ff2190a0cf4e7a4e3209"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__s3__meta_8c.html#a1f613261d2b7ff2190a0cf4e7a4e3209">sd_s3_get_unixattr</a> (<a class="el" href="structsd__s3__file.html">sd_s3_file</a> *f, <a class="el" href="structbrix__meta__advisory__t.html">brix_meta_advisory_t</a> *out, char *errbuf, size_t errcap)</td></tr>
 <tr class="separator:a1f613261d2b7ff2190a0cf4e7a4e3209"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6496fac70ba57b2efef324e0d0da21c1" id="r_a6496fac70ba57b2efef324e0d0da21c1"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__s3__meta_8c.html#a6496fac70ba57b2efef324e0d0da21c1">sd_s3_sign_hdr_cmp</a> (const void *a, const void *b)</td></tr>
@@ -180,11 +184,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00185">185</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00283">283</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00129">sd_s3_sign_ctx_t::all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00136">sd_s3_sign_ctx_t::canon_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00125">sd_s3_sign_ctx_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00134">sd_s3_sign_ctx_t::enc_uri</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00124">sd_s3_sign_ctx_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00130">sd_s3_sign_ctx_t::n_all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::name</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00126">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00093">sd_s3_sha256_hex()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00135">sd_s3_sign_ctx_t::signed_list</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::value</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00227">sd_s3_sign_ctx_t::all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00234">sd_s3_sign_ctx_t::canon_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00223">sd_s3_sign_ctx_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00232">sd_s3_sign_ctx_t::enc_uri</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00222">sd_s3_sign_ctx_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00228">sd_s3_sign_ctx_t::n_all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::name</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00224">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00093">sd_s3_sha256_hex()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00233">sd_s3_sign_ctx_t::signed_list</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::value</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00314">sd_s3_sign_ext()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_sign_ext()</a>.</p>
 
 </div>
 </div>
@@ -228,11 +232,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00251">251</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00349">349</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="sigv4_8c_source.html#l00014">brix_sigv4_signing_key()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00133">sd_s3_sign_ctx_t::datestamp</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00038">sd_s3_file::region</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00138">sd_s3_sign_ctx_t::sighex</a>, and <a class="el" href="sd__s3__internal_8h_source.html#l00037">sd_s3_file::sk</a>.</p>
+<p class="reference">References <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="sigv4_8c_source.html#l00014">brix_sigv4_signing_key()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00231">sd_s3_sign_ctx_t::datestamp</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00038">sd_s3_file::region</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00236">sd_s3_sign_ctx_t::sighex</a>, and <a class="el" href="sd__s3__internal_8h_source.html#l00037">sd_s3_file::sk</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00314">sd_s3_sign_ext()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_sign_ext()</a>.</p>
 
 </div>
 </div>
@@ -282,11 +286,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00274">274</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00372">372</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3__internal_8h_source.html#l00036">sd_s3_file::ak</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00132">sd_s3_sign_ctx_t::amzdate</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00127">sd_s3_sign_ctx_t::extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00128">sd_s3_sign_ctx_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::name</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00126">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00137">sd_s3_sign_ctx_t::scope</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00138">sd_s3_sign_ctx_t::sighex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00135">sd_s3_sign_ctx_t::signed_list</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::value</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3__internal_8h_source.html#l00036">sd_s3_file::ak</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00230">sd_s3_sign_ctx_t::amzdate</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00225">sd_s3_sign_ctx_t::extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00226">sd_s3_sign_ctx_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::name</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00224">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00235">sd_s3_sign_ctx_t::scope</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00236">sd_s3_sign_ctx_t::sighex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00233">sd_s3_sign_ctx_t::signed_list</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::value</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00314">sd_s3_sign_ext()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_sign_ext()</a>.</p>
 
 </div>
 </div>
@@ -336,9 +340,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00029">29</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3_8h_source.html#l00095">sd_s3_meta_buf::buf</a>, <a class="el" href="sd__s3_8h_source.html#l00095">sd_s3_meta_buf::cap</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00032">sd_s3_file::host</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00035">sd_s3_file::key</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00033">sd_s3_file::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00068">brix_s3_transport_t::resp_header</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00021">SD_S3_AUTH_HDRS_CAP</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00193">sd_s3_sign()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00205">sd_s3_status_err()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00040">sd_s3_file::tctx</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00041">sd_s3_file::timeout_ms</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00034">sd_s3_file::tls</a>, and <a class="el" href="sd__s3__internal_8h_source.html#l00039">sd_s3_file::transport</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3_8h_source.html#l00095">sd_s3_meta_buf::buf</a>, <a class="el" href="sd__s3_8h_source.html#l00095">sd_s3_meta_buf::cap</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00032">sd_s3_file::host</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00035">sd_s3_file::key</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00033">sd_s3_file::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00083">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00068">brix_s3_transport_t::resp_header</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00021">SD_S3_AUTH_HDRS_CAP</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00193">sd_s3_sign()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00205">sd_s3_status_err()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00040">sd_s3_file::tctx</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00041">sd_s3_file::timeout_ms</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00034">sd_s3_file::tls</a>, and <a class="el" href="sd__s3__internal_8h_source.html#l00039">sd_s3_file::transport</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00073">sd_s3_get_unixattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00369">sd_remote_getxattr()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00171">sd_s3_get_unixattr()</a>.</p>
 
 </div>
 </div>
@@ -380,9 +384,121 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00073">73</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00171">171</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
 <p class="reference">References <a class="el" href="meta__advisory_8c_source.html#l00068">brix_meta_advisory_decode()</a>, <a class="el" href="meta__advisory_8h_source.html#l00032">BRIX_META_ADVISORY_S3META</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00029">sd_s3_get_meta()</a>, and <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>.</p>
+
+</div>
+</div>
+<a id="a2a1404f403db647c4b804779684c0584" name="a2a1404f403db647c4b804779684c0584"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2a1404f403db647c4b804779684c0584">&#9670;&#160;</a></span>sd_s3_list_meta()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ssize_t sd_s3_list_meta </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structsd__s3__file.html">sd_s3_file</a> *&#160;</td>
+          <td class="paramname"><em>f</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>errbuf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>errcap</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00090">90</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="meta__advisory_8h_source.html#l00032">BRIX_META_ADVISORY_S3META</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00032">sd_s3_file::host</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00035">sd_s3_file::key</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00033">sd_s3_file::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00083">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00077">brix_s3_transport_t::resp_headers_raw</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00021">SD_S3_AUTH_HDRS_CAP</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00076">sd_s3_list_meta_emit()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00193">sd_s3_sign()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00205">sd_s3_status_err()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00040">sd_s3_file::tctx</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00041">sd_s3_file::timeout_ms</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00034">sd_s3_file::tls</a>, and <a class="el" href="sd__s3__internal_8h_source.html#l00039">sd_s3_file::transport</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__remote_8c_source.html#l00410">sd_remote_listxattr()</a>.</p>
+
+</div>
+</div>
+<a id="aa0e5431dfbb55d7b5e1df9054875bacc" name="aa0e5431dfbb55d7b5e1df9054875bacc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa0e5431dfbb55d7b5e1df9054875bacc">&#9670;&#160;</a></span>sd_s3_list_meta_emit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void sd_s3_list_meta_emit </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>nlen</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>cap</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t *&#160;</td>
+          <td class="paramname"><em>need</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00076">76</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00090">sd_s3_list_meta()</a>.</p>
 
 </div>
 </div>
@@ -430,11 +546,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00412">412</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00510">510</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3_8c_source.html#l00239">sd_s3_close()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3_8c_source.html#l00239">sd_s3_close()</a>, <a class="el" href="sd__s3_8c_source.html#l00035">sd_s3_open_read()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00438">sd_s3_set_meta_f()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00428">sd_s3_set_unixattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00526">sd_s3_set_unixattr()</a>.</p>
 
 </div>
 </div>
@@ -490,11 +606,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00340">340</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00438">438</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00103">sd_s3_sign_req_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00104">sd_s3_sign_req_t::extra</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00032">sd_s3_file::host</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00035">sd_s3_file::key</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00102">sd_s3_sign_req_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00105">sd_s3_sign_req_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00033">sd_s3_file::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00075">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00021">SD_S3_AUTH_HDRS_CAP</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00314">sd_s3_sign_ext()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00205">sd_s3_status_err()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00040">sd_s3_file::tctx</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00041">sd_s3_file::timeout_ms</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00034">sd_s3_file::tls</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00039">sd_s3_file::transport</a>, <a class="el" href="ini__unittest_8c_source.html#l00037">kv::value</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::value</a>.</p>
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00201">sd_s3_sign_req_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00202">sd_s3_sign_req_t::extra</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00032">sd_s3_file::host</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00035">sd_s3_file::key</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00200">sd_s3_sign_req_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00203">sd_s3_sign_req_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00033">sd_s3_file::port</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00039">brix_s3_transport_t::request</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00083">brix_s3_transport_t::resp_free</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00021">SD_S3_AUTH_HDRS_CAP</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_sign_ext()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00205">sd_s3_status_err()</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00040">sd_s3_file::tctx</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00041">sd_s3_file::timeout_ms</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00034">sd_s3_file::tls</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00039">sd_s3_file::transport</a>, <a class="el" href="ini__unittest_8c_source.html#l00037">kv::value</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::value</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_set_meta()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00510">sd_s3_set_meta()</a>.</p>
 
 </div>
 </div>
@@ -536,9 +652,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00428">428</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00526">526</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="meta__advisory_8c_source.html#l00039">brix_meta_advisory_encode()</a>, <a class="el" href="meta__advisory_8h_source.html#l00032">BRIX_META_ADVISORY_S3META</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_set_meta()</a>, and <a class="el" href="ini__unittest_8c_source.html#l00037">kv::value</a>.</p>
+<p class="reference">References <a class="el" href="meta__advisory_8c_source.html#l00039">brix_meta_advisory_encode()</a>, <a class="el" href="meta__advisory_8h_source.html#l00032">BRIX_META_ADVISORY_S3META</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00036">sd_s3_set_err()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00510">sd_s3_set_meta()</a>, and <a class="el" href="ini__unittest_8c_source.html#l00037">kv::value</a>.</p>
 
 </div>
 </div>
@@ -588,11 +704,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00314">314</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00412">412</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00103">sd_s3_sign_req_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00125">sd_s3_sign_ctx_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00104">sd_s3_sign_req_t::extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00127">sd_s3_sign_ctx_t::extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00102">sd_s3_sign_req_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00124">sd_s3_sign_ctx_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00105">sd_s3_sign_req_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00128">sd_s3_sign_ctx_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00126">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00185">sd_s3_canonical_request()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00251">sd_s3_derive_key_and_sign()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00274">sd_s3_emit_auth_header()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00226">sd_s3_string_to_sign()</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00201">sd_s3_sign_req_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00223">sd_s3_sign_ctx_t::canon_qs</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00202">sd_s3_sign_req_t::extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00225">sd_s3_sign_ctx_t::extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00200">sd_s3_sign_req_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00222">sd_s3_sign_ctx_t::method</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00203">sd_s3_sign_req_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00226">sd_s3_sign_ctx_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00224">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00283">sd_s3_canonical_request()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00349">sd_s3_derive_key_and_sign()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00372">sd_s3_emit_auth_header()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00247">sd_s3_sign_prepare()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00324">sd_s3_string_to_sign()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00340">sd_s3_set_meta_f()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00438">sd_s3_set_meta_f()</a>.</p>
 
 </div>
 </div>
@@ -630,11 +746,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00109">109</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00207">207</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00149">sd_s3_sign_prepare()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00247">sd_s3_sign_prepare()</a>.</p>
 
 </div>
 </div>
@@ -672,11 +788,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00149">149</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00247">247</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00129">sd_s3_sign_ctx_t::all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00132">sd_s3_sign_ctx_t::amzdate</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00133">sd_s3_sign_ctx_t::datestamp</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00134">sd_s3_sign_ctx_t::enc_uri</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00127">sd_s3_sign_ctx_t::extra</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00032">sd_s3_file::host</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00131">sd_s3_sign_ctx_t::host</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00035">sd_s3_file::key</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00130">sd_s3_sign_ctx_t::n_all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00128">sd_s3_sign_ctx_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::name</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00126">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00033">sd_s3_file::port</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00109">sd_s3_sign_hdr_cmp()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00053">sd_s3_utc_now()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00098">sd_s3_sign_hdr_t::value</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00227">sd_s3_sign_ctx_t::all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00230">sd_s3_sign_ctx_t::amzdate</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="core_2compat_2uri_8c_source.html#l00075">brix_http_urlencode()</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00231">sd_s3_sign_ctx_t::datestamp</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00232">sd_s3_sign_ctx_t::enc_uri</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00225">sd_s3_sign_ctx_t::extra</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00032">sd_s3_file::host</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00229">sd_s3_sign_ctx_t::host</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00035">sd_s3_file::key</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00228">sd_s3_sign_ctx_t::n_all</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00226">sd_s3_sign_ctx_t::n_extra</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::name</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00224">sd_s3_sign_ctx_t::payload_hex</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00033">sd_s3_file::port</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00207">sd_s3_sign_hdr_cmp()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00053">sd_s3_utc_now()</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00196">sd_s3_sign_hdr_t::value</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00314">sd_s3_sign_ext()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_sign_ext()</a>.</p>
 
 </div>
 </div>
@@ -726,11 +842,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00226">226</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__s3__meta_8c_source.html#l00324">324</a> of file <a class="el" href="sd__s3__meta_8c_source.html">sd_s3_meta.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00132">sd_s3_sign_ctx_t::amzdate</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00136">sd_s3_sign_ctx_t::canon_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00133">sd_s3_sign_ctx_t::datestamp</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00038">sd_s3_file::region</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00137">sd_s3_sign_ctx_t::scope</a>.</p>
+<p class="reference">References <a class="el" href="sd__s3__meta_8c_source.html#l00230">sd_s3_sign_ctx_t::amzdate</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00234">sd_s3_sign_ctx_t::canon_hex</a>, <a class="el" href="sd__s3__meta_8c_source.html#l00231">sd_s3_sign_ctx_t::datestamp</a>, <a class="el" href="sd__s3__internal_8h_source.html#l00038">sd_s3_file::region</a>, and <a class="el" href="sd__s3__meta_8c_source.html#l00235">sd_s3_sign_ctx_t::scope</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00314">sd_s3_sign_ext()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__s3__meta_8c_source.html#l00412">sd_s3_sign_ext()</a>.</p>
 
 </div>
 </div>

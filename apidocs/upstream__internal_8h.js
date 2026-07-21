@@ -19,6 +19,7 @@ var upstream__internal_8h =
     ] ],
     [ "brix_upstream_abort", "upstream__internal_8h.html#a8d545c3f13f8ec65294c8d02c9d8d471", null ],
     [ "brix_upstream_build_bootstrap", "upstream__internal_8h.html#ae710b61b62fec14972c4be7b3aaca8c4", null ],
+    [ "brix_upstream_build_bootstrap_flags", "upstream__internal_8h.html#a5a35f62fd990d8c2b76c0b30966affb6", null ],
     [ "brix_upstream_build_login", "upstream__internal_8h.html#a1a37ecdc99deb7901368ebd66bb04c12", null ],
     [ "brix_upstream_flush", "upstream__internal_8h.html#af75c2d80dc459083e9c83b3d84b19239", null ],
     [ "brix_upstream_forward_response", "upstream__internal_8h.html#ac0e42d24928dfd1bc7f5bfdfff8114bb", null ],

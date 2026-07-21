@@ -30,6 +30,7 @@ var s3__transport_8c =
     [ "s3o_resp_body", "s3__transport_8c.html#a4cc3db72092f27261479c110170f7187", null ],
     [ "s3o_resp_free", "s3__transport_8c.html#aa4f10acf1d93bac01374b13dd66c55e7", null ],
     [ "s3o_resp_header", "s3__transport_8c.html#af263184f7d91aa2da85a43e7827db72c", null ],
+    [ "s3o_resp_headers_raw", "s3__transport_8c.html#a0afd3caef6b987c1079f5e23dba6f6e1", null ],
     [ "s3o_trace", "s3__transport_8c.html#a1439df4cdea52f11693787c443e0fa26", null ],
     [ "s3o_write_cb", "s3__transport_8c.html#a36eb494cef41cdf8395b862b0f3f5285", null ],
     [ "brix_s3_origin_curl_transport", "s3__transport_8c.html#a465fe87b07ce246a3e53a3446cb1cd35", null ],

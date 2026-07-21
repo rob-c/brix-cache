@@ -9,6 +9,7 @@ var sd__ceph__unittest_8c =
     [ "test_key_composition", "sd__ceph__unittest_8c.html#a4c7267f1ce0d879e0018e9a6fdb80943", null ],
     [ "test_normalize_canonicalization", "sd__ceph__unittest_8c.html#ad06a0d441b5f67493baf97d1037da7be", null ],
     [ "test_normalize_escape_rejects", "sd__ceph__unittest_8c.html#a7296155b69dc321f303e19bef0f0ddf3", null ],
+    [ "test_path_child", "sd__ceph__unittest_8c.html#a09cf29d30ca17724aeec4112a0371072", null ],
     [ "test_striper_layout", "sd__ceph__unittest_8c.html#a2a233f3d7b0c4a674bda332e38a07c00", null ],
     [ "failures", "sd__ceph__unittest_8c.html#a5c7ba59d434acf5dafb8ec5fd28e9a1e", null ]
 ];

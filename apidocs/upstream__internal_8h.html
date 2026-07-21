@@ -154,6 +154,8 @@ Functions</h2></td></tr>
 <tr class="separator:a8d545c3f13f8ec65294c8d02c9d8d471"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae710b61b62fec14972c4be7b3aaca8c4" id="r_ae710b61b62fec14972c4be7b3aaca8c4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="upstream__internal_8h.html#ae710b61b62fec14972c4be7b3aaca8c4">brix_upstream_build_bootstrap</a> (u_char *buf)</td></tr>
 <tr class="separator:ae710b61b62fec14972c4be7b3aaca8c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5a35f62fd990d8c2b76c0b30966affb6" id="r_a5a35f62fd990d8c2b76c0b30966affb6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="upstream__internal_8h.html#a5a35f62fd990d8c2b76c0b30966affb6">brix_upstream_build_bootstrap_flags</a> (u_char *buf, uint8_t protocol_flags)</td></tr>
+<tr class="separator:a5a35f62fd990d8c2b76c0b30966affb6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1a37ecdc99deb7901368ebd66bb04c12" id="r_a1a37ecdc99deb7901368ebd66bb04c12"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="upstream__internal_8h.html#a1a37ecdc99deb7901368ebd66bb04c12">brix_upstream_build_login</a> (<a class="el" href="structClientLoginRequest.html">ClientLoginRequest</a> *req)</td></tr>
 <tr class="separator:a1a37ecdc99deb7901368ebd66bb04c12"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac0e42d24928dfd1bc7f5bfdfff8114bb" id="r_ac0e42d24928dfd1bc7f5bfdfff8114bb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="upstream__internal_8h.html#ac0e42d24928dfd1bc7f5bfdfff8114bb">brix_upstream_forward_response</a> (brix_upstream_t *up)</td></tr>
@@ -284,7 +286,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="event__sched_8c_source.html#l00006">brix_schedule_read_resume()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00013">brix_upstream_cleanup()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, and <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00266">brix_upstream_bootstrap_advance()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00240">brix_upstream_bs_auth()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00146">brix_upstream_bs_goto_tls()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00122">brix_upstream_bs_handshake()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00213">brix_upstream_bs_login()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00183">brix_upstream_bs_protocol()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00078">brix_upstream_continue_auth()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00210">brix_upstream_dispatch_response()</a>, <a class="el" href="response_8c_source.html#l00020">brix_upstream_forward_response()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00305">brix_upstream_handle_bootstrap_response()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00169">brix_upstream_parse_header_and_alloc()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00244">brix_upstream_read_handler()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00134">brix_upstream_recv_chunk()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00022">brix_upstream_wait_timer_handler()</a>, and <a class="el" href="net_2upstream_2events_8c_source.html#l00053">brix_upstream_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00276">brix_upstream_bootstrap_advance()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00250">brix_upstream_bs_auth()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00156">brix_upstream_bs_goto_tls()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00132">brix_upstream_bs_handshake()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00223">brix_upstream_bs_login()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00193">brix_upstream_bs_protocol()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00088">brix_upstream_continue_auth()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00210">brix_upstream_dispatch_response()</a>, <a class="el" href="response_8c_source.html#l00020">brix_upstream_forward_response()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00315">brix_upstream_handle_bootstrap_response()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00169">brix_upstream_parse_header_and_alloc()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00244">brix_upstream_read_handler()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00134">brix_upstream_recv_chunk()</a>, <a class="el" href="net_2upstream_2events_8c_source.html#l00022">brix_upstream_wait_timer_handler()</a>, and <a class="el" href="net_2upstream_2events_8c_source.html#l00053">brix_upstream_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -304,7 +306,39 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00032">32</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00053">53</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
+
+</div>
+</div>
+<a id="a5a35f62fd990d8c2b76c0b30966affb6" name="a5a35f62fd990d8c2b76c0b30966affb6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5a35f62fd990d8c2b76c0b30966affb6">&#9670;&#160;</a></span>brix_upstream_build_bootstrap_flags()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_upstream_build_bootstrap_flags </td>
+          <td>(</td>
+          <td class="paramtype">u_char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramname"><em>protocol_flags</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00036">36</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00053">brix_upstream_build_bootstrap()</a>.</p>
 
 </div>
 </div>
@@ -324,9 +358,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00055">55</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
-
-<p class="reference">References <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00029">brix_upstream_streamid</a>, <a class="el" href="flags_8h_source.html#l00117">kXR_ver005</a>, and <a class="el" href="bootstrap__pack_8h_source.html#l00084">xrd_pack_login_request()</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00065">65</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
 
 </div>
 </div>
@@ -392,9 +424,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00305">305</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00315">315</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00266">brix_upstream_bootstrap_advance()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00240">brix_upstream_bs_auth()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00122">brix_upstream_bs_handshake()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00213">brix_upstream_bs_login()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00183">brix_upstream_bs_protocol()</a>, <a class="el" href="upstream__internal_8h_source.html#l00041">XRD_UP_BS_AUTH</a>, <a class="el" href="upstream__internal_8h_source.html#l00037">XRD_UP_BS_HANDSHAKE</a>, <a class="el" href="upstream__internal_8h_source.html#l00040">XRD_UP_BS_LOGIN</a>, <a class="el" href="upstream__internal_8h_source.html#l00038">XRD_UP_BS_PROTOCOL</a>, and <a class="el" href="upstream__internal_8h_source.html#l00039">XRD_UP_BS_TLS</a>.</p>
+<p class="reference">References <a class="el" href="net_2upstream_2lifecycle_8c_source.html#l00041">brix_upstream_abort()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00276">brix_upstream_bootstrap_advance()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00250">brix_upstream_bs_auth()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00132">brix_upstream_bs_handshake()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00223">brix_upstream_bs_login()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00193">brix_upstream_bs_protocol()</a>, <a class="el" href="upstream__internal_8h_source.html#l00041">XRD_UP_BS_AUTH</a>, <a class="el" href="upstream__internal_8h_source.html#l00037">XRD_UP_BS_HANDSHAKE</a>, <a class="el" href="upstream__internal_8h_source.html#l00040">XRD_UP_BS_LOGIN</a>, <a class="el" href="upstream__internal_8h_source.html#l00038">XRD_UP_BS_PROTOCOL</a>, and <a class="el" href="upstream__internal_8h_source.html#l00039">XRD_UP_BS_TLS</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="net_2upstream_2events_8c_source.html#l00210">brix_upstream_dispatch_response()</a>.</p>
 
@@ -444,7 +476,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="net_2upstream_2request_8c_source.html#l00101">brix_upstream_flush()</a>, <a class="el" href="wire__core__requests_8h_source.html#l00355">ClientOpenRequest::dlen</a>, <a class="el" href="wire__core__requests_8h_source.html#l00414">ClientStatRequest::dlen</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00199">ClientLocateRequest::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00072">kXR_locate</a>, <a class="el" href="opcodes_8h_source.html#l00055">kXR_open</a>, <a class="el" href="opcodes_8h_source.html#l00062">kXR_stat</a>, <a class="el" href="wire__codec_8h_source.html#l00159">xrdw_open_req_t::mode</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__codec_8h_source.html#l00133">xrdw_locate_req_t::options</a>, <a class="el" href="wire__core__requests_8h_source.html#l00349">ClientOpenRequest::requestid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00409">ClientStatRequest::requestid</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00196">ClientLocateRequest::requestid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00348">ClientOpenRequest::streamid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00408">ClientStatRequest::streamid</a>, <a class="el" href="wire__write__extended__requests_8h_source.html#l00195">ClientLocateRequest::streamid</a>, <a class="el" href="opcodes_8h_source.html#l00027">XRD_REQUEST_HDR_LEN</a>, <a class="el" href="upstream__internal_8h_source.html#l00048">XRD_UP_REQUEST</a>, <a class="el" href="wire__codec__meta_8c_source.html#l00115">xrdw_locate_req_pack()</a>, and <a class="el" href="wire__codec__file_8c_source.html#l00016">xrdw_open_req_pack()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00266">brix_upstream_bootstrap_advance()</a>, and <a class="el" href="net_2upstream_2events_8c_source.html#l00022">brix_upstream_wait_timer_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00276">brix_upstream_bootstrap_advance()</a>, and <a class="el" href="net_2upstream_2events_8c_source.html#l00022">brix_upstream_wait_timer_handler()</a>.</p>
 
 </div>
 </div>
@@ -478,7 +510,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00035">BRIX_PALLOC_OR_RETURN</a>, <a class="el" href="file_8c_source.html#l00164">brix_token_read_file()</a>, <a class="el" href="net_2upstream_2request_8c_source.html#l00101">brix_upstream_flush()</a>, <a class="el" href="wire__codec_8h_source.html#l00331">xrdw_auth_req_t::credtype</a>, <a class="el" href="wire__core__requests_8h_source.html#l00315">ClientAuthRequest::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00045">kXR_auth</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__core__requests_8h_source.html#l00312">ClientAuthRequest::requestid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00311">ClientAuthRequest::streamid</a>, <a class="el" href="src_2net_2upstream_2auth_8c_source.html#l00029">UPSTREAM_BEARER_MAX</a>, <a class="el" href="upstream__internal_8h_source.html#l00041">XRD_UP_BS_AUTH</a>, and <a class="el" href="wire__codec__session_8c_source.html#l00046">xrdw_auth_req_pack()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00078">brix_upstream_continue_auth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00088">brix_upstream_continue_auth()</a>.</p>
 
 </div>
 </div>

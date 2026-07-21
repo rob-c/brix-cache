@@ -2,10 +2,10 @@
 <area shape="rect" id="Node000001" title=" " alt="" coords="4254,5,4433,31"/>
 <area shape="rect" id="Node000002" href="$ngx__brix__module_8h.html" title=" " alt="" coords="4033,86,4235,111"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="4301,38,4165,88,4164,83,4299,33"/>
-<area shape="rect" id="Node000606" href="$deadline_8h.html" title=" " alt="" coords="4259,79,4428,119"/>
-<area shape="poly" id="edge85_Node000001_Node000606" title=" " alt="" coords="4346,44,4346,79,4341,79,4341,44"/>
-<area shape="rect" id="Node000607" href="$ssi_8h.html" title=" " alt="" coords="4452,86,4613,111"/>
-<area shape="poly" id="edge86_Node000001_Node000607" title=" " alt="" coords="4385,33,4506,84,4504,88,4383,38"/>
+<area shape="rect" id="Node000612" href="$deadline_8h.html" title=" " alt="" coords="4259,79,4428,119"/>
+<area shape="poly" id="edge85_Node000001_Node000612" title=" " alt="" coords="4346,44,4346,79,4341,79,4341,44"/>
+<area shape="rect" id="Node000613" href="$ssi_8h.html" title=" " alt="" coords="4452,86,4613,111"/>
+<area shape="poly" id="edge86_Node000001_Node000613" title=" " alt="" coords="4385,33,4506,84,4504,88,4383,38"/>
 <area shape="rect" id="Node000003" href="$auth_2authz_2acc_2config_8c.html" title=" " alt="" coords="456,167,596,207"/>
 <area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="4020,104,3297,110,2234,124,1213,143,837,156,616,169,596,172,596,167,615,164,837,150,1213,138,2234,118,3297,105,4019,98"/>
 <area shape="rect" id="Node000004" href="$auth_2authz_2acl_8c.html" title=" " alt="" coords="5,262,153,287"/>

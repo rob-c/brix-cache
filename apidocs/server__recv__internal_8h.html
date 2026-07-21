@@ -127,6 +127,8 @@ Functions</h2></td></tr>
 <tr class="separator:a20c1afafcec420d6cf4691e09ce9a082"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac5dfd88d69b11f64f4c3676aaaaadea6" id="r_ac5dfd88d69b11f64f4c3676aaaaadea6"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__recv__internal_8h.html#ac5dfd88d69b11f64f4c3676aaaaadea6">cms_srv_parse_load_free_mb</a> (const u_char *payload, size_t payload_len)</td></tr>
 <tr class="separator:ac5dfd88d69b11f64f4c3676aaaaadea6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4fb9406ab65a9d409cee39c5455922a1" id="r_a4fb9406ab65a9d409cee39c5455922a1"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__recv__internal_8h.html#a4fb9406ab65a9d409cee39c5455922a1">cms_srv_parse_load_machine_pct</a> (const u_char *payload, size_t payload_len)</td></tr>
+<tr class="separator:a4fb9406ab65a9d409cee39c5455922a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ade71a6bca966cb4ab359caa0d0d10467" id="r_ade71a6bca966cb4ab359caa0d0d10467"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__recv__internal_8h.html#ade71a6bca966cb4ab359caa0d0d10467">cms_srv_parse_avail</a> (const u_char *payload, size_t payload_len, uint32_t *free_mb, uint32_t *util_pct)</td></tr>
 <tr class="separator:ade71a6bca966cb4ab359caa0d0d10467"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adc322b1d4750b738b63381e381de8df1" id="r_adc322b1d4750b738b63381e381de8df1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server__recv__internal_8h.html#adc322b1d4750b738b63381e381de8df1">cms_srv_process_frame</a> (<a class="el" href="structbrix__cms__srv__ctx__t.html">brix_cms_srv_ctx_t</a> *ctx, u_char <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>, uint32_t streamid, const u_char *payload, size_t payload_len)</td></tr>
@@ -159,11 +161,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="server__recv__lifecycle_8c_source.html#l00171">171</a> of file <a class="el" href="server__recv__lifecycle_8c_source.html">server_recv_lifecycle.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="server__recv__lifecycle_8c_source.html#l00174">174</a> of file <a class="el" href="server__recv__lifecycle_8c_source.html">server_recv_lifecycle.c</a>.</p>
 
 <p class="reference">References <a class="el" href="server__recv__lifecycle_8c_source.html#l00116">brix_cms_srv_close()</a>, and <a class="el" href="server__recv__lifecycle_8c_source.html#l00027">cms_srv_set_end_hint()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00181">brix_cms_srv_read()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00234">cms_srv_frame_disc()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00111">cms_srv_frame_login()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00219">cms_srv_frame_ping()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00248">cms_srv_frame_update()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00144">cms_srv_frame_xauth()</a>, <a class="el" href="server__recv_8c_source.html#l00081">cms_srv_read_accumulate()</a>, <a class="el" href="server__recv_8c_source.html#l00060">cms_srv_read_timeout()</a>, and <a class="el" href="server__recv_8c_source.html#l00170">cms_srv_read_yield()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00181">brix_cms_srv_read()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00277">cms_srv_frame_disc()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00151">cms_srv_frame_login()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00262">cms_srv_frame_ping()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00291">cms_srv_frame_update()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00184">cms_srv_frame_xauth()</a>, <a class="el" href="server__recv_8c_source.html#l00081">cms_srv_read_accumulate()</a>, <a class="el" href="server__recv_8c_source.html#l00060">cms_srv_read_timeout()</a>, and <a class="el" href="server__recv_8c_source.html#l00170">cms_srv_read_yield()</a>.</p>
 
 </div>
 </div>
@@ -195,9 +197,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__recv__lifecycle_8c_source.html#l00085">85</a> of file <a class="el" href="server__recv__lifecycle_8c_source.html">server_recv_lifecycle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00279">brix_sess_auth()</a>, and <a class="el" href="server_8h_source.html#l00039">brix_cms_srv_ctx_t::sess</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00279">brix_sess_auth()</a>, and <a class="el" href="server_8h_source.html#l00040">brix_cms_srv_ctx_t::sess</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00111">cms_srv_frame_login()</a>, and <a class="el" href="server__recv__frame_8c_source.html#l00144">cms_srv_frame_xauth()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00151">cms_srv_frame_login()</a>, and <a class="el" href="server__recv__frame_8c_source.html#l00184">cms_srv_frame_xauth()</a>.</p>
 
 </div>
 </div>
@@ -219,9 +221,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__recv__lifecycle_8c_source.html#l00095">95</a> of file <a class="el" href="server__recv__lifecycle_8c_source.html">server_recv_lifecycle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00333">brix_sess_attempt()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00311">brix_sess_auth_once()</a>, <a class="el" href="sesslog_8h_source.html#l00048">BRIX_SESS_MODE_META</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00361">brix_sess_result()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="server__recv__lifecycle_8c_source.html#l00063">cms_srv_target_path()</a>, <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::host</a>, <a class="el" href="server_8h_source.html#l00039">brix_cms_srv_ctx_t::sess</a>, and <a class="el" href="server_8h_source.html#l00042">brix_cms_srv_ctx_t::sess_attempt_logged</a>.</p>
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00333">brix_sess_attempt()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00311">brix_sess_auth_once()</a>, <a class="el" href="sesslog_8h_source.html#l00048">BRIX_SESS_MODE_META</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00361">brix_sess_result()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="server__recv__lifecycle_8c_source.html#l00063">cms_srv_target_path()</a>, <a class="el" href="server_8h_source.html#l00044">brix_cms_srv_ctx_t::host</a>, <a class="el" href="server_8h_source.html#l00040">brix_cms_srv_ctx_t::sess</a>, and <a class="el" href="server_8h_source.html#l00043">brix_cms_srv_ctx_t::sess_attempt_logged</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00060">cms_srv_complete_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00086">cms_srv_complete_login()</a>.</p>
 
 </div>
 </div>
@@ -263,11 +265,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="server__recv__parse_8c_source.html#l00305">305</a> of file <a class="el" href="server__recv__parse_8c_source.html">server_recv_parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="server__recv__parse_8c_source.html#l00363">363</a> of file <a class="el" href="server__recv__parse_8c_source.html">server_recv_parse.c</a>.</p>
 
 <p class="reference">References <a class="el" href="server__recv__parse_8c_source.html#l00036">tlv_read_next()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00189">cms_srv_frame_avail()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00232">cms_srv_frame_avail()</a>.</p>
 
 </div>
 </div>
@@ -297,11 +299,43 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="server__recv__parse_8c_source.html#l00279">279</a> of file <a class="el" href="server__recv__parse_8c_source.html">server_recv_parse.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="server__recv__parse_8c_source.html#l00312">312</a> of file <a class="el" href="server__recv__parse_8c_source.html">server_recv_parse.c</a>.</p>
 
 <p class="reference">References <a class="el" href="server__recv__parse_8c_source.html#l00036">tlv_read_next()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00170">cms_srv_frame_load()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00211">cms_srv_frame_load()</a>.</p>
+
+</div>
+</div>
+<a id="a4fb9406ab65a9d409cee39c5455922a1" name="a4fb9406ab65a9d409cee39c5455922a1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4fb9406ab65a9d409cee39c5455922a1">&#9670;&#160;</a></span>cms_srv_parse_load_machine_pct()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t cms_srv_parse_load_machine_pct </td>
+          <td>(</td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>payload</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>payload_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="server__recv__parse_8c_source.html#l00338">338</a> of file <a class="el" href="server__recv__parse_8c_source.html">server_recv_parse.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00211">cms_srv_frame_load()</a>.</p>
 
 </div>
 </div>
@@ -339,9 +373,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__recv__parse_8c_source.html#l00223">223</a> of file <a class="el" href="server__recv__parse_8c_source.html">server_recv_parse.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00008">BRIX_DEFAULT_PORT</a>, <a class="el" href="server__recv__parse_8c_source.html#l00202">cms_srv_login_append_path()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00165">cms_srv_login_next_path()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00112">cms_srv_login_scalars()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00071">cms_srv_read_string()</a>, <a class="el" href="server_8h_source.html#l00045">brix_cms_srv_ctx_t::paths</a>, <a class="el" href="server_8h_source.html#l00044">brix_cms_srv_ctx_t::port</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
+<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00008">BRIX_DEFAULT_PORT</a>, <a class="el" href="server__recv__parse_8c_source.html#l00202">cms_srv_login_append_path()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00165">cms_srv_login_next_path()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00112">cms_srv_login_scalars()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00071">cms_srv_read_string()</a>, <a class="el" href="server_8h_source.html#l00046">brix_cms_srv_ctx_t::paths</a>, <a class="el" href="server_8h_source.html#l00045">brix_cms_srv_ctx_t::port</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="server_8h_source.html#l00047">brix_cms_srv_ctx_t::vnid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00111">cms_srv_frame_login()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00151">cms_srv_frame_login()</a>.</p>
 
 </div>
 </div>
@@ -389,9 +423,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="server__recv__frame_8c_source.html#l00406">406</a> of file <a class="el" href="server__recv__frame_8c_source.html">server_recv_frame.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="server__recv__frame_8c_source.html#l00655">655</a> of file <a class="el" href="server__recv__frame_8c_source.html">server_recv_frame.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server__recv__frame_8c.html#a2ced3300c2af90dab16d72fdb4735270">cms_srv_frame_routes</a>, <a class="el" href="server__recv__frame_8c_source.html#l00363">cms_srv_frame_unknown()</a>, and <a class="el" href="server__recv__frame_8c_source.html#l00382">code</a>.</p>
+<p class="reference">References <a class="el" href="server__recv__frame_8c.html#a2ced3300c2af90dab16d72fdb4735270">cms_srv_frame_routes</a>, <a class="el" href="server__recv__frame_8c_source.html#l00607">cms_srv_frame_unknown()</a>, and <a class="el" href="server__recv__frame_8c_source.html#l00626">code</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="server__recv_8c_source.html#l00138">cms_srv_dispatch_frame()</a>.</p>
 
@@ -425,9 +459,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="server__recv__lifecycle_8c_source.html#l00027">27</a> of file <a class="el" href="server__recv__lifecycle_8c_source.html">server_recv_lifecycle.c</a>.</p>
 
-<p class="reference">References <a class="el" href="server_8h_source.html#l00040">brix_cms_srv_ctx_t::sess_end_hint</a>, and <a class="el" href="server_8h_source.html#l00041">brix_cms_srv_ctx_t::sess_end_hint_set</a>.</p>
+<p class="reference">References <a class="el" href="server_8h_source.html#l00041">brix_cms_srv_ctx_t::sess_end_hint</a>, and <a class="el" href="server_8h_source.html#l00042">brix_cms_srv_ctx_t::sess_end_hint_set</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00033">brix_cms_srv_ping_timer()</a>, <a class="el" href="server__recv_8c_source.html#l00035">brix_cms_srv_write()</a>, and <a class="el" href="server__recv__lifecycle_8c_source.html#l00171">cms_srv_fail_close()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00057">brix_cms_srv_ping_timer()</a>, <a class="el" href="server__recv_8c_source.html#l00035">brix_cms_srv_write()</a>, and <a class="el" href="server__recv__lifecycle_8c_source.html#l00174">cms_srv_fail_close()</a>.</p>
 
 </div>
 </div>

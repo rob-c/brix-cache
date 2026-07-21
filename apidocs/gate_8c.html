@@ -101,6 +101,7 @@ $(document).ready(function(){initNavTree('gate_8c.html',''); initResizable(); })
 <div class="textblock"><code>#include &quot;<a class="el" href="cvmfs_8h_source.html">cvmfs.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="guard_8h_source.html">net/guard/guard.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="fnv_8h_source.html">core/fnv.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for gate.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -162,7 +163,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00029">29</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00030">30</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
 </div>
 </div>
@@ -193,9 +194,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00263">263</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00264">264</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00025">BRIX_CVMFS_CLASS_GEO</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00024">BRIX_CVMFS_CLASS_MANIFEST</a>, <a class="el" href="geo__answer_8c_source.html#l00414">brix_cvmfs_geo_answer()</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="cvmfs_8h_source.html#l00054">BRIX_CVMFS_GEO_RTT</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="secure_8c_source.html#l00181">brix_cvmfs_repo_authz_eval()</a>, <a class="el" href="cvmfs_8c_source.html#l00035">brix_cvmfs_repo_slot()</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00227">cvmfs_gate_cas()</a>, <a class="el" href="gate_8c_source.html#l00190">cvmfs_gate_proxy_bind()</a>, <a class="el" href="gate_8c_source.html#l00112">cvmfs_guard_emit()</a>, <a class="el" href="gate_8c_source.html#l00083">cvmfs_reject()</a>, <a class="el" href="cvmfs_8h_source.html#l00124">brix_cvmfs_conf_t::geo_answer</a>, <a class="el" href="guard_8h_source.html#l00035">GUARD_R_AUTHFAIL</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00351">ngx_http_brix_cvmfs_module</a>, <a class="el" href="cvmfs_8h_source.html#l00191">ngx_http_brix_cvmfs_ctx_t::repo</a>, <a class="el" href="cvmfs_8h_source.html#l00169">ngx_http_brix_cvmfs_loc_conf_t::repo_authz</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00052">ngx_brix_cvmfs_repo_metrics_t::requests_total</a>, and <a class="el" href="cvmfs_8h_source.html#l00190">ngx_http_brix_cvmfs_ctx_t::url</a>.</p>
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00025">BRIX_CVMFS_CLASS_GEO</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00024">BRIX_CVMFS_CLASS_MANIFEST</a>, <a class="el" href="geo__answer_8c_source.html#l00415">brix_cvmfs_geo_answer()</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="cvmfs_8h_source.html#l00054">BRIX_CVMFS_GEO_RTT</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="secure_8c_source.html#l00181">brix_cvmfs_repo_authz_eval()</a>, <a class="el" href="cvmfs_8c_source.html#l00035">brix_cvmfs_repo_slot()</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00228">cvmfs_gate_cas()</a>, <a class="el" href="gate_8c_source.html#l00191">cvmfs_gate_proxy_bind()</a>, <a class="el" href="gate_8c_source.html#l00113">cvmfs_guard_emit()</a>, <a class="el" href="gate_8c_source.html#l00084">cvmfs_reject()</a>, <a class="el" href="cvmfs_8h_source.html#l00124">brix_cvmfs_conf_t::geo_answer</a>, <a class="el" href="guard_8h_source.html#l00035">GUARD_R_AUTHFAIL</a>, <a class="el" href="protocols_2cvmfs_2module_8c_source.html#l00351">ngx_http_brix_cvmfs_module</a>, <a class="el" href="cvmfs_8h_source.html#l00191">ngx_http_brix_cvmfs_ctx_t::repo</a>, <a class="el" href="cvmfs_8h_source.html#l00169">ngx_http_brix_cvmfs_loc_conf_t::repo_authz</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00052">ngx_brix_cvmfs_repo_metrics_t::requests_total</a>, and <a class="el" href="cvmfs_8h_source.html#l00190">ngx_http_brix_cvmfs_ctx_t::url</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00519">ngx_http_brix_cvmfs_handler()</a>.</p>
 
@@ -233,9 +234,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00072">72</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00073">73</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00060">cvmfs_neg_store()</a>, and <a class="el" href="cvmfs_8h_source.html#l00068">brix_cvmfs_conf_t::negative_ttl</a>.</p>
+<p class="reference">References <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00061">cvmfs_neg_store()</a>, and <a class="el" href="cvmfs_8h_source.html#l00068">brix_cvmfs_conf_t::negative_ttl</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2cvmfs_2handler_8c_source.html#l00494">cvmfs_finalize_observe()</a>.</p>
 
@@ -281,11 +282,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00227">227</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00228">228</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="cvmfs_8h_source.html#l00285">BRIX_CVMFS_CACHE_NEG</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00023">BRIX_CVMFS_CLASS_CAS</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="cvmfs_8h_source.html#l00193">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00051">cvmfs_neg_check()</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00059">ngx_brix_cvmfs_repo_metrics_t::negative_hits_total</a>, <a class="el" href="cvmfs_8h_source.html#l00068">brix_cvmfs_conf_t::negative_ttl</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="cvmfs_8h_source.html#l00191">ngx_http_brix_cvmfs_ctx_t::repo</a>, and <a class="el" href="metrics__cvmfs_8h_source.html#l00052">ngx_brix_cvmfs_repo_metrics_t::requests_total</a>.</p>
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="cvmfs_8h_source.html#l00285">BRIX_CVMFS_CACHE_NEG</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00023">BRIX_CVMFS_CLASS_CAS</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="cvmfs_8h_source.html#l00193">ngx_http_brix_cvmfs_ctx_t::cache_status</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00052">cvmfs_neg_check()</a>, <a class="el" href="metrics__cvmfs_8h_source.html#l00059">ngx_brix_cvmfs_repo_metrics_t::negative_hits_total</a>, <a class="el" href="cvmfs_8h_source.html#l00068">brix_cvmfs_conf_t::negative_ttl</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="cvmfs_8h_source.html#l00191">ngx_http_brix_cvmfs_ctx_t::repo</a>, and <a class="el" href="metrics__cvmfs_8h_source.html#l00052">ngx_brix_cvmfs_repo_metrics_t::requests_total</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00263">brix_cvmfs_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00264">brix_cvmfs_gate()</a>.</p>
 
 </div>
 </div>
@@ -329,11 +330,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00190">190</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00191">191</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>, <a class="el" href="upstreams_8c_source.html#l00034">brix_cvmfs_upstream_get()</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00159">cvmfs_guard_proxyabuse()</a>, <a class="el" href="gate_8c_source.html#l00083">cvmfs_reject()</a>, <a class="el" href="cvmfs_8h_source.html#l00188">ngx_http_brix_cvmfs_ctx_t::sd_override</a>, <a class="el" href="cvmfs_8h_source.html#l00114">brix_cvmfs_conf_t::unified_origin</a>, and <a class="el" href="cvmfs_8h_source.html#l00189">ngx_http_brix_cvmfs_ctx_t::up_root</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>, <a class="el" href="upstreams_8c_source.html#l00034">brix_cvmfs_upstream_get()</a>, <a class="el" href="cvmfs_8h_source.html#l00159">ngx_http_brix_cvmfs_loc_conf_t::cvmfs</a>, <a class="el" href="gate_8c_source.html#l00160">cvmfs_guard_proxyabuse()</a>, <a class="el" href="gate_8c_source.html#l00084">cvmfs_reject()</a>, <a class="el" href="cvmfs_8h_source.html#l00188">ngx_http_brix_cvmfs_ctx_t::sd_override</a>, <a class="el" href="cvmfs_8h_source.html#l00114">brix_cvmfs_conf_t::unified_origin</a>, and <a class="el" href="cvmfs_8h_source.html#l00189">ngx_http_brix_cvmfs_ctx_t::up_root</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00263">brix_cvmfs_gate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00264">brix_cvmfs_gate()</a>.</p>
 
 </div>
 </div>
@@ -395,11 +396,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00112">112</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00113">113</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
 <p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="guard_8h_source.html#l00062">guard_request_t::cred_present</a>, <a class="el" href="guard__http__req_8c_source.html#l00057">cred_present()</a>, <a class="el" href="guard__audit_8c_source.html#l00105">guard_audit_format()</a>, <a class="el" href="guard_8h_source.html#l00021">GUARD_OP_READ</a>, <a class="el" href="guard_8h_source.html#l00057">guard_request_t::ip</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="guard_8h_source.html#l00059">guard_request_t::op</a>, <a class="el" href="guard_8h_source.html#l00063">guard_request_t::outcome</a>, <a class="el" href="guard_8h_source.html#l00027">OUTCOME_PENDING</a>, <a class="el" href="guard_8h_source.html#l00060">guard_request_t::path</a>, <a class="el" href="guard_8h_source.html#l00061">guard_request_t::path_len</a>, <a class="el" href="guard_8h_source.html#l00058">guard_request_t::proto</a>, and <a class="el" href="guard_8h_source.html#l00064">guard_request_t::status_code</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00263">brix_cvmfs_gate()</a>, and <a class="el" href="gate_8c_source.html#l00159">cvmfs_guard_proxyabuse()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00264">brix_cvmfs_gate()</a>, and <a class="el" href="gate_8c_source.html#l00160">cvmfs_guard_proxyabuse()</a>.</p>
 
 </div>
 </div>
@@ -437,11 +438,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00159">159</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00160">160</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gate_8c_source.html#l00112">cvmfs_guard_emit()</a>, <a class="el" href="guard_8h_source.html#l00036">GUARD_R_PROXYABUSE</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="gate_8c_source.html#l00113">cvmfs_guard_emit()</a>, <a class="el" href="guard_8h_source.html#l00036">GUARD_R_PROXYABUSE</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00190">cvmfs_gate_proxy_bind()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00191">cvmfs_gate_proxy_bind()</a>.</p>
 
 </div>
 </div>
@@ -479,11 +480,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00051">51</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00052">52</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gate_8c_source.html#l00036">cvmfs_neg</a>, <a class="el" href="gate_8c_source.html#l00039">cvmfs_neg_hash()</a>, <a class="el" href="gate_8c_source.html#l00029">CVMFS_NEG_SLOTS</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="gate_8c_source.html#l00037">cvmfs_neg</a>, <a class="el" href="gate_8c_source.html#l00040">cvmfs_neg_hash()</a>, <a class="el" href="gate_8c_source.html#l00030">CVMFS_NEG_SLOTS</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00227">cvmfs_gate_cas()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00228">cvmfs_gate_cas()</a>.</p>
 
 </div>
 </div>
@@ -511,9 +512,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00039">39</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00040">40</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00051">cvmfs_neg_check()</a>, and <a class="el" href="gate_8c_source.html#l00060">cvmfs_neg_store()</a>.</p>
+<p class="reference">References <a class="el" href="fnv_8h_source.html#l00023">BRIX_FNV1A64_OFFSET_BASIS</a>, and <a class="el" href="fnv_8h_source.html#l00024">BRIX_FNV1A64_PRIME</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00052">cvmfs_neg_check()</a>, and <a class="el" href="gate_8c_source.html#l00061">cvmfs_neg_store()</a>.</p>
 
 </div>
 </div>
@@ -557,11 +560,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00060">60</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00061">61</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">References <a class="el" href="gate_8c_source.html#l00036">cvmfs_neg</a>, <a class="el" href="gate_8c_source.html#l00039">cvmfs_neg_hash()</a>, <a class="el" href="gate_8c_source.html#l00029">CVMFS_NEG_SLOTS</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+<p class="reference">References <a class="el" href="gate_8c_source.html#l00037">cvmfs_neg</a>, <a class="el" href="gate_8c_source.html#l00040">cvmfs_neg_hash()</a>, <a class="el" href="gate_8c_source.html#l00030">CVMFS_NEG_SLOTS</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00072">brix_cvmfs_notify_status()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00073">brix_cvmfs_notify_status()</a>.</p>
 
 </div>
 </div>
@@ -605,11 +608,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00083">83</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00084">84</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
 <p class="reference">References <a class="el" href="metrics__cvmfs_8h_source.html#l00026">BRIX_CVMFS_CLASS_REJECT</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00263">brix_cvmfs_gate()</a>, and <a class="el" href="gate_8c_source.html#l00190">cvmfs_gate_proxy_bind()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00264">brix_cvmfs_gate()</a>, and <a class="el" href="gate_8c_source.html#l00191">cvmfs_gate_proxy_bind()</a>.</p>
 
 </div>
 </div>
@@ -634,9 +637,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00036">36</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="gate_8c_source.html#l00037">37</a> of file <a class="el" href="gate_8c_source.html">gate.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00051">cvmfs_neg_check()</a>, and <a class="el" href="gate_8c_source.html#l00060">cvmfs_neg_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="gate_8c_source.html#l00052">cvmfs_neg_check()</a>, and <a class="el" href="gate_8c_source.html#l00061">cvmfs_neg_store()</a>.</p>
 
 </div>
 </div>

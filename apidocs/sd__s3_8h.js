@@ -9,6 +9,7 @@ var sd__s3_8h =
     [ "sd_s3_delete", "sd__s3_8h.html#a9ada0ff9cbf3b0c9e061315ae80fa453", null ],
     [ "sd_s3_get_meta", "sd__s3_8h.html#acea862ec68a6808111bdd2d7223d26e4", null ],
     [ "sd_s3_get_unixattr", "sd__s3_8h.html#a1f613261d2b7ff2190a0cf4e7a4e3209", null ],
+    [ "sd_s3_list_meta", "sd__s3_8h.html#a2a1404f403db647c4b804779684c0584", null ],
     [ "sd_s3_open_read", "sd__s3_8h.html#a03da992ca2890d86c6dd2eaf7523e93e", null ],
     [ "sd_s3_open_write", "sd__s3_8h.html#ae7a8357c3141c1e3764c310cd81c153c", null ],
     [ "sd_s3_pread", "sd__s3_8h.html#adaaffa87d9516591ab36b900b029a4d4", null ],

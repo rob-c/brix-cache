@@ -97,6 +97,7 @@ $(document).ready(function(){initNavTree('api_8c.html',''); initResizable(); });
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="dashboard__api__internal_8h_source.html">dashboard_api_internal.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="fnv_8h_source.html">core/fnv.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for api.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -213,7 +214,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00134">134</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00135">135</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="api__snapshot_8c_source.html#l00094">dashboard_collect_protocols()</a>, and <a class="el" href="api__transfers_8c_source.html#l00084">dashboard_snapshot_slot()</a>.</p>
 
@@ -235,7 +236,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00008">8</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00009">9</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard_8h_source.html#l00063">BRIX_XFER_DIR_TPC</a>, and <a class="el" href="dashboard_8h_source.html#l00062">BRIX_XFER_DIR_WRITE</a>.</p>
 
@@ -307,11 +308,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00197">197</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00198">198</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00103">BRIX_DASHBOARD_API_COMPAT_TRANSFERS</a>, <a class="el" href="dashboard__http_8h_source.html#l00110">BRIX_DASHBOARD_API_V1_CACHE</a>, <a class="el" href="dashboard__http_8h_source.html#l00109">BRIX_DASHBOARD_API_V1_CLUSTER</a>, <a class="el" href="dashboard__http_8h_source.html#l00112">BRIX_DASHBOARD_API_V1_CVMFS</a>, <a class="el" href="dashboard__http_8h_source.html#l00107">BRIX_DASHBOARD_API_V1_EVENTS</a>, <a class="el" href="dashboard__http_8h_source.html#l00108">BRIX_DASHBOARD_API_V1_HISTORY</a>, <a class="el" href="dashboard__http_8h_source.html#l00113">BRIX_DASHBOARD_API_V1_NOT_FOUND</a>, <a class="el" href="dashboard__http_8h_source.html#l00111">BRIX_DASHBOARD_API_V1_RATELIMIT</a>, <a class="el" href="dashboard__http_8h_source.html#l00106">BRIX_DASHBOARD_API_V1_SNAPSHOT</a>, <a class="el" href="dashboard__http_8h_source.html#l00105">BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL</a>, <a class="el" href="dashboard__http_8h_source.html#l00104">BRIX_DASHBOARD_API_V1_TRANSFERS</a>, <a class="el" href="api__transfers_8c_source.html#l00336">dashboard_build_compat_transfers()</a>, <a class="el" href="api__snapshot_8c_source.html#l00466">dashboard_build_v1_cache()</a>, <a class="el" href="api__snapshot_8c_source.html#l00453">dashboard_build_v1_cluster()</a>, <a class="el" href="api__cvmfs_8c_source.html#l00252">dashboard_build_v1_cvmfs()</a>, <a class="el" href="api__snapshot_8c_source.html#l00427">dashboard_build_v1_events()</a>, <a class="el" href="api__snapshot_8c_source.html#l00440">dashboard_build_v1_history()</a>, <a class="el" href="api__ratelimit_8c_source.html#l00077">dashboard_build_v1_not_found()</a>, <a class="el" href="api__ratelimit_8c_source.html#l00010">dashboard_build_v1_ratelimit()</a>, <a class="el" href="api__snapshot_8c_source.html#l00373">dashboard_build_v1_snapshot()</a>, <a class="el" href="api__transfers_8c_source.html#l00398">dashboard_build_v1_transfer_detail()</a>, and <a class="el" href="api__transfers_8c_source.html#l00351">dashboard_build_v1_transfers()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00232">ngx_http_brix_dashboard_api_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00233">ngx_http_brix_dashboard_api_handler()</a>.</p>
 
 </div>
 </div>
@@ -331,11 +332,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00159">159</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00160">160</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00103">BRIX_DASHBOARD_API_COMPAT_TRANSFERS</a>, <a class="el" href="dashboard__http_8h_source.html#l00110">BRIX_DASHBOARD_API_V1_CACHE</a>, <a class="el" href="dashboard__http_8h_source.html#l00109">BRIX_DASHBOARD_API_V1_CLUSTER</a>, <a class="el" href="dashboard__http_8h_source.html#l00112">BRIX_DASHBOARD_API_V1_CVMFS</a>, <a class="el" href="dashboard__http_8h_source.html#l00107">BRIX_DASHBOARD_API_V1_EVENTS</a>, <a class="el" href="dashboard__http_8h_source.html#l00108">BRIX_DASHBOARD_API_V1_HISTORY</a>, <a class="el" href="dashboard__http_8h_source.html#l00113">BRIX_DASHBOARD_API_V1_NOT_FOUND</a>, <a class="el" href="dashboard__http_8h_source.html#l00111">BRIX_DASHBOARD_API_V1_RATELIMIT</a>, <a class="el" href="dashboard__http_8h_source.html#l00106">BRIX_DASHBOARD_API_V1_SNAPSHOT</a>, <a class="el" href="dashboard__http_8h_source.html#l00105">BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL</a>, and <a class="el" href="dashboard__http_8h_source.html#l00104">BRIX_DASHBOARD_API_V1_TRANSFERS</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00232">ngx_http_brix_dashboard_api_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api_8c_source.html#l00233">ngx_http_brix_dashboard_api_handler()</a>.</p>
 
 </div>
 </div>
@@ -355,7 +356,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00096">96</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00097">97</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard_8h_source.html#l00094">BRIX_DASH_EVENT_AUTH</a>, <a class="el" href="dashboard_8h_source.html#l00098">BRIX_DASH_EVENT_DASHBOARD</a>, <a class="el" href="dashboard_8h_source.html#l00096">BRIX_DASH_EVENT_IO</a>, <a class="el" href="dashboard_8h_source.html#l00095">BRIX_DASH_EVENT_NAMESPACE</a>, and <a class="el" href="dashboard_8h_source.html#l00097">BRIX_DASH_EVENT_TPC</a>.</p>
 
@@ -379,7 +380,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00019">19</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00020">20</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="proto__list_8h_source.html#l00058">BRIX_PROTO_LIST</a>, <a class="el" href="dashboard_8h_source.html#l00058">BRIX_XFER_NPROTOS</a>, and <a class="el" href="api_8c.html#a8573c19949b5211091fbffe7ae70bb32">X</a>.</p>
 
@@ -403,7 +404,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00117">117</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00118">118</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+
+<p class="reference">References <a class="el" href="fnv_8h_source.html#l00027">BRIX_FNV1A32_OFFSET_BASIS</a>, and <a class="el" href="fnv_8h_source.html#l00028">BRIX_FNV1A32_PRIME</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="api__transfers_8c_source.html#l00194">dashboard_emit_detail_fields()</a>.</p>
 
@@ -447,7 +450,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00037">37</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00038">38</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="dashboard_8h_source.html#l00069">BRIX_XFER_STATE_CLOSING</a>, <a class="el" href="dashboard_8h_source.html#l00070">BRIX_XFER_STATE_ERROR</a>, <a class="el" href="dashboard__http_8h_source.html#l00040">ngx_http_brix_dashboard_loc_conf_t::idle_threshold_ms</a>, and <a class="el" href="dashboard__http_8h_source.html#l00041">ngx_http_brix_dashboard_loc_conf_t::stalled_threshold_ms</a>.</p>
 
@@ -471,7 +474,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00072">72</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00073">73</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="transfer_8h_source.html#l00032">BRIX_TPC_DIR_PULL</a>, and <a class="el" href="transfer_8h_source.html#l00033">BRIX_TPC_DIR_PUSH</a>.</p>
 
@@ -495,7 +498,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00061">61</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00062">62</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="transfer_8h_source.html#l00029">BRIX_TPC_PROTO_STREAM</a>, and <a class="el" href="transfer_8h_source.html#l00030">BRIX_TPC_PROTO_WEBDAV</a>.</p>
 
@@ -519,7 +522,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00083">83</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00084">84</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
 <p class="reference">References <a class="el" href="transfer_8h_source.html#l00036">BRIX_TPC_STATE_ACTIVE</a>, <a class="el" href="transfer_8h_source.html#l00037">BRIX_TPC_STATE_DONE</a>, <a class="el" href="transfer_8h_source.html#l00038">BRIX_TPC_STATE_ERROR</a>, and <a class="el" href="transfer_8h_source.html#l00035">BRIX_TPC_STATE_PENDING</a>.</p>
 
@@ -553,9 +556,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00232">232</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="api_8c_source.html#l00233">233</a> of file <a class="el" href="api_8c_source.html">api.c</a>.</p>
 
-<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00035">ngx_http_brix_dashboard_loc_conf_t::anonymous</a>, <a class="el" href="dashboard_8h_source.html#l00098">BRIX_DASH_EVENT_DASHBOARD</a>, <a class="el" href="observability_2dashboard_2events_8c_source.html#l00109">brix_dashboard_event_add()</a>, <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>, <a class="el" href="api__ratelimit_8c_source.html#l00089">dashboard_build_v1_truncated()</a>, <a class="el" href="api__snapshot_8c_source.html#l00019">dashboard_collect_totals()</a>, <a class="el" href="api_8c_source.html#l00197">dashboard_dispatch_builder()</a>, <a class="el" href="api_8c_source.html#l00159">dashboard_endpoint_is_anon_allowed()</a>, <a class="el" href="dashboard__json_8c_source.html#l00008">dashboard_json_send()</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00221">ngx_http_brix_dashboard_check_auth()</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00479">ngx_http_brix_dashboard_module</a>.</p>
+<p class="reference">References <a class="el" href="dashboard__http_8h_source.html#l00035">ngx_http_brix_dashboard_loc_conf_t::anonymous</a>, <a class="el" href="dashboard_8h_source.html#l00098">BRIX_DASH_EVENT_DASHBOARD</a>, <a class="el" href="observability_2dashboard_2events_8c_source.html#l00109">brix_dashboard_event_add()</a>, <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>, <a class="el" href="api__ratelimit_8c_source.html#l00089">dashboard_build_v1_truncated()</a>, <a class="el" href="api__snapshot_8c_source.html#l00019">dashboard_collect_totals()</a>, <a class="el" href="api_8c_source.html#l00198">dashboard_dispatch_builder()</a>, <a class="el" href="api_8c_source.html#l00160">dashboard_endpoint_is_anon_allowed()</a>, <a class="el" href="dashboard__json_8c_source.html#l00008">dashboard_json_send()</a>, <a class="el" href="src_2observability_2dashboard_2auth_8c_source.html#l00221">ngx_http_brix_dashboard_check_auth()</a>, and <a class="el" href="observability_2dashboard_2module_8c_source.html#l00479">ngx_http_brix_dashboard_module</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="module__dispatch_8c_source.html#l00132">dashboard_dispatch_api_route()</a>, and <a class="el" href="module__dispatch_8c_source.html#l00182">ngx_http_brix_dashboard_main_handler()</a>.</p>
 

@@ -131,6 +131,8 @@ Data Structures</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structrelay__arg.html">relay_arg</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfp__config.html">fp_config</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -142,6 +144,8 @@ Macros</h2></td></tr>
 <tr class="separator:a6bbfdde9ab804d9babbf7d6a7f098ef7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1dd3d892042b244ec42959c3d311ef29" id="r_a1dd3d892042b244ec42959c3d311ef29"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a1dd3d892042b244ec42959c3d311ef29">FP_USAGE</a>&#160;&#160;&#160;2   /* command-line error */</td></tr>
 <tr class="separator:a1dd3d892042b244ec42959c3d311ef29"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4dda0cb67581bcd5055f514bb6a3ffc6" id="r_a4dda0cb67581bcd5055f514bb6a3ffc6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a4dda0cb67581bcd5055f514bb6a3ffc6">FP_CONTINUE</a>&#160;&#160;&#160;(-1) /* internal: argument parsing/setup ok, keep going */</td></tr>
+<tr class="separator:a4dda0cb67581bcd5055f514bb6a3ffc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae1b5e3faa54ccbde28e392033c8fd7c6" id="r_ae1b5e3faa54ccbde28e392033c8fd7c6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#ae1b5e3faa54ccbde28e392033c8fd7c6">FP_MAX_TARGETS</a>&#160;&#160;&#160;8</td></tr>
 <tr class="separator:ae1b5e3faa54ccbde28e392033c8fd7c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac499c361ec405e887adf69b162b502a6" id="r_ac499c361ec405e887adf69b162b502a6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#ac499c361ec405e887adf69b162b502a6">CBUMP</a>(f,  n)&#160;&#160;&#160;__atomic_add_fetch(&amp;C.f, (n), __ATOMIC_RELAXED)</td></tr>
@@ -169,14 +173,38 @@ Functions</h2></td></tr>
 <tr class="separator:ae08a3ae18ef6b189e370708e9b253639"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adcc2571941aa360dff3a145c5ca0e4b2" id="r_adcc2571941aa360dff3a145c5ca0e4b2"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#adcc2571941aa360dff3a145c5ca0e4b2">sever</a> (int cfd, int ufd, int abortive)</td></tr>
 <tr class="separator:adcc2571941aa360dff3a145c5ca0e4b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a49c17a5ef94885fe154c759265f4b0d6" id="r_a49c17a5ef94885fe154c759265f4b0d6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a49c17a5ef94885fe154c759265f4b0d6">fault_sever</a> (void)</td></tr>
+<tr class="separator:a49c17a5ef94885fe154c759265f4b0d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a90be256844a8137ac58eacbe81ad6174" id="r_a90be256844a8137ac58eacbe81ad6174"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a90be256844a8137ac58eacbe81ad6174">fault_clamp_seg</a> (ssize_t seg, int piece, long trunc, unsigned long conn_ctr)</td></tr>
+<tr class="separator:a90be256844a8137ac58eacbe81ad6174"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a25ad935f225b71206dfac9de146df50f" id="r_a25ad935f225b71206dfac9de146df50f"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a25ad935f225b71206dfac9de146df50f">fault_delays</a> (ssize_t seg, unsigned *seed, const <a class="el" href="structlever__t.html">lever_t</a> *L)</td></tr>
+<tr class="separator:a25ad935f225b71206dfac9de146df50f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4d649ef3a6e0276b8681fa8ea9e54d75" id="r_a4d649ef3a6e0276b8681fa8ea9e54d75"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a4d649ef3a6e0276b8681fa8ea9e54d75">fault_corrupt</a> (char *buf, ssize_t off, ssize_t seg, unsigned *seed, int cor)</td></tr>
+<tr class="separator:a4d649ef3a6e0276b8681fa8ea9e54d75"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a47acaf6d6eef494b0023b234aab02c10" id="r_a47acaf6d6eef494b0023b234aab02c10"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a47acaf6d6eef494b0023b234aab02c10">forward_segment</a> (int to, char *buf, ssize_t off, ssize_t n, unsigned epoch, const <a class="el" href="structlever__t.html">lever_t</a> *L, unsigned *seed, unsigned long *conn_ctr, unsigned long *glob_ctr, int piece, ssize_t *wrote)</td></tr>
+<tr class="separator:a47acaf6d6eef494b0023b234aab02c10"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a05c9554dac03a2df72b52962b0aabc22" id="r_a05c9554dac03a2df72b52962b0aabc22"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a05c9554dac03a2df72b52962b0aabc22">forward_faulted</a> (int to, char *buf, ssize_t n, unsigned epoch, volatile <a class="el" href="structlever__t.html">lever_t</a> *L, unsigned *seed, unsigned long *conn_ctr, unsigned long *glob_ctr)</td></tr>
 <tr class="separator:a05c9554dac03a2df72b52962b0aabc22"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0e6127374462bfde97ea086986163e3" id="r_ab0e6127374462bfde97ea086986163e3"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#ab0e6127374462bfde97ea086986163e3">relay_predial</a> (int cfd, unsigned epoch, unsigned long <a class="el" href="protocols_2ssi_2registry_8c.html#a078ab7776f4c536e010623dc0f0fa536">conn_id</a>)</td></tr>
+<tr class="separator:ab0e6127374462bfde97ea086986163e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2ae319672772554ce71addecf2096991" id="r_a2ae319672772554ce71addecf2096991"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a2ae319672772554ce71addecf2096991">relay_pump_dir</a> (int i, struct pollfd *pfd, int cfd, int ufd, char *buf, size_t bufsz, unsigned epoch, unsigned *seed, unsigned long *up_ctr, unsigned long *down_ctr)</td></tr>
+<tr class="separator:a2ae319672772554ce71addecf2096991"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5681274f0d5d77e6fe677ddffa63e165" id="r_a5681274f0d5d77e6fe677ddffa63e165"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a5681274f0d5d77e6fe677ddffa63e165">relay_pump</a> (int cfd, int ufd, unsigned epoch, unsigned seed)</td></tr>
+<tr class="separator:a5681274f0d5d77e6fe677ddffa63e165"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a02df286c2fc06492a59d2e62f5127a2e" id="r_a02df286c2fc06492a59d2e62f5127a2e"><td class="memItemLeft" align="right" valign="top">static void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a02df286c2fc06492a59d2e62f5127a2e">relay_thread</a> (void *arg)</td></tr>
 <tr class="separator:a02df286c2fc06492a59d2e62f5127a2e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a29f477a85c6586c3a2a2fd3acca903db" id="r_a29f477a85c6586c3a2a2fd3acca903db"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a29f477a85c6586c3a2a2fd3acca903db">dir_of</a> (char *args)</td></tr>
 <tr class="separator:a29f477a85c6586c3a2a2fd3acca903db"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a34bf6b6ab5bbad47c2b2bf9f71d7966b" id="r_a34bf6b6ab5bbad47c2b2bf9f71d7966b"><td class="memItemLeft" align="right" valign="top">static void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a34bf6b6ab5bbad47c2b2bf9f71d7966b">heal_thread</a> (void *arg)</td></tr>
 <tr class="separator:a34bf6b6ab5bbad47c2b2bf9f71d7966b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a55fbdea1684c9957c51a10b04d51e98e" id="r_a55fbdea1684c9957c51a10b04d51e98e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a55fbdea1684c9957c51a10b04d51e98e">cmd_set_lever</a> (const char *verb, char *args)</td></tr>
+<tr class="separator:a55fbdea1684c9957c51a10b04d51e98e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4710c7f32cd85c82bd50a3a554ded9b7" id="r_a4710c7f32cd85c82bd50a3a554ded9b7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a4710c7f32cd85c82bd50a3a554ded9b7">cmd_set_epoch</a> (const char *verb)</td></tr>
+<tr class="separator:a4710c7f32cd85c82bd50a3a554ded9b7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acf8d5064612d92a6d53fbea0e354fd34" id="r_acf8d5064612d92a6d53fbea0e354fd34"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#acf8d5064612d92a6d53fbea0e354fd34">cmd_set_misc</a> (const char *verb, const char *args)</td></tr>
+<tr class="separator:acf8d5064612d92a6d53fbea0e354fd34"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a77ebcd203ca6bfccf38976ee2535b972" id="r_a77ebcd203ca6bfccf38976ee2535b972"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a77ebcd203ca6bfccf38976ee2535b972">cmd_status_report</a> (char *reply, size_t rsz)</td></tr>
+<tr class="separator:a77ebcd203ca6bfccf38976ee2535b972"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a168051f3e691162d698c1a7fba9b59e9" id="r_a168051f3e691162d698c1a7fba9b59e9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a168051f3e691162d698c1a7fba9b59e9">apply_command</a> (char *line, char *reply, size_t rsz)</td></tr>
 <tr class="separator:a168051f3e691162d698c1a7fba9b59e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abb078bf16328ac0fe313643002b82fbb" id="r_abb078bf16328ac0fe313643002b82fbb"><td class="memItemLeft" align="right" valign="top">static void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#abb078bf16328ac0fe313643002b82fbb">control_thread</a> (void *arg)</td></tr>
@@ -189,6 +217,20 @@ Functions</h2></td></tr>
 <tr class="separator:a947cd4a4553711dc7af8ebd50f71df9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a48ecd5eed3155ad0102d992216ed26f8" id="r_a48ecd5eed3155ad0102d992216ed26f8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a48ecd5eed3155ad0102d992216ed26f8">listen_sa</a> (const struct sockaddr_storage *tmpl, socklen_t slen, int <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
 <tr class="separator:a48ecd5eed3155ad0102d992216ed26f8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3d3a63211f365f67d86980a74195362b" id="r_a3d3a63211f365f67d86980a74195362b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a3d3a63211f365f67d86980a74195362b">fp_apply_lever_opt</a> (int opt, const char *optarg)</td></tr>
+<tr class="separator:a3d3a63211f365f67d86980a74195362b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a46c24beb63efa4a267c8c14a712f347a" id="r_a46c24beb63efa4a267c8c14a712f347a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a46c24beb63efa4a267c8c14a712f347a">fp_apply_core_opt</a> (int opt, <a class="el" href="structfp__config.html">fp_config</a> *cfg)</td></tr>
+<tr class="separator:a46c24beb63efa4a267c8c14a712f347a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a39f3c9e463a07164af009ab25c8ea40b" id="r_a39f3c9e463a07164af009ab25c8ea40b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a39f3c9e463a07164af009ab25c8ea40b">fp_finalize_config</a> (int argc, char **argv, <a class="el" href="structfp__config.html">fp_config</a> *cfg)</td></tr>
+<tr class="separator:a39f3c9e463a07164af009ab25c8ea40b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9db7f2d93d55bf4eff22d0a4fd17fe2a" id="r_a9db7f2d93d55bf4eff22d0a4fd17fe2a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a9db7f2d93d55bf4eff22d0a4fd17fe2a">fp_parse_args</a> (int argc, char **argv, <a class="el" href="structfp__config.html">fp_config</a> *cfg)</td></tr>
+<tr class="separator:a9db7f2d93d55bf4eff22d0a4fd17fe2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abd404d905370d0d1414659a96e9055d0" id="r_abd404d905370d0d1414659a96e9055d0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#abd404d905370d0d1414659a96e9055d0">fp_setup_bind</a> (const char *bind_str, int insecure, struct sockaddr_storage *bind_ss, socklen_t *bind_len)</td></tr>
+<tr class="separator:abd404d905370d0d1414659a96e9055d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:accc941630874426bdcf7e98c8e1ef460" id="r_accc941630874426bdcf7e98c8e1ef460"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#accc941630874426bdcf7e98c8e1ef460">fp_accept_loop</a> (int lfd)</td></tr>
+<tr class="separator:accc941630874426bdcf7e98c8e1ef460"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab70a1e5ce40de4e04cc02f41bd5e1e89" id="r_ab70a1e5ce40de4e04cc02f41bd5e1e89"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#ab70a1e5ce40de4e04cc02f41bd5e1e89">fp_print_banner</a> (const <a class="el" href="structfp__config.html">fp_config</a> *cfg)</td></tr>
+<tr class="separator:ab70a1e5ce40de4e04cc02f41bd5e1e89"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3c04138a5bfe5d72780bb7e82a18e627" id="r_a3c04138a5bfe5d72780bb7e82a18e627"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="brix__fault__proxy_8c.html#a3c04138a5bfe5d72780bb7e82a18e627">main</a> (int argc, char **argv)</td></tr>
 <tr class="separator:a3c04138a5bfe5d72780bb7e82a18e627"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -292,7 +334,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00150">150</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00151">151</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>
@@ -332,7 +374,7 @@ Variables</h2></td></tr>
 <div class="line">    __atomic_add_fetch((glob_ctr), (<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span>) (n), __ATOMIC_RELAXED); \</div>
 <div class="line">} <span class="keywordflow">while</span> (0)</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00153">153</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00154">154</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>
@@ -352,7 +394,23 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00151">151</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00152">152</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+</div>
+</div>
+<a id="a4dda0cb67581bcd5055f514bb6a3ffc6" name="a4dda0cb67581bcd5055f514bb6a3ffc6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4dda0cb67581bcd5055f514bb6a3ffc6">&#9670;&#160;</a></span>FP_CONTINUE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define FP_CONTINUE&#160;&#160;&#160;(-1) /* internal: argument parsing/setup ok, keep going */</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00107">107</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>
@@ -368,7 +426,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00108">108</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00109">109</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>
@@ -455,10 +513,10 @@ Variables</h2></td></tr>
 <div class="line">    if ((d) != 2) <a class="code hl_variable" href="brix__fault__proxy_8c.html#a7d04a9025303b0c2d0eeaa262e2b86da">g_up</a>.f = (v);                   \</div>
 <div class="line">    if ((d) != 1) <a class="code hl_variable" href="brix__fault__proxy_8c.html#ae9fb15afc6778984aeb1925eec67b8cb">g_down</a>.f = (v);                 \</div>
 <div class="line">} while (0)</div>
-<div class="ttc" id="abrix__fault__proxy_8c_html_a7d04a9025303b0c2d0eeaa262e2b86da"><div class="ttname"><a href="brix__fault__proxy_8c.html#a7d04a9025303b0c2d0eeaa262e2b86da">g_up</a></div><div class="ttdeci">static volatile lever_t g_up</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00126">brix_fault_proxy.c:126</a></div></div>
-<div class="ttc" id="abrix__fault__proxy_8c_html_ae9fb15afc6778984aeb1925eec67b8cb"><div class="ttname"><a href="brix__fault__proxy_8c.html#ae9fb15afc6778984aeb1925eec67b8cb">g_down</a></div><div class="ttdeci">static volatile lever_t g_down</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00127">brix_fault_proxy.c:127</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_a7d04a9025303b0c2d0eeaa262e2b86da"><div class="ttname"><a href="brix__fault__proxy_8c.html#a7d04a9025303b0c2d0eeaa262e2b86da">g_up</a></div><div class="ttdeci">static volatile lever_t g_up</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00127">brix_fault_proxy.c:127</a></div></div>
+<div class="ttc" id="abrix__fault__proxy_8c_html_ae9fb15afc6778984aeb1925eec67b8cb"><div class="ttname"><a href="brix__fault__proxy_8c.html#ae9fb15afc6778984aeb1925eec67b8cb">g_down</a></div><div class="ttdeci">static volatile lever_t g_down</div><div class="ttdef"><b>Definition</b> <a href="brix__fault__proxy_8c_source.html#l00128">brix_fault_proxy.c:128</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00529">529</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00630">630</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>
@@ -487,11 +545,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00724">724</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00871">871</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00108">FP_MAX_TARGETS</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">g_ntargets</a>, <a class="el" href="brix__fault__proxy_8c.html#a8c2a75265f9c3bb9c0ec8a8713a0747f">g_targets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00109">FP_MAX_TARGETS</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00132">g_ntargets</a>, <a class="el" href="brix__fault__proxy_8c.html#a8c2a75265f9c3bb9c0ec8a8713a0747f">g_targets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, and <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00985">fp_apply_core_opt()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l01018">fp_finalize_config()</a>.</p>
 
 </div>
 </div>
@@ -535,11 +593,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00568">568</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00789">789</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c.html#a9a85a8346ea236c3880c604d3a49976f">C</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00114">lever_t::chunk_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00121">lever_t::corrupt_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00505">dir_of()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00115">lever_t::drip_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00116">lever_t::drip_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00122">lever_t::dup_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00137">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00135">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00139">g_fail_nth</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_halfclose_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_hang</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_one_shot</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00126">g_up</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00555">heal_thread()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00113">lever_t::jitter_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00112">lever_t::latency_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00118">lever_t::lossy_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00117">lever_t::rate_kbps</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00120">lever_t::reorder_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00119">lever_t::reorder_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00529">SET_DIR</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00123">lever_t::truncate_at</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00709">cmd_set_epoch()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00670">cmd_set_lever()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00737">cmd_set_misc()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00662">control_thread()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00690">script_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00809">control_thread()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00957">fp_apply_lever_opt()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00837">script_thread()</a>.</p>
 
 </div>
 </div>
@@ -567,11 +625,169 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00544">544</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00645">645</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00135">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00139">g_fail_nth</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_hang</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_one_shot</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00126">g_up</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00535">reset_lever()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00128">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_fail_nth</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00137">g_hang</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00139">g_one_shot</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_up</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00636">reset_lever()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00555">heal_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00737">cmd_set_misc()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00305">fault_sever()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00656">heal_thread()</a>.</p>
+
+</div>
+</div>
+<a id="a4710c7f32cd85c82bd50a3a554ded9b7" name="a4710c7f32cd85c82bd50a3a554ded9b7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4710c7f32cd85c82bd50a3a554ded9b7">&#9670;&#160;</a></span>cmd_set_epoch()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cmd_set_epoch </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>verb</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00709">709</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00142">g_halfclose_epoch</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00137">g_hang</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00789">apply_command()</a>.</p>
+
+</div>
+</div>
+<a id="a55fbdea1684c9957c51a10b04d51e98e" name="a55fbdea1684c9957c51a10b04d51e98e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a55fbdea1684c9957c51a10b04d51e98e">&#9670;&#160;</a></span>cmd_set_lever()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cmd_set_lever </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>verb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>args</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00670">670</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00606">dir_of()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00630">SET_DIR</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00789">apply_command()</a>.</p>
+
+</div>
+</div>
+<a id="acf8d5064612d92a6d53fbea0e354fd34" name="acf8d5064612d92a6d53fbea0e354fd34"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acf8d5064612d92a6d53fbea0e354fd34">&#9670;&#160;</a></span>cmd_set_misc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int cmd_set_misc </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>verb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>args</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00737">737</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_fail_nth</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00139">g_one_shot</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00656">heal_thread()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00789">apply_command()</a>.</p>
+
+</div>
+</div>
+<a id="a77ebcd203ca6bfccf38976ee2535b972" name="a77ebcd203ca6bfccf38976ee2535b972"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a77ebcd203ca6bfccf38976ee2535b972">&#9670;&#160;</a></span>cmd_status_report()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void cmd_status_report </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>reply</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>rsz</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00761">761</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c.html#a9a85a8346ea236c3880c604d3a49976f">C</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00115">lever_t::chunk_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00122">lever_t::corrupt_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00116">lever_t::drip_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00117">lever_t::drip_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00123">lever_t::dup_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00128">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_fail_nth</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00137">g_hang</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00139">g_one_shot</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_up</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00114">lever_t::jitter_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00113">lever_t::latency_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00119">lever_t::lossy_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00118">lever_t::rate_kbps</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00121">lever_t::reorder_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00120">lever_t::reorder_ppm</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00124">lever_t::truncate_at</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00789">apply_command()</a>.</p>
 
 </div>
 </div>
@@ -599,11 +815,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00662">662</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00809">809</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00268">write_all()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00789">apply_command()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00269">write_all()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
 
 </div>
 </div>
@@ -641,11 +857,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00223">223</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00224">224</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00253">dial_any()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00254">dial_any()</a>.</p>
 
 </div>
 </div>
@@ -673,11 +889,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00253">253</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00254">254</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00223">dial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">g_ntargets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00132">g_rr</a>, <a class="el" href="brix__fault__proxy_8c.html#a8c2a75265f9c3bb9c0ec8a8713a0747f">g_targets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00224">dial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00132">g_ntargets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00133">g_rr</a>, <a class="el" href="brix__fault__proxy_8c.html#a8c2a75265f9c3bb9c0ec8a8713a0747f">g_targets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00572">relay_thread()</a>.</p>
 
 </div>
 </div>
@@ -705,11 +921,203 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00505">505</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00606">606</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 <p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">tok</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00670">cmd_set_lever()</a>.</p>
+
+</div>
+</div>
+<a id="a90be256844a8137ac58eacbe81ad6174" name="a90be256844a8137ac58eacbe81ad6174"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a90be256844a8137ac58eacbe81ad6174">&#9670;&#160;</a></span>fault_clamp_seg()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ssize_t fault_clamp_seg </td>
+          <td>(</td>
+          <td class="paramtype">ssize_t&#160;</td>
+          <td class="paramname"><em>seg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>piece</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">long&#160;</td>
+          <td class="paramname"><em>trunc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>conn_ctr</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00318">318</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>.</p>
+
+</div>
+</div>
+<a id="a4d649ef3a6e0276b8681fa8ea9e54d75" name="a4d649ef3a6e0276b8681fa8ea9e54d75"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4d649ef3a6e0276b8681fa8ea9e54d75">&#9670;&#160;</a></span>fault_corrupt()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void fault_corrupt </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ssize_t&#160;</td>
+          <td class="paramname"><em>off</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ssize_t&#160;</td>
+          <td class="paramname"><em>seg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned *&#160;</td>
+          <td class="paramname"><em>seed</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>cor</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00355">355</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00151">CBUMP</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00149">corrupt</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>.</p>
+
+</div>
+</div>
+<a id="a25ad935f225b71206dfac9de146df50f" name="a25ad935f225b71206dfac9de146df50f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a25ad935f225b71206dfac9de146df50f">&#9670;&#160;</a></span>fault_delays()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void fault_delays </td>
+          <td>(</td>
+          <td class="paramtype">ssize_t&#160;</td>
+          <td class="paramname"><em>seg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned *&#160;</td>
+          <td class="paramname"><em>seed</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structlever__t.html">lever_t</a> *&#160;</td>
+          <td class="paramname"><em>L</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00339">339</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00114">lever_t::jitter_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00118">lever_t::rate_kbps</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00121">lever_t::reorder_ms</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00120">lever_t::reorder_ppm</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>.</p>
+
+</div>
+</div>
+<a id="a49c17a5ef94885fe154c759265f4b0d6" name="a49c17a5ef94885fe154c759265f4b0d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a49c17a5ef94885fe154c759265f4b0d6">&#9670;&#160;</a></span>fault_sever()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fault_sever </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00305">305</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00151">CBUMP</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00139">g_one_shot</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00149">severs</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>.</p>
 
 </div>
 </div>
@@ -783,11 +1191,405 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00310">310</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00419">419</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00150">CBUMP</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00153">CBUMP2</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00114">lever_t::chunk_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00148">corrupt</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00121">lever_t::corrupt_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00115">lever_t::drip_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00116">lever_t::drip_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00122">lever_t::dup_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00148">dups</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00135">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_one_shot</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00113">lever_t::jitter_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00112">lever_t::latency_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00118">lever_t::lossy_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00117">lever_t::rate_kbps</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00120">lever_t::reorder_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00119">lever_t::reorder_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00148">severs</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00123">lever_t::truncate_at</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00268">write_all()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00115">lever_t::chunk_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00116">lever_t::drip_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00117">lever_t::drip_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00113">lever_t::latency_ms</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>.</p>
+
+</div>
+</div>
+<a id="a47acaf6d6eef494b0023b234aab02c10" name="a47acaf6d6eef494b0023b234aab02c10"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a47acaf6d6eef494b0023b234aab02c10">&#9670;&#160;</a></span>forward_segment()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int forward_segment </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>to</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ssize_t&#160;</td>
+          <td class="paramname"><em>off</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ssize_t&#160;</td>
+          <td class="paramname"><em>n</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>epoch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structlever__t.html">lever_t</a> *&#160;</td>
+          <td class="paramname"><em>L</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned *&#160;</td>
+          <td class="paramname"><em>seed</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long *&#160;</td>
+          <td class="paramname"><em>conn_ctr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long *&#160;</td>
+          <td class="paramname"><em>glob_ctr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>piece</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ssize_t *&#160;</td>
+          <td class="paramname"><em>wrote</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00373">373</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00151">CBUMP</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00154">CBUMP2</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00122">lever_t::corrupt_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00123">lever_t::dup_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00149">dups</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00318">fault_clamp_seg()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00355">fault_corrupt()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00339">fault_delays()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00305">fault_sever()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00119">lever_t::lossy_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00124">lever_t::truncate_at</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00269">write_all()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00419">forward_faulted()</a>.</p>
+
+</div>
+</div>
+<a id="accc941630874426bdcf7e98c8e1ef460" name="accc941630874426bdcf7e98c8e1ef460"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#accc941630874426bdcf7e98c8e1ef460">&#9670;&#160;</a></span>fp_accept_loop()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fp_accept_loop </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>lfd</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l01132">1132</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00148">active</a>, <a class="el" href="brix__fault__proxy_8c.html#a9a85a8346ea236c3880c604d3a49976f">C</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00151">CBUMP</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00152">CDEC</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00451">relay_arg::client_fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00453">relay_arg::conn_id</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00148">conns</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00452">relay_arg::epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00104">FP_OK</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00144">g_max_conns</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00149">refused</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00572">relay_thread()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
+
+</div>
+</div>
+<a id="a46c24beb63efa4a267c8c14a712f347a" name="a46c24beb63efa4a267c8c14a712f347a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a46c24beb63efa4a267c8c14a712f347a">&#9670;&#160;</a></span>fp_apply_core_opt()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fp_apply_core_opt </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>opt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfp__config.html">fp_config</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00985">985</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00871">add_target()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00947">fp_config::bind_str</a>, <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00946">fp_config::control_port</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00107">FP_CONTINUE</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00104">FP_OK</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00106">FP_USAGE</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00144">g_max_conns</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00143">g_seed</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00949">fp_config::insecure</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00945">fp_config::listen_port</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00950">fp_config::quiet</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00948">fp_config::script_path</a>, and <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01050">fp_parse_args()</a>.</p>
+
+</div>
+</div>
+<a id="a3d3a63211f365f67d86980a74195362b" name="a3d3a63211f365f67d86980a74195362b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3d3a63211f365f67d86980a74195362b">&#9670;&#160;</a></span>fp_apply_lever_opt()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fp_apply_lever_opt </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>opt</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>optarg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00957">957</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00789">apply_command()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00387">code</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01050">fp_parse_args()</a>.</p>
+
+</div>
+</div>
+<a id="a39f3c9e463a07164af009ab25c8ea40b" name="a39f3c9e463a07164af009ab25c8ea40b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a39f3c9e463a07164af009ab25c8ea40b">&#9670;&#160;</a></span>fp_finalize_config()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fp_finalize_config </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfp__config.html">fp_config</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l01018">1018</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00871">add_target()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00946">fp_config::control_port</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00107">FP_CONTINUE</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00106">FP_USAGE</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00132">g_ntargets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00945">fp_config::listen_port</a>, and <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01050">fp_parse_args()</a>.</p>
+
+</div>
+</div>
+<a id="a9db7f2d93d55bf4eff22d0a4fd17fe2a" name="a9db7f2d93d55bf4eff22d0a4fd17fe2a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9db7f2d93d55bf4eff22d0a4fd17fe2a">&#9670;&#160;</a></span>fp_parse_args()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fp_parse_args </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>argc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char **&#160;</td>
+          <td class="paramname"><em>argv</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structfp__config.html">fp_config</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l01050">1050</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00985">fp_apply_core_opt()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00957">fp_apply_lever_opt()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00107">FP_CONTINUE</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l01018">fp_finalize_config()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
+
+</div>
+</div>
+<a id="ab70a1e5ce40de4e04cc02f41bd5e1e89" name="ab70a1e5ce40de4e04cc02f41bd5e1e89"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab70a1e5ce40de4e04cc02f41bd5e1e89">&#9670;&#160;</a></span>fp_print_banner()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void fp_print_banner </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="structfp__config.html">fp_config</a> *&#160;</td>
+          <td class="paramname"><em>cfg</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l01174">1174</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00947">fp_config::bind_str</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00946">fp_config::control_port</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00132">g_ntargets</a>, <a class="el" href="brix__fault__proxy_8c.html#a8c2a75265f9c3bb9c0ec8a8713a0747f">g_targets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00945">fp_config::listen_port</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
+
+</div>
+</div>
+<a id="abd404d905370d0d1414659a96e9055d0" name="abd404d905370d0d1414659a96e9055d0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abd404d905370d0d1414659a96e9055d0">&#9670;&#160;</a></span>fp_setup_bind()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fp_setup_bind </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>bind_str</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>insecure</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct sockaddr_storage *&#160;</td>
+          <td class="paramname"><em>bind_ss</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">socklen_t *&#160;</td>
+          <td class="paramname"><em>bind_len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l01097">1097</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00107">FP_CONTINUE</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00106">FP_USAGE</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00905">sa_is_loopback()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
 
 </div>
 </div>
@@ -815,11 +1617,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00555">555</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00656">656</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00737">cmd_set_misc()</a>.</p>
 
 </div>
 </div>
@@ -863,11 +1665,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00773">773</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00920">920</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
 
 </div>
 </div>
@@ -897,9 +1699,201 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00795">795</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l01186">1186</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00147">active</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00724">add_target()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="version_8h_source.html#l00044">brix_client_version()</a>, <a class="el" href="brix__fault__proxy_8c.html#a9a85a8346ea236c3880c604d3a49976f">C</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00150">CBUMP</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00151">CDEC</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00393">relay_arg::client_fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00395">relay_arg::conn_id</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00147">conns</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00662">control_thread()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00394">relay_arg::epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00104">FP_OK</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00105">FP_RUN</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00106">FP_USAGE</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00135">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00143">g_max_conns</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">g_ntargets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00142">g_seed</a>, <a class="el" href="brix__fault__proxy_8c.html#a8c2a75265f9c3bb9c0ec8a8713a0747f">g_targets</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00126">g_up</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00773">listen_sa()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00130">port</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00148">refused</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00535">reset_lever()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00758">sa_is_loopback()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00690">script_thread()</a>, and <a class="el" href="xrootdfs_8c_source.html#l00270">usage()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00947">fp_config::bind_str</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00946">fp_config::control_port</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00809">control_thread()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00107">FP_CONTINUE</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01050">fp_parse_args()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01174">fp_print_banner()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00105">FP_RUN</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01097">fp_setup_bind()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00128">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_up</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00949">fp_config::insecure</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00945">fp_config::listen_port</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00920">listen_sa()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00950">fp_config::quiet</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00636">reset_lever()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00948">fp_config::script_path</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00837">script_thread()</a>.</p>
+
+</div>
+</div>
+<a id="ab0e6127374462bfde97ea086986163e3" name="ab0e6127374462bfde97ea086986163e3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab0e6127374462bfde97ea086986163e3">&#9670;&#160;</a></span>relay_predial()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int relay_predial </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>cfd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>epoch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>conn_id</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00460">460</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00148">active</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00151">CBUMP</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00152">CDEC</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00014">conn_id</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_fail_nth</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00137">g_hang</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00287">sever()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00149">severs</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00572">relay_thread()</a>.</p>
+
+</div>
+</div>
+<a id="a5681274f0d5d77e6fe677ddffa63e165" name="a5681274f0d5d77e6fe677ddffa63e165"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5681274f0d5d77e6fe677ddffa63e165">&#9670;&#160;</a></span>relay_pump()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void relay_pump </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>cfd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ufd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>epoch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>seed</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00519">519</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00148">active</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00152">CDEC</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00142">g_halfclose_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00287">sever()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00572">relay_thread()</a>.</p>
+
+</div>
+</div>
+<a id="a2ae319672772554ce71addecf2096991" name="a2ae319672772554ce71addecf2096991"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2ae319672772554ce71addecf2096991">&#9670;&#160;</a></span>relay_pump_dir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int relay_pump_dir </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>i</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct pollfd *&#160;</td>
+          <td class="paramname"><em>pfd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>cfd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ufd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>bufsz</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned&#160;</td>
+          <td class="paramname"><em>epoch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned *&#160;</td>
+          <td class="paramname"><em>seed</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long *&#160;</td>
+          <td class="paramname"><em>up_ctr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long *&#160;</td>
+          <td class="paramname"><em>down_ctr</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00490">490</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00148">active</a>, <a class="el" href="brix__fault__proxy_8c.html#a9a85a8346ea236c3880c604d3a49976f">C</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00152">CDEC</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00419">forward_faulted()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00138">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00128">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_up</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00287">sever()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>.</p>
 
 </div>
 </div>
@@ -927,11 +1921,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00399">399</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00572">572</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00147">active</a>, <a class="el" href="brix__fault__proxy_8c.html#a9a85a8346ea236c3880c604d3a49976f">C</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00150">CBUMP</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00151">CDEC</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00393">relay_arg::client_fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00395">relay_arg::conn_id</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00014">conn_id</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00253">dial_any()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00394">relay_arg::epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00137">g_abortive</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00135">g_blocked</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00127">g_down</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00140">g_drop_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00139">g_fail_nth</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00141">g_halfclose_epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00136">g_hang</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00142">g_seed</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00126">g_up</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00286">sever()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00148">severs</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00148">active</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00152">CDEC</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00451">relay_arg::client_fd</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00453">relay_arg::conn_id</a>, <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00014">conn_id</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00254">dial_any()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00452">relay_arg::epoch</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00143">g_seed</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>.</p>
 
 </div>
 </div>
@@ -959,11 +1953,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00535">535</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00636">636</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00114">lever_t::chunk_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00121">lever_t::corrupt_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00115">lever_t::drip_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00116">lever_t::drip_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00122">lever_t::dup_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00113">lever_t::jitter_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00112">lever_t::latency_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00118">lever_t::lossy_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00117">lever_t::rate_kbps</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00120">lever_t::reorder_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00119">lever_t::reorder_ppm</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00123">lever_t::truncate_at</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00115">lever_t::chunk_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00122">lever_t::corrupt_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00116">lever_t::drip_bytes</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00117">lever_t::drip_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00123">lever_t::dup_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00114">lever_t::jitter_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00113">lever_t::latency_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00119">lever_t::lossy_ppm</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00118">lever_t::rate_kbps</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00121">lever_t::reorder_ms</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00120">lever_t::reorder_ppm</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00124">lever_t::truncate_at</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
 
 </div>
 </div>
@@ -991,9 +1985,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00758">758</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00905">905</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01097">fp_setup_bind()</a>.</p>
 
 </div>
 </div>
@@ -1021,11 +2015,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00690">690</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00837">837</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00789">apply_command()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>.</p>
 
 </div>
 </div>
@@ -1069,11 +2063,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00286">286</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00287">287</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>.</p>
 
 </div>
 </div>
@@ -1101,7 +2095,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00162">162</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00163">163</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>
@@ -1145,9 +2139,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00268">268</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00269">269</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00662">control_thread()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00809">control_thread()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>.</p>
 
 </div>
 </div>
@@ -1164,9 +2158,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00147">147</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>, <a class="el" href="api__snapshot_8c_source.html#l00308">dashboard_fill_history()</a>, <a class="el" href="history_8c_source.html#l00162">dashboard_history_count_active()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>, <a class="el" href="introspect_8c_source.html#l00091">webdav_introspect_done()</a>, and <a class="el" href="introspect_8c_source.html#l00058">webdav_introspect_parse_active()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="history_8c_source.html#l00249">brix_dashboard_history_sample()</a>, <a class="el" href="api__snapshot_8c_source.html#l00308">dashboard_fill_history()</a>, <a class="el" href="history_8c_source.html#l00162">dashboard_history_count_active()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00572">relay_thread()</a>, <a class="el" href="introspect_8c_source.html#l00091">webdav_introspect_done()</a>, and <a class="el" href="introspect_8c_source.html#l00058">webdav_introspect_parse_active()</a>.</p>
 
 </div>
 </div>
@@ -1182,7 +2176,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>.</p>
 
 </div>
 </div>
@@ -1198,9 +2192,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00147">147</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00254">brix_ftp_ev_eb_teardown()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00508">ev_eb_slot()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00254">brix_ftp_ev_eb_teardown()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00553">ev_eb_slot()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>.</p>
 
 </div>
 </div>
@@ -1216,9 +2210,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00149">149</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00355">fault_corrupt()</a>.</p>
 
 </div>
 </div>
@@ -1234,7 +2228,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00147">147</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>
@@ -1250,9 +2244,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00149">149</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>.</p>
 
 </div>
 </div>
@@ -1276,9 +2270,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00137">137</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00138">138</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00709">cmd_set_epoch()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00737">cmd_set_misc()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>.</p>
 
 </div>
 </div>
@@ -1302,9 +2296,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00135">135</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00136">136</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00709">cmd_set_epoch()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>.</p>
 
 </div>
 </div>
@@ -1328,9 +2322,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00127">127</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00128">128</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>.</p>
 
 </div>
 </div>
@@ -1354,9 +2348,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00140">140</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00141">141</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00709">cmd_set_epoch()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00373">forward_segment()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>.</p>
 
 </div>
 </div>
@@ -1380,9 +2374,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00139">139</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00140">140</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00737">cmd_set_misc()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>.</p>
 
 </div>
 </div>
@@ -1406,9 +2400,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00141">141</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00142">142</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00709">cmd_set_epoch()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00519">relay_pump()</a>.</p>
 
 </div>
 </div>
@@ -1432,9 +2426,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00136">136</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00137">137</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00709">cmd_set_epoch()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>.</p>
 
 </div>
 </div>
@@ -1458,9 +2452,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00143">143</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00144">144</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00985">fp_apply_core_opt()</a>.</p>
 
 </div>
 </div>
@@ -1484,9 +2478,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00131">131</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00132">132</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00724">add_target()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00253">dial_any()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00871">add_target()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00254">dial_any()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01018">fp_finalize_config()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l01174">fp_print_banner()</a>.</p>
 
 </div>
 </div>
@@ -1510,9 +2504,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00138">138</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00139">139</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00737">cmd_set_misc()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00305">fault_sever()</a>.</p>
 
 </div>
 </div>
@@ -1536,9 +2530,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00132">132</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00133">133</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00253">dial_any()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00254">dial_any()</a>.</p>
 
 </div>
 </div>
@@ -1562,9 +2556,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00142">142</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00143">143</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00985">fp_apply_core_opt()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00572">relay_thread()</a>.</p>
 
 </div>
 </div>
@@ -1580,7 +2574,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00724">add_target()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00253">dial_any()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00871">add_target()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00254">dial_any()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l01174">fp_print_banner()</a>.</p>
 
 </div>
 </div>
@@ -1604,9 +2598,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00126">126</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00127">127</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00568">apply_command()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00544">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00645">clear_all()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00761">cmd_status_report()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01186">main()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00490">relay_pump_dir()</a>.</p>
 
 </div>
 </div>
@@ -1622,9 +2616,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00130">130</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00131">131</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00146">acc_applies()</a>, <a class="el" href="entity_8c_source.html#l00166">acc_entity_init_scalars()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00724">add_target()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00235">admin_cluster_delete()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00209">admin_cluster_drain()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00177">admin_cluster_register()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00257">admin_cluster_undrain()</a>, <a class="el" href="api__admin__proxy_8c_source.html#l00091">admin_url_host_allowed()</a>, <a class="el" href="api__admin_8c_source.html#l00038">admin_validate_hostname()</a>, <a class="el" href="api__admin_8c_source.html#l00379">admin_validate_url()</a>, <a class="el" href="copy__recursive_8c_source.html#l00816">auth_hdr_s3()</a>, <a class="el" href="audit_8c_source.html#l00044">brix_acc_audit()</a>, <a class="el" href="tables_8c_source.html#l00037">brix_acc_domain_find()</a>, <a class="el" href="entity_8c_source.html#l00237">brix_acc_entity_build()</a>, <a class="el" href="auth__gate_8c_source.html#l00140">brix_acc_gate_engine()</a>, <a class="el" href="auth__gate_8c_source.html#l00103">brix_acc_gate_host()</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>, <a class="el" href="groups_8c_source.html#l00382">brix_acc_in_netgroup()</a>, <a class="el" href="auth__gate_8c_source.html#l00230">brix_auth_gate_cache_key()</a>, <a class="el" href="origin__connection_8c_source.html#l00164">brix_cache_origin_connect_addr()</a>, <a class="el" href="origin__connection_8c_source.html#l00093">brix_cache_origin_tls_upgrade()</a>, <a class="el" href="net_2proxy_2directives_8c_source.html#l00173">brix_conf_set_proxy_upstream()</a>, <a class="el" href="host__split_8c_source.html#l00054">brix_copy_host()</a>, <a class="el" href="origin__probe_8c_source.html#l00099">brix_cvmfs_connect_rtt_us()</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00097">brix_cvmfs_proxy_host_allowed()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>, <a class="el" href="origin__probe_8c_source.html#l00333">brix_cvmfs_rtt_init_worker()</a>, <a class="el" href="upstreams_8c_source.html#l00034">brix_cvmfs_upstream_get()</a>, <a class="el" href="cvmfs_8c_source.html#l00180">brix_cvmfs_upstream_record()</a>, <a class="el" href="http__tracking_8c_source.html#l00455">brix_dashboard_http_tpc_remote()</a>, <a class="el" href="host__format_8c_source.html#l00025">brix_format_host()</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00084">brix_handle_host_auth()</a>, <a class="el" href="health__check_8c_source.html#l00465">brix_hc_pre_connect_fail()</a>, <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00626">brix_hc_timer_handler()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00060">brix_host_allowed()</a>, <a class="el" href="host__format_8c_source.html#l00018">brix_host_is_ipv6_literal()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00040">brix_host_pattern_match()</a>, <a class="el" href="http__download_8c_source.html#l00336">brix_http_download()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http__upload_8c_source.html#l00449">brix_http_upload()</a>, <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>, <a class="el" href="web__ka_8c_source.html#l00035">brix_kaconn_init()</a>, <a class="el" href="mpxstats_8c_source.html#l00128">brix_mpxstats_main()</a>, <a class="el" href="net__target_8c_source.html#l00175">brix_net_host_chars_valid()</a>, <a class="el" href="netpref_8c_source.html#l00105">brix_netpref_demote_ipv6()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, <a class="el" href="proxy__pool_8c_source.html#l00429">brix_proxy_pool_snapshot()</a>, <a class="el" href="conn_8c_source.html#l00514">brix_reconnect()</a>, <a class="el" href="resilient_8c_source.html#l00102">brix_reconnect_home()</a>, <a class="el" href="redir__cache_8c_source.html#l00191">brix_redir_cache_insert()</a>, <a class="el" href="netconnect_8h_source.html#l00067">brix_resolve_connect_socket()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00204">brix_s3_sign_v4()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">brix_s3_sign_v4_q()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00055">brix_s3_sigv4_build_canon_hash()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="control_8c_source.html#l00051">brix_send_redirect_tpc()</a>, <a class="el" href="host__split_8c_source.html#l00082">brix_split_bracketed()</a>, <a class="el" href="host__split_8c_source.html#l00151">brix_split_host_port()</a>, <a class="el" href="host__split_8c_source.html#l00118">brix_split_plain()</a>, <a class="el" href="registry__select_8c_source.html#l00423">brix_srv_blacklist()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00138">brix_srv_register()</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="registry__select_8c_source.html#l00459">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00282">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00238">brix_srv_update_load()</a>, <a class="el" href="sock_8c_source.html#l00220">brix_tcp_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00371">brix_tls_client()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00073">brix_vfs_backend_config_xroot()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00036">brix_vfs_http_health_note()</a>, <a class="el" href="web__ka_8c_source.html#l00218">brix_webmeta_init()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00855">brixcvmfs_check()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00198">brixcvmfs_transport()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00201">cms_frame_redirect()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00272">cms_frame_state()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00048">cms_wake_pending_session()</a>, <a class="el" href="sock_8c_source.html#l00160">connect_resolved()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00238">cvmfs_geo_apply_ranks()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00149">cvmfs_geo_compute_metrics()</a>, <a class="el" href="geo__answer_8c_source.html#l00074">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00118">cvmfs_geo_scan_host()</a>, <a class="el" href="cvmfs_8c_source.html#l00119">cvmfs_up_slot_is()</a>, <a class="el" href="cvmfs_8c_source.html#l00125">cvmfs_upstream_slot()</a>, <a class="el" href="http__tracking_8c_source.html#l00428">dashboard_redact_url()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00223">dial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00253">dial_any()</a>, <a class="el" href="diag__doctor_8c_source.html#l00670">doctor_cms()</a>, <a class="el" href="diag__doctor_8c_source.html#l00133">doctor_metrics()</a>, <a class="el" href="xrddiag_8c_source.html#l00346">dx_host6_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00376">dx_hostname_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00171">dx_is_loopback()</a>, <a class="el" href="xrdmapc_8c_source.html#l00051">holder_url()</a>, <a class="el" href="http__download_8c_source.html#l00281">http_download_attempt()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__download_8c_source.html#l00197">httpx_download_exchange()</a>, <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>, <a class="el" href="http__upload_8c_source.html#l00318">httpx_upload_chunk()</a>, <a class="el" href="http__upload_8c_source.html#l00182">httpx_upload_exchange()</a>, <a class="el" href="macaroon__endpoint__request_8c_source.html#l00174">mac_request_respond()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, <a class="el" href="dispatch__write_8c_source.html#l00030">manager_redirect_mutation()</a>, <a class="el" href="xrdmapc_8c_source.html#l00152">map_holder()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00208">ocsp_bio_new_ssl()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00323">ocsp_tls_handshake()</a>, <a class="el" href="xrdmapc_8c_source.html#l00035">parse_holder()</a>, <a class="el" href="diag__topology_8c_source.html#l00251">parse_http_hostport()</a>, <a class="el" href="firefly_8c_source.html#l00062">pmark_build()</a>, <a class="el" href="mapping_8c_source.html#l00109">pmark_resolve_dest()</a>, <a class="el" href="xrdmapc_8c_source.html#l00102">probe_holder()</a>, <a class="el" href="copy__pump_8c_source.html#l00041">pump_remote_reopen()</a>, <a class="el" href="copy__pump_8c_source.html#l00097">pump_sink_reopen()</a>, <a class="el" href="aio_8c_source.html#l00013">rc_worker_main()</a>, <a class="el" href="http__tracking_8c_source.html#l00341">redact_write_host()</a>, <a class="el" href="xrdfs_8c_source.html#l00204">repl()</a>, <a class="el" href="diag__topology_8c_source.html#l00283">resolve_once()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00074">s3_acc_check()</a>, <a class="el" href="post__response_8c_source.html#l00026">s3_post_send_created()</a>, <a class="el" href="s3__transport_8c_source.html#l00692">s3o_request()</a>, <a class="el" href="s3__transport_8c_source.html#l00717">s3o_request_cred()</a>, <a class="el" href="vfs__s3__transport_8c_source.html#l00018">s3t_request()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00117">sd_cache_note_upstream()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>, <a class="el" href="stage__request__registry__mutate_8c_source.html#l00111">srq_rec_populate_from_view()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00291">srq_reqid_format()</a>, <a class="el" href="sts_8c_source.html#l00248">sts_prepare()</a>, <a class="el" href="sts__sign_8c_source.html#l00063">sts_sign_query()</a>, <a class="el" href="launch__prepare_8c_source.html#l00101">tpc_build_origin_id()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00070">url_host()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00226">vfs_parse_http_origin_list()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00185">vfs_parse_s3_origin()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00228">vfs_parse_xroot_or_driver_origin()</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00063">webdav_acc_check()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth_2authz_2acc_2access_8c_source.html#l00146">acc_applies()</a>, <a class="el" href="entity_8c_source.html#l00166">acc_entity_init_scalars()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00871">add_target()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00235">admin_cluster_delete()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00209">admin_cluster_drain()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00177">admin_cluster_register()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00257">admin_cluster_undrain()</a>, <a class="el" href="api__admin__proxy_8c_source.html#l00091">admin_url_host_allowed()</a>, <a class="el" href="api__admin_8c_source.html#l00038">admin_validate_hostname()</a>, <a class="el" href="api__admin_8c_source.html#l00379">admin_validate_url()</a>, <a class="el" href="copy__recursive_8c_source.html#l00816">auth_hdr_s3()</a>, <a class="el" href="audit_8c_source.html#l00044">brix_acc_audit()</a>, <a class="el" href="tables_8c_source.html#l00037">brix_acc_domain_find()</a>, <a class="el" href="entity_8c_source.html#l00237">brix_acc_entity_build()</a>, <a class="el" href="auth__gate_8c_source.html#l00140">brix_acc_gate_engine()</a>, <a class="el" href="auth__gate_8c_source.html#l00103">brix_acc_gate_host()</a>, <a class="el" href="auth_2authz_2acc_2config_8c_source.html#l00195">brix_acc_http_authorize()</a>, <a class="el" href="groups_8c_source.html#l00382">brix_acc_in_netgroup()</a>, <a class="el" href="auth__gate_8c_source.html#l00230">brix_auth_gate_cache_key()</a>, <a class="el" href="origin__connection_8c_source.html#l00164">brix_cache_origin_connect_addr()</a>, <a class="el" href="origin__connection_8c_source.html#l00093">brix_cache_origin_tls_upgrade()</a>, <a class="el" href="blacklist__file_8c_source.html#l00142">brix_cms_blfile_entry_matches()</a>, <a class="el" href="blacklist__file_8c_source.html#l00238">brix_cms_blfile_poll()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00080">brix_cms_wake_pending_session()</a>, <a class="el" href="net_2proxy_2directives_8c_source.html#l00173">brix_conf_set_proxy_upstream()</a>, <a class="el" href="host__split_8c_source.html#l00054">brix_copy_host()</a>, <a class="el" href="origin__probe_8c_source.html#l00099">brix_cvmfs_connect_rtt_us()</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00097">brix_cvmfs_proxy_host_allowed()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>, <a class="el" href="origin__probe_8c_source.html#l00333">brix_cvmfs_rtt_init_worker()</a>, <a class="el" href="upstreams_8c_source.html#l00034">brix_cvmfs_upstream_get()</a>, <a class="el" href="cvmfs_8c_source.html#l00180">brix_cvmfs_upstream_record()</a>, <a class="el" href="http__tracking_8c_source.html#l00455">brix_dashboard_http_tpc_remote()</a>, <a class="el" href="host__format_8c_source.html#l00025">brix_format_host()</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00084">brix_handle_host_auth()</a>, <a class="el" href="health__check_8c_source.html#l00585">brix_hc_pre_connect_fail()</a>, <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00763">brix_hc_timer_handler()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00060">brix_host_allowed()</a>, <a class="el" href="host__format_8c_source.html#l00018">brix_host_is_ipv6_literal()</a>, <a class="el" href="src_2auth_2host_2auth_8c_source.html#l00040">brix_host_pattern_match()</a>, <a class="el" href="http__download_8c_source.html#l00336">brix_http_download()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http__upload_8c_source.html#l00449">brix_http_upload()</a>, <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>, <a class="el" href="web__ka_8c_source.html#l00035">brix_kaconn_init()</a>, <a class="el" href="loc__cache_8c_source.html#l00129">brix_loc_cache_insert()</a>, <a class="el" href="loc__cache_8c_source.html#l00085">brix_loc_cache_lookup()</a>, <a class="el" href="mpxstats_8c_source.html#l00128">brix_mpxstats_main()</a>, <a class="el" href="net__target_8c_source.html#l00175">brix_net_host_chars_valid()</a>, <a class="el" href="netpref_8c_source.html#l00105">brix_netpref_demote_ipv6()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, <a class="el" href="proxy__pool_8c_source.html#l00429">brix_proxy_pool_snapshot()</a>, <a class="el" href="conn_8c_source.html#l00514">brix_reconnect()</a>, <a class="el" href="resilient_8c_source.html#l00102">brix_reconnect_home()</a>, <a class="el" href="redir__cache_8c_source.html#l00192">brix_redir_cache_insert()</a>, <a class="el" href="netconnect_8h_source.html#l00067">brix_resolve_connect_socket()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00204">brix_s3_sign_v4()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00170">brix_s3_sign_v4_q()</a>, <a class="el" href="client_2lib_2protocols_2s3_2s3_8c_source.html#l00055">brix_s3_sigv4_build_canon_hash()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="control_8c_source.html#l00051">brix_send_redirect_tpc()</a>, <a class="el" href="host__split_8c_source.html#l00082">brix_split_bracketed()</a>, <a class="el" href="host__split_8c_source.html#l00151">brix_split_host_port()</a>, <a class="el" href="host__split_8c_source.html#l00118">brix_split_plain()</a>, <a class="el" href="registry__select_8c_source.html#l00492">brix_srv_blacklist()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="registry__select_8c_source.html#l00574">brix_srv_is_blacklisted()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00156">brix_srv_register()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00362">brix_srv_reset()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00431">brix_srv_set_machine_load()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00412">brix_srv_set_stage()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00392">brix_srv_set_vnid()</a>, <a class="el" href="registry__health_8c_source.html#l00352">brix_srv_snapshot()</a>, <a class="el" href="registry__select_8c_source.html#l00528">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00300">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00256">brix_srv_update_load()</a>, <a class="el" href="sock_8c_source.html#l00220">brix_tcp_connect()</a>, <a class="el" href="client_2lib_2net_2tls_8c_source.html#l00371">brix_tls_client()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00073">brix_vfs_backend_config_xroot()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00036">brix_vfs_http_health_note()</a>, <a class="el" href="web__ka_8c_source.html#l00218">brix_webmeta_init()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00855">brixcvmfs_check()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00198">brixcvmfs_transport()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00205">cms_frame_redirect()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00276">cms_frame_state()</a>, <a class="el" href="sock_8c_source.html#l00160">connect_resolved()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00238">cvmfs_geo_apply_ranks()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00149">cvmfs_geo_compute_metrics()</a>, <a class="el" href="geo__answer_8c_source.html#l00075">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00119">cvmfs_geo_scan_host()</a>, <a class="el" href="cvmfs_8c_source.html#l00119">cvmfs_up_slot_is()</a>, <a class="el" href="cvmfs_8c_source.html#l00125">cvmfs_upstream_slot()</a>, <a class="el" href="http__tracking_8c_source.html#l00428">dashboard_redact_url()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00224">dial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00254">dial_any()</a>, <a class="el" href="diag__doctor_8c_source.html#l00670">doctor_cms()</a>, <a class="el" href="diag__doctor_8c_source.html#l00133">doctor_metrics()</a>, <a class="el" href="xrddiag_8c_source.html#l00346">dx_host6_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00376">dx_hostname_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00171">dx_is_loopback()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01174">fp_print_banner()</a>, <a class="el" href="xrdmapc_8c_source.html#l00051">holder_url()</a>, <a class="el" href="http__download_8c_source.html#l00281">http_download_attempt()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__download_8c_source.html#l00197">httpx_download_exchange()</a>, <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>, <a class="el" href="http__upload_8c_source.html#l00318">httpx_upload_chunk()</a>, <a class="el" href="http__upload_8c_source.html#l00182">httpx_upload_exchange()</a>, <a class="el" href="macaroon__endpoint__request_8c_source.html#l00174">mac_request_respond()</a>, <a class="el" href="dispatch__write_8c_source.html#l00031">manager_redirect_mutation()</a>, <a class="el" href="xrdmapc_8c_source.html#l00152">map_holder()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00208">ocsp_bio_new_ssl()</a>, <a class="el" href="ocsp__transport_8c_source.html#l00323">ocsp_tls_handshake()</a>, <a class="el" href="xrdmapc_8c_source.html#l00035">parse_holder()</a>, <a class="el" href="diag__topology_8c_source.html#l00251">parse_http_hostport()</a>, <a class="el" href="firefly_8c_source.html#l00062">pmark_build()</a>, <a class="el" href="mapping_8c_source.html#l00109">pmark_resolve_dest()</a>, <a class="el" href="xrdmapc_8c_source.html#l00102">probe_holder()</a>, <a class="el" href="copy__pump_8c_source.html#l00041">pump_remote_reopen()</a>, <a class="el" href="copy__pump_8c_source.html#l00097">pump_sink_reopen()</a>, <a class="el" href="aio_8c_source.html#l00013">rc_worker_main()</a>, <a class="el" href="http__tracking_8c_source.html#l00341">redact_write_host()</a>, <a class="el" href="xrdfs_8c_source.html#l00204">repl()</a>, <a class="el" href="diag__topology_8c_source.html#l00283">resolve_once()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00074">s3_acc_check()</a>, <a class="el" href="post__response_8c_source.html#l00026">s3_post_send_created()</a>, <a class="el" href="s3__transport_8c_source.html#l00692">s3o_request()</a>, <a class="el" href="s3__transport_8c_source.html#l00717">s3o_request_cred()</a>, <a class="el" href="vfs__s3__transport_8c_source.html#l00018">s3t_request()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00117">sd_cache_note_upstream()</a>, <a class="el" href="sd__s3__sign_8c_source.html#l00112">sd_s3_sign_ex()</a>, <a class="el" href="stage__request__registry__mutate_8c_source.html#l00111">srq_rec_populate_from_view()</a>, <a class="el" href="stage__request__registry_8c_source.html#l00291">srq_reqid_format()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00333">srv_find_locked()</a>, <a class="el" href="sts_8c_source.html#l00248">sts_prepare()</a>, <a class="el" href="sts__sign_8c_source.html#l00063">sts_sign_query()</a>, <a class="el" href="launch__prepare_8c_source.html#l00101">tpc_build_origin_id()</a>, <a class="el" href="brixcvmfs_8c_source.html#l00070">url_host()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00226">vfs_parse_http_origin_list()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00185">vfs_parse_s3_origin()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00228">vfs_parse_xroot_or_driver_origin()</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00063">webdav_acc_check()</a>.</p>
 
 </div>
 </div>
@@ -1640,9 +2634,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00130">130</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00131">131</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="api__admin__cluster_8c_source.html#l00235">admin_cluster_delete()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00209">admin_cluster_drain()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00177">admin_cluster_register()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00257">admin_cluster_undrain()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00123">admin_parse_port()</a>, <a class="el" href="origin__connection_8c_source.html#l00164">brix_cache_origin_connect_addr()</a>, <a class="el" href="net_2proxy_2directives_8c_source.html#l00173">brix_conf_set_proxy_upstream()</a>, <a class="el" href="origin__probe_8c_source.html#l00099">brix_cvmfs_connect_rtt_us()</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00065">brix_cvmfs_proxy_parse_port()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>, <a class="el" href="origin__probe_8c_source.html#l00333">brix_cvmfs_rtt_init_worker()</a>, <a class="el" href="upstreams_8c_source.html#l00034">brix_cvmfs_upstream_get()</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="health__check_8c_source.html#l00465">brix_hc_pre_connect_fail()</a>, <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00626">brix_hc_timer_handler()</a>, <a class="el" href="http__download_8c_source.html#l00336">brix_http_download()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00267">brix_http_proto_exclusive_check()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http__upload_8c_source.html#l00449">brix_http_upload()</a>, <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>, <a class="el" href="web__ka_8c_source.html#l00035">brix_kaconn_init()</a>, <a class="el" href="host__split_8c_source.html#l00028">brix_parse_port_str()</a>, <a class="el" href="sockstats_8c_source.html#l00109">brix_pmark_endpoint()</a>, <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, <a class="el" href="metadata_8c_source.html#l00068">brix_query_stats()</a>, <a class="el" href="conn_8c_source.html#l00514">brix_reconnect()</a>, <a class="el" href="resilient_8c_source.html#l00102">brix_reconnect_home()</a>, <a class="el" href="redir__cache_8c_source.html#l00191">brix_redir_cache_insert()</a>, <a class="el" href="netconnect_8h_source.html#l00067">brix_resolve_connect_socket()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="control_8c_source.html#l00051">brix_send_redirect_tpc()</a>, <a class="el" href="host__split_8c_source.html#l00082">brix_split_bracketed()</a>, <a class="el" href="host__split_8c_source.html#l00151">brix_split_host_port()</a>, <a class="el" href="host__split_8c_source.html#l00118">brix_split_plain()</a>, <a class="el" href="registry__select_8c_source.html#l00423">brix_srv_blacklist()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00138">brix_srv_register()</a>, <a class="el" href="registry__select_8c_source.html#l00459">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00282">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00238">brix_srv_update_load()</a>, <a class="el" href="sock_8c_source.html#l00220">brix_tcp_connect()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00509">brix_tier_register_cache_peers()</a>, <a class="el" href="trace_8c_source.html#l00131">brix_trace_redirect()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00073">brix_vfs_backend_config_xroot()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00036">brix_vfs_http_health_note()</a>, <a class="el" href="web__ka_8c_source.html#l00218">brix_webmeta_init()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00201">cms_frame_redirect()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00048">cms_wake_pending_session()</a>, <a class="el" href="sock_8c_source.html#l00160">connect_resolved()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00238">cvmfs_geo_apply_ranks()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00149">cvmfs_geo_compute_metrics()</a>, <a class="el" href="geo__answer_8c_source.html#l00074">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00205">cvmfs_geo_parse_entry()</a>, <a class="el" href="geo__answer_8c_source.html#l00092">cvmfs_geo_port_allowed()</a>, <a class="el" href="geo__answer_8c_source.html#l00161">cvmfs_geo_scan_port()</a>, <a class="el" href="api__snapshot__panels_8c_source.html#l00349">dashboard_fill_cluster()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00223">dial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00253">dial_any()</a>, <a class="el" href="diag__doctor_8c_source.html#l00670">doctor_cms()</a>, <a class="el" href="diag__doctor_8c_source.html#l00133">doctor_metrics()</a>, <a class="el" href="xrddiag_8c_source.html#l00346">dx_host6_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00376">dx_hostname_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00320">dx_scheme_match()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00048">ev_do_pasv()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00149">ev_do_port()</a>, <a class="el" href="xrdmapc_8c_source.html#l00051">holder_url()</a>, <a class="el" href="http__download_8c_source.html#l00281">http_download_attempt()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__download_8c_source.html#l00197">httpx_download_exchange()</a>, <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>, <a class="el" href="http__upload_8c_source.html#l00318">httpx_upload_chunk()</a>, <a class="el" href="http__upload_8c_source.html#l00182">httpx_upload_exchange()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00773">listen_sa()</a>, <a class="el" href="locate_8c_source.html#l00351">locate_format_local()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>, <a class="el" href="dispatch__write_8c_source.html#l00030">manager_redirect_mutation()</a>, <a class="el" href="xrdmapc_8c_source.html#l00152">map_holder()</a>, <a class="el" href="net__target__dns_8c_source.html#l00059">net_resolve_host()</a>, <a class="el" href="xrdmapc_8c_source.html#l00035">parse_holder()</a>, <a class="el" href="diag__topology_8c_source.html#l00251">parse_http_hostport()</a>, <a class="el" href="connect__upstream_8c_source.html#l00278">pc_select_endpoint()</a>, <a class="el" href="mapping_8c_source.html#l00109">pmark_resolve_dest()</a>, <a class="el" href="postconfiguration_8c_source.html#l00370">postconf_proxy_protocol_host_acl()</a>, <a class="el" href="xrdmapc_8c_source.html#l00102">probe_holder()</a>, <a class="el" href="copy__pump_8c_source.html#l00041">pump_remote_reopen()</a>, <a class="el" href="copy__pump_8c_source.html#l00097">pump_sink_reopen()</a>, <a class="el" href="aio_8c_source.html#l00013">rc_worker_main()</a>, <a class="el" href="xrdfs_8c_source.html#l00204">repl()</a>, <a class="el" href="diag__topology_8c_source.html#l00283">resolve_once()</a>, <a class="el" href="s3__transport_8c_source.html#l00692">s3o_request()</a>, <a class="el" href="s3__transport_8c_source.html#l00717">s3o_request_cred()</a>, <a class="el" href="vfs__s3__transport_8c_source.html#l00018">s3t_request()</a>, <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>, <a class="el" href="tpc__curl__setup_8c_source.html#l00027">tpc_curl_secure()</a>, <a class="el" href="parse_8c_source.html#l00189">tpc_parse_src_fields()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00070">url_host()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="api__admin__cluster_8c_source.html#l00235">admin_cluster_delete()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00209">admin_cluster_drain()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00177">admin_cluster_register()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00257">admin_cluster_undrain()</a>, <a class="el" href="api__admin__cluster_8c_source.html#l00123">admin_parse_port()</a>, <a class="el" href="origin__connection_8c_source.html#l00164">brix_cache_origin_connect_addr()</a>, <a class="el" href="blacklist__file_8c_source.html#l00142">brix_cms_blfile_entry_matches()</a>, <a class="el" href="blacklist__file_8c_source.html#l00238">brix_cms_blfile_poll()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00080">brix_cms_wake_pending_session()</a>, <a class="el" href="net_2proxy_2directives_8c_source.html#l00173">brix_conf_set_proxy_upstream()</a>, <a class="el" href="origin__probe_8c_source.html#l00099">brix_cvmfs_connect_rtt_us()</a>, <a class="el" href="geo_8c_source.html#l00111">brix_cvmfs_geo_passthrough()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00065">brix_cvmfs_proxy_parse_port()</a>, <a class="el" href="protocols_2cvmfs_2request_8c_source.html#l00135">brix_cvmfs_proxy_target()</a>, <a class="el" href="origin__probe_8c_source.html#l00333">brix_cvmfs_rtt_init_worker()</a>, <a class="el" href="upstreams_8c_source.html#l00034">brix_cvmfs_upstream_get()</a>, <a class="el" href="host__format_8c_source.html#l00053">brix_format_host_port()</a>, <a class="el" href="health__check_8c_source.html#l00585">brix_hc_pre_connect_fail()</a>, <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00763">brix_hc_timer_handler()</a>, <a class="el" href="http__download_8c_source.html#l00336">brix_http_download()</a>, <a class="el" href="http_8c_source.html#l00151">brix_http_get()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00267">brix_http_proto_exclusive_check()</a>, <a class="el" href="http__req_8c_source.html#l00316">brix_http_req()</a>, <a class="el" href="http__upload_8c_source.html#l00449">brix_http_upload()</a>, <a class="el" href="http__upload_8c_source.html#l00388">brix_http_upload_resumable()</a>, <a class="el" href="web__ka_8c_source.html#l00035">brix_kaconn_init()</a>, <a class="el" href="loc__cache_8c_source.html#l00129">brix_loc_cache_insert()</a>, <a class="el" href="loc__cache_8c_source.html#l00085">brix_loc_cache_lookup()</a>, <a class="el" href="host__split_8c_source.html#l00028">brix_parse_port_str()</a>, <a class="el" href="sockstats_8c_source.html#l00109">brix_pmark_endpoint()</a>, <a class="el" href="ops__fs_8c_source.html#l00220">brix_prepare()</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, <a class="el" href="metadata_8c_source.html#l00068">brix_query_stats()</a>, <a class="el" href="conn_8c_source.html#l00514">brix_reconnect()</a>, <a class="el" href="resilient_8c_source.html#l00102">brix_reconnect_home()</a>, <a class="el" href="redir__cache_8c_source.html#l00192">brix_redir_cache_insert()</a>, <a class="el" href="netconnect_8h_source.html#l00067">brix_resolve_connect_socket()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="control_8c_source.html#l00051">brix_send_redirect_tpc()</a>, <a class="el" href="host__split_8c_source.html#l00082">brix_split_bracketed()</a>, <a class="el" href="host__split_8c_source.html#l00151">brix_split_host_port()</a>, <a class="el" href="host__split_8c_source.html#l00118">brix_split_plain()</a>, <a class="el" href="registry__select_8c_source.html#l00492">brix_srv_blacklist()</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="registry__select_8c_source.html#l00574">brix_srv_is_blacklisted()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00156">brix_srv_register()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00362">brix_srv_reset()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00431">brix_srv_set_machine_load()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00412">brix_srv_set_stage()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00392">brix_srv_set_vnid()</a>, <a class="el" href="registry__select_8c_source.html#l00528">brix_srv_undrain()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00300">brix_srv_unregister()</a>, <a class="el" href="registry__health_8c_source.html#l00236">brix_srv_unregister_path()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00256">brix_srv_update_load()</a>, <a class="el" href="sock_8c_source.html#l00220">brix_tcp_connect()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00509">brix_tier_register_cache_peers()</a>, <a class="el" href="trace_8c_source.html#l00131">brix_trace_redirect()</a>, <a class="el" href="vfs__backend__config__http_8c_source.html#l00029">brix_vfs_backend_config_http()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00033">brix_vfs_backend_config_s3()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00073">brix_vfs_backend_config_xroot()</a>, <a class="el" href="vfs__backend__registry_8c_source.html#l00045">brix_vfs_backend_http_endpoint()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00227">brix_vfs_backend_http_endpoint_at()</a>, <a class="el" href="vfs__backend__config_8c_source.html#l00275">brix_vfs_backend_register_http_upstream()</a>, <a class="el" href="vfs__backend__config__s3_8c_source.html#l00060">brix_vfs_backend_set_xroot()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00036">brix_vfs_http_health_note()</a>, <a class="el" href="web__ka_8c_source.html#l00218">brix_webmeta_init()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00205">cms_frame_redirect()</a>, <a class="el" href="sock_8c_source.html#l00160">connect_resolved()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00238">cvmfs_geo_apply_ranks()</a>, <a class="el" href="cvmfs__module__georank_8c_source.html#l00149">cvmfs_geo_compute_metrics()</a>, <a class="el" href="geo__answer_8c_source.html#l00075">cvmfs_geo_key()</a>, <a class="el" href="geo__answer_8c_source.html#l00206">cvmfs_geo_parse_entry()</a>, <a class="el" href="geo__answer_8c_source.html#l00093">cvmfs_geo_port_allowed()</a>, <a class="el" href="geo__answer_8c_source.html#l00162">cvmfs_geo_scan_port()</a>, <a class="el" href="api__snapshot__panels_8c_source.html#l00349">dashboard_fill_cluster()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00224">dial()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00254">dial_any()</a>, <a class="el" href="diag__doctor_8c_source.html#l00670">doctor_cms()</a>, <a class="el" href="diag__doctor_8c_source.html#l00133">doctor_metrics()</a>, <a class="el" href="xrddiag_8c_source.html#l00346">dx_host6_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00376">dx_hostname_parse()</a>, <a class="el" href="xrddiag_8c_source.html#l00320">dx_scheme_match()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00048">ev_do_pasv()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00149">ev_do_port()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l01174">fp_print_banner()</a>, <a class="el" href="xrdmapc_8c_source.html#l00051">holder_url()</a>, <a class="el" href="http__download_8c_source.html#l00281">http_download_attempt()</a>, <a class="el" href="http_8c_source.html#l00303">httpx_connect()</a>, <a class="el" href="http__download_8c_source.html#l00197">httpx_download_exchange()</a>, <a class="el" href="http__req_8c_source.html#l00295">httpx_exchange()</a>, <a class="el" href="http__upload_8c_source.html#l00318">httpx_upload_chunk()</a>, <a class="el" href="http__upload_8c_source.html#l00182">httpx_upload_exchange()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00920">listen_sa()</a>, <a class="el" href="locate_8c_source.html#l00468">locate_format_local()</a>, <a class="el" href="dispatch__write_8c_source.html#l00031">manager_redirect_mutation()</a>, <a class="el" href="xrdmapc_8c_source.html#l00152">map_holder()</a>, <a class="el" href="net__target__dns_8c_source.html#l00059">net_resolve_host()</a>, <a class="el" href="xrdmapc_8c_source.html#l00035">parse_holder()</a>, <a class="el" href="diag__topology_8c_source.html#l00251">parse_http_hostport()</a>, <a class="el" href="connect__upstream_8c_source.html#l00278">pc_select_endpoint()</a>, <a class="el" href="mapping_8c_source.html#l00109">pmark_resolve_dest()</a>, <a class="el" href="postconfiguration_8c_source.html#l00372">postconf_proxy_protocol_host_acl()</a>, <a class="el" href="xrdmapc_8c_source.html#l00102">probe_holder()</a>, <a class="el" href="copy__pump_8c_source.html#l00041">pump_remote_reopen()</a>, <a class="el" href="copy__pump_8c_source.html#l00097">pump_sink_reopen()</a>, <a class="el" href="aio_8c_source.html#l00013">rc_worker_main()</a>, <a class="el" href="xrdfs_8c_source.html#l00204">repl()</a>, <a class="el" href="diag__topology_8c_source.html#l00283">resolve_once()</a>, <a class="el" href="s3__transport_8c_source.html#l00692">s3o_request()</a>, <a class="el" href="s3__transport_8c_source.html#l00717">s3o_request_cred()</a>, <a class="el" href="vfs__s3__transport_8c_source.html#l00018">s3t_request()</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00333">srv_find_locked()</a>, <a class="el" href="stream__cache_8c_source.html#l00053">stream_cache_port_str()</a>, <a class="el" href="tpc__curl__setup_8c_source.html#l00027">tpc_curl_secure()</a>, <a class="el" href="parse_8c_source.html#l00189">tpc_parse_src_fields()</a>, and <a class="el" href="brixcvmfs_8c_source.html#l00070">url_host()</a>.</p>
 
 </div>
 </div>
@@ -1658,9 +2652,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00149">149</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00795">main()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l01132">fp_accept_loop()</a>.</p>
 
 </div>
 </div>
@@ -1676,9 +2670,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00149">149</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00310">forward_faulted()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00399">relay_thread()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="brix__fault__proxy_8c_source.html#l00305">fault_sever()</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00460">relay_predial()</a>.</p>
 
 </div>
 </div>
@@ -1694,7 +2688,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00147">147</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="brix__fault__proxy_8c_source.html#l00148">148</a> of file <a class="el" href="brix__fault__proxy_8c_source.html">brix_fault_proxy.c</a>.</p>
 
 </div>
 </div>

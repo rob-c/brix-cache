@@ -6,6 +6,7 @@ var node__ops__unittest_8c =
     [ "K_MKPATH", "node__ops__unittest_8c.html#a2fa03a0ffebd2c5a3a806c2cecae25fe", null ],
     [ "K_MV", "node__ops__unittest_8c.html#a4bf227855e51f678b5e594143285c2a1", null ],
     [ "K_PREPADD", "node__ops__unittest_8c.html#a4c6b204fa33af3cf5af7c7f1404afcd4", null ],
+    [ "K_PREPDEL", "node__ops__unittest_8c.html#aaf09111a11e420063c35e6f111fb2e0d", null ],
     [ "K_RM", "node__ops__unittest_8c.html#ada79759b21b64a65d7c44cfa7ccb507d", null ],
     [ "K_RMDIR", "node__ops__unittest_8c.html#a664352b2bc430e2093f2c9fdc13bc2cd", null ],
     [ "K_TRUNC", "node__ops__unittest_8c.html#aa98ac29e8c88e43bd0a0f9148484c423", null ],
@@ -20,6 +21,10 @@ var node__ops__unittest_8c =
     [ "test_mv", "node__ops__unittest_8c.html#a1621c8eef5b6335439a24ee2a1a44c33", null ],
     [ "test_mv_requires_two_paths", "node__ops__unittest_8c.html#ab9af4ba2d9afee99250de9ef2bb64e7e", null ],
     [ "test_non_executed_opcode", "node__ops__unittest_8c.html#a34ad7f375272db6312a425dc9c4a64f2", null ],
+    [ "test_prepadd_plan", "node__ops__unittest_8c.html#a8584277ebbc7aaa39655154b15b07c2a", null ],
+    [ "test_prepadd_requires_reqid", "node__ops__unittest_8c.html#a23667a441ca3d45a3893b3a7fc1f2f9b", null ],
+    [ "test_prepdel_plan", "node__ops__unittest_8c.html#a57952b2c4918c8980009ecd950673782", null ],
+    [ "test_prepdel_requires_reqid", "node__ops__unittest_8c.html#a6c3165d872b050efd9cdd1217ece1017", null ],
     [ "test_rm_and_rmdir", "node__ops__unittest_8c.html#a6e32efe4fbdaa6124ba2105f9913b1a5", null ],
     [ "test_trunc_size", "node__ops__unittest_8c.html#a9a0858d43da2f8f70e56fd52f531121f", null ],
     [ "g_fail", "node__ops__unittest_8c.html#a1901adb94fd0de553ba236fc3fe0c3d4", null ]

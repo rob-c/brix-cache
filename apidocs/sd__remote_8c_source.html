@@ -471,389 +471,480 @@ $(document).ready(function(){initNavTree('sd__remote_8c_source.html',''); initRe
 <div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>}</div>
 </div>
 <div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span> </div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span><span class="comment">/* Shared stat body: HEAD the object, optionally signing with a per-user</span></div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span><span class="comment"> * ak/sk/region override (NULL = the instance&#39;s static service credential). */</span></div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00351" data-start="{" data-end="}">
-<div class="line"><a id="l00351" name="l00351"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">  351</a></span><a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>)</div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>{</div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = inst-&gt;state;</div>
-<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>    <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    <span class="keywordtype">char</span>                          objpath[768];</div>
-<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>    <span class="keywordtype">char</span>                          errbuf[256];</div>
-<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a>                   *s3;</div>
-<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>    int64_t                       size = 0;</div>
-<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span> </div>
-<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>    <a class="code hl_function" href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a>(cfg, path, objpath, <span class="keyword">sizeof</span>(objpath));</div>
-<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>    <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, objpath, &amp;p);</div>
-<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    <span class="keywordflow">if</span> (ak != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a>     = ak; }</div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    <span class="keywordflow">if</span> (sk != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a>     = sk; }</div>
-<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>; }</div>
-<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span> </div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    s3 = <a class="code hl_function" href="sd__s3_8c.html#a03da992ca2890d86c6dd2eaf7523e93e">sd_s3_open_read</a>(&amp;p, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
-<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>    <span class="keywordflow">if</span> (s3 == NULL) {</div>
-<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>        errno = ENOENT;</div>
-<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    }</div>
-<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="sd__s3_8c.html#a0546f4ee55bd5ace26f152e74ef2b277">sd_s3_size</a>(s3, &amp;size, errbuf, <span class="keyword">sizeof</span>(errbuf)) != 0) {</div>
-<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>        <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
-<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>        errno = EIO;</div>
-<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    }</div>
-<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
-<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span> </div>
-<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>    memset(out, 0, <span class="keyword">sizeof</span>(*out));</div>
-<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>    out-&gt;<a class="code hl_variable" href="structbrix__sd__stat__t.html#ae053ca0e118a84bcc37a737e42ebfd04">size</a>   = (off_t) size;</div>
-<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>    out-&gt;<a class="code hl_variable" href="structbrix__sd__stat__t.html#ac8d555496c0c46567af400fa4030b57d">mode</a>   = S_IFREG | 0444;</div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    out-&gt;<a class="code hl_variable" href="structbrix__sd__stat__t.html#ab2279e75b065455107707c4aeb4c78c5">is_reg</a> = 1;</div>
-<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>}</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span><span class="comment">/* ---- xattr surface: x-amz-meta-* as the `user.` namespace --------------</span></div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span><span class="comment"> * getxattr(&quot;user.&lt;name&gt;&quot;) reads x-amz-meta-&lt;name&gt; via a signed HEAD;</span></div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span><span class="comment"> * listxattr enumerates every x-amz-meta-* header (needs a transport with the</span></div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span><span class="comment"> * optional resp_headers_raw slot — without it sd_s3_list_meta reports</span></div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span><span class="comment"> * ENOTSUP). Both open the object read-only just for the HEAD, mirroring the</span></div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span><span class="comment"> * stat body below. */</span></div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span><span class="keyword">static</span> <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a> *</div>
+<div class="foldopen" id="foldopen00356" data-start="{" data-end="}">
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a0cbfdc13d12d233e5032c07040e75dab">  356</a></span><a class="code hl_function" href="sd__remote_8c.html#a0cbfdc13d12d233e5032c07040e75dab">sd_remote_meta_open</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path)</div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>{</div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = inst-&gt;state;</div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>    <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>           p;</div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    <span class="keywordtype">char</span>                        objpath[768];</div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>    <span class="keywordtype">char</span>                        errbuf[256];</div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span> </div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    <a class="code hl_function" href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a>(cfg, path, objpath, <span class="keyword">sizeof</span>(objpath));</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, objpath, &amp;p);</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__s3_8c.html#a03da992ca2890d86c6dd2eaf7523e93e">sd_s3_open_read</a>(&amp;p, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>}</div>
 </div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span> </div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00387" data-start="{" data-end="}">
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">  387</a></span><a class="code hl_function" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>{</div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(inst, path, out, NULL, NULL, NULL);</div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>}</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span> </div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span><span class="keyword">static</span> ssize_t</div>
+<div class="foldopen" id="foldopen00369" data-start="{" data-end="}">
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#adf5526fc204eb9414e34627f3002be11">  369</a></span><a class="code hl_function" href="sd__remote_8c.html#adf5526fc204eb9414e34627f3002be11">sd_remote_getxattr</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> cap)</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>{</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>    <span class="keywordtype">char</span>           val[2048];</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    <span class="keywordtype">char</span>           errbuf[256];</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    <a class="code hl_struct" href="structsd__s3__meta__buf.html">sd_s3_meta_buf</a> dst = { val, <span class="keyword">sizeof</span>(val) };</div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>    <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a>    *s3;</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    ssize_t        n;</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span> </div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>    <span class="keywordflow">if</span> (strncmp(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <span class="stringliteral">&quot;user.&quot;</span>, 5) != 0 || <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>[5] == <span class="charliteral">&#39;\0&#39;</span>) {</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>        errno = ENODATA;      <span class="comment">/* only the user. namespace maps to x-amz-meta- */</span></div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>    }</div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    s3 = <a class="code hl_function" href="sd__remote_8c.html#a0cbfdc13d12d233e5032c07040e75dab">sd_remote_meta_open</a>(inst, path);</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>    <span class="keywordflow">if</span> (s3 == NULL) {</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>        errno = ENOMEM;</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    }</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    errno = 0;</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    n = <a class="code hl_function" href="sd__s3_8h.html#acea862ec68a6808111bdd2d7223d26e4">sd_s3_get_meta</a>(s3, <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a> + 5, &amp;dst, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>    <span class="keywordflow">if</span> (n &lt; 0) {</div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>        <span class="keywordflow">if</span> (errno == 0) { errno = EIO; }</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    }</div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>    <span class="keywordflow">if</span> (n == 0) {</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>        errno = ENODATA;      <span class="comment">/* HEAD ok, attribute absent */</span></div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>    }</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    <span class="keywordflow">if</span> (buf == NULL || cap == 0) {</div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>        <span class="keywordflow">return</span> n;             <span class="comment">/* getxattr(2) size probe */</span></div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>    }</div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>    <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) n &gt; cap) {</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>        errno = ERANGE;</div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>    }</div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>    memcpy(buf, val, (<span class="keywordtype">size_t</span>) n);</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>}</div>
 </div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span> </div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span><span class="comment">/* Cred-scoped stat (P80.3): the probe/HEAD runs as the requesting user, so a</span></div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span><span class="comment"> * deny-mode request never reaches the origin under the service credential.</span></div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span><span class="comment"> * Registering this slot is also the canonical capability gate that turns on</span></div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span><span class="comment"> * per-user namespace credential resolution in brix_vfs_ns_cred(). */</span></div>
-<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00398" data-start="{" data-end="}">
-<div class="line"><a id="l00398" name="l00398"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">  398</a></span><a class="code hl_function" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>{</div>
-<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>    <span class="keywordtype">int</span> gate = <a class="code hl_function" href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a>(cred);</div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span> </div>
-<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>    <span class="keywordflow">if</span> (gate &gt; 0) {</div>
-<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(inst, path, out,</div>
-<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>            cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#af22aa0e4e90da47fe1b7b66d1d903b11">s3_ak</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#abe8cafe7c4088eb46620a974ee14bcf4">s3_sk</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273">s3_region</a>);</div>
-<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    }</div>
-<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>    <span class="keywordflow">if</span> (gate &lt; 0) {</div>
-<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>        errno = EACCES;</div>
-<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>    }</div>
-<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(inst, path, out, NULL, NULL, NULL);</div>
-<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>}</div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span> </div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span><span class="keyword">static</span> ssize_t</div>
+<div class="foldopen" id="foldopen00410" data-start="{" data-end="}">
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a0505e61c68d64fc06ec90bd2dbdaa0e5">  410</a></span><a class="code hl_function" href="sd__remote_8c.html#a0505e61c68d64fc06ec90bd2dbdaa0e5">sd_remote_listxattr</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> cap)</div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>{</div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>    <span class="keywordtype">char</span>        errbuf[256];</div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>    <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a> *s3;</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>    ssize_t     n;</div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span> </div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    s3 = <a class="code hl_function" href="sd__remote_8c.html#a0cbfdc13d12d233e5032c07040e75dab">sd_remote_meta_open</a>(inst, path);</div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>    <span class="keywordflow">if</span> (s3 == NULL) {</div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>        errno = ENOMEM;</div>
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>    }</div>
+<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>    errno = 0;</div>
+<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span>    n = <a class="code hl_function" href="sd__s3_8h.html#a2a1404f403db647c4b804779684c0584">sd_s3_list_meta</a>(s3, buf, cap, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
+<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
+<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>    <span class="keywordflow">if</span> (n &lt; 0 &amp;&amp; errno == 0) {</div>
+<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span>        errno = EIO;</div>
+<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span>    }</div>
+<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span>    <span class="keywordflow">return</span> n;</div>
+<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span>}</div>
 </div>
-<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span> </div>
-<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span><span class="comment">/* ---- write path (SP3): the S3 store as a writable backend / cache / stage tier.</span></div>
-<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span><span class="comment"> * A staged write delegates to sd_s3&#39;s single-PUT/multipart upload; the object only</span></div>
-<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span><span class="comment"> * becomes visible at commit, so a staged upload is atomic from the reader&#39;s view. */</span></div>
-<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span> </div>
-<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span><span class="comment">/* Shared staged-open body: start the upload, optionally signing with a</span></div>
-<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span><span class="comment"> * per-user ak/sk/region override (NULL = the static service credential). The</span></div>
-<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span><span class="comment"> * override triple is copied into the staged state so the noreplace commit&#39;s</span></div>
-<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span><span class="comment"> * HEAD (P80.2) presents the same identity as the upload (P80.3). */</span></div>
-<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span><span class="keyword">static</span> brix_sd_staged_t *</div>
-<div class="foldopen" id="foldopen00423" data-start="{" data-end="}">
-<div class="line"><a id="l00423" name="l00423"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">  423</a></span><a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *final_path,</div>
-<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="keywordtype">int</span> *err_out)</div>
-<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>{</div>
-<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = inst-&gt;state;</div>
-<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span>    <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
-<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span>    <span class="keywordtype">char</span>                          objpath[768];</div>
-<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span>    <span class="keywordtype">char</span>                          errbuf[256];</div>
-<div class="line"><a id="l00430" name="l00430"></a><span class="lineno">  430</span>    <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a>                   *s3;</div>
-<div class="line"><a id="l00431" name="l00431"></a><span class="lineno">  431</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a>       *ss;</div>
-<div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span>    brix_sd_staged_t           *h;</div>
-<div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span> </div>
-<div class="line"><a id="l00434" name="l00434"></a><span class="lineno">  434</span>    <a class="code hl_function" href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a>(cfg, final_path, objpath, <span class="keyword">sizeof</span>(objpath));</div>
-<div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span>    <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, objpath, &amp;p);</div>
-<div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span>    <span class="keywordflow">if</span> (ak != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a>     = ak; }</div>
-<div class="line"><a id="l00437" name="l00437"></a><span class="lineno">  437</span>    <span class="keywordflow">if</span> (sk != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a>     = sk; }</div>
-<div class="line"><a id="l00438" name="l00438"></a><span class="lineno">  438</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>; }</div>
-<div class="line"><a id="l00439" name="l00439"></a><span class="lineno">  439</span> </div>
-<div class="line"><a id="l00440" name="l00440"></a><span class="lineno">  440</span>    <span class="comment">/* Unknown final size: sd_s3 buffers a single PUT and lazily upgrades to a</span></div>
-<div class="line"><a id="l00441" name="l00441"></a><span class="lineno">  441</span><span class="comment">     * multipart upload only past SD_REMOTE_PART_SIZE (P80.2), so small objects</span></div>
-<div class="line"><a id="l00442" name="l00442"></a><span class="lineno">  442</span><span class="comment">     * cost one request while any size still works. */</span></div>
-<div class="line"><a id="l00443" name="l00443"></a><span class="lineno">  443</span>    s3 = <a class="code hl_function" href="sd__s3_8h.html#ae7a8357c3141c1e3764c310cd81c153c">sd_s3_open_write</a>(&amp;p, -1, <a class="code hl_define" href="sd__remote_8c.html#a8ccdd2697fa5dd8f9a376c7138aedc1a">SD_REMOTE_PART_SIZE</a>, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
-<div class="line"><a id="l00444" name="l00444"></a><span class="lineno">  444</span>    <span class="keywordflow">if</span> (s3 == NULL) {</div>
-<div class="line"><a id="l00445" name="l00445"></a><span class="lineno">  445</span>        <span class="keywordflow">if</span> (err_out) { *err_out = EIO; }</div>
-<div class="line"><a id="l00446" name="l00446"></a><span class="lineno">  446</span>        <span class="keywordflow">return</span> NULL;</div>
-<div class="line"><a id="l00447" name="l00447"></a><span class="lineno">  447</span>    }</div>
-<div class="line"><a id="l00448" name="l00448"></a><span class="lineno">  448</span>    ss = calloc(1, <span class="keyword">sizeof</span>(*ss));</div>
-<div class="line"><a id="l00449" name="l00449"></a><span class="lineno">  449</span>    h  = calloc(1, <span class="keyword">sizeof</span>(*h));</div>
-<div class="line"><a id="l00450" name="l00450"></a><span class="lineno">  450</span>    <span class="keywordflow">if</span> (ss == NULL || h == NULL) {</div>
-<div class="line"><a id="l00451" name="l00451"></a><span class="lineno">  451</span>        free(ss);</div>
-<div class="line"><a id="l00452" name="l00452"></a><span class="lineno">  452</span>        free(h);</div>
-<div class="line"><a id="l00453" name="l00453"></a><span class="lineno">  453</span>        <a class="code hl_function" href="sd__s3_8h.html#a9a0c6f593d77c4f77a888030fadc80ec">sd_s3_abort</a>(s3);</div>
-<div class="line"><a id="l00454" name="l00454"></a><span class="lineno">  454</span>        <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
-<div class="line"><a id="l00455" name="l00455"></a><span class="lineno">  455</span>        <span class="keywordflow">if</span> (err_out) { *err_out = ENOMEM; }</div>
-<div class="line"><a id="l00456" name="l00456"></a><span class="lineno">  456</span>        <span class="keywordflow">return</span> NULL;</div>
-<div class="line"><a id="l00457" name="l00457"></a><span class="lineno">  457</span>    }</div>
-<div class="line"><a id="l00458" name="l00458"></a><span class="lineno">  458</span>    ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a> = s3;</div>
-<div class="line"><a id="l00459" name="l00459"></a><span class="lineno">  459</span>    snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4cd08cedf4372d63c537ba5a15e8940f">objpath</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4cd08cedf4372d63c537ba5a15e8940f">objpath</a>), <span class="stringliteral">&quot;%s&quot;</span>, objpath);</div>
-<div class="line"><a id="l00460" name="l00460"></a><span class="lineno">  460</span>    <span class="keywordflow">if</span> (ak != NULL &amp;&amp; sk != NULL) {</div>
-<div class="line"><a id="l00461" name="l00461"></a><span class="lineno">  461</span>        ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4c0451a16e8a142bedce45f6d61f111d">has_cred</a> = 1;</div>
-<div class="line"><a id="l00462" name="l00462"></a><span class="lineno">  462</span>        snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">ak</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">ak</a>), <span class="stringliteral">&quot;%s&quot;</span>, ak);</div>
-<div class="line"><a id="l00463" name="l00463"></a><span class="lineno">  463</span>        snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a3a19a58ac652d8ddc8d294d42b730ab6">sk</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a3a19a58ac652d8ddc8d294d42b730ab6">sk</a>), <span class="stringliteral">&quot;%s&quot;</span>, sk);</div>
-<div class="line"><a id="l00464" name="l00464"></a><span class="lineno">  464</span>        snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>), <span class="stringliteral">&quot;%s&quot;</span>,</div>
-<div class="line"><a id="l00465" name="l00465"></a><span class="lineno">  465</span>                 (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) ? <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> : <span class="stringliteral">&quot;&quot;</span>);</div>
-<div class="line"><a id="l00466" name="l00466"></a><span class="lineno">  466</span>    }</div>
-<div class="line"><a id="l00467" name="l00467"></a><span class="lineno">  467</span>    h-&gt;inst  = inst;</div>
-<div class="line"><a id="l00468" name="l00468"></a><span class="lineno">  468</span>    h-&gt;state = ss;</div>
-<div class="line"><a id="l00469" name="l00469"></a><span class="lineno">  469</span>    <span class="keywordflow">return</span> h;</div>
-<div class="line"><a id="l00470" name="l00470"></a><span class="lineno">  470</span>}</div>
+<div class="line"><a id="l00430" name="l00430"></a><span class="lineno">  430</span> </div>
+<div class="line"><a id="l00431" name="l00431"></a><span class="lineno">  431</span><span class="comment">/* Shared stat body: HEAD the object, optionally signing with a per-user</span></div>
+<div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span><span class="comment"> * ak/sk/region override (NULL = the instance&#39;s static service credential). */</span></div>
+<div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00434" data-start="{" data-end="}">
+<div class="line"><a id="l00434" name="l00434"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">  434</a></span><a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>)</div>
+<div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span>{</div>
+<div class="line"><a id="l00437" name="l00437"></a><span class="lineno">  437</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = inst-&gt;state;</div>
+<div class="line"><a id="l00438" name="l00438"></a><span class="lineno">  438</span>    <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
+<div class="line"><a id="l00439" name="l00439"></a><span class="lineno">  439</span>    <span class="keywordtype">char</span>                          objpath[768];</div>
+<div class="line"><a id="l00440" name="l00440"></a><span class="lineno">  440</span>    <span class="keywordtype">char</span>                          errbuf[256];</div>
+<div class="line"><a id="l00441" name="l00441"></a><span class="lineno">  441</span>    <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a>                   *s3;</div>
+<div class="line"><a id="l00442" name="l00442"></a><span class="lineno">  442</span>    int64_t                       size = 0;</div>
+<div class="line"><a id="l00443" name="l00443"></a><span class="lineno">  443</span> </div>
+<div class="line"><a id="l00444" name="l00444"></a><span class="lineno">  444</span>    <a class="code hl_function" href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a>(cfg, path, objpath, <span class="keyword">sizeof</span>(objpath));</div>
+<div class="line"><a id="l00445" name="l00445"></a><span class="lineno">  445</span>    <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, objpath, &amp;p);</div>
+<div class="line"><a id="l00446" name="l00446"></a><span class="lineno">  446</span>    <span class="keywordflow">if</span> (ak != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a>     = ak; }</div>
+<div class="line"><a id="l00447" name="l00447"></a><span class="lineno">  447</span>    <span class="keywordflow">if</span> (sk != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a>     = sk; }</div>
+<div class="line"><a id="l00448" name="l00448"></a><span class="lineno">  448</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>; }</div>
+<div class="line"><a id="l00449" name="l00449"></a><span class="lineno">  449</span> </div>
+<div class="line"><a id="l00450" name="l00450"></a><span class="lineno">  450</span>    s3 = <a class="code hl_function" href="sd__s3_8c.html#a03da992ca2890d86c6dd2eaf7523e93e">sd_s3_open_read</a>(&amp;p, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
+<div class="line"><a id="l00451" name="l00451"></a><span class="lineno">  451</span>    <span class="keywordflow">if</span> (s3 == NULL) {</div>
+<div class="line"><a id="l00452" name="l00452"></a><span class="lineno">  452</span>        errno = ENOENT;</div>
+<div class="line"><a id="l00453" name="l00453"></a><span class="lineno">  453</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00454" name="l00454"></a><span class="lineno">  454</span>    }</div>
+<div class="line"><a id="l00455" name="l00455"></a><span class="lineno">  455</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="sd__s3_8c.html#a0546f4ee55bd5ace26f152e74ef2b277">sd_s3_size</a>(s3, &amp;size, errbuf, <span class="keyword">sizeof</span>(errbuf)) != 0) {</div>
+<div class="line"><a id="l00456" name="l00456"></a><span class="lineno">  456</span>        <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
+<div class="line"><a id="l00457" name="l00457"></a><span class="lineno">  457</span>        errno = EIO;</div>
+<div class="line"><a id="l00458" name="l00458"></a><span class="lineno">  458</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00459" name="l00459"></a><span class="lineno">  459</span>    }</div>
+<div class="line"><a id="l00460" name="l00460"></a><span class="lineno">  460</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
+<div class="line"><a id="l00461" name="l00461"></a><span class="lineno">  461</span> </div>
+<div class="line"><a id="l00462" name="l00462"></a><span class="lineno">  462</span>    memset(out, 0, <span class="keyword">sizeof</span>(*out));</div>
+<div class="line"><a id="l00463" name="l00463"></a><span class="lineno">  463</span>    out-&gt;<a class="code hl_variable" href="structbrix__sd__stat__t.html#ae053ca0e118a84bcc37a737e42ebfd04">size</a>   = (off_t) size;</div>
+<div class="line"><a id="l00464" name="l00464"></a><span class="lineno">  464</span>    out-&gt;<a class="code hl_variable" href="structbrix__sd__stat__t.html#ac8d555496c0c46567af400fa4030b57d">mode</a>   = S_IFREG | 0444;</div>
+<div class="line"><a id="l00465" name="l00465"></a><span class="lineno">  465</span>    out-&gt;<a class="code hl_variable" href="structbrix__sd__stat__t.html#ab2279e75b065455107707c4aeb4c78c5">is_reg</a> = 1;</div>
+<div class="line"><a id="l00466" name="l00466"></a><span class="lineno">  466</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00467" name="l00467"></a><span class="lineno">  467</span>}</div>
 </div>
-<div class="line"><a id="l00471" name="l00471"></a><span class="lineno">  471</span> </div>
-<div class="line"><a id="l00472" name="l00472"></a><span class="lineno">  472</span><span class="keyword">static</span> brix_sd_staged_t *</div>
-<div class="foldopen" id="foldopen00473" data-start="{" data-end="}">
-<div class="line"><a id="l00473" name="l00473"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">  473</a></span><a class="code hl_function" href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *final_path,</div>
-<div class="line"><a id="l00474" name="l00474"></a><span class="lineno">  474</span>    mode_t mode, <span class="keywordtype">int</span> *err_out)</div>
-<div class="line"><a id="l00475" name="l00475"></a><span class="lineno">  475</span>{</div>
-<div class="line"><a id="l00476" name="l00476"></a><span class="lineno">  476</span>    (void) mode;</div>
-<div class="line"><a id="l00477" name="l00477"></a><span class="lineno">  477</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(inst, final_path, NULL, NULL, NULL,</div>
-<div class="line"><a id="l00478" name="l00478"></a><span class="lineno">  478</span>                                      err_out);</div>
-<div class="line"><a id="l00479" name="l00479"></a><span class="lineno">  479</span>}</div>
+<div class="line"><a id="l00468" name="l00468"></a><span class="lineno">  468</span> </div>
+<div class="line"><a id="l00469" name="l00469"></a><span class="lineno">  469</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00470" data-start="{" data-end="}">
+<div class="line"><a id="l00470" name="l00470"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">  470</a></span><a class="code hl_function" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00471" name="l00471"></a><span class="lineno">  471</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out)</div>
+<div class="line"><a id="l00472" name="l00472"></a><span class="lineno">  472</span>{</div>
+<div class="line"><a id="l00473" name="l00473"></a><span class="lineno">  473</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(inst, path, out, NULL, NULL, NULL);</div>
+<div class="line"><a id="l00474" name="l00474"></a><span class="lineno">  474</span>}</div>
 </div>
-<div class="line"><a id="l00480" name="l00480"></a><span class="lineno">  480</span> </div>
-<div class="line"><a id="l00481" name="l00481"></a><span class="lineno">  481</span><span class="comment">/* Cred-scoped staged open (P80.3): a write whose identity resolved to a</span></div>
-<div class="line"><a id="l00482" name="l00482"></a><span class="lineno">  482</span><span class="comment"> * `&lt;key&gt;.s3` credential uploads to the origin as THAT user — every leg of the</span></div>
-<div class="line"><a id="l00483" name="l00483"></a><span class="lineno">  483</span><span class="comment"> * upload (CreateMPU/UploadPart/PUT/Complete, and the noreplace HEAD via the</span></div>
-<div class="line"><a id="l00484" name="l00484"></a><span class="lineno">  484</span><span class="comment"> * copied triple) signs with the per-user keys. Gate semantics identical to</span></div>
-<div class="line"><a id="l00485" name="l00485"></a><span class="lineno">  485</span><span class="comment"> * sd_remote_open_cred. */</span></div>
-<div class="line"><a id="l00486" name="l00486"></a><span class="lineno">  486</span><span class="keyword">static</span> brix_sd_staged_t *</div>
-<div class="foldopen" id="foldopen00487" data-start="{" data-end="}">
-<div class="line"><a id="l00487" name="l00487"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">  487</a></span><a class="code hl_function" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *final_path,</div>
-<div class="line"><a id="l00488" name="l00488"></a><span class="lineno">  488</span>    mode_t mode, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, <span class="keywordtype">int</span> *err_out)</div>
-<div class="line"><a id="l00489" name="l00489"></a><span class="lineno">  489</span>{</div>
-<div class="line"><a id="l00490" name="l00490"></a><span class="lineno">  490</span>    <span class="keywordtype">int</span> gate = <a class="code hl_function" href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a>(cred);</div>
-<div class="line"><a id="l00491" name="l00491"></a><span class="lineno">  491</span> </div>
-<div class="line"><a id="l00492" name="l00492"></a><span class="lineno">  492</span>    (void) mode;</div>
-<div class="line"><a id="l00493" name="l00493"></a><span class="lineno">  493</span> </div>
-<div class="line"><a id="l00494" name="l00494"></a><span class="lineno">  494</span>    <span class="keywordflow">if</span> (gate &gt; 0) {</div>
-<div class="line"><a id="l00495" name="l00495"></a><span class="lineno">  495</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(inst, final_path,</div>
-<div class="line"><a id="l00496" name="l00496"></a><span class="lineno">  496</span>            cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#af22aa0e4e90da47fe1b7b66d1d903b11">s3_ak</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#abe8cafe7c4088eb46620a974ee14bcf4">s3_sk</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273">s3_region</a>, err_out);</div>
-<div class="line"><a id="l00497" name="l00497"></a><span class="lineno">  497</span>    }</div>
-<div class="line"><a id="l00498" name="l00498"></a><span class="lineno">  498</span>    <span class="keywordflow">if</span> (gate &lt; 0) {</div>
-<div class="line"><a id="l00499" name="l00499"></a><span class="lineno">  499</span>        <span class="keywordflow">if</span> (err_out) { *err_out = EACCES; }</div>
-<div class="line"><a id="l00500" name="l00500"></a><span class="lineno">  500</span>        errno = EACCES;</div>
-<div class="line"><a id="l00501" name="l00501"></a><span class="lineno">  501</span>        <span class="keywordflow">return</span> NULL;</div>
-<div class="line"><a id="l00502" name="l00502"></a><span class="lineno">  502</span>    }</div>
-<div class="line"><a id="l00503" name="l00503"></a><span class="lineno">  503</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(inst, final_path, NULL, NULL, NULL,</div>
-<div class="line"><a id="l00504" name="l00504"></a><span class="lineno">  504</span>                                      err_out);</div>
-<div class="line"><a id="l00505" name="l00505"></a><span class="lineno">  505</span>}</div>
+<div class="line"><a id="l00475" name="l00475"></a><span class="lineno">  475</span> </div>
+<div class="line"><a id="l00476" name="l00476"></a><span class="lineno">  476</span><span class="comment">/* Cred-scoped stat (P80.3): the probe/HEAD runs as the requesting user, so a</span></div>
+<div class="line"><a id="l00477" name="l00477"></a><span class="lineno">  477</span><span class="comment"> * deny-mode request never reaches the origin under the service credential.</span></div>
+<div class="line"><a id="l00478" name="l00478"></a><span class="lineno">  478</span><span class="comment"> * Registering this slot is also the canonical capability gate that turns on</span></div>
+<div class="line"><a id="l00479" name="l00479"></a><span class="lineno">  479</span><span class="comment"> * per-user namespace credential resolution in brix_vfs_ns_cred(). */</span></div>
+<div class="line"><a id="l00480" name="l00480"></a><span class="lineno">  480</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00481" data-start="{" data-end="}">
+<div class="line"><a id="l00481" name="l00481"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">  481</a></span><a class="code hl_function" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00482" name="l00482"></a><span class="lineno">  482</span>    <a class="code hl_struct" href="structbrix__sd__stat__t.html">brix_sd_stat_t</a> *out, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</div>
+<div class="line"><a id="l00483" name="l00483"></a><span class="lineno">  483</span>{</div>
+<div class="line"><a id="l00484" name="l00484"></a><span class="lineno">  484</span>    <span class="keywordtype">int</span> gate = <a class="code hl_function" href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a>(cred);</div>
+<div class="line"><a id="l00485" name="l00485"></a><span class="lineno">  485</span> </div>
+<div class="line"><a id="l00486" name="l00486"></a><span class="lineno">  486</span>    <span class="keywordflow">if</span> (gate &gt; 0) {</div>
+<div class="line"><a id="l00487" name="l00487"></a><span class="lineno">  487</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(inst, path, out,</div>
+<div class="line"><a id="l00488" name="l00488"></a><span class="lineno">  488</span>            cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#af22aa0e4e90da47fe1b7b66d1d903b11">s3_ak</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#abe8cafe7c4088eb46620a974ee14bcf4">s3_sk</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273">s3_region</a>);</div>
+<div class="line"><a id="l00489" name="l00489"></a><span class="lineno">  489</span>    }</div>
+<div class="line"><a id="l00490" name="l00490"></a><span class="lineno">  490</span>    <span class="keywordflow">if</span> (gate &lt; 0) {</div>
+<div class="line"><a id="l00491" name="l00491"></a><span class="lineno">  491</span>        errno = EACCES;</div>
+<div class="line"><a id="l00492" name="l00492"></a><span class="lineno">  492</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00493" name="l00493"></a><span class="lineno">  493</span>    }</div>
+<div class="line"><a id="l00494" name="l00494"></a><span class="lineno">  494</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a>(inst, path, out, NULL, NULL, NULL);</div>
+<div class="line"><a id="l00495" name="l00495"></a><span class="lineno">  495</span>}</div>
 </div>
-<div class="line"><a id="l00506" name="l00506"></a><span class="lineno">  506</span> </div>
-<div class="line"><a id="l00507" name="l00507"></a><span class="lineno">  507</span><span class="keyword">static</span> ssize_t</div>
-<div class="foldopen" id="foldopen00508" data-start="{" data-end="}">
-<div class="line"><a id="l00508" name="l00508"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">  508</a></span><a class="code hl_function" href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a>(brix_sd_staged_t *h, <span class="keyword">const</span> <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len,</div>
-<div class="line"><a id="l00509" name="l00509"></a><span class="lineno">  509</span>    off_t off)</div>
-<div class="line"><a id="l00510" name="l00510"></a><span class="lineno">  510</span>{</div>
-<div class="line"><a id="l00511" name="l00511"></a><span class="lineno">  511</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a> *ss = h-&gt;state;</div>
-<div class="line"><a id="l00512" name="l00512"></a><span class="lineno">  512</span>    <span class="keywordtype">char</span>                    errbuf[256];</div>
-<div class="line"><a id="l00513" name="l00513"></a><span class="lineno">  513</span> </div>
-<div class="line"><a id="l00514" name="l00514"></a><span class="lineno">  514</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="sd__s3_8h.html#a1c2f9ec7a028f0549dbbdcf262d7beb7">sd_s3_pwrite</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>, buf, len, off, errbuf, <span class="keyword">sizeof</span>(errbuf)) != 0) {</div>
-<div class="line"><a id="l00515" name="l00515"></a><span class="lineno">  515</span>        errno = EIO;</div>
-<div class="line"><a id="l00516" name="l00516"></a><span class="lineno">  516</span>        <span class="keywordflow">return</span> -1;</div>
-<div class="line"><a id="l00517" name="l00517"></a><span class="lineno">  517</span>    }</div>
-<div class="line"><a id="l00518" name="l00518"></a><span class="lineno">  518</span>    <span class="keywordflow">return</span> (ssize_t) len;</div>
-<div class="line"><a id="l00519" name="l00519"></a><span class="lineno">  519</span>}</div>
+<div class="line"><a id="l00496" name="l00496"></a><span class="lineno">  496</span> </div>
+<div class="line"><a id="l00497" name="l00497"></a><span class="lineno">  497</span><span class="comment">/* ---- write path (SP3): the S3 store as a writable backend / cache / stage tier.</span></div>
+<div class="line"><a id="l00498" name="l00498"></a><span class="lineno">  498</span><span class="comment"> * A staged write delegates to sd_s3&#39;s single-PUT/multipart upload; the object only</span></div>
+<div class="line"><a id="l00499" name="l00499"></a><span class="lineno">  499</span><span class="comment"> * becomes visible at commit, so a staged upload is atomic from the reader&#39;s view. */</span></div>
+<div class="line"><a id="l00500" name="l00500"></a><span class="lineno">  500</span> </div>
+<div class="line"><a id="l00501" name="l00501"></a><span class="lineno">  501</span><span class="comment">/* Shared staged-open body: start the upload, optionally signing with a</span></div>
+<div class="line"><a id="l00502" name="l00502"></a><span class="lineno">  502</span><span class="comment"> * per-user ak/sk/region override (NULL = the static service credential). The</span></div>
+<div class="line"><a id="l00503" name="l00503"></a><span class="lineno">  503</span><span class="comment"> * override triple is copied into the staged state so the noreplace commit&#39;s</span></div>
+<div class="line"><a id="l00504" name="l00504"></a><span class="lineno">  504</span><span class="comment"> * HEAD (P80.2) presents the same identity as the upload (P80.3). */</span></div>
+<div class="line"><a id="l00505" name="l00505"></a><span class="lineno">  505</span><span class="keyword">static</span> brix_sd_staged_t *</div>
+<div class="foldopen" id="foldopen00506" data-start="{" data-end="}">
+<div class="line"><a id="l00506" name="l00506"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">  506</a></span><a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *final_path,</div>
+<div class="line"><a id="l00507" name="l00507"></a><span class="lineno">  507</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>, <span class="keywordtype">int</span> *err_out)</div>
+<div class="line"><a id="l00508" name="l00508"></a><span class="lineno">  508</span>{</div>
+<div class="line"><a id="l00509" name="l00509"></a><span class="lineno">  509</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = inst-&gt;state;</div>
+<div class="line"><a id="l00510" name="l00510"></a><span class="lineno">  510</span>    <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
+<div class="line"><a id="l00511" name="l00511"></a><span class="lineno">  511</span>    <span class="keywordtype">char</span>                          objpath[768];</div>
+<div class="line"><a id="l00512" name="l00512"></a><span class="lineno">  512</span>    <span class="keywordtype">char</span>                          errbuf[256];</div>
+<div class="line"><a id="l00513" name="l00513"></a><span class="lineno">  513</span>    <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a>                   *s3;</div>
+<div class="line"><a id="l00514" name="l00514"></a><span class="lineno">  514</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a>       *ss;</div>
+<div class="line"><a id="l00515" name="l00515"></a><span class="lineno">  515</span>    brix_sd_staged_t           *h;</div>
+<div class="line"><a id="l00516" name="l00516"></a><span class="lineno">  516</span> </div>
+<div class="line"><a id="l00517" name="l00517"></a><span class="lineno">  517</span>    <a class="code hl_function" href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a>(cfg, final_path, objpath, <span class="keyword">sizeof</span>(objpath));</div>
+<div class="line"><a id="l00518" name="l00518"></a><span class="lineno">  518</span>    <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, objpath, &amp;p);</div>
+<div class="line"><a id="l00519" name="l00519"></a><span class="lineno">  519</span>    <span class="keywordflow">if</span> (ak != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a>     = ak; }</div>
+<div class="line"><a id="l00520" name="l00520"></a><span class="lineno">  520</span>    <span class="keywordflow">if</span> (sk != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a>     = sk; }</div>
+<div class="line"><a id="l00521" name="l00521"></a><span class="lineno">  521</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>; }</div>
+<div class="line"><a id="l00522" name="l00522"></a><span class="lineno">  522</span> </div>
+<div class="line"><a id="l00523" name="l00523"></a><span class="lineno">  523</span>    <span class="comment">/* Unknown final size: sd_s3 buffers a single PUT and lazily upgrades to a</span></div>
+<div class="line"><a id="l00524" name="l00524"></a><span class="lineno">  524</span><span class="comment">     * multipart upload only past SD_REMOTE_PART_SIZE (P80.2), so small objects</span></div>
+<div class="line"><a id="l00525" name="l00525"></a><span class="lineno">  525</span><span class="comment">     * cost one request while any size still works. */</span></div>
+<div class="line"><a id="l00526" name="l00526"></a><span class="lineno">  526</span>    s3 = <a class="code hl_function" href="sd__s3_8h.html#ae7a8357c3141c1e3764c310cd81c153c">sd_s3_open_write</a>(&amp;p, -1, <a class="code hl_define" href="sd__remote_8c.html#a8ccdd2697fa5dd8f9a376c7138aedc1a">SD_REMOTE_PART_SIZE</a>, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
+<div class="line"><a id="l00527" name="l00527"></a><span class="lineno">  527</span>    <span class="keywordflow">if</span> (s3 == NULL) {</div>
+<div class="line"><a id="l00528" name="l00528"></a><span class="lineno">  528</span>        <span class="keywordflow">if</span> (err_out) { *err_out = EIO; }</div>
+<div class="line"><a id="l00529" name="l00529"></a><span class="lineno">  529</span>        <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00530" name="l00530"></a><span class="lineno">  530</span>    }</div>
+<div class="line"><a id="l00531" name="l00531"></a><span class="lineno">  531</span>    ss = calloc(1, <span class="keyword">sizeof</span>(*ss));</div>
+<div class="line"><a id="l00532" name="l00532"></a><span class="lineno">  532</span>    h  = calloc(1, <span class="keyword">sizeof</span>(*h));</div>
+<div class="line"><a id="l00533" name="l00533"></a><span class="lineno">  533</span>    <span class="keywordflow">if</span> (ss == NULL || h == NULL) {</div>
+<div class="line"><a id="l00534" name="l00534"></a><span class="lineno">  534</span>        free(ss);</div>
+<div class="line"><a id="l00535" name="l00535"></a><span class="lineno">  535</span>        free(h);</div>
+<div class="line"><a id="l00536" name="l00536"></a><span class="lineno">  536</span>        <a class="code hl_function" href="sd__s3_8h.html#a9a0c6f593d77c4f77a888030fadc80ec">sd_s3_abort</a>(s3);</div>
+<div class="line"><a id="l00537" name="l00537"></a><span class="lineno">  537</span>        <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(s3);</div>
+<div class="line"><a id="l00538" name="l00538"></a><span class="lineno">  538</span>        <span class="keywordflow">if</span> (err_out) { *err_out = ENOMEM; }</div>
+<div class="line"><a id="l00539" name="l00539"></a><span class="lineno">  539</span>        <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00540" name="l00540"></a><span class="lineno">  540</span>    }</div>
+<div class="line"><a id="l00541" name="l00541"></a><span class="lineno">  541</span>    ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a> = s3;</div>
+<div class="line"><a id="l00542" name="l00542"></a><span class="lineno">  542</span>    snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4cd08cedf4372d63c537ba5a15e8940f">objpath</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4cd08cedf4372d63c537ba5a15e8940f">objpath</a>), <span class="stringliteral">&quot;%s&quot;</span>, objpath);</div>
+<div class="line"><a id="l00543" name="l00543"></a><span class="lineno">  543</span>    <span class="keywordflow">if</span> (ak != NULL &amp;&amp; sk != NULL) {</div>
+<div class="line"><a id="l00544" name="l00544"></a><span class="lineno">  544</span>        ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4c0451a16e8a142bedce45f6d61f111d">has_cred</a> = 1;</div>
+<div class="line"><a id="l00545" name="l00545"></a><span class="lineno">  545</span>        snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">ak</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">ak</a>), <span class="stringliteral">&quot;%s&quot;</span>, ak);</div>
+<div class="line"><a id="l00546" name="l00546"></a><span class="lineno">  546</span>        snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a3a19a58ac652d8ddc8d294d42b730ab6">sk</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a3a19a58ac652d8ddc8d294d42b730ab6">sk</a>), <span class="stringliteral">&quot;%s&quot;</span>, sk);</div>
+<div class="line"><a id="l00547" name="l00547"></a><span class="lineno">  547</span>        snprintf(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>, <span class="keyword">sizeof</span>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>), <span class="stringliteral">&quot;%s&quot;</span>,</div>
+<div class="line"><a id="l00548" name="l00548"></a><span class="lineno">  548</span>                 (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) ? <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> : <span class="stringliteral">&quot;&quot;</span>);</div>
+<div class="line"><a id="l00549" name="l00549"></a><span class="lineno">  549</span>    }</div>
+<div class="line"><a id="l00550" name="l00550"></a><span class="lineno">  550</span>    h-&gt;inst  = inst;</div>
+<div class="line"><a id="l00551" name="l00551"></a><span class="lineno">  551</span>    h-&gt;state = ss;</div>
+<div class="line"><a id="l00552" name="l00552"></a><span class="lineno">  552</span>    <span class="keywordflow">return</span> h;</div>
+<div class="line"><a id="l00553" name="l00553"></a><span class="lineno">  553</span>}</div>
 </div>
-<div class="line"><a id="l00520" name="l00520"></a><span class="lineno">  520</span> </div>
-<div class="line"><a id="l00521" name="l00521"></a><span class="lineno">  521</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00522" data-start="{" data-end="}">
-<div class="line"><a id="l00522" name="l00522"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">  522</a></span><a class="code hl_function" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a>(brix_sd_staged_t *h, <span class="keywordtype">int</span> noreplace)</div>
-<div class="line"><a id="l00523" name="l00523"></a><span class="lineno">  523</span>{</div>
-<div class="line"><a id="l00524" name="l00524"></a><span class="lineno">  524</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a> *ss = h-&gt;state;</div>
-<div class="line"><a id="l00525" name="l00525"></a><span class="lineno">  525</span>    <span class="keywordtype">char</span>                    errbuf[256];</div>
-<div class="line"><a id="l00526" name="l00526"></a><span class="lineno">  526</span>    <span class="keywordtype">int</span>                     rc;</div>
-<div class="line"><a id="l00527" name="l00527"></a><span class="lineno">  527</span> </div>
-<div class="line"><a id="l00528" name="l00528"></a><span class="lineno">  528</span>    <span class="comment">/* Exclusive publish (P80.2): S3 PUT/MPU-complete always replaces, so</span></div>
-<div class="line"><a id="l00529" name="l00529"></a><span class="lineno">  529</span><span class="comment">     * noreplace is a HEAD-before-publish existence check. This is check-then-</span></div>
-<div class="line"><a id="l00530" name="l00530"></a><span class="lineno">  530</span><span class="comment">     * act — RACY against a concurrent external writer landing the object</span></div>
-<div class="line"><a id="l00531" name="l00531"></a><span class="lineno">  531</span><span class="comment">     * between the HEAD and the PUT — but honest O_EXCL/POSC semantics for</span></div>
-<div class="line"><a id="l00532" name="l00532"></a><span class="lineno">  532</span><span class="comment">     * everything going through this gateway, versus silently overwriting. */</span></div>
-<div class="line"><a id="l00533" name="l00533"></a><span class="lineno">  533</span>    <span class="keywordflow">if</span> (noreplace) {</div>
-<div class="line"><a id="l00534" name="l00534"></a><span class="lineno">  534</span>        <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = h-&gt;inst-&gt;state;</div>
-<div class="line"><a id="l00535" name="l00535"></a><span class="lineno">  535</span>        <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
-<div class="line"><a id="l00536" name="l00536"></a><span class="lineno">  536</span>        <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a>                   *<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a>;</div>
-<div class="line"><a id="l00537" name="l00537"></a><span class="lineno">  537</span>        int64_t                       size = 0;</div>
-<div class="line"><a id="l00538" name="l00538"></a><span class="lineno">  538</span> </div>
-<div class="line"><a id="l00539" name="l00539"></a><span class="lineno">  539</span>        <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4cd08cedf4372d63c537ba5a15e8940f">objpath</a>, &amp;p);</div>
-<div class="line"><a id="l00540" name="l00540"></a><span class="lineno">  540</span>        <span class="keywordflow">if</span> (ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4c0451a16e8a142bedce45f6d61f111d">has_cred</a>) {</div>
-<div class="line"><a id="l00541" name="l00541"></a><span class="lineno">  541</span>            <span class="comment">/* P80.3: the existence probe must present the same identity as</span></div>
-<div class="line"><a id="l00542" name="l00542"></a><span class="lineno">  542</span><span class="comment">             * the upload it gates — never the shared service credential. */</span></div>
-<div class="line"><a id="l00543" name="l00543"></a><span class="lineno">  543</span>            p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a> = ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">ak</a>;</div>
-<div class="line"><a id="l00544" name="l00544"></a><span class="lineno">  544</span>            p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a> = ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a3a19a58ac652d8ddc8d294d42b730ab6">sk</a>;</div>
-<div class="line"><a id="l00545" name="l00545"></a><span class="lineno">  545</span>            <span class="keywordflow">if</span> (ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>[0] != <span class="charliteral">&#39;\0&#39;</span>) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>; }</div>
-<div class="line"><a id="l00546" name="l00546"></a><span class="lineno">  546</span>        }</div>
-<div class="line"><a id="l00547" name="l00547"></a><span class="lineno">  547</span>        <a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a> = <a class="code hl_function" href="sd__s3_8c.html#a03da992ca2890d86c6dd2eaf7523e93e">sd_s3_open_read</a>(&amp;p, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
-<div class="line"><a id="l00548" name="l00548"></a><span class="lineno">  548</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a> != NULL) {</div>
-<div class="line"><a id="l00549" name="l00549"></a><span class="lineno">  549</span>            <span class="keywordtype">int</span> exists = <a class="code hl_function" href="sd__s3_8c.html#a0546f4ee55bd5ace26f152e74ef2b277">sd_s3_size</a>(<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a>, &amp;size, errbuf, <span class="keyword">sizeof</span>(errbuf)) == 0;</div>
-<div class="line"><a id="l00550" name="l00550"></a><span class="lineno">  550</span> </div>
-<div class="line"><a id="l00551" name="l00551"></a><span class="lineno">  551</span>            <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a>);</div>
-<div class="line"><a id="l00552" name="l00552"></a><span class="lineno">  552</span>            <span class="keywordflow">if</span> (exists) {</div>
-<div class="line"><a id="l00553" name="l00553"></a><span class="lineno">  553</span>                <span class="comment">/* Failure contract: leave the staged handle intact — the</span></div>
-<div class="line"><a id="l00554" name="l00554"></a><span class="lineno">  554</span><span class="comment">                 * caller&#39;s staged_abort discards the upload and frees it. */</span></div>
-<div class="line"><a id="l00555" name="l00555"></a><span class="lineno">  555</span>                errno = EEXIST;</div>
-<div class="line"><a id="l00556" name="l00556"></a><span class="lineno">  556</span>                <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00557" name="l00557"></a><span class="lineno">  557</span>            }</div>
-<div class="line"><a id="l00558" name="l00558"></a><span class="lineno">  558</span>        }</div>
-<div class="line"><a id="l00559" name="l00559"></a><span class="lineno">  559</span>    }</div>
-<div class="line"><a id="l00560" name="l00560"></a><span class="lineno">  560</span> </div>
-<div class="line"><a id="l00561" name="l00561"></a><span class="lineno">  561</span>    rc = <a class="code hl_function" href="sd__s3_8h.html#a45e610f048eaa8deef486fb2203e2b71">sd_s3_commit</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
-<div class="line"><a id="l00562" name="l00562"></a><span class="lineno">  562</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>);</div>
-<div class="line"><a id="l00563" name="l00563"></a><span class="lineno">  563</span>    free(ss);</div>
-<div class="line"><a id="l00564" name="l00564"></a><span class="lineno">  564</span>    free(h);</div>
-<div class="line"><a id="l00565" name="l00565"></a><span class="lineno">  565</span>    <span class="keywordflow">if</span> (rc != 0) {</div>
-<div class="line"><a id="l00566" name="l00566"></a><span class="lineno">  566</span>        errno = EIO;</div>
-<div class="line"><a id="l00567" name="l00567"></a><span class="lineno">  567</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00568" name="l00568"></a><span class="lineno">  568</span>    }</div>
-<div class="line"><a id="l00569" name="l00569"></a><span class="lineno">  569</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00570" name="l00570"></a><span class="lineno">  570</span>}</div>
+<div class="line"><a id="l00554" name="l00554"></a><span class="lineno">  554</span> </div>
+<div class="line"><a id="l00555" name="l00555"></a><span class="lineno">  555</span><span class="keyword">static</span> brix_sd_staged_t *</div>
+<div class="foldopen" id="foldopen00556" data-start="{" data-end="}">
+<div class="line"><a id="l00556" name="l00556"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">  556</a></span><a class="code hl_function" href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *final_path,</div>
+<div class="line"><a id="l00557" name="l00557"></a><span class="lineno">  557</span>    mode_t mode, <span class="keywordtype">int</span> *err_out)</div>
+<div class="line"><a id="l00558" name="l00558"></a><span class="lineno">  558</span>{</div>
+<div class="line"><a id="l00559" name="l00559"></a><span class="lineno">  559</span>    (void) mode;</div>
+<div class="line"><a id="l00560" name="l00560"></a><span class="lineno">  560</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(inst, final_path, NULL, NULL, NULL,</div>
+<div class="line"><a id="l00561" name="l00561"></a><span class="lineno">  561</span>                                      err_out);</div>
+<div class="line"><a id="l00562" name="l00562"></a><span class="lineno">  562</span>}</div>
 </div>
-<div class="line"><a id="l00571" name="l00571"></a><span class="lineno">  571</span> </div>
-<div class="line"><a id="l00572" name="l00572"></a><span class="lineno">  572</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00573" data-start="{" data-end="}">
-<div class="line"><a id="l00573" name="l00573"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">  573</a></span><a class="code hl_function" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a>(brix_sd_staged_t *h)</div>
-<div class="line"><a id="l00574" name="l00574"></a><span class="lineno">  574</span>{</div>
-<div class="line"><a id="l00575" name="l00575"></a><span class="lineno">  575</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a> *ss = h-&gt;state;</div>
+<div class="line"><a id="l00563" name="l00563"></a><span class="lineno">  563</span> </div>
+<div class="line"><a id="l00564" name="l00564"></a><span class="lineno">  564</span><span class="comment">/* Cred-scoped staged open (P80.3): a write whose identity resolved to a</span></div>
+<div class="line"><a id="l00565" name="l00565"></a><span class="lineno">  565</span><span class="comment"> * `&lt;key&gt;.s3` credential uploads to the origin as THAT user — every leg of the</span></div>
+<div class="line"><a id="l00566" name="l00566"></a><span class="lineno">  566</span><span class="comment"> * upload (CreateMPU/UploadPart/PUT/Complete, and the noreplace HEAD via the</span></div>
+<div class="line"><a id="l00567" name="l00567"></a><span class="lineno">  567</span><span class="comment"> * copied triple) signs with the per-user keys. Gate semantics identical to</span></div>
+<div class="line"><a id="l00568" name="l00568"></a><span class="lineno">  568</span><span class="comment"> * sd_remote_open_cred. */</span></div>
+<div class="line"><a id="l00569" name="l00569"></a><span class="lineno">  569</span><span class="keyword">static</span> brix_sd_staged_t *</div>
+<div class="foldopen" id="foldopen00570" data-start="{" data-end="}">
+<div class="line"><a id="l00570" name="l00570"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">  570</a></span><a class="code hl_function" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *final_path,</div>
+<div class="line"><a id="l00571" name="l00571"></a><span class="lineno">  571</span>    mode_t mode, <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, <span class="keywordtype">int</span> *err_out)</div>
+<div class="line"><a id="l00572" name="l00572"></a><span class="lineno">  572</span>{</div>
+<div class="line"><a id="l00573" name="l00573"></a><span class="lineno">  573</span>    <span class="keywordtype">int</span> gate = <a class="code hl_function" href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a>(cred);</div>
+<div class="line"><a id="l00574" name="l00574"></a><span class="lineno">  574</span> </div>
+<div class="line"><a id="l00575" name="l00575"></a><span class="lineno">  575</span>    (void) mode;</div>
 <div class="line"><a id="l00576" name="l00576"></a><span class="lineno">  576</span> </div>
-<div class="line"><a id="l00577" name="l00577"></a><span class="lineno">  577</span>    <a class="code hl_function" href="sd__s3_8h.html#a9a0c6f593d77c4f77a888030fadc80ec">sd_s3_abort</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>);</div>
-<div class="line"><a id="l00578" name="l00578"></a><span class="lineno">  578</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>);</div>
-<div class="line"><a id="l00579" name="l00579"></a><span class="lineno">  579</span>    free(ss);</div>
-<div class="line"><a id="l00580" name="l00580"></a><span class="lineno">  580</span>    free(h);</div>
-<div class="line"><a id="l00581" name="l00581"></a><span class="lineno">  581</span>}</div>
+<div class="line"><a id="l00577" name="l00577"></a><span class="lineno">  577</span>    <span class="keywordflow">if</span> (gate &gt; 0) {</div>
+<div class="line"><a id="l00578" name="l00578"></a><span class="lineno">  578</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(inst, final_path,</div>
+<div class="line"><a id="l00579" name="l00579"></a><span class="lineno">  579</span>            cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#af22aa0e4e90da47fe1b7b66d1d903b11">s3_ak</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#abe8cafe7c4088eb46620a974ee14bcf4">s3_sk</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273">s3_region</a>, err_out);</div>
+<div class="line"><a id="l00580" name="l00580"></a><span class="lineno">  580</span>    }</div>
+<div class="line"><a id="l00581" name="l00581"></a><span class="lineno">  581</span>    <span class="keywordflow">if</span> (gate &lt; 0) {</div>
+<div class="line"><a id="l00582" name="l00582"></a><span class="lineno">  582</span>        <span class="keywordflow">if</span> (err_out) { *err_out = EACCES; }</div>
+<div class="line"><a id="l00583" name="l00583"></a><span class="lineno">  583</span>        errno = EACCES;</div>
+<div class="line"><a id="l00584" name="l00584"></a><span class="lineno">  584</span>        <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00585" name="l00585"></a><span class="lineno">  585</span>    }</div>
+<div class="line"><a id="l00586" name="l00586"></a><span class="lineno">  586</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a>(inst, final_path, NULL, NULL, NULL,</div>
+<div class="line"><a id="l00587" name="l00587"></a><span class="lineno">  587</span>                                      err_out);</div>
+<div class="line"><a id="l00588" name="l00588"></a><span class="lineno">  588</span>}</div>
 </div>
-<div class="line"><a id="l00582" name="l00582"></a><span class="lineno">  582</span> </div>
-<div class="line"><a id="l00583" name="l00583"></a><span class="lineno">  583</span><span class="comment">/* Shared unlink body: DELETE the object, optionally signing with a per-user</span></div>
-<div class="line"><a id="l00584" name="l00584"></a><span class="lineno">  584</span><span class="comment"> * ak/sk/region override (NULL = the instance&#39;s static service credential). */</span></div>
-<div class="line"><a id="l00585" name="l00585"></a><span class="lineno">  585</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00586" data-start="{" data-end="}">
-<div class="line"><a id="l00586" name="l00586"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">  586</a></span><a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
-<div class="line"><a id="l00587" name="l00587"></a><span class="lineno">  587</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>)</div>
-<div class="line"><a id="l00588" name="l00588"></a><span class="lineno">  588</span>{</div>
-<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = inst-&gt;state;</div>
-<div class="line"><a id="l00590" name="l00590"></a><span class="lineno">  590</span>    <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
-<div class="line"><a id="l00591" name="l00591"></a><span class="lineno">  591</span>    <span class="keywordtype">char</span>                          objpath[768];</div>
-<div class="line"><a id="l00592" name="l00592"></a><span class="lineno">  592</span>    <span class="keywordtype">char</span>                          errbuf[256];</div>
-<div class="line"><a id="l00593" name="l00593"></a><span class="lineno">  593</span> </div>
-<div class="line"><a id="l00594" name="l00594"></a><span class="lineno">  594</span>    <a class="code hl_function" href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a>(cfg, path, objpath, <span class="keyword">sizeof</span>(objpath));</div>
-<div class="line"><a id="l00595" name="l00595"></a><span class="lineno">  595</span>    <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, objpath, &amp;p);</div>
-<div class="line"><a id="l00596" name="l00596"></a><span class="lineno">  596</span>    <span class="keywordflow">if</span> (ak != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a>     = ak; }</div>
-<div class="line"><a id="l00597" name="l00597"></a><span class="lineno">  597</span>    <span class="keywordflow">if</span> (sk != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a>     = sk; }</div>
-<div class="line"><a id="l00598" name="l00598"></a><span class="lineno">  598</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>; }</div>
-<div class="line"><a id="l00599" name="l00599"></a><span class="lineno">  599</span> </div>
-<div class="line"><a id="l00600" name="l00600"></a><span class="lineno">  600</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="sd__s3_8c.html#a9ada0ff9cbf3b0c9e061315ae80fa453">sd_s3_delete</a>(&amp;p, errbuf, <span class="keyword">sizeof</span>(errbuf)) != 0) {</div>
-<div class="line"><a id="l00601" name="l00601"></a><span class="lineno">  601</span>        <span class="keywordflow">if</span> (errno == 0) { errno = EIO; }</div>
-<div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span>    }</div>
-<div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00605" name="l00605"></a><span class="lineno">  605</span>}</div>
+<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span> </div>
+<div class="line"><a id="l00590" name="l00590"></a><span class="lineno">  590</span><span class="keyword">static</span> ssize_t</div>
+<div class="foldopen" id="foldopen00591" data-start="{" data-end="}">
+<div class="line"><a id="l00591" name="l00591"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">  591</a></span><a class="code hl_function" href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a>(brix_sd_staged_t *h, <span class="keyword">const</span> <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len,</div>
+<div class="line"><a id="l00592" name="l00592"></a><span class="lineno">  592</span>    off_t off)</div>
+<div class="line"><a id="l00593" name="l00593"></a><span class="lineno">  593</span>{</div>
+<div class="line"><a id="l00594" name="l00594"></a><span class="lineno">  594</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a> *ss = h-&gt;state;</div>
+<div class="line"><a id="l00595" name="l00595"></a><span class="lineno">  595</span>    <span class="keywordtype">char</span>                    errbuf[256];</div>
+<div class="line"><a id="l00596" name="l00596"></a><span class="lineno">  596</span> </div>
+<div class="line"><a id="l00597" name="l00597"></a><span class="lineno">  597</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="sd__s3_8h.html#a1c2f9ec7a028f0549dbbdcf262d7beb7">sd_s3_pwrite</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>, buf, len, off, errbuf, <span class="keyword">sizeof</span>(errbuf)) != 0) {</div>
+<div class="line"><a id="l00598" name="l00598"></a><span class="lineno">  598</span>        errno = EIO;</div>
+<div class="line"><a id="l00599" name="l00599"></a><span class="lineno">  599</span>        <span class="keywordflow">return</span> -1;</div>
+<div class="line"><a id="l00600" name="l00600"></a><span class="lineno">  600</span>    }</div>
+<div class="line"><a id="l00601" name="l00601"></a><span class="lineno">  601</span>    <span class="keywordflow">return</span> (ssize_t) len;</div>
+<div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span>}</div>
 </div>
-<div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span> </div>
-<div class="line"><a id="l00607" name="l00607"></a><span class="lineno">  607</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00608" data-start="{" data-end="}">
-<div class="line"><a id="l00608" name="l00608"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">  608</a></span><a class="code hl_function" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keywordtype">int</span> is_dir)</div>
-<div class="line"><a id="l00609" name="l00609"></a><span class="lineno">  609</span>{</div>
-<div class="line"><a id="l00610" name="l00610"></a><span class="lineno">  610</span>    (void) is_dir;</div>
-<div class="line"><a id="l00611" name="l00611"></a><span class="lineno">  611</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(inst, path, NULL, NULL, NULL);</div>
-<div class="line"><a id="l00612" name="l00612"></a><span class="lineno">  612</span>}</div>
-</div>
-<div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span> </div>
-<div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span><span class="comment">/* Cred-scoped unlink (P80.3): the DELETE runs as the requesting user. Gate</span></div>
-<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span><span class="comment"> * semantics identical to sd_remote_open_cred. */</span></div>
-<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span><span class="keyword">static</span> ngx_int_t</div>
-<div class="foldopen" id="foldopen00617" data-start="{" data-end="}">
-<div class="line"><a id="l00617" name="l00617"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">  617</a></span><a class="code hl_function" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keywordtype">int</span> is_dir,</div>
-<div class="line"><a id="l00618" name="l00618"></a><span class="lineno">  618</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</div>
-<div class="line"><a id="l00619" name="l00619"></a><span class="lineno">  619</span>{</div>
-<div class="line"><a id="l00620" name="l00620"></a><span class="lineno">  620</span>    <span class="keywordtype">int</span> gate = <a class="code hl_function" href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a>(cred);</div>
+<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span> </div>
+<div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00605" data-start="{" data-end="}">
+<div class="line"><a id="l00605" name="l00605"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">  605</a></span><a class="code hl_function" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a>(brix_sd_staged_t *h, <span class="keywordtype">int</span> noreplace)</div>
+<div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span>{</div>
+<div class="line"><a id="l00607" name="l00607"></a><span class="lineno">  607</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a> *ss = h-&gt;state;</div>
+<div class="line"><a id="l00608" name="l00608"></a><span class="lineno">  608</span>    <span class="keywordtype">char</span>                    errbuf[256];</div>
+<div class="line"><a id="l00609" name="l00609"></a><span class="lineno">  609</span>    <span class="keywordtype">int</span>                     rc;</div>
+<div class="line"><a id="l00610" name="l00610"></a><span class="lineno">  610</span> </div>
+<div class="line"><a id="l00611" name="l00611"></a><span class="lineno">  611</span>    <span class="comment">/* Exclusive publish (P80.2): S3 PUT/MPU-complete always replaces, so</span></div>
+<div class="line"><a id="l00612" name="l00612"></a><span class="lineno">  612</span><span class="comment">     * noreplace is a HEAD-before-publish existence check. This is check-then-</span></div>
+<div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span><span class="comment">     * act — RACY against a concurrent external writer landing the object</span></div>
+<div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span><span class="comment">     * between the HEAD and the PUT — but honest O_EXCL/POSC semantics for</span></div>
+<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span><span class="comment">     * everything going through this gateway, versus silently overwriting. */</span></div>
+<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span>    <span class="keywordflow">if</span> (noreplace) {</div>
+<div class="line"><a id="l00617" name="l00617"></a><span class="lineno">  617</span>        <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = h-&gt;inst-&gt;state;</div>
+<div class="line"><a id="l00618" name="l00618"></a><span class="lineno">  618</span>        <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
+<div class="line"><a id="l00619" name="l00619"></a><span class="lineno">  619</span>        <a class="code hl_struct" href="structsd__s3__file.html">sd_s3_file</a>                   *<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a>;</div>
+<div class="line"><a id="l00620" name="l00620"></a><span class="lineno">  620</span>        int64_t                       size = 0;</div>
 <div class="line"><a id="l00621" name="l00621"></a><span class="lineno">  621</span> </div>
-<div class="line"><a id="l00622" name="l00622"></a><span class="lineno">  622</span>    (void) is_dir;</div>
-<div class="line"><a id="l00623" name="l00623"></a><span class="lineno">  623</span> </div>
-<div class="line"><a id="l00624" name="l00624"></a><span class="lineno">  624</span>    <span class="keywordflow">if</span> (gate &gt; 0) {</div>
-<div class="line"><a id="l00625" name="l00625"></a><span class="lineno">  625</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(inst, path,</div>
-<div class="line"><a id="l00626" name="l00626"></a><span class="lineno">  626</span>            cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#af22aa0e4e90da47fe1b7b66d1d903b11">s3_ak</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#abe8cafe7c4088eb46620a974ee14bcf4">s3_sk</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273">s3_region</a>);</div>
-<div class="line"><a id="l00627" name="l00627"></a><span class="lineno">  627</span>    }</div>
-<div class="line"><a id="l00628" name="l00628"></a><span class="lineno">  628</span>    <span class="keywordflow">if</span> (gate &lt; 0) {</div>
-<div class="line"><a id="l00629" name="l00629"></a><span class="lineno">  629</span>        errno = EACCES;</div>
-<div class="line"><a id="l00630" name="l00630"></a><span class="lineno">  630</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00631" name="l00631"></a><span class="lineno">  631</span>    }</div>
-<div class="line"><a id="l00632" name="l00632"></a><span class="lineno">  632</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(inst, path, NULL, NULL, NULL);</div>
-<div class="line"><a id="l00633" name="l00633"></a><span class="lineno">  633</span>}</div>
+<div class="line"><a id="l00622" name="l00622"></a><span class="lineno">  622</span>        <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4cd08cedf4372d63c537ba5a15e8940f">objpath</a>, &amp;p);</div>
+<div class="line"><a id="l00623" name="l00623"></a><span class="lineno">  623</span>        <span class="keywordflow">if</span> (ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a4c0451a16e8a142bedce45f6d61f111d">has_cred</a>) {</div>
+<div class="line"><a id="l00624" name="l00624"></a><span class="lineno">  624</span>            <span class="comment">/* P80.3: the existence probe must present the same identity as</span></div>
+<div class="line"><a id="l00625" name="l00625"></a><span class="lineno">  625</span><span class="comment">             * the upload it gates — never the shared service credential. */</span></div>
+<div class="line"><a id="l00626" name="l00626"></a><span class="lineno">  626</span>            p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a> = ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">ak</a>;</div>
+<div class="line"><a id="l00627" name="l00627"></a><span class="lineno">  627</span>            p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a> = ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a3a19a58ac652d8ddc8d294d42b730ab6">sk</a>;</div>
+<div class="line"><a id="l00628" name="l00628"></a><span class="lineno">  628</span>            <span class="keywordflow">if</span> (ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>[0] != <span class="charliteral">&#39;\0&#39;</span>) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a6cfb7ade6a00a1bd82947b1d6c3cb210">region</a>; }</div>
+<div class="line"><a id="l00629" name="l00629"></a><span class="lineno">  629</span>        }</div>
+<div class="line"><a id="l00630" name="l00630"></a><span class="lineno">  630</span>        <a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a> = <a class="code hl_function" href="sd__s3_8c.html#a03da992ca2890d86c6dd2eaf7523e93e">sd_s3_open_read</a>(&amp;p, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
+<div class="line"><a id="l00631" name="l00631"></a><span class="lineno">  631</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a> != NULL) {</div>
+<div class="line"><a id="l00632" name="l00632"></a><span class="lineno">  632</span>            <span class="keywordtype">int</span> exists = <a class="code hl_function" href="sd__s3_8c.html#a0546f4ee55bd5ace26f152e74ef2b277">sd_s3_size</a>(<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a>, &amp;size, errbuf, <span class="keyword">sizeof</span>(errbuf)) == 0;</div>
+<div class="line"><a id="l00633" name="l00633"></a><span class="lineno">  633</span> </div>
+<div class="line"><a id="l00634" name="l00634"></a><span class="lineno">  634</span>            <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(<a class="code hl_function" href="diag__compare_8c.html#a66fbe8fcb6c98ecd1a9f4552856b4e12">probe</a>);</div>
+<div class="line"><a id="l00635" name="l00635"></a><span class="lineno">  635</span>            <span class="keywordflow">if</span> (exists) {</div>
+<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span>                <span class="comment">/* Failure contract: leave the staged handle intact — the</span></div>
+<div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span><span class="comment">                 * caller&#39;s staged_abort discards the upload and frees it. */</span></div>
+<div class="line"><a id="l00638" name="l00638"></a><span class="lineno">  638</span>                errno = EEXIST;</div>
+<div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span>                <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00640" name="l00640"></a><span class="lineno">  640</span>            }</div>
+<div class="line"><a id="l00641" name="l00641"></a><span class="lineno">  641</span>        }</div>
+<div class="line"><a id="l00642" name="l00642"></a><span class="lineno">  642</span>    }</div>
+<div class="line"><a id="l00643" name="l00643"></a><span class="lineno">  643</span> </div>
+<div class="line"><a id="l00644" name="l00644"></a><span class="lineno">  644</span>    rc = <a class="code hl_function" href="sd__s3_8h.html#a45e610f048eaa8deef486fb2203e2b71">sd_s3_commit</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>, errbuf, <span class="keyword">sizeof</span>(errbuf));</div>
+<div class="line"><a id="l00645" name="l00645"></a><span class="lineno">  645</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>);</div>
+<div class="line"><a id="l00646" name="l00646"></a><span class="lineno">  646</span>    free(ss);</div>
+<div class="line"><a id="l00647" name="l00647"></a><span class="lineno">  647</span>    free(h);</div>
+<div class="line"><a id="l00648" name="l00648"></a><span class="lineno">  648</span>    <span class="keywordflow">if</span> (rc != 0) {</div>
+<div class="line"><a id="l00649" name="l00649"></a><span class="lineno">  649</span>        errno = EIO;</div>
+<div class="line"><a id="l00650" name="l00650"></a><span class="lineno">  650</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00651" name="l00651"></a><span class="lineno">  651</span>    }</div>
+<div class="line"><a id="l00652" name="l00652"></a><span class="lineno">  652</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00653" name="l00653"></a><span class="lineno">  653</span>}</div>
 </div>
-<div class="line"><a id="l00634" name="l00634"></a><span class="lineno">  634</span> </div>
-<div class="line"><a id="l00635" name="l00635"></a><span class="lineno">  635</span><span class="comment">/* Read + write: the S3 store serves as a read origin (Range GET) and a writable</span></div>
-<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span><span class="comment"> * cache_store / stage_store / backend (staged single-PUT / multipart upload, plus</span></div>
-<div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span><span class="comment"> * DELETE for eviction and post-flush stage cleanup). */</span></div>
-<div class="foldopen" id="foldopen00638" data-start="{" data-end="};">
-<div class="line"><a id="l00638" name="l00638"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">  638</a></span><span class="keyword">static</span> <span class="keyword">const</span> brix_sd_driver_t <a class="code hl_variable" href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">brix_sd_remote_driver</a> = {</div>
-<div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span>    .name  = <span class="stringliteral">&quot;remote&quot;</span>,</div>
-<div class="line"><a id="l00640" name="l00640"></a><span class="lineno">  640</span>    <span class="comment">/* phase-71: no .pwrite slot — writes are staged whole-object uploads via</span></div>
-<div class="line"><a id="l00641" name="l00641"></a><span class="lineno">  641</span><span class="comment">     * .staged_*, so CAP_RANDOM_WRITE is deliberately NOT advertised. */</span></div>
-<div class="line"><a id="l00642" name="l00642"></a><span class="lineno">  642</span>    .caps  = <a class="code hl_enumvalue" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda2ba74f3fdd30ab40b38db1792f4552db">BRIX_SD_CAP_RANGE_READ</a> | <a class="code hl_enumvalue" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c">BRIX_SD_CAP_MEMFILE</a>,</div>
-<div class="line"><a id="l00643" name="l00643"></a><span class="lineno">  643</span>    .cred_accept = <a class="code hl_enumvalue" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b">BRIX_SD_CRED_BEARER</a> | <a class="code hl_enumvalue" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630">BRIX_SD_CRED_PROXY_PEM</a>,</div>
-<div class="line"><a id="l00644" name="l00644"></a><span class="lineno">  644</span>    .open  = <a class="code hl_function" href="sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3">sd_remote_open</a>,</div>
-<div class="line"><a id="l00645" name="l00645"></a><span class="lineno">  645</span>    .close = <a class="code hl_function" href="sd__remote_8c.html#ae2ed22148f461a79d70e69d30471cd26">sd_remote_close</a>,</div>
-<div class="line"><a id="l00646" name="l00646"></a><span class="lineno">  646</span>    .pread = <a class="code hl_function" href="sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3">sd_remote_pread</a>,</div>
-<div class="line"><a id="l00647" name="l00647"></a><span class="lineno">  647</span>    .preadv = <a class="code hl_function" href="sd__remote_8c.html#a64f64c236053044e87f2a86d1f099819">sd_remote_preadv</a>,   <span class="comment">/* coalesced ranged GETs (P80.1 read path) */</span></div>
-<div class="line"><a id="l00648" name="l00648"></a><span class="lineno">  648</span>    .fstat = <a class="code hl_function" href="sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370">sd_remote_fstat</a>,</div>
-<div class="line"><a id="l00649" name="l00649"></a><span class="lineno">  649</span>    .stat  = <a class="code hl_function" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a>,</div>
-<div class="line"><a id="l00650" name="l00650"></a><span class="lineno">  650</span>    .unlink        = <a class="code hl_function" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a>,</div>
-<div class="line"><a id="l00651" name="l00651"></a><span class="lineno">  651</span>    .staged_open   = <a class="code hl_function" href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a>,</div>
-<div class="line"><a id="l00652" name="l00652"></a><span class="lineno">  652</span>    .staged_write  = <a class="code hl_function" href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a>,</div>
-<div class="line"><a id="l00653" name="l00653"></a><span class="lineno">  653</span>    .staged_commit = <a class="code hl_function" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a>,</div>
-<div class="line"><a id="l00654" name="l00654"></a><span class="lineno">  654</span>    .staged_abort  = <a class="code hl_function" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a>,</div>
-<div class="line"><a id="l00655" name="l00655"></a><span class="lineno">  655</span>    .open_cred     = <a class="code hl_function" href="sd__remote_8c.html#a76f9bec563d322d702a3a3373613f2f5">sd_remote_open_cred</a>,   <span class="comment">/* phase-3 T3: per-user SigV4 */</span></div>
-<div class="line"><a id="l00656" name="l00656"></a><span class="lineno">  656</span>    <span class="comment">/* P80.3: per-user SigV4 for writes + metadata. stat_cred also gates</span></div>
-<div class="line"><a id="l00657" name="l00657"></a><span class="lineno">  657</span><span class="comment">     * brix_vfs_ns_cred() — registering it turns on per-user namespace</span></div>
-<div class="line"><a id="l00658" name="l00658"></a><span class="lineno">  658</span><span class="comment">     * credential resolution for this driver. */</span></div>
-<div class="line"><a id="l00659" name="l00659"></a><span class="lineno">  659</span>    .staged_open_cred = <a class="code hl_function" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a>,</div>
-<div class="line"><a id="l00660" name="l00660"></a><span class="lineno">  660</span>    .stat_cred        = <a class="code hl_function" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a>,</div>
-<div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span>    .unlink_cred      = <a class="code hl_function" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a>,</div>
-<div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span>};</div>
+<div class="line"><a id="l00654" name="l00654"></a><span class="lineno">  654</span> </div>
+<div class="line"><a id="l00655" name="l00655"></a><span class="lineno">  655</span><span class="keyword">static</span> <span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00656" data-start="{" data-end="}">
+<div class="line"><a id="l00656" name="l00656"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">  656</a></span><a class="code hl_function" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a>(brix_sd_staged_t *h)</div>
+<div class="line"><a id="l00657" name="l00657"></a><span class="lineno">  657</span>{</div>
+<div class="line"><a id="l00658" name="l00658"></a><span class="lineno">  658</span>    <a class="code hl_struct" href="structsd__remote__staged__state.html">sd_remote_staged_state</a> *ss = h-&gt;state;</div>
+<div class="line"><a id="l00659" name="l00659"></a><span class="lineno">  659</span> </div>
+<div class="line"><a id="l00660" name="l00660"></a><span class="lineno">  660</span>    <a class="code hl_function" href="sd__s3_8h.html#a9a0c6f593d77c4f77a888030fadc80ec">sd_s3_abort</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>);</div>
+<div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span>    <a class="code hl_function" href="sd__s3_8c.html#ac466406cefcedddd9d49445c744549d2">sd_s3_close</a>(ss-&gt;<a class="code hl_variable" href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">s3</a>);</div>
+<div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span>    free(ss);</div>
+<div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span>    free(h);</div>
+<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span>}</div>
 </div>
-<div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span> </div>
-<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span>brix_sd_instance_t *</div>
-<div class="foldopen" id="foldopen00665" data-start="{" data-end="}">
-<div class="line"><a id="l00665" name="l00665"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#acad3cf85f528f904a9591c3d08ec8c79">  665</a></span><a class="code hl_function" href="sd__remote_8c.html#acad3cf85f528f904a9591c3d08ec8c79">brix_sd_remote_create</a>(<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
-<div class="line"><a id="l00666" name="l00666"></a><span class="lineno">  666</span>{</div>
-<div class="line"><a id="l00667" name="l00667"></a><span class="lineno">  667</span>    brix_sd_instance_t   *inst;</div>
-<div class="line"><a id="l00668" name="l00668"></a><span class="lineno">  668</span>    <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *copy;</div>
-<div class="line"><a id="l00669" name="l00669"></a><span class="lineno">  669</span> </div>
-<div class="line"><a id="l00670" name="l00670"></a><span class="lineno">  670</span>    <span class="keywordflow">if</span> (cfg == NULL || cfg-&gt;<a class="code hl_variable" href="structbrix__sd__remote__cfg__t.html#acaaf38e5f4a844ac454c5dfd384aebce">scheme</a> != <a class="code hl_enumvalue" href="sd__remote_8h.html#a8911102eb52bdef761bfb62ed283725ba28760b226b419a05445965c77077d34f">BRIX_SD_REMOTE_S3</a></div>
-<div class="line"><a id="l00671" name="l00671"></a><span class="lineno">  671</span>        || cfg-&gt;<a class="code hl_variable" href="structbrix__sd__remote__cfg__t.html#a53a35d8bec6e48473ef81b64e91353ef">transport</a> == NULL) {</div>
-<div class="line"><a id="l00672" name="l00672"></a><span class="lineno">  672</span>        errno = EINVAL;</div>
-<div class="line"><a id="l00673" name="l00673"></a><span class="lineno">  673</span>        <span class="keywordflow">return</span> NULL;</div>
-<div class="line"><a id="l00674" name="l00674"></a><span class="lineno">  674</span>    }</div>
-<div class="line"><a id="l00675" name="l00675"></a><span class="lineno">  675</span> </div>
-<div class="line"><a id="l00676" name="l00676"></a><span class="lineno">  676</span>    inst = calloc(1, <span class="keyword">sizeof</span>(*inst));</div>
-<div class="line"><a id="l00677" name="l00677"></a><span class="lineno">  677</span>    copy = malloc(<span class="keyword">sizeof</span>(*copy));</div>
-<div class="line"><a id="l00678" name="l00678"></a><span class="lineno">  678</span>    <span class="keywordflow">if</span> (inst == NULL || copy == NULL) {</div>
-<div class="line"><a id="l00679" name="l00679"></a><span class="lineno">  679</span>        free(inst);</div>
-<div class="line"><a id="l00680" name="l00680"></a><span class="lineno">  680</span>        free(copy);</div>
-<div class="line"><a id="l00681" name="l00681"></a><span class="lineno">  681</span>        errno = ENOMEM;</div>
-<div class="line"><a id="l00682" name="l00682"></a><span class="lineno">  682</span>        <span class="keywordflow">return</span> NULL;</div>
-<div class="line"><a id="l00683" name="l00683"></a><span class="lineno">  683</span>    }</div>
-<div class="line"><a id="l00684" name="l00684"></a><span class="lineno">  684</span>    *copy = *cfg;</div>
-<div class="line"><a id="l00685" name="l00685"></a><span class="lineno">  685</span> </div>
-<div class="line"><a id="l00686" name="l00686"></a><span class="lineno">  686</span>    inst-&gt;driver = &amp;<a class="code hl_variable" href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">brix_sd_remote_driver</a>;</div>
-<div class="line"><a id="l00687" name="l00687"></a><span class="lineno">  687</span>    inst-&gt;log    = <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>;</div>
-<div class="line"><a id="l00688" name="l00688"></a><span class="lineno">  688</span>    inst-&gt;pool   = NULL;          <span class="comment">/* malloc-owned: safe off the event loop */</span></div>
-<div class="line"><a id="l00689" name="l00689"></a><span class="lineno">  689</span>    inst-&gt;state  = copy;</div>
-<div class="line"><a id="l00690" name="l00690"></a><span class="lineno">  690</span>    <span class="keywordflow">return</span> inst;</div>
-<div class="line"><a id="l00691" name="l00691"></a><span class="lineno">  691</span>}</div>
+<div class="line"><a id="l00665" name="l00665"></a><span class="lineno">  665</span> </div>
+<div class="line"><a id="l00666" name="l00666"></a><span class="lineno">  666</span><span class="comment">/* Shared unlink body: DELETE the object, optionally signing with a per-user</span></div>
+<div class="line"><a id="l00667" name="l00667"></a><span class="lineno">  667</span><span class="comment"> * ak/sk/region override (NULL = the instance&#39;s static service credential). */</span></div>
+<div class="line"><a id="l00668" name="l00668"></a><span class="lineno">  668</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00669" data-start="{" data-end="}">
+<div class="line"><a id="l00669" name="l00669"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">  669</a></span><a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path,</div>
+<div class="line"><a id="l00670" name="l00670"></a><span class="lineno">  670</span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *ak, <span class="keyword">const</span> <span class="keywordtype">char</span> *sk, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>)</div>
+<div class="line"><a id="l00671" name="l00671"></a><span class="lineno">  671</span>{</div>
+<div class="line"><a id="l00672" name="l00672"></a><span class="lineno">  672</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg = inst-&gt;state;</div>
+<div class="line"><a id="l00673" name="l00673"></a><span class="lineno">  673</span>    <a class="code hl_struct" href="structsd__s3__open__params.html">sd_s3_open_params</a>             p;</div>
+<div class="line"><a id="l00674" name="l00674"></a><span class="lineno">  674</span>    <span class="keywordtype">char</span>                          objpath[768];</div>
+<div class="line"><a id="l00675" name="l00675"></a><span class="lineno">  675</span>    <span class="keywordtype">char</span>                          errbuf[256];</div>
+<div class="line"><a id="l00676" name="l00676"></a><span class="lineno">  676</span> </div>
+<div class="line"><a id="l00677" name="l00677"></a><span class="lineno">  677</span>    <a class="code hl_function" href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a>(cfg, path, objpath, <span class="keyword">sizeof</span>(objpath));</div>
+<div class="line"><a id="l00678" name="l00678"></a><span class="lineno">  678</span>    <a class="code hl_function" href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a>(cfg, objpath, &amp;p);</div>
+<div class="line"><a id="l00679" name="l00679"></a><span class="lineno">  679</span>    <span class="keywordflow">if</span> (ak != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">ak</a>     = ak; }</div>
+<div class="line"><a id="l00680" name="l00680"></a><span class="lineno">  680</span>    <span class="keywordflow">if</span> (sk != NULL)     { p.<a class="code hl_variable" href="structsd__s3__open__params.html#aece470a4401caa41c40d419e92ce3aad">sk</a>     = sk; }</div>
+<div class="line"><a id="l00681" name="l00681"></a><span class="lineno">  681</span>    <span class="keywordflow">if</span> (<a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a> != NULL) { p.<a class="code hl_variable" href="structsd__s3__open__params.html#a561d28cdf0831239d4381ad2cf861ee6">region</a> = <a class="code hl_variable" href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a>; }</div>
+<div class="line"><a id="l00682" name="l00682"></a><span class="lineno">  682</span> </div>
+<div class="line"><a id="l00683" name="l00683"></a><span class="lineno">  683</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="sd__s3_8c.html#a9ada0ff9cbf3b0c9e061315ae80fa453">sd_s3_delete</a>(&amp;p, errbuf, <span class="keyword">sizeof</span>(errbuf)) != 0) {</div>
+<div class="line"><a id="l00684" name="l00684"></a><span class="lineno">  684</span>        <span class="keywordflow">if</span> (errno == 0) { errno = EIO; }</div>
+<div class="line"><a id="l00685" name="l00685"></a><span class="lineno">  685</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00686" name="l00686"></a><span class="lineno">  686</span>    }</div>
+<div class="line"><a id="l00687" name="l00687"></a><span class="lineno">  687</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00688" name="l00688"></a><span class="lineno">  688</span>}</div>
 </div>
-<div class="line"><a id="l00692" name="l00692"></a><span class="lineno">  692</span> </div>
-<div class="line"><a id="l00693" name="l00693"></a><span class="lineno">  693</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00694" data-start="{" data-end="}">
-<div class="line"><a id="l00694" name="l00694"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a8fd15643aeef216d03178a39ddc64fe0">  694</a></span><a class="code hl_function" href="sd__remote_8c.html#a8fd15643aeef216d03178a39ddc64fe0">brix_sd_remote_destroy</a>(brix_sd_instance_t *inst)</div>
-<div class="line"><a id="l00695" name="l00695"></a><span class="lineno">  695</span>{</div>
-<div class="line"><a id="l00696" name="l00696"></a><span class="lineno">  696</span>    <span class="keywordflow">if</span> (inst == NULL) {</div>
-<div class="line"><a id="l00697" name="l00697"></a><span class="lineno">  697</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00698" name="l00698"></a><span class="lineno">  698</span>    }</div>
-<div class="line"><a id="l00699" name="l00699"></a><span class="lineno">  699</span>    free(inst-&gt;state);</div>
-<div class="line"><a id="l00700" name="l00700"></a><span class="lineno">  700</span>    free(inst);</div>
-<div class="line"><a id="l00701" name="l00701"></a><span class="lineno">  701</span>}</div>
+<div class="line"><a id="l00689" name="l00689"></a><span class="lineno">  689</span> </div>
+<div class="line"><a id="l00690" name="l00690"></a><span class="lineno">  690</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00691" data-start="{" data-end="}">
+<div class="line"><a id="l00691" name="l00691"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">  691</a></span><a class="code hl_function" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keywordtype">int</span> is_dir)</div>
+<div class="line"><a id="l00692" name="l00692"></a><span class="lineno">  692</span>{</div>
+<div class="line"><a id="l00693" name="l00693"></a><span class="lineno">  693</span>    (void) is_dir;</div>
+<div class="line"><a id="l00694" name="l00694"></a><span class="lineno">  694</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(inst, path, NULL, NULL, NULL);</div>
+<div class="line"><a id="l00695" name="l00695"></a><span class="lineno">  695</span>}</div>
+</div>
+<div class="line"><a id="l00696" name="l00696"></a><span class="lineno">  696</span> </div>
+<div class="line"><a id="l00697" name="l00697"></a><span class="lineno">  697</span><span class="comment">/* Cred-scoped unlink (P80.3): the DELETE runs as the requesting user. Gate</span></div>
+<div class="line"><a id="l00698" name="l00698"></a><span class="lineno">  698</span><span class="comment"> * semantics identical to sd_remote_open_cred. */</span></div>
+<div class="line"><a id="l00699" name="l00699"></a><span class="lineno">  699</span><span class="keyword">static</span> ngx_int_t</div>
+<div class="foldopen" id="foldopen00700" data-start="{" data-end="}">
+<div class="line"><a id="l00700" name="l00700"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">  700</a></span><a class="code hl_function" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a>(brix_sd_instance_t *inst, <span class="keyword">const</span> <span class="keywordtype">char</span> *path, <span class="keywordtype">int</span> is_dir,</div>
+<div class="line"><a id="l00701" name="l00701"></a><span class="lineno">  701</span>    <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</div>
+<div class="line"><a id="l00702" name="l00702"></a><span class="lineno">  702</span>{</div>
+<div class="line"><a id="l00703" name="l00703"></a><span class="lineno">  703</span>    <span class="keywordtype">int</span> gate = <a class="code hl_function" href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a>(cred);</div>
+<div class="line"><a id="l00704" name="l00704"></a><span class="lineno">  704</span> </div>
+<div class="line"><a id="l00705" name="l00705"></a><span class="lineno">  705</span>    (void) is_dir;</div>
+<div class="line"><a id="l00706" name="l00706"></a><span class="lineno">  706</span> </div>
+<div class="line"><a id="l00707" name="l00707"></a><span class="lineno">  707</span>    <span class="keywordflow">if</span> (gate &gt; 0) {</div>
+<div class="line"><a id="l00708" name="l00708"></a><span class="lineno">  708</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(inst, path,</div>
+<div class="line"><a id="l00709" name="l00709"></a><span class="lineno">  709</span>            cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#af22aa0e4e90da47fe1b7b66d1d903b11">s3_ak</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#abe8cafe7c4088eb46620a974ee14bcf4">s3_sk</a>, cred-&gt;<a class="code hl_variable" href="structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273">s3_region</a>);</div>
+<div class="line"><a id="l00710" name="l00710"></a><span class="lineno">  710</span>    }</div>
+<div class="line"><a id="l00711" name="l00711"></a><span class="lineno">  711</span>    <span class="keywordflow">if</span> (gate &lt; 0) {</div>
+<div class="line"><a id="l00712" name="l00712"></a><span class="lineno">  712</span>        errno = EACCES;</div>
+<div class="line"><a id="l00713" name="l00713"></a><span class="lineno">  713</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00714" name="l00714"></a><span class="lineno">  714</span>    }</div>
+<div class="line"><a id="l00715" name="l00715"></a><span class="lineno">  715</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a>(inst, path, NULL, NULL, NULL);</div>
+<div class="line"><a id="l00716" name="l00716"></a><span class="lineno">  716</span>}</div>
+</div>
+<div class="line"><a id="l00717" name="l00717"></a><span class="lineno">  717</span> </div>
+<div class="line"><a id="l00718" name="l00718"></a><span class="lineno">  718</span><span class="comment">/* Read + write: the S3 store serves as a read origin (Range GET) and a writable</span></div>
+<div class="line"><a id="l00719" name="l00719"></a><span class="lineno">  719</span><span class="comment"> * cache_store / stage_store / backend (staged single-PUT / multipart upload, plus</span></div>
+<div class="line"><a id="l00720" name="l00720"></a><span class="lineno">  720</span><span class="comment"> * DELETE for eviction and post-flush stage cleanup). */</span></div>
+<div class="foldopen" id="foldopen00721" data-start="{" data-end="};">
+<div class="line"><a id="l00721" name="l00721"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">  721</a></span><span class="keyword">static</span> <span class="keyword">const</span> brix_sd_driver_t <a class="code hl_variable" href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">brix_sd_remote_driver</a> = {</div>
+<div class="line"><a id="l00722" name="l00722"></a><span class="lineno">  722</span>    .name  = <span class="stringliteral">&quot;remote&quot;</span>,</div>
+<div class="line"><a id="l00723" name="l00723"></a><span class="lineno">  723</span>    <span class="comment">/* phase-71: no .pwrite slot — writes are staged whole-object uploads via</span></div>
+<div class="line"><a id="l00724" name="l00724"></a><span class="lineno">  724</span><span class="comment">     * .staged_*, so CAP_RANDOM_WRITE is deliberately NOT advertised. */</span></div>
+<div class="line"><a id="l00725" name="l00725"></a><span class="lineno">  725</span>    .caps  = <a class="code hl_enumvalue" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda2ba74f3fdd30ab40b38db1792f4552db">BRIX_SD_CAP_RANGE_READ</a> | <a class="code hl_enumvalue" href="sd_8h.html#a014489da062b3e2b72231889903fa3cda7039bd36ae5943e0e6a62054a6d9f47c">BRIX_SD_CAP_MEMFILE</a>,</div>
+<div class="line"><a id="l00726" name="l00726"></a><span class="lineno">  726</span>    .cred_accept = <a class="code hl_enumvalue" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a00196389e0b52a6f41583840e290ab2b">BRIX_SD_CRED_BEARER</a> | <a class="code hl_enumvalue" href="sd_8h.html#a79590dd9eb9df69b9f7efb775364c4c5a63e330f7bc179d4c08053f23421d3630">BRIX_SD_CRED_PROXY_PEM</a>,</div>
+<div class="line"><a id="l00727" name="l00727"></a><span class="lineno">  727</span>    .open  = <a class="code hl_function" href="sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3">sd_remote_open</a>,</div>
+<div class="line"><a id="l00728" name="l00728"></a><span class="lineno">  728</span>    .close = <a class="code hl_function" href="sd__remote_8c.html#ae2ed22148f461a79d70e69d30471cd26">sd_remote_close</a>,</div>
+<div class="line"><a id="l00729" name="l00729"></a><span class="lineno">  729</span>    .pread = <a class="code hl_function" href="sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3">sd_remote_pread</a>,</div>
+<div class="line"><a id="l00730" name="l00730"></a><span class="lineno">  730</span>    .preadv = <a class="code hl_function" href="sd__remote_8c.html#a64f64c236053044e87f2a86d1f099819">sd_remote_preadv</a>,   <span class="comment">/* coalesced ranged GETs (P80.1 read path) */</span></div>
+<div class="line"><a id="l00731" name="l00731"></a><span class="lineno">  731</span>    .fstat = <a class="code hl_function" href="sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370">sd_remote_fstat</a>,</div>
+<div class="line"><a id="l00732" name="l00732"></a><span class="lineno">  732</span>    .stat  = <a class="code hl_function" href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a>,</div>
+<div class="line"><a id="l00733" name="l00733"></a><span class="lineno">  733</span>    .unlink        = <a class="code hl_function" href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a>,</div>
+<div class="line"><a id="l00734" name="l00734"></a><span class="lineno">  734</span>    .getxattr      = <a class="code hl_function" href="sd__remote_8c.html#adf5526fc204eb9414e34627f3002be11">sd_remote_getxattr</a>,   <span class="comment">/* x-amz-meta-* as user.* xattrs */</span></div>
+<div class="line"><a id="l00735" name="l00735"></a><span class="lineno">  735</span>    .listxattr     = <a class="code hl_function" href="sd__remote_8c.html#a0505e61c68d64fc06ec90bd2dbdaa0e5">sd_remote_listxattr</a>,</div>
+<div class="line"><a id="l00736" name="l00736"></a><span class="lineno">  736</span>    .staged_open   = <a class="code hl_function" href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a>,</div>
+<div class="line"><a id="l00737" name="l00737"></a><span class="lineno">  737</span>    .staged_write  = <a class="code hl_function" href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a>,</div>
+<div class="line"><a id="l00738" name="l00738"></a><span class="lineno">  738</span>    .staged_commit = <a class="code hl_function" href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a>,</div>
+<div class="line"><a id="l00739" name="l00739"></a><span class="lineno">  739</span>    .staged_abort  = <a class="code hl_function" href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a>,</div>
+<div class="line"><a id="l00740" name="l00740"></a><span class="lineno">  740</span>    .open_cred     = <a class="code hl_function" href="sd__remote_8c.html#a76f9bec563d322d702a3a3373613f2f5">sd_remote_open_cred</a>,   <span class="comment">/* phase-3 T3: per-user SigV4 */</span></div>
+<div class="line"><a id="l00741" name="l00741"></a><span class="lineno">  741</span>    <span class="comment">/* P80.3: per-user SigV4 for writes + metadata. stat_cred also gates</span></div>
+<div class="line"><a id="l00742" name="l00742"></a><span class="lineno">  742</span><span class="comment">     * brix_vfs_ns_cred() — registering it turns on per-user namespace</span></div>
+<div class="line"><a id="l00743" name="l00743"></a><span class="lineno">  743</span><span class="comment">     * credential resolution for this driver. */</span></div>
+<div class="line"><a id="l00744" name="l00744"></a><span class="lineno">  744</span>    .staged_open_cred = <a class="code hl_function" href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a>,</div>
+<div class="line"><a id="l00745" name="l00745"></a><span class="lineno">  745</span>    .stat_cred        = <a class="code hl_function" href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a>,</div>
+<div class="line"><a id="l00746" name="l00746"></a><span class="lineno">  746</span>    .unlink_cred      = <a class="code hl_function" href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a>,</div>
+<div class="line"><a id="l00747" name="l00747"></a><span class="lineno">  747</span>};</div>
+</div>
+<div class="line"><a id="l00748" name="l00748"></a><span class="lineno">  748</span> </div>
+<div class="line"><a id="l00749" name="l00749"></a><span class="lineno">  749</span>brix_sd_instance_t *</div>
+<div class="foldopen" id="foldopen00750" data-start="{" data-end="}">
+<div class="line"><a id="l00750" name="l00750"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#acad3cf85f528f904a9591c3d08ec8c79">  750</a></span><a class="code hl_function" href="sd__remote_8c.html#acad3cf85f528f904a9591c3d08ec8c79">brix_sd_remote_create</a>(<span class="keyword">const</span> <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *cfg, ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</div>
+<div class="line"><a id="l00751" name="l00751"></a><span class="lineno">  751</span>{</div>
+<div class="line"><a id="l00752" name="l00752"></a><span class="lineno">  752</span>    brix_sd_instance_t   *inst;</div>
+<div class="line"><a id="l00753" name="l00753"></a><span class="lineno">  753</span>    <a class="code hl_struct" href="structbrix__sd__remote__cfg__t.html">brix_sd_remote_cfg_t</a> *copy;</div>
+<div class="line"><a id="l00754" name="l00754"></a><span class="lineno">  754</span> </div>
+<div class="line"><a id="l00755" name="l00755"></a><span class="lineno">  755</span>    <span class="keywordflow">if</span> (cfg == NULL || cfg-&gt;<a class="code hl_variable" href="structbrix__sd__remote__cfg__t.html#acaaf38e5f4a844ac454c5dfd384aebce">scheme</a> != <a class="code hl_enumvalue" href="sd__remote_8h.html#a8911102eb52bdef761bfb62ed283725ba28760b226b419a05445965c77077d34f">BRIX_SD_REMOTE_S3</a></div>
+<div class="line"><a id="l00756" name="l00756"></a><span class="lineno">  756</span>        || cfg-&gt;<a class="code hl_variable" href="structbrix__sd__remote__cfg__t.html#a53a35d8bec6e48473ef81b64e91353ef">transport</a> == NULL) {</div>
+<div class="line"><a id="l00757" name="l00757"></a><span class="lineno">  757</span>        errno = EINVAL;</div>
+<div class="line"><a id="l00758" name="l00758"></a><span class="lineno">  758</span>        <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00759" name="l00759"></a><span class="lineno">  759</span>    }</div>
+<div class="line"><a id="l00760" name="l00760"></a><span class="lineno">  760</span> </div>
+<div class="line"><a id="l00761" name="l00761"></a><span class="lineno">  761</span>    inst = calloc(1, <span class="keyword">sizeof</span>(*inst));</div>
+<div class="line"><a id="l00762" name="l00762"></a><span class="lineno">  762</span>    copy = malloc(<span class="keyword">sizeof</span>(*copy));</div>
+<div class="line"><a id="l00763" name="l00763"></a><span class="lineno">  763</span>    <span class="keywordflow">if</span> (inst == NULL || copy == NULL) {</div>
+<div class="line"><a id="l00764" name="l00764"></a><span class="lineno">  764</span>        free(inst);</div>
+<div class="line"><a id="l00765" name="l00765"></a><span class="lineno">  765</span>        free(copy);</div>
+<div class="line"><a id="l00766" name="l00766"></a><span class="lineno">  766</span>        errno = ENOMEM;</div>
+<div class="line"><a id="l00767" name="l00767"></a><span class="lineno">  767</span>        <span class="keywordflow">return</span> NULL;</div>
+<div class="line"><a id="l00768" name="l00768"></a><span class="lineno">  768</span>    }</div>
+<div class="line"><a id="l00769" name="l00769"></a><span class="lineno">  769</span>    *copy = *cfg;</div>
+<div class="line"><a id="l00770" name="l00770"></a><span class="lineno">  770</span> </div>
+<div class="line"><a id="l00771" name="l00771"></a><span class="lineno">  771</span>    inst-&gt;driver = &amp;<a class="code hl_variable" href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">brix_sd_remote_driver</a>;</div>
+<div class="line"><a id="l00772" name="l00772"></a><span class="lineno">  772</span>    inst-&gt;log    = <a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>;</div>
+<div class="line"><a id="l00773" name="l00773"></a><span class="lineno">  773</span>    inst-&gt;pool   = NULL;          <span class="comment">/* malloc-owned: safe off the event loop */</span></div>
+<div class="line"><a id="l00774" name="l00774"></a><span class="lineno">  774</span>    inst-&gt;state  = copy;</div>
+<div class="line"><a id="l00775" name="l00775"></a><span class="lineno">  775</span>    <span class="keywordflow">return</span> inst;</div>
+<div class="line"><a id="l00776" name="l00776"></a><span class="lineno">  776</span>}</div>
+</div>
+<div class="line"><a id="l00777" name="l00777"></a><span class="lineno">  777</span> </div>
+<div class="line"><a id="l00778" name="l00778"></a><span class="lineno">  778</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00779" data-start="{" data-end="}">
+<div class="line"><a id="l00779" name="l00779"></a><span class="lineno"><a class="line" href="sd__remote_8c.html#a8fd15643aeef216d03178a39ddc64fe0">  779</a></span><a class="code hl_function" href="sd__remote_8c.html#a8fd15643aeef216d03178a39ddc64fe0">brix_sd_remote_destroy</a>(brix_sd_instance_t *inst)</div>
+<div class="line"><a id="l00780" name="l00780"></a><span class="lineno">  780</span>{</div>
+<div class="line"><a id="l00781" name="l00781"></a><span class="lineno">  781</span>    <span class="keywordflow">if</span> (inst == NULL) {</div>
+<div class="line"><a id="l00782" name="l00782"></a><span class="lineno">  782</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00783" name="l00783"></a><span class="lineno">  783</span>    }</div>
+<div class="line"><a id="l00784" name="l00784"></a><span class="lineno">  784</span>    free(inst-&gt;state);</div>
+<div class="line"><a id="l00785" name="l00785"></a><span class="lineno">  785</span>    free(inst);</div>
+<div class="line"><a id="l00786" name="l00786"></a><span class="lineno">  786</span>}</div>
 </div>
 <div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a1bb0f741a7abb9d58b43b4ca6ed05425"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a></div><div class="ttdeci">char region[65]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00050">auth_sigv4_verify_crypto.c:50</a></div></div>
 <div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
@@ -867,32 +958,35 @@ $(document).ready(function(){initNavTree('sd__remote_8c_source.html',''); initRe
 <div class="ttc" id="asd_8h_html_aa9cc60930f39f1dd9ed1e04e2f8346ed"><div class="ttname"><a href="sd_8h.html#aa9cc60930f39f1dd9ed1e04e2f8346ed">BRIX_SD_O_WRITE</a></div><div class="ttdeci">#define BRIX_SD_O_WRITE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00131">sd.h:131</a></div></div>
 <div class="ttc" id="asd_8h_html_abc65eb191ad01309884ff42458e5ed7e"><div class="ttname"><a href="sd_8h.html#abc65eb191ad01309884ff42458e5ed7e">BRIX_SD_O_TRUNC</a></div><div class="ttdeci">#define BRIX_SD_O_TRUNC</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00134">sd.h:134</a></div></div>
 <div class="ttc" id="asd_8h_html_ac94fdb24f6dc30ac255e24336b534ec4"><div class="ttname"><a href="sd_8h.html#ac94fdb24f6dc30ac255e24336b534ec4">BRIX_SD_O_CREATE</a></div><div class="ttdeci">#define BRIX_SD_O_CREATE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00132">sd.h:132</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a05a4969fd4390c2bbc6bda8f39720189"><div class="ttname"><a href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00608">sd_remote.c:608</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a0505e61c68d64fc06ec90bd2dbdaa0e5"><div class="ttname"><a href="sd__remote_8c.html#a0505e61c68d64fc06ec90bd2dbdaa0e5">sd_remote_listxattr</a></div><div class="ttdeci">static ssize_t sd_remote_listxattr(brix_sd_instance_t *inst, const char *path, void *buf, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00410">sd_remote.c:410</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a05a4969fd4390c2bbc6bda8f39720189"><div class="ttname"><a href="sd__remote_8c.html#a05a4969fd4390c2bbc6bda8f39720189">sd_remote_unlink</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00691">sd_remote.c:691</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a0776b7a4568af3590edcbd66d8ea6a89"><div class="ttname"><a href="sd__remote_8c.html#a0776b7a4568af3590edcbd66d8ea6a89">sd_remote_pread_full</a></div><div class="ttdeci">static ssize_t sd_remote_pread_full(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00276">sd_remote.c:276</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a0e8155922aa205968a6da18111fbd2bd"><div class="ttname"><a href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a></div><div class="ttdeci">static ssize_t sd_remote_staged_write(brix_sd_staged_t *h, const void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00508">sd_remote.c:508</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a13115074943afa497bd6974f4ad62c1b"><div class="ttname"><a href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open_cred(brix_sd_instance_t *inst, const char *final_path, mode_t mode, const brix_sd_cred_t *cred, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00487">sd_remote.c:487</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a0cbfdc13d12d233e5032c07040e75dab"><div class="ttname"><a href="sd__remote_8c.html#a0cbfdc13d12d233e5032c07040e75dab">sd_remote_meta_open</a></div><div class="ttdeci">static sd_s3_file * sd_remote_meta_open(brix_sd_instance_t *inst, const char *path)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00356">sd_remote.c:356</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a0e8155922aa205968a6da18111fbd2bd"><div class="ttname"><a href="sd__remote_8c.html#a0e8155922aa205968a6da18111fbd2bd">sd_remote_staged_write</a></div><div class="ttdeci">static ssize_t sd_remote_staged_write(brix_sd_staged_t *h, const void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00591">sd_remote.c:591</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a13115074943afa497bd6974f4ad62c1b"><div class="ttname"><a href="sd__remote_8c.html#a13115074943afa497bd6974f4ad62c1b">sd_remote_staged_open_cred</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open_cred(brix_sd_instance_t *inst, const char *final_path, mode_t mode, const brix_sd_cred_t *cred, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00570">sd_remote.c:570</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a39a71e0ceb1f257e4c0cf2e2170243c5"><div class="ttname"><a href="sd__remote_8c.html#a39a71e0ceb1f257e4c0cf2e2170243c5">sd_remote_open_impl</a></div><div class="ttdeci">static brix_sd_obj_t * sd_remote_open_impl(brix_sd_instance_t *inst, const char *path, int sd_flags, const char *ak, const char *sk, const char *region, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00118">sd_remote.c:118</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a3b6235e077022f9ced23afc5defc455a"><div class="ttname"><a href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir, const brix_sd_cred_t *cred)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00617">sd_remote.c:617</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a3b6235e077022f9ced23afc5defc455a"><div class="ttname"><a href="sd__remote_8c.html#a3b6235e077022f9ced23afc5defc455a">sd_remote_unlink_cred</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir, const brix_sd_cred_t *cred)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00700">sd_remote.c:700</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a41ad5aca5a6ad1dc10b19d34350c9a90"><div class="ttname"><a href="sd__remote_8c.html#a41ad5aca5a6ad1dc10b19d34350c9a90">sd_remote_s3_key</a></div><div class="ttdeci">static void sd_remote_s3_key(const brix_sd_remote_cfg_t *cfg, const char *key, char *dst, size_t dstcap)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00045">sd_remote.c:45</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a49863e87220243a7eab03abf740daf27"><div class="ttname"><a href="sd__remote_8c.html#a49863e87220243a7eab03abf740daf27">sd_remote_s3_params</a></div><div class="ttdeci">static void sd_remote_s3_params(const brix_sd_remote_cfg_t *cfg, const char *objpath, sd_s3_open_params *p)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00053">sd_remote.c:53</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a505afcb7e8e8e21fae272fbf0ce72436"><div class="ttname"><a href="sd__remote_8c.html#a505afcb7e8e8e21fae272fbf0ce72436">sd_remote_cred_gate</a></div><div class="ttdeci">static int sd_remote_cred_gate(const brix_sd_cred_t *cred)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00085">sd_remote.c:85</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a64f64c236053044e87f2a86d1f099819"><div class="ttname"><a href="sd__remote_8c.html#a64f64c236053044e87f2a86d1f099819">sd_remote_preadv</a></div><div class="ttdeci">static ssize_t sd_remote_preadv(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00295">sd_remote.c:295</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a68b6e099b4389634d3505f50c26c08c0"><div class="ttname"><a href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00387">sd_remote.c:387</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a68b6e099b4389634d3505f50c26c08c0"><div class="ttname"><a href="sd__remote_8c.html#a68b6e099b4389634d3505f50c26c08c0">sd_remote_stat</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00470">sd_remote.c:470</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a69aa3be1f16aafa37c0ce0fa976355c3"><div class="ttname"><a href="sd__remote_8c.html#a69aa3be1f16aafa37c0ce0fa976355c3">sd_remote_open</a></div><div class="ttdeci">static brix_sd_obj_t * sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00180">sd_remote.c:180</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a76f9bec563d322d702a3a3373613f2f5"><div class="ttname"><a href="sd__remote_8c.html#a76f9bec563d322d702a3a3373613f2f5">sd_remote_open_cred</a></div><div class="ttdeci">static brix_sd_obj_t * sd_remote_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00204">sd_remote.c:204</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a7eaf28033a2d5b387b5a6e807982cf02"><div class="ttname"><a href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open_impl(brix_sd_instance_t *inst, const char *final_path, const char *ak, const char *sk, const char *region, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00423">sd_remote.c:423</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a7eaf28033a2d5b387b5a6e807982cf02"><div class="ttname"><a href="sd__remote_8c.html#a7eaf28033a2d5b387b5a6e807982cf02">sd_remote_staged_open_impl</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open_impl(brix_sd_instance_t *inst, const char *final_path, const char *ak, const char *sk, const char *region, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00506">sd_remote.c:506</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_a8ccdd2697fa5dd8f9a376c7138aedc1a"><div class="ttname"><a href="sd__remote_8c.html#a8ccdd2697fa5dd8f9a376c7138aedc1a">SD_REMOTE_PART_SIZE</a></div><div class="ttdeci">#define SD_REMOTE_PART_SIZE</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00040">sd_remote.c:40</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a8fd15643aeef216d03178a39ddc64fe0"><div class="ttname"><a href="sd__remote_8c.html#a8fd15643aeef216d03178a39ddc64fe0">brix_sd_remote_destroy</a></div><div class="ttdeci">void brix_sd_remote_destroy(brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00694">sd_remote.c:694</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_a9a0cbf39b2068211e8254651d0528a2f"><div class="ttname"><a href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a></div><div class="ttdeci">static void sd_remote_staged_abort(brix_sd_staged_t *h)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00573">sd_remote.c:573</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_aa2890c44198c2a6e391ef34632cee83d"><div class="ttname"><a href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat_cred(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out, const brix_sd_cred_t *cred)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00398">sd_remote.c:398</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_ab29606cd1af54888d9b51b083d7d84c5"><div class="ttname"><a href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat_impl(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out, const char *ak, const char *sk, const char *region)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00351">sd_remote.c:351</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_ab6836095d999da52fd302b236f3aab85"><div class="ttname"><a href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a></div><div class="ttdeci">static ngx_int_t sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00522">sd_remote.c:522</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_abaa723062c7ea6b143d7891093bc1494"><div class="ttname"><a href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00473">sd_remote.c:473</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_acad3cf85f528f904a9591c3d08ec8c79"><div class="ttname"><a href="sd__remote_8c.html#acad3cf85f528f904a9591c3d08ec8c79">brix_sd_remote_create</a></div><div class="ttdeci">brix_sd_instance_t * brix_sd_remote_create(const brix_sd_remote_cfg_t *cfg, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00665">sd_remote.c:665</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_acbf065a5a043b5e87bb0ffcc7fb9f309"><div class="ttname"><a href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">brix_sd_remote_driver</a></div><div class="ttdeci">static const brix_sd_driver_t brix_sd_remote_driver</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00638">sd_remote.c:638</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a8fd15643aeef216d03178a39ddc64fe0"><div class="ttname"><a href="sd__remote_8c.html#a8fd15643aeef216d03178a39ddc64fe0">brix_sd_remote_destroy</a></div><div class="ttdeci">void brix_sd_remote_destroy(brix_sd_instance_t *inst)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00779">sd_remote.c:779</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_a9a0cbf39b2068211e8254651d0528a2f"><div class="ttname"><a href="sd__remote_8c.html#a9a0cbf39b2068211e8254651d0528a2f">sd_remote_staged_abort</a></div><div class="ttdeci">static void sd_remote_staged_abort(brix_sd_staged_t *h)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00656">sd_remote.c:656</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_aa2890c44198c2a6e391ef34632cee83d"><div class="ttname"><a href="sd__remote_8c.html#aa2890c44198c2a6e391ef34632cee83d">sd_remote_stat_cred</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat_cred(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out, const brix_sd_cred_t *cred)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00481">sd_remote.c:481</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_ab29606cd1af54888d9b51b083d7d84c5"><div class="ttname"><a href="sd__remote_8c.html#ab29606cd1af54888d9b51b083d7d84c5">sd_remote_stat_impl</a></div><div class="ttdeci">static ngx_int_t sd_remote_stat_impl(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out, const char *ak, const char *sk, const char *region)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00434">sd_remote.c:434</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_ab6836095d999da52fd302b236f3aab85"><div class="ttname"><a href="sd__remote_8c.html#ab6836095d999da52fd302b236f3aab85">sd_remote_staged_commit</a></div><div class="ttdeci">static ngx_int_t sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00605">sd_remote.c:605</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_abaa723062c7ea6b143d7891093bc1494"><div class="ttname"><a href="sd__remote_8c.html#abaa723062c7ea6b143d7891093bc1494">sd_remote_staged_open</a></div><div class="ttdeci">static brix_sd_staged_t * sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path, mode_t mode, int *err_out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00556">sd_remote.c:556</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_acad3cf85f528f904a9591c3d08ec8c79"><div class="ttname"><a href="sd__remote_8c.html#acad3cf85f528f904a9591c3d08ec8c79">brix_sd_remote_create</a></div><div class="ttdeci">brix_sd_instance_t * brix_sd_remote_create(const brix_sd_remote_cfg_t *cfg, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00750">sd_remote.c:750</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_acbf065a5a043b5e87bb0ffcc7fb9f309"><div class="ttname"><a href="sd__remote_8c.html#acbf065a5a043b5e87bb0ffcc7fb9f309">brix_sd_remote_driver</a></div><div class="ttdeci">static const brix_sd_driver_t brix_sd_remote_driver</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00721">sd_remote.c:721</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_acd14ce613f7aa364fef4d14520f2b370"><div class="ttname"><a href="sd__remote_8c.html#acd14ce613f7aa364fef4d14520f2b370">sd_remote_fstat</a></div><div class="ttdeci">static ngx_int_t sd_remote_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00342">sd_remote.c:342</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_adf5526fc204eb9414e34627f3002be11"><div class="ttname"><a href="sd__remote_8c.html#adf5526fc204eb9414e34627f3002be11">sd_remote_getxattr</a></div><div class="ttdeci">static ssize_t sd_remote_getxattr(brix_sd_instance_t *inst, const char *path, const char *name, void *buf, size_t cap)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00369">sd_remote.c:369</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_ae2ed22148f461a79d70e69d30471cd26"><div class="ttname"><a href="sd__remote_8c.html#ae2ed22148f461a79d70e69d30471cd26">sd_remote_close</a></div><div class="ttdeci">static ngx_int_t sd_remote_close(brix_sd_obj_t *obj)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00225">sd_remote.c:225</a></div></div>
-<div class="ttc" id="asd__remote_8c_html_aeff69673fa79addbc0cdd3ab3be36a00"><div class="ttname"><a href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink_impl(brix_sd_instance_t *inst, const char *path, const char *ak, const char *sk, const char *region)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00586">sd_remote.c:586</a></div></div>
+<div class="ttc" id="asd__remote_8c_html_aeff69673fa79addbc0cdd3ab3be36a00"><div class="ttname"><a href="sd__remote_8c.html#aeff69673fa79addbc0cdd3ab3be36a00">sd_remote_unlink_impl</a></div><div class="ttdeci">static ngx_int_t sd_remote_unlink_impl(brix_sd_instance_t *inst, const char *path, const char *ak, const char *sk, const char *region)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00669">sd_remote.c:669</a></div></div>
 <div class="ttc" id="asd__remote_8c_html_af35203665f3a23befa41cb6879fbb8d3"><div class="ttname"><a href="sd__remote_8c.html#af35203665f3a23befa41cb6879fbb8d3">sd_remote_pread</a></div><div class="ttdeci">static ssize_t sd_remote_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00240">sd_remote.c:240</a></div></div>
 <div class="ttc" id="asd__remote_8h_html"><div class="ttname"><a href="sd__remote_8h.html">sd_remote.h</a></div></div>
 <div class="ttc" id="asd__remote_8h_html_a8911102eb52bdef761bfb62ed283725ba28760b226b419a05445965c77077d34f"><div class="ttname"><a href="sd__remote_8h.html#a8911102eb52bdef761bfb62ed283725ba28760b226b419a05445965c77077d34f">BRIX_SD_REMOTE_S3</a></div><div class="ttdeci">@ BRIX_SD_REMOTE_S3</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8h_source.html#l00035">sd_remote.h:34</a></div></div>
@@ -903,9 +997,12 @@ $(document).ready(function(){initNavTree('sd__remote_8c_source.html',''); initRe
 <div class="ttc" id="asd__s3_8c_html_adaaffa87d9516591ab36b900b029a4d4"><div class="ttname"><a href="sd__s3_8c.html#adaaffa87d9516591ab36b900b029a4d4">sd_s3_pread</a></div><div class="ttdeci">ssize_t sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="sd__s3_8c_source.html#l00099">sd_s3.c:99</a></div></div>
 <div class="ttc" id="asd__s3_8h_html"><div class="ttname"><a href="sd__s3_8h.html">sd_s3.h</a></div></div>
 <div class="ttc" id="asd__s3_8h_html_a1c2f9ec7a028f0549dbbdcf262d7beb7"><div class="ttname"><a href="sd__s3_8h.html#a1c2f9ec7a028f0549dbbdcf262d7beb7">sd_s3_pwrite</a></div><div class="ttdeci">int sd_s3_pwrite(sd_s3_file *f, const void *buf, size_t n, off_t off, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="sd__s3__write_8c_source.html#l00395">sd_s3_write.c:395</a></div></div>
+<div class="ttc" id="asd__s3_8h_html_a2a1404f403db647c4b804779684c0584"><div class="ttname"><a href="sd__s3_8h.html#a2a1404f403db647c4b804779684c0584">sd_s3_list_meta</a></div><div class="ttdeci">ssize_t sd_s3_list_meta(sd_s3_file *f, char *buf, size_t cap, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="sd__s3__meta_8c_source.html#l00090">sd_s3_meta.c:90</a></div></div>
 <div class="ttc" id="asd__s3_8h_html_a45e610f048eaa8deef486fb2203e2b71"><div class="ttname"><a href="sd__s3_8h.html#a45e610f048eaa8deef486fb2203e2b71">sd_s3_commit</a></div><div class="ttdeci">int sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="sd__s3__write_8c_source.html#l00458">sd_s3_write.c:458</a></div></div>
 <div class="ttc" id="asd__s3_8h_html_a9a0c6f593d77c4f77a888030fadc80ec"><div class="ttname"><a href="sd__s3_8h.html#a9a0c6f593d77c4f77a888030fadc80ec">sd_s3_abort</a></div><div class="ttdeci">void sd_s3_abort(sd_s3_file *f)</div><div class="ttdef"><b>Definition</b> <a href="sd__s3__write_8c_source.html#l00508">sd_s3_write.c:508</a></div></div>
+<div class="ttc" id="asd__s3_8h_html_acea862ec68a6808111bdd2d7223d26e4"><div class="ttname"><a href="sd__s3_8h.html#acea862ec68a6808111bdd2d7223d26e4">sd_s3_get_meta</a></div><div class="ttdeci">ssize_t sd_s3_get_meta(sd_s3_file *f, const char *name, const sd_s3_meta_buf *out, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="sd__s3__meta_8c_source.html#l00029">sd_s3_meta.c:29</a></div></div>
 <div class="ttc" id="asd__s3_8h_html_ae7a8357c3141c1e3764c310cd81c153c"><div class="ttname"><a href="sd__s3_8h.html#ae7a8357c3141c1e3764c310cd81c153c">sd_s3_open_write</a></div><div class="ttdeci">sd_s3_file * sd_s3_open_write(const sd_s3_open_params *p, int64_t expected_size, int64_t part_size, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="sd__s3__write_8c_source.html#l00313">sd_s3_write.c:313</a></div></div>
+<div class="ttc" id="assi__service_8c_html_a8f8f80d37794cde9472343e4487ba3eb"><div class="ttname"><a href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a></div><div class="ttdeci">const char * name</div><div class="ttdef"><b>Definition</b> <a href="ssi__service_8c_source.html#l00102">ssi_service.c:102</a></div></div>
 <div class="ttc" id="astructbrix__sd__cred__t_html"><div class="ttname"><a href="structbrix__sd__cred__t.html">brix_sd_cred_t</a></div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00205">sd.h:205</a></div></div>
 <div class="ttc" id="astructbrix__sd__cred__t_html_a0ec30c442cf41f5a0d2a02d32a0823c9"><div class="ttname"><a href="structbrix__sd__cred__t.html#a0ec30c442cf41f5a0d2a02d32a0823c9">brix_sd_cred_t::fallback_deny</a></div><div class="ttdeci">unsigned fallback_deny</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00221">sd.h:221</a></div></div>
 <div class="ttc" id="astructbrix__sd__cred__t_html_a9106c4a5146df6bbdf08d86fc37b5273"><div class="ttname"><a href="structbrix__sd__cred__t.html#a9106c4a5146df6bbdf08d86fc37b5273">brix_sd_cred_t::s3_region</a></div><div class="ttdeci">const char * s3_region</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00210">sd.h:210</a></div></div>
@@ -938,6 +1035,7 @@ $(document).ready(function(){initNavTree('sd__remote_8c_source.html',''); initRe
 <div class="ttc" id="astructsd__remote__staged__state_html_a7259ade73d35d66ea94bc1366aabf59b"><div class="ttname"><a href="structsd__remote__staged__state.html#a7259ade73d35d66ea94bc1366aabf59b">sd_remote_staged_state::s3</a></div><div class="ttdeci">sd_s3_file * s3</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00030">sd_remote.c:30</a></div></div>
 <div class="ttc" id="astructsd__remote__staged__state_html_ad88d273cab2078353701fea2a4a3633d"><div class="ttname"><a href="structsd__remote__staged__state.html#ad88d273cab2078353701fea2a4a3633d">sd_remote_staged_state::ak</a></div><div class="ttdeci">char ak[128]</div><div class="ttdef"><b>Definition</b> <a href="sd__remote_8c_source.html#l00033">sd_remote.c:33</a></div></div>
 <div class="ttc" id="astructsd__s3__file_html"><div class="ttname"><a href="structsd__s3__file.html">sd_s3_file</a></div><div class="ttdef"><b>Definition</b> <a href="sd__s3__internal_8h_source.html#l00031">sd_s3_internal.h:31</a></div></div>
+<div class="ttc" id="astructsd__s3__meta__buf_html"><div class="ttname"><a href="structsd__s3__meta__buf.html">sd_s3_meta_buf</a></div><div class="ttdef"><b>Definition</b> <a href="sd__s3_8h_source.html#l00095">sd_s3.h:95</a></div></div>
 <div class="ttc" id="astructsd__s3__open__params_html"><div class="ttname"><a href="structsd__s3__open__params.html">sd_s3_open_params</a></div><div class="ttdef"><b>Definition</b> <a href="sd__s3_8h_source.html#l00028">sd_s3.h:28</a></div></div>
 <div class="ttc" id="astructsd__s3__open__params_html_a15ba8286978946aa24a63a726048f5f6"><div class="ttname"><a href="structsd__s3__open__params.html#a15ba8286978946aa24a63a726048f5f6">sd_s3_open_params::ak</a></div><div class="ttdeci">const char * ak</div><div class="ttdef"><b>Definition</b> <a href="sd__s3_8h_source.html#l00033">sd_s3.h:33</a></div></div>
 <div class="ttc" id="astructsd__s3__open__params_html_a1f5b8feca545c9503d96c4105e710291"><div class="ttname"><a href="structsd__s3__open__params.html#a1f5b8feca545c9503d96c4105e710291">sd_s3_open_params::transport</a></div><div class="ttdeci">const brix_s3_transport_t * transport</div><div class="ttdef"><b>Definition</b> <a href="sd__s3_8h_source.html#l00036">sd_s3.h:36</a></div></div>

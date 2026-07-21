@@ -9,6 +9,7 @@ var dir_e42f4099179f50badb686bf153451983 =
     [ "sd_ceph_compat.c", "sd__ceph__compat_8c.html", "sd__ceph__compat_8c" ],
     [ "sd_ceph_compat.h", "sd__ceph__compat_8h.html", "sd__ceph__compat_8h" ],
     [ "sd_ceph_cred.c", "sd__ceph__cred_8c.html", null ],
+    [ "sd_ceph_dir.c", "sd__ceph__dir_8c.html", null ],
     [ "sd_ceph_internal.h", "sd__ceph__internal_8h.html", null ],
     [ "sd_ceph_io.c", "sd__ceph__io_8c.html", null ],
     [ "sd_ceph_object.c", "sd__ceph__object_8c.html", null ],

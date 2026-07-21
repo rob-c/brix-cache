@@ -120,6 +120,14 @@ Functions</h2></td></tr>
 <tr class="separator:a93f89e4ef470b73a14c396f7f602e670"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a58823f85956c162dd1e5ff7a2ba6028a" id="r_a58823f85956c162dd1e5ff7a2ba6028a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__path_8c.html#a58823f85956c162dd1e5ff7a2ba6028a">fwd_collect_certs</a> (ngx_str_t *pem, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *sink)</td></tr>
 <tr class="separator:a58823f85956c162dd1e5ff7a2ba6028a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab1161f19f3c33ba5005dd2ba330195b5" id="r_ab1161f19f3c33ba5005dd2ba330195b5"><td class="memItemLeft" align="right" valign="top">static X509 *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__path_8c.html#ab1161f19f3c33ba5005dd2ba330195b5">fwd_find_leaf</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *certs, EVP_PKEY *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
+<tr class="separator:ab1161f19f3c33ba5005dd2ba330195b5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7e4f11f6b6f4f7724db69ac6c3fe7de6" id="r_a7e4f11f6b6f4f7724db69ac6c3fe7de6"><td class="memItemLeft" align="right" valign="top">static X509 *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__path_8c.html#a7e4f11f6b6f4f7724db69ac6c3fe7de6">fwd_next_issuer</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *certs, X509 *cur)</td></tr>
+<tr class="separator:a7e4f11f6b6f4f7724db69ac6c3fe7de6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a252795ab1a848f8a8e7088f7c00a4b01" id="r_a252795ab1a848f8a8e7088f7c00a4b01"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__path_8c.html#a252795ab1a848f8a8e7088f7c00a4b01">fwd_emit_chain</a> (BIO *obio, X509 *leaf, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *certs)</td></tr>
+<tr class="separator:a252795ab1a848f8a8e7088f7c00a4b01"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a928846557677aae2dbf9e3dc6bc7b3ee" id="r_a928846557677aae2dbf9e3dc6bc7b3ee"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__path_8c.html#a928846557677aae2dbf9e3dc6bc7b3ee">fwd_serialize</a> (ngx_pool_t *pool, BIO *obio, EVP_PKEY *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, ngx_str_t *out)</td></tr>
+<tr class="separator:a928846557677aae2dbf9e3dc6bc7b3ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af427f1c6bf4356c12c06943280b43118" id="r_af427f1c6bf4356c12c06943280b43118"><td class="memItemLeft" align="right" valign="top">static ngx_str_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__path_8c.html#af427f1c6bf4356c12c06943280b43118">brix_ftp_ev_forward_pem</a> (ngx_pool_t *pool, ngx_str_t *deleg, ngx_str_t *issuer)</td></tr>
 <tr class="separator:af427f1c6bf4356c12c06943280b43118"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abeb07fbbe5457dcd7130e77ceab25d98" id="r_abeb07fbbe5457dcd7130e77ceab25d98"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__path_8c.html#abeb07fbbe5457dcd7130e77ceab25d98">brix_ftp_ev_vfs_ctx</a> (<a class="el" href="structftp__ev__t.html">ftp_ev_t</a> *fc, const char *abs, void *vctx)</td></tr>
@@ -166,11 +174,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00137">137</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00241">241</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
 
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00086">fwd_collect_certs()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev__path_8c_source.html#l00086">fwd_collect_certs()</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00176">fwd_emit_chain()</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00119">fwd_find_leaf()</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00200">fwd_serialize()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00261">brix_ftp_ev_vfs_ctx()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00298">brix_ftp_ev_vfs_ctx()</a>.</p>
 
 </div>
 </div>
@@ -216,7 +224,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="src_2core_2compat_2path_8c_source.html#l00077">brix_http_resolve_path()</a>, <a class="el" href="ftp__ev_8h_source.html#l00078">ftp_ev_t::conf</a>, <a class="el" href="ftp__ev_8h_source.html#l00096">ftp_ev_t::cwd</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="ftp__gateway_8h_source.html#l00045">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00052">brix_ftp_ev_cmd_cwd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00116">brix_ftp_ev_cmd_dele()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00156">brix_ftp_ev_cmd_mdtm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00096">brix_ftp_ev_cmd_mkd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00183">brix_ftp_ev_cmd_mlst()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00136">brix_ftp_ev_cmd_rmd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00317">brix_ftp_ev_cmd_rnfr()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00335">brix_ftp_ev_cmd_rnto()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00078">brix_ftp_ev_cmd_size()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00205">brix_ftp_ev_cmd_stat()</a>, and <a class="el" href="ftp__ev__xfer_8c_source.html#l00326">ev_begin_transfer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00052">brix_ftp_ev_cmd_cwd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00116">brix_ftp_ev_cmd_dele()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00156">brix_ftp_ev_cmd_mdtm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00096">brix_ftp_ev_cmd_mkd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00183">brix_ftp_ev_cmd_mlst()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00136">brix_ftp_ev_cmd_rmd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00317">brix_ftp_ev_cmd_rnfr()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00335">brix_ftp_ev_cmd_rnto()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00078">brix_ftp_ev_cmd_size()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00205">brix_ftp_ev_cmd_stat()</a>, and <a class="el" href="ftp__ev__xfer_8c_source.html#l00352">ev_xfer_resolve_start()</a>.</p>
 
 </div>
 </div>
@@ -248,7 +256,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00035">35</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__dispatch_8c_source.html#l00072">brix_ftp_ev_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__dispatch_8c_source.html#l00388">brix_ftp_ev_dispatch()</a>.</p>
 
 </div>
 </div>
@@ -284,11 +292,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00261">261</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00298">298</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00032">ngx_stream_brix_ftp_srv_conf_t::allow_write</a>, <a class="el" href="sd_8h_source.html#l00197">BRIX_CRED_SELECT</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00137">brix_ftp_ev_forward_pem()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="vfs__deleg_8c_source.html#l00227">brix_vfs_backend_accepts_proxy()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00156">brix_vfs_deleg_bind()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="ftp__ev_8h_source.html#l00078">ftp_ev_t::conf</a>, <a class="el" href="ftp__ev_8h_source.html#l00123">ftp_ev_t::ctrl_leaf_pem</a>, <a class="el" href="ftp__gateway_8h_source.html#l00073">ngx_stream_brix_ftp_srv_conf_t::deleg_mode</a>, <a class="el" href="ftp__ev_8h_source.html#l00121">ftp_ev_t::deleg_proxy</a>, <a class="el" href="ftp__ev_8h_source.html#l00120">ftp_ev_t::identity</a>, <a class="el" href="ftp__gateway_8h_source.html#l00045">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, and <a class="el" href="ftp__ev_8h_source.html#l00118">ftp_ev_t::sec_active</a>.</p>
+<p class="reference">References <a class="el" href="ftp__gateway_8h_source.html#l00032">ngx_stream_brix_ftp_srv_conf_t::allow_write</a>, <a class="el" href="sd_8h_source.html#l00197">BRIX_CRED_SELECT</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00241">brix_ftp_ev_forward_pem()</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="vfs__deleg_8c_source.html#l00227">brix_vfs_backend_accepts_proxy()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__deleg_8c_source.html#l00156">brix_vfs_deleg_bind()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="ftp__ev_8h_source.html#l00078">ftp_ev_t::conf</a>, <a class="el" href="ftp__ev_8h_source.html#l00123">ftp_ev_t::ctrl_leaf_pem</a>, <a class="el" href="ftp__gateway_8h_source.html#l00073">ngx_stream_brix_ftp_srv_conf_t::deleg_mode</a>, <a class="el" href="ftp__ev_8h_source.html#l00121">ftp_ev_t::deleg_proxy</a>, <a class="el" href="ftp__ev_8h_source.html#l00120">ftp_ev_t::identity</a>, <a class="el" href="ftp__gateway_8h_source.html#l00045">ngx_stream_brix_ftp_srv_conf_t::root_canon</a>, and <a class="el" href="ftp__ev_8h_source.html#l00118">ftp_ev_t::sec_active</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00116">brix_ftp_ev_cmd_dele()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00156">brix_ftp_ev_cmd_mdtm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00096">brix_ftp_ev_cmd_mkd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00183">brix_ftp_ev_cmd_mlst()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00136">brix_ftp_ev_cmd_rmd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00335">brix_ftp_ev_cmd_rnto()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00078">brix_ftp_ev_cmd_size()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00205">brix_ftp_ev_cmd_stat()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00268">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00326">ev_begin_transfer()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">ev_eb_child_done()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00524">ev_eb_receiver_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__cmd_8c_source.html#l00247">brix_ftp_ev_cmd_cksm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00116">brix_ftp_ev_cmd_dele()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00156">brix_ftp_ev_cmd_mdtm()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00096">brix_ftp_ev_cmd_mkd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00183">brix_ftp_ev_cmd_mlst()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00136">brix_ftp_ev_cmd_rmd()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00335">brix_ftp_ev_cmd_rnto()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00078">brix_ftp_ev_cmd_size()</a>, <a class="el" href="ftp__ev__cmd_8c_source.html#l00205">brix_ftp_ev_cmd_stat()</a>, <a class="el" href="ftp__ev__xfer_8c_source.html#l00268">brix_ftp_ev_data_ready()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">ev_eb_child_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00569">ev_eb_receiver_open()</a>, and <a class="el" href="ftp__ev__xfer_8c_source.html#l00352">ev_xfer_resolve_start()</a>.</p>
 
 </div>
 </div>
@@ -328,7 +336,193 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00086">86</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00137">brix_ftp_ev_forward_pem()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00241">brix_ftp_ev_forward_pem()</a>.</p>
+
+</div>
+</div>
+<a id="a252795ab1a848f8a8e7088f7c00a4b01" name="a252795ab1a848f8a8e7088f7c00a4b01"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a252795ab1a848f8a8e7088f7c00a4b01">&#9670;&#160;</a></span>fwd_emit_chain()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int fwd_emit_chain </td>
+          <td>(</td>
+          <td class="paramtype">BIO *&#160;</td>
+          <td class="paramname"><em>obio</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">X509 *&#160;</td>
+          <td class="paramname"><em>leaf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
+          <td class="paramname"><em>certs</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00176">176</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ftp__ev__path_8c_source.html#l00144">fwd_next_issuer()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00241">brix_ftp_ev_forward_pem()</a>.</p>
+
+</div>
+</div>
+<a id="ab1161f19f3c33ba5005dd2ba330195b5" name="ab1161f19f3c33ba5005dd2ba330195b5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab1161f19f3c33ba5005dd2ba330195b5">&#9670;&#160;</a></span>fwd_find_leaf()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static X509 * fwd_find_leaf </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
+          <td class="paramname"><em>certs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">EVP_PKEY *&#160;</td>
+          <td class="paramname"><em>key</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00119">119</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00241">brix_ftp_ev_forward_pem()</a>.</p>
+
+</div>
+</div>
+<a id="a7e4f11f6b6f4f7724db69ac6c3fe7de6" name="a7e4f11f6b6f4f7724db69ac6c3fe7de6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7e4f11f6b6f4f7724db69ac6c3fe7de6">&#9670;&#160;</a></span>fwd_next_issuer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static X509 * fwd_next_issuer </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
+          <td class="paramname"><em>certs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">X509 *&#160;</td>
+          <td class="paramname"><em>cur</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00144">144</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
+
+<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00176">fwd_emit_chain()</a>.</p>
+
+</div>
+</div>
+<a id="a928846557677aae2dbf9e3dc6bc7b3ee" name="a928846557677aae2dbf9e3dc6bc7b3ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a928846557677aae2dbf9e3dc6bc7b3ee">&#9670;&#160;</a></span>fwd_serialize()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void fwd_serialize </td>
+          <td>(</td>
+          <td class="paramtype">ngx_pool_t *&#160;</td>
+          <td class="paramname"><em>pool</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">BIO *&#160;</td>
+          <td class="paramname"><em>obio</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">EVP_PKEY *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_str_t *&#160;</td>
+          <td class="paramname"><em>out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ftp__ev__path_8c_source.html#l00200">200</a> of file <a class="el" href="ftp__ev__path_8c_source.html">ftp_ev_path.c</a>.</p>
+
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ftp__ev__path_8c_source.html#l00241">brix_ftp_ev_forward_pem()</a>.</p>
 
 </div>
 </div>

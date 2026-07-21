@@ -7,6 +7,7 @@ var net_2upstream_2bootstrap_8c =
     [ "brix_upstream_bs_login", "net_2upstream_2bootstrap_8c.html#aab7f7641a82c72ea69f0839ba3e2cf32", null ],
     [ "brix_upstream_bs_protocol", "net_2upstream_2bootstrap_8c.html#a0700814ffc59d7664d417fc2706101b8", null ],
     [ "brix_upstream_build_bootstrap", "net_2upstream_2bootstrap_8c.html#ae710b61b62fec14972c4be7b3aaca8c4", null ],
+    [ "brix_upstream_build_bootstrap_flags", "net_2upstream_2bootstrap_8c.html#a5a35f62fd990d8c2b76c0b30966affb6", null ],
     [ "brix_upstream_build_login", "net_2upstream_2bootstrap_8c.html#a1a37ecdc99deb7901368ebd66bb04c12", null ],
     [ "brix_upstream_continue_auth", "net_2upstream_2bootstrap_8c.html#a86e4cc666fc7559693de731f8ee99618", null ],
     [ "brix_upstream_handle_bootstrap_response", "net_2upstream_2bootstrap_8c.html#a0a8ab91279169fb98f9a57be24d6e0ac", null ],

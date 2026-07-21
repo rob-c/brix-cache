@@ -95,6 +95,13 @@ $(document).ready(function(){initNavTree('structbrix__hc__ctx__t.html',''); init
   <div class="headertitle"><div class="title">brix_hc_ctx_t Struct Reference</div></div>
 </div><!--header-->
 <div class="contents">
+<div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Collaboration diagram for brix_hc_ctx_t:</div>
+<div id="dynsection-0-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-0-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="structbrix__hc__ctx__t__coll__graph.svg" width="170" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
 Data Fields</h2></td></tr>
@@ -108,6 +115,12 @@ Data Fields</h2></td></tr>
 <tr class="separator:a7487805ad4e6eaeee6396852a8c54f61"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa4c764b0894e28b8debc377189518cdd" id="r_aa4c764b0894e28b8debc377189518cdd"><td class="memItemLeft" align="right" valign="top">unsigned&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__ctx__t.html#aa4c764b0894e28b8debc377189518cdd">connecting</a>:1</td></tr>
 <tr class="separator:aa4c764b0894e28b8debc377189518cdd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac1d4229ce870564383f24ca7911f4765" id="r_ac1d4229ce870564383f24ca7911f4765"><td class="memItemLeft" align="right" valign="top">unsigned&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__ctx__t.html#ac1d4229ce870564383f24ca7911f4765">tls</a>:1</td></tr>
+<tr class="separator:ac1d4229ce870564383f24ca7911f4765"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af2351ff480dece04dde8fa6c08a26632" id="r_af2351ff480dece04dde8fa6c08a26632"><td class="memItemLeft" align="right" valign="top">unsigned&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__ctx__t.html#af2351ff480dece04dde8fa6c08a26632">tls_capable</a>:1</td></tr>
+<tr class="separator:af2351ff480dece04dde8fa6c08a26632"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac6212c0d13d7169aa1ae0556f1db9771" id="r_ac6212c0d13d7169aa1ae0556f1db9771"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__ctx__t.html#ac6212c0d13d7169aa1ae0556f1db9771">conf</a></td></tr>
+<tr class="separator:ac6212c0d13d7169aa1ae0556f1db9771"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad4cbb9fa3aa8c0cfe0a11698d8424d35" id="r_ad4cbb9fa3aa8c0cfe0a11698d8424d35"><td class="memItemLeft" align="right" valign="top">u_char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__ctx__t.html#ad4cbb9fa3aa8c0cfe0a11698d8424d35">rhdr</a> [8]</td></tr>
 <tr class="separator:ad4cbb9fa3aa8c0cfe0a11698d8424d35"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2fb5cdf417fbc6026cee1d3d28783d55" id="r_a2fb5cdf417fbc6026cee1d3d28783d55"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__ctx__t.html#a2fb5cdf417fbc6026cee1d3d28783d55">rhdr_pos</a></td></tr>
@@ -141,7 +154,7 @@ Data Fields</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00046">46</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00055">55</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
 <a id="a89d0e2fa55b152f9ae6481e3cff2b529" name="a89d0e2fa55b152f9ae6481e3cff2b529"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a89d0e2fa55b152f9ae6481e3cff2b529">&#9670;&#160;</a></span>blacklist_ms</h2>
@@ -155,9 +168,27 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00072">72</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00090">90</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
+
+</div>
+</div>
+<a id="ac6212c0d13d7169aa1ae0556f1db9771" name="ac6212c0d13d7169aa1ae0556f1db9771"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac6212c0d13d7169aa1ae0556f1db9771">&#9670;&#160;</a></span>conf</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>* brix_hc_ctx_t::conf</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00069">69</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -173,9 +204,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00048">48</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00057">57</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00110">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00235">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -191,9 +222,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00051">51</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00060">60</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>, and <a class="el" href="health__check_8c_source.html#l00191">brix_hc_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>, and <a class="el" href="health__check_8c_source.html#l00212">brix_hc_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -209,9 +240,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00068">68</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00086">86</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00399">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check_8c_source.html#l00191">brix_hc_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00519">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check_8c_source.html#l00212">brix_hc_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -227,9 +258,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00049">49</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00058">58</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00399">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check_8c_source.html#l00191">brix_hc_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00519">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check_8c_source.html#l00212">brix_hc_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -245,9 +276,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00050">50</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00059">59</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -263,9 +294,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00047">47</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00056">56</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -281,9 +312,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00069">69</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00087">87</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00399">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check_8c_source.html#l00191">brix_hc_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00519">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check_8c_source.html#l00212">brix_hc_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -299,9 +330,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00073">73</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00091">91</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -317,9 +348,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00058">58</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00076">76</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00235">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>.</p>
 
 </div>
 </div>
@@ -335,9 +366,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00059">59</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00077">77</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00235">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>.</p>
 
 </div>
 </div>
@@ -353,9 +384,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00057">57</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00075">75</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00235">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>.</p>
 
 </div>
 </div>
@@ -371,9 +402,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00056">56</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00074">74</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, and <a class="el" href="health__check_8c_source.html#l00235">brix_hc_recv_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, and <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>.</p>
 
 </div>
 </div>
@@ -389,9 +420,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00054">54</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00072">72</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00235">brix_hc_recv_frame()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>.</p>
 
 </div>
 </div>
@@ -407,9 +438,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00055">55</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00073">73</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00295">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00235">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>, and <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>.</p>
 
 </div>
 </div>
@@ -425,9 +456,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00066">66</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00084">84</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -443,9 +474,43 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00071">71</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00089">89</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00420">brix_hc_finish()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00540">brix_hc_finish()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
+
+</div>
+</div>
+<a id="ac1d4229ce870564383f24ca7911f4765" name="ac1d4229ce870564383f24ca7911f4765"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac1d4229ce870564383f24ca7911f4765">&#9670;&#160;</a></span>tls</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">unsigned brix_hc_ctx_t::tls</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00061">61</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+
+</div>
+</div>
+<a id="af2351ff480dece04dde8fa6c08a26632" name="af2351ff480dece04dde8fa6c08a26632"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af2351ff480dece04dde8fa6c08a26632">&#9670;&#160;</a></span>tls_capable</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">unsigned brix_hc_ctx_t::tls_capable</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00062">62</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -461,9 +526,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00062">62</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00080">80</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00110">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -479,9 +544,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00063">63</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00081">81</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00110">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -497,9 +562,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00064">64</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00082">82</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00110">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00143">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00488">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00376">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00608">brix_hc_start()</a>.</p>
 
 </div>
 </div>

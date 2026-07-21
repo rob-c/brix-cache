@@ -14,6 +14,7 @@ var structngx__brix__cms__ctx__s =
     [ "inbuf", "structngx__brix__cms__ctx__s.html#a2831c765832ec5f78e09f92397d2cb3a", null ],
     [ "is_loopback", "structngx__brix__cms__ctx__s.html#a3192eea4e286f78ca26768d385418767", null ],
     [ "logged_in", "structngx__brix__cms__ctx__s.html#aa97cad4bd58b2167d23651c8384c11d6", null ],
+    [ "meter", "structngx__brix__cms__ctx__s.html#a5e0358ade4fe7ac8d5e0706b03c161a5", null ],
     [ "next_streamid", "structngx__brix__cms__ctx__s.html#acfe77b7a744dbd0d3a3d3c2487d403c1", null ],
     [ "peer", "structngx__brix__cms__ctx__s.html#a96a88c28d33053ecaccdb7fad461333f", null ],
     [ "sess", "structngx__brix__cms__ctx__s.html#a94cd9fab0979c3327887a6fcc0548708", null ],
