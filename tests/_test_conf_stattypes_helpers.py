@@ -125,11 +125,12 @@ def _build_matrix(root):
         os.chmod(p, 0o644)
         created.append((rel, "file"))
 
-    # An executable regular file (0755): kXR_xset must be set.
+    # An executable regular file (0755): kXR_xset must be set. The bytes are
+    # opaque payload — only the exec bit is under test, so this is not a script.
     rel = "/types/exec.sh"
     p = root + rel
     with open(p, "wb") as fh:
-        fh.write(b"#!/bin/sh\nexit 0\n")
+        fh.write(b"executable-file payload\n")
     os.chmod(p, 0o755)
     created.append((rel, "file"))
 

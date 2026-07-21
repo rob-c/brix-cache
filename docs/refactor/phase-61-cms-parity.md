@@ -1,6 +1,30 @@
 # Phase 61 — CMS parity: close the remaining cmsd gaps
 
-**Status:** plan / spec
+**Status:** IMPLEMENTED 2026-07-21 — **PR-1…PR-8 all DONE via
+`phase-89-design-backlog-burndown.md` §C** (per-PR record + deviations from
+this spec live there; full CMS gate 72 green). W7 multi-tier stays split out
+per ADR-4 and remains open. This doc is now the design-of-record / rationale;
+where the two disagree, the phase-89 DONE entries are the truth (notably W8:
+per-worker deadline-window aggregation shipped instead of App C.2's SHM agg
+table, and W6′ blacklist-file polls the ping tick, not the health-check
+timer).
+
+> **DESIGN-REFRESH NOTE (2026-07-21 — apply while coding, phase-89 §C.0).**
+> Verified still fully open in the tree (no `USAGE`/`STATS`/`PREPADD`/
+> `PREPDEL`/`STATE` dispatch cases; incoming `kYR_have` undispatched on the
+> manager; none of `loc_cache`/`meter`/`blacklist_file`/`forward_agg` exist).
+> Two corrections to this spec's letter:
+> 1. **W2 substrate:** `src/frm/` was dissolved by phase-64 P6 —
+>    `frm_request_add/_delete` no longer exist. The live API is the
+>    stage-engine request registry: `brix_stage_request_add` /
+>    `brix_stage_request_delete` / `brix_stage_request_owner_check` on
+>    `brix_stage_registry_singleton()`; reference consumer
+>    `src/protocols/root/query/prepare.c` (this doc's own pointer, already
+>    migrated). ADR-6's D-a sidecar reqid map survives unchanged, retargeted
+>    at the registry (it mints its own reqids exactly as FRM did).
+> 2. **Naming:** all skeletons are pre-rebrand (`xrootd_*`); the tree is
+>    `brix_*`. Each PR re-grounds its Appendix snippets on live symbols.
+
 **Date:** 2026-06-27
 **Scope:** `src/net/cms/`, `src/net/manager/`, `src/frm/` (wiring only), config, tests, docs.
 **Hard requirement:** **byte-exact wire interop** with stock `cmsd` — no wire

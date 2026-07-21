@@ -230,3 +230,61 @@ Naming convention:
 After this phase is complete, new `.sh` files under `tests/` are forbidden and
 the remaining historical shell wrappers should be deleted as their Python
 replacements land.
+
+## Fake Executables & Stubs (no generated shell)
+
+The `.sh`-file ban above covers *committed* scripts. A second, subtler class had
+to go too: tests that **generated shell at runtime** — an inline `#!/bin/sh`
+heredoc or f-string written to a temp file and `chmod +x`'d to stand in for a
+tool on `$PATH`, an MSS stage command, a hook, or a mock `nginx`. Runtime-woven
+shell is unreadable, unlint-able, and breaks silently; it is banned. The
+replacement pattern is a **committed, stdlib-only Python helper** that a test
+copies into place via an `install()` entry point, with per-test behaviour in a
+JSON **sidecar** next to the installed copy (never in the script body).
+
+Conventions these helpers follow:
+
+- **Sidecar, not env.** Read config from `<installed-path>.json`, resolved off
+  `os.path.realpath(__file__)` — robust to a `$PATH` search and to nginx's
+  worker-`environ` wipe (the FRM `exec` MSS adapter sees only argv + the one
+  `BRIX_FRM_STAGECMD` var, so config *must* be baked into the sidecar).
+- **Absolute-interpreter shebang.** `install()` routes through
+  `cmdscripts.scriptutil.install_script`, which pins the copied stub's shebang
+  to `sys.executable`. A `#!/usr/bin/env python3` stub fails (rc 127) when the
+  code-under-test runs it on a restricted `$PATH` that excludes python3's dir
+  (e.g. the `xrd unmount` fallback runs with *only* the fake `umount` dir on
+  PATH); the old `#!/bin/sh` stubs dodged this only because `/bin/sh` is itself
+  absolute. The `scriptutil` import is lazy (inside `install()`), so the copied
+  stub stays stdlib-only with no `cmdscripts` on its exec-time path.
+- **Copied binaries carry no sidecar.** A stub that is copied *again* before
+  execution (e.g. `freeze_nginx` `shutil.copy2`s the binary) leaves its sidecar
+  behind — for those, self-contained scripts encode behaviour in the file
+  itself (`fake_nginx.py` exit 0 / `fake_nginx_broken.py` exit 1).
+
+Helper inventory (`tests/cmdscripts/`):
+
+- `scriptutil.py` — shared `install_script(src, dest)`: copy as 0755, shebang
+  pinned to `sys.executable`.
+- `fake_exec.py` — configurable fake tool (sidecar: `exit`, `stdout`,
+  `echo_tool_argv`, `log_args`); for in-place execution. Replaces the throwaway
+  `#!/bin/sh` `$PATH` stubs / argv-capture mocks.
+- `exec_wrapper.py` — `exec "$TARGET" <prepend...> "$@"` shim (sidecar:
+  `target`, `prepend`), e.g. a `brixcvmfs` front → `brixMount cvmfs …`.
+- `fake_nginx.py` / `fake_nginx_broken.py` — self-contained `nginx -v`
+  succeed/fail stubs for `freeze_nginx` (copied before exec → no sidecar).
+- `frm_stagecmd.py` — fake MSS `exec` stage command
+  (`<verb> <key> <online>`; sidecar: `tape`, `audit`, `strip_slash`, `verbs`,
+  `unknown_exit`, …). Replaces per-test `_stagecmd`/`_mock_stagecmd` heredocs.
+- `frm_oracle_online.py` — always-online MSS oracle stub.
+- `prepare_stage_hook.py` — `brix_prepare_command` hook (env IS preserved here —
+  reads `BRIX_PREPARE_COLOC`; log path from sidecar).
+
+The mu-unit C build (retired `tests/c/run_mu_unit.sh`) now lives in
+`cmdscripts.c_regression_units.mu_unit`; `user_backend_cred.py` calls it directly
+(passing `MU_CLEAN_USER` through the inherited environment).
+
+`.sh` *filenames* that remain under `tests/` fixtures (e.g. `exec.sh`,
+`chmod_exec.sh`) are **data**, not scripts — their bytes are opaque payload and
+only the mode / `X_OK` bit is ever asserted; they are never executed. Inline
+`bash -c "…"` one-liners that shell out to system tools (`ss -tln | grep`,
+`fuser -k`, `getent | awk`) are calculator calls, not generated scripts.

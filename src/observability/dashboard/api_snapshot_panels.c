@@ -374,9 +374,15 @@ dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms,
         if (!redact) {   /* port + exported paths are infra detail for anonymous */
             json_object_set_new(srv, "port",  json_integer((json_int_t) entries[i].port));
             json_object_set_new(srv, "paths", json_string(entries[i].paths));
+            /* Phase 89 W9: virtual network id ("" = unset) + staging capability. */
+            json_object_set_new(srv, "vnid",  json_string(entries[i].vnid));
+            json_object_set_new(srv, "stage",
+                entries[i].stage ? json_true() : json_false());
         }
         json_object_set_new(srv, "free_mb",           json_integer((json_int_t) entries[i].free_mb));
         json_object_set_new(srv, "util_pct",          json_integer((json_int_t) entries[i].util_pct));
+        /* Phase 89 W4: heartbeat machine-load percentage (0 until reported). */
+        json_object_set_new(srv, "load_pct",          json_integer((json_int_t) entries[i].load_pct));
         json_object_set_new(srv, "last_seen",         json_integer((json_int_t) entries[i].last_seen));
         json_object_set_new(srv, "heartbeat_age_ms",  json_integer((json_int_t) age));
         json_object_set_new(srv, "stale",

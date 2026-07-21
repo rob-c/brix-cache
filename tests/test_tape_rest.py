@@ -21,6 +21,7 @@ import urllib.error
 
 import pytest
 
+from cmdscripts import frm_stagecmd
 from settings import NGINX_BIN, HOST, BIND_HOST, free_port
 from server_registry import NginxInstanceSpec
 
@@ -70,17 +71,12 @@ def srv(lifecycle, tmp_path):
     (online / "online.dat").write_bytes(b"resident\n")
     (tape / "online.dat").write_bytes(b"resident\n")
     (tape / "near.dat").write_bytes(b"nearline bytes\n")
-    stagecmd = d / "stagecmd.sh"
-    stagecmd.write_text(f"""#!/bin/sh
-verb="$1"; key="$2"; online="$3"; tape="{tape}"
-case "$verb" in
-  exists) [ -f "$tape/$key" ] && exit 0 || exit 1 ;;
-  recall) mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online"; exit $? ;;
-  migrate) mkdir -p "$(dirname "$tape/$key")"; cp "$online" "$tape/$key"; exit $? ;;
-  *) exit 2 ;;
-esac
-""")
-    stagecmd.chmod(0o755)
+    # Tape MSS adapter — exists/recall/migrate only (any other verb exits 2);
+    # the REST key is used verbatim (no leading-slash strip). Config rides in a
+    # JSON sidecar next to the copied script.
+    stagecmd = frm_stagecmd.install(
+        d, name="stagecmd.py", tape=str(tape), strip_slash=False,
+        verbs=["exists", "recall", "migrate"], unknown_exit=2)
 
     stream_port = free_port(BIND_HOST)
     ep = lifecycle.start(NginxInstanceSpec(

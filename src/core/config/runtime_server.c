@@ -282,6 +282,23 @@ brix_server_validate_cache_watermarks(ngx_conf_t *cf,
             "and less than 1.0");
         return NGX_ERROR;
     }
+    /* The percent-grammar spelling first, so a bad brix_cache_evict_at/_to
+     * pair gets a percent-worded error instead of the ppm one below (the seed
+     * in server_conf_merge_security.c multiplies by 10000). */
+    if ((xcf->common.cache_evict_at != NGX_CONF_UNSET_UINT
+         && (xcf->common.cache_evict_at == 0
+             || xcf->common.cache_evict_at >= 100))
+        || (xcf->common.cache_evict_to != NGX_CONF_UNSET_UINT
+            && (xcf->common.cache_evict_to == 0
+                || xcf->common.cache_evict_to
+                   >= (xcf->common.cache_evict_at == NGX_CONF_UNSET_UINT
+                           ? 90 : xcf->common.cache_evict_at))))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_evict_to must be a percent greater than 0 and "
+            "less than brix_cache_evict_at (which must be < 100)");
+        return NGX_ERROR;
+    }
     if (xcf->reaper.high_watermark == 0
         || xcf->reaper.high_watermark >= 1000000
         || xcf->reaper.low_watermark == 0

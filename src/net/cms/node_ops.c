@@ -15,6 +15,8 @@
 #define K_MKDIR    3
 #define K_MKPATH   4
 #define K_MV       5
+#define K_PREPADD  6
+#define K_PREPDEL  7
 #define K_RM       8
 #define K_RMDIR    9
 #define K_TRUNC   23
@@ -40,8 +42,20 @@ brix_cms_node_plan(unsigned char code, const brix_cms_rrdata_t *d,
     plan->path2  = NULL;
     plan->mode   = 0;
     plan->size   = 0;
+    plan->reqid  = field_str(d->reqid,  d->reqid_len);
+    plan->notify = field_str(d->notify, d->notify_len);
+    plan->prty   = field_str(d->prty,   d->prty_len);
 
-    /* Every executed op needs a primary path. */
+    /* prepdel carries only a reqid — route it before the path guard. */
+    if (code == K_PREPDEL) {
+        if (plan->reqid == NULL) {
+            return -1;
+        }
+        plan->action = XRDCMS_NACT_PREPDEL;
+        return 0;
+    }
+
+    /* Every other executed op needs a primary path. */
     if (path == NULL) {
         return -1;
     }
@@ -89,7 +103,16 @@ brix_cms_node_plan(unsigned char code, const brix_cms_rrdata_t *d,
         plan->path2  = path2;
         return 0;
 
+    case K_PREPADD:
+        /* padArgs: a stage-in needs the manager's reqid to key the later
+         * prepdel; notify/prty stay optional (ADR-2b sidecar map). */
+        if (plan->reqid == NULL) {
+            return -1;
+        }
+        plan->action = XRDCMS_NACT_PREPADD;
+        return 0;
+
     default:
-        return -1;     /* prepadd/prepdel (staging) + anything else: not here */
+        return -1;     /* anything else: not executed on this node */
     }
 }

@@ -81,3 +81,41 @@ sd_ceph_oid_is_stripe_data(const char *oid)
     /* a striper data stripe iff it is NOT the all-zero first stripe */
     return sd_ceph_oid_is_first_stripe(oid) ? 0 : 1;
 }
+
+int
+sd_ceph_path_child(const char *dir, const char *path, char *name, size_t cap)
+{
+    size_t      dlen;
+    const char *rest;
+    const char *slash;
+    size_t      n;
+
+    if (dir == NULL || path == NULL || name == NULL
+        || dir[0] != '/' || path[0] != '/')
+    {
+        return 0;
+    }
+
+    dlen = strlen(dir);
+    if (dlen == 1) {
+        rest = path + 1;                       /* listing the root */
+    } else {
+        if (strncmp(path, dir, dlen) != 0 || path[dlen] != '/') {
+            return 0;                          /* outside dir (or a sibling
+                                                * sharing dir as a name prefix) */
+        }
+        rest = path + dlen + 1;
+    }
+    if (*rest == '\0') {
+        return 0;                              /* path IS dir — not a child */
+    }
+
+    slash = strchr(rest, '/');
+    n = (slash != NULL) ? (size_t) (slash - rest) : strlen(rest);
+    if (n == 0 || n + 1 > cap) {
+        return 0;                              /* empty / unrepresentable name */
+    }
+    memcpy(name, rest, n);
+    name[n] = '\0';
+    return (slash != NULL) ? 2 : 1;
+}

@@ -100,6 +100,28 @@ typedef struct {
                                              first connect; unset => 0 (loopback) / 10ms */
     ngx_msec_t          connect_retry;    /* [brix_cms_connect_retry] retry interval while
                                              the manager is not yet listening */
+    ngx_str_t           vnid;             /* [brix_cms_vnid <id>] Phase-89 W9: virtual
+                                             network id advertised in LOGIN envCGI
+                                             ("vnid=<id>"); empty => envCGI stays empty */
+    ngx_int_t           load_weight;      /* [brix_cms_load_weight 0-100] Phase-89 W4:
+                                             manager-side selection weight for the
+                                             heartbeat machine load; 0 = space/util
+                                             only (byte-identical legacy scoring) */
+    ngx_flag_t          affinity;         /* [brix_cms_affinity on] Phase-89 W5: pin
+                                             repeated selections of a path to ONE
+                                             eligible (fresh, non-blacklisted)
+                                             server; drained hosts never sticky */
+    ngx_flag_t          locate_multi;     /* [brix_cms_locate_multi on] Phase-89 W5:
+                                             answer kXR_locate with the FULL live
+                                             server set (kXR_ok, lateral redirect)
+                                             instead of a single kXR_redirect */
+    ngx_flag_t          fanout;           /* [brix_cms_fanout on] Phase-89 W8:
+                                             fan a client kXR_rm/kXR_rmdir out to
+                                             EVERY holder node (this worker's CMS
+                                             conns) instead of redirecting to one */
+    ngx_msec_t          fanout_window;    /* [brix_cms_fanout_window] W8 reply
+                                             window: no kYR_error from any node
+                                             within it => kXR_ok; unset => 500ms */
 } brix_cms_conf_t;
 
 /* Active upstream health-check settings (Phase 22, off by default).  Grouped as
@@ -131,6 +153,12 @@ typedef struct {
                                        redirect collapse cache. Default 30000 ms. */
     ngx_flag_t  recover_writes;     /* [brix_recover_writes on|off] RESERVED — accepted for
                                        forward config; kXR_recoverWrts not yet advertised. */
+    ngx_msec_t  cms_locate_window;  /* [brix_cms_locate_window <time>] Phase-89 W3: on a
+                                       loc-cache miss, kYR_state fan-out to registered nodes
+                                       and park the client this long for the first kYR_have.
+                                       0 (default) = off — prefix selection only. */
+    ngx_uint_t  cms_state_fanout;   /* [brix_cms_state_fanout <n>] W3: max nodes probed per
+                                       locate miss. Default 8. */
 } brix_node_caps_conf_t;
 
 /* Transparent proxy mode: terminate root:// and forward opcodes to an upstream.
@@ -291,6 +319,11 @@ brix_cms_conf_init(brix_cms_conf_t *c)
     c->tcp_user_timeout = NGX_CONF_UNSET_MSEC;
     c->initial_delay    = NGX_CONF_UNSET_MSEC;
     c->connect_retry    = NGX_CONF_UNSET_MSEC;
+    c->load_weight      = NGX_CONF_UNSET;
+    c->affinity         = NGX_CONF_UNSET;
+    c->locate_multi     = NGX_CONF_UNSET;
+    c->fanout           = NGX_CONF_UNSET;
+    c->fanout_window    = NGX_CONF_UNSET_MSEC;
 }
 
 static ngx_inline void
@@ -313,6 +346,8 @@ brix_node_caps_conf_init(brix_node_caps_conf_t *c)
     c->collapse_redir     = NGX_CONF_UNSET;
     c->collapse_redir_ttl = NGX_CONF_UNSET_MSEC;
     c->recover_writes     = NGX_CONF_UNSET;
+    c->cms_locate_window  = NGX_CONF_UNSET_MSEC;
+    c->cms_state_fanout   = NGX_CONF_UNSET_UINT;
 }
 
 static ngx_inline void
@@ -387,6 +422,8 @@ brix_node_caps_conf_merge(brix_node_caps_conf_t *c, brix_node_caps_conf_t *p)
     ngx_conf_merge_value(c->collapse_redir,     p->collapse_redir,     0);
     ngx_conf_merge_msec_value(c->collapse_redir_ttl, p->collapse_redir_ttl, 30000);
     ngx_conf_merge_value(c->recover_writes,     p->recover_writes,     0);
+    ngx_conf_merge_msec_value(c->cms_locate_window, p->cms_locate_window, 0);
+    ngx_conf_merge_uint_value(c->cms_state_fanout,  p->cms_state_fanout,  8);
 }
 
 static ngx_inline void

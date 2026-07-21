@@ -8,6 +8,7 @@
  */
 
 #include "core/ngx_brix_module.h"        /* brix_ctx_t (identity + login) umbrella */
+#include "core/fnv.h"
 #include "core/negcache/negcache.h"
 #include "core/negcache/negcache_core.h"
 #include "core/compat/shm_slots.h"
@@ -149,14 +150,14 @@ brix_negcache_configure(ngx_conf_t *cf)
 static uint32_t
 negcache_fnv(char tag, const u_char *s, size_t n)
 {
-    uint32_t h = 2166136261u;
+    uint32_t h = BRIX_FNV1A32_OFFSET_BASIS;
     size_t   i;
 
     h ^= (uint32_t) (u_char) tag;
-    h *= 16777619u;
+    h *= BRIX_FNV1A32_PRIME;
     for (i = 0; i < n; i++) {
         h ^= (uint32_t) s[i];
-        h *= 16777619u;
+        h *= BRIX_FNV1A32_PRIME;
     }
     return h;
 }

@@ -8,8 +8,9 @@
  *         storage endpoint — the "user.XrdCks.<alg>" extended attribute (both
  *           our text form "<hex> <mtime> <nsec> <size>" and the stock binary
  *           XrdCksData record), with a "<path>.cks" sidecar fallback;
- *         proxy cache      — the "<path>.cinfo" block-bitmap record or the
- *           "<path>.meta" sidecar (their cks_alg/cks_hex fields).
+ *         proxy cache      — the unified xmeta record ("user.xrd.cinfo" xattr,
+ *           else the "<path>.cinfo" sidecar) ORIGIN section, with a legacy
+ *           "<path>.meta" POD fallback for pre-xmeta caches.
  *
  * WHY:  An operator needs a single command to answer "is this cached/stored file
  *       still bit-for-bit what its checksum says" without going through the
@@ -17,10 +18,11 @@
  *
  * HOW:  Collect the recorded (algorithm, hex) records for the selected sources,
  *       then recompute each distinct algorithm once over the file (brix_cksum_fd)
- *       and compare. The on-disk binary records (XrdCksData, .cinfo, .meta) are
- *       mirrored here as fixed-layout structs — kept byte-compatible with their
- *       canonical definitions in src/core/compat/integrity_info.c, src/fs/cache/cinfo.h
- *       and src/fs/cache/meta.h (same x86-64 ABI, read verbatim).
+ *       and compare. XrdCksData and the legacy .meta POD are mirrored here as
+ *       fixed-layout structs (byte-compatible with src/core/compat/integrity_info.c
+ *       and the legacy reader in src/fs/cache/meta.c); the xmeta cache record is
+ *       parsed from its little-endian wire bytes (same walk as
+ *       apps/cksum/xrdcinfo.c and src/fs/meta/xmeta_decode.c).
  */
 
 #include "brix.h"
@@ -51,7 +53,8 @@ struct ckv_cksdata {
     char      Value[64];
 };
 
-/* src/fs/cache/meta.h brix_cache_meta_t. */
+/* Legacy pre-xmeta ".meta" sidecar POD (matches the fallback reader kept in
+ * src/fs/cache/meta.c for caches written before the xmeta migration). */
 struct ckv_meta {
     uint64_t mtime;
     uint64_t size;
@@ -67,27 +70,16 @@ struct ckv_meta {
     char     cks_hex[129];
 };
 
-/* src/fs/cache/cinfo.h brix_cache_cinfo_t (header only; bitmap follows on disk). */
-struct ckv_cinfo {
-    uint32_t magic;
-    uint16_t version;
-    uint16_t flags;
-    uint32_t block_size;
-    uint32_t reserved;
-    uint64_t size;
-    uint64_t mtime;
-    uint64_t nblocks;
-    uint64_t access_count;
-    uint64_t bytes_served;
-    uint64_t last_access;
-    uint8_t  etag_len;
-    char     etag[55];
-    uint8_t  cks_alg_len;
-    char     cks_alg[16];
-    uint8_t  cks_len;
-    char     cks_hex[129];
-};
-#define CKV_CINFO_MAGIC 0x58434931u
+/* Current cache record: the unified xmeta carrier (src/fs/meta/) — a stock v4
+ * cinfo prefix + "XCX1" TLV extension block whose ORIGIN section (type 0x0004)
+ * holds {u8 etag_len, u8 alg_len, u8 cks_len, u8 pad} + etag/alg/hex strings.
+ * It rides in the data file's "user.xrd.cinfo" xattr when it fits, else in the
+ * "<path>.cinfo" sidecar. Parsed from raw little-endian bytes, not mirrored. */
+#define CKV_XMETA_XATTR      "user.xrd.cinfo"
+#define CKV_XMETA_VERSION    4
+#define CKV_XMETA_EXT_MAGIC  0x31584358u             /* "XCX1" */
+#define CKV_XMETA_SEC_ORIGIN 0x0004u
+#define CKV_XMETA_MAX        (64 * 1024)
 
 typedef struct {
     char src[16];                  /* "xattr" | "cks" | "cinfo" | "meta" */
@@ -239,17 +231,141 @@ ckv_add_cache_record(const char *src, const char *cks_alg, uint8_t cks_alg_len,
     (*n)++;
 }
 
+/* little-endian scalar reads over the raw xmeta bytes */
+static uint16_t
+ckv_rd_u16(const uint8_t *b, size_t off)
+{
+    return (uint16_t) (b[off] | (b[off + 1] << 8));
+}
+
+static uint32_t
+ckv_rd_u32(const uint8_t *b, size_t off)
+{
+    return (uint32_t) b[off] | ((uint32_t) b[off + 1] << 8)
+         | ((uint32_t) b[off + 2] << 16) | ((uint32_t) b[off + 3] << 24);
+}
+
+static uint64_t
+ckv_rd_u64(const uint8_t *b, size_t off)
+{
+    uint64_t v = 0;
+    int      i;
+
+    for (i = 0; i < 8; i++) {
+        v |= (uint64_t) b[off + i] << (8 * i);
+    }
+    return v;
+}
+
+/* Extract the ORIGIN-section checksum from one raw xmeta record into *rec.
+ * Walk: v4 stock prefix (version + 48-byte Store + crc + present bitmap +
+ * AStat[] + crc) -> "XCX1" extension block -> section type 0x0004. Returns 1
+ * when an (alg, hex) pair was found; every offset is bounds-checked against n
+ * so a truncated or corrupt record yields 0, never an over-read. */
+static int
+ckv_xmeta_origin(const uint8_t *buf, size_t n, ckv_record *rec)
+{
+    int64_t  bsize, size;
+    int32_t  astatn;
+    uint64_t nblocks;
+    size_t   off;
+    uint16_t nsec, i;
+
+    if (n < 56 || (int32_t) ckv_rd_u32(buf, 0) != CKV_XMETA_VERSION) {
+        return 0;
+    }
+    bsize  = (int64_t) ckv_rd_u64(buf, 4);
+    size   = (int64_t) ckv_rd_u64(buf, 12);
+    astatn = (int32_t) ckv_rd_u32(buf, 48);
+    if (bsize <= 0 || size < 0 || astatn < 0) {
+        return 0;
+    }
+    nblocks = (size > 0)
+        ? ((uint64_t) size + (uint64_t) bsize - 1) / (uint64_t) bsize
+        : 0;
+    off = 4 + 48 + 4 + (size_t) ((nblocks + 7) / 8)
+        + (size_t) astatn * 56 + 4;
+    if (off + 8 > n || ckv_rd_u32(buf, off) != CKV_XMETA_EXT_MAGIC) {
+        return 0;
+    }
+    nsec = ckv_rd_u16(buf, off + 6);
+    off += 8;
+    for (i = 0; i < nsec && off + 12 <= n; i++) {
+        uint16_t       type = ckv_rd_u16(buf, off);
+        uint32_t       plen = ckv_rd_u32(buf, off + 4);
+        const uint8_t *p    = buf + off + 8;
+
+        if (off + 8 + (size_t) plen + 4 > n) {
+            return 0;
+        }
+        if (type == CKV_XMETA_SEC_ORIGIN && plen >= 4) {
+            uint8_t el = p[0], al = p[1], cl = p[2];
+
+            if (al == 0 || cl == 0 || al > 15 || cl > 128
+                || plen < 4u + el + al + cl)
+            {
+                return 0;
+            }
+            snprintf(rec->src, sizeof(rec->src), "cinfo");
+            snprintf(rec->algo, sizeof(rec->algo), "%.*s",
+                     (int) al, (const char *) p + 4 + el);
+            snprintf(rec->hex, sizeof(rec->hex), "%.*s",
+                     (int) cl, (const char *) p + 4 + el + al);
+            return 1;
+        }
+        off += 8 + (size_t) plen + 4;
+    }
+    return 0;
+}
+
+/* Slurp the xmeta record for `path` (xattr first, else "<path>.cinfo" sidecar)
+ * into a malloc'd buffer. Returns byte count, or -1 when neither carrier
+ * exists. */
+static ssize_t
+ckv_read_xmeta(const char *path, uint8_t *buf, size_t cap)
+{
+    char    scpath[XRDC_PATH_MAX];
+    int     fd;
+    ssize_t got;
+
+    got = getxattr(path, CKV_XMETA_XATTR, buf, cap);
+    if (got > 0) {
+        return got;
+    }
+    if ((size_t) snprintf(scpath, sizeof(scpath), "%s%s", path, ".cinfo")
+        >= sizeof(scpath))
+    {
+        return -1;
+    }
+    fd = open(scpath, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NOCTTY);
+    if (fd < 0) {
+        return -1;
+    }
+    got = pread(fd, buf, cap, 0);
+    close(fd);
+    return (got > 0) ? got : -1;
+}
+
 static void
 ckv_collect_cache(const char *path, ckv_record *recs, size_t max, size_t *n)
 {
-    struct ckv_cinfo ci;
     struct ckv_meta  mt;
+    uint8_t         *buf;
+    ssize_t          got;
 
-    if (ckv_read_sidecar_blob(path, ".cinfo", &ci, sizeof(ci)) >= (int) sizeof(ci)
-        && ci.magic == CKV_CINFO_MAGIC) {
-        ckv_add_cache_record("cinfo", ci.cks_alg, ci.cks_alg_len,
-                             ci.cks_hex, ci.cks_len, recs, max, n);
+    if (*n < max) {
+        buf = malloc(CKV_XMETA_MAX);
+        if (buf != NULL) {
+            got = ckv_read_xmeta(path, buf, CKV_XMETA_MAX);
+            if (got > 0
+                && ckv_xmeta_origin(buf, (size_t) got, &recs[*n]))
+            {
+                (*n)++;
+            }
+            free(buf);
+        }
     }
+    /* legacy pre-xmeta ".meta" sidecar (mirrors src/fs/cache/meta.c fallback) */
     if (ckv_read_sidecar_blob(path, ".meta", &mt, sizeof(mt)) >= (int) sizeof(mt)
         && mt.version >= 1) {
         ckv_add_cache_record("meta", mt.cks_alg, mt.cks_alg_len,

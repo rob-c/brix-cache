@@ -20,17 +20,11 @@ import subprocess
 
 import pytest
 
+from cmdscripts import fake_exec
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRD = os.path.join(CLIENT_DIR, "bin", "xrd")
-
-# A fake tool that echoes its identity + each argv element, then succeeds.
-FAKE = '#!/bin/sh\necho "TOOL=$(basename "$0")"\nfor a in "$@"; do echo "ARG=$a"; done\nexit 0\n'
-
-
-def _mkexec(path, body):
-    path.write_text(body)
-    path.chmod(0o755)
 
 
 @pytest.fixture(scope="module")
@@ -49,7 +43,9 @@ def _sandbox(tmp_path):
     d.mkdir()
     shutil.copy(XRD, d / "xrd")
     (d / "xrd").chmod(0o755)
-    _mkexec(d / "xrootdfs", FAKE)   # one unified driver; --legacy is a runtime flag
+    # one unified driver; --legacy is a runtime flag. The fake echoes its
+    # identity + each argv element to stdout so the test asserts the forwarded argv.
+    fake_exec.install(d, "xrootdfs", echo_tool_argv=True)
     return d
 
 
@@ -115,7 +111,7 @@ def test_unmount_prefers_fusermount3(built, tmp_path):
     binp = tmp_path / "pbin"
     binp.mkdir()
     log = tmp_path / "fm3.log"
-    _mkexec(binp / "fusermount3", f'#!/bin/sh\necho "$@" > "{log}"\nexit 0\n')
+    fake_exec.install(binp, "fusermount3", log_args=str(log))
     env = dict(os.environ, PATH=f"{binp}:{os.environ['PATH']}")
     r = subprocess.run([built, "unmount", "-z", "/mnt/x"],
                        capture_output=True, text=True, timeout=10, env=env)
@@ -129,7 +125,7 @@ def test_unmount_falls_back_to_umount(built, tmp_path):
     binp = tmp_path / "obin"
     binp.mkdir()
     log = tmp_path / "um.log"
-    _mkexec(binp / "umount", f'#!/bin/sh\necho "$@" > "{log}"\nexit 0\n')
+    fake_exec.install(binp, "umount", log_args=str(log))
     env = dict(os.environ, PATH=str(binp))
     r = subprocess.run([built, "unmount", "/mnt/x"],
                        capture_output=True, text=True, timeout=10, env=env)

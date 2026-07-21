@@ -24,37 +24,45 @@ static void brix_upstream_tls_handshake_done(ngx_connection_t *uconn);
  * HOW: Sets bs_phase = XRD_UP_BS_TLS → calls ngx_ssl_create_connection() with NGX_SSL_BUFFER | NGX_SSL_CLIENT flags → sets SNI via SSL_set_tlsext_host_name() (conf->upstream_tls_name wins if non-empty, falls back to conf->upstream_host) → assigns ssl->handler callback → calls ngx_ssl_handshake(). If handshake completes synchronously (unlikely), immediately fires brix_upstream_tls_handshake_done(). Returns NGX_OK on success, NGX_ERROR on SSL creation failure.
  */
 ngx_int_t
-brix_upstream_start_tls(brix_upstream_t *up,
-    ngx_stream_brix_srv_conf_t *conf)
+brix_outbound_start_tls(ngx_ssl_t *ssl_ctx, ngx_connection_t *c,
+    const char *sni, void (*handler)(ngx_connection_t *c))
 {
-    ngx_connection_t  *uconn = up->conn;
-    const char        *sni;
-
-    if (ngx_ssl_create_connection(conf->upstream_tls_ctx, uconn,
+    if (ngx_ssl_create_connection(ssl_ctx, c,
                                   NGX_SSL_BUFFER | NGX_SSL_CLIENT)
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
+    SSL_set_tlsext_host_name(c->ssl->connection, sni);
+    c->ssl->handler = handler;
+
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                   "brix: outbound starting TLS handshake (sni=%s)", sni);
+
+    if (ngx_ssl_handshake(c) != NGX_AGAIN) {
+        /* Completed synchronously (unlikely but handle it). */
+        handler(c);
+    }
+
+    return NGX_OK;
+}
+
+ngx_int_t
+brix_upstream_start_tls(brix_upstream_t *up,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    const char *sni;
+
     /* SNI: explicit override directive wins; fall back to configured host. */
     sni = (conf->upstream_tls_name.len > 0)
           ? (const char *) conf->upstream_tls_name.data
           : (const char *) conf->upstream_host.data;
-    SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
 
-    uconn->ssl->handler = brix_upstream_tls_handshake_done;
     up->bs_phase = XRD_UP_BS_TLS;
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, up->client_conn->log, 0,
-                   "brix: upstream starting TLS handshake (sni=%s)", sni);
-
-    if (ngx_ssl_handshake(uconn) != NGX_AGAIN) {
-        /* Completed synchronously (unlikely but handle it). */
-        brix_upstream_tls_handshake_done(uconn);
-    }
-
-    return NGX_OK;
+    return brix_outbound_start_tls(conf->upstream_tls_ctx, up->conn, sni,
+                                   brix_upstream_tls_handshake_done);
 }
 
 /*

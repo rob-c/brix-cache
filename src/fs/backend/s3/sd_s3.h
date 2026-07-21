@@ -100,6 +100,15 @@ typedef struct { char *buf; size_t cap; } sd_s3_meta_buf;
 ssize_t sd_s3_get_meta(sd_s3_file *f, const char *name,
                        const sd_s3_meta_buf *out, char *errbuf, size_t errcap);
 
+/* Enumerate every user-metadata name on the object (signed HEAD + raw header
+ * walk) into buf as a listxattr(2)-style NUL-separated block of "user.<name>"
+ * entries; the reserved advisory key (BRIX_META_ADVISORY_S3META) is omitted —
+ * it surfaces as POSIX attrs, not as a user xattr. cap==0 probes the required
+ * size. Returns the byte count, or -1 with errbuf + errno (ERANGE when buf is
+ * too small; ENOTSUP when the transport cannot enumerate headers). */
+ssize_t sd_s3_list_meta(sd_s3_file *f, char *buf, size_t cap,
+                        char *errbuf, size_t errcap);
+
 /* One x-amz-meta-<name>=value pair for sd_s3_set_meta. */
 typedef struct { const char *name; const char *value; } sd_s3_meta_kv;
 

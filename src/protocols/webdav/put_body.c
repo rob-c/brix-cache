@@ -118,6 +118,78 @@ webdav_digest_value_hex(ngx_http_request_t *r, const u_char *val, size_t vlen,
     return NGX_OK;
 }
 
+/* Strip leading and trailing linear whitespace from a [*s, *s+*len) slice. */
+static void
+webdav_tok_trim(u_char **s, size_t *len)
+{
+    u_char *p = *s;
+    size_t  n = *len;
+    while (n > 0 && (*p == ' ' || *p == '\t')) { p++; n--; }
+    while (n > 0 && (p[n - 1] == ' ' || p[n - 1] == '\t')) { n--; }
+    *s = p;
+    *len = n;
+}
+
+/* Match a trimmed Digest token=value pair against the supported-alg table.
+ * Returns 1 if the token names a supported alg — *out is then FOUND (with *alg
+ * and exp_hex filled) or BAD (value not valid hex) — else 0 to keep scanning. */
+static int
+webdav_digest_match(ngx_http_request_t *r, u_char *tok, size_t tlen,
+    u_char *v, size_t vlen, const char **alg, char *exp_hex, size_t exp_sz,
+    webdav_digest_kind_t *out)
+{
+    size_t ntok = sizeof(webdav_digest_tokens)
+                  / sizeof(webdav_digest_tokens[0]);
+    size_t i;
+
+    for (i = 0; i < ntok; i++) {
+        if (tlen == webdav_digest_tokens[i].toklen
+            && ngx_strncasecmp(tok,
+                   (u_char *) webdav_digest_tokens[i].tok, tlen) == 0)
+        {
+            if (webdav_digest_value_hex(r, v, vlen,
+                    webdav_digest_tokens[i].b64, exp_hex, exp_sz) != NGX_OK)
+            {
+                *out = WEBDAV_DIGEST_BAD;
+            } else {
+                *alg = webdav_digest_tokens[i].alg;
+                *out = WEBDAV_DIGEST_FOUND;
+            }
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Scan a Digest: header value (comma-separated alg=value pairs) for the first
+ * supported alg.  Returns 1 with *out set (FOUND/BAD) once a token matches, or 0
+ * if no listed token is supported (caller falls through to Content-MD5). */
+static int
+webdav_digest_scan(ngx_http_request_t *r, ngx_table_elt_t *h,
+    const char **alg, char *exp_hex, size_t exp_sz, webdav_digest_kind_t *out)
+{
+    u_char *p = h->value.data, *end = p + h->value.len;
+
+    while (p < end) {
+        u_char *comma = ngx_strlchr(p, end, ',');
+        u_char *iend  = comma ? comma : end;
+        u_char *eq    = ngx_strlchr(p, iend, '=');
+        if (eq != NULL) {
+            u_char *tok = p, *v = eq + 1;
+            size_t  tlen = eq - p, vlen = iend - (eq + 1);
+            webdav_tok_trim(&tok, &tlen);
+            webdav_tok_trim(&v, &vlen);
+            if (webdav_digest_match(r, tok, tlen, v, vlen, alg,
+                    exp_hex, exp_sz, out))
+            {
+                return 1;
+            }
+        }
+        p = comma ? comma + 1 : end;
+    }
+    return 0;
+}
+
 /* Pick the first supported digest from Digest: (RFC 3230) then Content-MD5:. On
  * WEBDAV_DIGEST_FOUND, *alg points at a static alg name and exp_hex holds the
  * client-asserted value as lowercase hex. Unsupported Digest tokens are skipped
@@ -127,43 +199,14 @@ static webdav_digest_kind_t
 webdav_digest_select(ngx_http_request_t *r, const char **alg,
     char *exp_hex, size_t exp_sz)
 {
-    ngx_table_elt_t *h;
-    size_t           ntok = sizeof(webdav_digest_tokens)
-                            / sizeof(webdav_digest_tokens[0]);
+    ngx_table_elt_t      *h;
+    webdav_digest_kind_t  kind;
 
     h = brix_http_find_header(r, "Digest", sizeof("Digest") - 1);
-    if (h != NULL && h->value.len > 0) {
-        u_char *p = h->value.data, *end = p + h->value.len;
-        while (p < end) {
-            u_char *comma = ngx_strlchr(p, end, ',');
-            u_char *iend  = comma ? comma : end;
-            u_char *eq    = ngx_strlchr(p, iend, '=');
-            if (eq != NULL) {
-                u_char *tok = p, *v = eq + 1;
-                size_t  tlen = eq - p, vlen = iend - (eq + 1);
-                size_t  i;
-                while (tlen > 0 && (*tok == ' ' || *tok == '\t')) { tok++; tlen--; }
-                while (tlen > 0 && (tok[tlen-1] == ' ' || tok[tlen-1] == '\t')) { tlen--; }
-                while (vlen > 0 && (*v == ' ' || *v == '\t')) { v++; vlen--; }
-                while (vlen > 0 && (v[vlen-1] == ' ' || v[vlen-1] == '\t')) { vlen--; }
-                for (i = 0; i < ntok; i++) {
-                    if (tlen == webdav_digest_tokens[i].toklen
-                        && ngx_strncasecmp(tok,
-                               (u_char *) webdav_digest_tokens[i].tok, tlen) == 0)
-                    {
-                        if (webdav_digest_value_hex(r, v, vlen,
-                                webdav_digest_tokens[i].b64, exp_hex, exp_sz)
-                            != NGX_OK)
-                        {
-                            return WEBDAV_DIGEST_BAD;
-                        }
-                        *alg = webdav_digest_tokens[i].alg;
-                        return WEBDAV_DIGEST_FOUND;
-                    }
-                }
-            }
-            p = comma ? comma + 1 : end;
-        }
+    if (h != NULL && h->value.len > 0
+        && webdav_digest_scan(r, h, alg, exp_hex, exp_sz, &kind))
+    {
+        return kind;
     }
 
     h = brix_http_find_header(r, "Content-MD5", sizeof("Content-MD5") - 1);

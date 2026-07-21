@@ -120,7 +120,8 @@ BACKEND := $(REPO)/src/fs/backend
 # nginx-coupled and #ifdef'd out under -DXRDPROTO_NO_NGX; sd_s3_write.c is
 # ngx-free and IS needed here for sd_s3_abort et al.)
 BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_posix_io.o $(BUILD)/sd_block.o \
-                $(BUILD)/sd_s3.o $(BUILD)/sd_s3_sign.o $(BUILD)/sd_s3_write.o $(BUILD)/meta_advisory.o
+                $(BUILD)/sd_s3.o $(BUILD)/sd_s3_sign.o $(BUILD)/sd_s3_write.o \
+                $(BUILD)/sd_s3_meta.o $(BUILD)/meta_advisory.o
 # ZIP central-directory parsing kernel (src/protocols/root/zip/zip_kernel.c): the pure-C,
 # callback-driven, bounds-checked EOCD/ZIP64 parser shared with the module's
 # src/protocols/root/zip. No nginx / OpenSSL / fixed I/O source — the client's clean-room ZIP
@@ -198,6 +199,8 @@ $(BUILD)/sd_s3.o: $(BACKEND)/s3/sd_s3.c | $(BUILD)
 $(BUILD)/sd_s3_sign.o: $(BACKEND)/s3/sd_s3_sign.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/sd_s3_write.o: $(BACKEND)/s3/sd_s3_write.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/sd_s3_meta.o: $(BACKEND)/s3/sd_s3_meta.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/meta_advisory.o: $(BACKEND)/meta_advisory.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@

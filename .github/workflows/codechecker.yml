@@ -39,7 +39,7 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           NGX_BUILD=/tmp/nginx-1.28.3 \
-            tools/ci/run_codechecker.sh 2>&1 | tee /tmp/codechecker-report.txt
+            tools/ci/run_codechecker.py 2>&1 | tee /tmp/codechecker-report.txt
       - name: Upload findings
         if: always()
         uses: actions/upload-artifact@v4

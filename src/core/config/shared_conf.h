@@ -674,8 +674,14 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     }
     ngx_conf_merge_uint_value(conf->stage_flush_async, prev->stage_flush_async, 0);
     ngx_conf_merge_off_value(conf->cache_max_object, prev->cache_max_object, 0);
-    ngx_conf_merge_uint_value(conf->cache_evict_at, prev->cache_evict_at, 90);
-    ngx_conf_merge_uint_value(conf->cache_evict_to, prev->cache_evict_to, 80);
+    /* evict_at/evict_to stay UNSET through the merge (inherit-only): the
+     * stream reaper merge must tell an explicit percent pair (which seeds the
+     * watermark reaper) apart from the documented 90/80 defaults — those are
+     * normalised into the tier policy at brix_tier_register_cache_store. */
+    ngx_conf_merge_uint_value(conf->cache_evict_at, prev->cache_evict_at,
+                              NGX_CONF_UNSET_UINT);
+    ngx_conf_merge_uint_value(conf->cache_evict_to, prev->cache_evict_to,
+                              NGX_CONF_UNSET_UINT);
     ngx_conf_merge_uint_value(conf->cache_meta_mode, prev->cache_meta_mode, 0);
     ngx_conf_merge_uint_value(conf->cache_batch_cinfo, prev->cache_batch_cinfo, 2);
     ngx_conf_merge_size_value(conf->cache_index_cache, prev->cache_index_cache, 0);

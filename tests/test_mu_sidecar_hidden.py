@@ -31,6 +31,7 @@ _INTERNAL = [                            # must all be invisible
     "keep.dat.cinfo",
     "keep.dat.meta",
     "keep.dat.xrdcinfo",
+    "keep.dat.xrdt",                     # XrdOssCsi per-page tag sidecar (interop)
     "keep.dat.xrd-tmp.7.9",
     "keep.dat.xrdresume.abcd1234.part",
     "note.commit",

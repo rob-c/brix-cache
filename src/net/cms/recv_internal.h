@@ -41,6 +41,20 @@
  * ignored.  Returns NGX_OK, or NGX_ERROR if a handler signalled a fatal error. */
 ngx_int_t ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx);
 
+/* Wake the suspended XRootD client parked on a pending locate (streamid keys
+ * the per-worker pending table): validate host, redirect, resume reading.
+ * Shared by the two ingest paths that resolve a parked locate — kYR_select/
+ * kYR_try from a parent manager (recv_frame.c) and kYR_have from a child node
+ * (server_recv_frame.c, Phase-89 W3 state fan-out).  Safe no-op when the
+ * streamid is no longer pending (timeout already woke the client). */
+ngx_int_t brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
+    const char *host, uint16_t port);
+
+/* Resolve a saved client fd to its live connection (NULL if gone).  The caller
+ * must still recycle-guard with the saved c->number.  Shared by the locate wake
+ * (recv_frame.c) and the Phase-89 W8 fan-out finalizer (fanout.c). */
+ngx_connection_t *brix_cms_client_conn_by_fd(int fd);
+
 /* ---- recv_forward.c — Plane-B forwarded namespace-op executor ---- */
 
 /* Execute a manager-forwarded namespace op (kYR_chmod/mkdir/mkpath/mv/rm/rmdir/
@@ -49,6 +63,16 @@ ngx_int_t ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx);
  * takes the kernel-confined *_beneath path.  Replies silent-on-success /
  * kYR_error-on-failure.  Returns the send result (NGX_OK / NGX_ERROR). */
 ngx_int_t cms_node_exec_forward(ngx_brix_cms_ctx_t *ctx, u_char code,
+    uint32_t streamid, const u_char *payload, size_t plen);
+
+/* ---- recv_prepare.c — forwarded staging ops (Phase-89 W2) ---- */
+
+/* Execute a manager-forwarded staging op (kYR_prepadd/kYR_prepdel): prepadd
+ * admits the path into the durable stage-request registry and records the
+ * manager's reqid in the ADR-2b sidecar map; prepdel consumes the mapping and
+ * deletes the registry row (idempotent).  Silent on success, kYR_error on a
+ * refused/undecodable prepadd. */
+ngx_int_t cms_node_exec_prepare(ngx_brix_cms_ctx_t *ctx, u_char code,
     uint32_t streamid, const u_char *payload, size_t plen);
 
 #endif /* BRIX_CMS_RECV_INTERNAL_H */

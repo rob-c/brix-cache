@@ -1,67 +1,78 @@
-"""Static source-tree guards (no nginx required).
+"""Static source-tree guards (no nginx, and no bash — pure-Python ports).
 
-Wraps the tools/ci shell guards so they run in the normal pytest gate:
+The `tools/ci/*.py` guards are the CI / pre-push copies
+(`.github/workflows/guards.yml`); the fleet was ported `.sh` -> `.py` on
+2026-07-21 and no bash remains. This module asserts each guard's verdict via
+its in-process `source_guards_lib` twin (fast, and able to drive injected
+trees for the negative cases below); `test_ci_guards.py` additionally executes
+the real `tools/ci/*.py` scripts end-to-end. Guards covered here:
 
-- check_config_coverage.sh — every non-unittest ``.c`` under ``src/`` is
-  either compiled via the repo-root ``./config`` or on a reasoned allowlist;
-  stale ``./config`` entries and stale allowlist rows also fail.
-- check_http_helper_reimpl.sh — protocol/observability handlers must not
-  regrow private copies of the shared HTTP helpers in ``src/core/http/``
-  (raw header-scan loops, local precondition logic, hand-rolled ETags).
-- check_metric_cardinality.sh — Prometheus exporters must only interpolate
-  metric-label values under a curated low-cardinality vocabulary (INVARIANT
-  #8); a per-request-unbounded label value (path/user/DN/IP) is refused.
+- config_coverage — every non-unittest ``.c`` under ``src/`` is compiled via the
+  repo-root ``./config`` or on a reasoned allowlist; stale ``./config`` entries
+  and stale allowlist rows also fail.
+- http_helper_reimpl — protocol/observability handlers must not regrow private
+  copies of the shared HTTP helpers in ``src/core/http/`` (raw header-scan loops,
+  local precondition logic, hand-rolled ETags).
+- metric_cardinality — Prometheus exporters may only interpolate metric-label
+  values under a curated low-cardinality vocabulary (INVARIANT #8); a
+  per-request-unbounded label value (path/user/DN/IP) is refused.
+- auth_verdict_sentinel — ``login.auth_done = 1`` (the AUTHENTICATED verdict) may
+  be raised only by a credential handler / session login-bind path (C-3).
+- todo_fixme — no source file gains a new TODO/FIXME/XXX/HACK marker over its
+  frozen count (deferred-work ratchet, QUALITY_ROADMAP §3.7).
+- complexity — no function under ``src/``/``client/`` crosses the CCN 15 cap
+  unless grandfathered in ``complexity_backlog.txt`` (McCabe ratchet,
+  QUALITY_ROADMAP §1). Skipped when the ``lizard`` analyzer is not installed;
+  CI pip-installs it before the run.
 """
 
-import subprocess
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+import source_guards_lib as g
 
-MC_GUARD = ROOT / "tools" / "ci" / "check_metric_cardinality.sh"
-
-
-def _run_guard(script_name: str) -> None:
-    script = ROOT / "tools" / "ci" / script_name
-    result = subprocess.run(
-        [str(script)], cwd=ROOT, capture_output=True, text=True
-    )
-    assert result.returncode == 0, (
-        f"{script_name} failed:\n{result.stdout}{result.stderr}"
-    )
+# Zero-arg guards asserted against the real tree.
+_REAL_TREE_GUARDS = {
+    "config_coverage": g.config_coverage,
+    "http_helper_reimpl": g.http_helper_reimpl,
+    "metric_cardinality": g.metric_cardinality,
+    "auth_verdict_sentinel": g.auth_verdict_sentinel,
+    "todo_fixme": g.todo_fixme,
+}
 
 
-@pytest.mark.parametrize(
-    "script",
-    [
-        "check_config_coverage.sh",
-        "check_http_helper_reimpl.sh",
-        "check_metric_cardinality.sh",
-        "check_auth_verdict_sentinel.sh",
-    ],
-)
-def test_source_guard(script: str) -> None:
-    _run_guard(script)
+@pytest.mark.parametrize("name", sorted(_REAL_TREE_GUARDS))
+def test_source_guard(name: str) -> None:
+    ok, msgs = _REAL_TREE_GUARDS[name]()
+    assert ok, f"{name} failed:\n" + "\n".join(msgs)
 
 
-# --- check_auth_verdict_sentinel.sh · C-3 verdict-sentinel discipline ---------
+# --- complexity (CCN 15) ratchet · lizard-gated -------------------------------
 #
-# The parametrized case above proves the REAL tree is clean (every
-# `login.auth_done = 1` sits in a sanctioned auth setter).  These two inject a
-# synthetic src tree so we can assert the guard's verdict directly: the flag that
-# marks a session AUTHENTICATED may only be raised by a credential handler /
-# session login-bind path — a proxy/dispatch/op file that raises it is refused.
-
-_AV_GUARD = ROOT / "tools" / "ci" / "check_auth_verdict_sentinel.sh"
-_SETTER = "void f(void) {{ ctx->login.auth_done = 1; }}\n"
+# Same lizard-backed gate the CI guards.yml step runs, so a new over-cap function
+# (or one grown past its frozen ceiling) reddens the local pytest loop too. Skip
+# when lizard is absent rather than hard-fail — CI pip-installs it first.
 
 
-def _run_av(scan_dir: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [str(_AV_GUARD), str(scan_dir)], cwd=ROOT, capture_output=True, text=True
-    )
+@pytest.mark.skipif(
+    not g.lizard_available(),
+    reason="lizard not installed (pip install --user lizard)",
+)
+def test_complexity_ratchet() -> None:
+    ok, msgs = g.complexity()
+    assert ok, "complexity ratchet failed:\n" + "\n".join(msgs)
+
+
+# --- check_auth_verdict_sentinel · injected-tree behaviour --------------------
+#
+# The parametrized case proves the REAL tree is clean (every `login.auth_done =
+# 1` sits in a sanctioned setter). These two inject a synthetic tree to assert
+# the verdict directly: the AUTHENTICATED flag may be raised only by a credential
+# handler / session login-bind path — a proxy/dispatch/op file that raises it is
+# refused.
+
+_SETTER = "void f(void) { ctx->login.auth_done = 1; }\n"
 
 
 def test_auth_verdict_sanctioned_setter_passes(tmp_path: Path) -> None:
@@ -69,8 +80,8 @@ def test_auth_verdict_sanctioned_setter_passes(tmp_path: Path) -> None:
     f = tmp_path / "auth" / "gsi" / "auth.c"
     f.parent.mkdir(parents=True)
     f.write_text(_SETTER)
-    r = _run_av(tmp_path)
-    assert r.returncode == 0, r.stdout + r.stderr
+    ok, msgs = g.auth_verdict_sentinel(tmp_path)
+    assert ok, msgs
 
 
 def test_auth_verdict_rogue_setter_fails(tmp_path: Path) -> None:
@@ -79,16 +90,16 @@ def test_auth_verdict_rogue_setter_fails(tmp_path: Path) -> None:
     f = tmp_path / "net" / "proxy" / "connect_upstream.c"
     f.parent.mkdir(parents=True)
     f.write_text(_SETTER)
-    r = _run_av(tmp_path)
-    assert r.returncode == 1, r.stdout + r.stderr
-    assert "net/proxy/connect_upstream.c" in r.stdout
+    ok, msgs = g.auth_verdict_sentinel(tmp_path)
+    assert not ok
+    assert any("net/proxy/connect_upstream.c" in m for m in msgs)
 
 
-# --- check_metric_cardinality.sh · injected-fixture behaviour -----------------
+# --- check_metric_cardinality · injected-fixture behaviour --------------------
 #
-# Point the guard at a scratch dir so we can assert its verdict on synthetic
-# exporter sources without touching the real tree (the parametrized case above
-# already proves the real tree is clean).
+# Point the guard at a scratch dir to assert its verdict on synthetic exporter
+# sources without touching the real tree (the parametrized case proves the real
+# tree is clean).
 
 _EMIT = (
     "static void emit(metrics_writer_t *mw) {{\n"
@@ -97,25 +108,19 @@ _EMIT = (
 )
 
 
-def _run_mc(scan_dir: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [str(MC_GUARD), str(scan_dir)], cwd=ROOT, capture_output=True, text=True
-    )
-
-
 def test_metric_cardinality_approved_label_passes(tmp_path: Path) -> None:
     """An enum-valued label from the curated vocabulary is accepted."""
     (tmp_path / "ok.c").write_text(_EMIT.format(label="proto", tail=""))
-    r = _run_mc(tmp_path)
-    assert r.returncode == 0, r.stdout + r.stderr
+    ok, msgs = g.metric_cardinality(tmp_path)
+    assert ok, msgs
 
 
 def test_metric_cardinality_path_label_fails(tmp_path: Path) -> None:
     """SECURITY-NEG: a per-request path-valued label trips the guard."""
     (tmp_path / "evil.c").write_text(_EMIT.format(label="path", tail=""))
-    r = _run_mc(tmp_path)
-    assert r.returncode == 1, r.stdout + r.stderr
-    assert "path" in r.stderr and "INVARIANT #8" in r.stderr
+    ok, msgs = g.metric_cardinality(tmp_path)
+    assert not ok
+    assert any("path" in m for m in msgs)
 
 
 def test_metric_cardinality_marker_overrides(tmp_path: Path) -> None:
@@ -125,5 +130,5 @@ def test_metric_cardinality_marker_overrides(tmp_path: Path) -> None:
             label="user", tail=" /* metric-cardinality-allow: bounded set */"
         )
     )
-    r = _run_mc(tmp_path)
-    assert r.returncode == 0, r.stdout + r.stderr
+    ok, msgs = g.metric_cardinality(tmp_path)
+    assert ok, msgs

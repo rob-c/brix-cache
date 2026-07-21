@@ -14,6 +14,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +125,80 @@ pblock_parse_size(const char *val, size_t vlen)
     return n;
 }
 
+/* A boolean opts token is true when present with no value, or with a value whose
+ * first byte is not a falsey sentinel (0 / n / f — i.e. 0, no, false). The
+ * `vlen == 0` short-circuit keeps val[0] out of bounds when there is no value. */
+static int
+opts_truthy(const char *val, size_t vlen)
+{
+    return vlen == 0 || (val[0] != '0' && val[0] != 'n' && val[0] != 'f');
+}
+
+/* opts_apply_flag — the boolean feature toggles, table-driven: name → the int
+ * field it sets.  Returns 1 iff KEY named one of them (and it was applied). */
+static int
+opts_apply_flag(pblock_opts_t *out, const char *key, size_t klen,
+    const char *val, size_t vlen)
+{
+    static const struct { const char *n; size_t off; } flags[] = {
+        { "lab",      offsetof(pblock_opts_t, lab) },        /* master gate */
+        { "mem",      offsetof(pblock_opts_t, mem) },        /* F16 */
+        { "audit",    offsetof(pblock_opts_t, audit) },      /* F17 */
+        { "csi",      offsetof(pblock_opts_t, csi) },        /* F3  */
+        { "nearline", offsetof(pblock_opts_t, nearline) },   /* F4  */
+        { "locks",    offsetof(pblock_opts_t, locks) },      /* F15 */
+        { "dedup",    offsetof(pblock_opts_t, dedup) },      /* F10 */
+        { "snap",     offsetof(pblock_opts_t, snapshots) },  /* F6  */
+        { "trash",    offsetof(pblock_opts_t, trash) },      /* F11 */
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
+        if (strlen(flags[i].n) == klen && memcmp(flags[i].n, key, klen) == 0) {
+            *(int *) ((char *) out + flags[i].off) = opts_truthy(val, vlen);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* opts_apply_xform — F12/F13 transform spec ("crypt:<keyfile>"/"zstd"); copied
+ * into the fixed buffer, EINVAL if it would not fit. */
+static int
+opts_apply_xform(pblock_opts_t *out, const char *val, size_t vlen)
+{
+    if (vlen >= sizeof(out->xform)) {
+        errno = EINVAL;
+        return -1;
+    }
+    memcpy(out->xform, val, vlen);
+    out->xform[vlen] = '\0';
+    out->xform_len   = vlen;
+    return 0;
+}
+
+/* opts_apply_scalar — the non-boolean keys (sizes, counts, caps, xform).
+ * Unknown keys are ignored for later-wave forward-compat. */
+static int
+opts_apply_scalar(pblock_opts_t *out, const char *key, size_t klen,
+    const char *val, size_t vlen)
+{
+    if (klen == 5 && memcmp(key, "quota", 5) == 0) {
+        out->quota_bytes = pblock_parse_size(val, vlen);         /* F5  */
+    } else if (klen == 12 && memcmp(key, "quota_inodes", 12) == 0) {
+        out->quota_inodes = pblock_parse_size(val, vlen);        /* F5  */
+    } else if (klen == 8 && memcmp(key, "versions", 8) == 0) {
+        out->versions = (int) pblock_parse_size(val, vlen);      /* F11 */
+    } else if (klen == 9 && memcmp(key, "trash_ttl", 9) == 0) {
+        out->trash_ttl = pblock_parse_size(val, vlen);           /* F11 */
+    } else if (klen == 4 && memcmp(key, "caps", 4) == 0) {
+        return opts_parse_caps(val, vlen, out);                  /* F2  */
+    } else if (klen == 5 && memcmp(key, "xform", 5) == 0) {
+        return opts_apply_xform(out, val, vlen);                 /* F12/F13 */
+    }
+    return 0;
+}
+
 int
 pblock_opts_parse(const char *query, pblock_opts_t *out)
 {
@@ -133,65 +208,20 @@ pblock_opts_parse(const char *query, pblock_opts_t *out)
     if (query == NULL) {
         return 0;
     }
-    p = query;
-    while (*p != '\0') {
-        const char *amp = strchr(p, '&');
+    for (p = query; *p != '\0'; ) {
+        const char *amp    = strchr(p, '&');
         const char *kv_end = amp ? amp : p + strlen(p);
-        const char *eq = memchr(p, '=', (size_t) (kv_end - p));
-        const char *key = p;
-        size_t      klen = eq ? (size_t) (eq - p) : (size_t) (kv_end - p);
-        const char *val = eq ? eq + 1 : kv_end;
-        size_t      vlen = eq ? (size_t) (kv_end - (eq + 1)) : 0;
+        const char *eq     = memchr(p, '=', (size_t) (kv_end - p));
+        const char *key    = p;
+        size_t      klen   = eq ? (size_t) (eq - p) : (size_t) (kv_end - p);
+        const char *val    = eq ? eq + 1 : kv_end;
+        size_t      vlen   = eq ? (size_t) (kv_end - (eq + 1)) : 0;
 
-        if (klen == 3 && memcmp(key, "lab", 3) == 0) {
-            out->lab = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                       && val[0] != 'f'));
-        } else if (klen == 3 && memcmp(key, "mem", 3) == 0) {
-            out->mem = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                       && val[0] != 'f'));
-        } else if (klen == 5 && memcmp(key, "audit", 5) == 0) {
-            out->audit = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                         && val[0] != 'f'));
-        } else if (klen == 3 && memcmp(key, "csi", 3) == 0) {
-            out->csi = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                       && val[0] != 'f'));
-        } else if (klen == 5 && memcmp(key, "quota", 5) == 0) {
-            out->quota_bytes = pblock_parse_size(val, vlen);     /* F5 */
-        } else if (klen == 12 && memcmp(key, "quota_inodes", 12) == 0) {
-            out->quota_inodes = pblock_parse_size(val, vlen);    /* F5 */
-        } else if (klen == 5 && memcmp(key, "locks", 5) == 0) {
-            out->locks = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                         && val[0] != 'f'));  /* F15 */
-        } else if (klen == 5 && memcmp(key, "dedup", 5) == 0) {
-            out->dedup = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                         && val[0] != 'f'));  /* F10 */
-        } else if (klen == 4 && memcmp(key, "snap", 4) == 0) {
-            out->snapshots = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                             && val[0] != 'f'));  /* F6 */
-        } else if (klen == 8 && memcmp(key, "versions", 8) == 0) {
-            out->versions = (int) pblock_parse_size(val, vlen);  /* F11 */
-        } else if (klen == 5 && memcmp(key, "trash", 5) == 0) {
-            out->trash = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                         && val[0] != 'f'));  /* F11 */
-        } else if (klen == 9 && memcmp(key, "trash_ttl", 9) == 0) {
-            out->trash_ttl = pblock_parse_size(val, vlen);   /* F11 */
-        } else if (klen == 8 && memcmp(key, "nearline", 8) == 0) {
-            out->nearline = (vlen == 0 || (val[0] != '0' && val[0] != 'n'
-                                            && val[0] != 'f'));  /* F4 */
-        } else if (klen == 4 && memcmp(key, "caps", 4) == 0) {
-            if (opts_parse_caps(val, vlen, out) != 0) {
-                return -1;
-            }
-        } else if (klen == 5 && memcmp(key, "xform", 5) == 0) {  /* F12/F13 */
-            if (vlen >= sizeof(out->xform)) {
-                errno = EINVAL;
-                return -1;
-            }
-            memcpy(out->xform, val, vlen);
-            out->xform[vlen] = '\0';
-            out->xform_len   = vlen;
+        if (!opts_apply_flag(out, key, klen, val, vlen)
+            && opts_apply_scalar(out, key, klen, val, vlen) != 0)
+        {
+            return -1;
         }
-        /* unknown keys ignored (later-wave forward-compat) */
         p = amp ? amp + 1 : kv_end;
     }
     return 0;

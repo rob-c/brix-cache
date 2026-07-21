@@ -21,7 +21,7 @@ out of its export, and does not grow new bypasses as the code evolves.*
   symlink-escape routes. (`src/fs/path/beneath.h`,
   `src/fs/path/resolve_confined_helpers.c`)
 - **One storage seam, mechanically enforced.** All raw file I/O lives in
-  `src/fs/backend/` behind the VFS; `tools/ci/check_vfs_seam.sh` fails the
+  `src/fs/backend/` behind the VFS; `tools/ci/check_vfs_seam.py` fails the
   build if a handler reaches around it, so confinement and identity checks
   cannot be bypassed by new code.
 - **Hardened builds by default.** `-Werror` with `printf`-format attributes
@@ -73,7 +73,7 @@ failure mode, fix it, write it down, pin it with a regression test.*
   BriX-Cache and the reference XRootD implementation
   (`TEST_CROSS_BACKEND`).
 - Five standing CI guards keep the architecture from eroding between
-  releases: `tools/ci/check_vfs_seam.sh`, `check_config_coverage.sh`,
+  releases: `tools/ci/check_vfs_seam.py`, `check_config_coverage.sh`,
   `check_http_helper_reimpl.sh`, `check_file_size.sh`,
   `check_sd_driver_conformance.sh`.
 

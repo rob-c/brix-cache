@@ -230,3 +230,35 @@ def test_require_never_serves_corrupted_fill(lifecycle, tmp_path):
                 assert _delivered(rc, healed, ref), (
                     f"after a corrupted fill + healed link, verify=require did "
                     f"not recover to byte-exact (rc={rc}): {err[-300:]}")
+
+
+# --- 4 PRODUCER (phase-88 loose end: xrdckverify --cache) ----------------------
+
+def test_verified_fill_records_checksum_for_xrdckverify(lifecycle, tmp_path):
+    """A digest-verified fill must PERSIST the matched (alg, hex) into the cache
+    file's xmeta ORIGIN section, giving `xrdckverify --cache` a producer: the
+    cached bytes verify OFFLINE against the recorded checksum with exit 0."""
+    if _SKIP:
+        pytest.skip(_SKIP)
+    with XrootdAnon(chksum="adler32") as origin:
+        ref = _md5(seed_file(origin.data, "/big.bin", FILE_BYTES))
+        with _cache(lifecycle, tmp_path,
+                    f"root://{HOST}:{origin.port}", "require", "ckv") as url:
+            out = str(tmp_path / "ckv.bin")
+            rc, err = _xrdcp(url, out)
+            assert _delivered(rc, out, ref), (
+                f"verified fill did not deliver (rc={rc}): {err[-300:]}")
+
+        cache_dir = tmp_path / "cache_ckv"
+        data = [p for p in cache_dir.rglob("*")
+                if p.is_file()
+                and not p.name.endswith((".cinfo", ".meta", ".lock"))
+                and p.stat().st_size == FILE_BYTES]
+        assert data, f"no cached data file of {FILE_BYTES}B under {cache_dir}"
+
+        ckv = os.path.join(os.path.dirname(XRDCP), "xrdckverify")
+        r = subprocess.run([ckv, "--cache", str(data[0])],
+                           capture_output=True, text=True, timeout=120)
+        assert r.returncode == 0 and "adler32" in (r.stdout + r.stderr), (
+            f"xrdckverify --cache failed (rc={r.returncode}):\n"
+            f"{r.stdout}\n{r.stderr}")

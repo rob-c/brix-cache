@@ -232,10 +232,19 @@ ssize_t sd_ceph_staged_write(brix_sd_staged_t *sh, const void *buf, size_t len,
 ngx_int_t sd_ceph_staged_commit(brix_sd_staged_t *sh, int noreplace);
 void sd_ceph_staged_abort(brix_sd_staged_t *sh);
 
+/* directory iteration — stripe-collapse listing (sd_ceph_dir.c, phase-89 §B.1) */
+brix_sd_dir_t *sd_ceph_opendir(brix_sd_instance_t *inst, const char *path,
+        int *err_out);
+ngx_int_t sd_ceph_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out);
+ngx_int_t sd_ceph_closedir(brix_sd_dir_t *d);
+
 /* object lifecycle + xattr (sd_ceph_object.c) */
 ngx_int_t sd_ceph_stat(brix_sd_instance_t *inst, const char *path,
         brix_sd_stat_t *out);
 ngx_int_t sd_ceph_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
+ngx_int_t sd_ceph_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode);
+ngx_int_t sd_ceph_rename(brix_sd_instance_t *inst, const char *src,
+        const char *dst, int noreplace);
 ssize_t sd_ceph_getxattr(brix_sd_instance_t *inst, const char *path,
         const char *name, void *buf, size_t cap);
 ssize_t sd_ceph_listxattr(brix_sd_instance_t *inst, const char *path,

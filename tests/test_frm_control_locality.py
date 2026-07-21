@@ -24,29 +24,12 @@ import urllib.request
 
 import pytest
 
+from cmdscripts import frm_stagecmd
 from settings import NGINX_BIN, HOST, BIND_HOST, free_port
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
 pytestmark = pytest.mark.uses_lifecycle_harness
-
-
-def _stagecmd(tape):
-    """Minimal exec MSS adapter: $BRIX_FRM_STAGECMD <verb> <key> <online>.  Only
-    the `exists` residency verb matters for archiveinfo (no recall is issued); the
-    tape dir is baked in (nginx rewrites its environ, so a spawned command sees
-    only argv + BRIX_FRM_STAGECMD)."""
-    return (
-        "#!/bin/bash\n"
-        'verb="$1"; key="${2#/}"; online="$3"\n'
-        f"tape='{tape}'\n"
-        'case "$verb" in\n'
-        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
-        '  recall)  mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
-        '  migrate) cp "$online" "$tape/$key" ;;\n'
-        '  purge)   rm -f "$online" ;;\n'
-        "esac\n"
-    )
 
 
 def _post(http_port, path, obj, timeout=5):
@@ -80,9 +63,11 @@ def srv(lifecycle, tmp_path):
     (tape / "near.dat").write_bytes(b"nearline bytes\n")
     # /gone.dat: nowhere — not in the online buffer, not on tape → ABSENT/NONE.
 
-    stagecmd = d / "stage.sh"
-    stagecmd.write_text(_stagecmd(str(tape)))
-    stagecmd.chmod(0o755)
+    # Exec MSS adapter — only the `exists` residency verb matters for
+    # archiveinfo (no recall is issued). Tape dir rides in a JSON sidecar
+    # (nginx rewrites its environ; a spawned command sees only argv +
+    # BRIX_FRM_STAGECMD).
+    stagecmd = frm_stagecmd.install(d, tape=str(tape))
 
     spec = NginxInstanceSpec(
         name="lc-frm-control-locality",

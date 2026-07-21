@@ -22,7 +22,16 @@
 #include <sys/socket.h>
 
 /* Built by src/upstream/bootstrap.c; pure wire framing, no client context. */
-extern void brix_upstream_build_bootstrap(u_char *buf);
+extern void brix_upstream_build_bootstrap_flags(u_char *buf,
+    uint8_t protocol_flags);
+extern void brix_upstream_build_login(ClientLoginRequest *req);
+
+#if (NGX_SSL)
+/* Shared outbound kXR_gotoTLS upgrade (src/net/upstream/tls.c, phase-22 Step F). */
+extern ngx_int_t brix_outbound_start_tls(ngx_ssl_t *ssl_ctx,
+    ngx_connection_t *c, const char *sni,
+    void (*handler)(ngx_connection_t *c));
+#endif
 
 /*
  * Probe state machine, advanced one step per complete response frame received.
@@ -49,6 +58,15 @@ typedef struct {
     ngx_log_t         *log;
     brix_hc_phase_t  phase;
     unsigned           connecting:1;  /* until TCP connect confirmed */
+    unsigned           tls:1;         /* probe upgraded to TLS (Step F) */
+    unsigned           tls_capable:1; /* advertised kXR_ableTLS -> login NOT
+                                         pipelined; sent after the protocol
+                                         verdict (plaintext or over TLS) */
+
+    /* Owning server conf — read-only; supplies the outbound TLS ctx for
+     * kXR_gotoTLS deep probes (Step F).  Lives in cycle memory, so it safely
+     * outlives the probe pool. */
+    ngx_stream_brix_srv_conf_t *conf;
 
     /* Response accumulator (mirrors brix_upstream_t). */
     u_char    rhdr[XRD_RESPONSE_HDR_LEN];
@@ -97,6 +115,9 @@ static void brix_hc_write_handler(ngx_event_t *wev);
 static void brix_hc_read_handler(ngx_event_t *rev);
 static void brix_hc_timeout_handler(ngx_event_t *ev);
 static void brix_hc_finish(brix_hc_ctx_t *hc, int passed);
+#if (NGX_SSL)
+static void brix_hc_tls_handshake_done(ngx_connection_t *c);
+#endif
 
 
 /* write side */
@@ -283,6 +304,66 @@ brix_hc_recv_frame(brix_hc_ctx_t *hc)
     return NGX_OK;
 }
 
+#if (NGX_SSL)
+/*
+ * Handshake-done callback for a Step-F TLS-upgraded probe.  Mirrors the
+ * upstream brix_upstream_tls_handshake_done(): verify the handshake (and the
+ * peer, explicitly), restore the probe's event handlers, and resend a fresh
+ * kXR_login over the TLS channel — the probe then continues LOGIN -> PROBE
+ * exactly as on cleartext.  Any failure is a probe failure: a server that
+ * demands TLS but cannot complete it cannot serve TLS clients.
+ */
+static void
+brix_hc_tls_handshake_done(ngx_connection_t *c)
+{
+    brix_hc_ctx_t     *hc = c->data;
+    ClientLoginRequest  *req;
+
+    if (!c->ssl->handshaked) {
+        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+                      "brix: health check: %s:%d TLS handshake failed",
+                      hc->host, (int) hc->port);
+        brix_hc_finish(hc, 0);
+        return;
+    }
+    if (SSL_get_verify_result(c->ssl->connection) != X509_V_OK) {
+        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
+                      "brix: health check: %s:%d TLS peer verification failed",
+                      hc->host, (int) hc->port);
+        brix_hc_finish(hc, 0);
+        return;
+    }
+
+    hc->tls = 1;
+
+    /* Restore normal event handlers (the TLS handshake replaces them). */
+    c->read->handler  = brix_hc_read_handler;
+    c->write->handler = brix_hc_write_handler;
+
+    /* Fresh kXR_login for the TLS channel (the plaintext one is discarded). */
+    req = ngx_palloc(hc->pool, sizeof(*req));
+    if (req == NULL) {
+        brix_hc_finish(hc, 0);
+        return;
+    }
+    brix_upstream_build_login(req);
+
+    hc->wbuf     = (u_char *) req;
+    hc->wbuf_len = sizeof(*req);
+    hc->wbuf_pos = 0;
+    hc->phase    = XRD_HC_LOGIN;
+
+    hc->rhdr_pos      = 0;
+    hc->resp_dlen     = 0;
+    hc->resp_body     = NULL;
+    hc->resp_body_pos = 0;
+
+    if (brix_hc_flush(hc) == NGX_ERROR) {
+        brix_hc_finish(hc, 0);
+    }
+}
+#endif /* NGX_SSL */
+
 /*
  * Consume one complete response frame and advance the probe state machine.
  * Several phases short-circuit to a verdict (alive/dead) without reaching the
@@ -315,12 +396,51 @@ brix_hc_dispatch(brix_hc_ctx_t *hc)
             uint32_t flags_be;
             ngx_memcpy(&flags_be, hc->resp_body + 4, sizeof(flags_be));
             if (ntohl(flags_be) & kXR_gotoTLS) {
+#if (NGX_SSL)
+                /* Step F: with an outbound TLS ctx configured, probe DEEP —
+                 * upgrade this connection and continue LOGIN -> PROBE over
+                 * TLS, exactly as the upstream bootstrap does (the server
+                 * discards the plaintext login pre-sent in the pipelined
+                 * bootstrap).  The probe deadline timer keeps running. */
+                if (hc->conf->upstream_tls
+                    && hc->conf->upstream_tls_ctx != NULL)
+                {
+                    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
+                        "brix: health check: %s:%d wants TLS; upgrading probe",
+                        hc->host, (int) hc->port);
+                    if (brix_outbound_start_tls(hc->conf->upstream_tls_ctx,
+                                                hc->conn, hc->host,
+                                                brix_hc_tls_handshake_done)
+                        != NGX_OK)
+                    {
+                        brix_hc_finish(hc, 0);
+                    }
+                    return;
+                }
+#endif
                 ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
                     "brix: health check: %s:%d wants TLS; "
                     "treating protocol-OK as alive", hc->host, (int) hc->port);
                 brix_hc_finish(hc, 1);
                 return;
             }
+        }
+        if (hc->tls_capable) {
+            /* No gotoTLS: send the deferred login now, in cleartext.  (A
+             * TLS-capable probe never pipelined it — see brix_hc_start.) */
+            ClientLoginRequest *req = ngx_palloc(hc->pool, sizeof(*req));
+            if (req == NULL) { brix_hc_finish(hc, 0); return; }
+            brix_upstream_build_login(req);
+            hc->wbuf          = (u_char *) req;
+            hc->wbuf_len      = sizeof(*req);
+            hc->wbuf_pos      = 0;
+            hc->phase         = XRD_HC_LOGIN;
+            hc->rhdr_pos      = 0;
+            hc->resp_dlen     = 0;
+            hc->resp_body     = NULL;
+            hc->resp_body_pos = 0;
+            if (brix_hc_flush(hc) == NGX_ERROR) { brix_hc_finish(hc, 0); }
+            return;
         }
         hc->phase = XRD_HC_LOGIN;
         break;
@@ -513,6 +633,7 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     }
     hc->pool         = pool;
     hc->log          = cycle->log;
+    hc->conf         = conf;
     hc->phase        = XRD_HC_HANDSHAKE;
     hc->probe_type   = conf->hc.type;
     hc->threshold    = (uint32_t) conf->hc.threshold;
@@ -564,7 +685,21 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     c->read->log = c->write->log = cycle->log;
     hc->conn = c;
 
-    /* Pipelined bootstrap: handshake + protocol + login. */
+    /* Step F: with an outbound TLS ctx the probe can complete a kXR_gotoTLS
+     * upgrade, so advertise kXR_ableTLS — a brix server only answers gotoTLS
+     * to TLS-capable clients (it lets others finish in cleartext, which would
+     * silently skip the deep-probe path).  A TLS-capable probe must NOT
+     * pipeline the plaintext login behind the protocol request: on gotoTLS
+     * the server hands every pending cleartext byte to the TLS layer, and a
+     * pre-sent login corrupts the handshake ("packet length too long").  So
+     * it sends handshake + protocol only and defers login until the protocol
+     * verdict.  Without a ctx the flag byte stays 0 and the full pipelined
+     * bootstrap is byte-identical to pre-Step-F probes. */
+#if (NGX_SSL)
+    hc->tls_capable = (conf->upstream_tls && conf->upstream_tls_ctx != NULL);
+#endif
+    /* Always allocate (and build) all three frames; wbuf_len truncates the
+     * SEND to handshake + protocol for a TLS-capable probe. */
     bslen = XRD_HANDSHAKE_LEN + sizeof(ClientProtocolRequest)
           + sizeof(ClientLoginRequest);
     hc->wbuf = ngx_palloc(pool, bslen);
@@ -573,8 +708,10 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
         brix_hc_finish(hc, 0);
         return;
     }
-    brix_upstream_build_bootstrap(hc->wbuf);
-    hc->wbuf_len = bslen;
+    brix_upstream_build_bootstrap_flags(hc->wbuf,
+                                        hc->tls_capable ? kXR_ableTLS : 0);
+    hc->wbuf_len = hc->tls_capable
+                   ? bslen - sizeof(ClientLoginRequest) : bslen;
     hc->wbuf_pos = 0;
 
     /* Single deadline for the whole probe. */

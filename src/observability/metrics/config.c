@@ -1,5 +1,6 @@
 #include "core/config/config.h"
 #include "core/compat/shm_slots.h"
+#include "core/fnv.h"
 
 /*
  * WHAT: Configure the Prometheus metrics shared-memory zone and assign per-listener slots.
@@ -108,7 +109,7 @@ static uint64_t
 fnv1a64_file(ngx_str_t *path, ngx_log_t *log)
 {
     u_char     buf[4096];
-    uint64_t   h = 0xcbf29ce484222325ULL;   /* FNV offset basis (64-bit) */
+    uint64_t   h = BRIX_FNV1A64_OFFSET_BASIS;
     ngx_fd_t   fd;
     ssize_t    n;
     size_t     i;
@@ -132,7 +133,7 @@ fnv1a64_file(ngx_str_t *path, ngx_log_t *log)
         }
         for (i = 0; i < (size_t) n; i++) {
             h ^= (uint64_t) buf[i];
-            h *= 0x100000001b3ULL;           /* FNV prime (64-bit) */
+            h *= BRIX_FNV1A64_PRIME;
         }
     }
 

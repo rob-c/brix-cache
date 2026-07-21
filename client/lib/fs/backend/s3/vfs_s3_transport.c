@@ -56,6 +56,15 @@ s3t_resp_header(const brix_s3_resp_t *resp, const char *name,
                             name, out, outcap) == 1 ? 0 : -1;
 }
 
+/* Raw header block for enumeration (generic x-amz-meta-* listxattr). */
+static const char *
+s3t_resp_headers_raw(const brix_s3_resp_t *resp)
+{
+    const brix_http_resp *r = (const brix_http_resp *) resp->opaque;
+
+    return (r != NULL) ? r->headers : NULL;
+}
+
 static const void *
 s3t_resp_body(const brix_s3_resp_t *resp, size_t *len)
 {
@@ -79,6 +88,7 @@ s3t_resp_free(brix_s3_resp_t *resp)
 const brix_s3_transport_t brix_s3_http_transport = {
     .request     = s3t_request,
     .resp_header = s3t_resp_header,
+    .resp_headers_raw = s3t_resp_headers_raw,
     .resp_body   = s3t_resp_body,
     .resp_free   = s3t_resp_free,
 };

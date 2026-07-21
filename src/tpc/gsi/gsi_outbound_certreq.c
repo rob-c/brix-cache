@@ -260,12 +260,13 @@ tpc_certreq_build_send(brix_tpc_pull_t *t, int fd,
     if (crypto[0] == '\0') {
         ngx_memcpy(crypto, "ssl", 4);
     }
-    /* Advertise a pre-DHsigned version (< XrdSecgsiVersDHsigned=10400) so the
-     * source uses the simpler UNSIGNED DH path — it sends its DH public as a
-     * plain kXRS_puk blob, which gsi_outbound_exchange.c implements (it does
-     * NOT handle the signed-DH kXRS_cipher path the native client supports).
-     * Proof-of-possession is still enforced (we sign the server rtag below). */
-    version = 10300;
+    /* Advertise the signed-DH generation (>= XrdSecgsiVersDHsigned=10400):
+     * the shared cert-response kernel (gsi_core_cresp.c) auto-detects whether
+     * the source answers with a signed kXRS_cipher or a plain kXRS_puk, so
+     * both variants work — same 10600 the origin-fill leg (origin_auth.c) and
+     * the native client (sec_gsi.c) already advertise. Signed DH lets the
+     * source bind its DH public under its RSA key instead of sending it bare. */
+    version = 10600;
 
     if (!brix_gsi_rand(t->gsi_rtag, sizeof(t->gsi_rtag))) {
         snprintf(t->err_msg, sizeof(t->err_msg), "TPC GSI RNG failed");

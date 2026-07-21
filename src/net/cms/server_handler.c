@@ -119,6 +119,67 @@ brix_cms_srv_ip_dec(const char *ip)
 }
 
 /*
+ * Phase-89 W3: per-worker list of logged-in node connections + the streamid
+ * generator for manager-initiated kYR_state probes.  Same encapsulation
+ * pattern as the WS4 counter above (event-loop only, no locking).  The list
+ * is a compact array: del swaps the tail into the hole, so positions are
+ * stable only within one event-handler invocation — exactly the fan-out
+ * loop's needs.  Capacity mirrors the registry (a worker cannot usefully own
+ * more registered nodes than the registry holds); on overflow the connection
+ * simply stays out of the fan-out set (registration itself is unaffected).
+ */
+static brix_cms_srv_ctx_t  *brix_cms_srv_nodes[BRIX_SRV_REGISTRY_SLOTS];
+static ngx_uint_t           brix_cms_srv_nnodes;
+static uint32_t             brix_cms_srv_streamid_seq;
+
+void
+brix_cms_srv_node_add(brix_cms_srv_ctx_t *ctx)
+{
+    if (ctx == NULL || ctx->in_node_list
+        || brix_cms_srv_nnodes >= BRIX_SRV_REGISTRY_SLOTS)
+    {
+        return;
+    }
+    brix_cms_srv_nodes[brix_cms_srv_nnodes++] = ctx;
+    ctx->in_node_list = 1;
+}
+
+void
+brix_cms_srv_node_del(brix_cms_srv_ctx_t *ctx)
+{
+    ngx_uint_t  i;
+
+    if (ctx == NULL || !ctx->in_node_list) {
+        return;
+    }
+    for (i = 0; i < brix_cms_srv_nnodes; i++) {
+        if (brix_cms_srv_nodes[i] == ctx) {
+            brix_cms_srv_nodes[i] = brix_cms_srv_nodes[--brix_cms_srv_nnodes];
+            break;
+        }
+    }
+    ctx->in_node_list = 0;
+}
+
+ngx_uint_t
+brix_cms_srv_node_count(void)
+{
+    return brix_cms_srv_nnodes;
+}
+
+brix_cms_srv_ctx_t *
+brix_cms_srv_node_at(ngx_uint_t i)
+{
+    return (i < brix_cms_srv_nnodes) ? brix_cms_srv_nodes[i] : NULL;
+}
+
+uint32_t
+brix_cms_srv_next_streamid(void)
+{
+    return 0x80000000u | ++brix_cms_srv_streamid_seq;
+}
+
+/*
  * server_handler.c — CMS server connection handler
  *
  * WHAT: Accepts TCP connections from the XRootD CMS manager and maintains a

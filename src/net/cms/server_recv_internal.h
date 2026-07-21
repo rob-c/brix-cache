@@ -54,6 +54,11 @@ int cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
 /* Extract free_mb from a LOAD payload (PT_SHORT count, 6 CPU bytes, PT_INT). */
 uint32_t cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len);
 
+/* Phase-89 W4: machine-load % from the LOAD theLoad bytes (max of the 5
+ * non-dsk bytes, clamped to 100; short payload = 0). */
+uint32_t cms_srv_parse_load_machine_pct(const u_char *payload,
+    size_t payload_len);
+
 /* Extract free_mb + util_pct from an AVAIL/SPACE payload (two PT_INT scalars). */
 void cms_srv_parse_avail(const u_char *payload, size_t payload_len,
     uint32_t *free_mb, uint32_t *util_pct);

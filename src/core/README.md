@@ -21,4 +21,4 @@ semantics engine used by every HTTP-facing protocol.
 **Invariants:** SHM mutexes are spin+yield via `brix_shm_table_alloc()` —
 never POSIX-semaphore mode (INVARIANT 10). Protocols must consume the
 [http/](http/) helpers instead of regrowing private copies — enforced by
-`tools/ci/check_http_helper_reimpl.sh`.
+`tools/ci/check_http_helper_reimpl.py`.

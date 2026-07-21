@@ -29,6 +29,7 @@
 #include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
 #include "protocols/root/session/registry.h"   /* BRIX_SESSION_REGISTRY_SLOTS default */
 #include "net/manager/health_check.h" /* BRIX_HC_TYPE_PING default */
+#include "net/manager/registry.h"     /* Phase 89 (W4): load-weight setter */
 
 /* Third-party copy (TPC): local/private allowances, key TTL, transfer caps and
  * the abandoned-slot reaper age, and the outbound OAuth2/bearer credentials. */
@@ -208,6 +209,36 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_msec_value(conf->cms.locate_timeout, prev->cms.locate_timeout,
                               5000);
     ngx_conf_merge_str_value(conf->cms.paths,       prev->cms.paths,       "");
+    ngx_conf_merge_str_value(conf->cms.vnid,        prev->cms.vnid,        "");
+
+    /* Phase-89 W4: load-weighted selection knob (0 = legacy scoring).  Values
+     * are clamped, not rejected — the weight is a balancing hint.  Applied
+     * process-wide like brix_manager_stale_after (set once before fork). */
+    ngx_conf_merge_value(conf->cms.load_weight, prev->cms.load_weight, 0);
+    if (conf->cms.load_weight < 0) {
+        conf->cms.load_weight = 0;
+    }
+    if (conf->cms.load_weight > 100) {
+        conf->cms.load_weight = 100;
+    }
+    if (conf->cms.load_weight > 0) {
+        brix_srv_set_load_weight((ngx_uint_t) conf->cms.load_weight);
+    }
+
+    /* Phase-89 W5: path-affinity sticky selection (process-wide, like the
+     * load weight — set once before fork) + multi-source locate replies. */
+    ngx_conf_merge_value(conf->cms.affinity,     prev->cms.affinity,     0);
+    ngx_conf_merge_value(conf->cms.locate_multi, prev->cms.locate_multi, 0);
+    if (conf->cms.affinity) {
+        brix_srv_set_affinity(1);
+    }
+
+    /* Phase-89 W8: rm/rmdir fan-out to all holder nodes + its reply window.
+     * The window is the success deadline (node executor is silent on success),
+     * so it must be short enough to sit inside any client request timeout. */
+    ngx_conf_merge_value(conf->cms.fanout, prev->cms.fanout, 0);
+    ngx_conf_merge_msec_value(conf->cms.fanout_window,
+                                prev->cms.fanout_window, 500);
     ngx_conf_merge_value(conf->cms.interval,        prev->cms.interval,    30);
     if (conf->cms.interval < 1) {
         /* 0 would arm a 0ms heartbeat timer AND zero the reconnect backoff

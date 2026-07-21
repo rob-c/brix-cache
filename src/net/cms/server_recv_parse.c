@@ -237,7 +237,8 @@ cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
 
     cms_srv_login_scalars(ctx, &p, end);
 
-    /* SID (ignored) then Paths (extracted). ifList/envCGI ignored. */
+    /* SID (ignored) then Paths (extracted); ifList ignored, envCGI scanned
+     * for the vnid token below. */
     (void) cms_srv_read_string(&p, end, &sid, &sid_len);
     if (!cms_srv_read_string(&p, end, &paths, &paths_len)) {
         paths = NULL;
@@ -258,6 +259,38 @@ cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
         cms_srv_login_append_path(ctx, &dst, dst_end, tok, tok_len);
     }
     *dst = '\0';
+
+    /*
+     * Phase-89 W9: extract the virtual network id from envCGI ("&"-separated
+     * CGI tokens; stock cmsd emits "vnid=<id>").  ifList is skipped to reach
+     * it in wire order.  Absent/empty → ctx->vnid stays "".
+     */
+    ctx->vnid[0] = '\0';
+    {
+        const u_char  *iflist, *env, *tok;
+        size_t         iflist_len, env_len, i, vl;
+
+        if (cms_srv_read_string(&p, end, &iflist, &iflist_len)
+            && cms_srv_read_string(&p, end, &env, &env_len))
+        {
+            for (i = 0; i + 5 <= env_len; i++) {
+                if ((i == 0 || env[i - 1] == '&')
+                    && ngx_strncmp(env + i, "vnid=", 5) == 0)
+                {
+                    tok = env + i + 5;
+                    vl  = 0;
+                    while (i + 5 + vl < env_len && tok[vl] != '&'
+                           && tok[vl] != '\0' && vl < sizeof(ctx->vnid) - 1)
+                    {
+                        ctx->vnid[vl] = (char) tok[vl];
+                        vl++;
+                    }
+                    ctx->vnid[vl] = '\0';
+                    break;
+                }
+            }
+        }
+    }
 
     /* Default XRootD port if the data server didn't advertise one. */
     if (ctx->port == 0) {
@@ -292,6 +325,31 @@ cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len)
     }
 
     return tlv_read_next(&p, end);
+}
+
+/*
+ * cms_srv_parse_load_machine_pct — extract the machine-load percentage from
+ * the LOAD payload's 6 theLoad bytes: the max of cpu/net/xeq/mem/pag (the
+ * bottleneck resource; dsk is excluded — disk fill is already tracked as
+ * util_pct/free_mb).  Returns 0-100; a short payload reads as 0 (idle),
+ * matching the parser's general missing-field-decodes-as-zero posture.
+ */
+uint32_t
+cms_srv_parse_load_machine_pct(const u_char *payload, size_t payload_len)
+{
+    uint32_t  best = 0;
+    size_t    i;
+
+    /* [2-byte blob len][6 load bytes ...] — the 5 machine bytes start at 2. */
+    if (payload_len < 2 + 5) {
+        return 0;
+    }
+    for (i = 2; i < 2 + 5; i++) {
+        if (payload[i] > best) {
+            best = payload[i];
+        }
+    }
+    return best > 100 ? 100 : best;
 }
 
 /*

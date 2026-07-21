@@ -23,3 +23,7 @@ def test_cache_watermark_config_flow(tmp_path):
     assert "staging watermark without stage_root rejected" in messages
     assert "staging valid pair accepted" in messages
     assert "staging inverted pair rejected" in messages
+    assert "evict_at/evict_to percent pair accepted" in messages
+    assert "inverted evict pair rejected" in messages
+    assert "evict_at 100 rejected (must stay below full)" in messages
+    assert "evict pair coexists with explicit watermarks" in messages

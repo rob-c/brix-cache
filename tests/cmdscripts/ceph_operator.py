@@ -126,6 +126,7 @@ def sd_ceph_live(base: Path) -> tuple[bool, str]:
         "src/fs/backend/rados/sd_ceph_io.c",
         "src/fs/backend/rados/sd_ceph_object.c",
         "src/fs/backend/rados/sd_ceph_cred.c",
+        "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_internal.h",
         "src/fs/backend/rados/sd_ceph.h",
         "src/fs/backend/rados/sd_ceph_striper.h",
@@ -142,7 +143,8 @@ def sd_ceph_live(base: Path) -> tuple[bool, str]:
         "-I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h "
         "tests/ceph/sd_ceph_live_test.c src/fs/backend/rados/sd_ceph.c "
         "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_object.c "
-        "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_compat.c "
+        "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_dir.c "
+        "src/fs/backend/rados/sd_ceph_compat.c "
         "-lrados -o /tmp/sd_ceph_live && /tmp/sd_ceph_live"
     )
     proc = _docker_text(["exec", "-e", f"CEPH_POOL={os.environ.get('CEPH_POOL', 'xrdtest')}", "-e", "CEPH_CONF=/etc/ceph/ceph.conf", work, "bash", "-lc", cmd])
@@ -174,6 +176,7 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
     files = [
         "src/fs/backend/rados/sd_ceph.c", "src/fs/backend/rados/sd_ceph_io.c",
         "src/fs/backend/rados/sd_ceph_object.c", "src/fs/backend/rados/sd_ceph_cred.c",
+        "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_internal.h", "src/fs/backend/rados/sd_ceph.h",
         "src/fs/backend/rados/sd_ceph_compat.c", "src/fs/backend/rados/sd_ceph_compat.h",
         "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/ucred.h",
@@ -188,7 +191,8 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
         "-I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h "
         "tests/ceph/sd_ceph_cred_live_test.c src/fs/backend/rados/sd_ceph.c "
         "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_object.c "
-        "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_compat.c "
+        "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_dir.c "
+        "src/fs/backend/rados/sd_ceph_compat.c "
         "-lrados -o /tmp/sd_ceph_cred_live && /tmp/sd_ceph_cred_live"
     )
     proc = _docker_text(["exec", "-e", f"CEPH_POOL={pool}", "-e", "CEPH_CONF=/etc/ceph/ceph.conf", "-e", "CEPH_BOB_KEYRING=/etc/ceph/ceph.client.bob.keyring", "-e", "CEPH_READONLY_KEYRING=/etc/ceph/ceph.client.readonly.keyring", "-e", "CEPH_UN_KEYRING_DIR=/etc/ceph", work, "bash", "-lc", cmd])
@@ -206,6 +210,7 @@ def cephfs_ro_live(base: Path) -> tuple[bool, str]:
         "src/fs/backend/sd.h", "src/fs/backend/rados/sd_ceph.c", "src/fs/backend/rados/sd_ceph.h",
         "src/fs/backend/rados/sd_ceph_internal.h", "src/fs/backend/rados/sd_ceph_io.c",
         "src/fs/backend/rados/sd_ceph_object.c", "src/fs/backend/rados/sd_ceph_cred.c",
+        "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/rados/sd_ceph_compat.h",
         "src/fs/backend/rados/sd_ceph_compat.c", "src/fs/backend/rados/cephfs_denc.c",
         "src/fs/backend/rados/cephfs_denc.h", "src/fs/backend/rados/cephfs_layout.c",
@@ -225,6 +230,7 @@ def cephfs_ro_live(base: Path) -> tuple[bool, str]:
         "src/fs/backend/rados/sd_cephfs_ro_resolve.c src/fs/backend/rados/sd_cephfs_ro_dir.c "
         "src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_io.c "
         "src/fs/backend/rados/sd_ceph_object.c src/fs/backend/rados/sd_ceph_cred.c "
+        "src/fs/backend/rados/sd_ceph_dir.c "
         "src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/cephfs_layout.c "
         "src/fs/backend/rados/cephfs_denc.c -lrados -o /tmp/cephfsro_live && /tmp/cephfsro_live"
     )
@@ -367,6 +373,7 @@ def rescue_tools(base: Path) -> tuple[bool, str]:
         "src/fs/backend/sd.h", "src/fs/backend/rados/sd_ceph.c", "src/fs/backend/rados/sd_ceph.h",
         "src/fs/backend/rados/sd_ceph_internal.h", "src/fs/backend/rados/sd_ceph_io.c",
         "src/fs/backend/rados/sd_ceph_cred.c", "src/fs/backend/rados/sd_ceph_object.c",
+        "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/rados/sd_ceph_compat.c",
         "src/fs/backend/rados/sd_ceph_compat.h", "src/fs/backend/rados/cephfs_denc.c",
         "src/fs/backend/rados/cephfs_denc.h", "src/fs/backend/rados/cephfs_layout.c",
@@ -388,7 +395,7 @@ def rescue_tools(base: Path) -> tuple[bool, str]:
     cmd = (
         "cd /work/repo && FLAT_SRCS='src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c "
         "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_cred.c "
-        "src/fs/backend/rados/sd_ceph_object.c' && "
+        "src/fs/backend/rados/sd_ceph_object.c src/fs/backend/rados/sd_ceph_dir.c' && "
         "CEPHFS_SRCS=\"src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_cephfs_ro_dir.c "
         "src/fs/backend/rados/sd_cephfs_ro_resolve.c src/fs/backend/rados/cephfs_layout.c "
         "src/fs/backend/rados/cephfs_denc.c $FLAT_SRCS\" && "

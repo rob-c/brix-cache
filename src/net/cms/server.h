@@ -14,6 +14,7 @@
  */
 
 #include "cms_internal.h"
+#include "blacklist_file.h"
 #include "net/manager/registry.h"
 
 /* Forward decl — the per-block config (defined below) is referenced by ctx. */
@@ -43,6 +44,7 @@ typedef struct {
     char               host[256];                    /* remote IP (NUL-terminated) */
     uint16_t           port;                         /* XRootD data port from LOGIN */
     char               paths[BRIX_SRV_MAX_PATHS];  /* colon-delimited export list */
+    char               vnid[64];                     /* login envCGI vnid= (may be "") */
     uint32_t           free_mb;
     uint32_t           util_pct;
     ngx_uint_t         logged_in;
@@ -52,6 +54,7 @@ typedef struct {
     ngx_msec_t         login_timeout_ms;             /* WS3: LOGIN handshake deadline */
     ngx_msec_t         idle_timeout_ms;              /* WS3: post-login inbound silence */
     unsigned           counted:1;                    /* WS4: this conn is in the cap count */
+    unsigned           in_node_list:1;               /* W3: in the per-worker node list */
     u_char             inbuf[NGX_BRIX_CMS_MAX_FRAME];
     size_t             in_pos;
     size_t             in_need;
@@ -84,6 +87,17 @@ struct ngx_stream_brix_cms_srv_conf_s {
     ngx_flag_t   tcp_keepalive;   /* [brix_cms_server_tcp_keepalive on] */
     ngx_msec_t   tcp_user_timeout;/* [brix_cms_server_tcp_user_timeout] ms; unset
                                      => idle-timeout backstop. 0 = off. */
+
+    brix_cms_meter_t meter;       /* Phase-89 W4: usage-reply load meter (one
+                                     per srv block; all-zeroes valid state) */
+
+    /* ---- Phase-89 W6′: file-driven blacklist ----
+     * [brix_cms_blacklist_file] path to an operator blacklist (one host,
+     * host:port, or IPv4 CIDR per line).  Polled from the ping tick + after
+     * each registration; file entries win over admin undrain and over the
+     * blacklist-clear inside brix_srv_register (re-asserted every poll). */
+    ngx_str_t          blacklist_file;
+    brix_cms_blfile_t  blfile;    /* poll state (all-zeroes valid) */
 };
 
 /* Module descriptor declared in server_module.c. */
@@ -101,6 +115,23 @@ void       brix_cms_srv_conn_dec(void);
 ngx_uint_t brix_cms_srv_ip_count(const char *ip);
 void       brix_cms_srv_ip_inc(const char *ip);
 void       brix_cms_srv_ip_dec(const char *ip);
+
+/* Phase-89 W3: per-worker list of LOGGED-IN node connections, so the locate
+ * state fan-out can reach the nodes this worker owns (same per-worker design
+ * as the pending table; cross-worker fan-out is the PR-8 aggregation plane).
+ * Encapsulated behind accessors like the WS4 counter — add/del are idempotent
+ * via ctx->in_node_list; iteration is count + positional fetch (stable only
+ * within one event-handler invocation). */
+void                brix_cms_srv_node_add(brix_cms_srv_ctx_t *ctx);
+void                brix_cms_srv_node_del(brix_cms_srv_ctx_t *ctx);
+ngx_uint_t          brix_cms_srv_node_count(void);
+brix_cms_srv_ctx_t *brix_cms_srv_node_at(ngx_uint_t i);
+
+/* Phase-89 W3: per-worker streamid generator for manager-initiated kYR_state
+ * probes.  High bit set so the ids can never collide with the parent-leg
+ * generator (ngx_brix_cms_next_streamid) in the shared pid-keyed pending
+ * table when a node is both a CMS server and a CMS client. */
+uint32_t brix_cms_srv_next_streamid(void);
 
 /* server_handler.c */
 
@@ -148,8 +179,16 @@ ngx_int_t brix_cms_srv_send_xauth(brix_cms_srv_ctx_t *ctx,
 ngx_int_t brix_cms_srv_send_pong(brix_cms_srv_ctx_t *ctx);
 ngx_int_t brix_cms_srv_send_disc(brix_cms_srv_ctx_t *ctx);
 ngx_int_t brix_cms_srv_send_status(brix_cms_srv_ctx_t *ctx, u_char modifier);
+ngx_int_t brix_cms_srv_send_load(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char load6[6], uint32_t free_mb);
 ngx_int_t brix_cms_srv_send_data(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t len);
+
+/* Phase-89 W3: ask the node "do you hold <path>?" — kYR_state with the raw
+ * NUL-terminated path (the node answers kYR_have echoing streamid, or stays
+ * silent).  Synchronous write; NGX_OK / NGX_ERROR. */
+ngx_int_t brix_cms_srv_send_state(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const char *path);
 
 /* server_auth.c — W1 registration authentication (CIDR + sss + host validation) */
 

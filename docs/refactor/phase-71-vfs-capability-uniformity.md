@@ -163,7 +163,13 @@ change → no `./config` edit; `make -j$(nproc)`.
 **DEFERRED (follow-up):**
 - Step 3 — `stat_current` left keyed on the `writable` arg (already correct + avoids a perf
   regression on read handles over writable backends); cap refinement optional.
-- e2e wire tests (davs/S3 EPERM/ENOTSUP on the read-only backends).
+- ~~e2e wire tests (davs/S3 EPERM/ENOTSUP on the read-only backends)~~ — **DONE
+  2026-07-21**: `tests/test_readonly_backend_wire.py` proves, over the native
+  root:// wire against an s3 backend (`nginx_root_s3_staged.conf`, write-token
+  gate deliberately OPEN so the caps gate answers): kXR_mkdir/kXR_mv →
+  `kXR_NotAuthorized` (EPERM, !CAP_DIRS_WRITE) and path-form kXR_truncate →
+  `kXR_Unsupported` (ENOTSUP, !CAP_TRUNCATE), plus a byte-exact read success
+  leg proving the backend is live.
 
 **Docs updated:** `src/fs/backend/README.md` (sd.h row now lists the phase-71 caps + `cred_accept`
 accessor + the identity-branch guard); sd.h cap-table comments inline on each new bit.

@@ -19,6 +19,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
@@ -1303,10 +1304,23 @@ def multiuser_authz(nginx: Path | None = None, pytest_args: list[str] | None = N
         env={"PYTHONPATH": str(REPO_ROOT / "tests")},
     )
 
-    # Build the F6 mapping C unit against a clean provisioned account (best-effort).
-    mu_unit = REPO_ROOT / "tests/c/run_mu_unit.sh"
-    if shutil.which("gcc") and mu_unit.exists():
-        subprocess.run([str(mu_unit)], cwd=REPO_ROOT, env={**os.environ, "MU_CLEAN_USER": "brixtest_alice"})
+    # Build + run the F6 mapping C unit against a clean provisioned account
+    # (best-effort). Behaviour ported from the retired tests/c/run_mu_unit.sh into
+    # cmdscripts.c_regression_units.mu_unit (idmap_collapse_test); MU_CLEAN_USER
+    # selects the collapse-SUCCESS cases the MU fleet provisions brixtest_* for.
+    if shutil.which("gcc"):
+        from cmdscripts import c_regression_units
+
+        prev = os.environ.get("MU_CLEAN_USER")
+        os.environ["MU_CLEAN_USER"] = "brixtest_alice"
+        try:
+            with tempfile.TemporaryDirectory() as mu_base:
+                c_regression_units.mu_unit(Path(mu_base))
+        finally:
+            if prev is None:
+                os.environ.pop("MU_CLEAN_USER", None)
+            else:
+                os.environ["MU_CLEAN_USER"] = prev
 
     mu_tests = sorted((REPO_ROOT / "tests").glob("test_mu_*.py"))
     if not mu_tests:

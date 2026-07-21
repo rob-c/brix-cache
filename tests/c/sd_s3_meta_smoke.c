@@ -32,6 +32,7 @@ main(int argc, char **argv)
     sd_s3_open_params      p;
     sd_s3_file            *f;
     char                   val[256];
+    sd_s3_meta_buf         vbuf = { val, sizeof(val) };
     ssize_t                n;
     int                    rc;
     sd_s3_meta_kv          kv;
@@ -66,11 +67,32 @@ main(int argc, char **argv)
         fprintf(stderr, "open_read failed: %s\n", eb);
         return 2;
     }
-    n = sd_s3_get_meta(f, "foo", val, sizeof(val), eb, sizeof(eb));
+    n = sd_s3_get_meta(f, "foo", &vbuf, eb, sizeof(eb));
     check(n == 3 && strcmp(val, "bar") == 0,
           "get_meta reads server-stored x-amz-meta-foo=bar");
-    n = sd_s3_get_meta(f, "absent", val, sizeof(val), eb, sizeof(eb));
+    n = sd_s3_get_meta(f, "absent", &vbuf, eb, sizeof(eb));
     check(n == 0, "get_meta returns 0 for an absent attribute");
+
+    /* 1b. list_meta enumerates every x-amz-meta-* as "user.<name>" (raw header
+     *     walk via the transport's resp_headers_raw slot). */
+    {
+        char    names[512];
+        char    tiny[4];
+        ssize_t ln, probe, off;
+        int     found = 0;
+
+        ln = sd_s3_list_meta(f, names, sizeof(names), eb, sizeof(eb));
+        for (off = 0; off < ln; off += (ssize_t) strlen(names + off) + 1) {
+            if (strcmp(names + off, "user.foo") == 0) {
+                found = 1;
+            }
+        }
+        check(ln > 0 && found, "list_meta enumerates user.foo");
+        probe = sd_s3_list_meta(f, NULL, 0, eb, sizeof(eb));
+        check(probe == ln, "list_meta size probe matches the filled size");
+        check(sd_s3_list_meta(f, tiny, sizeof(tiny), eb, sizeof(eb)) == -1,
+              "list_meta rejects an undersized buffer (ERANGE, no overflow)");
+    }
     sd_s3_close(f);
 
     /* 2. set_meta (copy-self REPLACE + SigV4 over the meta headers) changes it. */
@@ -82,7 +104,7 @@ main(int argc, char **argv)
         fprintf(stderr, "  set_meta: %s\n", eb);
     }
     f = sd_s3_open_read(&p, eb, sizeof(eb));
-    n = sd_s3_get_meta(f, "foo", val, sizeof(val), eb, sizeof(eb));
+    n = sd_s3_get_meta(f, "foo", &vbuf, eb, sizeof(eb));
     check(n == 3 && strcmp(val, "baz") == 0,
           "get_meta reflects the set_meta change (foo=baz)");
     sd_s3_close(f);
@@ -103,6 +125,15 @@ main(int argc, char **argv)
     check(rc == 1 && got.have_mode && (got.mode & 07777) == 0640
           && got.have_owner && got.uid == 1000 && got.gid == 2000,
           "get_unixattr round-trips mode=0640 uid=1000 gid=2000");
+
+    /* 3b. the reserved advisory key must NOT leak through list_meta — after the
+     *     unixattr replace it is the only user metadata on the object. */
+    {
+        char    names[512];
+        ssize_t ln = sd_s3_list_meta(f, names, sizeof(names), eb, sizeof(eb));
+
+        check(ln == 0, "list_meta omits the reserved advisory key");
+    }
     sd_s3_close(f);
 
     printf(fails ? "sd_s3_meta_smoke: FAILURES\n"

@@ -28,6 +28,7 @@
  */
 
 #include "redir_cache.h"
+#include "core/fnv.h"
 #include "core/compat/shm_slots.h"
 #include <ngx_shmtx.h>
 #include <string.h>
@@ -78,11 +79,11 @@ redir_cache(void)
 static uint32_t
 redir_hash(const char *path)
 {
-    uint32_t h = 2166136261u;
+    uint32_t h = BRIX_FNV1A32_OFFSET_BASIS;
 
     while (*path) {
         h ^= (unsigned char) *path++;
-        h *= 16777619u;
+        h *= BRIX_FNV1A32_PRIME;
     }
 
     return h;

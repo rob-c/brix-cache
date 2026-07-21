@@ -54,7 +54,7 @@ def _data(name: str) -> str:
 _CRL_DIR = _data("crls")
 _CRL_RELOAD_DIR = _data("crl-reload")
 _JWKS_REFRESH_JSON = os.path.join(TEST_ROOT, "tokens", "jwks-refresh", "jwks.json")
-_STAGE_HOOK = os.path.join(TEST_ROOT, "dedicated", "prepare-command", "stage_hook.sh")
+_STAGE_HOOK = os.path.join(TEST_ROOT, "dedicated", "prepare-command", "stage_hook.py")
 
 
 def core_specs() -> list[NginxInstanceSpec]:

@@ -3,6 +3,7 @@
  * Phase-38 split of registry.c; behavior-identical.
  */
 #include "registry_internal.h"
+#include "core/fnv.h"      /* Phase-89 W5: path hash for affinity stick */
 
 
 /* Return 1 if path starts with any colon-delimited token in paths. */
@@ -76,11 +77,21 @@ typedef struct {
  * `for_write` fixes the metric direction for the whole scan: writes maximise
  * free_mb, reads minimise util_pct.
  */
+/* Phase-89 W5: cap on the fresh-tier candidate list collected for the affinity
+ * stick.  Slots past the cap still compete on metric via the normal tiers; the
+ * stick just cannot land on them — with 64 co-exporting fresh servers the
+ * spread loss is negligible and the array stays a cheap stack object. */
+#define SRV_SEL_AFFINITY_MAX 64
+
 typedef struct {
     srv_sel_tier_t fresh;
     srv_sel_tier_t any;
     srv_sel_tier_t black;
     int            for_write;
+    /* Phase-89 W5: every fresh-tier candidate seen this scan (not just the
+     * metric winner), so the affinity hash can pick a stable member. */
+    int            fresh_cands[SRV_SEL_AFFINITY_MAX];
+    ngx_uint_t     n_fresh;
 } srv_sel_state_t;
 
 
@@ -107,6 +118,7 @@ srv_sel_state_init(srv_sel_state_t *st, int for_write)
     srv_sel_tier_init(&st->fresh, for_write);
     srv_sel_tier_init(&st->any, for_write);
     srv_sel_tier_init(&st->black, for_write);
+    st->n_fresh = 0;
 }
 
 
@@ -146,6 +158,31 @@ srv_sel_tier_offer(srv_sel_tier_t *tier, int idx, uint32_t metric, int for_write
  *       Staleness uses a signed msec diff so ngx_current_msec wrap is tolerated.
  * HOW:  Compute metric by direction, then route: black slots update only black;
  *       live slots update any, and fresh when not stale. */
+/*
+ * srv_sel_load_metric — blend the heartbeat machine load into the selection
+ * metric behind brix_cms_load_weight (Phase-89 W4).  Weight 0 (the default)
+ * returns the input untouched — byte-identical to the pre-W4 scoring.
+ * Reads minimise the metric: blend as ((100-w)*util + w*load)/100 so a
+ * loaded node scores worse.  Writes maximise free_mb: scale it down by up to
+ * w% at full load (free - free*w*load/10000) so capacity still dominates and
+ * the direction of comparison is unchanged.
+ */
+static uint32_t
+srv_sel_load_metric(uint32_t metric, uint32_t load_pct, int for_write)
+{
+    ngx_uint_t  w = brix_srv_load_weight;
+
+    if (w == 0) {
+        return metric;
+    }
+    if (for_write) {
+        return metric - (uint32_t) ((uint64_t) metric * w * load_pct / 10000);
+    }
+    return (uint32_t) (((100 - w) * (uint64_t) metric + w * (uint64_t) load_pct)
+                       / 100);
+}
+
+
 static void
 srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
     int is_black)
@@ -153,7 +190,8 @@ srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
     uint32_t   metric;
     ngx_uint_t is_stale;
 
-    metric = st->for_write ? e->free_mb : e->util_pct;
+    metric = srv_sel_load_metric(st->for_write ? e->free_mb : e->util_pct,
+                                 e->load_pct, st->for_write);
 
     if (is_black) {
         /* allow_blacklisted only — a last-resort tier below live servers. */
@@ -174,7 +212,28 @@ srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
                    > (ngx_msec_int_t) brix_srv_stale_after_ms);
     if (!is_stale) {
         srv_sel_tier_offer(&st->fresh, idx, metric, st->for_write);
+        if (st->n_fresh < SRV_SEL_AFFINITY_MAX) {
+            st->fresh_cands[st->n_fresh++] = idx;
+        }
     }
+}
+
+
+/* WHAT: fnv1a over the NUL-terminated path (Phase-89 W5 affinity stick).
+ * WHY:  The stick must be a pure function of the path so every worker on every
+ *       manager picks the same member of the same candidate set; fnv1a is the
+ *       design-of-record hash (loc_cache.c) for path-shaped keys.
+ * HOW:  Standard XOR-multiply loop over the bytes. */
+static uint32_t
+srv_sel_path_hash(const char *path)
+{
+    uint32_t  h = BRIX_FNV1A32_OFFSET_BASIS;
+
+    while (*path != '\0') {
+        h ^= (uint32_t) (u_char) *path++;
+        h *= BRIX_FNV1A32_PRIME;
+    }
+    return h;
 }
 
 
@@ -259,6 +318,16 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
     }
 
     best = srv_sel_state_winner(&st);
+
+    /* Phase-89 W5: with affinity on and >1 eligible FRESH candidate, the path
+     * hash — not the metric — picks the member, so repeated requests for one
+     * path stick to one server (cache locality).  LOCKED precedence (phase-61
+     * note 2): the filter above already excluded blacklisted/stale slots, so a
+     * drained host is never sticky; an empty/singleton fresh tier keeps the
+     * ladder winner unchanged. */
+    if (brix_srv_affinity && st.n_fresh > 1) {
+        best = st.fresh_cands[srv_sel_path_hash(path) % st.n_fresh];
+    }
 
     if (best >= 0) {
         e = &tbl->slots[best];
@@ -486,4 +555,48 @@ brix_srv_undrain(const char *host, uint16_t port)
 
     ngx_shmtx_unlock(&brix_srv_mutex);
     return found;
+}
+
+
+/* Phase-89 W3 — public wrapper over the longest-prefix matcher (registry.h). */
+int
+brix_srv_paths_cover(const char *paths, const char *path)
+{
+    if (paths == NULL || path == NULL) {
+        return 0;
+    }
+    return srv_path_matches(paths, path);
+}
+
+
+/* Phase-89 W3 — is host:port inside an active blacklist window? (registry.h). */
+int
+brix_srv_is_blacklisted(const char *host, uint16_t port)
+{
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
+    ngx_uint_t          i;
+    int                 drained = 0;
+
+    tbl = srv_table();
+    if (tbl == NULL || host == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&brix_srv_mutex);
+
+    for (i = 0; i < tbl->capacity; i++) {
+        e = &tbl->slots[i];
+        if (!e->in_use || e->port != port
+            || ngx_strcmp(e->host, host) != 0)
+        {
+            continue;
+        }
+        drained = (e->blacklisted_until != 0
+                   && ngx_current_msec < e->blacklisted_until);
+        break;
+    }
+
+    ngx_shmtx_unlock(&brix_srv_mutex);
+    return drained;
 }

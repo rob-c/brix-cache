@@ -14,6 +14,8 @@
 extern ngx_shmtx_t   brix_srv_mutex;
 extern ngx_uint_t    brix_srv_registry_nslots;
 extern ngx_msec_t    brix_srv_stale_after_ms;
+extern ngx_uint_t    brix_srv_load_weight;   /* Phase 89 W4: 0-100, 0 = off */
+extern ngx_uint_t    brix_srv_affinity;      /* Phase 89 W5: path-sticky, 0 = off */
 
 
 /* registry.c */

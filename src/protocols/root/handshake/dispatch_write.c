@@ -4,6 +4,7 @@
 #include "net/manager/registry.h"   /* brix_srv_select_or_blacklisted */
 #include "fs/path/path.h"          /* brix_extract_path */
 #include "protocols/root/response/response.h"  /* brix_send_redirect / brix_send_error */
+#include "net/cms/fanout.h"        /* Phase-89 W8: rm/rmdir holder fan-out */
 
 /* manager_redirect_mutation — Plane B manager orchestration.
  *
@@ -30,9 +31,10 @@ static ngx_int_t
 manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    char     path[BRIX_MAX_PATH + 1];
-    char     host[256];
-    uint16_t port;
+    char      path[BRIX_MAX_PATH + 1];
+    char      host[256];
+    uint16_t  port;
+    ngx_int_t rc;
 
     if (!conf->manager_mode) {
         return BRIX_DISPATCH_CONTINUE;
@@ -58,6 +60,15 @@ manager_redirect_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
         || path[0] != '/')
     {
         return BRIX_DISPATCH_CONTINUE;
+    }
+
+    /* Phase-89 W8: with brix_cms_fanout on, a delete of a replicated path
+     * fans out to EVERY holder node instead of redirecting to one (NGX_AGAIN
+     * parks the client until the reply window settles).  NGX_DECLINED means
+     * fan-out did not engage — fall through to the single-node redirect. */
+    rc = brix_cms_fanout_mutation(ctx, c, conf, path);
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     if (brix_srv_select_or_blacklisted(path, 1, host, sizeof(host), &port)) {

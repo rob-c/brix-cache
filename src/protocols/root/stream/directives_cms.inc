@@ -18,6 +18,60 @@
       offsetof(ngx_stream_brix_srv_conf_t, cms.paths),
       NULL },
 
+    /* Phase-89 W4: manager-side selection weight (0-100) for the heartbeat
+     * machine-load figure; 0 (default) keeps space/util-only scoring. */
+    { ngx_string("brix_cms_load_weight"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.load_weight),
+      NULL },
+
+    /* Phase-89 W5: pin repeated selections of a path to one eligible server
+     * (fresh tier only — a drained/blacklisted host is never sticky). */
+    { ngx_string("brix_cms_affinity"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.affinity),
+      NULL },
+
+    /* Phase-89 W5: kXR_locate answers with the full live server set (kXR_ok,
+     * lateral redirect) instead of a single kXR_redirect. */
+    { ngx_string("brix_cms_locate_multi"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.locate_multi),
+      NULL },
+
+    /* Phase-89 W8: fan a client kXR_rm/kXR_rmdir out to EVERY holder node this
+     * worker owns a CMS connection to (silent-success reply aggregation over a
+     * deadline window) instead of redirecting the client to a single node. */
+    { ngx_string("brix_cms_fanout"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.fanout),
+      NULL },
+
+    /* Phase-89 W8: reply-aggregation window — no kYR_error from any forwarded
+     * node inside it means success (the node executor is silent on success). */
+    { ngx_string("brix_cms_fanout_window"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.fanout_window),
+      NULL },
+
+    /* Phase-89 W9: virtual network id carried in the LOGIN envCGI string. */
+    { ngx_string("brix_cms_vnid"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.vnid),
+      NULL },
+
     { ngx_string("brix_cms_interval"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,

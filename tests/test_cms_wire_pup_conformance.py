@@ -65,6 +65,8 @@ CMS_RR_STATUS = 22
 CMS_RR_DISC   = 13
 CMS_RR_UPDATE = 25
 CMS_RR_MKDIR  = 3
+CMS_RR_STATS  = 11
+CMS_RR_USAGE  = 26
 
 # CMS response codes (CmsRspCode) carried in a reply frame's rrCode field.
 CMS_RSP_DATA  = 0
@@ -78,6 +80,9 @@ CMS_HAVE_ONLINE = 0x01  # kYR_have modifier: file is resident/online
 
 CMS_ST_RESUME   = 0x04
 CMS_ST_NOSTAGE  = 0x02
+CMS_ST_STAGE    = 0x01
+CMS_ST_SUSPEND  = 0x08
+CMS_ST_RESET    = 0x10
 
 CMS_HDR_LEN  = 8
 CMS_MAX_FRAME = 4096          # NGX_BRIX_CMS_MAX_FRAME
@@ -553,6 +558,17 @@ class TestLoadPupEncoding:
         assert newpos == len(payload), "dskFree must end the LOAD payload"
         assert free_mb >= 0
 
+    def test_load_bytes_are_real_machine_load(self, load_frame):
+        """Phase-89 W4: the 6 load bytes are live /proc-derived percentages,
+        not zero padding.  Layout is cpu,net,xeq,mem,pag,dsk; every byte is a
+        0-100 percentage.  mem comes from /proc/meminfo and is non-zero on any
+        real machine (cpu/net/xeq/pag may legitimately be 0 — rate meters are
+        unprimed on the first heartbeat)."""
+        _sid, _code, _mod, payload = load_frame
+        load6 = payload[2:8]
+        assert all(b <= 100 for b in load6), f"load bytes must be 0-100: {load6!r}"
+        assert load6[3] > 0, "mem pct must be non-zero on a live host"
+
 
 # ===========================================================================
 # Class 4 — Pup tag round-trip (encoder + our decoder agree)
@@ -874,6 +890,152 @@ class TestServerLivenessPlaneA:
             assert len(fields) == 6, f"expected 6 space fields, got {fields!r}"
             for f in fields:
                 int(f)   # every field must be a base-10 integer
+        finally:
+            sock.close()
+
+    def test_usage_gets_load_echoing_streamid(self, cms_server):
+        """Phase-89 W1: kYR_usage -> kYR_load echoing the streamid, payload
+        byte-exact with the node-side heartbeat: [>H 6][6 load bytes][tagged
+        int dskFree] = 13 bytes; the dsk byte is a percentage (<= 100)."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            sid = 0x11223344
+            sock.sendall(_build_frame(sid, CMS_RR_USAGE, 0))
+            fr = _recv_code(sock, CMS_RR_LOAD, timeout=5.0)
+            assert fr is not None, "server did not reply kYR_load to usage"
+            rsid, _code, _mod, payload = fr
+            assert rsid == sid, "load reply must echo the usage streamid"
+            assert len(payload) == 13, f"load payload must be 13 bytes: {payload!r}"
+            (blob_len,) = struct.unpack(">H", payload[:2])
+            assert blob_len == 6, "theLoad must be a bare 6-byte blob"
+            load6 = payload[2:8]
+            assert load6[5] <= 100, "dsk load byte must be a percentage"
+            free_mb, p = _pup_read_scalar(payload, 8)
+            assert p == 13 and free_mb >= 0, "dskFree must be a tagged int"
+        finally:
+            sock.close()
+
+    def test_stats_gets_size_form(self, cms_server):
+        """Phase-89 W1: kYR_stats -> kYR_data echoing the streamid, payload a
+        raw 4-byte big-endian buffer-size advertisement (> 0)."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            sock.sendall(_build_frame(9, CMS_RR_STATS, 0))
+            fr = _recv_code(sock, CMS_RSP_DATA, timeout=5.0)
+            assert fr is not None, "server did not reply kYR_data to stats"
+            sid, _code, _mod, data = fr
+            assert sid == 9, "stats reply must echo the request streamid"
+            assert len(data) == 4, f"size form must be exactly 4 bytes: {data!r}"
+            (need,) = struct.unpack(">I", data)
+            assert need > 0, "advertised stats buffer size must be positive"
+        finally:
+            sock.close()
+
+    def test_usage_stats_pre_login_ignored(self, cms_server):
+        """Security-neg: usage/stats from a connection that never logged in are
+        ignored — no reply frame, and no state leaks to the unauthenticated
+        peer (the connection simply stays quiet)."""
+        sock = socket.create_connection((H, cms_server), timeout=8)
+        try:
+            sock.sendall(_build_frame(5, CMS_RR_USAGE, 0))
+            sock.sendall(_build_frame(6, CMS_RR_STATS, 0))
+            sock.settimeout(2)
+            try:
+                fr = _recv_frame(sock)
+            except socket.timeout:
+                fr = "silent"
+            assert fr in (None, "silent"), \
+                f"pre-login usage/stats must not be answered, got {fr!r}"
+        finally:
+            sock.close()
+
+
+def _statfs_wfree(sock, sid):
+    """Issue a kYR_statfs("/") on an already-logged-in socket and return the
+    wFree field (aggregate free MB) from the kYR_data reply."""
+    def pup(s):
+        return struct.pack(">H", len(s) + 1) + s + b"\x00"
+    sock.sendall(_build_frame(sid, CMS_RR_STATFS, 0, pup(b"tester") + pup(b"/")))
+    fr = _recv_code(sock, CMS_RSP_DATA, timeout=5.0)
+    assert fr is not None, "server did not reply kYR_data to statfs"
+    _sid, _code, _mod, data = fr
+    fields = data[4:].rstrip(b"\x00").split(b" ")
+    assert len(fields) == 6, f"expected 6 space fields, got {fields!r}"
+    return int(fields[1])   # wNum wFree wUtil sNum sFree sUtil
+
+
+class TestServerStatusStateMachine:
+    """Phase-89 W9: the manager side of kYR_status — reset forgets cached
+    metrics, unknown modifiers are a no-op, and pre-login status frames cannot
+    touch another node's registration."""
+
+    def test_status_reset_clears_reported_space(self, cms_server):
+        """kYR_status(reset) -> the manager forgets our cached load figures:
+        the aggregate free space visible through statfs drops to 0 (the node
+        stays registered and the connection stays open)."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            assert _statfs_wfree(sock, 21) == 5000, \
+                "login-advertised fSpace must be visible before the reset"
+            sock.sendall(_build_frame(0, CMS_RR_STATUS, CMS_ST_RESET))
+            time.sleep(0.4)
+            assert _statfs_wfree(sock, 22) == 0, \
+                "reset must clear the cached free-space figure"
+        finally:
+            sock.close()
+
+    def test_status_unknown_modifier_is_noop(self, cms_server):
+        """A kYR_status with an unrecognised modifier bit is ignored: state is
+        untouched and the connection stays live (ping still answered)."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            sock.sendall(_build_frame(0, CMS_RR_STATUS, 0x40))
+            time.sleep(0.2)
+            assert _statfs_wfree(sock, 23) == 5000, \
+                "unknown status modifier must not touch cached metrics"
+            sock.sendall(_build_frame(3, CMS_RR_PING, 0))
+            fr = _recv_code(sock, CMS_RR_PONG, timeout=5.0)
+            assert fr is not None, "connection must survive an unknown modifier"
+        finally:
+            sock.close()
+
+    def test_status_pre_login_cannot_touch_registration(self, cms_server):
+        """Security-neg: a connection that never logged in sends
+        kYR_status(reset) — the frame is ignored and a logged-in node's cached
+        metrics are unaffected."""
+        node = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        raw = socket.create_connection((H, cms_server), timeout=8)
+        try:
+            time.sleep(0.4)
+            raw.sendall(_build_frame(0, CMS_RR_STATUS, CMS_ST_RESET))
+            time.sleep(0.4)
+            assert _statfs_wfree(node, 24) == 5000, \
+                "pre-login status must not reach the registry"
+        finally:
+            raw.close()
+            node.close()
+
+    def test_login_envcgi_vnid_accepted(self, cms_server):
+        """A LOGIN whose envCGI carries '&'-separated tokens including
+        vnid=<id> (stock cmsd form) still registers normally — the node
+        answers queries and its metrics are visible.  (The parsed vnid is
+        surfaced via the dashboard cluster listing, outside this stream-only
+        fixture.)"""
+        p = _minimal_login_payload(NODE_DATA_PORT)
+        # Rebuild the payload tail: replace the empty envCGI (last 2 bytes,
+        # a zero-length Pup string) with a populated one.
+        assert p[-2:] == struct.pack(">H", 0)
+        env = b"foo=1&vnid=zoneA"
+        p = p[:-2] + struct.pack(">H", len(env) + 1) + env + b"\x00"
+        sock = _node_login_dialog(cms_server, p)
+        try:
+            time.sleep(0.4)
+            assert _statfs_wfree(sock, 25) == 5000, \
+                "vnid-bearing login must register the node normally"
         finally:
             sock.close()
 

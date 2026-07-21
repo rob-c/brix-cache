@@ -113,6 +113,110 @@ fwd_collect_certs(ngx_str_t *pem, STACK_OF(X509) *sink)
 }
 
 
+/* The leaf is the cert we can actually sign with — the one whose public key
+ * matches the delegated private key.  Returns NULL if none matches (or no key). */
+static X509 *
+fwd_find_leaf(STACK_OF(X509) *certs, EVP_PKEY *key)
+{
+    int i;
+
+    if (key == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < sk_X509_num(certs); i++) {
+        X509     *c  = sk_X509_value(certs, i);
+        EVP_PKEY *pk = X509_get_pubkey(c);
+        int       hit = (pk != NULL && EVP_PKEY_eq(pk, key) == 1);
+        EVP_PKEY_free(pk);
+        if (hit) {
+            return c;
+        }
+    }
+    return NULL;
+}
+
+
+/* Find the cert in `certs` that issued `cur` (subject == cur's issuer), skipping
+ * cur itself.  Returns NULL at the chain end, or when the only issuer left is the
+ * self-signed trust anchor — the upstream trusts the CA out of band, so a
+ * forwarded CA only breaks its strict walk. */
+static X509 *
+fwd_next_issuer(STACK_OF(X509) *certs, X509 *cur)
+{
+    X509 *next = NULL;
+    int   i;
+
+    for (i = 0; i < sk_X509_num(certs); i++) {
+        X509 *c = sk_X509_value(certs, i);
+        if (c == cur) {
+            continue;
+        }
+        if (X509_NAME_cmp(X509_get_subject_name(c),
+                          X509_get_issuer_name(cur)) == 0)
+        {
+            next = c;
+            break;
+        }
+    }
+    if (next != NULL
+        && X509_NAME_cmp(X509_get_subject_name(next),
+                         X509_get_issuer_name(next)) == 0)
+    {
+        next = NULL;
+    }
+    return next;
+}
+
+
+/* Emit leaf → issuer → … into obio, stopping before the self-signed trust anchor.
+ * Bounded by the cert count: a hostile cross-signed pair (A issues B, B issues A)
+ * has no self-signed terminus and would otherwise spin the worker.  Returns 1 on
+ * success, 0 if a PEM write failed. */
+static int
+fwd_emit_chain(BIO *obio, X509 *leaf, STACK_OF(X509) *certs)
+{
+    int   steps  = 0;
+    int   ncerts = sk_X509_num(certs);
+    X509 *cur    = leaf;
+
+    while (cur != NULL && steps++ <= ncerts) {
+        if (!PEM_write_bio_X509(obio, cur)) {
+            return 0;
+        }
+        if (X509_NAME_cmp(X509_get_subject_name(cur),
+                          X509_get_issuer_name(cur)) == 0)
+        {
+            break;                 /* reached a self-issued cert — stop */
+        }
+        cur = fwd_next_issuer(certs, cur);
+    }
+    return 1;
+}
+
+
+/* Append the private key to obio and copy the assembled PEM into `pool`, setting
+ * *out on success.  Leaves *out unchanged (the verbatim capture) on any failure. */
+static void
+fwd_serialize(ngx_pool_t *pool, BIO *obio, EVP_PKEY *key, ngx_str_t *out)
+{
+    u_char *data;
+    long    len;
+
+    if (!PEM_write_bio_PrivateKey(obio, key, NULL, NULL, 0, NULL, NULL)) {
+        return;
+    }
+    len = BIO_get_mem_data(obio, &data);
+    if (len > 0) {
+        u_char *copy = ngx_pnalloc(pool, (size_t) len);
+        if (copy != NULL) {
+            ngx_memcpy(copy, data, (size_t) len);
+            out->data = copy;
+            out->len  = (size_t) len;
+        }
+    }
+}
+
+
 /* Assemble the RFC 3820 proxy chain to forward to the storage backend.
  *
  * The credential captured on the control channel (fc->deleg_proxy) is what the
@@ -139,9 +243,8 @@ brix_ftp_ev_forward_pem(ngx_pool_t *pool, ngx_str_t *deleg, ngx_str_t *issuer)
     ngx_str_t       out = *deleg;                 /* default: forward verbatim */
     STACK_OF(X509) *certs;
     EVP_PKEY       *key = NULL;
-    X509           *leaf = NULL, *cur;
-    BIO            *kbio, *obio = NULL;
-    int             i;
+    X509           *leaf;
+    BIO            *kbio, *obio;
 
     if (deleg->len == 0) {
         return out;
@@ -160,78 +263,12 @@ brix_ftp_ev_forward_pem(ngx_pool_t *pool, ngx_str_t *deleg, ngx_str_t *issuer)
         key = PEM_read_bio_PrivateKey(kbio, NULL, NULL, NULL);
         BIO_free(kbio);
     }
-    if (key != NULL) {
-        for (i = 0; i < sk_X509_num(certs); i++) {
-            X509     *c = sk_X509_value(certs, i);
-            EVP_PKEY *pk = X509_get_pubkey(c);
-            int       hit = (pk != NULL && EVP_PKEY_eq(pk, key) == 1);
-            EVP_PKEY_free(pk);
-            if (hit) {
-                leaf = c;
-                break;
-            }
-        }
-    }
+    leaf = fwd_find_leaf(certs, key);
 
     obio = (leaf != NULL) ? BIO_new(BIO_s_mem()) : NULL;
     if (obio != NULL) {
-        int ok = 1;
-        int steps = 0;
-        int ncerts = sk_X509_num(certs);
-
-        /* Emit leaf → issuer → … stopping before the self-signed trust anchor.
-         * Bound the walk by the cert count: a hostile client could delegate a
-         * cross-signed cert pair (A issues B, B issues A) with no self-signed
-         * terminus, which would otherwise spin the worker. */
-        cur = leaf;
-        while (cur != NULL && steps++ <= ncerts) {
-            X509 *next = NULL;
-
-            if (!PEM_write_bio_X509(obio, cur)) {
-                ok = 0;
-                break;
-            }
-            if (X509_NAME_cmp(X509_get_subject_name(cur),
-                              X509_get_issuer_name(cur)) == 0)
-            {
-                break;                 /* reached a self-issued cert — stop */
-            }
-            for (i = 0; i < sk_X509_num(certs); i++) {
-                X509 *c = sk_X509_value(certs, i);
-                if (c == cur) {
-                    continue;
-                }
-                if (X509_NAME_cmp(X509_get_subject_name(c),
-                                  X509_get_issuer_name(cur)) == 0)
-                {
-                    next = c;
-                    break;
-                }
-            }
-            /* drop the trust anchor: if the only remaining issuer is self-signed
-             * (the CA), do not forward it — the upstream trusts it out of band. */
-            if (next != NULL
-                && X509_NAME_cmp(X509_get_subject_name(next),
-                                 X509_get_issuer_name(next)) == 0)
-            {
-                next = NULL;
-            }
-            cur = next;
-        }
-
-        if (ok && key != NULL
-            && PEM_write_bio_PrivateKey(obio, key, NULL, NULL, 0, NULL, NULL))
-        {
-            u_char *data;
-            long    len = BIO_get_mem_data(obio, &data);
-            if (len > 0) {
-                u_char *copy = ngx_pnalloc(pool, (size_t) len);
-                if (copy != NULL) {
-                    ngx_memcpy(copy, data, (size_t) len);
-                    out.data = copy;
-                    out.len  = (size_t) len;
-                }
-            }
+        if (fwd_emit_chain(obio, leaf, certs) && key != NULL) {
+            fwd_serialize(pool, obio, key, &out);
         }
         BIO_free(obio);
     }

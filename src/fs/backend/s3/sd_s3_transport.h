@@ -68,6 +68,14 @@ typedef struct brix_s3_transport_s {
     int (*resp_header)(const brix_s3_resp_t *resp, const char *name,
                        char *out, size_t outcap);
 
+    /* OPTIONAL — the raw response header block ("Name: value" lines separated
+     * by CRLF/LF, NUL-terminated; valid until resp_free). Lets the driver
+     * ENUMERATE headers (generic x-amz-meta-* listxattr), which the by-name
+     * resp_header lookup cannot. A transport that does not retain the raw
+     * block leaves this NULL; the driver must then report enumeration as
+     * unsupported (ENOTSUP), never guess names. */
+    const char *(*resp_headers_raw)(const brix_s3_resp_t *resp);
+
     /* The response body bytes + length (valid until resp_free). */
     const void *(*resp_body)(const brix_s3_resp_t *resp, size_t *len);
 

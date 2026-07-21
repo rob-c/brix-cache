@@ -131,6 +131,9 @@ brix_cms_srv_close(brix_cms_srv_ctx_t *ctx)
         ngx_del_timer(c->read);
     }
 
+    /* W3: leave the per-worker fan-out set (idempotent via in_node_list). */
+    brix_cms_srv_node_del(ctx);
+
     /* WS4 + A3: release the admission-cap slots (global + per-IP) exactly once. */
     if (ctx->counted) {
         brix_cms_srv_conn_dec();

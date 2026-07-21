@@ -65,6 +65,35 @@ brix_cms_srv_send_status(brix_cms_srv_ctx_t *ctx, u_char modifier)
     return brix_cms_srv_send_frame(ctx, 0, CMS_RR_STATUS, modifier, NULL, 0);
 }
 
+/*
+ * brix_cms_srv_send_load — kYR_load reply to a node's kYR_usage query.
+ *
+ * WHAT: Sends a CMS_RR_LOAD frame echoing the request streamid, carrying the
+ *      6-byte load vector (cpu,net,xeq,mem,pag,dsk) and the aggregate free
+ *      space in MB. WHY: Stock cmsd answers do_Usage with its current load
+ *      report so a querying node/peer can weigh this manager; phase-89 W1
+ *      brings the manager side to parity. HOW: Byte-exact with the node-side
+ *      heartbeat in send.c — theLoad is a bare [2-byte len][6 bytes] Pup
+ *      char-blob (NO scalar tag), dskFree a tagged int; total dlen = 13.
+ */
+ngx_int_t
+brix_cms_srv_send_load(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char load6[6], uint32_t free_mb)
+{
+    u_char    payload[16];
+    u_char   *cursor;
+
+    cursor = payload;
+    ngx_brix_cms_put16(cursor, 6);          /* blob length: 6 load bytes */
+    cursor += 2;
+    ngx_memcpy(cursor, load6, 6);
+    cursor += 6;
+    cursor = ngx_brix_cms_put_int(cursor, free_mb);
+
+    return brix_cms_srv_send_frame(ctx, streamid, CMS_RR_LOAD, 0,
+                                     payload, (size_t) (cursor - payload));
+}
+
 /* brix_cms_srv_send_data — reply CMS_RSP_DATA with an opaque payload, echoing the
  * request streamid; byte-exact with cmsd's do_StatFS/do_Stats data replies (Plane A
  * query path). */
@@ -74,4 +103,19 @@ brix_cms_srv_send_data(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
 {
     return brix_cms_srv_send_frame(ctx, streamid, CMS_RSP_DATA, 0,
                                      payload, len);
+}
+
+/* brix_cms_srv_send_state — Phase-89 W3: probe "do you hold <path>?" with a
+ * kYR_state carrying the raw NUL-terminated path (modifier RAW, matching what
+ * our own node side parses in cms_frame_state and what cmsd emits).  The node
+ * answers kYR_have echoing the streamid — which keys the pending-locate entry
+ * of the parked client — or stays silent for a file it does not hold. */
+ngx_int_t
+brix_cms_srv_send_state(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const char *path)
+{
+    size_t  len = ngx_strlen(path);
+
+    return brix_cms_srv_send_frame(ctx, streamid, CMS_RR_STATE, CMS_MOD_RAW,
+                                     (const u_char *) path, len + 1);
 }

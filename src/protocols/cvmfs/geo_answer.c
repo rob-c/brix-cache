@@ -25,6 +25,7 @@
 #include "cvmfs.h"
 #include "origin_geo.h"
 #include "core/aio/aio.h"
+#include "core/fnv.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -73,17 +74,17 @@ static cvmfs_geo_slot_t  cvmfs_geo_cache[CVMFS_GEO_CACHE_SLOTS];
 static uint64_t
 cvmfs_geo_key(const char *host, int port)
 {
-    uint64_t h = 0xcbf29ce484222325ull;
+    uint64_t h = BRIX_FNV1A64_OFFSET_BASIS;
     const char *p;
     char portbuf[8];
     int  i, n;
 
     for (p = host; *p != '\0'; p++) {
-        h = (h ^ (unsigned char) *p) * 0x100000001b3ull;
+        h = (h ^ (unsigned char) *p) * BRIX_FNV1A64_PRIME;
     }
     n = snprintf(portbuf, sizeof(portbuf), ":%d", port);
     for (i = 0; i < n; i++) {
-        h = (h ^ (unsigned char) portbuf[i]) * 0x100000001b3ull;
+        h = (h ^ (unsigned char) portbuf[i]) * BRIX_FNV1A64_PRIME;
     }
     return (h != 0) ? h : 1;
 }

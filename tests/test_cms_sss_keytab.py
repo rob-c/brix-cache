@@ -24,6 +24,7 @@ import re
 import pytest
 
 import cms_mesh_lib as lib
+from cmdscripts import fake_exec
 
 
 # A minted keytab entry: `<off> u:<user> g:<group> N:<id> k:<64 hex> n:<name>`.
@@ -87,12 +88,11 @@ def test_sssadmin_resolution_precedence(monkeypatch, tmp_path):
     and an override pointing at nothing is a hard miss (rather than silently
     falling through to some other binary).
     """
-    stub = tmp_path / "xrdsssadmin-brix"
-    stub.write_text("#!/bin/sh\n")
-    stub.chmod(0o755)
+    # A resolvable executable (never run — only its path resolution is asserted).
+    stub = fake_exec.install(tmp_path, "xrdsssadmin-brix")
 
-    monkeypatch.setenv("TEST_XRDSSSADMIN_BIN", str(stub))
-    assert lib._find_sssadmin() == str(stub)
+    monkeypatch.setenv("TEST_XRDSSSADMIN_BIN", stub)
+    assert lib._find_sssadmin() == stub
 
     monkeypatch.setenv("TEST_XRDSSSADMIN_BIN", str(tmp_path / "nope"))
     assert lib._find_sssadmin() is None

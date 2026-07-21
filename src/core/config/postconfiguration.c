@@ -1,5 +1,7 @@
 #include "config.h"
 #include "net/manager/redir_cache.h"
+#include "net/manager/loc_cache.h"
+#include "net/cms/reqid_map.h"
 #include "fs/xfer/stage_waiter.h"
 #include "core/negcache/negcache.h"
 #include "auth/impersonate/lifecycle.h"
@@ -450,7 +452,13 @@ postconf_shared_registries(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
         || postconf_redir_cache(cf, cmcf, cscfp) != NGX_OK
         || brix_pending_configure(cf) != NGX_OK
         || brix_tpc_key_configure_registry(cf) != NGX_OK
-        || brix_tpc_registry_configure(cf) != NGX_OK)
+        || brix_tpc_registry_configure(cf) != NGX_OK
+        || brix_loc_cache_configure(cf) != NGX_OK    /* Phase-89 W3 */
+        || brix_cms_reqid_map_configure(cf) != NGX_OK)
+                                                     /* Phase-89 W2: new zones
+                                                        appended LAST — zone
+                                                        order is the reload
+                                                        contract */
     {
         return NGX_ERROR;
     }

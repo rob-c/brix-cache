@@ -2,6 +2,7 @@
 #define NGX_BRIX_CMS_INTERNAL_H
 
 #include "core/ngx_brix_module.h"
+#include "meter.h"
 
 /*
  * Timing and sizing constants for the CMS heartbeat client.
@@ -132,6 +133,25 @@
 #define CMS_PT_INT     0xa0   /* 4-byte big-endian value follows */
 
 /*
+ * kYR_try sub-reason codes (Phase-89 W5 vocabulary; YProtocol CmsSelectRequest
+ * opts bits, 32-bit — NOT the 1-byte frame modifier).  A stock cmsd encodes
+ * WHY it bounced a select into these bits of the try/redirect response.  In
+ * this topology clients speak XRootD to the manager (registry select →
+ * kXR_redirect on the root plane; the CMS server plane has no select
+ * dispatch), so nothing here EMITS them yet — they are the conformance
+ * vocabulary for decoding a stock parent's replies and for a future select
+ * plane, kept beside the other wire constants so any emitter shares one truth.
+ */
+#define CMS_TRY_MISS   0x00000000   /* kYR_tryMISS: file not found            */
+#define CMS_TRY_IOER   0x00010000   /* kYR_tryIOER: I/O error on the server   */
+#define CMS_TRY_FSER   0x00020000   /* kYR_tryFSER: filesystem error          */
+#define CMS_TRY_SVER   0x00030000   /* kYR_trySVER: server error              */
+#define CMS_TRY_MASK   0x00030000   /* mask over the reason bits              */
+#define CMS_TRY_SHFT   16           /* shift to extract the reason value      */
+#define CMS_TRY_RSEL   0x00040000   /* kYR_tryRSEL: retry the selection       */
+#define CMS_TRY_RSEG   0x00080000   /* kYR_tryRSEG: retry within the segment  */
+
+/*
  * Login packet constants.
  *   VERSION       — CMS protocol version sent in kYR_login.
  *   MODE          — kYR_DataServer flag: this node exports data files.
@@ -174,6 +194,8 @@ struct ngx_brix_cms_ctx_s {
     uint32_t                        next_streamid; /* per-worker monotone counter;
                                                       wraps at UINT32_MAX; used as
                                                       CMS locate correlation key */
+    brix_cms_meter_t                meter;       /* Phase-89 W4 heartbeat load
+                                                    meter (all-zeroes valid) */
     u_char                          inbuf[NGX_BRIX_CMS_MAX_FRAME]; /* receive accumulation buffer */
     size_t                          in_pos;      /* bytes received so far */
     size_t                          in_need;     /* bytes needed to complete the frame */

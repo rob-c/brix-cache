@@ -11,11 +11,29 @@ ngx_uint_t    brix_srv_registry_nslots = BRIX_SRV_REGISTRY_SLOTS;
 
 ngx_msec_t    brix_srv_stale_after_ms;
 
+ngx_uint_t    brix_srv_load_weight;
+
+ngx_uint_t    brix_srv_affinity;
+
 
 void
 brix_srv_set_stale_after(ngx_msec_t ms)
 {
     brix_srv_stale_after_ms = ms;
+}
+
+
+void
+brix_srv_set_load_weight(ngx_uint_t weight)
+{
+    brix_srv_load_weight = weight > 100 ? 100 : weight;
+}
+
+
+void
+brix_srv_set_affinity(ngx_uint_t on)
+{
+    brix_srv_affinity = on ? 1 : 0;
 }
 
 
@@ -302,5 +320,126 @@ brix_srv_unregister(const char *host, uint16_t port)
         }
     }
 
+    ngx_shmtx_unlock(&brix_srv_mutex);
+}
+
+/*
+ * srv_find_locked — locate the in-use entry for host:port.  Caller MUST hold
+ * brix_srv_mutex; returns NULL when the node is not registered (or the zone
+ * is absent), so every Phase-89 W9 attribute writer degrades to a no-op for
+ * an unknown node instead of creating one.
+ */
+static brix_srv_entry_t *
+srv_find_locked(const char *host, uint16_t port)
+{
+    brix_srv_table_t *tbl;
+    ngx_uint_t          i;
+
+    tbl = srv_table();
+    if (tbl == NULL || host == NULL) {
+        return NULL;
+    }
+
+    for (i = 0; i < tbl->capacity; i++) {
+        if (tbl->slots[i].in_use && tbl->slots[i].port == port
+            && ngx_strcmp(tbl->slots[i].host, host) == 0)
+        {
+            return &tbl->slots[i];
+        }
+    }
+
+    return NULL;
+}
+
+/*
+ * brix_srv_reset — kYR_status(reset): forget the node's cached metrics and
+ * fault state but keep the registration + paths (contract in registry.h).
+ * The stale metrics window this opens closes on the node's next load/avail
+ * heartbeat; clearing the blacklist too mirrors stock cmsd, where reset is
+ * the node saying "my state machine restarted, judge me fresh".
+ */
+int
+brix_srv_reset(const char *host, uint16_t port)
+{
+    brix_srv_entry_t *e;
+    int                 found = 0;
+
+    if (srv_table() == NULL) {
+        return 0;
+    }
+
+    ngx_shmtx_lock(&brix_srv_mutex);
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        e->free_mb            = 0;
+        e->util_pct           = 0;
+        e->error_count        = 0;
+        e->blacklisted_until  = 0;
+        e->hc_fail_count      = 0;
+        e->hc_in_progress     = 0;
+        e->load_pct           = 0;
+        e->last_seen          = ngx_current_msec;
+        found = 1;
+    }
+    ngx_shmtx_unlock(&brix_srv_mutex);
+
+    return found;
+}
+
+/* brix_srv_set_vnid — record the login-advertised virtual network id
+ * (contract in registry.h; NULL and "" both clear). */
+void
+brix_srv_set_vnid(const char *host, uint16_t port, const char *vnid)
+{
+    brix_srv_entry_t *e;
+
+    if (srv_table() == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&brix_srv_mutex);
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        ngx_cpystrn((u_char *) e->vnid,
+                    (u_char *) (vnid ? vnid : ""), sizeof(e->vnid));
+    }
+    ngx_shmtx_unlock(&brix_srv_mutex);
+}
+
+/* brix_srv_set_stage — record staging availability from the kYR_status
+ * stage/nostage bits (contract in registry.h). */
+void
+brix_srv_set_stage(const char *host, uint16_t port, ngx_uint_t stage)
+{
+    brix_srv_entry_t *e;
+
+    if (srv_table() == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&brix_srv_mutex);
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        e->stage = stage ? 1 : 0;
+    }
+    ngx_shmtx_unlock(&brix_srv_mutex);
+}
+
+/* brix_srv_set_machine_load — record the heartbeat machine-load percentage
+ * (contract in registry.h). */
+void
+brix_srv_set_machine_load(const char *host, uint16_t port, uint32_t load_pct)
+{
+    brix_srv_entry_t *e;
+
+    if (srv_table() == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&brix_srv_mutex);
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        e->load_pct = load_pct > 100 ? 100 : load_pct;
+    }
     ngx_shmtx_unlock(&brix_srv_mutex);
 }

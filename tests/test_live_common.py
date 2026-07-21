@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from cmdscripts import live_common
+from cmdscripts import fake_nginx, fake_nginx_broken, live_common
 
 _TR = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 
@@ -126,9 +126,7 @@ def fresh_freeze(monkeypatch, tmp_path):
 
 
 def test_freeze_nginx_returns_validated_private_copy(fresh_freeze, tmp_path):
-    src = tmp_path / "nginx"
-    src.write_text("#!/bin/sh\nexit 0\n")
-    src.chmod(0o755)
+    src = Path(fake_nginx.install(tmp_path))
     frozen = live_common.freeze_nginx(src)
     assert frozen != src, "must exec a private copy, not the relinkable source"
     assert frozen.read_bytes() == src.read_bytes()
@@ -145,9 +143,7 @@ def test_freeze_nginx_never_caches_a_broken_binary(fresh_freeze, tmp_path):
     # A source caught mid-relink copies fine but fails validation (-v != 0);
     # the freeze must refuse to pin it and fall back rather than serve a
     # half-written binary for the rest of the session.
-    src = tmp_path / "nginx"
-    src.write_text("#!/bin/sh\nexit 1\n")
-    src.chmod(0o755)
+    src = Path(fake_nginx_broken.install(tmp_path))
     assert live_common.freeze_nginx(src) == src
     assert live_common._FROZEN_NGINX is None
 
@@ -171,9 +167,7 @@ def test_freeze_nginx_honours_freeze_root_not_tmpdir(fresh_freeze, tmp_path,
                                                      monkeypatch):
     # The copy must land under _FREEZE_ROOT even when TMPDIR points elsewhere.
     monkeypatch.setenv("TMPDIR", str(tmp_path / "rotated-tmpdir"))
-    src = tmp_path / "nginx"
-    src.write_text("#!/bin/sh\nexit 0\n")
-    src.chmod(0o755)
+    src = Path(fake_nginx.install(tmp_path))
     frozen = live_common.freeze_nginx(src)
     assert frozen != src
     assert not str(frozen).startswith(str(tmp_path / "rotated-tmpdir"))

@@ -319,23 +319,12 @@ brix_ftp_ev_data_ready(ftp_ev_dc_t *dc)
 }
 
 
-/* Validate a transfer verb, resolve the write offset, send the 150, and arm the
- * data channel.  Returns NGX_OK (transfer running or a queued 5xx), NGX_DONE is
- * never used, NGX_ERROR only on a fatal reply-buffer failure. */
+/* Pre-transfer guards: write permission, an armed data channel, and the MODE E
+ * upload/passive constraint.  Returns NGX_DECLINED to proceed; otherwise the
+ * queued-reply result the caller must return. */
 static ngx_int_t
-ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
+ev_xfer_guards(ftp_ev_t *fc, int writing)
 {
-    char         abs[PATH_MAX];
-    int          code;
-    int          writing = (op == FTP_EV_OP_STOR || op == FTP_EV_OP_APPE);
-    off_t        start   = 0;
-    unsigned     flags   = 0;
-    int          verify  = 0;
-    off_t        allo    = fc->allo_size;         /* one-shot, per this command */
-    ftp_ev_dc_t *dc;
-
-    fc->allo_size = -1;                           /* consume ALLO unconditionally */
-
     if (writing && !fc->conf->allow_write) {
         return brix_ftp_ev_reply(fc,
             "550 Permission denied (read-only export)\r\n");
@@ -352,24 +341,34 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
         return brix_ftp_ev_reply(fc,
             "504 MODE E upload requires passive mode\r\n");
     }
+    return NGX_DECLINED;
+}
 
-    code = brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs));
+
+/* Resolve the absolute path and the per-op write start / source validation
+ * (before the 150).  Fills abs/start/flags/verify.  Returns NGX_DECLINED to
+ * proceed; otherwise the queued-reply result the caller must return. */
+static ngx_int_t
+ev_xfer_resolve_start(ftp_ev_t *fc, int op, const char *arg,
+                      char *abs, size_t abscap,
+                      off_t *start, unsigned *flags, int *verify)
+{
+    int code = brix_ftp_ev_resolve(fc, arg, abs, abscap);
     if (code != 0) {
         fc->rest_off = 0;
         return brix_ftp_ev_reply(fc, "%d Failed to resolve path\r\n", code);
     }
 
-    /* Resolve the write start / validate the source before the 150. */
     if (op == FTP_EV_OP_STOR) {
-        start  = fc->rest_off;
-        flags  = (fc->rest_off == 0) ? BRIX_VFS_O_TRUNC : 0;
-        verify = (fc->conf->verify_write && start == 0) ? 1 : 0;
+        *start  = fc->rest_off;
+        *flags  = (fc->rest_off == 0) ? BRIX_VFS_O_TRUNC : 0;
+        *verify = (fc->conf->verify_write && *start == 0) ? 1 : 0;
     } else if (op == FTP_EV_OP_APPE) {
         brix_vfs_ctx_t  vctx;
         brix_vfs_stat_t st;
         brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
         if (brix_vfs_stat(&vctx, &st) == NGX_OK && !st.is_directory) {
-            start = st.size;
+            *start = st.size;
         }
     } else if (op == FTP_EV_OP_RETR) {
         brix_vfs_ctx_t  vctx;
@@ -379,23 +378,32 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
             fc->rest_off = 0;
             return brix_ftp_ev_reply(fc, "550 No such file\r\n");
         }
-        start = fc->rest_off;
+        *start = fc->rest_off;
     }
     fc->rest_off = 0;                                  /* REST is one-shot      */
+    return NGX_DECLINED;
+}
 
-    dc = ngx_pcalloc(fc->c->pool, sizeof(ftp_ev_dc_t));
+
+/* Allocate and populate the data-channel state for a validated transfer.
+ * Returns NULL on OOM (both the struct and its buffer). */
+static ftp_ev_dc_t *
+ev_xfer_alloc_dc(ftp_ev_t *fc, int op, const char *abs,
+                 off_t start, unsigned flags, int verify, off_t allo)
+{
+    ftp_ev_dc_t *dc = ngx_pcalloc(fc->c->pool, sizeof(ftp_ev_dc_t));
     if (dc == NULL) {
-        return brix_ftp_ev_reply(fc, "425 Cannot open data connection\r\n");
+        return NULL;
     }
     /* +FTP_EB_HDR: MODE E RETR frames each chunk as [17-byte header][payload] in
      * one buffer, so it must hold a full payload chunk plus the header. */
     dc->buf = ngx_pnalloc(fc->c->pool, BRIX_FTP_EV_XFER_BUF + FTP_EB_HDR);
     if (dc->buf == NULL) {
-        return brix_ftp_ev_reply(fc, "425 Cannot open data connection\r\n");
+        return NULL;
     }
     dc->fc      = fc;
     dc->op      = op;
-    dc->writing = writing;
+    dc->writing = (op == FTP_EV_OP_STOR || op == FTP_EV_OP_APPE);
     dc->off     = start;
     dc->flags   = flags;
     dc->verify  = verify;
@@ -408,6 +416,42 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
                 : (op == FTP_EV_OP_MLSD) ? FTP_EV_LS_MLSD
                 :                          FTP_EV_LS_NLST;
     memcpy(dc->abs, abs, ngx_strlen(abs) + 1);
+    return dc;
+}
+
+
+/* Validate a transfer verb, resolve the write offset, send the 150, and arm the
+ * data channel.  Returns NGX_OK (transfer running or a queued 5xx), NGX_DONE is
+ * never used, NGX_ERROR only on a fatal reply-buffer failure. */
+static ngx_int_t
+ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
+{
+    char         abs[PATH_MAX];
+    int          writing = (op == FTP_EV_OP_STOR || op == FTP_EV_OP_APPE);
+    off_t        start   = 0;
+    unsigned     flags   = 0;
+    int          verify  = 0;
+    off_t        allo    = fc->allo_size;         /* one-shot, per this command */
+    ngx_int_t    rc;
+    ftp_ev_dc_t *dc;
+
+    fc->allo_size = -1;                           /* consume ALLO unconditionally */
+
+    rc = ev_xfer_guards(fc, writing);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    rc = ev_xfer_resolve_start(fc, op, arg, abs, sizeof(abs),
+                               &start, &flags, &verify);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    dc = ev_xfer_alloc_dc(fc, op, abs, start, flags, verify, allo);
+    if (dc == NULL) {
+        return brix_ftp_ev_reply(fc, "425 Cannot open data connection\r\n");
+    }
 
     fc->dc    = dc;
     fc->state = FTP_EV_ST_XFER;

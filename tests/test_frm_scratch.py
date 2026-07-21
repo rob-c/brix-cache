@@ -39,6 +39,7 @@ import subprocess
 
 import pytest
 
+from cmdscripts import frm_stagecmd
 from settings import HOST
 from server_registry import NginxInstanceSpec
 
@@ -48,30 +49,6 @@ XRDCP = shutil.which("xrdcp")
 TAPE_BYTES = b"REAL-TAPE-CONTENT-" + b"t" * 200 + b"\n"
 
 _SEQ = itertools.count()
-
-
-def _exec_stagecmd(tape, audit):
-    """A minimal exec MSS adapter: ``$BRIX_FRM_STAGECMD <verb> <key> <online>``.
-
-    The tape directory and audit log are baked into the script rather than read
-    from the environment: nginx rewrites its runtime ``environ`` to reclaim space
-    for its process title, so a spawned stage command cannot rely on inherited
-    env vars (only ``BRIX_FRM_STAGECMD`` itself, resolved at config time, and the
-    verb/key/online argv survive).
-    """
-    return (
-        "#!/bin/bash\n"
-        'verb="$1"; key="${2#/}"; online="$3"\n'
-        f"audit='{audit}'\n"
-        f"tape='{tape}'\n"
-        'echo "$verb $key $online" >> "$audit"\n'
-        'case "$verb" in\n'
-        '  exists)  [ -f "$tape/$key" ] && exit 0 || exit 1 ;;\n'
-        '  recall)  mkdir -p "$(dirname "$online")"; cp "$tape/$key" "$online" ;;\n'
-        '  migrate) cp "$online" "$tape/$key" ;;\n'
-        '  purge)   rm -f "$online" ;;\n'
-        "esac\n"
-    )
 
 
 def _start(harness, tmp_path, *, adapter="exec", nearline=True):
@@ -89,11 +66,12 @@ def _start(harness, tmp_path, *, adapter="exec", nearline=True):
         tape = tmp_path / "tape"; tape.mkdir()
         if nearline:
             (tape / "near.dat").write_bytes(TAPE_BYTES)
-        stagecmd = tmp_path / "stage.sh"
-        stagecmd.write_text(_exec_stagecmd(tape, audit))
-        stagecmd.chmod(0o755)
+        # Exec MSS adapter — every verb is appended to the audit log as
+        # "verb key online". Tape dir + audit path ride in a JSON sidecar (nginx
+        # rewrites its worker environ; only argv + BRIX_FRM_STAGECMD survive).
+        stagecmd = frm_stagecmd.install(tmp_path, tape=str(tape), audit=str(audit))
         storage = f"frm://exec{base}"
-        env["BRIX_FRM_STAGECMD"] = str(stagecmd)
+        env["BRIX_FRM_STAGECMD"] = stagecmd
     else:  # stub: the base directory IS the tape (offline objects live in it)
         tape = tmp_path / "tape"; tape.mkdir()
         if nearline:
