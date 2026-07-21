@@ -368,6 +368,51 @@ postconf_impersonation(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
  * Walk every parsed listen address; for each with proxy_protocol set, resolve
  * the server blocks bound to it and reject if any carries a host allowlist.
  */
+#if (nginx_version < 1025005)
+
+/*
+ * Pre-1.25.5 stream API (no virtual servers): cmcf->listen holds one
+ * ngx_stream_listen_t per listen directive, each bound to exactly one server
+ * via its conf ctx — walk that flat list instead of ports/addrs/servers.
+ */
+static ngx_int_t
+postconf_proxy_protocol_host_acl(ngx_conf_t *cf,
+    ngx_stream_core_main_conf_t *cmcf)
+{
+    ngx_stream_listen_t          *ls;
+    ngx_stream_brix_srv_conf_t   *xcf;
+    ngx_uint_t                     i;
+
+    ls = cmcf->listen.elts;
+    for (i = 0; i < cmcf->listen.nelts; i++) {
+
+        if (!ls[i].proxy_protocol) {
+            continue;
+        }
+
+        xcf = ls[i].ctx->srv_conf[ngx_stream_brix_module.ctx_index];
+
+        if (xcf->host_allow == NULL || xcf->host_allow->nelts == 0) {
+            continue;
+        }
+
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: refusing insecure configuration — brix_host_allow "
+            "on a \"listen %V proxy_protocol\" socket trusts the "
+            "PROXY-header peer address, which the immediate client can "
+            "forge; this build has no realip module, so no "
+            "set_real_ip_from trusted-proxy allowlist can restrict it. "
+            "Remove proxy_protocol from that listen, or drop "
+            "brix_host_allow and authenticate another way",
+            &ls[i].addr_text);
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+#else
+
 static ngx_int_t
 postconf_proxy_protocol_host_acl(ngx_conf_t *cf,
     ngx_stream_core_main_conf_t *cmcf)
@@ -418,6 +463,8 @@ postconf_proxy_protocol_host_acl(ngx_conf_t *cf,
 
     return NGX_OK;
 }
+
+#endif /* nginx_version >= 1025005 */
 
 /*
  * Everything above succeeded, so the configuration is valid. Print a

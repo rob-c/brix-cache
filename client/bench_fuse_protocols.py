@@ -114,6 +114,49 @@ def bench_endpoint(name, url, extra, fname, iters):
     return {"name": name, "size": size, "md5": md5, "rates": rates}
 
 
+def _build_plan(args):
+    """(name, url, driver-extra-args) per requested endpoint, in run order."""
+    common = []
+    if args.readahead:
+        common += ["--readahead", args.readahead]
+    web_extra = list(common)
+    if args.token:
+        web_extra += ["--token", args.token]
+    https_extra = list(web_extra)
+    if not args.verify:
+        https_extra += ["--noverifyhost"]
+
+    plan = []
+    if args.root:
+        plan.append(("root", args.root, common))
+    if args.http:
+        plan.append(("http", args.http, web_extra))
+    if args.https:
+        plan.append(("https", args.https, https_extra))
+    return plan
+
+
+def _print_summary(args, results):
+    """Per-protocol median/min/max table + cross-protocol md5 and speedups."""
+    md5s = {r["md5"] for r in results}
+    print("\n===== summary =====")
+    print(f"file={args.file}  size={results[0]['size']} bytes  iters={args.iters}")
+    print(f"cross-protocol bytes identical: {'YES' if len(md5s) == 1 else 'NO (!)'}")
+    print(f"{'proto':<8}{'median':>10}{'min':>10}{'max':>10}   (MB/s)")
+    for r in results:
+        rr = r["rates"]
+        print(f"{r['name']:<8}{statistics.median(rr):>10.1f}"
+              f"{min(rr):>10.1f}{max(rr):>10.1f}")
+    if len(results) >= 2:
+        base = results[0]
+        bmed = statistics.median(base["rates"])
+        for r in results[1:]:
+            rmed = statistics.median(r["rates"])
+            if bmed > 0:
+                print(f"{r['name']} vs {base['name']}: "
+                      f"{rmed / bmed:.2f}× throughput")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -132,23 +175,7 @@ def main():
     if not os.path.exists(XROOTDFS):
         sys.exit(f"missing {XROOTDFS} (run `make -C {HERE} xrootdfs`)")
 
-    common = []
-    if args.readahead:
-        common += ["--readahead", args.readahead]
-    web_extra = list(common)
-    if args.token:
-        web_extra += ["--token", args.token]
-    https_extra = list(web_extra)
-    if not args.verify:
-        https_extra += ["--noverifyhost"]
-
-    plan = []
-    if args.root:
-        plan.append(("root", args.root, common))
-    if args.http:
-        plan.append(("http", args.http, web_extra))
-    if args.https:
-        plan.append(("https", args.https, https_extra))
+    plan = _build_plan(args)
     if not plan:
         sys.exit("specify at least one of --root / --http / --https")
 
@@ -162,23 +189,7 @@ def main():
     if not results:
         sys.exit("no endpoint produced a result")
 
-    md5s = {r["md5"] for r in results}
-    print("\n===== summary =====")
-    print(f"file={args.file}  size={results[0]['size']} bytes  iters={args.iters}")
-    print(f"cross-protocol bytes identical: {'YES' if len(md5s) == 1 else 'NO (!)'}")
-    print(f"{'proto':<8}{'median':>10}{'min':>10}{'max':>10}   (MB/s)")
-    for r in results:
-        rr = r["rates"]
-        print(f"{r['name']:<8}{statistics.median(rr):>10.1f}"
-              f"{min(rr):>10.1f}{max(rr):>10.1f}")
-    if len(results) >= 2:
-        base = results[0]
-        bmed = statistics.median(base["rates"])
-        for r in results[1:]:
-            rmed = statistics.median(r["rates"])
-            if bmed > 0:
-                print(f"{r['name']} vs {base['name']}: "
-                      f"{rmed / bmed:.2f}× throughput")
+    _print_summary(args, results)
 
 
 if __name__ == "__main__":

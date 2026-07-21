@@ -86,16 +86,50 @@ sd_s3_list_meta_emit(const char *name, size_t nlen, char *buf, size_t cap,
     *need += entry;
 }
 
+/* Scan the raw response header block for "x-amz-meta-<name>:" lines and emit
+ * each as a "user.<name>" listxattr entry (the advisory blob is skipped — it
+ * surfaces as POSIX attrs, not as a user xattr). Returns the total byte need;
+ * the caller compares it against cap. */
+static size_t
+sd_s3_list_meta_scan(const char *hdrs, char *buf, size_t cap)
+{
+    static const char pfx[] = "x-amz-meta-";
+    const size_t      pfxlen = sizeof(pfx) - 1;
+    const char       *p;
+    size_t            need = 0;
+
+    for (p = hdrs; *p != '\0'; ) {
+        const char *eol = p + strcspn(p, "\r\n");
+        const char *colon;
+
+        if ((size_t) (eol - p) > pfxlen
+            && strncasecmp(p, pfx, pfxlen) == 0
+            && (colon = memchr(p, ':', (size_t) (eol - p))) != NULL
+            && colon > p + pfxlen)
+        {
+            const char *name = p + pfxlen;
+            size_t      nlen = (size_t) (colon - name);
+
+            /* The advisory blob surfaces as POSIX attrs, not as a user xattr. */
+            if (nlen != sizeof(BRIX_META_ADVISORY_S3META) - 1
+                || strncasecmp(name, BRIX_META_ADVISORY_S3META, nlen) != 0)
+            {
+                sd_s3_list_meta_emit(name, nlen, buf, cap, &need);
+            }
+        }
+        p = eol + strspn(eol, "\r\n");
+    }
+    return need;
+}
+
 ssize_t
 sd_s3_list_meta(sd_s3_file *f, char *buf, size_t cap,
                 char *errbuf, size_t errcap)
 {
-    static const char pfx[] = "x-amz-meta-";
-    const size_t      pfxlen = sizeof(pfx) - 1;
     char              auth[SD_S3_AUTH_HDRS_CAP];
     brix_s3_resp_t    resp;
-    const char       *hdrs, *p;
-    size_t            need = 0;
+    const char       *hdrs;
+    size_t            need;
 
     if (f == NULL) {
         sd_s3_set_err(errbuf, errcap, "s3 list-meta: bad parameters");
@@ -133,27 +167,7 @@ sd_s3_list_meta(sd_s3_file *f, char *buf, size_t cap,
         return -1;
     }
 
-    for (p = hdrs; *p != '\0'; ) {
-        const char *eol = p + strcspn(p, "\r\n");
-        const char *colon;
-
-        if ((size_t) (eol - p) > pfxlen
-            && strncasecmp(p, pfx, pfxlen) == 0
-            && (colon = memchr(p, ':', (size_t) (eol - p))) != NULL
-            && colon > p + pfxlen)
-        {
-            const char *name = p + pfxlen;
-            size_t      nlen = (size_t) (colon - name);
-
-            /* The advisory blob surfaces as POSIX attrs, not as a user xattr. */
-            if (nlen != sizeof(BRIX_META_ADVISORY_S3META) - 1
-                || strncasecmp(name, BRIX_META_ADVISORY_S3META, nlen) != 0)
-            {
-                sd_s3_list_meta_emit(name, nlen, buf, cap, &need);
-            }
-        }
-        p = eol + strspn(eol, "\r\n");
-    }
+    need = sd_s3_list_meta_scan(hdrs, buf, cap);
     f->transport->resp_free(&resp);
 
     if (buf == NULL || cap == 0) {

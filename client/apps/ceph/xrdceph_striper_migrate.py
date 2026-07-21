@@ -291,6 +291,114 @@ class Migrator:
 
     # ---- per-file operations -------------------------------------------------
 
+    def _clear_partial_target(self, cpath):
+        """Clear a partial/forced target. DETACH its stubs first: the MDS
+        purge behind unlink is ASYNC and a still-attached redirect stub
+        DELETE-THROUGHS to the striper source when purged — without
+        this, a forced re-migrate destroys its own source objects
+        moments after verifying clean. (The C++ tool has this hazard.)"""
+        old = self.statx_quiet(cpath, cephfs.CEPH_STATX_INO)
+        if old is not None:
+            for idx in self.dst_stubs(old["ino"]):
+                self.bridge.unset_manifest(self.args.cephfs_data_pool,
+                                           self.stub_name(old["ino"], idx))
+        self.fs.unlink(cpath.encode())
+
+    def _create_dest_file(self, cpath, osz, su, sc):
+        """MDS: create the namespace entry with a layout matching the striper
+        geometry (must be set while the file is still empty)."""
+        self.mkparents(cpath)
+        fd = self.fs.open(cpath.encode(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
+                          0o644)
+        for name, val in (("ceph.file.layout.object_size", osz),
+                          ("ceph.file.layout.stripe_unit", su),
+                          ("ceph.file.layout.stripe_count", sc)):
+            self.fs.fsetxattr(fd, name, str(val).encode(), 0)
+        self.fs.close(fd)
+
+    def _map_stripes(self, soid, ino, indices):
+        """Map every stripe object into the CephFS-named data object. Returns
+        False after recording the failure when any bridge op fails."""
+        args = self.args
+        for idx in indices:
+            src_name = self.stripe_name(soid, idx)
+            dst_name = self.stub_name(ino, idx)
+            try:
+                _, ver = self.bridge.stat(args.striper_pool, src_name)
+                if args.mode == "redirect":
+                    self.bridge.create_stub(args.cephfs_data_pool, dst_name)
+                    self.bridge.set_redirect(args.cephfs_data_pool, dst_name,
+                                             args.striper_pool, src_name, ver)
+                else:
+                    self.bridge.copy_from(args.cephfs_data_pool, dst_name,
+                                          args.striper_pool, src_name, ver)
+                    if idx == 0:
+                        for j in STRIPER_XATTRS:
+                            self.bridge.rmxattr(args.cephfs_data_pool,
+                                                dst_name, j)
+            except BridgeError as e:
+                self.rep.item(soid, self.action, "fail", error=str(e))
+                self.state.record(soid, self.action, args.mode, "fail")
+                return False
+        return True
+
+    def _carry_xattrs(self, cpath, first):
+        """Carry user.* xattrs (checksums etc.) onto the CephFS file; returns
+        the carried adler32 checksum value (b"" when none)."""
+        carried_cksum = b""
+        try:
+            for name, val in self.src.get_xattrs(first):
+                if not name.startswith("user."):
+                    continue
+                self.fs.setxattr(cpath.encode(), name, val, 0)
+                if name == "user.XrdCks.adler32":
+                    carried_cksum = val
+        except rados.Error:
+            pass
+        return carried_cksum
+
+    def _verify_migrated(self, soid, cpath, total, carried_cksum):
+        """True when the migrated file matches the carried checksum (or,
+        absent one, the expected size); records the failure otherwise."""
+        args = self.args
+        if carried_cksum:
+            got = self.cephfs_adler32(cpath, total)
+            want = carried_cksum.decode(errors="replace").lower()
+            if got is None or got != want:
+                self.rep.item(soid, self.action, "fail",
+                              error="checksum mismatch (got %s want %s)"
+                                    % (got, want))
+                self.state.record(soid, self.action, args.mode, "fail")
+                return False
+        else:
+            stx = self.statx_quiet(cpath, cephfs.CEPH_STATX_SIZE)
+            if stx is None or stx["size"] != total:
+                self.rep.item(soid, self.action, "fail",
+                              error="size verify")
+                self.state.record(soid, self.action, args.mode, "fail")
+                return False
+        return True
+
+    def _delete_striper_source(self, soid, indices):
+        """Delete the source after a clean copy-migrate (+verify); returns
+        the number of stripe objects removed."""
+        deleted = 0
+        for idx in indices:
+            if self.src.remove_object(self.stripe_name(soid, idx)) is None:
+                deleted += 1
+        try:
+            self.src.remove_object(soid)        # bare control object, if any
+        except rados.Error:
+            pass
+        with self.rep._lock:                    # noqa: SLF001
+            self.rep.deleted += deleted
+        return deleted
+
+    def _migrate_detail(self):
+        return (" redirect" if self.args.mode == "redirect" else "") \
+            + (", verified" if self.args.verify else "") \
+            + (", source deleted" if self.args.delete_source else "")
+
     def migrate_one(self, soid):
         args = self.args
         indices = self.index.get(soid)
@@ -323,28 +431,9 @@ class Migrator:
             return
 
         if stx is not None:
-            # Clear a partial/forced target. DETACH its stubs first: the MDS
-            # purge behind unlink is ASYNC and a still-attached redirect stub
-            # DELETE-THROUGHS to the striper source when purged — without
-            # this, a forced re-migrate destroys its own source objects
-            # moments after verifying clean. (The C++ tool has this hazard.)
-            old = self.statx_quiet(cpath, cephfs.CEPH_STATX_INO)
-            if old is not None:
-                for idx in self.dst_stubs(old["ino"]):
-                    self.bridge.unset_manifest(args.cephfs_data_pool,
-                                               self.stub_name(old["ino"], idx))
-            self.fs.unlink(cpath.encode())
+            self._clear_partial_target(cpath)
 
-        # MDS: create the namespace entry with a layout matching the striper
-        # geometry (must be set while the file is still empty).
-        self.mkparents(cpath)
-        fd = self.fs.open(cpath.encode(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
-                          0o644)
-        for name, val in (("ceph.file.layout.object_size", osz),
-                          ("ceph.file.layout.stripe_unit", su),
-                          ("ceph.file.layout.stripe_count", sc)):
-            self.fs.fsetxattr(fd, name, str(val).encode(), 0)
-        self.fs.close(fd)
+        self._create_dest_file(cpath, osz, su, sc)
 
         stx = self.statx_quiet(cpath, cephfs.CEPH_STATX_INO)
         if stx is None:
@@ -353,81 +442,24 @@ class Migrator:
             return
         ino = stx["ino"]
 
-        # map every stripe object into the CephFS-named data object
-        for idx in indices:
-            src_name = self.stripe_name(soid, idx)
-            dst_name = self.stub_name(ino, idx)
-            try:
-                _, ver = self.bridge.stat(args.striper_pool, src_name)
-                if args.mode == "redirect":
-                    self.bridge.create_stub(args.cephfs_data_pool, dst_name)
-                    self.bridge.set_redirect(args.cephfs_data_pool, dst_name,
-                                             args.striper_pool, src_name, ver)
-                else:
-                    self.bridge.copy_from(args.cephfs_data_pool, dst_name,
-                                          args.striper_pool, src_name, ver)
-                    if idx == 0:
-                        for j in STRIPER_XATTRS:
-                            self.bridge.rmxattr(args.cephfs_data_pool,
-                                                dst_name, j)
-            except BridgeError as e:
-                self.rep.item(soid, self.action, "fail", error=str(e))
-                self.state.record(soid, self.action, args.mode, "fail")
-                return
+        if not self._map_stripes(soid, ino, indices):
+            return
 
-        # carry user.* xattrs (checksums etc.) onto the CephFS file
-        carried_cksum = b""
-        first = soid + FIRST_SUFFIX
-        try:
-            for name, val in self.src.get_xattrs(first):
-                if not name.startswith("user."):
-                    continue
-                self.fs.setxattr(cpath.encode(), name, val, 0)
-                if name == "user.XrdCks.adler32":
-                    carried_cksum = val
-        except rados.Error:
-            pass
+        carried_cksum = self._carry_xattrs(cpath, soid + FIRST_SUFFIX)
 
         # MDS: set the size
         self.fs.truncate(cpath.encode(), total)
 
-        # verify
-        if args.verify:
-            if carried_cksum:
-                got = self.cephfs_adler32(cpath, total)
-                want = carried_cksum.decode(errors="replace").lower()
-                if got is None or got != want:
-                    self.rep.item(soid, self.action, "fail",
-                                  error="checksum mismatch (got %s want %s)"
-                                        % (got, want))
-                    self.state.record(soid, self.action, args.mode, "fail")
-                    return
-            else:
-                stx = self.statx_quiet(cpath, cephfs.CEPH_STATX_SIZE)
-                if stx is None or stx["size"] != total:
-                    self.rep.item(soid, self.action, "fail",
-                                  error="size verify")
-                    self.state.record(soid, self.action, args.mode, "fail")
-                    return
+        if args.verify and not self._verify_migrated(soid, cpath, total,
+                                                     carried_cksum):
+            return
 
-        # optionally delete the source after a clean copy-migrate (+verify)
-        deleted = 0
         if args.delete_source:
-            for idx in indices:
-                if self.src.remove_object(self.stripe_name(soid, idx)) is None:
-                    deleted += 1
-            try:
-                self.src.remove_object(soid)        # bare control object, if any
-            except rados.Error:
-                pass
-            with self.rep._lock:                    # noqa: SLF001
-                self.rep.deleted += deleted
+            self._delete_striper_source(soid, indices)
 
-        detail = (" redirect" if args.mode == "redirect" else "") \
-            + (", verified" if args.verify else "") \
-            + (", source deleted" if args.delete_source else "")
         self.rep.item(soid, self.action, "ok", nbytes=total,
-                      objects=len(indices), dest=cpath, detail=detail)
+                      objects=len(indices), dest=cpath,
+                      detail=self._migrate_detail())
         self.state.record(soid, self.action, args.mode, "ok", bytes=total)
 
     def rollback_one(self, soid):

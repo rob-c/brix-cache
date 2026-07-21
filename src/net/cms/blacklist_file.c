@@ -60,6 +60,62 @@ blfile_parse_uint(const char *s, size_t len, long max)
     return v;
 }
 
+/* blfile_parse_cidr — IPv4 CIDR entry text ("a.b.c.d/n", slash points at the
+ * '/').  Returns 0 with out filled as a CIDR entry, -1 on malformed input. */
+static int
+blfile_parse_cidr(const char *line, size_t len, const char *slash,
+    brix_cms_blfile_entry_t *out)
+{
+    uint32_t  net;
+    long      v;
+
+    if (blfile_parse_ipv4(line, (size_t) (slash - line), &net) != 0) {
+        return -1;
+    }
+    v = blfile_parse_uint(slash + 1, len - (size_t) (slash - line) - 1, 32);
+    if (v < 0) {
+        return -1;
+    }
+    out->is_cidr = 1;
+    out->mask    = (v == 0) ? 0 : (uint32_t) (0xffffffffu << (32 - v));
+    out->net     = net & out->mask;
+    return 0;
+}
+
+/* blfile_find_port_colon — locate the port separator in a host[:port] line.
+ * Bracketed IPv6 ([::1]:1094) keeps its colons inside the brackets; only a
+ * colon AFTER the closing bracket (or in a bracket-less line with exactly one
+ * colon) is a port separator.  A bare IPv6 literal (multiple colons, no
+ * brackets) is taken whole as the host text.  Returns 0 with *colon set (NULL
+ * when there is no port), -1 on a malformed bracketed line. */
+static int
+blfile_find_port_colon(const char *line, size_t len, const char **colon)
+{
+    *colon = NULL;
+    if (line[0] == '[') {
+        const char *rb = memchr(line, ']', len);
+
+        if (rb == NULL) {
+            return -1;
+        }
+        if ((size_t) (rb - line) + 1 < len) {
+            if (rb[1] != ':') {
+                return -1;
+            }
+            *colon = rb + 1;
+        }
+    } else {
+        const char *first = memchr(line, ':', len);
+
+        if (first != NULL
+            && memchr(first + 1, ':', len - (size_t) (first - line) - 1) == NULL)
+        {
+            *colon = first;
+        }
+    }
+    return 0;
+}
+
 int
 brix_cms_blfile_parse_line(const char *line, size_t len,
     brix_cms_blfile_entry_t *out)
@@ -78,46 +134,11 @@ brix_cms_blfile_parse_line(const char *line, size_t len,
     slash = memchr(line, '/', len);
     if (slash != NULL) {
         /* IPv4 CIDR: a.b.c.d/n */
-        uint32_t net;
-
-        if (blfile_parse_ipv4(line, (size_t) (slash - line), &net) != 0) {
-            return -1;
-        }
-        v = blfile_parse_uint(slash + 1, len - (size_t) (slash - line) - 1, 32);
-        if (v < 0) {
-            return -1;
-        }
-        out->is_cidr = 1;
-        out->mask    = (v == 0) ? 0 : (uint32_t) (0xffffffffu << (32 - v));
-        out->net     = net & out->mask;
-        return 0;
+        return blfile_parse_cidr(line, len, slash, out);
     }
 
-    /* host[:port] — bracketed IPv6 ([::1]:1094) keeps its colons inside the
-     * brackets; only a colon AFTER the closing bracket (or in a bracket-less
-     * line with exactly one colon) is a port separator.  A bare IPv6 literal
-     * (multiple colons, no brackets) is taken whole as the host text. */
-    colon = NULL;
-    if (line[0] == '[') {
-        const char *rb = memchr(line, ']', len);
-
-        if (rb == NULL) {
-            return -1;
-        }
-        if ((size_t) (rb - line) + 1 < len) {
-            if (rb[1] != ':') {
-                return -1;
-            }
-            colon = rb + 1;
-        }
-    } else {
-        const char *first = memchr(line, ':', len);
-
-        if (first != NULL
-            && memchr(first + 1, ':', len - (size_t) (first - line) - 1) == NULL)
-        {
-            colon = first;
-        }
+    if (blfile_find_port_colon(line, len, &colon) != 0) {
+        return -1;
     }
 
     if (colon != NULL) {
@@ -163,6 +184,33 @@ brix_cms_blfile_entry_matches(const brix_cms_blfile_entry_t *e,
 
 /* ---- poll driver -------------------------------------------------------- */
 
+/* blfile_scan_line — find the '\n'-terminated line at *pos in buf[0..got),
+ * trim surrounding whitespace, and advance *pos past the line.  Returns the
+ * trimmed bounds in *start / *end (start == end for a blank line). */
+static void
+blfile_scan_line(const char *buf, size_t got, size_t *pos,
+    size_t *start, size_t *end)
+{
+    size_t  eol = *pos;
+
+    while (eol < got && buf[eol] != '\n') {
+        eol++;
+    }
+
+    /* Trim surrounding whitespace. */
+    *start = *pos;
+    *end   = eol;
+    while (*start < *end && (buf[*start] == ' ' || buf[*start] == '\t'
+                             || buf[*start] == '\r')) {
+        (*start)++;
+    }
+    while (*end > *start && (buf[*end - 1] == ' ' || buf[*end - 1] == '\t'
+                             || buf[*end - 1] == '\r')) {
+        (*end)--;
+    }
+    *pos = eol + 1;
+}
+
 /* blfile_reload — parse the file at path into bl->entries, skipping comments,
  * blank lines, and (with a warning) malformed lines.  Never fails the poll:
  * an unreadable file simply keeps the previous entry set. */
@@ -187,24 +235,10 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
     bl->nentries = 0;
 
     for (pos = 0; pos < got; /* advanced inside */) {
-        size_t  eol = pos, start, end;
+        size_t  start, end;
 
-        while (eol < got && buf[eol] != '\n') {
-            eol++;
-        }
-
-        /* Trim surrounding whitespace, then drop blanks and '#' comments. */
-        start = pos;
-        end   = eol;
-        while (start < end && (buf[start] == ' ' || buf[start] == '\t'
-                               || buf[start] == '\r')) {
-            start++;
-        }
-        while (end > start && (buf[end - 1] == ' ' || buf[end - 1] == '\t'
-                               || buf[end - 1] == '\r')) {
-            end--;
-        }
-        pos = eol + 1;
+        /* Scan and trim the next line, then drop blanks and '#' comments. */
+        blfile_scan_line(buf, got, &pos, &start, &end);
         if (start == end || buf[start] == '#') {
             continue;
         }

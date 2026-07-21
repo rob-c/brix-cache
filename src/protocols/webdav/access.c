@@ -330,7 +330,9 @@ access_basic_challenge(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     h->hash = 1;
+#if (nginx_version >= 1023000)
     h->next = NULL;
+#endif
     ngx_str_set(&h->key, "WWW-Authenticate");
     ngx_str_set(&h->value, "Basic realm=\"brix\"");
     r->headers_out.www_authenticate = h;

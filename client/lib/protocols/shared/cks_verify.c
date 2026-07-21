@@ -257,19 +257,34 @@ ckv_rd_u64(const uint8_t *b, size_t off)
     return v;
 }
 
-/* Extract the ORIGIN-section checksum from one raw xmeta record into *rec.
- * Walk: v4 stock prefix (version + 48-byte Store + crc + present bitmap +
- * AStat[] + crc) -> "XCX1" extension block -> section type 0x0004. Returns 1
- * when an (alg, hex) pair was found; every offset is bounds-checked against n
- * so a truncated or corrupt record yields 0, never an over-read. */
+/* ---- Validate the v4 xmeta prefix and locate the "XCX1" extension block ----
+ *
+ * WHAT: Checks the stock v4 cinfo prefix of the raw xmeta record `buf`
+ *       (`n` bytes) — version + 48-byte Store + crc + present bitmap +
+ *       AStat[] + crc — then verifies the "XCX1" extension magic that follows.
+ *       Returns 1 with `*sec_off` set to the first extension section and
+ *       `*nsec` to the section count; returns 0 on any malformed/truncated
+ *       prefix.
+ *
+ * WHY:  Isolates the fixed-prefix arithmetic from the section scan so the
+ *       ORIGIN extraction reads as prefix-check → scan → decode; the inline
+ *       walk drove ckv_xmeta_origin over the complexity cap.
+ *
+ * HOW:  1. Require >= 56 bytes and version CKV_XMETA_VERSION.
+ *       2. Read bsize/size/astatn and reject non-positive/negative values.
+ *       3. Compute the block-bitmap length from size/bsize and derive the
+ *          extension-block offset.
+ *       4. Bounds-check the 8-byte extension header and require "XCX1".
+ *       5. Publish the section count and the offset just past the header.
+ */
 static int
-ckv_xmeta_origin(const uint8_t *buf, size_t n, ckv_record *rec)
+ckv_xmeta_ext_locate(const uint8_t *buf, size_t n, size_t *sec_off,
+    uint16_t *nsec)
 {
     int64_t  bsize, size;
     int32_t  astatn;
     uint64_t nblocks;
     size_t   off;
-    uint16_t nsec, i;
 
     if (n < 56 || (int32_t) ckv_rd_u32(buf, 0) != CKV_XMETA_VERSION) {
         return 0;
@@ -288,8 +303,58 @@ ckv_xmeta_origin(const uint8_t *buf, size_t n, ckv_record *rec)
     if (off + 8 > n || ckv_rd_u32(buf, off) != CKV_XMETA_EXT_MAGIC) {
         return 0;
     }
-    nsec = ckv_rd_u16(buf, off + 6);
-    off += 8;
+    *nsec    = ckv_rd_u16(buf, off + 6);
+    *sec_off = off + 8;
+    return 1;
+}
+
+/* ---- Decode one ORIGIN-section payload into *rec ----
+ *
+ * WHAT: Parses an ORIGIN (0x0004) section payload `p` of `plen` bytes —
+ *       {u8 etag_len, u8 alg_len, u8 cks_len, u8 pad} + etag/alg/hex strings —
+ *       into rec->{src,algo,hex}. Returns 1 on success, 0 when the embedded
+ *       lengths are inconsistent with the payload (corrupt record).
+ *
+ * WHY:  Keeps the length-sanity checks and string extraction next to each
+ *       other and out of the section-scan loop; a 0 here means the whole
+ *       record is untrustworthy, matching the pre-split behaviour.
+ *
+ * HOW:  1. Read the etag/alg/cks length bytes.
+ *       2. Reject zero or oversized alg/cks lengths and payload under-runs.
+ *       3. Copy source tag, algorithm, and hex digest into *rec.
+ */
+static int
+ckv_xmeta_origin_decode(const uint8_t *p, uint32_t plen, ckv_record *rec)
+{
+    uint8_t el = p[0], al = p[1], cl = p[2];
+
+    if (al == 0 || cl == 0 || al > 15 || cl > 128
+        || plen < 4u + el + al + cl)
+    {
+        return 0;
+    }
+    snprintf(rec->src, sizeof(rec->src), "cinfo");
+    snprintf(rec->algo, sizeof(rec->algo), "%.*s",
+             (int) al, (const char *) p + 4 + el);
+    snprintf(rec->hex, sizeof(rec->hex), "%.*s",
+             (int) cl, (const char *) p + 4 + el + al);
+    return 1;
+}
+
+/* Extract the ORIGIN-section checksum from one raw xmeta record into *rec.
+ * Walk: v4 stock prefix (ckv_xmeta_ext_locate) -> "XCX1" extension block ->
+ * section type 0x0004 (ckv_xmeta_origin_decode). Returns 1 when an (alg, hex)
+ * pair was found; every offset is bounds-checked against n so a truncated or
+ * corrupt record yields 0, never an over-read. */
+static int
+ckv_xmeta_origin(const uint8_t *buf, size_t n, ckv_record *rec)
+{
+    size_t   off;
+    uint16_t nsec, i;
+
+    if (!ckv_xmeta_ext_locate(buf, n, &off, &nsec)) {
+        return 0;
+    }
     for (i = 0; i < nsec && off + 12 <= n; i++) {
         uint16_t       type = ckv_rd_u16(buf, off);
         uint32_t       plen = ckv_rd_u32(buf, off + 4);
@@ -299,19 +364,7 @@ ckv_xmeta_origin(const uint8_t *buf, size_t n, ckv_record *rec)
             return 0;
         }
         if (type == CKV_XMETA_SEC_ORIGIN && plen >= 4) {
-            uint8_t el = p[0], al = p[1], cl = p[2];
-
-            if (al == 0 || cl == 0 || al > 15 || cl > 128
-                || plen < 4u + el + al + cl)
-            {
-                return 0;
-            }
-            snprintf(rec->src, sizeof(rec->src), "cinfo");
-            snprintf(rec->algo, sizeof(rec->algo), "%.*s",
-                     (int) al, (const char *) p + 4 + el);
-            snprintf(rec->hex, sizeof(rec->hex), "%.*s",
-                     (int) cl, (const char *) p + 4 + el + al);
-            return 1;
+            return ckv_xmeta_origin_decode(p, plen, rec);
         }
         off += 8 + (size_t) plen + 4;
     }

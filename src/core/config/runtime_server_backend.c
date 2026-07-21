@@ -586,23 +586,15 @@ brix_tier_register_cache_peers(ngx_conf_t *cf,
     return NGX_OK;
 }
 
-/* Parse the cache_store URL and record its tier cfg + read-through policy on the
- * backend registry. Split out of brix_tier_register_stores so each function's
- * branching stays within the readability gate. Operator errors are [emerg]. */
-static ngx_int_t
-brix_tier_register_cache_store(ngx_conf_t *cf,
-    ngx_http_brix_shared_conf_t *common)
+/* Fill the read-through cache policy from the merged srv-conf knobs. Split out
+ * of brix_tier_register_cache_store so each function's branching stays within
+ * the readability gate — pure knob-to-policy plumbing, no validation here. */
+static void
+brix_tier_fill_cache_policy(ngx_http_brix_shared_conf_t *common,
+    brix_cache_policy_t *polp)
 {
-    char                err[256];
-    brix_tier_cfg_t     cfg;
     brix_cache_policy_t pol;
-    brix_tier_parse_t   tp = { cf, &cfg, err, sizeof(err) };
 
-    if (brix_tier_parse_store(&tp, &common->cache_store,
-            common->cache_store_args, BRIX_TIER_CACHE) != NGX_OK)
-    {
-        return NGX_ERROR;                      /* [emerg] already logged */
-    }
     ngx_memzero(&pol, sizeof(pol));
     pol.enabled       = 1;
     pol.max_file_size = common->cache_max_object;
@@ -623,12 +615,43 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
                       ? -1 : (int) common->cache_batch_cinfo;
     pol.l1_entries    = common->cache_index_cache;
     pol.slice_size    = common->cache_slice_size;
-    /* phase-68: digest verification on fill (cvmfs-cas today). The verify
-     * runs on the staged temp BEFORE commit, which needs the store's
-     * staged_path — a local posix store; reject other stores loudly. */
+    /* phase-68 digest-verification mode — the posix-store constraint it
+     * carries is validated by the caller against the parsed store driver. */
     pol.verify = (common->cache_verify_mode == NGX_CONF_UNSET_UINT)
                ? BRIX_CACHE_VERIFY_OFF
                : (brix_cache_verify_mode_e) common->cache_verify_mode;
+    pol.cvmfs_manifest_ttl = common->cache_manifest_ttl;
+    pol.cvmfs_offline_ttl  = common->cache_offline_ttl;
+    if (common->cache_quarantine_dir.len > 0) {
+        ngx_cpystrn((u_char *) pol.quarantine_dir,
+                    common->cache_quarantine_dir.data,
+                    ngx_min(common->cache_quarantine_dir.len + 1,
+                            sizeof(pol.quarantine_dir)));
+    }
+    *polp = pol;
+}
+
+/* Parse the cache_store URL and record its tier cfg + read-through policy on the
+ * backend registry. Split out of brix_tier_register_stores so each function's
+ * branching stays within the readability gate. Operator errors are [emerg]. */
+static ngx_int_t
+brix_tier_register_cache_store(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common)
+{
+    char                err[256];
+    brix_tier_cfg_t     cfg;
+    brix_cache_policy_t pol;
+    brix_tier_parse_t   tp = { cf, &cfg, err, sizeof(err) };
+
+    if (brix_tier_parse_store(&tp, &common->cache_store,
+            common->cache_store_args, BRIX_TIER_CACHE) != NGX_OK)
+    {
+        return NGX_ERROR;                      /* [emerg] already logged */
+    }
+    brix_tier_fill_cache_policy(common, &pol);
+    /* phase-68: digest verification on fill (cvmfs-cas today). The verify
+     * runs on the staged temp BEFORE commit, which needs the store's
+     * staged_path — a local posix store; reject other stores loudly. */
     if (pol.verify == BRIX_CACHE_VERIFY_CVMFS_CAS
         && ngx_strcmp(cfg.driver, "posix") != 0)
     {
@@ -637,8 +660,6 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
             "cache store (got \"%s\")", cfg.driver);
         return NGX_ERROR;
     }
-    pol.cvmfs_manifest_ttl = common->cache_manifest_ttl;
-    pol.cvmfs_offline_ttl  = common->cache_offline_ttl;
     /* phase-85 F1: brix_cvmfs_verify_manifest — load the repo master public
      * key(s) once at config time; the fill spine verifies every MANIFEST-class
      * fill's signature chain against it before publish. Same posix-store
@@ -655,12 +676,6 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
         {
             return NGX_ERROR;              /* [emerg] already logged */
         }
-    }
-    if (common->cache_quarantine_dir.len > 0) {
-        ngx_cpystrn((u_char *) pol.quarantine_dir,
-                    common->cache_quarantine_dir.data,
-                    ngx_min(common->cache_quarantine_dir.len + 1,
-                            sizeof(pol.quarantine_dir)));
     }
     brix_vfs_backend_config_cache_store(common->root_canon, &cfg, &pol);
 

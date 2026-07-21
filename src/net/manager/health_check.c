@@ -365,6 +365,80 @@ brix_hc_tls_handshake_done(ngx_connection_t *c)
 #endif /* NGX_SSL */
 
 /*
+ * XRD_HC_PROTOCOL step of brix_hc_dispatch(): consume the kXR_protocol reply
+ * and decide how the probe proceeds.  Returns NGX_DONE when the step reached a
+ * verdict or issued its own follow-up send (the caller must return without
+ * touching hc — it may already be freed), or NGX_OK when the phase advanced to
+ * LOGIN and the caller should fall through to the accumulator reset.
+ */
+static ngx_int_t
+brix_hc_dispatch_protocol(brix_hc_ctx_t *hc)
+{
+    if (hc->resp_status != kXR_ok) { brix_hc_finish(hc, 0); return NGX_DONE; }
+
+    /* If the server demands TLS we don't probe deeper (no TLS in the
+     * probe path); it answered at the protocol level, so treat it as
+     * alive rather than blacklisting it.
+     *
+     * ServerResponseBody_Protocol layout: bytes 0-3 = pval (protocol
+     * version), bytes 4-7 = flags.  Read the flags word at offset 4 and
+     * test the kXR_gotoTLS bit.  Guard on dlen >= 8 so short/old replies
+     * that omit the flags simply fall through to the LOGIN phase. */
+    if (hc->resp_dlen >= 8) {
+        uint32_t flags_be;
+        ngx_memcpy(&flags_be, hc->resp_body + 4, sizeof(flags_be));
+        if (ntohl(flags_be) & kXR_gotoTLS) {
+#if (NGX_SSL)
+            /* Step F: with an outbound TLS ctx configured, probe DEEP —
+             * upgrade this connection and continue LOGIN -> PROBE over
+             * TLS, exactly as the upstream bootstrap does (the server
+             * discards the plaintext login pre-sent in the pipelined
+             * bootstrap).  The probe deadline timer keeps running. */
+            if (hc->conf->upstream_tls
+                && hc->conf->upstream_tls_ctx != NULL)
+            {
+                ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
+                    "brix: health check: %s:%d wants TLS; upgrading probe",
+                    hc->host, (int) hc->port);
+                if (brix_outbound_start_tls(hc->conf->upstream_tls_ctx,
+                                            hc->conn, hc->host,
+                                            brix_hc_tls_handshake_done)
+                    != NGX_OK)
+                {
+                    brix_hc_finish(hc, 0);
+                }
+                return NGX_DONE;
+            }
+#endif
+            ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
+                "brix: health check: %s:%d wants TLS; "
+                "treating protocol-OK as alive", hc->host, (int) hc->port);
+            brix_hc_finish(hc, 1);
+            return NGX_DONE;
+        }
+    }
+    if (hc->tls_capable) {
+        /* No gotoTLS: send the deferred login now, in cleartext.  (A
+         * TLS-capable probe never pipelined it — see brix_hc_start.) */
+        ClientLoginRequest *req = ngx_palloc(hc->pool, sizeof(*req));
+        if (req == NULL) { brix_hc_finish(hc, 0); return NGX_DONE; }
+        brix_upstream_build_login(req);
+        hc->wbuf          = (u_char *) req;
+        hc->wbuf_len      = sizeof(*req);
+        hc->wbuf_pos      = 0;
+        hc->phase         = XRD_HC_LOGIN;
+        hc->rhdr_pos      = 0;
+        hc->resp_dlen     = 0;
+        hc->resp_body     = NULL;
+        hc->resp_body_pos = 0;
+        if (brix_hc_flush(hc) == NGX_ERROR) { brix_hc_finish(hc, 0); }
+        return NGX_DONE;
+    }
+    hc->phase = XRD_HC_LOGIN;
+    return NGX_OK;
+}
+
+/*
  * Consume one complete response frame and advance the probe state machine.
  * Several phases short-circuit to a verdict (alive/dead) without reaching the
  * final PROBE phase — see the per-case comments.  On a non-terminal transition
@@ -383,66 +457,9 @@ brix_hc_dispatch(brix_hc_ctx_t *hc)
         break;
 
     case XRD_HC_PROTOCOL:
-        if (hc->resp_status != kXR_ok) { brix_hc_finish(hc, 0); return; }
-        /* If the server demands TLS we don't probe deeper (no TLS in the
-         * probe path); it answered at the protocol level, so treat it as
-         * alive rather than blacklisting it.
-         *
-         * ServerResponseBody_Protocol layout: bytes 0-3 = pval (protocol
-         * version), bytes 4-7 = flags.  Read the flags word at offset 4 and
-         * test the kXR_gotoTLS bit.  Guard on dlen >= 8 so short/old replies
-         * that omit the flags simply fall through to the LOGIN phase. */
-        if (hc->resp_dlen >= 8) {
-            uint32_t flags_be;
-            ngx_memcpy(&flags_be, hc->resp_body + 4, sizeof(flags_be));
-            if (ntohl(flags_be) & kXR_gotoTLS) {
-#if (NGX_SSL)
-                /* Step F: with an outbound TLS ctx configured, probe DEEP —
-                 * upgrade this connection and continue LOGIN -> PROBE over
-                 * TLS, exactly as the upstream bootstrap does (the server
-                 * discards the plaintext login pre-sent in the pipelined
-                 * bootstrap).  The probe deadline timer keeps running. */
-                if (hc->conf->upstream_tls
-                    && hc->conf->upstream_tls_ctx != NULL)
-                {
-                    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
-                        "brix: health check: %s:%d wants TLS; upgrading probe",
-                        hc->host, (int) hc->port);
-                    if (brix_outbound_start_tls(hc->conf->upstream_tls_ctx,
-                                                hc->conn, hc->host,
-                                                brix_hc_tls_handshake_done)
-                        != NGX_OK)
-                    {
-                        brix_hc_finish(hc, 0);
-                    }
-                    return;
-                }
-#endif
-                ngx_log_debug2(NGX_LOG_DEBUG_STREAM, hc->log, 0,
-                    "brix: health check: %s:%d wants TLS; "
-                    "treating protocol-OK as alive", hc->host, (int) hc->port);
-                brix_hc_finish(hc, 1);
-                return;
-            }
-        }
-        if (hc->tls_capable) {
-            /* No gotoTLS: send the deferred login now, in cleartext.  (A
-             * TLS-capable probe never pipelined it — see brix_hc_start.) */
-            ClientLoginRequest *req = ngx_palloc(hc->pool, sizeof(*req));
-            if (req == NULL) { brix_hc_finish(hc, 0); return; }
-            brix_upstream_build_login(req);
-            hc->wbuf          = (u_char *) req;
-            hc->wbuf_len      = sizeof(*req);
-            hc->wbuf_pos      = 0;
-            hc->phase         = XRD_HC_LOGIN;
-            hc->rhdr_pos      = 0;
-            hc->resp_dlen     = 0;
-            hc->resp_body     = NULL;
-            hc->resp_body_pos = 0;
-            if (brix_hc_flush(hc) == NGX_ERROR) { brix_hc_finish(hc, 0); }
+        if (brix_hc_dispatch_protocol(hc) == NGX_DONE) {
             return;
         }
-        hc->phase = XRD_HC_LOGIN;
         break;
 
     case XRD_HC_LOGIN:
@@ -593,43 +610,29 @@ brix_hc_pre_connect_fail(struct addrinfo *res, const char *host,
 }
 
 /*
- * Launch one probe against host:port (the slot was already claimed by
- * brix_srv_hc_claim()).  Sets up a non-blocking connection, queues the
- * pipelined bootstrap, arms the deadline timer, and starts connect().  Control
- * then returns to the event loop; the probe completes asynchronously in the
- * read/write handlers, always ending at brix_hc_finish().
- *
- * Ownership note: every early-exit path here MUST release the claim — either
- * via brix_hc_finish() (once hc exists and reports a verdict) or via a direct
- * brix_srv_hc_fail() (before hc is usable).  Otherwise the slot stays
- * hc_in_progress=1 forever and is never probed again.
+ * Allocate the probe pool + ctx and seed the identity/config fields for
+ * brix_hc_start().  Returns the ctx, or NULL after releasing the claim.
+ * Allocation failures before the probe is viable count as neither pass nor
+ * fail toward blacklisting (threshold/blacklist_ms = 0); they only clear
+ * hc_in_progress so the slot is re-probed next interval.
  */
-static void
-brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
+static brix_hc_ctx_t *
+brix_hc_ctx_create(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     const char *host, uint16_t port)
 {
-    ngx_pool_t        *pool;
-    brix_hc_ctx_t   *hc;
-    ngx_connection_t  *c;
-    struct addrinfo    hints, *res = NULL;
-    char               portstr[8];
-    ngx_socket_t       fd;
-    size_t             bslen;
-    int                rc;
+    ngx_pool_t      *pool;
+    brix_hc_ctx_t *hc;
 
-    /* Allocation failures before the probe is viable count as neither pass nor
-     * fail toward blacklisting (threshold/blacklist_ms = 0); they only clear
-     * hc_in_progress so the slot is re-probed next interval. */
     pool = ngx_create_pool(1024, cycle->log);
     if (pool == NULL) {
         brix_srv_hc_fail(host, port, 0, 0);   /* release the claim */
-        return;
+        return NULL;
     }
     hc = ngx_pcalloc(pool, sizeof(*hc));
     if (hc == NULL) {
         ngx_destroy_pool(pool);
         brix_srv_hc_fail(host, port, 0, 0);
-        return;
+        return NULL;
     }
     hc->pool         = pool;
     hc->log          = cycle->log;
@@ -640,43 +643,71 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     hc->blacklist_ms = conf->hc.blacklist_ms;
     hc->port         = port;
     ngx_cpystrn((u_char *) hc->host, (u_char *) host, sizeof(hc->host));
+    return hc;
+}
 
-    /* Resolve target. */
+/*
+ * Resolve host:port for brix_hc_start().  Returns the addrinfo list (owned by
+ * the caller), or NULL after reporting a real probe failure (configured
+ * threshold/blacklist) and destroying the probe pool.
+ */
+static struct addrinfo *
+brix_hc_resolve(brix_hc_ctx_t *hc, const char *host, uint16_t port)
+{
+    struct addrinfo  hints, *res = NULL;
+    char             portstr[8];
+
     ngx_memzero(&hints, sizeof(hints));
     hints.ai_family   = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     (void) ngx_snprintf((u_char *) portstr, sizeof(portstr), "%d%Z",
                         (int) port);
     if (getaddrinfo(host, portstr, &hints, &res) != 0 || res == NULL) {
-        ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
+        ngx_log_error(NGX_LOG_WARN, hc->log, 0,
                       "brix: health check: cannot resolve %s:%d",
                       host, (int) port);
-        brix_srv_hc_fail(host, port, conf->hc.threshold,
-                           conf->hc.blacklist_ms);
-        ngx_destroy_pool(pool);
-        return;
+        brix_srv_hc_fail(host, port, hc->conf->hc.threshold,
+                           hc->conf->hc.blacklist_ms);
+        ngx_destroy_pool(hc->pool);
+        return NULL;
     }
+    return res;
+}
+
+/*
+ * Create the non-blocking probe socket and wire it into an nginx connection
+ * for brix_hc_start().  Returns NGX_OK with hc->conn owning the fd, or
+ * NGX_ERROR after full pre-connection cleanup (socket closed by hand,
+ * brix_hc_pre_connect_fail() frees res, records the failure, destroys the
+ * pool).
+ */
+static ngx_int_t
+brix_hc_open_conn(ngx_cycle_t *cycle, brix_hc_ctx_t *hc,
+    struct addrinfo *res, const char *host, uint16_t port)
+{
+    ngx_connection_t  *c;
+    ngx_socket_t       fd;
 
     /* Until hc->conn is wired up, the socket is owned manually and must be
      * closed by hand on error (the pool does not know about a bare fd).  These
-     * pre-connection failures jump to `fail`, which counts as a real probe
-     * failure (uses the configured threshold/blacklist). */
+     * pre-connection failures count as a real probe failure (they use the
+     * configured threshold/blacklist). */
     fd = ngx_socket(res->ai_family, SOCK_STREAM, 0);
     if (fd == (ngx_socket_t) -1 || ngx_nonblocking(fd) == -1) {
         if (fd != (ngx_socket_t) -1) { ngx_close_socket(fd); }
-        brix_hc_pre_connect_fail(res, host, port, conf, pool);
-        return;
+        brix_hc_pre_connect_fail(res, host, port, hc->conf, hc->pool);
+        return NGX_ERROR;
     }
 
     c = ngx_get_connection(fd, cycle->log);
     if (c == NULL) {
         ngx_close_socket(fd);
-        brix_hc_pre_connect_fail(res, host, port, conf, pool);
-        return;
+        brix_hc_pre_connect_fail(res, host, port, hc->conf, hc->pool);
+        return NGX_ERROR;
     }
     /* From here the connection (and therefore the fd) is owned by hc->conn and
      * released through brix_hc_finish() -> ngx_close_connection(). */
-    c->pool          = pool;
+    c->pool          = hc->pool;
     c->data          = hc;
     c->recv          = ngx_recv;
     c->send          = ngx_send;
@@ -684,6 +715,18 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     c->write->handler = brix_hc_write_handler;
     c->read->log = c->write->log = cycle->log;
     hc->conn = c;
+    return NGX_OK;
+}
+
+/*
+ * Build the pipelined bootstrap write buffer for brix_hc_start().  Returns
+ * NGX_OK with hc->wbuf/wbuf_len/wbuf_pos queued for sending, or NGX_ERROR on
+ * allocation failure (no cleanup here; the caller reports the verdict).
+ */
+static ngx_int_t
+brix_hc_queue_bootstrap(brix_hc_ctx_t *hc)
+{
+    size_t  bslen;
 
     /* Step F: with an outbound TLS ctx the probe can complete a kXR_gotoTLS
      * upgrade, so advertise kXR_ableTLS — a brix server only answers gotoTLS
@@ -696,44 +739,46 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
      * verdict.  Without a ctx the flag byte stays 0 and the full pipelined
      * bootstrap is byte-identical to pre-Step-F probes. */
 #if (NGX_SSL)
-    hc->tls_capable = (conf->upstream_tls && conf->upstream_tls_ctx != NULL);
+    hc->tls_capable = (hc->conf->upstream_tls
+                       && hc->conf->upstream_tls_ctx != NULL);
 #endif
     /* Always allocate (and build) all three frames; wbuf_len truncates the
      * SEND to handshake + protocol for a TLS-capable probe. */
     bslen = XRD_HANDSHAKE_LEN + sizeof(ClientProtocolRequest)
           + sizeof(ClientLoginRequest);
-    hc->wbuf = ngx_palloc(pool, bslen);
+    hc->wbuf = ngx_palloc(hc->pool, bslen);
     if (hc->wbuf == NULL) {
-        freeaddrinfo(res);
-        brix_hc_finish(hc, 0);
-        return;
+        return NGX_ERROR;
     }
     brix_upstream_build_bootstrap_flags(hc->wbuf,
                                         hc->tls_capable ? kXR_ableTLS : 0);
     hc->wbuf_len = hc->tls_capable
                    ? bslen - sizeof(ClientLoginRequest) : bslen;
     hc->wbuf_pos = 0;
+    return NGX_OK;
+}
 
-    /* Single deadline for the whole probe. */
-    hc->tev.handler = brix_hc_timeout_handler;
-    hc->tev.data    = hc;
-    hc->tev.log     = cycle->log;
-    ngx_add_timer(&hc->tev, conf->hc.timeout_ms);
-
-    BRIX_HC_METRIC_INC(hc_probes_total);
+/*
+ * Kick off the connect() for brix_hc_start() and hand the probe to the event
+ * loop.  Frees the resolver result; every failure path ends in
+ * brix_hc_finish(), so the claim is always released.
+ */
+static void
+brix_hc_begin_connect(brix_hc_ctx_t *hc, struct addrinfo *res)
+{
+    int  rc;
 
     /* Non-blocking connect: rc == 0 means it completed immediately (typical for
      * localhost/loopback); EINPROGRESS means it is in flight; any other error
      * is a hard failure.  Free the resolver result either way before branching. */
-    rc = connect(fd, res->ai_addr, res->ai_addrlen);
+    rc = connect(hc->conn->fd, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(res);
-    res = NULL;
 
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
         brix_hc_finish(hc, 0);
         return;
     }
-    if (ngx_handle_write_event(c->write, 0) != NGX_OK) {
+    if (ngx_handle_write_event(hc->conn->write, 0) != NGX_OK) {
         brix_hc_finish(hc, 0);
         return;
     }
@@ -750,7 +795,58 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
          * which confirms SO_ERROR and then flushes the bootstrap. */
         hc->connecting = 1;            /* finish in the write handler */
     }
-    return;
+}
+
+/*
+ * Launch one probe against host:port (the slot was already claimed by
+ * brix_srv_hc_claim()).  Sets up a non-blocking connection, queues the
+ * pipelined bootstrap, arms the deadline timer, and starts connect().  Control
+ * then returns to the event loop; the probe completes asynchronously in the
+ * read/write handlers, always ending at brix_hc_finish().
+ *
+ * Ownership note: every early-exit path here MUST release the claim — either
+ * via brix_hc_finish() (once hc exists and reports a verdict) or via a direct
+ * brix_srv_hc_fail() (before hc is usable).  The helpers above uphold this on
+ * their own failure paths.  Otherwise the slot stays hc_in_progress=1 forever
+ * and is never probed again.
+ */
+static void
+brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
+    const char *host, uint16_t port)
+{
+    brix_hc_ctx_t   *hc;
+    struct addrinfo   *res;
+
+    hc = brix_hc_ctx_create(cycle, conf, host, port);
+    if (hc == NULL) {
+        return;
+    }
+
+    /* Resolve target. */
+    res = brix_hc_resolve(hc, host, port);
+    if (res == NULL) {
+        return;
+    }
+
+    if (brix_hc_open_conn(cycle, hc, res, host, port) != NGX_OK) {
+        return;
+    }
+
+    if (brix_hc_queue_bootstrap(hc) != NGX_OK) {
+        freeaddrinfo(res);
+        brix_hc_finish(hc, 0);
+        return;
+    }
+
+    /* Single deadline for the whole probe. */
+    hc->tev.handler = brix_hc_timeout_handler;
+    hc->tev.data    = hc;
+    hc->tev.log     = cycle->log;
+    ngx_add_timer(&hc->tev, conf->hc.timeout_ms);
+
+    BRIX_HC_METRIC_INC(hc_probes_total);
+
+    brix_hc_begin_connect(hc, res);
 }
 
 /*
