@@ -1,5 +1,7 @@
 var NAVTREEINDEX66 =
 {
+"structbrix__cache__meta__t.html":[88,0,63],
+"structbrix__cache__meta__t.html#a03681c630f29be3c32c56f6a2230d73d":[88,0,63,6],
 "structbrix__cache__meta__t.html#a23a38edd240b9fcdcf0019f594506348":[88,0,63,9],
 "structbrix__cache__meta__t.html#a281b44e853f6604d44f97667f68e3b2f":[88,0,63,0],
 "structbrix__cache__meta__t.html#a61e1fee119f67ed24fa6b701b0e08fe8":[88,0,63,5],
@@ -247,7 +249,5 @@ var NAVTREEINDEX66 =
 "structbrix__conn.html#aaaefd785a8ea165cb6d41b3c9a06713c":[88,0,90,15],
 "structbrix__conn.html#abdd898f8b1232ca2d27fdc81ec07668b":[88,0,90,24],
 "structbrix__conn.html#acd8403780c97f798b35067dd78e3ffd4":[88,0,90,3],
-"structbrix__conn.html#ad4d87aca47ca638df4e0ccff9b7e6d9d":[88,0,90,18],
-"structbrix__conn.html#ad7c4422e3928baa51bbbc7286d1338ec":[88,0,90,13],
-"structbrix__conn.html#ad882f0fa14389f5e9e09f8f028a75c5d":[88,0,90,12]
+"structbrix__conn.html#ad4d87aca47ca638df4e0ccff9b7e6d9d":[88,0,90,18]
 };

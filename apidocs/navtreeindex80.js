@@ -1,5 +1,8 @@
 var NAVTREEINDEX80 =
 {
+"structcephfs__layout__t.html#a173c84b20fb2a9242cc5679607d0aed4":[88,0,481,0],
+"structcephfs__layout__t.html#a4fda081d79d3b445670075950cca2b35":[88,0,481,3],
+"structcephfs__layout__t.html#a9fd655eff8ac34901f75bfb63dc46b2e":[88,0,481,1],
 "structcephfs__layout__t.html#af1e31e7e7cb74d0ef6dd2acec3bb7e28":[88,0,481,2],
 "structcephfs__xattr__t.html":[88,0,482],
 "structcephfs__xattr__t.html#a671e5e184f08179a4871950633823032":[88,0,482,0],
@@ -246,8 +249,5 @@ var NAVTREEINDEX80 =
 "structcta__exec__vtbl__t.html#a6de87c27bc437e02ec045573bd7fedcf":[88,0,553,1],
 "structcta__exec__vtbl__t.html#a90e78e4f9b996e3a1749d268832753f7":[88,0,553,0],
 "structcta__exec__vtbl__t.html#ab15dcfb8a94d914dc5fb4038ec986492":[88,0,553,2],
-"structcta__progress__t.html":[88,0,554],
-"structcta__progress__t.html#a9ef3645eda5d87ee482ae722a0eb1ca0":[88,0,554,1],
-"structcta__progress__t.html#add9b247fffa4e80c776a03723acbb6f7":[88,0,554,0],
-"structcta__req__t.html":[88,0,555]
+"structcta__progress__t.html":[88,0,554]
 };

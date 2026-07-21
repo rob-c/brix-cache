@@ -1,5 +1,7 @@
 var NAVTREEINDEX63 =
 {
+"structClientLinkRequest.html#afbef90d6b8fae040bf653f78f38feee9":[88,0,512,0],
+"structClientLocateRequest.html":[88,0,513],
 "structClientLocateRequest.html#a1148b7cede8741aaa57732c98740c4c3":[88,0,513,4],
 "structClientLocateRequest.html#a5d632b6e89162de721d304965ad8051e":[88,0,513,2],
 "structClientLocateRequest.html#a6c76f235136b02b7c73e5bc85725f4b1":[88,0,513,3],
@@ -247,7 +249,5 @@ var NAVTREEINDEX63 =
 "structacc__named__t.html":[88,0,3],
 "structacc__named__t.html#a2f76f89401ee13dd2e4a27f7960fcac6":[88,0,3,0],
 "structacc__named__t.html#ab4d8310d2f5e26755b1de86d4a5bfdf3":[88,0,3,1],
-"structacc__named__t.html#ac8c4036ec9c6faee36cb19903375ebbc":[88,0,3,2],
-"structacc__parse__ctx__t.html":[88,0,4],
-"structacc__parse__ctx__t.html#a046c97dac6fc5d237ac07a2b7d9ea275":[88,0,4,2]
+"structacc__named__t.html#ac8c4036ec9c6faee36cb19903375ebbc":[88,0,3,2]
 };

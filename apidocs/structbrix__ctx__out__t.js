@@ -1,6 +1,7 @@
 var structbrix__ctx__out__t =
 [
     [ "count", "structbrix__ctx__out__t.html#ab5045d74acca0c51240ee773d90fcce0", null ],
+    [ "deferred_streamid", "structbrix__ctx__out__t.html#a89d90f26f628f961bf95236882235717", null ],
     [ "finalize_pending", "structbrix__ctx__out__t.html#a04779e60d221cc3e1750c57c1d7808f0", null ],
     [ "finalize_status", "structbrix__ctx__out__t.html#a80c5a55d0c0871dfd3d3473204a76b68", null ],
     [ "head", "structbrix__ctx__out__t.html#a9ebdfcebe69520a577bb346b6f5e3469", null ],

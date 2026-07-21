@@ -1,5 +1,8 @@
 var NAVTREEINDEX94 =
 {
+"structxmeta__state__wire__t.html#a7322bdc5786857f7c707be746560c808":[88,0,980,5],
+"structxmeta__state__wire__t.html#a884633af95a54f75f53ca049df0b0a0f":[88,0,980,9],
+"structxmeta__state__wire__t.html#acd3ada5a19ef5c2e803d9a32339b9807":[88,0,980,0],
 "structxmeta__state__wire__t.html#af8f7333e6472cc84ec6d8ebd2532b2ee":[88,0,980,10],
 "structxmeta__state__wire__t.html#afd8c4880a65f0d483eb5718988309a7a":[88,0,980,8],
 "structxrd__battery.html":[88,0,981],
@@ -246,8 +249,5 @@ var NAVTREEINDEX94 =
 "structxrdw__query__req__t.html#a049c57e74f372c877846d4d6b0b1fead":[88,0,1022,0],
 "structxrdw__query__req__t.html#aa0cfb411736f9c7f3c727166679eb2a3":[88,0,1022,1],
 "structxrdw__read__req__t.html":[88,0,1023],
-"structxrdw__read__req__t.html#a34ada07f17ca50ce938de29cf05a8a0c":[88,0,1023,1],
-"structxrdw__read__req__t.html#a3fd75680da466312314512b9e52044e0":[88,0,1023,2],
-"structxrdw__read__req__t.html#a5f9a34eae23fdc8f8be2a58c03592f98":[88,0,1023,0],
-"structxrdw__sessid__req__t.html":[88,0,1024]
+"structxrdw__read__req__t.html#a34ada07f17ca50ce938de29cf05a8a0c":[88,0,1023,1]
 };

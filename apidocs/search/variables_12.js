@@ -278,7 +278,7 @@ var searchData=
   ['rr_5findex_275',['rr_index',['../structbrix__proxy__be__table__t.html#adb5cdfd731ddfed65d994ec2f02b9acf',1,'brix_proxy_be_table_t']]],
   ['rsn_276',['rsn',['../structsts__req__t.html#aa7869664fc531a7cbe5e194a66b14155',1,'sts_req_t']]],
   ['rsvd1_277',['rsvd1',['../structckv__cksdata.html#a63e9db7f08c7c0bf65683b89286696d2',1,'ckv_cksdata::Rsvd1'],['../structxrd__cks__data.html#ae18f0f68aa5d184f6120d4b5c0d93cae',1,'xrd_cks_data::Rsvd1']]],
-  ['rsvd2_278',['rsvd2',['../structxrd__cks__data.html#a7860bc503beb73a15adf6ba4be043291',1,'xrd_cks_data::Rsvd2'],['../structckv__cksdata.html#a699bdc9e88d1747f24a812e1b30519d0',1,'ckv_cksdata::Rsvd2'],['../structClientSigverRequest.html#a5bdb3897af80cf7364f05dbd24f137f4',1,'ClientSigverRequest::rsvd2']]],
+  ['rsvd2_278',['rsvd2',['../structClientSigverRequest.html#a5bdb3897af80cf7364f05dbd24f137f4',1,'ClientSigverRequest::rsvd2'],['../structxrd__cks__data.html#a7860bc503beb73a15adf6ba4be043291',1,'xrd_cks_data::Rsvd2'],['../structckv__cksdata.html#a699bdc9e88d1747f24a812e1b30519d0',1,'ckv_cksdata::Rsvd2']]],
   ['rt_5fok_279',['rt_ok',['../structbrix__pmark__conf__t.html#a824346656860e10aaade1c67303e7c3b',1,'brix_pmark_conf_t']]],
   ['rt_5fready_280',['rt_ready',['../structbrix__pmark__conf__t.html#a01b890b9e5f415244cecf42f3865326a',1,'brix_pmark_conf_t']]],
   ['rtt_281',['rtt',['../structbrix__diag.html#a8c769570d2cd0fc9edd7f95267d9089b',1,'brix_diag']]],
