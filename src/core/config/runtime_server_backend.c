@@ -281,12 +281,17 @@ brix_tier_warn_private_tmp(ngx_conf_t *cf,
     }
 }
 
-/* Build "<base>/<sanitised backend URL>" for the brix-managed default stage
- * store: every backend-URL byte outside [A-Za-z0-9._-] becomes '_', capped at
- * 160 bytes, so distinct backends get distinct filesystem-safe spool
- * directories under the one managed base. */
+/* Build "<base>/<sanitised backend URL>.<worker-uid>" for the brix-managed
+ * default stage store: every backend-URL byte outside [A-Za-z0-9._-] becomes
+ * '_', capped at 160 bytes, so distinct backends get distinct filesystem-safe
+ * spool directories under the one managed base. The runtime worker uid is
+ * part of the leaf name: the base is shared between every instance on the
+ * host, and two instances of different identities (a root-launched gateway
+ * spooling as nobody next to an unprivileged dev instance) hitting the SAME
+ * backend URL must not fight over one 0700 leaf only one of them can use. */
 static void
-brix_tier_default_stage_dir(const ngx_str_t *backend, char *dir, size_t cap)
+brix_tier_default_stage_dir(const ngx_str_t *backend, uid_t worker_uid,
+    char *dir, size_t cap)
 {
     size_t  pos = sizeof(BRIX_TIER_DEFAULT_STAGE_BASE "/") - 1;
     size_t  i;
@@ -302,6 +307,10 @@ brix_tier_default_stage_dir(const ngx_str_t *backend, char *dir, size_t cap)
         dir[pos++] = keep ? (char) c : '_';
     }
     dir[pos] = '\0';
+    if (pos < cap) {
+        (void) snprintf(dir + pos, cap - pos, ".%lu",
+                        (unsigned long) worker_uid);
+    }
 }
 
 /*
@@ -311,7 +320,8 @@ brix_tier_default_stage_dir(const ngx_str_t *backend, char *dir, size_t cap)
  * WHAT: When a writable export forwards to a whole-object remote backend and
  *       the operator configured NO stage tier at all, provision the stock
  *       stage decorator over a brix-managed posix store at
- *       /tmp/staging/<sanitised-backend-url>: create the directory (0711
+ *       /tmp/staging/<sanitised-backend-url>.<worker-uid>: create the
+ *       directory (0711
  *       base, 0700 leaf chown'd to the worker user, exactly as
  *       brix_shared_credential_dir_ensure hands over /dev/shm/brix-creds),
  *       point common->stage_store at "posix:<dir>", flip stage_enable on,
@@ -345,7 +355,9 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
     uid_t        want_uid;
     gid_t        want_gid;
 
-    brix_tier_default_stage_dir(&common->storage_backend, dir, sizeof(dir));
+    brix_shared_worker_dir_ids(cf, &want_uid, &want_gid);
+    brix_tier_default_stage_dir(&common->storage_backend, want_uid,
+                                dir, sizeof(dir));
 
     if (brix_mkdir_recursive(BRIX_TIER_DEFAULT_STAGE_BASE, 0711) != 0
         || (mkdir(dir, 0700) != 0 && errno != EEXIST))
@@ -369,13 +381,29 @@ brix_tier_default_stage_store(ngx_conf_t *cf,
      * de-escalation target (brix_worker_user/nobody) for a root-capable
      * worker — hand the directory to them, exactly as ngx_create_paths does
      * for the temp paths. */
-    brix_shared_worker_dir_ids(cf, &want_uid, &want_gid);
     if (geteuid() == 0 && st.st_uid != want_uid
         && chown(dir, want_uid, want_gid) != 0)
     {
         ngx_conf_log_error(NGX_LOG_WARN, cf, errno,
             "brix: cannot chown the default stage store \"%s\" to the "
             "worker user — write staging stays OFF", dir);
+        return;
+    }
+
+    /* An unprivileged master cannot repossess a foreign leaf (a squatter, or
+     * debris from another identity despite the uid-suffixed name) — refuse it
+     * and keep the documented never-fatal contract: warn, staging stays OFF,
+     * rather than adopting a store the later tier validation would [emerg] on
+     * (or worse, one a hostile local user controls). */
+    if (geteuid() != 0
+        && (st.st_uid != geteuid() || access(dir, W_OK | X_OK) != 0))
+    {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix: the default stage store \"%s\" exists but is not owned/"
+            "writable by this user (owner uid %lu, we are uid %lu) — "
+            "write staging stays OFF; remove the directory or set "
+            "brix_stage_store", dir, (unsigned long) st.st_uid,
+            (unsigned long) geteuid());
         return;
     }
 

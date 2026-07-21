@@ -46,6 +46,15 @@ def tier():
     root = Path(tempfile.mkdtemp(prefix="cvmfs_cold_webroot."))
     (root / "cvmfs" / REPO / "data").mkdir(parents=True)
     cold = Path(tempfile.mkdtemp(prefix="cvmfs_cold_store."))
+    if os.geteuid() == 0:
+        # Root harness: these mkdtemps are 0700-root and live OUTSIDE the
+        # LiveRun tree srv_instance opens, but the DE-ESCALATED worker
+        # (`nobody`) must traverse+read the cold store to promote from it and
+        # write it to demote/remove — open them (the webroot is only read by
+        # the root-run mock origin, but keep both consistent).
+        for d in (root, cold, root / "cvmfs", root / "cvmfs" / REPO,
+                  root / "cvmfs" / REPO / "data"):
+            os.chmod(d, 0o777)
     with srv_instance(BLOCK, webroot=root,
                       extra_directives=f"brix_cache_cold_store posix:{cold};") as s:
         s.webroot = root
@@ -100,6 +109,16 @@ def plant_cold(s, hx, body):
     p = cold_path_for(s, hx)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(body)
+    if os.geteuid() == 0:
+        # Root harness: the worker (`nobody`) must read the planted copy to
+        # promote it and must write its parent dirs to remove a corrupt copy.
+        d = p.parent
+        while True:
+            os.chmod(d, 0o777)
+            if d == s.cold:
+                break
+            d = d.parent
+        os.chmod(p, 0o666)
     return p
 
 
@@ -213,6 +232,13 @@ def test_demote_on_evict_stream(lifecycle, tmp_path):
     cold = tmp_path / "cold"
     for d in (cache, cold):
         d.mkdir()
+    if os.geteuid() == 0:
+        # Root harness: these dirs are template values, not the lifecycle
+        # data_root, so nothing else opens them — but the DE-ESCALATED worker
+        # (`nobody`) must unlink the planted victims from `cache` and write
+        # `cold`, and traverse the 0700 pytest tmp chain to reach them.
+        from cmdscripts import open_tree_for_worker
+        open_tree_for_worker(tmp_path)
 
     planted = {}
     for idx in range(1, 5):

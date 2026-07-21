@@ -21,8 +21,12 @@
 #include "fs/backend/rados/sd_ceph.h"     /* brix_sd_ceph_conf_t (rados)   */
 #include "fs/cache/origin/s3_transport.h"  /* brix_s3_origin_curl_transport */
 #include "core/compat/cstr.h"              /* brix_str_cbuf                 */
+#include "auth/impersonate/lifecycle.h"    /* brix_imp_worker_runtime_ids   */
 
+#include <limits.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 /* Resolve a tier's §14 credential into NUL-terminated bearer / proxy / key /
  * ca-dir strings (empty when the tier is anonymous or the field is unset).
@@ -92,6 +96,56 @@ tier_build_posix(const brix_tier_cfg_t *t, ngx_log_t *log)
     return brix_sd_instance_create(log, "posix", (void *) t->path, &err);
 }
 
+/* WHAT: hand a pblock store's master-created state to the runtime worker ids.
+ * WHY:  the config-time validation build (root master) CREATES the store root,
+ *       data dir and catalog.db (+ WAL/SHM sidecars) root-owned; the always-on
+ *       de-escalated worker (brix_worker_user/nobody) then EACCESes on every
+ *       catalog write and block-dir mkdir — writes surface to clients as
+ *       kXR_NotAuthorized. Same provisioning contract as the default credential
+ *       store and stage spool (see brix_imp_worker_runtime_ids).
+ * HOW:  master/config-time + euid 0 only. Resolve the post-de-escalation ids
+ *       (a real unprivileged `user` account already owns nothing here — nginx
+ *       only forks workers later — so the brix_worker_user/nobody resolution is
+ *       the one that matters) and chown the fixed store layout; absent pieces
+ *       (ENOENT) are fine, the worker creates them as itself. */
+void
+brix_tier_pblock_hand_to_worker(const char *root, ngx_log_t *log)
+{
+    static const char *tails[] = {
+        "", "/data", "/catalog.db", "/catalog.db-wal", "/catalog.db-shm",
+        "/catalog.db-journal",
+    };
+    uid_t      uid;
+    gid_t      gid;
+    ngx_uint_t i;
+    char       path[PATH_MAX];
+
+    if (root == NULL || geteuid() != 0
+        || ngx_process == NGX_PROCESS_WORKER)
+    {
+        return;
+    }
+    if (brix_imp_worker_runtime_ids((ngx_uid_t) NGX_CONF_UNSET_UINT,
+                                    (ngx_gid_t) NGX_CONF_UNSET_UINT,
+                                    &uid, &gid) != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd tier: cannot resolve the worker identity to own the "
+            "pblock store \"%s\" — de-escalated workers may not be able to "
+            "write it", root);
+        return;
+    }
+    for (i = 0; i < sizeof(tails) / sizeof(tails[0]); i++) {
+        (void) snprintf(path, sizeof(path), "%s%s", root, tails[i]);
+        if (chown(path, uid, gid) != 0 && errno != ENOENT) {
+            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+                "xrootd tier: chown(\"%s\") to the worker identity failed — "
+                "de-escalated workers may not be able to write the pblock "
+                "store", path);
+        }
+    }
+}
+
 /* WHAT: build a pblock (sqlite-backed block store) backend from a tier cfg.
  * WHY:  optional driver, present only when libsqlite3 is compiled in.
  * HOW:  populate the conf from the tier path/block_size; without the library
@@ -101,6 +155,7 @@ tier_build_pblock(const brix_tier_cfg_t *t, ngx_log_t *log)
 {
 #if BRIX_HAVE_SQLITE
     brix_sd_pblock_conf_t conf;
+    brix_sd_instance_t   *inst;
     int                     err = 0;
 
     ngx_memzero(&conf, sizeof(conf));
@@ -115,7 +170,11 @@ tier_build_pblock(const brix_tier_cfg_t *t, ngx_log_t *log)
      * creates the on-disk data; it drops to the `user <acct>;` account, or
      * "nobody" for a root worker (conf.unpriv_user left NULL). */
     conf.enforce_unprivileged = (ngx_process == NGX_PROCESS_WORKER);
-    return brix_sd_instance_create(log, "pblock", &conf, &err);
+    inst = brix_sd_instance_create(log, "pblock", &conf, &err);
+    if (inst != NULL) {
+        brix_tier_pblock_hand_to_worker(t->path, log);
+    }
+    return inst;
 #else
     (void) t;
     return tier_needs_dev(log, "pblock (needs libsqlite3)", "build");

@@ -1268,12 +1268,13 @@ http {{ access_log off; server {{
 }} }}
 """)
         # config-time geo selection report goes to the launch stderr — capture it
-        # with a direct launch (not start_nginx). As root that means we must add
-        # the `user root;` that start_nginx would inject, else workers drop to
-        # `nobody` and cannot write the 0700 mkdtemp cache store (fill -> EACCES).
+        # with a direct launch (not start_nginx). As root that bypasses
+        # start_nginx's tree-opening, so repeat it here: the de-escalated
+        # `nobody` worker cannot write the 0700 mkdtemp cache store otherwise
+        # (fill -> EACCES).
+        from cmdscripts import open_tree_for_worker  # noqa: PLC0415
+        open_tree_for_worker(run.root, config)
         launch = [run.nginx, "-c", config, "-p", run.root]
-        if os.geteuid() == 0:
-            launch += ["-g", "user root;"]
         started = run.call(launch, check=False)
         start_err = run.write(logs / "start.err", started.stderr or "")
         if started.returncode:

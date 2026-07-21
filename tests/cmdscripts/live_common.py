@@ -7,7 +7,6 @@ from pathlib import Path
 import atexit
 import hashlib
 import os
-import re
 import shutil
 import signal
 import subprocess
@@ -160,6 +159,13 @@ class LiveRun(AbstractContextManager["LiveRun"]):
     def mkdir(self, *parts: str) -> Path:
         path = self.root.joinpath(*parts)
         path.mkdir(parents=True, exist_ok=True)
+        # Root harness: a dir made after start_nginx's tree-wide chmod is
+        # root-owned 0755, unwritable by the de-escalated worker — open it.
+        if os.geteuid() == 0:
+            for p in [path, *path.parents]:
+                if p == self.root or not str(p).startswith(str(self.root)):
+                    break
+                os.chmod(p, 0o777)
         return path
 
     def write(self, path: Path, text: str) -> Path:
@@ -227,29 +233,18 @@ class LiveRun(AbstractContextManager["LiveRun"]):
                     break
                 time.sleep(0.1)
         cmd = [self.nginx, "-p", prefix, "-c", config]
-        # Root harness: nginx drops workers to `nobody`, which cannot traverse the
-        # 0700 mkdtemp LiveRun tree nor read/write its backends and cache store —
-        # so every cache fill fails and GETs return 504. Keep workers as root (the
-        # §4b posture; unprivileged the invoking user already owns the tree, so no
-        # injection). Skip if the config already pins a `user` (nginx forbids a
-        # duplicate `user` directive from `-g`).
-        if os.geteuid() == 0:
-            try:
-                cfg_text = Path(config).read_text(errors="ignore")
-            except OSError:
-                cfg_text = ""
-            if not re.search(r"(?m)^\s*user\s+\S", cfg_text):
-                cmd += ["-g", "user root;"]
-            # The pblock backend PERMANENTLY drops the worker to an unprivileged
-            # account (brix_pblock_drop_privilege, fail-closed) BEFORE it creates
-            # catalog.db + the block data dir — so `-g user root;` above does not
-            # keep it root. Under the root harness that account (default `nobody`)
-            # cannot traverse/write the 0700 mkdtemp LiveRun tree, so every pblock
-            # op fails and no catalog is ever born. Open the whole ephemeral tree
-            # so the dropped worker can create + own its on-disk state.
-            if "pblock" in cfg_text:
-                subprocess.run(["chmod", "-R", "a+rwX", str(self.root)],
-                               check=False)
+        # Root harness: worker de-escalation is ALWAYS-ON and fail-closed
+        # (brix_imp_worker_deescalate) — a root-launched worker is forced to a
+        # confined account (brix_worker_user, default `nobody`) in every mode;
+        # `user root;` / `-g` cannot keep it root, and root worker accounts are
+        # refused by design.  That confined worker cannot traverse the 0700
+        # mkdtemp LiveRun tree nor read/write its backends and cache store, so
+        # export-root opens fail the worker and every cache fill 504s.  Open the
+        # whole ephemeral tree (plus in-tree keys, the shared PKI and any
+        # credential store in the config) for the de-escalated worker
+        # (unprivileged the invoking user already owns the tree — no-op).
+        from cmdscripts import open_tree_for_worker  # noqa: PLC0415 — cycle
+        open_tree_for_worker(self.root, config)
         result = self.call(cmd, check=False)
         if result.returncode:
             raise LiveFailure(result.stderr or result.stdout or f"nginx failed to start for {config}")

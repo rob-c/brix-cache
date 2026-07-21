@@ -191,6 +191,19 @@ def gsi_tpc(lifecycle, tmp_path_factory):
         if hostkey.exists():
             shutil.chown(hostkey, runas)
             os.chmod(hostkey, 0o400)
+        # The nginx dest's DE-ESCALATED worker (also `nobody` by default) must
+        # traverse the 0700 pytest tmp chain to reach this tree, and it reads
+        # the outbound proxy chain at TPC time — hand it the proxy (owner-only:
+        # the GSI loader refuses a lax credential; the root-run harness ignores
+        # modes).  Without this the pull dies rc=54 NotAuthorized.
+        parent = base.parent
+        while str(parent) not in ("/", ""):
+            _run(["chmod", "a+rx", str(parent)])
+            parent = parent.parent
+        _run(["chmod", "a+rx", str(srv)])
+        if dest_proxy.exists():
+            shutil.chown(dest_proxy, runas)
+            os.chmod(dest_proxy, 0o600)
         argv += ["-R", runas]
     src = subprocess.Popen(argv,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
