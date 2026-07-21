@@ -258,9 +258,15 @@ def test_df_human_alias_live():
     """xrdfs df -h and df --human produce identical stdout+exit on the fleet root."""
     _skip_no_fleet()
     url = f"{_TEST_HOST}:{_ANON_PORT}"
-    rc_s, out_s, _ = _xrdfs(url, "df", "-h")
-    rc_l, out_l, _ = _xrdfs(url, "df", "--human")
-    assert rc_s == rc_l, f"df -h exited {rc_s}, df --human exited {rc_l}"
+    # The fleet filesystem is live — parallel tests can shift the free-space
+    # figure between the two invocations, which is not an alias divergence.
+    # Retry the PAIR a few times; a real alias bug mismatches every round.
+    for attempt in range(3):
+        rc_s, out_s, _ = _xrdfs(url, "df", "-h")
+        rc_l, out_l, _ = _xrdfs(url, "df", "--human")
+        assert rc_s == rc_l, f"df -h exited {rc_s}, df --human exited {rc_l}"
+        if out_s == out_l:
+            break
     assert out_s == out_l, "df -h and df --human produced different output"
 
 

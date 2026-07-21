@@ -770,6 +770,12 @@ def stock_root(pki):
             f"xrd.port {P_STOCK_ROOT}\n"
             "all.export /gsidata\n"
             f"oss.localroot {base}\n"
+            # Keep the admin/pid state INSIDE the per-run tree: the default is
+            # /tmp/<instance> (/tmp/gsihs), shared host-wide state that a prior
+            # run under another account (root vs brixtest lanes) leaves behind
+            # 0700 — the next lane's server then cannot use it and dies at boot.
+            f"all.adminpath {base}\n"
+            f"all.pidpath {base}\n"
             "xrootd.seclib libXrdSec.so\n"
             f"sec.protocol /usr/lib64 gsi -certdir:{pki['certs']} "
             f"-cert:{pki['hostcert']} -key:{pki['hostkey']} "
@@ -783,6 +789,13 @@ def stock_root(pki):
                os.path.join(base, "stock.log"), "-n", "gsihs"]
     if os.geteuid() == 0:
         subprocess.run(["chmod", "-R", "a+rwX", base], check=False)
+        # pytest's tmp_path_factory creates pytest-of-root/pytest-N as 0700, so
+        # xrootd-as-`nobody` cannot even traverse DOWN to the opened base —
+        # open the ancestor chain (a+rx adds nothing to /tmp and friends).
+        parent = os.path.dirname(base)
+        while parent not in ("/", ""):
+            subprocess.run(["chmod", "a+rx", parent], check=False)
+            parent = os.path.dirname(parent)
         subprocess.run(["chown", "nobody", pki["hostkey"]], check=False)
         subprocess.run(["chmod", "0400", pki["hostkey"]], check=False)
         # The broad `chmod -R a+rwX base` (so xrootd-as-`nobody` can read the
