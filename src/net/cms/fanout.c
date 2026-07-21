@@ -162,32 +162,30 @@ brix_cms_fanout_finalize(brix_cms_fanout_slot_t *slot, ngx_log_t *log)
     brix_cms_fanout_slot_free(slot);
 }
 
-ngx_int_t
-brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, const char *path)
+/* Map the client's request opcode to the CMS request code.  Returns 0 with
+ * *code set, -1 for anything outside the v1 fan-out scope. */
+static int
+brix_cms_fanout_op_code(uint16_t reqid, u_char *code)
 {
-    brix_cms_srv_ctx_t      *node;
-    brix_cms_srv_ctx_t      *elig[BRIX_CMS_FANOUT_NODES];
-    brix_cms_fanout_slot_t  *slot;
-    ngx_uint_t               i, n_elig, sent;
-    uint32_t                 sid;
-    u_char                   code;
-    char                     ident[64];
-
-    if (!conf->cms.fanout) {
-        return NGX_DECLINED;
-    }
-
-    switch (ctx->recv.cur_reqid) {
+    switch (reqid) {
     case kXR_rm:
-        code = CMS_RR_RM;
-        break;
+        *code = CMS_RR_RM;
+        return 0;
     case kXR_rmdir:
-        code = CMS_RR_RMDIR;
-        break;
+        *code = CMS_RR_RMDIR;
+        return 0;
     default:
-        return NGX_DECLINED;    /* v1 scope: single-path deletes only */
+        return -1;    /* v1 scope: single-path deletes only */
     }
+}
+
+/* Collect this worker's logged-in, non-blacklisted node connections whose
+ * exports cover path (at most BRIX_CMS_FANOUT_NODES).  Returns the count. */
+static ngx_uint_t
+brix_cms_fanout_collect_eligible(const char *path, brix_cms_srv_ctx_t **elig)
+{
+    brix_cms_srv_ctx_t  *node;
+    ngx_uint_t           i, n_elig;
 
     n_elig = 0;
     for (i = 0; i < brix_cms_srv_node_count()
@@ -202,6 +200,67 @@ brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
         }
         elig[n_elig++] = node;
     }
+    return n_elig;
+}
+
+/* Grab a free aggregation slot, or NULL when the table is full. */
+static brix_cms_fanout_slot_t *
+brix_cms_fanout_slot_alloc(void)
+{
+    ngx_uint_t  i;
+
+    for (i = 0; i < BRIX_CMS_FANOUT_SLOTS; i++) {
+        if (!brix_fanout_slots[i].in_use) {
+            return &brix_fanout_slots[i];
+        }
+    }
+    return NULL;
+}
+
+/* Forward the op to every eligible node, warning per failed forward.
+ * Returns how many forwards actually went out. */
+static ngx_uint_t
+brix_cms_fanout_send_all(brix_cms_srv_ctx_t **elig, ngx_uint_t n_elig,
+    u_char code, uint32_t sid, const char *ident, const char *path,
+    ngx_log_t *log)
+{
+    ngx_uint_t  i, sent;
+
+    sent = 0;
+    for (i = 0; i < n_elig; i++) {
+        if (brix_cms_forward_to_node(elig[i]->c, code, sid, ident, path,
+                                       NULL, NULL, NULL) == NGX_OK)
+        {
+            sent++;
+        } else {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "brix: CMS fan-out: forward of \"%s\" to %s:%d "
+                          "failed", path, elig[i]->host, (int) elig[i]->port);
+        }
+    }
+    return sent;
+}
+
+ngx_int_t
+brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *path)
+{
+    brix_cms_srv_ctx_t      *elig[BRIX_CMS_FANOUT_NODES];
+    brix_cms_fanout_slot_t  *slot;
+    ngx_uint_t               n_elig, sent;
+    uint32_t                 sid;
+    u_char                   code;
+    char                     ident[64];
+
+    if (!conf->cms.fanout) {
+        return NGX_DECLINED;
+    }
+
+    if (brix_cms_fanout_op_code(ctx->recv.cur_reqid, &code) != 0) {
+        return NGX_DECLINED;
+    }
+
+    n_elig = brix_cms_fanout_collect_eligible(path, elig);
 
     /* Engage only for a genuinely replicated path this worker can settle
      * alone: >=2 eligible local connections covering EVERY registry holder.
@@ -211,13 +270,7 @@ brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_DECLINED;
     }
 
-    slot = NULL;
-    for (i = 0; i < BRIX_CMS_FANOUT_SLOTS; i++) {
-        if (!brix_fanout_slots[i].in_use) {
-            slot = &brix_fanout_slots[i];
-            break;
-        }
-    }
+    slot = brix_cms_fanout_slot_alloc();
     if (slot == NULL) {
         return NGX_DECLINED;    /* table full — redirect still deletes one */
     }
@@ -233,18 +286,8 @@ brix_cms_fanout_mutation(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_snprintf((u_char *) ident, sizeof(ident) - 1, "brix.%d:%d@mgr%Z",
                  (int) ngx_pid, c->fd);
 
-    sent = 0;
-    for (i = 0; i < n_elig; i++) {
-        if (brix_cms_forward_to_node(elig[i]->c, code, sid, ident, path,
-                                       NULL, NULL, NULL) == NGX_OK)
-        {
-            sent++;
-        } else {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "brix: CMS fan-out: forward of \"%s\" to %s:%d "
-                          "failed", path, elig[i]->host, (int) elig[i]->port);
-        }
-    }
+    sent = brix_cms_fanout_send_all(elig, n_elig, code, sid, ident, path,
+                                    c->log);
 
     if (sent == 0) {
         brix_pending_remove(sid, ngx_pid);

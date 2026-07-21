@@ -365,54 +365,40 @@ class Migrator:
     def data_name(self, ino, objno):
         return "%x.%08x" % (ino, objno)
 
-    def process(self, fe):
+    def _rollback_overlay(self, fe, objnos, first):
+        """Detach + remove the striper overlay stubs (CephFS data intact)."""
         args = self.args
-        objnos = self.objs.get(fe.ino)
-        if objnos is None and fe.size > 0:
-            self.rep.item(fe.soid, self.action, "fail",
-                          error="no data objects for ino 0x%x" % fe.ino)
-            self.state.record(fe.soid, self.action, self.mode, "fail")
-            return
-        objnos = objnos or []
-        first = fe.soid + FIRST_SUFFIX
-
-        if args.rollback:
-            if args.dry_run:
-                self.rep.item(fe.soid, self.action, "skip",
-                              detail="DRY-RUN rollback")
-                return
-            for objno in objnos:
-                stub = self.stripe_name(fe.soid, objno)
-                self.bridge.unset_manifest(args.striper_pool, stub)  # detach
-                self.bridge.remove(args.striper_pool, stub)
-            try:
-                self.sp.remove_object(first)      # stripe-0 stamp object
-            except rados.Error:
-                pass
-            self.rep.item(fe.soid, self.action, "ok",
-                          detail=" striper overlay removed (CephFS data intact)")
-            self.state.record(fe.soid, self.action, self.mode, "ok")
-            return
-
-        # idempotency (redirect mode only — finalize re-touches the stamped
-        # soid deliberately): skip when stripe 0 is already stamped at size.
-        if not args.finalize:
-            try:
-                stamped = self.sp.get_xattr(first, "striper.size")
-                if int(stamped.decode()) == fe.size:
-                    self.rep.item(fe.soid, self.action, "skip",
-                                  detail="already present")
-                    return
-            except (rados.Error, ValueError):
-                pass
-
         if args.dry_run:
             self.rep.item(fe.soid, self.action, "skip",
-                          detail="DRY-RUN %s %d bytes, %d obj"
-                                 % ("finalize" if args.finalize else "redirect",
-                                    fe.size, len(objnos)))
+                          detail="DRY-RUN rollback")
             return
+        for objno in objnos:
+            stub = self.stripe_name(fe.soid, objno)
+            self.bridge.unset_manifest(args.striper_pool, stub)  # detach
+            self.bridge.remove(args.striper_pool, stub)
+        try:
+            self.sp.remove_object(first)      # stripe-0 stamp object
+        except rados.Error:
+            pass
+        self.rep.item(fe.soid, self.action, "ok",
+                      detail=" striper overlay removed (CephFS data intact)")
+        self.state.record(fe.soid, self.action, self.mode, "ok")
 
+    def _already_stamped(self, fe, first):
+        """Idempotency (redirect mode only — finalize re-touches the stamped
+        soid deliberately): True when stripe 0 is already stamped at size."""
+        if self.args.finalize:
+            return False
+        try:
+            stamped = self.sp.get_xattr(first, "striper.size")
+            return int(stamped.decode()) == fe.size
+        except (rados.Error, ValueError):
+            return False
+
+    def _map_objects(self, fe, objnos):
+        """Promote (finalize) or redirect-stub every data object. Returns
+        False after recording the failure when any bridge op fails."""
+        args = self.args
         for objno in objnos:
             src = self.data_name(fe.ino, objno)
             dst = self.stripe_name(fe.soid, objno)
@@ -428,26 +414,70 @@ class Migrator:
             except BridgeError as e:
                 self.rep.item(fe.soid, self.action, "fail", error=str(e))
                 self.state.record(fe.soid, self.action, self.mode, "fail")
-                return
+                return False
+        return True
+
+    def _verify_or_fail(self, fe):
+        """True when --verify is off or passes; records the failure otherwise."""
+        if not self.args.verify:
+            return True
+        err = self._verify(fe)
+        if err is not None:
+            self.rep.item(fe.soid, self.action, "fail", error=err)
+            self.state.record(fe.soid, self.action, self.mode, "fail")
+            return False
+        return True
+
+    def _delete_cephfs_source(self, fe, objnos):
+        """Remove the CephFS data objects behind a finalize; returns count."""
+        deleted = 0
+        for objno in objnos:
+            try:
+                self.cdata.remove_object(self.data_name(fe.ino, objno))
+                deleted += 1
+            except rados.Error:
+                pass
+        with self.rep._lock:                  # noqa: SLF001
+            self.rep.deleted += deleted
+        return deleted
+
+    def process(self, fe):
+        args = self.args
+        objnos = self.objs.get(fe.ino)
+        if objnos is None and fe.size > 0:
+            self.rep.item(fe.soid, self.action, "fail",
+                          error="no data objects for ino 0x%x" % fe.ino)
+            self.state.record(fe.soid, self.action, self.mode, "fail")
+            return
+        objnos = objnos or []
+        first = fe.soid + FIRST_SUFFIX
+
+        if args.rollback:
+            self._rollback_overlay(fe, objnos, first)
+            return
+
+        if self._already_stamped(fe, first):
+            self.rep.item(fe.soid, self.action, "skip",
+                          detail="already present")
+            return
+
+        if args.dry_run:
+            self.rep.item(fe.soid, self.action, "skip",
+                          detail="DRY-RUN %s %d bytes, %d obj"
+                                 % ("finalize" if args.finalize else "redirect",
+                                    fe.size, len(objnos)))
+            return
+
+        if not self._map_objects(fe, objnos):
+            return
         self._stamp(first, fe)
 
-        if args.verify:
-            err = self._verify(fe)
-            if err is not None:
-                self.rep.item(fe.soid, self.action, "fail", error=err)
-                self.state.record(fe.soid, self.action, self.mode, "fail")
-                return
+        if not self._verify_or_fail(fe):
+            return
 
         deleted = 0
         if args.finalize and args.delete_source:
-            for objno in objnos:
-                try:
-                    self.cdata.remove_object(self.data_name(fe.ino, objno))
-                    deleted += 1
-                except rados.Error:
-                    pass
-            with self.rep._lock:                  # noqa: SLF001
-                self.rep.deleted += deleted
+            deleted = self._delete_cephfs_source(fe, objnos)
 
         detail = (" finalize" if args.finalize else " redirect") \
             + (", verified" if args.verify else "") \

@@ -170,6 +170,9 @@ nginx proxy in front.
 | 13210 | WEBDAV_DELLOCK_PORT | davs | DELETE/lock security (migrated dedicated) |
 | 22014 | WEBDAV_UNLOCK_OWNERSHIP_PORT | davs | LOCK/UNLOCK xattr-backed locks |
 | 22017 | S3_MPU_PORT | s3 | multipart upload-part-copy traversal |
+| 12960 / 12961 | COMPRESS_WEBDAV_PORT / COMPRESS_S3_PORT | davs/s3 | dedicated compression instance (`nginx_compress.conf`; tests attach and seed `data-compress`) |
+| 21200 | INTEROP_OUR_PORT | root | "our server" half of the official-interop conformance pair (`nginx_interop.conf`; `official_interop_lib.start_pair` attaches) |
+| 21201 | INTEROP_OFF_PORT | root | stock-xrootd "official" half of the interop pair (exports `data-interop-off`) |
 
 ## IPv6 tier (all on `[::1]`, skipped when IPv6 unavailable)
 
@@ -180,6 +183,12 @@ nginx proxy in front.
 | 11243 | IPV6_WEBDAV_PORT | davs |
 | 11244 | IPV6_S3_PORT | s3 |
 | 11245 / 11246 | IPV6_UPSTREAM_PORT / IPV6_PROXY_PORT | davs origin + proxy |
+
+## Launcher-level overrides (not fixed ports)
+
+| Constant | Default | What |
+|---|---|---|
+| REGISTRY_PORT_BASE | unset (`None`) | `TEST_REGISTRY_PORT_BASE` env passthrough reserved for the `RegistryLauncher` fleet catalogue (a future re-basing hook); today it is only surfaced by `tests/settings.py` and type-checked by `test_server_registry_smoke.py` |
 
 ## Fixed bands outside settings.py
 

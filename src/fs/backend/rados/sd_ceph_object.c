@@ -524,104 +524,199 @@ sd_ceph_copy_bytes(sd_ceph_state_t *st, const char *src, int striped,
     return 0;
 }
 
-/* sd_ceph_copy_xattrs — carry the object xattrs across the copy (the cache
- * cinfo/meta/checksum-at-rest records must survive a rename). Striper-internal
+#if defined(BRIX_HAVE_RADOSSTRIPER)
+/* sd_ceph_copy_xattrs_striped — the striped-source leg of the xattr copy:
+ * list the striper object's names, then get/set each one. Striper-internal
  * "striper.*" layout attrs are never copied — the destination's own write path
- * stamps its layout. Values are bounded by SD_CEPH_XATTR_MAX (the driver's
- * existing xattr value bound). 0 or negative errno. */
+ * stamps its layout. 0 or negative errno. */
+static int
+sd_ceph_copy_xattrs_striped(sd_ceph_state_t *st, const char *src,
+    const char *dst, int dst_striped)
+{
+    rados_striper_t s = sd_ceph_striper(st);
+    char           *names;
+    char           *val;
+    ssize_t         total;
+    ssize_t         used = 0;
+    int             rc = 0;
+
+    if (s == NULL) {
+        return -EIO;
+    }
+    names = malloc(SD_CEPH_XATTR_MAX);
+    val   = malloc(SD_CEPH_XATTR_MAX);
+    if (names == NULL || val == NULL) {
+        free(names);
+        free(val);
+        return -ENOMEM;
+    }
+    total = sd_ceph_striper_listxattr(s, src, names, SD_CEPH_XATTR_MAX);
+    if (total < 0) {
+        free(names);
+        free(val);
+        return (int) total;
+    }
+    while (rc == 0 && used < total) {
+        const char *nm = names + used;
+        ssize_t     vlen;
+
+        used += (ssize_t) strlen(nm) + 1;
+        if (strncmp(nm, "striper.", 8) == 0) {
+            continue;                      /* layout attrs: never copied */
+        }
+        vlen = sd_ceph_striper_getxattr(s, src, nm, val,
+                                        SD_CEPH_XATTR_MAX);
+        if (vlen < 0) {
+            rc = (int) vlen;
+            break;
+        }
+        rc = dst_striped
+             ? sd_ceph_striper_setxattr(s, dst, nm, val, (size_t) vlen)
+             : rados_setxattr(st->ioctx, dst, nm, val, (size_t) vlen);
+    }
+    free(names);
+    free(val);
+    return rc;
+}
+#endif
+
+/* sd_ceph_copy_xattrs_plain — the flat-object leg of the xattr copy: walk the
+ * source's xattr iterator and stamp each pair onto the destination (striper
+ * or flat, per dst_striped). 0 or negative errno. */
+static int
+sd_ceph_copy_xattrs_plain(sd_ceph_state_t *st, const char *src,
+    const char *dst, int dst_striped)
+{
+    rados_xattrs_iter_t it;
+    int                 rc;
+
+    rc = rados_getxattrs(st->ioctx, src, &it);
+    if (rc < 0) {
+        return rc;
+    }
+    for (;;) {
+        const char *nm = NULL;
+        const char *vv = NULL;
+        size_t      vlen = 0;
+
+        rc = rados_getxattrs_next(it, &nm, &vv, &vlen);
+        if (rc < 0 || nm == NULL) {
+            break;
+        }
+#if defined(BRIX_HAVE_RADOSSTRIPER)
+        if (dst_striped) {
+            rados_striper_t s = sd_ceph_striper(st);
+
+            rc = (s != NULL)
+                 ? sd_ceph_striper_setxattr(s, dst, nm, vv, vlen) : -EIO;
+        } else
+#endif
+        {
+            rc = rados_setxattr(st->ioctx, dst, nm, vv, vlen);
+        }
+        if (rc < 0) {
+            break;
+        }
+    }
+    rados_getxattrs_end(it);
+#if !defined(BRIX_HAVE_RADOSSTRIPER)
+    (void) dst_striped;
+#endif
+    return (rc < 0) ? rc : 0;
+}
+
+/* sd_ceph_copy_xattrs — carry the object xattrs across the copy (the cache
+ * cinfo/meta/checksum-at-rest records must survive a rename). Dispatches on
+ * the source's layout to the striped or plain leg above. Values are bounded
+ * by SD_CEPH_XATTR_MAX (the driver's existing xattr value bound). 0 or
+ * negative errno. */
 static int
 sd_ceph_copy_xattrs(sd_ceph_state_t *st, const char *src, int src_striped,
     const char *dst, int dst_striped)
 {
 #if defined(BRIX_HAVE_RADOSSTRIPER)
     if (src_striped) {
-        rados_striper_t s = sd_ceph_striper(st);
-        char           *names;
-        char           *val;
-        ssize_t         total;
-        ssize_t         used = 0;
-        int             rc = 0;
-
-        if (s == NULL) {
-            return -EIO;
-        }
-        names = malloc(SD_CEPH_XATTR_MAX);
-        val   = malloc(SD_CEPH_XATTR_MAX);
-        if (names == NULL || val == NULL) {
-            free(names);
-            free(val);
-            return -ENOMEM;
-        }
-        total = sd_ceph_striper_listxattr(s, src, names, SD_CEPH_XATTR_MAX);
-        if (total < 0) {
-            free(names);
-            free(val);
-            return (int) total;
-        }
-        while (rc == 0 && used < total) {
-            const char *nm = names + used;
-            ssize_t     vlen;
-
-            used += (ssize_t) strlen(nm) + 1;
-            if (strncmp(nm, "striper.", 8) == 0) {
-                continue;                      /* layout attrs: never copied */
-            }
-            vlen = sd_ceph_striper_getxattr(s, src, nm, val,
-                                            SD_CEPH_XATTR_MAX);
-            if (vlen < 0) {
-                rc = (int) vlen;
-                break;
-            }
-            rc = dst_striped
-                 ? sd_ceph_striper_setxattr(s, dst, nm, val, (size_t) vlen)
-                 : rados_setxattr(st->ioctx, dst, nm, val, (size_t) vlen);
-        }
-        free(names);
-        free(val);
-        return rc;
+        return sd_ceph_copy_xattrs_striped(st, src, dst, dst_striped);
     }
 #else
     (void) src_striped;
 #endif
+    return sd_ceph_copy_xattrs_plain(st, src, dst, dst_striped);
+}
 
-    {
-        rados_xattrs_iter_t it;
-        int                 rc;
+/* sd_ceph_rename_missing_src — classify a rename whose source object is
+ * absent. A populated synthetic-directory source is EISDIR (no collection
+ * rename on a flat namespace), a bare miss is ENOENT. Always NGX_ERROR with
+ * errno set. */
+static ngx_int_t
+sd_ceph_rename_missing_src(brix_sd_instance_t *inst, const char *src)
+{
+    char                  norm[1024];
+    sd_ceph_child_probe_t c;
 
-        rc = rados_getxattrs(st->ioctx, src, &it);
-        if (rc < 0) {
-            return rc;
+    errno = ENOENT;
+    if (sd_ceph_normalize(src, norm, sizeof(norm)) == 0) {
+        c.dir   = norm;
+        c.found = 0;
+        if (sd_ceph_enumerate(inst, 0, sd_ceph_child_probe_cb, &c)
+                == NGX_OK && c.found)
+        {
+            errno = EISDIR;
         }
-        for (;;) {
-            const char *nm = NULL;
-            const char *vv = NULL;
-            size_t      vlen = 0;
-
-            rc = rados_getxattrs_next(it, &nm, &vv, &vlen);
-            if (rc < 0 || nm == NULL) {
-                break;
-            }
-#if defined(BRIX_HAVE_RADOSSTRIPER)
-            if (dst_striped) {
-                rados_striper_t s = sd_ceph_striper(st);
-
-                rc = (s != NULL)
-                     ? sd_ceph_striper_setxattr(s, dst, nm, vv, vlen) : -EIO;
-            } else
-#endif
-            {
-                rc = rados_setxattr(st->ioctx, dst, nm, vv, vlen);
-            }
-            if (rc < 0) {
-                break;
-            }
-        }
-        rados_getxattrs_end(it);
-#if !defined(BRIX_HAVE_RADOSSTRIPER)
-        (void) dst_striped;
-#endif
-        return (rc < 0) ? rc : 0;
     }
+    return NGX_ERROR;
+}
+
+/* sd_ceph_rename_prep_dst — probe the destination oid and clear the way:
+ * honour noreplace (EEXIST) and remove a pre-existing destination object.
+ * NGX_OK or NGX_ERROR with errno set. */
+static ngx_int_t
+sd_ceph_rename_prep_dst(sd_ceph_state_t *st, const char *dm, int noreplace)
+{
+    sd_ceph_path_probe_t dp;
+    int                  rc;
+
+    rc = sd_ceph_probe_oid(st, dm, &dp);
+    if (rc < 0) {
+        errno = -rc;
+        return NGX_ERROR;
+    }
+    if (dp.present && noreplace) {
+        errno = EEXIST;
+        return NGX_ERROR;
+    }
+    if (dp.present) {
+        rc = sd_ceph_remove_oid(st, dm, dp.striped);
+        if (rc < 0) {
+            errno = -rc;
+            return NGX_ERROR;
+        }
+    }
+    return NGX_OK;
+}
+
+/* sd_ceph_rename_copy_verify — land the destination's bytes AND xattrs, then
+ * size-verify it against the source probe. 0 or negative errno (the caller
+ * cleans up the partial destination on failure). */
+static int
+sd_ceph_rename_copy_verify(sd_ceph_state_t *st, const char *so,
+    const char *dm, const sd_ceph_path_probe_t *sp, int dst_striped)
+{
+    int rc;
+
+    rc = sd_ceph_copy_bytes(st, so, dst_striped, sp->size, dm);
+    if (rc == 0) {
+        rc = sd_ceph_copy_xattrs(st, so, sp->striped, dm, dst_striped);
+    }
+    if (rc == 0) {
+        sd_ceph_path_probe_t vp;
+
+        rc = sd_ceph_probe_oid(st, dm, &vp);
+        if (rc == 0 && (!vp.present || vp.size != sp->size)) {
+            rc = -EIO;                         /* verify: dst must hold src's bytes */
+        }
+    }
+    return rc;
 }
 
 /* sd_ceph_rename — copy + delete on the flat namespace (phase-89 §B.2).
@@ -640,7 +735,7 @@ sd_ceph_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     sd_ceph_state_t     *st = inst->state;
     char                 so[1024];
     char                 dm[1024];
-    sd_ceph_path_probe_t sp, dp;
+    sd_ceph_path_probe_t sp;
     int                  dst_striped;
     int                  rc;
 
@@ -659,54 +754,15 @@ sd_ceph_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
         return NGX_ERROR;
     }
     if (!sp.present) {
-        /* No object: a populated synthetic-directory source is EISDIR (no
-         * collection rename on a flat namespace), a bare miss is ENOENT. */
-        char                  norm[1024];
-        sd_ceph_child_probe_t c;
-
-        errno = ENOENT;
-        if (sd_ceph_normalize(src, norm, sizeof(norm)) == 0) {
-            c.dir   = norm;
-            c.found = 0;
-            if (sd_ceph_enumerate(inst, 0, sd_ceph_child_probe_cb, &c)
-                    == NGX_OK && c.found)
-            {
-                errno = EISDIR;
-            }
-        }
-        return NGX_ERROR;
+        return sd_ceph_rename_missing_src(inst, src);
     }
 
-    rc = sd_ceph_probe_oid(st, dm, &dp);
-    if (rc < 0) {
-        errno = -rc;
+    if (sd_ceph_rename_prep_dst(st, dm, noreplace) != NGX_OK) {
         return NGX_ERROR;
-    }
-    if (dp.present && noreplace) {
-        errno = EEXIST;
-        return NGX_ERROR;
-    }
-    if (dp.present) {
-        rc = sd_ceph_remove_oid(st, dm, dp.striped);
-        if (rc < 0) {
-            errno = -rc;
-            return NGX_ERROR;
-        }
     }
 
     dst_striped = (sp.striped && sp.size > 0);
-    rc = sd_ceph_copy_bytes(st, so, dst_striped, sp.size, dm);
-    if (rc == 0) {
-        rc = sd_ceph_copy_xattrs(st, so, sp.striped, dm, dst_striped);
-    }
-    if (rc == 0) {
-        sd_ceph_path_probe_t vp;
-
-        rc = sd_ceph_probe_oid(st, dm, &vp);
-        if (rc == 0 && (!vp.present || vp.size != sp.size)) {
-            rc = -EIO;                         /* verify: dst must hold src's bytes */
-        }
-    }
+    rc = sd_ceph_rename_copy_verify(st, so, dm, &sp, dst_striped);
     if (rc < 0) {
         (void) sd_ceph_remove_oid(st, dm, dst_striped);  /* best-effort cleanup */
         errno = -rc;

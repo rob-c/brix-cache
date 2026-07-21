@@ -102,6 +102,41 @@ brix_cms_meter_parse_meminfo(const char *buf, uint8_t *pct)
 }
 
 
+/* Parse one /proc/net/dev interface line's counters starting just past the
+ * ':' — rx_bytes first, tx_bytes as field 9 (skip fields 2-8).  Returns 0
+ * with *bytes = rx + tx, -1 on a malformed field. */
+static int
+meter_netdev_line_bytes(const char *colon, uint64_t *bytes)
+{
+    char                *end;
+    unsigned long long   rx, tx;
+    int                  f;
+
+    rx = strtoull(colon + 1, &end, 10);
+    if (end == colon + 1) {
+        return -1;
+    }
+    /* tx_bytes is field 9 after the colon; skip fields 2-8. */
+    for (f = 0; f < 7; f++) {
+        const char *v = end;
+        (void) strtoull(v, &end, 10);
+        if (end == v) {
+            return -1;
+        }
+    }
+    {
+        const char *v = end;
+        tx = strtoull(v, &end, 10);
+        if (end == v) {
+            return -1;
+        }
+    }
+
+    *bytes = (uint64_t) rx + (uint64_t) tx;
+    return 0;
+}
+
+
 int
 brix_cms_meter_parse_netdev(const char *buf, uint64_t *total_bytes)
 {
@@ -123,9 +158,7 @@ brix_cms_meter_parse_netdev(const char *buf, uint64_t *total_bytes)
          p = p ? p + 1 : NULL)
     {
         const char  *colon, *name;
-        char        *end;
-        unsigned long long  rx, tx;
-        int          f;
+        uint64_t     line_bytes;
 
         colon = strchr(p, ':');
         if (colon == NULL) {
@@ -146,27 +179,11 @@ brix_cms_meter_parse_netdev(const char *buf, uint64_t *total_bytes)
             continue;
         }
 
-        rx = strtoull(colon + 1, &end, 10);
-        if (end == colon + 1) {
+        if (meter_netdev_line_bytes(colon, &line_bytes) != 0) {
             return -1;
         }
-        /* tx_bytes is field 9 after the colon; skip fields 2-8. */
-        for (f = 0; f < 7; f++) {
-            const char *v = end;
-            (void) strtoull(v, &end, 10);
-            if (end == v) {
-                return -1;
-            }
-        }
-        {
-            const char *v = end;
-            tx = strtoull(v, &end, 10);
-            if (end == v) {
-                return -1;
-            }
-        }
 
-        sum += (uint64_t) rx + (uint64_t) tx;
+        sum += line_bytes;
         seen = 1;
     }
 
@@ -225,16 +242,13 @@ meter_slurp(const char *path, char *buf, size_t bufsz)
 }
 
 
-void
-brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])
+/* Sample the point-in-time gauges (cpu, mem) straight into out5; any slurp
+ * or parse failure leaves that byte 0. */
+static void
+meter_sample_gauges(uint8_t out5[5])
 {
-    char      buf[8192];
-    uint8_t   pct;
-    uint64_t  net_bytes = 0, pgmaj = 0;
-    int       have_net, have_pag;
-    uint64_t  elapsed;
-
-    memset(out5, 0, 5);
+    char     buf[8192];
+    uint8_t  pct;
 
     if (meter_slurp("/proc/loadavg", buf, sizeof(buf)) == 0
         && brix_cms_meter_parse_loadavg(buf, sysconf(_SC_NPROCESSORS_ONLN),
@@ -250,11 +264,17 @@ brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])
     {
         out5[3] = pct;                                  /* mem */
     }
+}
 
-    have_net = (meter_slurp("/proc/net/dev", buf, sizeof(buf)) == 0
-                && brix_cms_meter_parse_netdev(buf, &net_bytes) == 0);
-    have_pag = (meter_slurp("/proc/vmstat", buf, sizeof(buf)) == 0
-                && brix_cms_meter_parse_vmstat(buf, &pgmaj) == 0);
+
+/* Fold the delta-based figures (net, pag) into out5 and roll the previous
+ * counters forward.  The first successful sample only primes the counters. */
+static void
+meter_fold_deltas(brix_cms_meter_t *m, uint64_t now_ms,
+    int have_net, uint64_t net_bytes, int have_pag, uint64_t pgmaj,
+    uint8_t out5[5])
+{
+    uint64_t  elapsed;
 
     elapsed = now_ms > m->prev_ms ? now_ms - m->prev_ms : 0;
 
@@ -279,4 +299,24 @@ brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])
     }
     m->prev_ms = now_ms;
     m->primed  = (have_net || have_pag) ? 1 : m->primed;
+}
+
+
+void
+brix_cms_meter_sample(brix_cms_meter_t *m, uint64_t now_ms, uint8_t out5[5])
+{
+    char      buf[8192];
+    uint64_t  net_bytes = 0, pgmaj = 0;
+    int       have_net, have_pag;
+
+    memset(out5, 0, 5);
+
+    meter_sample_gauges(out5);
+
+    have_net = (meter_slurp("/proc/net/dev", buf, sizeof(buf)) == 0
+                && brix_cms_meter_parse_netdev(buf, &net_bytes) == 0);
+    have_pag = (meter_slurp("/proc/vmstat", buf, sizeof(buf)) == 0
+                && brix_cms_meter_parse_vmstat(buf, &pgmaj) == 0);
+
+    meter_fold_deltas(m, now_ms, have_net, net_bytes, have_pag, pgmaj, out5);
 }

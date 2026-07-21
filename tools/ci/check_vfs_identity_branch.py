@@ -20,10 +20,11 @@ ROOT = Path(__file__).resolve().parents[2]
 # * or //) are ignored; only real code is flagged.
 #
 # The config-time factory that maps a `backend "<name>"` config string to a
-# driver instance is EXEMPT: vfs_backend_config.c / vfs_backend_registry.c are
-# the ONE intended place backend identity is named (once, at registration). The
-# ban applies to the runtime op path — every other src/fs/vfs/*.c must dispatch
-# on capabilities, never on which backend it happens to be talking to.
+# driver instance is EXEMPT: the vfs_backend_config*.c / vfs_backend_registry*.c
+# family (split by concern in phase-79) is the ONE intended place backend
+# identity is named (once, at registration). The ban applies to the runtime op
+# path — every other src/fs/vfs/*.c must dispatch on capabilities, never on
+# which backend it happens to be talking to.
 PATTERN = re.compile(
     r'(strcmp\([^)]*(backend|driver|proto)'
     r'|== *"(posix|s3|http|webdav|remote|ceph|cvmfs)"'
@@ -31,7 +32,7 @@ PATTERN = re.compile(
 )
 
 # Matches the config-time factory files that are EXEMPT from the ban.
-EXEMPT = re.compile(r'/vfs_backend_(config|registry)\.c:')
+EXEMPT = re.compile(r'/vfs_backend_(config|registry)\w*\.c:')
 
 # Matches a doc-comment code line (`path:lineno:` then `*` or `//`).
 DOC_COMMENT = re.compile(r'^\S+:[0-9]+: *(\*|//)')
