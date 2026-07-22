@@ -8,7 +8,8 @@ import signal
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_port
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, NGINX_BIN
 
 
 def objs_dir_from_nginx(nginx_bin: str = NGINX_BIN) -> Path:
@@ -59,6 +60,7 @@ int main(int argc, char **argv) {
         meta_dir / "xmeta_decode.o",
         meta_dir / "xmeta_carrier.o",
         cinfo_o.parents[1] / "compat" / "crc32c.o",
+        cinfo_o.parents[1] / "compat" / "crc32c_hw.o",
     ]
     missing = [str(path) for path in objects if not path.is_file()]
     if missing:
@@ -83,7 +85,7 @@ pid {base / 'nginx.pid'};
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {root};
         brix_auth none;
@@ -107,7 +109,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, objs_dir: Path | None = N
     if not built:
         return [(False, f"failed to build dirty marker: {build_error}")]
 
-    port = free_port()
+    port = cmdscript_ports("cache_reaper")[0]
     conf = write_config(base, port)
     dirty = base / "state" / "abandoned.bin"
     clean = base / "state" / "keepme.bin"

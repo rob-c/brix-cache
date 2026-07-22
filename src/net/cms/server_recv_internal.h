@@ -71,4 +71,47 @@ void cms_srv_parse_avail(const u_char *payload, size_t payload_len,
 void cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code,
     uint32_t streamid, const u_char *payload, size_t payload_len);
 
+/* Register the data server and arm heartbeats once LOGIN (and, when sss is
+ * configured, kYR_xauth) has succeeded.  Defined in server_recv_frame.c and
+ * called from the auth handlers in server_recv_frame_handlers.c. */
+void cms_srv_complete_login(brix_cms_srv_ctx_t *ctx);
+
+/* ---- server_recv_frame_handlers.c — per-opcode frame handlers ---- */
+
+/* Every handler shares this signature so the route table in server_recv_frame.c
+ * can dispatch by opcode; handlers that need no payload/streamid ignore them.
+ * Defined in server_recv_frame_handlers.c, referenced by the route table. */
+void cms_srv_frame_login(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_xauth(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_load(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_avail(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_pong(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_ping(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_disc(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_update(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_statfs(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_status(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_usage(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_stats(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_gone(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_have(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_error(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+void cms_srv_frame_cns(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
+    const u_char *payload, size_t payload_len);
+
 #endif /* BRIX_CMS_SERVER_RECV_INTERNAL_H */

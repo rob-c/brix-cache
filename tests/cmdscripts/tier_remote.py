@@ -19,6 +19,7 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
+from settings import BIND_HOST, HOST
 
 
 class TierTopology:
@@ -38,7 +39,7 @@ class TierTopology:
             directory / "nginx.conf",
             f"""daemon on; error_log {directory}/logs/e.log info; pid {directory}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {directory}/root; brix_auth none;{write} }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {directory}/root; brix_auth none;{write} }} }}
 """,
         )
 
@@ -49,9 +50,9 @@ stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {director
             f"""daemon on; error_log {self.client}/logs/e.log info; pid {self.client}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {self.client}/tmp; server {{ listen 127.0.0.1:{self.client_port};
+http {{ client_body_temp_path {self.client}/tmp; server {{ listen {BIND_HOST}:{self.client_port};
   location / {{ {write} brix_webdav on; brix_export {self.client}/export; brix_webdav_auth none;
-    brix_storage_backend root://127.0.0.1:{self.origin_port};
+    brix_storage_backend root://{HOST}:{self.origin_port};
     {directives}
   }} }} }}
 """,
@@ -72,7 +73,7 @@ http {{ client_body_temp_path {self.client}/tmp; server {{ listen 127.0.0.1:{sel
 
     @property
     def url(self) -> str:
-        return f"http://127.0.0.1:{self.client_port}"
+        return f"http://{HOST}:{self.client_port}"
 
     def download(self, path: str, output: Path) -> int:
         result = self.run.call(["curl", "-sS", "-o", output, "-w", "%{http_code}", f"{self.url}/{path}"], check=False)
@@ -99,7 +100,7 @@ def _result(checks: list[tuple[bool, str]]) -> int:
 def remote_stage(nginx: Path | None = None) -> int:
     with LiveRun("tier_rstage", nginx) as run:
         topology = TierTopology(run, 11702, 11703, 8503)
-        stage = f"brix_stage on; brix_stage_store root://127.0.0.1:{topology.store_port}; brix_stage_flush sync;"
+        stage = f"brix_stage on; brix_stage_store root://{HOST}:{topology.store_port}; brix_stage_flush sync;"
         topology.start(stage, origin_writable=True, cache_writable=True)
         source = run.root / "src.bin"
         digest = random_file(source, 420000)
@@ -119,7 +120,7 @@ def remote_store(nginx: Path | None = None, *, sidecar: bool = False) -> int:
     with LiveRun(label, nginx) as run:
         topology = TierTopology(run, *ports)
         metadata = "brix_cache_meta sidecar;" if sidecar else ""
-        directives = f"brix_cache_store root://127.0.0.1:{topology.store_port}; {metadata}"
+        directives = f"brix_cache_store root://{HOST}:{topology.store_port}; {metadata}"
         source = topology.origin / "root/s.bin"
         digest = random_file(source, 400000 if sidecar else 500000)
         source.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
@@ -146,7 +147,7 @@ def remote_store(nginx: Path | None = None, *, sidecar: bool = False) -> int:
 def remote_evict(nginx: Path | None = None) -> int:
     with LiveRun("tier_revict", nginx) as run:
         topology = TierTopology(run, 11732, 11733, 8525)
-        topology.start(f"brix_cache_store root://127.0.0.1:{topology.store_port};", origin_writable=True, cache_writable=True)
+        topology.start(f"brix_cache_store root://{HOST}:{topology.store_port};", origin_writable=True, cache_writable=True)
         original = topology.origin / "root/e.bin"
         digest = random_file(original, 300000)
         first = run.root / "first.bin"

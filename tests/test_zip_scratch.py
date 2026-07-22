@@ -20,7 +20,8 @@ from settings import NGINX_BIN, BIND_HOST
 from server_registry import NginxInstanceSpec
 from test_zip_member import _session, _open, _read, kXR_ok, STORED
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-zip-scratch")]
 
 
 def _start(lifecycle, tmp_path, name, force_scratch):

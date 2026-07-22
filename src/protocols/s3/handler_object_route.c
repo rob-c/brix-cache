@@ -32,6 +32,7 @@
 #include "core/http/http_headers.h"
 #include "core/http/http_query.h"
 #include "protocols/shared/deleg_capture.h"
+#include "protocols/shared/backend_async_http.h"
 #include "fs/backend/sd.h"
 
 #include <limits.h>
@@ -178,6 +179,20 @@ s3_dispatch_object_put(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     return s3_read_body_metric(r, method_slot, s3_put_body_handler);
 }
 
+/*
+ * Async-queue wake for a deferred object DELETE: render the S3 response for the
+ * batch's unlink result and finalise the request. ctx carries the method slot
+ * (queue is protocol-agnostic; the slot is opaque to it). Runs on the event loop.
+ */
+static void
+s3_delete_async_render(ngx_http_request_t *r, void *ctx, int op_errno)
+{
+    ngx_uint_t method_slot = (ngx_uint_t) (uintptr_t) ctx;
+
+    s3_metrics_finalize_request_method(r, method_slot,
+                                       s3_delete_respond(r, op_errno));
+}
+
 static ngx_int_t
 s3_dispatch_object_delete(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_uint_t method_slot, char *fs_path)
@@ -195,6 +210,22 @@ s3_dispatch_object_delete(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         return s3_metrics_return_method(r, method_slot,
             s3_handle_multipart_abort(r, fs_path, cf, upload_id));
     }
+
+    /* Async backend: enqueue the unlink and park the request until the batch
+     * flushes (write gate already passed above). The queue drives the same
+     * confined-VFS primitive the sync path does, so it takes the absolute
+     * resolved `fs_path` as its key (exactly as the root:// plane passes its
+     * `resolved`). NGX_DECLINED (async off / enqueue failure) falls through to
+     * the inline unlink. */
+    if (cf->common.backend_async) {
+        ngx_int_t rc = brix_baq_http_try(r, &cf->common, BRIX_BAQ_UNLINK,
+            cf->common.root_canon, fs_path, NULL, 0,
+            s3_delete_async_render, (void *) (uintptr_t) method_slot);
+        if (rc == NGX_DONE) {
+            return NGX_DONE;
+        }
+    }
+
     return s3_metrics_return_method(r, method_slot,
                                     s3_handle_delete(r, fs_path, cf));
 }

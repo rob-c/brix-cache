@@ -5,6 +5,8 @@ import pytest
 
 from cmdscripts import tier_stage_live
 
+pytestmark = pytest.mark.xdist_group("cmd-tier_stage_live")
+
 
 def test_tier_stage_live_are_importable():
     assert set(tier_stage_live.SCENARIOS) == {

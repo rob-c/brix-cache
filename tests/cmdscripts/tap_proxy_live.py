@@ -21,8 +21,11 @@ import time
 
 from cmdscripts.gsi_trust_live import ensure_shared_pki
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
+from fleet_ports import cmdscript_ports
 from lib_py.util import wait_tcp
-from settings import CA_CERT, CA_DIR, SERVER_CERT, SERVER_KEY, TEST_ROOT, free_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
+
+_PORTS = cmdscript_ports("tap_proxy_live")
 
 XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
 OUR_XRDCP = Path(os.environ.get("OUR_XRDCP", REPO_ROOT / "client" / "bin" / "xrdcp"))
@@ -64,7 +67,7 @@ def _origin_stream_conf(run: LiveRun, prefix: Path, port: int, *, gsi: bool) -> 
         f"""daemon on; error_log {prefix}/logs/e.log info; pid {prefix}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_export {prefix}/root;
+    listen {BIND_HOST}:{port}; brix_root on; brix_export {prefix}/root;
     {auth}
 }} }}
 """,
@@ -80,14 +83,14 @@ def _tap_proxy_conf(run: LiveRun, prefix: Path, port: int, upstream_port: int, *
     brix_certificate_key {SERVER_KEY};
     brix_trusted_ca      {CA_CERT};
     brix_tap_proxy on;
-    brix_tap_proxy_upstream 127.0.0.1:{upstream_port};
+    brix_tap_proxy_upstream {HOST}:{upstream_port};
     brix_tap_proxy_auth gsi;"""
         threads = "thread_pool default threads=4;\n"
     else:
         body = f"""    brix_auth none;
     brix_allow_write on;
     brix_tap_proxy on;
-    brix_tap_proxy_upstream 127.0.0.1:{upstream_port};
+    brix_tap_proxy_upstream {HOST}:{upstream_port};
     brix_tap_proxy_auth anonymous;"""
         threads = ""
     return run.write(
@@ -95,7 +98,7 @@ def _tap_proxy_conf(run: LiveRun, prefix: Path, port: int, upstream_port: int, *
         f"""daemon on; error_log {prefix}/logs/e.log info; pid {prefix}/nginx.pid;
 {threads}events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on;
+    listen {BIND_HOST}:{port}; brix_root on;
 {body}
 }} }}
 """,
@@ -127,7 +130,7 @@ def _ckpxeq_via_proxy(port: int, origin_file: Path) -> bool:
     chkpoint body and the embedded sub-header (forward_request.c)."""
     sock = socket_module.socket()
     sock.settimeout(10)
-    sock.connect(("127.0.0.1", port))
+    sock.connect((HOST, port))
     try:
         sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
         _recvall(sock, 16)
@@ -180,7 +183,7 @@ def tap_proxy(nginx: Path | None = None) -> int:
     if not os.access(XRDFS, os.X_OK):
         return _skip(f"native xrdfs not built ({XRDFS})")
     with LiveRun("tapproxy", nginx) as run:
-        op, pp = free_ports(2)
+        op, pp = _PORTS[0:2]  # was free_ports(2)
         origin, proxy = run.mkdir("o"), run.mkdir("n")
         for prefix, names in ((origin, ("root", "logs")), (proxy, ("logs",))):
             for name in names:
@@ -194,12 +197,12 @@ def tap_proxy(nginx: Path | None = None) -> int:
         got = run.root / "a.got"
         with got.open("wb") as out:
             subprocess.run(
-                [str(XRDFS), f"root://127.0.0.1:{pp}", "cat", "/f.bin"],
+                [str(XRDFS), f"root://{HOST}:{pp}", "cat", "/f.bin"],
                 stdout=out,
                 stderr=subprocess.DEVNULL,
             )
         checks.append((_same_bytes(source, got), "terminating proxy passthrough byte-exact"))
-        stat_rc = run.call([XRDFS, f"root://127.0.0.1:{pp}", "stat", "/f.bin"], check=False).returncode
+        stat_rc = run.call([XRDFS, f"root://{HOST}:{pp}", "stat", "/f.bin"], check=False).returncode
         checks.append((stat_rc == 0, "stat via tap proxy"))
 
         try:
@@ -242,7 +245,7 @@ def _delegation_checks(run: LiveRun, pp: int, source: Path, proxy_log: Path, url
     checks: list[tuple[bool, str]] = []
     if os.access(OUR_XRDCP, os.X_OK):
         got = run.root / "deleg_a.got"
-        rc = _xrdcp_read(OUR_XRDCP, f"root://localhost:{pp}/{url_path}", got, run.root / "xrdcp.log",
+        rc = _xrdcp_read(OUR_XRDCP, f"root://{SERVER_HOST}:{pp}/{url_path}", got, run.root / "xrdcp.log",
                          {"XRDC_GSI_DELEGATE": "1"})
         checks.extend(positive_checks(rc == 0 and _same_bytes(source, got)))
         checks.append((_grep(proxy_log, '"op":"open"'), "tap logged open"))
@@ -250,7 +253,7 @@ def _delegation_checks(run: LiveRun, pp: int, source: Path, proxy_log: Path, url
         print("  SKIP repo-client delegation (build client first: make -C client xrdcp)")
 
     # negative: stock plain read cannot delegate -> clean decline, NO crash
-    _xrdcp_read(STOCK_XRDCP, f"root://localhost:{pp}/{url_path}", run.root / "deleg_b.got",
+    _xrdcp_read(STOCK_XRDCP, f"root://{SERVER_HOST}:{pp}/{url_path}", run.root / "deleg_b.got",
                 run.root / "xrdcp_stock.log", {"XrdSecGSIDELEGPROXY": "2"})
     checks.append((_grep(proxy_log, "declined to delegate"), "stock plain-read client declines delegation cleanly"))
     checks.append((not _grep(proxy_log, "signal 11"), "proxy survived the stock non-delegating client (no crash)"))
@@ -264,7 +267,7 @@ def tap_proxy_gsi(nginx: Path | None = None) -> int:
         message = ensure_shared_pki(run.root, want_proxy=True)
         if message:
             return _skip(message)
-        op, pp = free_ports(2)
+        op, pp = _PORTS[2:4]  # was free_ports(2)
         origin, proxy = run.mkdir("o"), run.mkdir("n")
         for prefix, names in ((origin, ("root", "logs")), (proxy, ("logs",))):
             for name in names:
@@ -307,7 +310,7 @@ def tap_proxy_gsi_hybrid(nginx: Path | None = None) -> int:
         message = ensure_shared_pki(run.root, want_proxy=True)
         if message:
             return _skip(message)
-        xo, pp = free_ports(2)
+        xo, pp = _PORTS[4:6]  # was free_ports(2)
         data = run.mkdir("data")
         proxy_prefix = run.mkdir("n")
         (proxy_prefix / "logs").mkdir(exist_ok=True)
@@ -340,7 +343,7 @@ sec.protbind * only gsi
 """,
         )
         run.spawn(["xrootd", "-c", cfg, "-l", run.root / "brix.log", "-n", "up"])
-        if not wait_tcp("127.0.0.1", xo, 5):
+        if not wait_tcp(BIND_HOST, xo, 5):
             return _skip("official xrootd upstream did not start")
 
         try:
@@ -459,7 +462,7 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
     repo = "test.cern.ch"
     expect = "Hello from a LIVE CVMFS-brix mount!"
     with LiveRun("proxyenv", nginx) as run:
-        hport, pport = free_ports(2)
+        hport, pport = _PORTS[6:8]  # was free_ports(2)
         web, mnt, cache, tmp = run.mkdir("web"), run.mkdir("mnt"), run.mkdir("cache"), run.mkdir("tmp")
         pub = run.root / "pub.pem"
         plog = run.root / "proxy.log"
@@ -501,12 +504,12 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
         try:
             print("== (A) CONNECT tunnel handshake ==")
             tunnel = run.call(
-                [harness, "127.0.0.1", str(pport), "localhost", str(hport), f"/cvmfs/{repo}/.cvmfspublished"],
+                [harness, HOST, str(pport), SERVER_HOST, str(hport), f"/cvmfs/{repo}/.cvmfspublished"],
                 check=False,
             )
             checks.append(
                 (
-                    tunnel.returncode == 0 and _grep(plog, f"CONNECT localhost:{hport}"),
+                    tunnel.returncode == 0 and _grep(plog, f"CONNECT {SERVER_HOST}:{hport}"),
                     "CONNECT tunnel used + 200 ok",
                 )
             )
@@ -528,7 +531,7 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                     direct_env = {k: v for k, v in os.environ.items()
                                   if k not in ("http_proxy", "https_proxy", "all_proxy")}
                     plog.write_text("")
-                    direct = subprocess.run([str(brix_conn), "localhost", str(hport)], env=direct_env,
+                    direct = subprocess.run([str(brix_conn), SERVER_HOST, str(hport)], env=direct_env,
                                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     checks.append(
                         (
@@ -538,14 +541,14 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                     )
                     plog.write_text("")
                     proxied = subprocess.run(
-                        [str(brix_conn), "localhost", str(hport)],
-                        env={**direct_env, "http_proxy": f"http://127.0.0.1:{pport}"},
+                        [str(brix_conn), SERVER_HOST, str(hport)],
+                        env={**direct_env, "http_proxy": f"http://{HOST}:{pport}"},
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
                     checks.append(
                         (
-                            proxied.returncode == 0 and _grep(plog, f"CONNECT localhost:{hport}"),
+                            proxied.returncode == 0 and _grep(plog, f"CONNECT {SERVER_HOST}:{hport}"),
                             "proxied connect tunnels ok",
                         )
                     )
@@ -555,7 +558,7 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
             mount_env = {k: v for k, v in os.environ.items() if k not in ("no_proxy", "NO_PROXY")}
             mount_env.update(
                 {
-                    "BRIXCVMFS_SERVER": f"http://localhost:{hport}/cvmfs/{repo}",
+                    "BRIXCVMFS_SERVER": f"http://{SERVER_HOST}:{hport}/cvmfs/{repo}",
                     "BRIXCVMFS_PUBKEY": str(pub),
                     "BRIXCVMFS_TMP": str(tmp),
                 }
@@ -567,13 +570,13 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
             _spawn_logged(
                 run,
                 [brixcvmfs, repo, mnt, "-o", "fresh,auto_unmount", "-f"],
-                {**mount_env, "http_proxy": f"http://127.0.0.1:{pport}", "BRIXCVMFS_CACHE": str(cache)},
+                {**mount_env, "http_proxy": f"http://{HOST}:{pport}", "BRIXCVMFS_CACHE": str(cache)},
                 err,
             )
             got = _await_mount(mnt / "hello", expect)
             checks.append((got == expect, f"content via proxy [{got}]"))
-            checks.append((_grep(err, f"using HTTP proxy 127.0.0.1:{pport}"), "reported proxy use ok"))
-            checks.append((_grep(plog, f"GET-forward localhost:{hport}"), "proxy actually forwarded ok"))
+            checks.append((_grep(err, f"using HTTP proxy {HOST}:{pport}"), "reported proxy use ok"))
+            checks.append((_grep(plog, f"GET-forward {SERVER_HOST}:{hport}"), "proxy actually forwarded ok"))
             _fusermount(mnt)
             time.sleep(1)
 
@@ -586,8 +589,8 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                 [brixcvmfs, repo, mnt, "-o", "auto_unmount", "-f"],
                 {
                     **mount_env,
-                    "http_proxy": f"http://127.0.0.1:{pport}",
-                    "no_proxy": "localhost,127.0.0.1",
+                    "http_proxy": f"http://{HOST}:{pport}",
+                    "no_proxy": f"{SERVER_HOST},{HOST}",
                     "BRIXCVMFS_CACHE": str(cache2),
                 },
                 err2,

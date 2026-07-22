@@ -47,7 +47,13 @@ from cmdscripts.pblock_live import (
     pblock_worker_readable,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Each instance draws a fixed exclusive-band port from the lifecycle ledger
+# (lc-pblock-xform-*); xdist_group serialises the family so a fixed port never
+# has two concurrent drivers.
+pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.xdist_group("lc-pblock-xform"),
+]
 
 
 def _need_bins() -> None:

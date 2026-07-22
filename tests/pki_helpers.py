@@ -15,7 +15,7 @@ MAKE_PROXY = ROOT_DIR / "utils" / "make_proxy.py"
 MAKE_CRL = ROOT_DIR / "utils" / "make_crl.py"
 
 CA_SUBJECT = "/DC=test/DC=xrootd/CN=Test XRootD CA"
-SERVER_SUBJECT = "/DC=test/DC=xrootd/CN=localhost"
+SERVER_SUBJECT = "/DC=test/DC=xrootd/CN=localhost"  # net-literal-allow: TLS server cert subject CN
 USER_SUBJECT = "/DC=test/DC=xrootd/CN=Test User/CN=12345"
 
 
@@ -128,7 +128,7 @@ def blitz_test_pki() -> None:
     # TLS server and — for TPC/proxying — a TLS client.
     san_ext = server_dir / "san.ext"
     san_ext.write_text(
-        "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1\n"
+        "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1\n"  # net-literal-allow: TLS server cert SAN
         "keyUsage=critical,digitalSignature,keyEncipherment\n"
         "extendedKeyUsage=serverAuth,clientAuth\n"
     )

@@ -20,14 +20,22 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
 from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
+from fleet_lifecycle_ports import lifecycle_ports_for
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+# Bucket-2 lifecycle subject: one fixed-port `lc-xfer-wt-replay` instance the
+# test restart()s; xdist_group serialises it so the fixed exclusive-band port
+# never has two concurrent drivers.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xfer-wt-replay")]
 
-PORT = int(os.environ.get("TEST_XFER_WTR_PORT") or free_port())
+# Fixed exclusive-band port from the ledger (env override kept for ad-hoc runs);
+# the server fixture re-binds this module global to the started endpoint's port.
+PORT = int(os.environ.get("TEST_XFER_WTR_PORT")
+           or lifecycle_ports_for("lc-xfer-wt-replay")[0])
 XRDCP = shutil.which("xrdcp")
 
 # brix_sreq_t on-disk layout (src/fs/xfer/stage_engine.h) — see test_xfer_wt_journal.

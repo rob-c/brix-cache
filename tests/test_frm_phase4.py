@@ -23,11 +23,12 @@ import urllib.request
 
 import pytest
 
-from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-phase4")]
 
 PORT = None
 METRICS_PORT = None
@@ -41,15 +42,11 @@ def srv(lifecycle, tmp_path):
     data = tmp_path / "data"; data.mkdir()
     queue = tmp_path / "frm.queue"
 
-    metrics_port = free_port(HOST)
-    METRICS_PORT = metrics_port
-
     try:
         endpoint = lifecycle.start(NginxInstanceSpec(
             name="lc-frm-phase4",
             template="nginx_lc_frm_phase4.conf",
             protocol="root",
-            extra_ports={"METRICS_PORT": metrics_port},
             template_values={
                 "BIND_HOST": BIND_HOST,
                 "DATA_DIR": str(data),
@@ -62,6 +59,7 @@ def srv(lifecycle, tmp_path):
         # 2026-06-30) or fail to come up.
         pytest.skip("nginx rejected config or did not start: %s" % str(exc)[-300:])
     PORT = endpoint.port
+    METRICS_PORT = endpoint.extra_ports["METRICS_PORT"]
     time.sleep(1.5)   # let the purge monitor arm + tick once
 
     class S:

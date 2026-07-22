@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from cmdscripts import exec_wrapper
 from conformance_common import BRIXMOUNT, PortBlock, check_repo, fuse_mount
 from repo_forge import Dir, File, RepoForge
+from settings import HOST
 
 REPO = "test.cern.ch"
 
@@ -80,7 +81,7 @@ def mock_url(forge):
             raise RuntimeError(f"webroot mock exited (rc={proc.returncode}); port "
                                f"{port} likely held by a stale mock from a killed run")
         try:
-            urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/log", timeout=0.3)
+            urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log", timeout=0.3)
             break
         except Exception:
             time.sleep(0.1)
@@ -89,10 +90,10 @@ def mock_url(forge):
         raise RuntimeError("webroot mock did not start")
     # Prove the listener is *our* mock serving *this* forge, not a squatter.
     served = urllib.request.urlopen(
-        f"http://127.0.0.1:{port}/cvmfs/{REPO}/.cvmfspublished", timeout=5).read()
+        f"http://{HOST}:{port}/cvmfs/{REPO}/.cvmfspublished", timeout=5).read()
     assert served == forge.pristine, "port occupied by a foreign mock/webroot"
     try:
-        yield f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+        yield f"http://{HOST}:{port}/cvmfs/{REPO}"
     finally:
         proc.terminate()
         try:

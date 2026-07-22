@@ -17,7 +17,10 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
-from settings import free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST
+
+_PORTS = cmdscript_ports("tape_live")
 
 XRDFS = REPO_ROOT / "client/bin/xrdfs"
 
@@ -100,7 +103,7 @@ def recall_stream(nginx: Path | None = None) -> int:
     if not XRDFS.exists():
         print(f"SKIP: native xrdfs not built ({XRDFS})")
         return 0
-    (bport,) = free_ports(1)
+    (bport,) = _PORTS[0:1]  # was free_ports(1)
     with LiveRun("tprs", nginx) as run:
         for name in ("tape", "cache", "export", "logs"):
             run.mkdir(name)
@@ -108,14 +111,14 @@ def recall_stream(nginx: Path | None = None) -> int:
 env BRIX_FRM_STUB_RECALL_DELAY_MS=1200;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{bport}; brix_root on; brix_export {run.root}/export; brix_auth none;
+stream {{ server {{ listen {BIND_HOST}:{bport}; brix_root on; brix_export {run.root}/export; brix_auth none;
     brix_storage_backend tape://stub{run.root}/tape;
     brix_cache_store posix:{run.root}/cache; }} }}
 """)
         digest = random_file(run.root / "tape/f.bin", 480000)
         run.start_nginx(run.root, config, bport)
         time.sleep(1)
-        target = f"root://127.0.0.1:{bport}"
+        target = f"root://{HOST}:{bport}"
 
         stat_out = run.call([XRDFS, target, "stat", "/f.bin"], check=False).stdout
         offline = "Offline" in stat_out
@@ -150,7 +153,7 @@ def recall_async(nginx: Path | None = None) -> int:
     """Async nearline recall over HTTP: a GET of an OFFLINE tape object parks
     the open (202 staging), the client polls, and once the recall completes
     the cache tier fills from tape and serves 200."""
-    (bport,) = free_ports(1)
+    (bport,) = _PORTS[1:2]  # was free_ports(1)
     with LiveRun("tprec", nginx) as run:
         for name in ("tape", "cache", "export", "tmp", "logs"):
             run.mkdir(name)
@@ -158,7 +161,7 @@ def recall_async(nginx: Path | None = None) -> int:
 env BRIX_FRM_STUB_RECALL_DELAY_MS=2500;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:{bport};
+http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{bport};
   location / {{ brix_webdav on; brix_export {run.root}/export; brix_webdav_auth none;
     brix_storage_backend tape://stub{run.root}/tape;
     brix_cache_store posix:{run.root}/cache; }} }} }}
@@ -167,7 +170,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:{bport}
         digest = random_file(run.root / "tape/f.bin", 500000)
         run.start_nginx(run.root, config, bport)
         time.sleep(1)
-        url = f"http://127.0.0.1:{bport}/f.bin"
+        url = f"http://{HOST}:{bport}/f.bin"
 
         first = run.curl_status(url)
         if first != 202:
@@ -200,7 +203,7 @@ def exec_adapter(nginx: Path | None = None) -> int:
     """The exec MSS adapter: sd_frm shells out to $BRIX_FRM_STAGECMD for
     residency, async recall, and migrate; the open parks (202), a poll turns
     200 once the operator stagecmd's recall completes."""
-    (bport,) = free_ports(1)
+    (bport,) = _PORTS[2:3]  # was free_ports(1)
     with LiveRun("tpexec", nginx) as run:
         for name in ("realtape", "online", "cache", "export", "tmp", "logs"):
             run.mkdir(name)
@@ -209,7 +212,7 @@ def exec_adapter(nginx: Path | None = None) -> int:
 env BRIX_FRM_STAGECMD={stagecmd};
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:{bport};
+http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{bport};
   location / {{ brix_webdav on; brix_export {run.root}/export; brix_webdav_auth none;
     brix_storage_backend tape://exec{run.root}/online;
     brix_cache_store posix:{run.root}/cache; }} }} }}
@@ -218,7 +221,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:{bport}
         digest = random_file(run.root / "realtape/f.bin", 480000)
         run.start_nginx(run.root, config, bport)
         time.sleep(1)
-        url = f"http://127.0.0.1:{bport}/f.bin"
+        url = f"http://{HOST}:{bport}/f.bin"
 
         propfind = run.call([
             "curl", "-sS", "-X", "PROPFIND", "-H", "Depth: 0",
@@ -259,7 +262,7 @@ def s3_tape_residency(nginx: Path | None = None) -> int:
     """The VFS residency seam on an S3 export over a tape:// backend: HEAD of
     a nearline object advertises GLACIER, GET answers 403 InvalidObjectState
     without faulting a recall; a plain posix S3 export is unaffected."""
-    port, pport = free_ports(2)
+    port, pport = _PORTS[3:5]  # was free_ports(2)
     with LiveRun("s3tres", nginx) as run:
         tape_node, plain_node = run.mkdir("t"), run.mkdir("p")
         for name in ("realtape", "online", "s3root", "cache", "logs"):
@@ -270,7 +273,7 @@ def s3_tape_residency(nginx: Path | None = None) -> int:
         tape_conf = run.write(tape_node / "nginx.conf", f"""daemon on; error_log {tape_node}/logs/e.log info; pid {tape_node}/nginx.pid;
 env BRIX_FRM_STAGECMD={stagecmd};
 events {{ worker_connections 64; }}
-http {{ server {{ listen 127.0.0.1:{port};
+http {{ server {{ listen {BIND_HOST}:{port};
   location / {{ brix_s3 on; brix_export {tape_node}/s3root; brix_s3_bucket xrdtape;
     brix_storage_backend tape://exec{tape_node}/online;
     brix_cache_store posix:{tape_node}/cache; }} }} }}
@@ -279,7 +282,7 @@ http {{ server {{ listen 127.0.0.1:{port};
         # tier, must classify ONLINE and serve normally.
         plain_conf = run.write(plain_node / "nginx.conf", f"""daemon on; error_log {plain_node}/logs/p.log info; pid {plain_node}/nginx.pid;
 events {{ worker_connections 64; }}
-http {{ server {{ listen 127.0.0.1:{pport};
+http {{ server {{ listen {BIND_HOST}:{pport};
   location / {{ brix_s3 on; brix_export {plain_node}/plain; brix_s3_bucket xrdplain; }} }} }}
 """)
         # f.bin: offline (on tape only). h.bin: normal object on the plain export.
@@ -288,8 +291,8 @@ http {{ server {{ listen 127.0.0.1:{pport};
         run.start_nginx(tape_node, tape_conf, port)
         run.start_nginx(plain_node, plain_conf, pport)
         time.sleep(1)
-        tape_url = f"http://127.0.0.1:{port}/xrdtape/f.bin"
-        plain_url = f"http://127.0.0.1:{pport}/xrdplain/h.bin"
+        tape_url = f"http://{HOST}:{port}/xrdtape/f.bin"
+        plain_url = f"http://{HOST}:{pport}/xrdplain/h.bin"
 
         head = run.call(["curl", "-sS", "--max-time", "25", "-I", tape_url], check=False).stdout
         head_code = (head.splitlines()[0].split() + ["", ""])[1] if head else ""

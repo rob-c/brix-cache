@@ -22,12 +22,13 @@ import urllib.error
 import pytest
 
 from cmdscripts import frm_stagecmd
-from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-tape-rest")]
 
-HTTP_PORT = int(os.environ.get("TEST_TAPE_HTTP") or free_port())
+HTTP_PORT = None   # bound to the started endpoint's fixed port in the fixture
 
 
 def _req(method, path, obj=None, raw=None, timeout=5):
@@ -78,12 +79,10 @@ def srv(lifecycle, tmp_path):
         d, name="stagecmd.py", tape=str(tape), strip_slash=False,
         verbs=["exists", "recall", "migrate"], unknown_exit=2)
 
-    stream_port = free_port(BIND_HOST)
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-tape-rest",
         template="nginx_lc_tape_rest.conf",
         protocol="http",
-        extra_ports={"STREAM_PORT": stream_port},
         template_values={"BIND_HOST": BIND_HOST,
                          "EXPORT_DIR": str(export),
                          "ONLINE_DIR": str(online),

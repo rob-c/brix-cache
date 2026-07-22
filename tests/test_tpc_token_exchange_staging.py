@@ -32,14 +32,16 @@ import requests
 from settings import BIND_HOST, HOST as _HOST, NGINX_BIN  # noqa: F401 (NGINX_BIN: harness gate)
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import HOST
 
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-tpc-token-exchange")]
 
 # Any credential body that A-5 must NOT create in /tmp (the pre-A-5 templates).
 _TMP_LEAK_GLOBS = ("/tmp/tpc_cred_body_*", "/tmp/tpc_token_body_*")
 
 # A dead loopback endpoint: curl connects, is refused, exits non-zero → 502.
-_DEAD_TOKEN_ENDPOINT = "http://127.0.0.1:1/token"
+_DEAD_TOKEN_ENDPOINT = f"http://{HOST}:1/token"
 
 
 def _tmp_cred_leaks():
@@ -76,7 +78,7 @@ def _copy(base, *, credential, subject=None, source=None):
     # delegation); a dead https endpoint is fine — the token exchange fails at
     # staging/curl long before any transfer to the source is attempted.
     headers = {
-        "Source": source or "https://127.0.0.1:1/nonexistent-source.bin",
+        "Source": source or f"https://{HOST}:1/nonexistent-source.bin",
         "Credential": credential,
     }
     if subject is not None:

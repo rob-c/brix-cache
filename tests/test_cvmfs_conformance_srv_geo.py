@@ -41,6 +41,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 BLOCK = PortBlock("srv_geo")
@@ -72,7 +73,7 @@ def geo_path(servers: str, caller: str = "x", repo: str = REPO) -> str:
 
 
 def geo_get(srv, servers, caller="x", repo=REPO, method="GET"):
-    return request("127.0.0.1", srv.nginx_port, method, geo_path(servers, caller, repo))
+    return request(HOST, srv.nginx_port, method, geo_path(servers, caller, repo))
 
 
 def perm(body: bytes) -> list:
@@ -144,7 +145,7 @@ class MiniOrigin:
             def log_message(self, *a):
                 pass
 
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", port), H)
+        self.httpd = ThreadingHTTPServer((BIND_HOST, port), H)
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def close(self):
@@ -200,7 +201,7 @@ def ttl_srv():
 def dead_srv():
     """Passthrough whose configured origin is a port nothing listens on."""
     with srv_instance(BLOCK, objects=2, seed=45,
-                      origins=f"http://127.0.0.1:{DEAD_ORIGIN_PORT}") as s:
+                      origins=f"http://{HOST}:{DEAD_ORIGIN_PORT}") as s:
         yield s
 
 
@@ -210,7 +211,7 @@ def fault_srv():
     origin = MiniOrigin(MINI_ORIGIN_PORT)
     try:
         with srv_instance(BLOCK, objects=2, seed=46,
-                          origins=f"http://127.0.0.1:{MINI_ORIGIN_PORT}") as s:
+                          origins=f"http://{HOST}:{MINI_ORIGIN_PORT}") as s:
             s.origin = origin
             yield s
     finally:
@@ -254,7 +255,7 @@ def test_passthrough_distinct_callers_each_hit_origin(pass_srv):
 
 def test_passthrough_query_string_forwarded(pass_srv):
     pass_srv.reset_log()
-    st, _, _ = request("127.0.0.1", pass_srv.nginx_port, "GET",
+    st, _, _ = request(HOST, pass_srv.nginx_port, "GET",
                        geo_path("a.org,b.org") + "?probe=marker7")
     assert st == 200
     assert pass_srv.count_log("probe=marker7") == 1
@@ -311,7 +312,7 @@ def test_passthrough_never_materializes_cache_file(pass_srv):
 
 def test_bare_geo_prefix_rejected_403(pass_srv):
     # rel "api/v1.0/geo/" with nothing after is not GEO (classify.c:84 rel_len > 13)
-    st, _, _ = request("127.0.0.1", pass_srv.nginx_port, "GET",
+    st, _, _ = request(HOST, pass_srv.nginx_port, "GET",
                        f"/cvmfs/{REPO}/api/v1.0/geo/")
     assert st == 403
 
@@ -435,7 +436,7 @@ def test_rtt_ipv6_literal_token_unprobed(rtt_srv, listener):
 
 def test_rtt_query_string_ignored_by_parser(rtt_srv):
     rtt_srv.reset_log()
-    st, _, body = request("127.0.0.1", rtt_srv.nginx_port, "GET",
+    st, _, body = request(HOST, rtt_srv.nginx_port, "GET",
                           geo_path(f"{fresh_ip()},{fresh_ip()}") + "?ip=1.2.3.4")
     assert st == 200 and len(assert_perm(body, 2)) == 2
     assert rtt_srv.count_log("geo") == 0
@@ -453,7 +454,7 @@ def test_rtt_missing_caller_segment_still_answers(rtt_srv):
     # as the list, so the lone segment is treated as the server list. Lenient
     # vs the official <caller>/<list> shape, but a complete answer, not a 5xx.
     rtt_srv.reset_log()
-    st, _, _ = request("127.0.0.1", rtt_srv.nginx_port, "GET",
+    st, _, _ = request(HOST, rtt_srv.nginx_port, "GET",
                        f"/cvmfs/{REPO}/api/v1.0/geo/{fresh_ip()},{fresh_ip()}")
     assert st == 200
     assert rtt_srv.count_log("geo") == 0
@@ -528,7 +529,7 @@ def test_rtt_100_entries_no_5xx(rtt_srv):
 
 def test_rtt_empty_list_falls_back_to_passthrough(rtt_srv):
     rtt_srv.reset_log()
-    st, _, _ = request("127.0.0.1", rtt_srv.nginx_port, "GET",
+    st, _, _ = request(HOST, rtt_srv.nginx_port, "GET",
                        f"/cvmfs/{REPO}/api/v1.0/geo/x/")
     assert st == 200                          # relayed; the mock answers "1\n"
     assert rtt_srv.count_log("geo") == 1, "empty list must fall back to origin"
@@ -536,7 +537,7 @@ def test_rtt_empty_list_falls_back_to_passthrough(rtt_srv):
 
 def test_rtt_pct_encoded_dotdot_clean_reject(rtt_srv):
     # %2e%2e normalizes the caller segment away -> no longer a geo shape
-    st, _, _ = request("127.0.0.1", rtt_srv.nginx_port, "GET",
+    st, _, _ = request(HOST, rtt_srv.nginx_port, "GET",
                        f"/cvmfs/{REPO}/api/v1.0/geo/x/%2e%2e")
     assert 400 <= st < 500, f"traversal junk must 4xx, got {st}"
 
@@ -552,7 +553,7 @@ def test_rtt_server_alive_after_junk_corpus(rtt_srv):
                  f"/cvmfs/{REPO}/api/v1.0/geo/x/%2e%2e",
                  geo_path("%7f%7f"),                          # DEL bytes token
                  geo_path(",,,,,,,,")):
-        st, _, _ = request("127.0.0.1", rtt_srv.nginx_port, "GET", path)
+        st, _, _ = request(HOST, rtt_srv.nginx_port, "GET", path)
         assert st != 500, f"{path} produced a 500"
     st, _, body = geo_get(rtt_srv, f"{fresh_ip()},{fresh_ip()}")
     assert st == 200 and len(assert_perm(body, 2)) == 2

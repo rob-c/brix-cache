@@ -110,4 +110,30 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       offsetof(conf_t, common.cache_slice_size),                              \
       NULL }
 
+/*
+ * BRIX_BACKEND_ASYNC_DIRECTIVES(pfx, conf_t, ctx, conf_off) — the three-directive
+ * grammar for the durable async backend-op queue, writing into the shared `common`
+ * preamble so the http-plane protocols (S3, WebDAV) declare it byte-identically.
+ * The root:// stream plane declares the same triple against its own srv-conf.
+ */
+#define BRIX_BACKEND_ASYNC_DIRECTIVES(pfx, conf_t, ctx, conf_off)             \
+    { ngx_string(pfx "backend_async"),   /* on|off: queue namespace mutations */ \
+      (ctx) | NGX_CONF_FLAG,                                                  \
+      ngx_conf_set_flag_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.backend_async),                                 \
+      NULL },                                                                 \
+    { ngx_string(pfx "backend_async_batch"), /* N: flush once this many queued */ \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_num_slot,                                                  \
+      conf_off,                                                               \
+      offsetof(conf_t, common.backend_async_batch),                           \
+      NULL },                                                                 \
+    { ngx_string(pfx "backend_async_wait"),  /* time backstop (e.g. 200ms) */ \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_msec_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.backend_async_wait),                            \
+      NULL }
+
 #endif /* NGX_BRIX_TIER_DIRECTIVES_H */

@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
+from settings import BIND_HOST, HOST
 
 
 BASE_PORT = 8520
@@ -23,7 +24,7 @@ def _backend_config(run: LiveRun, directory: Path, port: int, store_url: str) ->
         f"""daemon on; {_user_line()} error_log {directory}/logs/e.log info; pid {directory}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {directory}/tmp; server {{ listen 127.0.0.1:{port};
+http {{ client_body_temp_path {directory}/tmp; server {{ listen {BIND_HOST}:{port};
   location / {{ dav_methods PUT DELETE;
     brix_webdav on; brix_export {directory}/backend; brix_webdav_auth none;
     brix_allow_write on;
@@ -38,7 +39,7 @@ def _store_config(run: LiveRun, prefix: Path, export: Path, port: int) -> Path:
         prefix / "s.conf",
         f"""daemon on; {_user_line()} error_log {prefix}/logs/e.log error; pid {prefix}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {export};
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {export};
     brix_auth none; brix_allow_write on; }} }}
 """,
     )
@@ -55,12 +56,12 @@ def test_stage_store(run: LiveRun, driver: str, port: int, store_url: str, remot
         run.mkdir(driver, "store-server", "logs")
         store_config = _store_config(run, store_prefix, store_export, store_port)
         run.start_nginx(store_prefix, store_config, store_port)
-        store_url = f"root://127.0.0.1:{store_port}"
+        store_url = f"root://{HOST}:{store_port}"
     run.start_nginx(directory, _backend_config(run, directory, backend_port, store_url), backend_port)
     source = directory / "src.bin"
     digest = random_file(source, 900000)
-    status = run.curl_status(f"http://127.0.0.1:{backend_port}/m.bin", "-T", str(source))
-    body = run.curl_bytes(f"http://127.0.0.1:{backend_port}/m.bin")
+    status = run.curl_status(f"http://{HOST}:{backend_port}/m.bin", "-T", str(source))
+    body = run.curl_bytes(f"http://{HOST}:{backend_port}/m.bin")
     got = directory / "got.bin"
     got.write_bytes(body)
     passed = status == 201 and (directory / "backend/m.bin").exists() and sha256(got) == digest

@@ -1,7 +1,6 @@
 """Centralized test settings shared across test modules."""
 
 import os
-import socket
 
 TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 REGISTRY_ROOT = os.environ.get(
@@ -18,46 +17,19 @@ REGISTRY_PORT_BASE = os.environ.get("TEST_REGISTRY_PORT_BASE")
 
 
 # ---------------------------------------------------------------------------
-# Free-port allocation for SELF-CONTAINED fixtures.
+# Fixed-port allocation (Phase 5 — dynamic ports retired).
 #
-# A test that starts its OWN nginx/brix must NOT bind a fixed port: it would
-# collide with the managed fleet (whose ports below are already bound) or with
-# another self-contained test running in the same session. Such fixtures should
-# bind ports from free_port()/free_ports() instead of a literal. The fleet ports
-# further down stay fixed — tests CONNECT to those, they do not re-bind them.
-# ---------------------------------------------------------------------------
-def free_port(host="127.0.0.1"):
-    """Return one OS-assigned free TCP port (bind :0, read it, release)."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((host, 0))
-        return s.getsockname()[1]
-    finally:
-        s.close()
-
-
-def free_ports(n, host="127.0.0.1"):
-    """Return n DISTINCT free TCP ports. All sockets are held open during
-    allocation so the OS hands out different ports (multi-server fixtures)."""
-    socks = []
-    try:
-        for _ in range(n):
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((host, 0))
-            socks.append(s)
-        return [s.getsockname()[1] for s in socks]
-    finally:
-        for s in socks:
-            s.close()
-
-
-def reserve_ports(names, host="127.0.0.1"):
-    """Return a stable name->port map while holding sockets during allocation."""
-    ports = free_ports(len(names), host=host)
-    return dict(zip(names, ports))
-
+# ``free_port`` / ``free_ports`` / ``reserve_ports`` were DELETED here. Every
+# server that goes through the registry now draws a FIXED port:
+#   * fleet singletons        -> ``fleet_ports`` constants / ``CMDSCRIPTS_PORTS``
+#   * lifecycle-subject binds -> the ``fleet_lifecycle_ports`` ledger
+#     (``lifecycle_ports_for(name)``)
+# The small set of binds that legitimately still need an OS-assigned ephemeral
+# port and are NOT registry servers (native-xrootd upstreams, in-process Python
+# mocks the brix side DIALS, docker-published host ports, self-contained raw
+# labs, client-flood tests) import ``free_port`` / ``free_ports`` from
+# ``ephemeral_port`` instead — see that module's docstring for the enumerated
+# exemptions. A registry server must never call those.
 # ---------------------------------------------------------------------------
 # Remote server target
 #
@@ -551,3 +523,22 @@ IPV6_PROXY_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-proxy")
 NGINX_TOKEN_MULTIKEY_PORT = int(os.environ.get("TEST_NGINX_TOKEN_MULTIKEY_PORT", "11250"))
 NGINX_TOKEN_REGISTRY_PORT = int(os.environ.get("TEST_NGINX_TOKEN_REGISTRY_PORT", "11251"))
 NGINX_WEBDAV_TOKEN_PORT   = int(os.environ.get("TEST_NGINX_WEBDAV_TOKEN_PORT",   "8446"))
+
+# ---------------------------------------------------------------------------
+# Registry-managed Python mock singletons (fleet_ports "mocks" band, 32000+).
+# Former in-process ThreadingHTTPServer stubs, now standalone `proc` fleet specs
+# on fixed ports so every test reaches ONE declared mock instead of spawning its
+# own — see tests/lib/*_server.py and fleet_specs.register_full_fleet.  The band
+# sits BELOW the OS ephemeral-port floor (32768) so a client socket can never
+# transiently steal a mock's fixed listen (cf. fleet_ports.PORT_BANDS).
+# ---------------------------------------------------------------------------
+GUARD_STUB_PORT = int(os.environ.get("TEST_GUARD_STUB_PORT", "32001"))
+# Static "ORIGIN-OK" backend for the dashboard admin-API URL-validation coverage
+# (test_phase23_admin_api.py); stateless, no introspection.
+STATIC_ORIGIN_PORT = int(os.environ.get("TEST_STATIC_ORIGIN_PORT", "32002"))
+# Hit-recording mirror shadow upstream (test_phase24_mirror.py): records the
+# received path/headers/method + write bodies behind a control API.
+MIRROR_SHADOW_PORT = int(os.environ.get("TEST_MIRROR_SHADOW_PORT", "32003"))
+# Mock RFC 7662 token-introspection endpoint (test_phase21_proxy_filter.py):
+# stateless — 'revoked' in the token -> active:false, else active:true.
+INTROSPECT_IDP_PORT = int(os.environ.get("TEST_INTROSPECT_IDP_PORT", "32004"))

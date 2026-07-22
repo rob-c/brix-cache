@@ -53,7 +53,17 @@ def _port_owners() -> dict[int, list[str]]:
             return
         owners.setdefault(int(port), set()).add(who)
 
+    # The ``cms-mesh``/``hybrid-mesh`` fleet specs are ``external`` orchestrators
+    # that boot a mesh plane and pin their port to that mesh's real front door
+    # (``_CMS_PORTS["a_mgr"]`` / ``_HYBRID_PORTS["a_data"]``, imported straight
+    # from the mesh libs) so ``endpoint("…-mesh").port`` is a stable fixed number.
+    # They are a registry HANDLE to the same socket the mesh loop below claims
+    # authoritatively — not a second listener — so counting them fleet-side would
+    # be a spurious self-collision.  The mesh-plane loops own those ports.
+    _MESH_ORCHESTRATORS = {"cms-mesh", "hybrid-mesh"}
     for spec in fleet_specs._all_specs():
+        if spec.name in _MESH_ORCHESTRATORS:
+            continue
         for port in declared_ports(spec):
             claim(port, f"fleet:{spec.name}")
     for key, port in cms_mesh_lib.PORTS.items():

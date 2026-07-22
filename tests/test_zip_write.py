@@ -22,12 +22,12 @@ import uuid
 
 import pytest
 
-from settings import NGINX_ANON_PORT
+from settings import NGINX_ANON_PORT, SERVER_HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
-BASE = f"root://localhost:{NGINX_ANON_PORT}"
+BASE = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 
 # Two distinct, non-trivial payloads (member name == source basename).
 M1_NAME = "member_one.bin"

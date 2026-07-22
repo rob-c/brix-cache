@@ -35,12 +35,13 @@ from cmdscripts.delegation_twostep import (
     mint_certs,
     sign_csr,
 )
-from settings import CA_CERT, NGINX_BIN, SERVER_CERT, SERVER_KEY
+from settings import CA_CERT, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY
 from server_registry import NginxInstanceSpec
 
 DEFAULT_STORE = "/dev/shm/brix-creds"
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cred-dir")]
 
 
 @pytest.fixture(scope="module")
@@ -122,7 +123,7 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
 
         # full two-step delegation with NO configured dir: the credential
         # must land in the default store — the "deployed for free" contract.
-        url = f"https://127.0.0.1:{port}/.well-known/brix-delegation"
+        url = f"https://{HOST}:{port}/.well-known/brix-delegation"
         hdrs, csr = work / "hdrs.txt", work / "csr.pem"
         code, _ = curl(url + "/request", pki["a_cert"], pki["a_key"],
                        output=csr, headers=hdrs)

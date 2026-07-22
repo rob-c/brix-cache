@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 
 from .util import find_xrd_sec_lib, kill_pid_list, pids_on_port, render_cfg, run, wait_ready_xrdfs
+from settings import SERVER_HOST
 
 
 def ref_runas_user() -> str | None:
@@ -69,7 +70,7 @@ def start_ref_instance(label: str, port: int, data_dir: Path, *, gsi: bool = Fal
     elif not gsi:
         write_ref_cfg(cfg, port, data_dir, admin_dir, run_dir, configs_dir)
     ref_launch(cfg, log)
-    return wait_ready_xrdfs(f"root://localhost:{port}") or bool(pids_on_port(port))
+    return wait_ready_xrdfs(f"root://{SERVER_HOST}:{port}") or bool(pids_on_port(port))
 
 
 def stop_ref_ports(*ports: int) -> None:

@@ -1,9 +1,10 @@
 # tests/test_cvmfs_mock.py
 import hashlib, json, os, subprocess, sys, time, urllib.request, urllib.error
 import pytest
+from settings import HOST
 
 PORT = 12811
-BASE = f"http://127.0.0.1:{PORT}"
+BASE = f"http://{HOST}:{PORT}"
 # conftest chdir()s into a scratch dir at session start — resolve the mock
 # script against this file, never the cwd.
 MOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)),

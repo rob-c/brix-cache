@@ -1,4 +1,5 @@
 from _test_gsi_handshake_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from settings import HOST
 
 class TestRootCrossServer:
     def test_nginx_to_stock_and_back(self, pki, nginx_root_off, stock_root,
@@ -200,7 +201,7 @@ class TestBothAuthMode:
         assert "/hello.txt" in r.stdout
 
     def test_advertises_both_protocols(self, pki, nginx_root_both):
-        s, body = _wire_login("127.0.0.1",
+        s, body = _wire_login(HOST,
                               int(nginx_root_both["url"].rsplit(":", 1)[1]))
         s.close()
         assert b"&P=ztn" in body and b"&P=gsi" in body, \
@@ -229,7 +230,7 @@ class TestWireHandshake:
         """The kXR_login response carries the `&P=gsi,v:…,c:ssl,ca:…` block, and
         the advertised version matches the signed-DH policy — read straight off
         the wire, no client library."""
-        s, body = _wire_login("127.0.0.1", self._port(nginx_root["url"]))
+        s, body = _wire_login(HOST, self._port(nginx_root["url"]))
         s.close()
         assert b"&P=gsi" in body, f"login did not advertise gsi: {body!r}"
         assert b"c:ssl" in body and b"ca:" in body, \
@@ -241,7 +242,7 @@ class TestWireHandshake:
         """A real certreq elicits kXGS_cert; assert the response carries the
         server cert, a cipher list with aes-128-cbc first, and the right
         DH-public bucket for the policy (kXRS_puk unsigned vs kXRS_cipher signed)."""
-        s, _ = _wire_login("127.0.0.1", self._port(nginx_root["url"]))
+        s, _ = _wire_login(HOST, self._port(nginx_root["url"]))
         status, bk = _send_certreq(s, 10600)
         s.close()
         assert status == kXR_authmore, \
@@ -260,7 +261,7 @@ class TestWireHandshake:
     def test_old_client_version_negotiation(self, pki, nginx_root):
         """A pre-DHsigned (v10300) certreq: off & auto fall back to unsigned;
         require always signs — proving the per-client version gate works."""
-        s, _ = _wire_login("127.0.0.1", self._port(nginx_root["url"]))
+        s, _ = _wire_login(HOST, self._port(nginx_root["url"]))
         _status, bk = _send_certreq(s, 10300)
         s.close()
         if nginx_root["policy"] == "require":
@@ -272,7 +273,7 @@ class TestWireHandshake:
 
     def test_certreq_advertises_digest(self, pki, nginx_root):
         """kXGS_cert offers a digest list including sha256."""
-        s, _ = _wire_login("127.0.0.1", self._port(nginx_root["url"]))
+        s, _ = _wire_login(HOST, self._port(nginx_root["url"]))
         _status, bk = _send_certreq(s, 10600)
         s.close()
         assert kXRS_md_alg in bk and b"sha256" in bk[kXRS_md_alg], \
@@ -280,7 +281,7 @@ class TestWireHandshake:
 
     def test_login_advertises_8hex_ca_hash(self, pki, nginx_root):
         """The gsi advertisement carries the server CA subject hash as 8 hex."""
-        s, body = _wire_login("127.0.0.1", self._port(nginx_root["url"]))
+        s, body = _wire_login(HOST, self._port(nginx_root["url"]))
         s.close()
         assert re.search(rb"ca:[0-9a-fA-F]{8}", body), \
             f"login must advertise an 8-hex CA hash: {body!r}"
@@ -304,7 +305,7 @@ class TestCipherNegotiation:
         """The kXGS_cert cipher_alg list offers aes-256-cbc and NOT aes-128-cbc,
         so the handshake above cannot fall back to the default."""
         del pki
-        s, _ = _wire_login("127.0.0.1", self._port(nginx_root_aes256["url"]))
+        s, _ = _wire_login(HOST, self._port(nginx_root_aes256["url"]))
         status, bk = _send_certreq(s, 10600)
         s.close()
         assert status == kXR_authmore, f"certreq → {status}, want kXR_authmore"

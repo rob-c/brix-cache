@@ -34,7 +34,8 @@ from settings import BIND_HOST, HOST as _HOST, NGINX_BIN  # noqa: F401  (NGINX_B
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-webdav-verify-write")]
 
 
 @pytest.fixture(scope="module")

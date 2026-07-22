@@ -16,6 +16,7 @@ import tempfile
 import time
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
+from settings import BIND_HOST, HOST
 
 
 TESTS = REPO_ROOT / "tests"
@@ -231,7 +232,7 @@ def _generate_load_pki(root_dir: Path, load_root: Path) -> None:
         (ca / f"{h}.0").symlink_to(ca / "ca.pem")
         (ca / f"{h}.signing_policy").symlink_to(ca / "signing-policy")
     _openssl(["genrsa", "-out", str(server / "host.key"), "2048"])
-    _openssl(["req", "-new", "-key", str(server / "host.key"), "-subj", "/C=XX/O=Test/CN=localhost", "-out", str(server / "host.csr")])
+    _openssl(["req", "-new", "-key", str(server / "host.key"), "-subj", "/C=XX/O=Test/CN=localhost", "-out", str(server / "host.csr")])  # net-literal-allow: X.509 host cert CN subject, not a dial target
     _openssl(["x509", "-req", "-in", str(server / "host.csr"), "-CA", str(ca / "ca.pem"), "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-out", str(server / "hostcert.pem"), "-days", "3650", "-sha256"])
     (server / "hostkey.pem").symlink_to(server / "host.key")
     _openssl(["genrsa", "-out", str(user / "user.key"), "2048"])
@@ -318,9 +319,9 @@ def run_load(argv: list[str]) -> int:
             if started.returncode != 0:
                 print(_tail(started), file=sys.stderr)
                 return 1
-            _wait_port_or_raise("127.0.0.1", 12795, "nginx XRootD+GSI")
-            _wait_port_or_raise("127.0.0.1", 12796, "nginx XRootD+TLS")
-            _wait_port_or_raise("127.0.0.1", 12792, "nginx WebDAV+GSI")
+            _wait_port_or_raise(BIND_HOST, 12795, "nginx XRootD+GSI")
+            _wait_port_or_raise(BIND_HOST, 12796, "nginx XRootD+TLS")
+            _wait_port_or_raise(BIND_HOST, 12792, "nginx WebDAV+GSI")
         if target in {"xrootd", "both"}:
             if not xrootd_bin.exists():
                 print(f"xrootd binary not found: {xrootd_bin}", file=sys.stderr)
@@ -331,9 +332,9 @@ def run_load(argv: list[str]) -> int:
                 link.symlink_to(load_root / "data")
             (xrd_dir / "authdb").write_text("all.allow host any\nu * / rwld\n")
             children.append(_popen([str(xrootd_bin), "-c", str(xrd_conf), "-l", str(xrd_dir / "logs/brix.log"), "-n", "perf", "-b"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-            _wait_port_or_raise("127.0.0.1", 12094, "xrootd GSI")
+            _wait_port_or_raise(BIND_HOST, 12094, "xrootd GSI")
             children.append(_popen([str(xrootd_bin), "-c", str(xrd_anon_conf), "-l", str(xrd_anon_dir / "logs/brix.log"), "-n", "perfanon", "-b"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-            _wait_port_or_raise("127.0.0.1", 12093, "xrootd anon")
+            _wait_port_or_raise(BIND_HOST, 12093, "xrootd anon")
         return _run_stream([sys.executable, str(TESTS / "load_test.py"), "--target", target, "--json", "/tmp/load_test_results.json", *forwarded])
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
@@ -426,7 +427,7 @@ stream {{
         start = time.time()
         if run([str(self.nginx), "-p", str(self.prefix), "-c", str(self.conf)], cwd=REPO_ROOT).returncode != 0:
             return 1
-        if not _wait_tcp("127.0.0.1", self.port_anon, self.timeout):
+        if not _wait_tcp(BIND_HOST, self.port_anon, self.timeout):
             return 1
         cold_ms = int((time.time() - start) * 1000)
         self.settle()
@@ -434,7 +435,7 @@ stream {{
         start = time.time()
         run([str(self.nginx), "-p", str(self.prefix), "-c", str(self.conf), "-s", "reload"], cwd=REPO_ROOT)
         self.wait_new_worker(base)
-        _wait_tcp("127.0.0.1", self.port_anon, self.timeout)
+        _wait_tcp(BIND_HOST, self.port_anon, self.timeout)
         reload_ms = int((time.time() - start) * 1000)
         self.settle()
         workers = self.worker_pids()
@@ -654,7 +655,7 @@ def run_valgrind(argv: list[str]) -> int:
     s3_port, metrics_port = values["{S3_PORT}"], values["{METRICS_PORT}"]
     # Valgrind boots the worker ~20x slower than native.
     for second in range(1, 121):
-        if _wait_tcp("127.0.0.1", int(http_port), 1.0):
+        if _wait_tcp(BIND_HOST, int(http_port), 1.0):
             note(f"up after {second}s")
             break
     curl = shutil.which("curl") or "curl"
@@ -665,14 +666,14 @@ def run_valgrind(argv: list[str]) -> int:
     # ---- Exercise every external-handle path (mirrors run_valgrind.sh) ----
     jwt_path = token_dir / "upstream.jwt"
     jwt = jwt_path.read_text().strip() if jwt_path.exists() else ""
-    base = f"http://127.0.0.1:{http_port}"
+    base = f"http://{HOST}:{http_port}"
     note(
         f"jwt valid={code('-H', f'Authorization: Bearer {jwt}', f'{base}/vgtest.txt')}"
         f" garbage={code('-H', 'Authorization: Bearer aa.bb.cc', f'{base}/vgtest.txt')}"
         f" malformed={code('-H', 'Authorization: Bearer xyz', f'{base}/vgtest.txt')}"
         f" put={code('-T', str(vg_work / 'data/vgtest.txt'), '-H', f'Authorization: Bearer {jwt}', f'{base}/put.txt')}"
     )
-    tls = f"https://127.0.0.1:{gsi_port}"
+    tls = f"https://{HOST}:{gsi_port}"
     x509 = ["--cert", str(client_cert), "--key", str(client_key), "--cacert", str(ca_cert)]
     gsi_line = f"gsi usercert={code('-k', *x509, f'{tls}/vgtest.txt')}"
     proxy_cert, proxy_key = pki_dir / "user/proxy.pem", pki_dir / "user/proxykey.pem"
@@ -695,12 +696,12 @@ def run_valgrind(argv: list[str]) -> int:
     note(macaroon_line)
     note(
         f"tpc pull={code('-k', *x509, '-X', 'COPY', '-H', f'Source: {tls}/vgtest.txt', f'{tls}/tpc_pulled.txt')}"
-        f" push_unreach={code('-k', *x509, '-X', 'COPY', '-H', 'Destination: https://127.0.0.1:1/dead.txt', f'{tls}/vgtest.txt')}"
+        f" push_unreach={code('-k', *x509, '-X', 'COPY', '-H', 'Destination: https://127.0.0.1:1/dead.txt', f'{tls}/vgtest.txt')}"  # net-literal-allow: deliberately-unreachable TPC push destination (port 1)
     )
     note(
-        f"s3 badsig={code('-H', 'Authorization: AWS4-HMAC-SHA256 Credential=x/y, SignedHeaders=host, Signature=dead', f'http://127.0.0.1:{s3_port}/testbucket/vgtest.txt')}"
-        f" anon={code(f'http://127.0.0.1:{s3_port}/testbucket/vgtest.txt')}"
-        f" | metrics={code(f'http://127.0.0.1:{metrics_port}/metrics')}"
+        f"s3 badsig={code('-H', 'Authorization: AWS4-HMAC-SHA256 Credential=x/y, SignedHeaders=host, Signature=dead', f'http://{HOST}:{s3_port}/testbucket/vgtest.txt')}"
+        f" anon={code(f'http://{HOST}:{s3_port}/testbucket/vgtest.txt')}"
+        f" | metrics={code(f'http://{HOST}:{metrics_port}/metrics')}"
     )
 
     # ---- Shutdown: SIGQUIT the master so the worker exits cleanly and its

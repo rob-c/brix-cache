@@ -5,6 +5,8 @@ import pytest
 
 from cmdscripts import cachestore_live
 
+pytestmark = pytest.mark.xdist_group("cmd-cachestore_live")
+
 
 def test_cachestore_live_are_importable():
     assert set(cachestore_live.SCENARIOS) == {

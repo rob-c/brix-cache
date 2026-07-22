@@ -49,7 +49,7 @@ import subprocess
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN, PKI_DIR
+from settings import BIND_HOST, NGINX_BIN, PKI_DIR, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from gridftp_client_env import gsi_client_env
@@ -143,7 +143,7 @@ def test_list_directory_dcpriv(gateway):
     exported entries on the event engine."""
     with open(os.path.join(gateway.export, "greeting.txt"), "w") as fh:
         fh.write("hello gsiftp event\n")
-    r = _guc("-list", f"gsiftp://localhost:{gateway.port}/")
+    r = _guc("-list", f"gsiftp://{SERVER_HOST}:{gateway.port}/")
     assert r.returncode == 0, (
         f"list failed rc={r.returncode}\n{r.stderr}\n{gateway.error_log()}")
     assert "greeting.txt" in r.stdout, r.stdout
@@ -160,7 +160,7 @@ def test_get_roundtrip_dcpriv(gateway, tmp_path):
     with open(os.path.join(gateway.export, "secure-dl.bin"), "wb") as fh:
         fh.write(payload)
     dst = os.path.join(str(tmp_path), "secure-got.bin")
-    r = _guc(f"gsiftp://localhost:{gateway.port}/secure-dl.bin",
+    r = _guc(f"gsiftp://{SERVER_HOST}:{gateway.port}/secure-dl.bin",
              f"file://{dst}")
     assert r.returncode == 0, (
         f"dcpriv get failed rc={r.returncode}\n{r.stderr}\n{gateway.error_log()}")
@@ -176,7 +176,7 @@ def test_put_roundtrip_dcpriv(gateway, tmp_path):
     with open(src, "wb") as fh:
         fh.write(payload)
     r = _guc(f"file://{src}",
-             f"gsiftp://localhost:{gateway.port}/secure-uploaded.bin")
+             f"gsiftp://{SERVER_HOST}:{gateway.port}/secure-uploaded.bin")
     assert r.returncode == 0, (
         f"dcpriv put failed rc={r.returncode}\n{r.stderr}\n{gateway.error_log()}")
     with open(os.path.join(gateway.export, "secure-uploaded.bin"), "rb") as fh:
@@ -188,7 +188,7 @@ def test_get_missing_object_fails_dcpriv(gateway, tmp_path):
     is rejected before any data channel is brought up, so globus sees a nonzero
     completion and no file is written."""
     dst = os.path.join(str(tmp_path), "nope.bin")
-    r = _guc(f"gsiftp://localhost:{gateway.port}/does-not-exist.bin",
+    r = _guc(f"gsiftp://{SERVER_HOST}:{gateway.port}/does-not-exist.bin",
              f"file://{dst}")
     assert r.returncode != 0, "expected nonzero rc for missing object"
     assert not os.path.exists(dst) or os.path.getsize(dst) == 0
@@ -205,7 +205,7 @@ def test_get_mode_e_parallel_dcpriv(gateway, tmp_path):
     with open(os.path.join(gateway.export, "mode-e-dl.bin"), "wb") as fh:
         fh.write(payload)
     dst = os.path.join(str(tmp_path), "mode-e-got.bin")
-    r = _guc("-p", "4", f"gsiftp://localhost:{gateway.port}/mode-e-dl.bin",
+    r = _guc("-p", "4", f"gsiftp://{SERVER_HOST}:{gateway.port}/mode-e-dl.bin",
              f"file://{dst}")
     assert r.returncode == 0, (
         f"mode-E get failed rc={r.returncode}\n{r.stderr}\n{gateway.error_log()}")
@@ -225,7 +225,7 @@ def test_put_mode_e_parallel_dcpriv(gateway, tmp_path):
     with open(src, "wb") as fh:
         fh.write(payload)
     r = _guc("-p", "4", f"file://{src}",
-             f"gsiftp://localhost:{gateway.port}/mode-e-uploaded.bin")
+             f"gsiftp://{SERVER_HOST}:{gateway.port}/mode-e-uploaded.bin")
     assert r.returncode == 0, (
         f"mode-E put failed rc={r.returncode}\n{r.stderr}\n{gateway.error_log()}")
     with open(os.path.join(gateway.export, "mode-e-uploaded.bin"), "rb") as fh:
@@ -248,8 +248,8 @@ def test_third_party_copy_gsiftp_to_gsiftp(tmp_path):
         payload = b"gsiftp(ev) TPC \x00\x01\x02 " + os.urandom(16384)
         with open(os.path.join(src.export, "tpc-src.bin"), "wb") as fh:
             fh.write(payload)
-        r = _guc(f"gsiftp://localhost:{src.port}/tpc-src.bin",
-                 f"gsiftp://localhost:{dst.port}/tpc-dst.bin",
+        r = _guc(f"gsiftp://{SERVER_HOST}:{src.port}/tpc-src.bin",
+                 f"gsiftp://{SERVER_HOST}:{dst.port}/tpc-dst.bin",
                  dc="dcpriv", timeout=90)
         assert r.returncode == 0, (
             f"tpc copy failed rc={r.returncode}\n{r.stderr}\n"
@@ -270,7 +270,7 @@ def test_untrusted_ca_rejected(tmp_path):
     os.makedirs(empty_ca, exist_ok=True)
     gw = _launch("gridftp-gsiftp-ev-untrusting", empty_ca)
     try:
-        r = _guc("-list", f"gsiftp://localhost:{gw.port}/", timeout=45)
+        r = _guc("-list", f"gsiftp://{SERVER_HOST}:{gw.port}/", timeout=45)
         assert r.returncode != 0, (
             f"untrusted CA must reject auth, got rc=0\n{r.stdout}")
     finally:

@@ -67,7 +67,8 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-tpc-harden")]
 
 # kXR response status codes and the streamid[1] tag src/tpc/outbound sets on
 # kXR_read (open/close=2, read=3, stat=4, query=5).  We fault only read replies.
@@ -278,20 +279,20 @@ def node(tmp_path_factory):
 
     on_root = tmp_path_factory.mktemp("on_root")
     off_root = tmp_path_factory.mktemp("off_root")
-    port_off = _free_port()
-
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="tpc-harden",
         template="nginx_tpc_harden.conf",
         protocol="root",
         readiness="tcp",
-        extra_ports={"PORT_OFF": port_off},
         template_values={"BIND_HOST": BIND_HOST,
                          "ON_ROOT": str(on_root),
                          "OFF_ROOT": str(off_root)},
     ))
     port_on = endpoint.port
+    # PORT_OFF is the knob-off server's embedded listen, owned by the lifecycle
+    # ledger (fleet_lifecycle_ports.tpc-harden); read it back post-start.
+    port_off = endpoint.extra_ports["PORT_OFF"]
 
     proxy_on = _KxrPullFaultProxy(HOST, port_on)
     proxy_off = _KxrPullFaultProxy(HOST, port_off)

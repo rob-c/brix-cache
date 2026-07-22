@@ -18,9 +18,12 @@ import time
 
 from cmdscripts.delegation_twostep import ensure_pki, key_for_dn, mint_certs
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
-from settings import CA_CERT, CA_DIR, SERVER_CERT, SERVER_KEY, TEST_ROOT, free_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
+from fleet_ports import cmdscript_ports
 
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
+
+_PORTS = cmdscript_ports("gsi_trust_live")
 
 
 def _result(checks: list[tuple[bool, str]]) -> int:
@@ -76,7 +79,7 @@ def _pgwrite_gate_intact(port: int) -> bool:
         kXR_status,
     )
 
-    sock = _handshake_login("127.0.0.1", port)
+    sock = _handshake_login(HOST, port)
     try:
         fh = _open_for_write(sock, b"/_trust_badcrc.bin")
         payload = _build_pgwrite_payload(b"trust does not cover the wire " * 10, offset=0, corrupt_page=0)
@@ -101,13 +104,13 @@ def csi_trust(nginx: Path | None = None) -> int:
     if not os.access(XRDCP, os.X_OK):
         return _skip(f"native xrdcp not built ({XRDCP})")
     with LiveRun("csi_trust", nginx) as run:
-        p_ver, p_tru, p_rqt, p_rqo, p_def, p_off = free_ports(6)
+        p_ver, p_tru, p_rqt, p_rqo, p_def, p_off = _PORTS[0:6]  # was free_ports(6)
         root = run.mkdir("root")
         logs = run.mkdir("logs")
 
         def srv(port: int, extra: str) -> str:
             return f"""    server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {root};
         brix_auth none;
@@ -133,10 +136,10 @@ def csi_trust(nginx: Path | None = None) -> int:
         run.start_nginx(run.root, conf, p_ver)
 
         def cp_up(port: int, source: Path, name: str) -> int:
-            return run.call([XRDCP, "-f", source, f"root://127.0.0.1:{port}//{name}"], check=False).returncode
+            return run.call([XRDCP, "-f", source, f"root://{HOST}:{port}//{name}"], check=False).returncode
 
         def cp_down(port: int, name: str, dest: Path) -> int:
-            return run.call([XRDCP, "-f", f"root://127.0.0.1:{port}//{name}", dest], check=False).returncode
+            return run.call([XRDCP, "-f", f"root://{HOST}:{port}//{name}", dest], check=False).returncode
 
         checks: list[tuple[bool, str]] = []
         src = run.root / "src.bin"
@@ -192,12 +195,12 @@ def gsi_store_memo(nginx: Path | None = None) -> int:
         message = ensure_shared_pki(run.mkdir("logs"))
         if message:
             return _skip(message)
-        port_a, port_b = free_ports(2)
+        port_a, port_b = _PORTS[6:8]  # was free_ports(2)
         e1, e2 = run.mkdir("e1"), run.mkdir("e2")
 
         def block(port: int, export: Path) -> str:
             return f"""    server {{
-        listen 127.0.0.1:{port}; brix_root on; brix_export {export};
+        listen {BIND_HOST}:{port}; brix_root on; brix_export {export};
         brix_auth gsi; brix_certificate {SERVER_CERT}; brix_certificate_key {SERVER_KEY};
         brix_trusted_ca {CA_CERT};
     }}
@@ -242,7 +245,7 @@ def gsi_intermediate_ca(nginx: Path | None = None) -> int:
     if not os.access(stock, os.X_OK):
         return _skip(f"stock xrootd client not installed ({stock})")
     with LiveRun("gsi_ica", nginx) as run:
-        port = free_ports(1)[0]
+        port = _PORTS[8]  # was free_ports(1)[0]
         pki = run.mkdir("pki")
         run.mkdir("pki", "user")
         cadir, badca, root, logs = run.mkdir("cadir"), run.mkdir("badca"), run.mkdir("root"), run.mkdir("logs")
@@ -258,7 +261,7 @@ def gsi_intermediate_ca(nginx: Path | None = None) -> int:
         run.write(
             pki / "srv.ext",
             "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\n"
-            "subjectAltName=DNS:localhost,IP:127.0.0.1\n",
+            "subjectAltName=DNS:localhost,IP:127.0.0.1\n",  # net-literal-allow: cert SAN (localhost + 127.0.0.1) under test
         )
         run.write(pki / "usr.ext", "keyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\n")
 
@@ -271,7 +274,7 @@ def gsi_intermediate_ca(nginx: Path | None = None) -> int:
             ("x509", "-req", "-in", "inter.csr", "-CA", "root.pem", "-CAkey", "root.key", "-set_serial", "101",
              "-days", "2", "-extfile", "ca.ext", "-out", "inter.pem"),
             ("req", "-newkey", "rsa:2048", "-nodes", "-keyout", "host.key", "-out", "host.csr",
-             "-subj", "/O=BrixTest/CN=localhost"),
+             "-subj", "/O=BrixTest/CN=localhost"),  # net-literal-allow: throwaway TLS cert subject CN
             ("x509", "-req", "-in", "host.csr", "-CA", "inter.pem", "-CAkey", "inter.key", "-set_serial", "202",
              "-days", "2", "-extfile", "srv.ext", "-out", "host.pem"),
             ("req", "-newkey", "rsa:2048", "-nodes", "-keyout", "user/userkey.pem", "-out", "user.csr",
@@ -303,7 +306,7 @@ def gsi_intermediate_ca(nginx: Path | None = None) -> int:
             f"""daemon on; error_log {logs}/e.log notice; pid {run.root}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_export {root};
+    listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth gsi;
     brix_certificate     {pki}/host.pem;
     brix_certificate_key {pki}/host.key;
@@ -323,7 +326,7 @@ stream {{ server {{
         def stock_cp(certdir: Path, proxy: Path, dst: str, logname: str) -> None:
             with (logs / logname).open("w") as log:
                 subprocess.run(
-                    [str(stock), "-f", str(src), f"root://localhost:{port}//{dst}"],
+                    [str(stock), "-f", str(src), f"root://{SERVER_HOST}:{port}//{dst}"],
                     env={
                         "PATH": "/usr/bin:/bin",
                         "HOME": str(run.root),
@@ -385,7 +388,7 @@ http {{
     client_body_temp_path {front}/export;
     brix_credential origin {{ x509_proxy {certs}/a_proxy_valid.pem; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{front_port} ssl;
+        listen {BIND_HOST}:{front_port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -398,7 +401,7 @@ http {{
             brix_export {front}/export;
             brix_webdav_cafile {CA_CERT};
             brix_webdav_auth required;
-            brix_storage_backend root://127.0.0.1:{origin_port};
+            brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential origin;
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback deny;
@@ -426,7 +429,7 @@ def delegation_upload(nginx: Path | None = None) -> int:
         print(f"  user-A credential stem: {a_stem}")
         print(f"  user-B credential stem: {b_stem}")
 
-        oport, fport = free_ports(2)
+        oport, fport = _PORTS[9:11]  # was free_ports(2)
         certs = run.root / "certs"
         creds = run.mkdir("creds")
         creds.chmod(0o777)
@@ -444,7 +447,7 @@ error_log {origin}/logs/e.log info;
 pid {origin}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{oport};
+    listen {BIND_HOST}:{oport};
     brix_root on;
     brix_export {origin}/root;
     brix_allow_write on;
@@ -475,7 +478,7 @@ stream {{ server {{
             run.stop_nginx(front)
             time.sleep(0.3)
 
-        url = f"https://127.0.0.1:{fport}"
+        url = f"https://{HOST}:{fport}"
         deleg_url = url + "/.well-known/brix-delegation"
         a_cert, a_key = certs / "a_eec_cert.pem", certs / "a_eec_key.pem"
         a_cred, b_cred = creds / f"{a_stem}.pem", creds / f"{b_stem}.pem"

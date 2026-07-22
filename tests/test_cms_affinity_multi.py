@@ -35,7 +35,7 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import SERVER_HOST, free_port
+from settings import SERVER_HOST
 from test_cms_wire_pup_conformance import (
     _build_frame,
     _minimal_login_payload,
@@ -45,7 +45,8 @@ from test_cms_locate_have import (
     _locate,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-affinity")]
 
 H = SERVER_HOST
 
@@ -106,17 +107,15 @@ class _Manager:
 
 @pytest.fixture
 def manager(lifecycle):
-    multi_port = free_port()
-    cms_port = free_port()
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-cms-affinity",
         template="nginx_cms_affinity.conf",
         protocol="root",
         readiness="tcp",
-        template_values={"MULTI_PORT": multi_port, "CMS_PORT": cms_port},
         reason="Phase-89 W5: affinity-sticky selection + multi-source locate.",
     ))
-    return _Manager(ep.port, multi_port, cms_port)
+    return _Manager(ep.port, ep.extra_ports["MULTI_PORT"],
+                    ep.extra_ports["CMS_PORT"])
 
 
 def _redirect_port(sock, path):

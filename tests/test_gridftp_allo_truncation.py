@@ -34,7 +34,7 @@ import socket
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -95,7 +95,7 @@ def _stream_stor(gw, name, allo_size, send_bytes):
     closing the data channel after exactly len(send_bytes) bytes — a short
     send_bytes vs allo_size reproduces an in-flight truncation."""
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gw.port, timeout=30)
+    ftp.connect(SERVER_HOST, gw.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")

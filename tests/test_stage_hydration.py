@@ -35,13 +35,14 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
 from official_interop_lib import chown_stock, worker_reachable
 from server_registry import NginxInstanceSpec
 
 XRDCP = shutil.which("xrdcp")
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-stage-hydration")]
 
 
 @pytest.fixture
@@ -55,13 +56,11 @@ def hyd(lifecycle, tmp_path):
     stage = base / "stage"; stage.mkdir()
     worker_reachable(origin, gw, stage)
 
-    origin_port = free_port()
     spec = NginxInstanceSpec(
         name="lc-stage-hydration",
         template="nginx_lc_stage_hydration.conf",
         protocol="root",
-        template_values={"ORIGIN_PORT": str(origin_port),
-                         "ORIGIN_DATA": str(origin),
+        template_values={"ORIGIN_DATA": str(origin),
                          "GW_DATA": str(gw),
                          "STAGE_DIR": str(stage)},
         reason="stage write-back hydration")

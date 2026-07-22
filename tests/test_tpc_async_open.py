@@ -38,8 +38,10 @@ from pathlib import Path
 import pytest
 
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST, HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -76,7 +78,7 @@ class MockSource(threading.Thread):
         self.mode = mode
         self.srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.srv.bind(("127.0.0.1", 0))
+        self.srv.bind((BIND_HOST, 0))
         self.srv.listen(8)
         self.port = self.srv.getsockname()[1]
         self._stop = False
@@ -200,8 +202,8 @@ def test_async_open_resolved(dest, mode):
         out = Path(dest["ddata"]) / f"pulled_{mode}.txt"
         r = subprocess.run(
             [XRDCP, "-f", "--tpc", "only",
-             f"root://127.0.0.1:{src.port}//src.txt",
-             f"root://127.0.0.1:{dest['port']}//{out.name}"],
+             f"root://{HOST}:{src.port}//src.txt",
+             f"root://{HOST}:{dest['port']}//{out.name}"],
             capture_output=True, text=True, timeout=90)
         if r.returncode != 0 or not out.exists():
             errlog = Path(dest["logs"]) / "dst-err.log"

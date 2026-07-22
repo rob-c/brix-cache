@@ -46,6 +46,7 @@ from server_launcher import LifecycleHarness, launch_fleet_nginx
 from server_registry import NginxInstanceSpec, endpoint_for
 
 import impersonation_gridmap_helpers as H
+from settings import BIND_HOST
 
 # The whole point of the suite is the root-only setfsuid broker.  Off a root host
 # there is nothing to prove — skip cleanly rather than fail.
@@ -56,7 +57,7 @@ pytestmark = [
                               "root master + real setfsuid broker"),
 ]
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 BASE = os.path.join(settings.TEST_ROOT, "impgm")
 
 # Token subjects used as grid-mapfile principals.

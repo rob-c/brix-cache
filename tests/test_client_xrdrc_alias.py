@@ -23,7 +23,8 @@ import pytest
 from settings import HOST, BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrdrc-alias")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")

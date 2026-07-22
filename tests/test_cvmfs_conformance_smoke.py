@@ -20,7 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import (BRIXMOUNT, NGINX_BIN, PortBlock, fuse_mount,
                                 request, srv_instance)
 from repo_forge import Dir, File, RepoForge, Symlink
-from settings import free_port
+from ephemeral_port import free_port
+from settings import HOST
 
 REPO = "test.cern.ch"
 
@@ -65,7 +66,7 @@ def _serve_webroot(spawn, web):
     spawn([sys.executable, mock, "--port", str(port), "--repo", REPO, "--webroot", str(web)])
     for _ in range(50):
         try:
-            urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/log", timeout=0.3)
+            urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log", timeout=0.3)
             return port
         except Exception:
             time.sleep(0.1)
@@ -110,14 +111,14 @@ def test_webroot_mock_serves_manifest_and_objects(tmp_path, spawn):
     forge, web, _ = _forge(tmp_path, {"hello": File(b"served\n")})
     port = _serve_webroot(spawn, web)
     disk = (web / "cvmfs" / REPO / ".cvmfspublished").read_bytes()
-    served = urllib.request.urlopen(f"http://127.0.0.1:{port}/cvmfs/{REPO}/.cvmfspublished").read()
+    served = urllib.request.urlopen(f"http://{HOST}:{port}/cvmfs/{REPO}/.cvmfspublished").read()
     assert served == disk
     key = next(k for k in forge.cas if len(k) == 40)
     obj = urllib.request.urlopen(
-        f"http://127.0.0.1:{port}/cvmfs/{REPO}/data/{key[:2]}/{key[2:]}").read()
+        f"http://{HOST}:{port}/cvmfs/{REPO}/data/{key[:2]}/{key[2:]}").read()
     assert obj == (web / "cvmfs" / REPO / "data" / key[:2] / key[2:]).read_bytes()
     with pytest.raises(urllib.error.HTTPError) as e:
-        urllib.request.urlopen(f"http://127.0.0.1:{port}/cvmfs/{REPO}/data/aa/{'0' * 38}")
+        urllib.request.urlopen(f"http://{HOST}:{port}/cvmfs/{REPO}/data/aa/{'0' * 38}")
     assert e.value.code == 404
     forge.close()
 
@@ -125,14 +126,14 @@ def test_webroot_mock_serves_manifest_and_objects(tmp_path, spawn):
 def test_per_path_fault_targeting(tmp_path, spawn):
     forge, web, _ = _forge(tmp_path, {"hello": File(b"target\n")})
     port = _serve_webroot(spawn, web)
-    base = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    base = f"http://{HOST}:{port}/cvmfs/{REPO}"
     key = next(k for k in forge.cas if len(k) == 40)
     obj_path = f"/cvmfs/{REPO}/data/{key[:2]}/{key[2:]}"
     # fault targets ONLY the manifest; a CAS GET must pass through untouched.
     urllib.request.urlopen(urllib.request.Request(
-        f"http://127.0.0.1:{port}/ctl/fault", method="POST",
+        f"http://{HOST}:{port}/ctl/fault", method="POST",
         data=b'{"mode":"http500","count":1,"path_re":"cvmfspublished"}'))
-    assert urllib.request.urlopen(f"http://127.0.0.1:{port}{obj_path}").status == 200
+    assert urllib.request.urlopen(f"http://{HOST}:{port}{obj_path}").status == 200
     with pytest.raises(urllib.error.HTTPError) as e:
         urllib.request.urlopen(base + "/.cvmfspublished")
     assert e.value.code == 500
@@ -145,11 +146,11 @@ def test_reset_log_clears_history(tmp_path, spawn):
     import json
     forge, web, _ = _forge(tmp_path, {"hello": File(b"log\n")})
     port = _serve_webroot(spawn, web)
-    urllib.request.urlopen(f"http://127.0.0.1:{port}/cvmfs/{REPO}/.cvmfspublished").read()
-    assert json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/log"))
+    urllib.request.urlopen(f"http://{HOST}:{port}/cvmfs/{REPO}/.cvmfspublished").read()
+    assert json.load(urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log"))
     urllib.request.urlopen(urllib.request.Request(
-        f"http://127.0.0.1:{port}/ctl/reset-log", method="POST"))
-    assert json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/log")) == []
+        f"http://{HOST}:{port}/ctl/reset-log", method="POST"))
+    assert json.load(urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log")) == []
     forge.close()
 
 
@@ -164,7 +165,7 @@ def test_forge_serve_mount_read_roundtrip(tmp_path, spawn):
         "empty": Dir({}),
     })
     port = _serve_webroot(spawn, web)
-    url = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    url = f"http://{HOST}:{port}/cvmfs/{REPO}"
     with fuse_mount(REPO, url, pub, cache=str(tmp_path / "cache")) as (mnt, _):
         assert os.path.ismount(str(mnt)), "brixMount failed to mount the forged repo"
         assert sorted(os.listdir(mnt)) == ["empty", "hello", "link", "sub"]
@@ -180,7 +181,7 @@ def test_tamper_flipped_content_byte_fails_read(tmp_path, spawn):
     key = next(k for k in forge.cas if len(k) == 40)
     forge.flip_byte(key, 6)                              # corrupt the STORED bytes
     port = _serve_webroot(spawn, web)
-    url = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    url = f"http://{HOST}:{port}/cvmfs/{REPO}"
     with fuse_mount(REPO, url, pub, cache=str(tmp_path / "cache")) as (mnt, _):
         if os.path.ismount(str(mnt)):
             with pytest.raises(OSError):
@@ -195,7 +196,7 @@ def test_tamper_deleted_cas_fails_read(tmp_path, spawn):
     key = next(k for k in forge.cas if len(k) == 40)
     forge.delete_cas(key)
     port = _serve_webroot(spawn, web)
-    url = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    url = f"http://{HOST}:{port}/cvmfs/{REPO}"
     with fuse_mount(REPO, url, pub, cache=str(tmp_path / "cache")) as (mnt, _):
         if os.path.ismount(str(mnt)):
             with pytest.raises(OSError):
@@ -224,5 +225,5 @@ def test_srv_instance_rejects_unknown_cas_with_404():
     block = PortBlock("srv_gate")
     with srv_instance(block, objects=4, seed=3) as srv:
         bogus = f"/cvmfs/{REPO}/data/aa/" + "cd" * 19
-        status, _, _ = request("127.0.0.1", srv.nginx_port, "GET", bogus)
+        status, _, _ = request(HOST, srv.nginx_port, "GET", bogus)
         assert status == 404

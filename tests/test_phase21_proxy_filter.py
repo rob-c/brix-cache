@@ -10,19 +10,22 @@ Coverage:
      nginx_webdav_introspect.conf via the `lifecycle` harness).
 """
 
-import http.server
 import os
 import socket
-import threading
 import time
 from pathlib import Path
 
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import NGINX_BIN, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST, INTROSPECT_IDP_PORT
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# The token-introspection IdP is a shared fixed-port fleet mock, declared below.
+pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.registry_server("introspect-idp"),
+    pytest.mark.xdist_group("lc-phase21-proxy-filter"),
+]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -189,46 +192,23 @@ def test_introspect_wiring_present():
     assert "webdav_introspect_access_handler" in pc
 
 
-class _IdP(http.server.BaseHTTPRequestHandler):
-    """Mock RFC 7662 endpoint: token containing 'revoked' -> active:false."""
-
-    def do_POST(self):
-        n = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(n).decode(errors="replace")  # "token=<jwt>"
-        active = "revoked" not in body
-        payload = b'{"active": true}' if active else b'{"active": false}'
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def log_message(self, *a):
-        pass
-
-
 @pytest.fixture
 def introspect_server(lifecycle, tmp_path):
-    idp = http.server.HTTPServer((BIND_HOST, 0), _IdP)
-    idp_port = idp.server_address[1]
-    threading.Thread(target=idp.serve_forever, daemon=True).start()
-
+    # The RFC 7662 IdP is the shared fixed-port introspect-idp mock (declared via
+    # registry_server above); nothing here to start or stop.
     data = tmp_path / "data"
     data.mkdir()
     (data / "hello.txt").write_text("hi\n")
-    try:
-        endpoint = lifecycle.start(NginxInstanceSpec(
-            name="lc-introspect",
-            template="nginx_webdav_introspect.conf",
-            protocol="http",
-            data_root=str(data),
-            template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
-                             "IDP_PORT": idp_port},
-            reason="OIDC token-introspection functional coverage",
-        ))
-        yield endpoint.port
-    finally:
-        idp.shutdown()
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name="lc-introspect",
+        template="nginx_webdav_introspect.conf",
+        protocol="http",
+        data_root=str(data),
+        template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
+                         "IDP_PORT": INTROSPECT_IDP_PORT},
+        reason="OIDC token-introspection functional coverage",
+    ))
+    yield endpoint.port
 
 
 def test_active_token_allowed(introspect_server):

@@ -14,7 +14,7 @@ import { url } from '../lib/site';
 interface Props {
   title: string;
   description: string;
-  accent?: 'root' | 'dav' | 's3';
+  accent?: 'root' | 'dav' | 's3' | 'ftp' | 'danger';
 }
 
 const { title, description, accent = 'root' } = Astro.props;

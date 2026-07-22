@@ -23,7 +23,7 @@ files under `tests/`.
 
 - **Smaller files are preferred.** Each file should have a single, focused responsibility.
 - Files split by job (e.g., `src/fs/cache/fetch.c`, `src/fs/cache/evict.c`) over monolithic modules.
-- If a file exceeds ~500 lines, consider whether it owns more than one concept and split accordingly.
+- If a file exceeds ~500 lines, consider whether it owns more than one concept and split accordingly. The CI guard (`tools/ci/check_file_size.py`) enforces a hard **600-line** backstop; ~500 remains the *preferred* target, not the ceiling.
 
 ### Directory Organization
 

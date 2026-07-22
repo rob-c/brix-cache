@@ -187,7 +187,11 @@ def test_module_autouse_specs_ignores_non_autouse_fixtures():
     assert ded_spec in fd.conftest_fixture_specs(src)
 
 
-def test_module_autouse_specs_drops_backbone_references():
+def test_module_autouse_specs_keeps_backbone_references():
+    # Since the forced always-on backbone was retired (zero-boot default), an
+    # autouse fixture that binds its module to a *core* server is the only static
+    # signal that the boot set must start it — so backbone is now KEPT, not
+    # dropped (contrast conftest_fixture_specs, which still subtracts it).
     bb_const, bb_spec = _a_backbone_const()
     src = textwrap.dedent(f"""
         import pytest
@@ -196,4 +200,4 @@ def test_module_autouse_specs_drops_backbone_references():
         def core_env():
             wait_port({bb_const})
     """)
-    assert bb_spec not in fd.module_autouse_specs(src)
+    assert bb_spec in fd.module_autouse_specs(src)

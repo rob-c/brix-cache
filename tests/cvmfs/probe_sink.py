@@ -15,7 +15,7 @@ import threading
 def serve(port: int, statedir: str) -> None:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("127.0.0.1", port))
+    s.bind(("127.0.0.1", port))  # net-literal-allow: standalone-spawned helper server (no tests/ on sys.path); loopback bind
     s.listen(64)
     hits = os.path.join(statedir, f"{port}.hits")
     while True:

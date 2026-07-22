@@ -16,10 +16,11 @@ import subprocess
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrdcp-bulk")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -197,7 +198,7 @@ def test_verify_checksum(rw, tmp_path):
 def test_retry_then_fail_no_hang(tmp_path):
     """--retry on an unreachable endpoint fails cleanly after retries (no hang)."""
     out = tmp_path / "x.bin"
-    r = subprocess.run([XRDCP, "--retry", "1", "-s", "root://127.0.0.1:1//x", str(out)],
+    r = subprocess.run([XRDCP, "--retry", "1", "-s", f"root://{HOST}:1//x", str(out)],
                        capture_output=True, text=True, timeout=40)
     assert r.returncode != 0
     assert not out.exists()

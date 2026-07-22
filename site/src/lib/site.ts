@@ -1,6 +1,6 @@
 // Single source of truth for site-wide constants: repo links, nav, and the
-// three protocols with their fixed accent colors. Color encodes protocol
-// identity across the whole site, so it is defined once here.
+// protocols with their fixed accent colors. Color encodes protocol identity
+// across the whole site, so it is defined once here.
 
 /** Prefix an internal path with the configured GitHub Pages base. */
 export function url(path = '/'): string {
@@ -13,7 +13,7 @@ export const REPO_URL = 'https://github.com/rob-c/brix-cache';
 export const DOCS_URL = `${REPO_URL}/blob/main/docs/index.md`;
 export const LICENSE = 'AGPL-3.0-only';
 
-export type AccentName = 'root' | 'dav' | 's3';
+export type AccentName = 'root' | 'dav' | 's3' | 'ftp' | 'danger';
 
 export interface Protocol {
   id: AccentName;
@@ -25,7 +25,11 @@ export interface Protocol {
   blurb: string;
 }
 
-/** The three protocols one BriX-Cache server speaks, in fixed order + color. */
+/**
+ * The three data-access protocols one BriX-Cache server speaks off the same
+ * file, in fixed order + color. GridFTP (gsiftp://, accent 'ftp') is the fourth
+ * wire protocol — a transfer gateway, spotlighted separately from this fan.
+ */
 export const PROTOCOLS: Protocol[] = [
   {
     id: 'root',
@@ -77,6 +81,9 @@ export const AUDIENCES: NavItem[] = [
 export const PRODUCT_PAGES: NavItem[] = [
   { label: 'About', href: '/about' },
   { label: 'brixMount', href: '/brixmount' },
+  { label: 'Interoperability', href: '/interoperability' },
+  { label: 'Network testing', href: '/network-testing' },
+  { label: 'Ceph migration', href: '/ceph-migration' },
   { label: 'Tools', href: '/tools' },
   { label: 'Evidence', href: '/evidence' },
   { label: 'FAQ', href: '/faq' },

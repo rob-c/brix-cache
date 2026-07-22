@@ -33,13 +33,16 @@ import struct
 
 import pytest
 
+from config_parse import nginx_t
 from server_registry import NginxInstanceSpec
 from settings import (
-    NGINX_BIN, HOST, BIND_HOST, SERVER_CERT, SERVER_KEY, free_ports,
+    NGINX_BIN, HOST, BIND_HOST, SERVER_CERT, SERVER_KEY,
 )
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from test_phase25_ratelimit import _xrd_stat, _xrd_open, KXR_OK
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-minsec")]
 
 # Response status field (kXR_error) and the two policy error codes it carries.
 KXR_ERROR = 4003
@@ -198,16 +201,14 @@ def test_intense_refuses_anonymous_over_tls(lifecycle, tmp_path):
 # --------------------------------------------------------------------------- #
 # error: a malformed directive value is refused at config parse.
 # --------------------------------------------------------------------------- #
-def test_bogus_config_refused(lifecycle, tmp_path):
-    (port,) = free_ports(1)
+def test_bogus_config_refused(tmp_path):
+    # nginx -t rejects before any bind; a non-binding placeholder port suffices.
+    port = PARSE_PLACEHOLDER_PORT
     data = tmp_path / "data"; data.mkdir()
     values = _values(tls=False, auth="none", min_sec="banana",
                      PORT=port, DATA_ROOT=str(data),
                      LOG_DIR=str(tmp_path), TMP_DIR=str(tmp_path))
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-minsec-bogus", template="nginx_min_sec.conf",
-        template_values=values,
-        reason="D-1 brix_min_sec_level directive rejection coverage"))
+    result = nginx_t("nginx_min_sec.conf", tmp_path, **values)
     out = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, out
     # ngx_conf_set_enum_slot rejects the unknown word by value, on the line the

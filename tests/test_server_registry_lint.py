@@ -34,14 +34,19 @@ INFRA_ALLOW = {
 
 # A direct launch is nginx-as-argv0: the binary reference (NGINX_BIN / NGINX /
 # a lowercase `nginx_bin` local, optionally attribute-qualified like
-# `settings.NGINX_BIN`) is the *first* element of the argv list handed to
-# subprocess.run/Popen.  Anchoring on argv0 is deliberate: a fleet-client test
-# that merely mentions an `NGINX_*_PORT` / `NGINX_URL` constant somewhere inside
-# an `xrdcp`/`curl` argv (e.g. `["xrdcp", f"root://…:{NGINX_ANON_PORT}//"]`) is
-# NOT launching nginx and must not be flagged — the previous `[^\]]*NGINX` scan
-# false-matched those.  The `cmdscripts/*.py` fleet config generators build argv
-# lists too but never call subprocess.run([NGINX…]) themselves, so the
-# subprocess anchor keeps them (the committed config source) out of scope.
+# `settings.NGINX_BIN`, and optionally wrapped in a `str(...)` coercion) is the
+# *first* element of the argv list handed to subprocess.run/Popen.  Anchoring on
+# argv0 is deliberate: a fleet-client test that merely mentions an
+# `NGINX_*_PORT` / `NGINX_URL` constant somewhere inside an `xrdcp`/`curl` argv
+# (e.g. `["xrdcp", f"root://…:{NGINX_ANON_PORT}//"]`) is NOT launching nginx and
+# must not be flagged — the previous `[^\]]*NGINX` scan false-matched those.  The
+# `cmdscripts/*.py` fleet config generators build argv lists too but never call
+# subprocess.run([NGINX…]) themselves, so the subprocess anchor keeps them (the
+# committed config source) out of scope.  The `str(...)` wrapper is matched
+# because `[str(NGINX_BIN), "-t", …]` is a common idiom when the binary is a
+# `Path`: without it, such a call is invisible to the guard — both letting a
+# real server launch evade `_direct_launchers()` and denying a genuine `nginx -t`
+# parse test its validation-only exemption.
 #
 # The argv tail up to the closing `]` is captured so a `nginx -t` invocation can
 # be told apart from a server launch: `nginx -t` only validates config syntax and
@@ -50,7 +55,7 @@ INFRA_ALLOW = {
 # a directive is accepted or rejected at parse time legitimately feed a minimal
 # snippet to `nginx -t` and cannot be expressed as a committed runnable template.
 _LAUNCH = re.compile(
-    r"subprocess\.(?:run|Popen)\(\s*\[\s*(?:[A-Za-z_]\w*\.)?"
+    r"subprocess\.(?:run|Popen)\(\s*\[\s*(?:str\(\s*)?(?:[A-Za-z_]\w*\.)?"
     r"(?:NGINX_BIN|NGINX|nginx_bin)\b([^\]]*)\]",
     re.S,
 )
@@ -63,8 +68,16 @@ _MARKER = "uses_lifecycle_harness"
 # userns_exec_launcher, not a shell) whose `user svc;` worker-setuid model and
 # per-uid export-tree ownership conflict with the registry's prefix-ownership
 # model — see the tracker's "Files requiring lifecycle-harness migration" note.
+# `cmdscripts/system_live_ports.py` is the Python port of the run_ktls.sh /
+# run_io_uring_backend.sh live shell scenarios: an operator-invoked CLI (never
+# collected by pytest) that runs a single throwaway nginx in its own isolated
+# `/tmp/xrd-perf-test` prefix and reaps it by pkill, so it neither leaks into nor
+# races the shared registry fleet — the same standalone-lab shape as the redteam
+# entry.  (It surfaced here only once the guard learned to see `str(nginx_bin)`
+# argv0; it was an unflagged direct launcher long before.)
 LAUNCH_BACKLOG = frozenset({
     "userns/e2e_redteam.py",
+    "cmdscripts/system_live_ports.py",
 })
 
 

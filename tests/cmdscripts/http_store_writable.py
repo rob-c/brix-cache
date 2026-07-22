@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
+from settings import BIND_HOST, HOST
 
 
 ORIGIN_PORT = 8552
@@ -18,7 +19,7 @@ def _origin_config(run: LiveRun, directory: Path) -> Path:
         directory / "nginx.conf",
         f"""daemon on; error_log {directory}/logs/e.log info; pid {directory}/nginx.pid;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {directory}/tmp; server {{ listen 127.0.0.1:{ORIGIN_PORT};
+http {{ client_body_temp_path {directory}/tmp; server {{ listen {BIND_HOST}:{ORIGIN_PORT};
   location / {{ dav_methods PUT DELETE; brix_webdav on; brix_export {directory}/root;
     brix_webdav_auth none; brix_allow_write on; }} }} }}
 """,
@@ -31,10 +32,10 @@ def _backend_config(run: LiveRun, directory: Path) -> Path:
         f"""daemon on; error_log {directory}/logs/e.log info; pid {directory}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {directory}/tmp; server {{ listen 127.0.0.1:{BACKEND_PORT};
+http {{ client_body_temp_path {directory}/tmp; server {{ listen {BIND_HOST}:{BACKEND_PORT};
   location / {{ dav_methods PUT DELETE;
     brix_webdav on; brix_export {directory}/backend; brix_webdav_auth none; brix_allow_write on;
-    brix_stage on; brix_stage_store http://127.0.0.1:{ORIGIN_PORT}; brix_stage_flush sync; }} }} }}
+    brix_stage on; brix_stage_store http://{HOST}:{ORIGIN_PORT}; brix_stage_flush sync; }} }} }}
 """,
     )
 
@@ -50,7 +51,7 @@ def run_port(nginx: Path | None = None) -> int:
         digest = random_file(source, 350000)
         run.start_nginx(origin, _origin_config(run, origin), ORIGIN_PORT)
         run.start_nginx(backend, _backend_config(run, backend), BACKEND_PORT)
-        url = f"http://127.0.0.1:{BACKEND_PORT}/h.bin"
+        url = f"http://{HOST}:{BACKEND_PORT}/h.bin"
         status = run.curl_status(url, "-T", str(source))
         stored = backend / "backend/h.bin"
         stored_ok = stored.exists() and sha256(stored) == digest

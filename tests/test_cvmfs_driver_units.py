@@ -4,6 +4,8 @@ import pytest
 
 from cmdscripts.cvmfs_driver_units import run_checks
 
+pytestmark = pytest.mark.xdist_group("cmd-cvmfs_driver_units")
+
 
 @pytest.mark.parametrize("name", ["core", "client", "walk", "build"])
 def test_cvmfs_driver_unit_ports(tmp_path: Path, name: str):

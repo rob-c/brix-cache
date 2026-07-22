@@ -28,10 +28,12 @@ import settings
 from cmdscripts import frm_stagecmd
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-seccomp-exec-frm")]
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 BASE = os.path.join(settings.TEST_ROOT, "frmexec")
 TAPE_BYTES = b"EXEC-ADAPTER-RECALL-" + b"e" * 200 + b"\n"
 

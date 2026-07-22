@@ -28,6 +28,7 @@ from server_launcher import LifecycleHarness, launch_fleet_nginx
 from server_registry import NginxInstanceSpec, endpoint_for
 
 import impersonation_gridmap_helpers as H
+from settings import BIND_HOST
 
 pytestmark = [
     pytest.mark.privileged,
@@ -35,7 +36,7 @@ pytestmark = [
                        reason="privilege-drop hardening needs a real root master"),
 ]
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 BASE = os.path.join(settings.TEST_ROOT, "hardening")
 CAP_SETUID_SETGID = "00000000000000c0"   # (1<<CAP_SETUID)|(1<<CAP_SETGID)
 NO_CAPS = "0000000000000000"

@@ -5,6 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "core/compat/error_mapping.h"
 #include "protocols/root/path/op_path.h"
+#include "protocols/root/write/backend_async_root.h"  /* backend-async mv park */
 #include "fs/vfs/vfs.h"   /* brix_vfs_rename_path (thread-safe confined rename) */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend resolve */
 
@@ -401,6 +402,27 @@ brix_handle_mv(brix_ctx_t *ctx, ngx_connection_t *c,
 						  mv.dst_buf, mv.dst_resolved, conf,
 						  BRIX_AUTH_UPDATE, 1, BRIX_AOP_INSERT) != NGX_OK) {
 		return ctx->write_rc;
+	}
+
+	/* brix_backend_async: a fresh-destination rename (dst does not yet exist) is a
+	 * pure create — enqueue it on the durable queue and park the connection until
+	 * the batch flushes, mirroring the kXR_rm/kXR_rmdir park. Scoped to a NON-
+	 * existent destination: a probe here that finds nothing means the queue's
+	 * overwrite=0 rename can only succeed or fail source-side (whose generic
+	 * errno→kXR mapping matches mv_execute), so the dst-exists ladder never
+	 * diverges. Both auth gates have passed, so the mutation is fully authorised
+	 * before it reaches the queue. Any failure to park falls through to
+	 * mv_execute — strictly fail-safe. */
+	if (conf->backend_async) {
+		brix_vfs_ctx_t  dprobe;
+		brix_vfs_stat_t dst_st;
+
+		mv_bind_vfs(ctx, c, conf, mv.dst_resolved, &dprobe);
+		if (brix_vfs_probe(&dprobe, 1 /* no-follow */, &dst_st) != NGX_OK
+			&& brix_root_backend_async_mv_try(ctx, c, conf, mv.src_resolved,
+											   mv.dst_resolved)) {
+			return NGX_OK;
+		}
 	}
 
 	if (mv_execute(ctx, c, conf, &mv) != NGX_OK) {

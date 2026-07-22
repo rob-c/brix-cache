@@ -31,7 +31,7 @@ import struct
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -99,7 +99,7 @@ def _mode_e_stor(gw, name, frames, eod_total=1, close_eof=True):
     The data connection is opened to the PASV listener *before* STOR so the
     server accepts it out of its listen backlog when the receiver starts."""
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gw.port, timeout=30)
+    ftp.connect(SERVER_HOST, gw.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")

@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_pblock_posix import XRDCP, XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_pblock_posix")
+
 
 def test_cache_pblock_posix_flow(tmp_path):
     for tool in (NGINX_BIN, str(XRDCP), str(XRDFS)):

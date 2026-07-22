@@ -18,16 +18,26 @@ the `lifecycle` harness; curl runs through the harness command runner.
 
 import json
 import os
-import threading
-import http.server
 from pathlib import Path
 
 import pytest
 
+from config_parse import nginx_t
 from server_registry import NginxInstanceSpec
-from settings import NGINX_BIN, free_ports, HOST, BIND_HOST, url_host
+from settings import (NGINX_BIN, HOST, BIND_HOST, url_host,
+                      STATIC_ORIGIN_PORT)
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
+from settings import HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# The static-origin backend is a shared fixed-port fleet mock, declared below.
+# Bucket-2: the two admin instances (lc-admin-parse, lc-admin-api) take fixed
+# exclusive-band ports; xdist_group serialises the file so they never have two
+# concurrent drivers.
+pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.registry_server("static-origin"),
+    pytest.mark.xdist_group("lc-admin"),
+]
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET = "phase23-admin-secret-token-value"
@@ -77,7 +87,7 @@ def test_admin_auth_and_validation_present():
 
 
 def test_registry_undrain_helper_present():
-    assert "brix_srv_undrain" in _read("src/net/manager/registry_select.c")  # split out
+    assert "brix_srv_undrain" in _read("src/net/manager/registry_select_blacklist.c")  # split out
     assert "brix_srv_undrain" in _read("src/net/manager/registry.h")
 
 
@@ -131,22 +141,17 @@ def test_proxy_dynamic_directive_parses():
     pass
 
 
-def test_bad_admin_secret_path_rejected(lifecycle, tmp_path):
-    # expect_config_failure renders from template_values only, so all
-    # placeholders (including the launcher-provided ones) are passed here.
-    (port,) = free_ports(1)
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-admin-badsecret",
-        template="nginx_admin_badsecret.conf",
-        template_values={
-            "BIND_HOST": BIND_HOST,
-            "PORT": port,
-            "LOG_DIR": str(tmp_path),
-            "TMP_DIR": str(tmp_path),
-            "SECRET_FILE": str(tmp_path / "does-not-exist.secret"),
-        },
-        reason="missing admin secret file must be rejected at parse time",
-    ))
+def test_bad_admin_secret_path_rejected(tmp_path):
+    # Pure config-parse property: render + `nginx -t`, no server ever boots.
+    result = nginx_t(
+        "nginx_admin_badsecret.conf",
+        tmp_path,
+        BIND_HOST=BIND_HOST,
+        PORT=PARSE_PLACEHOLDER_PORT,
+        LOG_DIR=str(tmp_path),
+        TMP_DIR=str(tmp_path),
+        SECRET_FILE=str(tmp_path / "does-not-exist.secret"),
+    )
     out = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0
     assert "brix_admin_secret" in out
@@ -155,19 +160,6 @@ def test_bad_admin_secret_path_rejected(lifecycle, tmp_path):
 # --------------------------------------------------------------------------- #
 # Functional helpers                                                           #
 # --------------------------------------------------------------------------- #
-
-class _Origin(http.server.BaseHTTPRequestHandler):
-    tag = b"ORIGIN-OK"
-
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Length", str(len(self.tag)))
-        self.end_headers()
-        self.wfile.write(self.tag)
-
-    def log_message(self, *a):
-        pass
-
 
 class _AdminServer:
     """Handle for the admin-API instance: ports + curl through the harness."""
@@ -210,22 +202,18 @@ def admin_server(lifecycle, tmp_path):
     data.mkdir()
     (data / "x.txt").write_text("proxied\n")
 
-    origin = http.server.HTTPServer((BIND_HOST, 0), _Origin)
-    be_port = origin.server_address[1]
-    threading.Thread(target=origin.serve_forever, daemon=True).start()
-    try:
-        endpoint = lifecycle.start(NginxInstanceSpec(
-            name="lc-admin-api",
-            template="nginx_admin_api.conf",
-            protocol="http",
-            data_root=str(data),
-            template_values={"BIND_HOST": BIND_HOST,
-                             "SECRET_FILE": str(secret)},
-            reason="dashboard admin API functional coverage",
-        ))
-        yield _AdminServer(lifecycle, endpoint.port, be_port)
-    finally:
-        origin.shutdown()
+    # The URL-validation backend is the shared fixed-port static-origin mock
+    # (declared via registry_server above); nothing here to start or stop.
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name="lc-admin-api",
+        template="nginx_admin_api.conf",
+        protocol="http",
+        data_root=str(data),
+        template_values={"BIND_HOST": BIND_HOST,
+                         "SECRET_FILE": str(secret)},
+        reason="dashboard admin API functional coverage",
+    ))
+    yield _AdminServer(lifecycle, endpoint.port, STATIC_ORIGIN_PORT)
 
 
 # --------------------------------------------------------------------------- #
@@ -278,9 +266,110 @@ def test_proxy_pool_lifecycle():
     pass
 
 
+# --------------------------------------------------------------------------- #
+# 5b. Admin proxy REST — validation / auth / routing / degraded surface        #
+#                                                                              #
+# The pool SHM zone is never created in the current tree (enabler retired), so #
+# every mutating path lands in the degraded branch. These assert the surface   #
+# reachable over HTTP today: URL/JSON validation, auth, method routing, and the#
+# degraded 404s (proxy_pool_disabled / not_found).                             #
+# --------------------------------------------------------------------------- #
+
+def _backends(admin_server):
+    return f"{admin_server.base}/proxy/backends"
+
+
+def test_proxy_list_empty(admin_server):
+    status, body = admin_server.admin("GET", _backends(admin_server), token=SECRET)
+    assert status == 200, body
+    assert json.loads(body)["backends"] == []
+
+
+def test_proxy_add_valid_url_pool_disabled(admin_server):
+    data = json.dumps({"url": f"http://{HOST}:8080", "weight": 100})
+    status, body = admin_server.admin(
+        "POST", _backends(admin_server), token=SECRET, data=data)
+    assert status == 404, body
+    assert json.loads(body)["error"] == "proxy_pool_disabled"
+
+
+def test_proxy_add_missing_url(admin_server):
+    status, body = admin_server.admin(
+        "POST", _backends(admin_server), token=SECRET, data=json.dumps({"weight": 5}))
+    assert status == 400, body
+    assert json.loads(body)["error"] == "missing_field"
+
+
+def test_proxy_get_unknown_id(admin_server):
+    status, body = admin_server.admin(
+        "GET", f"{_backends(admin_server)}/7", token=SECRET)
+    assert status == 404, body
+    assert json.loads(body)["error"] == "not_found"
+
+
+def test_proxy_drain_unknown_id(admin_server):
+    status, body = admin_server.admin(
+        "POST", f"{_backends(admin_server)}/7/drain", token=SECRET)
+    assert status == 404, body
+    assert json.loads(body)["error"] == "not_found"
+
+
+def test_proxy_delete_unknown_id(admin_server):
+    status, body = admin_server.admin(
+        "DELETE", f"{_backends(admin_server)}/7", token=SECRET)
+    assert status == 404, body
+    assert json.loads(body)["error"] == "not_found"
+
+
+def test_proxy_drain_via_get_405(admin_server):
+    status, body = admin_server.admin(
+        "GET", f"{_backends(admin_server)}/7/drain", token=SECRET)
+    assert status == 405, body
+    assert json.loads(body)["error"] == "method_not_allowed"
+
+
+def test_proxy_non_numeric_id_bad_uri(admin_server):
+    status, body = admin_server.admin(
+        "GET", f"{_backends(admin_server)}/abc", token=SECRET)
+    assert status == 400, body
+    assert json.loads(body)["error"] == "bad_uri"
+
+
+def test_proxy_collection_wrong_method_405(admin_server):
+    status, body = admin_server.admin("PUT", _backends(admin_server), token=SECRET)
+    assert status == 405, body
+    assert json.loads(body)["error"] == "method_not_allowed"
+
+
+def test_proxy_list_no_token_forbidden(admin_server):
+    status, _ = admin_server.admin("GET", _backends(admin_server))
+    assert status == 403
+
+
+def test_proxy_add_empty_body(admin_server):
+    status, body = admin_server.admin("POST", _backends(admin_server), token=SECRET)
+    assert status == 400, body
+    assert json.loads(body)["error"] == "empty_body"
+
+
+def test_proxy_add_non_object_json(admin_server):
+    status, body = admin_server.admin(
+        "POST", _backends(admin_server), token=SECRET, data="[]")
+    assert status == 400, body
+    assert json.loads(body)["error"] == "invalid_json"
+
+
+def test_proxy_add_body_too_large(admin_server):
+    big = json.dumps({"url": "http://h/", "pad": "x" * 70000})
+    status, body = admin_server.admin(
+        "POST", _backends(admin_server), token=SECRET, data=big)
+    assert status == 413, body
+    assert json.loads(body)["error"] == "body_too_large"
+
+
 def test_proxy_invalid_url_rejected(admin_server):
     status, body = admin_server.admin(
         "POST", f"{admin_server.base}/proxy/backends", token=SECRET,
-        data=json.dumps({"url": "ftp://127.0.0.1:21/x"}))
+        data=json.dumps({"url": f"ftp://{HOST}:21/x"}))
     assert status == 400, body
     assert json.loads(body)["error"] == "invalid_field"

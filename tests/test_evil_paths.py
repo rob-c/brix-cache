@@ -88,7 +88,16 @@ from test_a_robustness import (
 # The only server this module self-launches is the CMS data node in
 # TestCmsStateEvil (below), now driven through the phase-81 LifecycleHarness;
 # every other class probes the standing session fleet.
-pytestmark = pytest.mark.uses_lifecycle_harness
+#
+# `serial` (Phase-6): the module-scope `evil_symlinks` fixture plants a battery
+# of escaping symlinks (and creates/removes probe files) directly under the
+# SHARED export root DATA_ROOT — poisoning any parallel test that reads it — and
+# the mock CMS manager binds an OS-ephemeral listen the node dials.  Neither is a
+# fixed-port registry server, so both are documented port exemptions, not goal-1
+# violations (see fleet_lifecycle_ports.py § "Phase-6 client-flood / mock-bind").
+pytestmark = [pytest.mark.serial,
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-evil-cms-node")]
 
 kXR_open = 3010
 kXR_new = 0x0001
@@ -493,6 +502,27 @@ def _webdav_evil_suite(port, tls):
     finally:
         if os.path.exists(victim):
             os.remove(victim)
+
+    # --- MOVE/COPY with an escaping Destination must not write outside the root
+    # (brix_rename_confined_canon / the COPY confined-canon path). Stage a legit
+    # in-root source, then aim the Destination out of the export both as a bare
+    # path and as a same-authority URL. Nothing may land beside the root, and the
+    # source must survive a refused MOVE.
+    src = f"/movesrc_{uuid.uuid4().hex}"
+    _raw(port, "PUT", src, tls=tls, body=b"src-bytes")
+    esc = f"escaped_{uuid.uuid4().hex}"
+    scheme = "https" if tls else "http"
+    for method in ("MOVE", "COPY"):
+        for dest in (f"/../{esc}", f"/%2e%2e/{esc}"):
+            for dhdr in (dest, f"{scheme}://{SERVER_HOST}:{port}{dest}"):
+                try:
+                    _raw(port, method, src, tls=tls, headers={"Destination": dhdr})
+                except OSError:
+                    pass
+    _assert_nothing_escaped(esc)
+    # The source itself was never legitimately moved out, so it is still servable.
+    st, _ = _raw(port, "GET", src, tls=tls)
+    assert st in (200, 206), f"MOVE with an escaping Destination lost the source ({st})"
 
 
 def _webdav_symlink_suite(port, tls, evil_symlinks):

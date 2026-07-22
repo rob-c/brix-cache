@@ -29,7 +29,8 @@ from cmdscripts import frm_stagecmd
 from settings import HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-async")]
 
 XRDCP = shutil.which("xrdcp")
 TAPE_BYTES = b"ASYNC-TAPE-CONTENT-" + b"y" * 256 + b"\n"

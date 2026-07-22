@@ -27,7 +27,8 @@ from XRootD.client.flags import QueryCode
 from settings import HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-readv-seg16m")]
 
 FILE_BYTES = 20 * 1024 * 1024
 SEG_CAP = 16 * 1024 * 1024          # the configured brix_readv_segment_size

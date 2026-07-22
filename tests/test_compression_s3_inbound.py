@@ -12,7 +12,7 @@ decompressed (original) bytes — i.e. the server decoded on ingest. Also:
   (c) the Content-Encoding token is case-insensitive (uppercase "GZIP" works).
 
 Targets the shared anonymous S3 server (allow_write) at
-http://localhost:NGINX_S3_PORT — no auth, plain HTTP, no signing.
+http://{SERVER_HOST}:NGINX_S3_PORT — no auth, plain HTTP, no signing.
 Codecs whose compressor is unavailable (no python module and no CLI) are skipped.
 """
 
@@ -28,9 +28,9 @@ import zlib
 import pytest
 import requests
 
-from settings import NGINX_S3_PORT, S3_BUCKET
+from settings import NGINX_S3_PORT, S3_BUCKET, SERVER_HOST
 
-BASE = f"http://localhost:{NGINX_S3_PORT}"
+BASE = f"http://{SERVER_HOST}:{NGINX_S3_PORT}"
 BUCKET = S3_BUCKET
 
 

@@ -25,7 +25,7 @@ from server_registry import (
     dependency_closure,
     get_server,
     read_manifest,
-    selected_specs,
+    registered_specs,
 )
 from settings import (
     CA_CERT,
@@ -268,7 +268,7 @@ _HAVE_IPV6_LOOPBACK = _ipv6_loopback_available()
 def requires_ipv6_loopback():
     """Skip the test cleanly when the host has no usable IPv6 loopback ::1."""
     if not _HAVE_IPV6_LOOPBACK:
-        pytest.skip("IPv6 loopback ::1 not available on this host")
+        pytest.skip("IPv6 loopback ::1 not available on this host")  # net-literal-allow: IPv6 loopback skip-message prose
 
 
 @pytest.fixture(scope="session")
@@ -293,49 +293,17 @@ def requires_krb5():
         pytest.skip(f"no krb5 client credential cache at {KRB5_CCACHE}")
 
 
-def _selected_tests_do_not_need_server(config) -> bool:
-    """Return True when the requested pytest target is static-only."""
-    raw_args = getattr(config, "args", ()) or ()
-    no_server_files = {
-        "test_aio_waitresp.py",
-        "test_cross_protocol_shared_helpers.py",
-        "test_ipv6_fallback.py",
-        "test_loss_sweep_gsi.py",
-        "test_tools_resilience.py",
-        "test_net_resilience.py",
-        "test_official_brix_resilience.py",
-        "test_phase0_guardrails.py",
-        "test_phase1_commodity_libraries.py",
-        "test_plan6_guardrails.py",
-        "test_tpc_token_mode.py",
-    }
-    saw_test_path = False
-
-    for arg in raw_args:
-        if arg.startswith("-"):
-            continue
-
-        path = arg.split("::", 1)[0]
-        if not path.endswith(".py"):
-            return False
-
-        saw_test_path = True
-        if os.path.basename(path) not in no_server_files:
-            return False
-
-    return saw_test_path
-
-
 def _should_skip_local_lifecycle(config) -> bool:
     """Whether pytest should NOT manage (wipe / start-all / stop-all / rmtree)
-    the local fleet this session: explicitly told to skip, the selected tests
-    need no server, or a fleet is already running and we have not been told to
-    take ownership.  Shared by session setup and teardown so both sides agree on
-    who owns the lifecycle -- the asymmetry that previously let setup attach to a
-    running fleet while teardown still tore it down."""
+    the local fleet this session: explicitly told to skip, or a fleet is already
+    running and we have not been told to take ownership.  Shared by session
+    setup and teardown so both sides agree on who owns the lifecycle -- the
+    asymmetry that previously let setup attach to a running fleet while teardown
+    still tore it down.  (A run whose collected tests need no server still owns
+    the lifecycle, but its post-collection boot set is empty -- zero servers
+    start -- so there is nothing to special-case here; see _specs_to_boot.)"""
     return (
         os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-        or _selected_tests_do_not_need_server(config)
         or _external_fleet_attached()
     )
 
@@ -458,6 +426,14 @@ def _setup_session():
     import fleet_prep  # noqa: PLC0415 — pure-Python session artifact generator
     fleet_prep.prepare()
 
+    # Freeze the ONE session-shared nginx binary now — after the tree wipe and
+    # before any server starts — so every fleet spawn and every xdist worker
+    # execs the same immutable copy (never a per-process private one, never the
+    # relinkable live objs/nginx).  Later callers reuse this copy.
+    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
+    from settings import NGINX_BIN  # noqa: PLC0415
+    freeze_nginx(NGINX_BIN)
+
 
 def _reap_leaked_test_servers():
     """Kill any nginx/xrootd/krb5kdc whose command line references a test path.
@@ -573,8 +549,7 @@ def pytest_sessionstart(session):
     # started the fleet, so a worker probing the port would always see it
     # "running" and wrongly skip the chdir.  Lifecycle ownership (the destructive
     # wipe/start/stop) is a separate, controller-only concern.
-    no_local_work = (os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-                     or _selected_tests_do_not_need_server(session.config))
+    no_local_work = os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
     if hasattr(session.config, "workerinput"):
         if not REMOTE_SERVER and not no_local_work:
             _chdir_scratch()
@@ -687,49 +662,91 @@ def _is_slow_module(name):
 # specs — the main nginx and the reference xrootd variants) is free: it boots
 # every session and is reached through session fixtures, so no test declares it.
 #
-# Hard-fails collection by default now that the tree is fully declared; set
-# REGISTRY_STRICT_DECLARATIONS=0 to downgrade to a report-only warning (writes
-# tests/.registry_declare_report.txt) while migrating a batch of new tests.
-# Because the tree is fully declared, the fleet boots only the *declared union*
-# by default rather than all ~120 specs; REGISTRY_SUBSET_BOOT=0 restores the
-# historical boot-everything behavior (see _specs_to_boot).
-_STRICT_DECLARATIONS = os.environ.get("REGISTRY_STRICT_DECLARATIONS", "1") != "0"
+# Hard-fails collection: the tree is fully declared, so any collected test that
+# references a fleet server's port constant without declaring it (or inheriting
+# it from the always-on backbone) aborts the run.  Because the tree is fully
+# declared, the fleet also boots only the *declared union* — the dependency
+# closure of the collected seed — never the whole registry (see _specs_to_boot).
 _declare_usage_cache: dict = {}
-_always_on_cache = None
+_conftest_fixture_map_cache = None
 
 
-def _always_on_specs() -> set:
-    """Servers that must boot regardless of markers: the always-on backbone plus
-    every dedicated spec a conftest fixture reaches (session infrastructure a
-    test uses without naming its port).  Cached — computed once per session."""
-    global _always_on_cache
-    if _always_on_cache is None:
+def _conftest_fixture_spec_map() -> dict:
+    """Fixture-name → specs-it-reaches for this conftest's session fixtures.
+
+    Backbone KEPT (unlike the gate's notion of "free"): a test reaches a core
+    server only through a session fixture it requests, and — with the forced
+    always-on backbone retired (zero-boot default) — this map is how the boot
+    set learns to start it.  Cached: the conftest source is parsed once."""
+    global _conftest_fixture_map_cache
+    if _conftest_fixture_map_cache is None:
         try:
             with open(os.path.abspath(__file__), encoding="utf-8", errors="ignore") as fh:
                 conftest_src = fh.read()
         except OSError:
             conftest_src = ""
-        _always_on_cache = (
-            set(fleet_declares.backbone_specs())
-            | set(fleet_declares.conftest_fixture_specs(conftest_src))
-        )
-    return _always_on_cache
+        _conftest_fixture_map_cache = fleet_declares.conftest_fixture_spec_map(conftest_src)
+    return _conftest_fixture_map_cache
+
+
+def _conftest_fixture_specs_for(items) -> set:
+    """Specs the collected items reach through conftest session fixtures.
+
+    For each item, intersect its resolved fixture closure
+    (``item._fixtureinfo.names_closure`` — every fixture pytest will set up for
+    it, transitively) with the conftest fixture→spec map, and union the results.
+    A test that requests no server-touching conftest fixture contributes
+    nothing — the mechanism behind zero-boot for no-server tests."""
+    fmap = _conftest_fixture_spec_map()
+    if not fmap:
+        return set()
+    specs: set = set()
+    for item in items:
+        info = getattr(item, "_fixtureinfo", None)
+        closure = getattr(info, "names_closure", ()) if info is not None else ()
+        for fixture_name in closure:
+            hit = fmap.get(fixture_name)
+            if hit:
+                specs |= hit
+    return specs
+
+
+def _required_specs_for(items) -> set:
+    """Specs the collected items reach by *naming a port constant* — statically
+    attributed (backbone and dedicated alike) by ``fleet_declares.analyze_source``.
+
+    This covers a test (or a fixture defined in the test's own module) that
+    references a server's ``settings`` port directly, without going through a
+    conftest fixture.  Unioned with declared markers, autouse specs, and the
+    conftest-fixture closure to form the boot seed."""
+    specs: set = set()
+    for item in items:
+        usage = _module_test_usage(item.fspath).get(_item_qualname(item))
+        if usage is not None:
+            specs |= usage.required
+        specs |= _item_declared_specs(item)
+    return specs
 
 
 def _specs_to_boot(items):
     """The spec set the session fleet should launch.
 
-    Default: the *declared union* — the always-on set plus the dependency
-    closure of every server the collected tests declare, and nothing else — so
-    a single-file run starts only what that file needs.  Set
-    ``REGISTRY_SUBSET_BOOT=0`` to boot every registered spec (the historical
-    pre-declaration behavior; xdist runs also boot everything, from
-    pytest_sessionstart, because their controller never collects)."""
-    if os.environ.get("REGISTRY_SUBSET_BOOT", "1") == "0":
-        from server_registry import registered_specs
-        return registered_specs()
-    return selected_specs(
-        items, always_on=_always_on_specs() | _autouse_specs_for(items))
+    Zero-boot: boot exactly the dependency closure of the *seed* — the union,
+    over collected items, of the servers each one reaches by a declared
+    ``registry_server`` marker, a named port constant, an autouse fixture, or a
+    conftest session fixture in its fixture closure.  An empty seed boots
+    *nothing* (a no-server run starts zero servers); a single-file run starts
+    only that file's closure.  (xdist runs boot the whole registry up front from
+    pytest_sessionstart instead, because their controller never collects.)"""
+    seed = (
+        _required_specs_for(items)
+        | _autouse_specs_for(items)
+        | _conftest_fixture_specs_for(items)
+    )
+    if not seed:
+        return []
+    closure = dependency_closure(seed)
+    return [spec for spec in registered_specs() if spec.name in closure]
 
 
 def _autouse_specs_for(items) -> set:
@@ -829,22 +846,7 @@ def _enforce_server_declarations(config, items):
         "they do not declare — add @pytest.mark.registry_server(<name>) for each:\n"
         + "\n".join(lines)
     )
-    try:
-        with open(os.path.join(os.path.dirname(__file__),
-                               ".registry_declare_report.txt"), "w",
-                  encoding="utf-8") as fh:
-            fh.write(report + "\n")
-    except OSError:
-        pass
-    if _STRICT_DECLARATIONS:
-        raise pytest.UsageError(report)
-    import warnings
-    warnings.warn(
-        f"server-declaration gate (report-only): {len(lines)} test(s) use an "
-        "undeclared fleet server; see tests/.registry_declare_report.txt. Set "
-        "REGISTRY_STRICT_DECLARATIONS=1 to hard-fail collection.",
-        stacklevel=2,
-    )
+    raise pytest.UsageError(report)
 
 
 def pytest_collection_modifyitems(config, items):

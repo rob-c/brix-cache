@@ -26,7 +26,8 @@ from mu_authz_lib import cache_state, creds, ports, principals
 from mu_authz_lib.adapters import measure_root
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-mu-cache")]
 
 _REL = "prot/secret.dat"
 _PATH = "/" + _REL

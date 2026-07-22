@@ -27,6 +27,7 @@ import subprocess
 import sys
 
 import pytest
+from settings import BIND_HOST, BIND_HOST6, HOST6
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -43,7 +44,7 @@ def _ipv6_loopback_ok():
     """True if ::1 loopback can be bound — the shim's v6 candidate needs it."""
     try:
         s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        s.bind(("::1", 0))
+        s.bind((BIND_HOST6, 0))
         s.close()
         return True
     except OSError:
@@ -111,7 +112,7 @@ def test_netpref_state_machine():
 def test_connect_falls_back_and_demotes():
     """Broken v6 + working v4 ⇒ connect succeeds, session demotes, logs once."""
     if not _ipv6_loopback_ok():
-        pytest.skip("no usable ::1 loopback on this host")
+        pytest.skip(f"no usable {HOST6} loopback on this host")
     p = _run("connect", preload=True)
     err = p.stderr.decode(errors="replace")
     assert p.returncode == 0, err
@@ -122,7 +123,7 @@ def test_connect_falls_back_and_demotes():
 def test_opt_out_keeps_retrying_ipv6():
     """XRDC_NO_IPV6_FALLBACK: connect still works but never demotes / logs."""
     if not _ipv6_loopback_ok():
-        pytest.skip("no usable ::1 loopback on this host")
+        pytest.skip(f"no usable {HOST6} loopback on this host")
     p = _run("disabled", preload=True, env_extra={"XRDC_NO_IPV6_FALLBACK": "1"})
     err = p.stderr.decode(errors="replace")
     assert p.returncode == 0, err
@@ -146,7 +147,7 @@ def test_established_ipv6_connection_drop_demotes():
     the wire (peer drops it mid-read) drops the session to IPv4-only, logged once.
     This is what makes a FUSE mount keep working after IPv6 goes bad mid-session."""
     if not _ipv6_loopback_ok():
-        pytest.skip("no usable ::1 loopback on this host")
+        pytest.skip(f"no usable {HOST6} loopback on this host")
     p = _run("wireerror")
     err = p.stderr.decode(errors="replace")
     assert p.returncode == 0, err
@@ -159,7 +160,7 @@ def test_self_heal_on_ipv6_only_host():
     revert to dual-stack and still connect over IPv6 — so an optimistic wire-error
     demotion can never strand a mount whose only working path is IPv6."""
     if not _ipv6_loopback_ok():
-        pytest.skip("no usable ::1 loopback on this host")
+        pytest.skip(f"no usable {HOST6} loopback on this host")
     p = _run("selfheal", preload=True)
     err = p.stderr.decode(errors="replace")
     assert p.returncode == 0, err
@@ -173,11 +174,11 @@ def test_real_tool_binary_downgrades():
     the test harness. wait41 does a bare brix_tcp_connect to the sentinel host;
     with an IPv4-only listener it must report ready AND log the downgrade once."""
     if not _ipv6_loopback_ok():
-        pytest.skip("no usable ::1 loopback on this host")
+        pytest.skip(f"no usable {HOST6} loopback on this host")
 
     lst = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     lst.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    lst.bind(("127.0.0.1", 0))
+    lst.bind((BIND_HOST, 0))
     port = lst.getsockname()[1]
     lst.listen(8)
     try:

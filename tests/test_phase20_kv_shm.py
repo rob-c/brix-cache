@@ -19,11 +19,17 @@ from pathlib import Path
 
 import pytest
 
+from config_parse import nginx_t
+from fleet_lifecycle_ports import (
+    SHARED_PARSE_PLACEHOLDER_PORT,
+    lifecycle_ports_for,
+)
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
-from settings import free_port, free_ports, HOST
+from settings import HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-phase20")]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -82,27 +88,26 @@ def test_phase20_session_registry_is_runtime_sized():
 # --------------------------------------------------------------------------- #
 
 @pytest.fixture()
-def kv_check():
-    """Config-test harness: render the committed stream template with the given
+def kv_check(tmp_path):
+    """Config-parse check: render the committed stream template with the given
     top-level zone lines and per-server directives, run nginx -t, and return
-    (rc, combined stdout+stderr) — the emerg messages ride stderr."""
-    harness = LifecycleHarness()
+    (rc, combined stdout+stderr) — the emerg messages ride stderr.  Parse-only
+    (config_parse.nginx_t): no registry spec, no bound listener — the {PORT}
+    placeholder is the non-binding shared parse placeholder."""
 
     def run(stream_zones, server_body):
-        name = f"lc-phase20-kv-{next(_SEQ)}"
-        harness.register(NginxInstanceSpec(
-            name=name, template="nginx_phase20_kv_stream.conf",
-            protocol="root", readiness="tcp",
-            template_values={"STREAM_ZONES": stream_zones,
-                             "SERVER_BODY": server_body}))
-        harness.launcher.render_nginx(harness.spec(name))
-        r = harness.nginx_test(name, check=False)
+        root = tmp_path / f"kv{next(_SEQ)}"
+        data = root / "data"
+        logs = root / "logs"
+        data.mkdir(parents=True)
+        logs.mkdir(parents=True)
+        r = nginx_t("nginx_phase20_kv_stream.conf", root,
+                    PORT=SHARED_PARSE_PLACEHOLDER_PORT,
+                    DATA_ROOT=str(data), LOG_DIR=str(logs),
+                    STREAM_ZONES=stream_zones, SERVER_BODY=server_body)
         return r.returncode, (r.stdout or "") + (r.stderr or "")
 
-    try:
-        yield run
-    finally:
-        harness.close()
+    return run
 
 
 # --------------------------------------------------------------------------- #
@@ -154,13 +159,13 @@ def test_rate_limit_requires_rate_and_burst(kv_check):
 # 3. Functional: HTTP IP rate limit + KV Prometheus metrics                    #
 # --------------------------------------------------------------------------- #
 
-_WEBDAV_PORT_ENV = os.environ.get("TEST_PHASE20_WEBDAV_PORT")
-_METRICS_PORT_ENV = os.environ.get("TEST_PHASE20_METRICS_PORT")
-if _WEBDAV_PORT_ENV is None and _METRICS_PORT_ENV is None:
-    WEBDAV_PORT, METRICS_PORT = free_ports(2)
-else:
-    WEBDAV_PORT = int(_WEBDAV_PORT_ENV) if _WEBDAV_PORT_ENV else free_port()
-    METRICS_PORT = int(_METRICS_PORT_ENV) if _METRICS_PORT_ENV else free_port()
+# WEBDAV_PORT (primary) + METRICS_PORT (embedded listen) are owned by the
+# lifecycle ledger (fleet_lifecycle_ports.lc-phase20-ratelimit); the live
+# rate_limited_server fixture binds those exact ports, so the module globals the
+# test bodies dial must come from the same ledger entry.
+_P20_PORT, _P20_EXTRA = lifecycle_ports_for("lc-phase20-ratelimit")
+WEBDAV_PORT = _P20_PORT
+METRICS_PORT = _P20_EXTRA["METRICS_PORT"]
 
 
 def _wait_port(port, timeout=10):
@@ -181,9 +186,7 @@ def rate_limited_server():
         harness.start(NginxInstanceSpec(
             name="lc-phase20-ratelimit",
             template="nginx_phase20_kv_http.conf",
-            protocol="http", readiness="tcp",
-            port=WEBDAV_PORT,
-            extra_ports={"METRICS_PORT": METRICS_PORT}))
+            protocol="http", readiness="tcp"))
         assert _wait_port(METRICS_PORT), "metrics listener did not come up"
         yield
     finally:

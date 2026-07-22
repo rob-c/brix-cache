@@ -21,8 +21,10 @@ import time
 
 import pytest
 
-from settings import free_port, HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
+from ephemeral_port import free_port          # firefly UDP sink (in-process mock)
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 
 FF_PORT = int(os.environ.get("TEST_PMARK_FF_PORT") or free_port())
 
@@ -33,6 +35,7 @@ pytestmark = [
         not os.path.exists(NGINX_BIN) or shutil.which("curl") is None,
         reason="nginx binary (set NGINX_BIN) or curl not available",
     ),
+    pytest.mark.xdist_group("lc-pmark"),
 ]
 
 
@@ -178,7 +181,7 @@ def _echo_conf(tmp_path, echo_directive):
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{free_port()}; brix_root on; brix_auth none;
+    listen {BIND_HOST}:{PARSE_PLACEHOLDER_PORT}; brix_root on; brix_auth none;
     brix_storage_backend posix:{root};
     brix_pmark on; {echo_directive}
 }} }}

@@ -12,7 +12,8 @@ import time
 import requests
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKE_TOKEN = REPO_ROOT / "utils" / "make_token.py"
@@ -66,7 +67,7 @@ def write_anon_origin(prefix: Path, port: int) -> Path:
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {root}; brix_auth none; }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {root}; brix_auth none; }} }}
 """,
         encoding="utf-8",
     )
@@ -82,7 +83,7 @@ def write_token_origin(prefix: Path, port: int, token_dir: Path) -> Path:
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {root};
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth token; brix_token_jwks {token_dir / 'jwks.json'};
     brix_token_issuer https://test.example.com; brix_token_audience nginx-xrootd; }} }}
 """,
@@ -113,9 +114,9 @@ def write_s3_node(
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 http {{
-{credential_block}    server {{ listen 127.0.0.1:{port}; location / {{
+{credential_block}    server {{ listen {BIND_HOST}:{port}; location / {{
         brix_s3 on; brix_export {root}; brix_s3_bucket testbucket;
-        brix_storage_backend root://127.0.0.1:{origin_port};
+        brix_storage_backend root://{HOST}:{origin_port};
 {credential_ref}        brix_s3_cache_root {cache};
     }} }}
 }}
@@ -134,7 +135,7 @@ def start(nginx_bin: str, name: str, prefix: Path, conf: Path, started: list[Pat
 
 
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
-    origin_port, s3_port, token_origin_port, cred_s3_port = free_ports(4)
+    origin_port, s3_port, token_origin_port, cred_s3_port = cmdscript_ports("s3_storage_backend")
     started: list[Path] = []
     results: list[tuple[bool, str]] = []
 
@@ -153,7 +154,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
 
     try:
         time.sleep(1)
-        r = requests.get(f"http://127.0.0.1:{s3_port}/testbucket/obj.bin", timeout=30)
+        r = requests.get(f"http://{HOST}:{s3_port}/testbucket/obj.bin", timeout=30)
         expected = (anon_origin / "root" / "obj.bin").read_bytes()
         results.append(
             (
@@ -178,7 +179,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
                 results.append((False, message))
                 return results
         time.sleep(1)
-        secure = requests.get(f"http://127.0.0.1:{cred_s3_port}/testbucket/sec.bin", timeout=30)
+        secure = requests.get(f"http://{HOST}:{cred_s3_port}/testbucket/sec.bin", timeout=30)
         secure_expected = (token_origin / "root" / "sec.bin").read_bytes()
         results.append(
             (

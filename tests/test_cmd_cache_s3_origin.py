@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_s3_origin import XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_s3_origin")
+
 
 def test_cache_s3_origin_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

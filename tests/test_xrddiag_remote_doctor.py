@@ -32,9 +32,11 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import HOST, BIND_HOST6, HOST6, url_host, free_port
+from settings import HOST, BIND_HOST6, HOST6, url_host
+from fleet_lifecycle_ports import lifecycle_ports_for
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-rdoctor")]
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -89,8 +91,10 @@ def anon(lifecycle, doctor, tmp_path_factory):
     data.mkdir()
     (data / "big.bin").write_bytes(os.urandom(4 * 1024 * 1024))
     (data / "small.txt").write_bytes(b"hello\n")
-    # Fix the port up front so the ::1 listen can share it with the v4 listen.
-    port = free_port()
+    # Fix the port up front (from the lifecycle ledger — the same fixed number
+    # LifecycleHarness.register will assign) so the ::1 listen shares it with the
+    # v4 listen instead of a divergent dynamic port.
+    port, _ = lifecycle_ports_for("lc-rdoctor-anon")
     v6 = _have_ipv6_loopback()
     v6_listen = f"listen [{BIND_HOST6}]:{port};" if v6 else ""
     ep = lifecycle.start(NginxInstanceSpec(
@@ -101,7 +105,7 @@ def anon(lifecycle, doctor, tmp_path_factory):
         readiness="tcp",
         data_root=str(data),
         template_values={"V6_LISTEN": v6_listen},
-        reason="Anon root:// on v4 (+::1 same port) for the remote-doctor battery.",
+        reason="Anon root:// on v4 (+::1 same port) for the remote-doctor battery.",  # net-literal-allow: IPv6 loopback spec reason text
     ))
     yield {"port": ep.port, "v6": v6}
 
@@ -170,7 +174,7 @@ def test_v4_v6_asymmetry_detector(anon):
         pytest.skip("no IPv6 loopback on this host")
     port = anon["port"]
     if not _port_up(HOST6, port, family=socket.AF_INET6):
-        pytest.skip("server not reachable over ::1")
+        pytest.skip("server not reachable over ::1")  # net-literal-allow: IPv6 loopback reachability skip message
     p = _run("remote-doctor",
              f"root://{HOST}:{port}//big.bin",
              f"root://{url_host(HOST6)}:{port}//big.bin",

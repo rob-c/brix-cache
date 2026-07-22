@@ -86,6 +86,19 @@ typedef struct {
     unsigned        dirty:1;              /* size/mtime need catalog write-back */
 } pblock_obj_t;
 
+/* ---- instance lifecycle (sd_pblock_lifecycle.c) -------------------------- *
+ * The .init/.cleanup vtable slots, named in the descriptor in sd_pblock.c. */
+ngx_int_t sd_pblock_init(brix_sd_instance_t *inst, void *driver_conf);
+void      sd_pblock_cleanup(brix_sd_instance_t *inst);
+
+/* ---- object open/close lifecycle (sd_pblock_open.c) ---------------------- *
+ * The .open/.close vtable slots, named in the descriptor in sd_pblock.c
+ * (sd_pblock_open_as, the identity-parameterised create boundary the *_cred
+ * slots call, is declared with the owner-parameterized internals below). */
+brix_sd_obj_t *sd_pblock_open(brix_sd_instance_t *inst, const char *path,
+    int sd_flags, mode_t mode, int *err_out);
+ngx_int_t sd_pblock_close(brix_sd_obj_t *obj);
+
 /* ---- worker-safe byte I/O (sd_pblock_io.c) ------------------------------- */
 ssize_t sd_pblock_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off);
 ssize_t sd_pblock_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len,

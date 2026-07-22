@@ -28,6 +28,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import HOST
 
 pytestmark = pytest.mark.timeout(360)
 
@@ -135,6 +136,6 @@ def test_mkdir_resilient_creates(nginx):
     assert (r.returncode == 0
             or "ItExists" in r.stderr or "file exists" in r.stderr), r.stderr[-300:]
     # Confirm it really landed (direct, no proxy).
-    chk = _run([servers.XRDFS, f"root://127.0.0.1:{nginx.port}/", "stat", new],
+    chk = _run([servers.XRDFS, f"root://{HOST}:{nginx.port}/", "stat", new],
                window=0)
     assert chk.returncode == 0, chk.stderr[-200:]

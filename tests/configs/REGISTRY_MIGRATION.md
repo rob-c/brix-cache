@@ -58,21 +58,22 @@ fleet server it did not *declare*.
   reached through session fixtures, so no test declares them. Only *dedicated*
   specs need a marker.
 
-The gate is hard-fail by default. Set `REGISTRY_STRICT_DECLARATIONS=0` to
-downgrade to a report-only warning (it writes `tests/.registry_declare_report.txt`
-listing every undeclared usage) while migrating a batch of new tests, then re-
-enable it. The declarations are applied tree-wide by the idempotent codemod
+The gate hard-fails collection unconditionally — the tree is fully declared, so
+any undeclared usage is a real omission, not a migration in progress. (The
+`REGISTRY_STRICT_DECLARATIONS` report-only downgrade and its
+`tests/.registry_declare_report.txt` were retired in Phase 7 of the fixed-port
+refactor.) The declarations are applied tree-wide by the idempotent codemod
 `tools/add_registry_markers.py` (`--apply` to write, no args to preview).
 
-Because every test now declares its servers, the fleet boots only the
-**declared union** by default — the backbone plus the closure of every spec the
-collected tests declare — instead of all ~120 instances, so a single-file run
-starts only what that file needs. The start happens post-collection
-(`pytest_collection_finish`), after `-m`/`-k` deselection has settled, so the
-subset is exact. Set `REGISTRY_SUBSET_BOOT=0` to boot every registered spec
-(the historical behavior). Two paths always boot the full fleet regardless:
-xdist runs (`-n`; the controller never collects, so it starts everything from
-`pytest_sessionstart`) and the out-of-band CLI
+Because every test declares its servers, the fleet boots only the **declared
+union** — the backbone plus the closure of every spec the collected tests
+declare — instead of all ~120 instances, so a single-file run starts only what
+that file needs. The start happens post-collection (`pytest_collection_finish`),
+after `-m`/`-k` deselection has settled, so the subset is exact. This is the
+only mode (the `REGISTRY_SUBSET_BOOT=0` boot-everything opt-out was retired in
+Phase 7). Two paths still boot the full fleet regardless: xdist runs (`-n`; the
+controller never collects, so it starts everything from `pytest_sessionstart`)
+and the out-of-band CLI
 (`python3 -m cmdscripts.manage_test_servers start-all`) — and a session that
 attaches to such an out-of-band fleet neither starts nor stops anything, as
 before.

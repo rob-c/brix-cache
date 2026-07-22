@@ -29,6 +29,7 @@ import zlib
 import pytest
 import requests
 import urllib3
+from settings import HOST
 
 urllib3.disable_warnings()
 
@@ -36,7 +37,7 @@ BUCKET = "testbucket"
 # Fixed port of the fleet "compress" instance S3 surface (see
 # tests/lib/dedicated.sh -> start_all_dedicated + tests/configs/nginx_compress.conf).
 COMPRESS_S3_PORT = int(os.environ.get("TEST_COMPRESS_S3_PORT", "12961"))
-BASE_URL = f"http://127.0.0.1:{COMPRESS_S3_PORT}"
+BASE_URL = f"http://{HOST}:{COMPRESS_S3_PORT}"
 _POOL = urllib3.PoolManager()
 
 

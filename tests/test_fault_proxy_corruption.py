@@ -35,6 +35,7 @@ import subprocess
 import sys
 
 import pytest
+from settings import HOST
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "resilience"))
 from resilience.servers import (  # noqa: E402
@@ -111,7 +112,7 @@ def _xrootd_corrupt_link():
         src = seed_file(srv.data, "/big.bin", FILE_MB * 1024 * 1024)
         ref = _md5(src)
         with FaultProxy(srv.port) as fp:
-            yield fp, f"root://127.0.0.1:{fp.listen}//big.bin", ref
+            yield fp, f"root://{HOST}:{fp.listen}//big.bin", ref
 
 
 @pytest.fixture(scope="module")
@@ -122,7 +123,7 @@ def _nginx_corrupt_link():
         src = seed_file(srv.data, "/big.bin", FILE_MB * 1024 * 1024)
         ref = _md5(src)
         with FaultProxy(srv.port) as fp:
-            yield fp, f"root://127.0.0.1:{fp.listen}//big.bin", ref
+            yield fp, f"root://{HOST}:{fp.listen}//big.bin", ref
 
 
 @pytest.fixture

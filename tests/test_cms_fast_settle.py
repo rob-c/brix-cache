@@ -34,13 +34,21 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# The data node binds a fixed ledger port (lc-cms-fast-settle-0, 30366 — each test
+# starts exactly one node, so the per-fixture index is always 0); xdist_group
+# serialises the file so that fixed port never has two concurrent drivers.  The
+# StubManager the node DIALS is an in-process Python mock and keeps its own
+# ephemeral _free_port bind (Phase-6 exempt — a client-side listener, not a
+# registry server).
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-fast-settle")]
 
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -59,7 +67,7 @@ class StubManager:
     def start(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.bind(("127.0.0.1", self.port))
+        self._sock.bind((BIND_HOST, self.port))
         self._sock.listen(16)
         self._sock.settimeout(0.2)
         self._thread = threading.Thread(target=self._accept_loop, daemon=True)

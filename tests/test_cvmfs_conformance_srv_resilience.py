@@ -51,6 +51,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, _spawn_mock, srv_instance
+from settings import HOST
 
 REPO = "test.cern.ch"
 
@@ -151,7 +152,7 @@ def _two_origin(block, primary_web, secondary_web, **knobs):
     "mock 0 is the primary" only holds under static selection."""
     knobs.setdefault("origin_select", "static")
     pa, pb = block.mock(), block.mock()
-    origins = f"http://127.0.0.1:{pa}|http://127.0.0.1:{pb}"
+    origins = f"http://{HOST}:{pa}|http://{HOST}:{pb}"
     with srv_instance(block, n_mocks=0, origins=origins, **knobs) as srv:
         srv.mock_ports = [pa, pb]
         if primary_web is not None:
@@ -173,7 +174,7 @@ def srv_drip(web, block, srv1):
     """stall_bytes floor at the 1 B/s default: a ~5 B/s slowdrip must survive.
     Shares srv1's mock (the module block has 10 mock slots and objects are
     allocated uniquely module-wide, so the shared origin log stays exact)."""
-    origins = f"http://127.0.0.1:{srv1.mock_ports[0]}"
+    origins = f"http://{HOST}:{srv1.mock_ports[0]}"
     with srv_instance(block, n_mocks=0, origins=origins, **DRIP) as srv:
         srv.mock_ports = [srv1.mock_ports[0]]
         yield srv
@@ -230,7 +231,7 @@ def srv_attempt(web, block):
 def _get(port, path, timeout=25):
     """(status, body); HTTP errors come back as (code, body), never raise."""
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}",
+        with urllib.request.urlopen(f"http://{HOST}:{port}{path}",
                                     timeout=timeout) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
@@ -241,7 +242,7 @@ def _connections(mock_port):
     """Distinct TCP connections the mock accepted since reset-log, excluding
     the control connection making this very query."""
     with urllib.request.urlopen(
-            f"http://127.0.0.1:{mock_port}/ctl/connections", timeout=10) as r:
+            f"http://{HOST}:{mock_port}/ctl/connections", timeout=10) as r:
         return json.load(r)["connections"] - 1
 
 
@@ -255,7 +256,7 @@ def _clear_fault(srv, mock=0):
 
 def _abort_get(port, path, after=0.5):
     """Start a GET and slam the client connection shut (detached-fill probe)."""
-    s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    s = socket.create_connection((HOST, port), timeout=10)
     s.sendall(f"GET {path} HTTP/1.1\r\nHost: x\r\n\r\n".encode())
     time.sleep(after)
     s.close()
@@ -267,7 +268,7 @@ def _raw_get_clean(port, path, timeout=15):
     ECONNRESET — the server must always FIN, never RST, whatever the origin
     did. Stops at Content-Length (the hold-expiry 504 deliberately keeps the
     connection alive for a same-socket retry, so EOF may never come)."""
-    s = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+    s = socket.create_connection((HOST, port), timeout=timeout)
     s.sendall(f"GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".encode())
     raw, reset, need = b"", False, None
     try:
@@ -418,7 +419,7 @@ def test_persistent_reset_expires_hold_504(srv1, alloc):
     _fault(srv1, "reset", 99, path)
     t0 = time.monotonic()
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{srv1.nginx_port}{path}",
+        with urllib.request.urlopen(f"http://{HOST}:{srv1.nginx_port}{path}",
                                     timeout=25) as r:
             status, retry_after = r.status, None
     except urllib.error.HTTPError as e:
@@ -443,7 +444,7 @@ def test_hold_expiry_keepalive_same_socket_retry(srv1, alloc):
     socket and gets the object once the origin heals (holdopen contract)."""
     path, body = alloc.std()
     _fault(srv1, "reset", 99, path)
-    conn = http.client.HTTPConnection("127.0.0.1", srv1.nginx_port, timeout=30)
+    conn = http.client.HTTPConnection(HOST, srv1.nginx_port, timeout=30)
     try:
         conn.request("GET", path)
         r1 = conn.getresponse()

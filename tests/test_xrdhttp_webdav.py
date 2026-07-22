@@ -373,7 +373,7 @@ class TestSSRFPolicy:
         result = _curl_no_cert(
             "-X", "COPY",
             f"https://{url_host(HOST)}:{port}/should-not-accept.txt",
-            "-H", "Source: https://127.0.0.1:443/internal-secret",
+            "-H", "Source: https://127.0.0.1:443/internal-secret",  # net-literal-allow: SSRF Source header target under test
             "-H", "Credential: none",
             "-o", "/dev/null", "-w", "%{http_code}",
         )

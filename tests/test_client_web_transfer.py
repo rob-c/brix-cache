@@ -25,7 +25,8 @@ import pytest
 from settings import HOST, BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-client-web-transfer")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -89,19 +90,18 @@ def web_servers(lifecycle, _client_built, tmp_path):
     dav_data.mkdir()
     s3_data.mkdir()
     (s3_data / "testbucket").mkdir()
-    s3_port = _free_port()
 
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-client-web-transfer",
         template="nginx_lc_client_web_transfer.conf",
         protocol="http",
-        extra_ports={"S3_PORT": s3_port},
         template_values={"BIND_HOST": BIND_HOST,
                          "WEBDAV_DIR": str(dav_data),
                          "S3_DIR": str(s3_data),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
         reason="webdav+s3 client transfer"))
+    s3_port = ep.extra_ports["S3_PORT"]
 
     # Harness waits on the WebDAV {PORT} only; poll the S3 port too.
     for _ in range(50):

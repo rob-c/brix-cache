@@ -61,7 +61,7 @@ pytestmark = pytest.mark.skip(
 # (brix_webdav_proxy_upstream http://[::1]:11245). Default upstream port is
 # also 11245; if the harness ever moves the upstream port the proxy config must
 # move with it — the gating assertions key off this exact literal.
-UPSTREAM_HOST_BRACKETED = f"[::1]:{IPV6_UPSTREAM_PORT}"
+UPSTREAM_HOST_BRACKETED = f"[{HOST6}]:{IPV6_UPSTREAM_PORT}"
 UPSTREAM_HOST_BARE = f"::1:{IPV6_UPSTREAM_PORT}"
 
 # Custom log_format ($http_host) on the upstream instance, written here by
@@ -94,9 +94,9 @@ def _require_ipv6_instances(requires_ipv6_loopback):
     so an instance-down condition is a clean skip, never a failure.
     """
     if not reachable6(IPV6_PROXY_PORT):
-        pytest.skip(f"IPv6 webdav proxy not up on [::1]:{IPV6_PROXY_PORT}")
+        pytest.skip(f"IPv6 webdav proxy not up on [{HOST6}]:{IPV6_PROXY_PORT}")
     if not reachable6(IPV6_UPSTREAM_PORT):
-        pytest.skip(f"IPv6 webdav upstream not up on [::1]:{IPV6_UPSTREAM_PORT}")
+        pytest.skip(f"IPv6 webdav upstream not up on [{HOST6}]:{IPV6_UPSTREAM_PORT}")
 
 
 # --------------------------------------------------------------------------- #
@@ -285,7 +285,7 @@ class TestProxyHostHeaderBracketing:
         host_field = _assert_proxy_sent_bracketed_host(marker)
         # The bracketed form embeds the IPv6 literal between '[' and ']'.
         assert host_field.startswith("[") and "]" in host_field
-        assert "::1" in host_field
+        assert "::1" in host_field  # net-literal-allow: asserting bare ::1 present in returned host field
 
 
 # --------------------------------------------------------------------------- #

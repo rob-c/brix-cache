@@ -40,6 +40,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
+from settings import BIND_HOST, HOST
+
 WORK = sys.argv[1] if len(sys.argv) > 1 else "/tmp/e2e_redteam"
 NGINX = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 # repo root = .../tests/userns/e2e_redteam.py -> up 3.  The native root:// clients
@@ -104,7 +106,7 @@ def mint(key, sub, scope=WRITE_SCOPE, **over):
 
 def free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -130,7 +132,7 @@ def ensure_traversable(path):
 
 
 def http(method, path, port, token=None, data=None, hdrs=None):
-    url = f"http://127.0.0.1:{port}{path}"
+    url = f"http://{HOST}:{port}{path}"
     req = urllib.request.Request(url, method=method, data=data)
     if token:
         req.add_header("Authorization", f"Bearer {token}")
@@ -150,7 +152,7 @@ def http_keepalive(reqs, port):
     TCP connection (http.client reuses it).  Used to prove the per-request
     impersonation principal does not LEAK across requests pipelined on the same
     worker connection.  Returns [(status, body), ...]."""
-    conn = HTTPConnection("127.0.0.1", port, timeout=8)
+    conn = HTTPConnection(HOST, port, timeout=8)
     out = []
     try:
         for method, path, token, data, extra in reqs:
@@ -177,7 +179,7 @@ def raw_http(raw, port, read_timeout=4.0):
     s.settimeout(read_timeout)
     buf = b""
     try:
-        s.connect(("127.0.0.1", port))
+        s.connect((HOST, port))
         s.sendall(raw if isinstance(raw, bytes) else raw.encode())
         while True:
             chunk = s.recv(65536)
@@ -206,7 +208,7 @@ def s3_presign(method, key, port, expires=300, access_key="alice", when=None,
     now = when or dt.datetime.now(dt.timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date = now.strftime("%Y%m%d")
-    host = f"127.0.0.1:{port}"
+    host = f"{HOST}:{port}"
     path = f"/{S3_BUCKET}/{key}"
     scope = f"{date}/{S3_REGION}/s3/aws4_request"
     q = {
@@ -245,7 +247,7 @@ def s3_sign(method, path, port, params=None, access_key="alice", when=None):
     now = when or dt.datetime.now(dt.timezone.utc)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date = now.strftime("%Y%m%d")
-    host = f"127.0.0.1:{port}"
+    host = f"{HOST}:{port}"
     cq = _canon_query(params or {})
     canonical = (f"{method}\n{quote(path, safe='/-_.~')}\n{cq}\n"
                  f"host:{host}\nx-amz-date:{amz_date}\n\n"
@@ -301,7 +303,7 @@ def _xrd_env(sub):
 def xrd_fs(args, sub, timeout=15):
     """Run native xrdfs as <sub> (bearer token) vs the impersonation stream server
     root://127.0.0.1:sport.  Returns (rc, stdout, stderr)."""
-    cmd = [NATIVE_XRDFS, f"root://127.0.0.1:{_stream_port}"] + list(args)
+    cmd = [NATIVE_XRDFS, f"root://{HOST}:{_stream_port}"] + list(args)
     try:
         p = subprocess.run(cmd, env=_xrd_env(sub), capture_output=True,
                            timeout=timeout, text=True)
@@ -312,7 +314,7 @@ def xrd_fs(args, sub, timeout=15):
 
 def xrd_cp_up(local, remote, sub, timeout=20):
     """xrdcp WRITE: local file -> root://...//remote, as <sub>."""
-    url = f"root://127.0.0.1:{_stream_port}//{remote.lstrip('/')}"
+    url = f"root://{HOST}:{_stream_port}//{remote.lstrip('/')}"
     cmd = [NATIVE_XRDCP, "-f", local, url]
     try:
         p = subprocess.run(cmd, env=_xrd_env(sub), capture_output=True,
@@ -324,7 +326,7 @@ def xrd_cp_up(local, remote, sub, timeout=20):
 
 def xrd_cp_down(remote, local, sub, timeout=20):
     """xrdcp READ: root://...//remote -> local file, as <sub>."""
-    url = f"root://127.0.0.1:{_stream_port}//{remote.lstrip('/')}"
+    url = f"root://{HOST}:{_stream_port}//{remote.lstrip('/')}"
     cmd = [NATIVE_XRDCP, "-f", url, local]
     try:
         p = subprocess.run(cmd, env=_xrd_env(sub), capture_output=True,
@@ -340,8 +342,8 @@ def xrd_cp_tpc(src_remote, dst_remote, sub, mode="first", timeout=25):
     TPC), driven as <sub>.  Returns (rc, out, err).  Both endpoints are the
     impersonation stream server, so the pulled/pushed file must end up owned by the
     mapped user and a cross-tenant source/dest must be denied."""
-    s = f"root://127.0.0.1:{_stream_port}//{src_remote.lstrip('/')}"
-    d = f"root://127.0.0.1:{_stream_port}//{dst_remote.lstrip('/')}"
+    s = f"root://{HOST}:{_stream_port}//{src_remote.lstrip('/')}"
+    d = f"root://{HOST}:{_stream_port}//{dst_remote.lstrip('/')}"
     cmd = [NATIVE_XRDCP, "--tpc", mode, "-f", s, d]
     try:
         p = subprocess.run(cmd, env=_xrd_env(sub), capture_output=True,
@@ -363,7 +365,7 @@ def raw_send_steps(steps, port, read_timeout=3.0):
     buf = b""
     reset = False
     try:
-        s.connect(("127.0.0.1", port))
+        s.connect((HOST, port))
         for item in steps:
             chunk, pause = item[0], item[1]
             if len(item) > 2 and item[2]:
@@ -399,7 +401,7 @@ def raw_send_steps(steps, port, read_timeout=3.0):
 def xrd_fs_token(args, token_str, timeout=15):
     """Run native xrdfs against the stream server with an ARBITRARY bearer token
     string (for malformed/forged/expired-token attacks).  Returns (rc, out, err)."""
-    cmd = [NATIVE_XRDFS, f"root://127.0.0.1:{_stream_port}"] + list(args)
+    cmd = [NATIVE_XRDFS, f"root://{HOST}:{_stream_port}"] + list(args)
     env = dict(os.environ)
     env["BEARER_TOKEN"] = token_str
     env.pop("X509_USER_PROXY", None)
@@ -442,7 +444,7 @@ def wait_port(port, timeout=10.0):
     end = time.time() + timeout
     while time.time() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -557,7 +559,7 @@ def _raw_get_validators(path, port, token=None, extra=None, read_timeout=4.0):
     lastmod_or_None, body_bytes); status 0 on a framing/conn failure.  `etag`
     keeps its surrounding quotes verbatim so it can be replayed in If-Match /
     If-None-Match exactly as the server emitted it."""
-    lines = [f"GET {path} HTTP/1.1", "Host: 127.0.0.1", "Connection: close"]
+    lines = [f"GET {path} HTTP/1.1", f"Host: {HOST}", "Connection: close"]
     if token:
         lines.append(f"Authorization: Bearer {token}")
     for k, v in (extra or {}).items():
@@ -676,7 +678,7 @@ def _kxr_connect(timeout=4.0):
     """Fresh TCP connection to the impersonation root:// port."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(timeout)
-    s.connect(("127.0.0.1", _stream_port))
+    s.connect((HOST, _stream_port))
     return s
 
 
@@ -774,7 +776,7 @@ def _raw_get_header(method, path, port, hdrs):
     returns only status+body) and return (status_int, {lower_header: value}, body).
     Used to read the Digest:/x-amz-checksum-* response headers that carry a content
     fingerprint.  status -1 / empty dict on a connection failure."""
-    lines = ["%s %s HTTP/1.1" % (method, path), "Host: 127.0.0.1:%d" % port,
+    lines = ["%s %s HTTP/1.1" % (method, path), "Host: %s:%d" % (HOST, port),
              "Connection: close"]
     for k, v in (hdrs or {}).items():
         lines.append("%s: %s" % (k, v))
@@ -1001,7 +1003,7 @@ def _s3_raw(method, key, port, params=None, access_key="alice", extra_hdrs=None,
     h = s3_sign(method, path, port, params, access_key)
     if extra_hdrs:
         h.update(extra_hdrs)
-    lines = [f"{method} {full} HTTP/1.1", f"Host: 127.0.0.1:{port}", "Connection: close"]
+    lines = [f"{method} {full} HTTP/1.1", f"Host: {HOST}:{port}", "Connection: close"]
     for k, v in h.items():
         lines.append(f"{k}: {v}")
     raw = ("\r\n".join(lines) + "\r\n\r\n").encode()
@@ -1196,7 +1198,7 @@ stream {{
     brix_idmap_min_uid        1000;
     brix_idmap_forbidden_groups "docker,sudo,wheel";
     server {{
-        listen 127.0.0.1:{sport};
+        listen {BIND_HOST}:{sport};
         brix_root on;
         brix_storage_backend posix:{data};
         brix_allow_write on;
@@ -1216,7 +1218,7 @@ http {{
     scgi_temp_path         {tmp};
     client_max_body_size   64m;
     server {{
-        listen 127.0.0.1:{hport};
+        listen {BIND_HOST}:{hport};
         location / {{
             brix_webdav         on;
             brix_storage_backend    posix:{data};
@@ -1229,7 +1231,7 @@ http {{
         }}
     }}
     server {{
-        listen 127.0.0.1:{s3port};
+        listen {BIND_HOST}:{s3port};
         location / {{
             brix_s3             on;
             brix_storage_backend        posix:{data};
@@ -1600,14 +1602,14 @@ def run_namespace_ops(key, data, port):
 
     http("PUT", "/alice/mv_src.txt", port, tok_alice, b"movable\n")
     st, _ = http("MOVE", "/alice/mv_src.txt", port, tok_alice,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/alice/mv_dst.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/alice/mv_dst.txt"})
     md = os.path.join(data, "alice", "mv_dst.txt")
     ok(st in (201, 204) and os.path.exists(md) and os.stat(md).st_uid == UID_ALICE
        and not os.path.exists(os.path.join(data, "alice", "mv_src.txt")),
        f"MOVE: dest owned by alice, src gone (HTTP {st})")
 
     st, _ = http("COPY", "/alice/mv_dst.txt", port, tok_alice,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/alice/cp_dst.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/alice/cp_dst.txt"})
     cd = os.path.join(data, "alice", "cp_dst.txt")
     ok(st in (201, 204) and os.path.exists(cd) and os.stat(cd).st_uid == UID_ALICE,
        f"COPY: dest owned by alice (HTTP {st})")
@@ -1846,13 +1848,13 @@ def run_cross_tenant_write(key, data, port, s3port):
        f"WebDAV DELETE of bob's file DENIED (HTTP {st})")
 
     st, _ = http("MOVE", "/bob/readable.txt", port, ta,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/alice/stolen.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/alice/stolen.txt"})
     ok(st not in (200, 201, 204) and os.path.exists(bread)
        and not os.path.exists(os.path.join(data, "alice", "stolen.txt")),
        f"WebDAV MOVE of bob's file DENIED (HTTP {st})")
 
     st, _ = http("COPY", "/bob/private.txt", port, ta,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/alice/copied.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/alice/copied.txt"})
     ok(st not in (200, 201, 204)
        and not os.path.exists(os.path.join(data, "alice", "copied.txt")),
        f"WebDAV COPY of bob's 0600 file DENIED (HTTP {st})")
@@ -1962,7 +1964,7 @@ def run_confinement_extended(key, data, port, s3port):
     # create the file outside.
     http("PUT", "/alice/exfil.txt", port, ta, b"secret\n")
     st, _ = http("COPY", "/alice/exfil.txt", port, ta,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/../ESCAPE_SENTINEL"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/../ESCAPE_SENTINEL"})
     ok(not os.path.exists(outside),
        f"WebDAV COPY Destination ../escape blocked (HTTP {st})")
 
@@ -2347,7 +2349,7 @@ def run_webdav_methods(key, data, port):
     http("MKCOL", "/alice/coll_src", port, ta)
     http("PUT", "/alice/coll_src/inner.txt", port, ta, b"inner\n")
     st, _ = http("COPY", "/alice/coll_src", port, ta,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/alice/coll_dst",
+                 hdrs={"Destination": f"http://{HOST}:{port}/alice/coll_dst",
                        "Depth": "infinity"})
     cdst = os.path.join(data, "alice", "coll_dst")
     inner = os.path.join(cdst, "inner.txt")
@@ -2359,14 +2361,14 @@ def run_webdav_methods(key, data, port):
     http("PUT", "/alice/ow_src.txt", port, ta, b"src\n")
     http("PUT", "/alice/ow_dst.txt", port, ta, b"dst\n")
     st, _ = http("COPY", "/alice/ow_src.txt", port, ta,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/alice/ow_dst.txt",
+                 hdrs={"Destination": f"http://{HOST}:{port}/alice/ow_dst.txt",
                        "Overwrite": "F"})
     ok(st in (412, 409, 403), f"WebDAV COPY Overwrite:F over existing -> refused (HTTP {st})")
 
     # cross-tenant Overwrite:T MOVE/COPY over bob's file -> denied.
     http("PUT", "/alice/ow_x.txt", port, ta, b"x\n")
     st, _ = http("COPY", "/alice/ow_x.txt", port, ta,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/bob/readable.txt",
+                 hdrs={"Destination": f"http://{HOST}:{port}/bob/readable.txt",
                        "Overwrite": "T"})
     bread = os.path.join(data, "bob", "readable.txt")
     ok(st not in (201, 204) and open(bread, "rb").read() == b"bob-world-readable\n",
@@ -2437,7 +2439,7 @@ def run_webdav_errors(key, data, port):
     outside = os.path.join(os.path.dirname(data), "OUTSIDE_DE")
     http("PUT", "/alice/de_src.txt", port, ta, b"x\n")
     http("COPY", "/alice/de_src.txt", port, ta,
-         hdrs={"Destination": f"http://127.0.0.1:{port}/%252e%252e/OUTSIDE_DE"})
+         hdrs={"Destination": f"http://{HOST}:{port}/%252e%252e/OUTSIDE_DE"})
     ok(not os.path.exists(outside), "WebDAV double-encoded ../ Destination blocked")
 
 
@@ -3250,7 +3252,7 @@ def run_webdav_method_state(key, data, port, s3port):
     block cannot false-pass.  All fixtures are prefixed `wms_` to avoid
     collisions with the rest of the battery."""
     ta, tb = mint(key, "alice"), mint(key, "bob")
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     LI_EXCL = (b'<?xml version="1.0"?><D:lockinfo xmlns:D="DAV:">'
                b'<D:lockscope><D:exclusive/></D:lockscope>'
                b'<D:locktype><D:write/></D:locktype>'
@@ -4624,7 +4626,7 @@ def run_concurrency_state_race(key, data, port, s3port):
         d = who
         dst = f"/{d}/{TAG}coll_dst_{idx}"
         s, _b = http("COPY", f"/{d}/{TAG}coll_src", port, tok,
-                     hdrs={"Destination": f"http://127.0.0.1:{port}{dst}",
+                     hdrs={"Destination": f"http://{HOST}:{port}{dst}",
                            "Depth": "infinity"})
         if s not in (200, 201, 204, 207):
             copy_bad.append((who, idx, s))
@@ -5506,13 +5508,13 @@ def run_confine_encoding_exhaustive(key, data, port, s3port):
     # =============================================================================
     http("PUT", "/alice/cf_src.txt", port, ta, b"MOVE-COPY-SRC\n")
     dst_variants = [
-        f"http://127.0.0.1:{port}/../CONF_DST_A.txt",
-        f"http://127.0.0.1:{port}/alice/../../CONF_DST_B.txt",
-        f"http://127.0.0.1:{port}/%2e%2e/CONF_DST_C.txt",
-        f"http://127.0.0.1:{port}/alice/..%2f..%2fCONF_DST_D.txt",
-        f"http://127.0.0.1:{port}/etc/CONF_DST_E.txt",
-        f"http://127.0.0.1:{port}/alice/cf_src.txt%0d%0aX-Inject:%20pwn",
-        f"http://127.0.0.1:{port}/alice/cf%00null.txt",
+        f"http://{HOST}:{port}/../CONF_DST_A.txt",
+        f"http://{HOST}:{port}/alice/../../CONF_DST_B.txt",
+        f"http://{HOST}:{port}/%2e%2e/CONF_DST_C.txt",
+        f"http://{HOST}:{port}/alice/..%2f..%2fCONF_DST_D.txt",
+        f"http://{HOST}:{port}/etc/CONF_DST_E.txt",
+        f"http://{HOST}:{port}/alice/cf_src.txt%0d%0aX-Inject:%20pwn",
+        f"http://{HOST}:{port}/alice/cf%00null.txt",
     ]
     for d in dst_variants:
         st, _ = http("COPY", "/alice/cf_src.txt", port, ta,
@@ -5545,7 +5547,7 @@ def run_confine_encoding_exhaustive(key, data, port, s3port):
     cf_moved = os.path.join(data, "alice", "cf_dst_ok.txt")
     http("PUT", "/alice/cf_src.txt", port, ta, b"MOVE-COPY-SRC\n")
     st, _ = http("MOVE", "/alice/cf_src.txt", port, ta,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/alice/cf_dst_ok.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/alice/cf_dst_ok.txt"})
     ok(st in (201, 204),
        f"control: in-tenant MOVE Destination succeeded (HTTP {st})")
     ok(os.path.exists(cf_moved)
@@ -6069,8 +6071,8 @@ def run_crossproto_ownership_invariant(key, data, port, s3port):
     # =====================================================================
     http("PUT", "/alice/%s_mvsrc.txt" % TAG, port, ta, b"move-src\n")
     st, _ = http("MOVE", "/alice/%s_mvsrc.txt" % TAG, port, ta,
-                 hdrs={"Destination": "http://127.0.0.1:%s/alice/%s_mvdst.txt"
-                       % (port, TAG)})
+                 hdrs={"Destination": "http://%s:%s/alice/%s_mvdst.txt"
+                       % (HOST, port, TAG)})
     mvd = rel("alice", "%s_mvdst.txt" % TAG)
     ok(st in (201, 204) and owned_alice(mvd)
        and not os.path.exists(rel("alice", "%s_mvsrc.txt" % TAG)),
@@ -6078,8 +6080,8 @@ def run_crossproto_ownership_invariant(key, data, port, s3port):
        % (st, uid_of(mvd)))
 
     st, _ = http("COPY", "/alice/%s_mvdst.txt" % TAG, port, ta,
-                 hdrs={"Destination": "http://127.0.0.1:%s/alice/%s_cpdst.txt"
-                       % (port, TAG)})
+                 hdrs={"Destination": "http://%s:%s/alice/%s_cpdst.txt"
+                       % (HOST, port, TAG)})
     cpd = rel("alice", "%s_cpdst.txt" % TAG)
     ok(st in (201, 204) and owned_alice(cpd),
        "WebDAV COPY dest owned by alice, never svc/root (HTTP %s, uid=%s)"
@@ -6087,8 +6089,8 @@ def run_crossproto_ownership_invariant(key, data, port, s3port):
 
     # cross-tenant: bob MOVE/COPY alice's file out -> denied, source intact+alice.
     st, _ = http("MOVE", "/alice/%s_cpdst.txt" % TAG, port, tb,
-                 hdrs={"Destination": "http://127.0.0.1:%s/bob/%s_stolen.txt"
-                       % (port, TAG)})
+                 hdrs={"Destination": "http://%s:%s/bob/%s_stolen.txt"
+                       % (HOST, port, TAG)})
     ok(st not in (200, 201, 204) and owned_alice(cpd)
        and not os.path.exists(rel("bob", "%s_stolen.txt" % TAG)),
        "x-tenant: bob MOVE alice's file DENIED, source intact (HTTP %s)" % st)
@@ -6354,7 +6356,7 @@ def run_malformed_hostile_inputs(key, data, port, s3port):
     # reject client-side.  Returns (status_int_or_-1, raw_response_bytes).  Closes always.
     def raw_send(raw_bytes, target_port, read_to=3.0):
         try:
-            s = socket.create_connection(("127.0.0.1", target_port), timeout=4)
+            s = socket.create_connection((HOST, target_port), timeout=4)
         except OSError as e:  # noqa: BLE001
             return -1, str(e).encode()
         s.settimeout(read_to)
@@ -6537,7 +6539,7 @@ def run_malformed_hostile_inputs(key, data, port, s3port):
     # CL larger than the body: the worker must not hang forever waiting for the missing
     # bytes (read timeout/4xx), and must not create the file as svc/root.  CL smaller
     # than the body: trailing bytes must not be mis-parsed into a new request.
-    host = "127.0.0.1:%d" % port
+    host = "%s:%d" % (HOST, port)
     bearer = "Bearer %s" % ta
 
     cl_big = (("PUT /alice/mhi_clbig.txt HTTP/1.1\r\nHost: %s\r\n"
@@ -7386,7 +7388,7 @@ def run_http_protocol_abuse(key, data, port, s3port):
     (raw_http) so the framing is forgeable; every case proves worker-survival +
     no cross-tenant leak + no smuggled side effect."""
     ta = mint(key, "alice")
-    H = "127.0.0.1"
+    H = HOST
 
     # seed a readable own file + a sized file for range tests.
     http("PUT", "/alice/hpa_own.txt", port, ta, b"HPA-OWN-BODY\n")
@@ -8663,13 +8665,13 @@ def run_sticky_bit_dac(key, data, port, s3port):
     except OSError:
         pass
     st, _ = http("MOVE", f"{SD}/alice_owned.txt", port, mint(key, "carol"),
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/carol/stolen_alice.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/carol/stolen_alice.txt"})
     src_ok = os.path.exists(AOWN) and os.stat(AOWN).st_uid == UID_ALICE
     ok(st not in (200, 201, 204) and src_ok and not os.path.exists(dest_carol),
        f"sticky: carol DENIED MOVE of alice's file, source intact, no dest (HTTP {st})")
     # (2b) dave likewise cannot rename alice's file even WITHIN the sticky dir.
     st, _ = http("MOVE", f"{SD}/alice_owned.txt", port, mint(key, "dave"),
-                 hdrs={"Destination": f"http://127.0.0.1:{port}{SD}/dave_grab.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}{SD}/dave_grab.txt"})
     ok(st not in (200, 201, 204) and os.path.exists(AOWN)
        and not os.path.exists(os.path.join(sdir, "dave_grab.txt")),
        f"sticky: dave DENIED MOVE/rename of alice's file inside the dir (HTTP {st})")
@@ -8688,7 +8690,7 @@ def run_sticky_bit_dac(key, data, port, s3port):
     # (2-POS) POSITIVE CONTROL: alice (the OWNER) MOVEs her own file within the dir.
     moved = os.path.join(sdir, "alice_moved.txt")
     st, _ = http("MOVE", f"{SD}/alice_owned.txt", port, mint(key, "alice"),
-                 hdrs={"Destination": f"http://127.0.0.1:{port}{SD}/alice_moved.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}{SD}/alice_moved.txt"})
     ok(st in (200, 201, 204) and os.path.exists(moved)
        and os.stat(moved).st_uid == UID_ALICE,
        f"sticky POSITIVE: alice renames her OWN file in the sticky dir (HTTP {st})")
@@ -8713,7 +8715,7 @@ def run_sticky_bit_dac(key, data, port, s3port):
        f"setup: carol re-creates her sticky victim file owned by carol (HTTP {st})")
     st, _ = http("PUT", f"{SD}/sb_bob_v.txt", port, mint(key, "bob"), b"bob-src\n")
     st, _ = http("MOVE", f"{SD}/sb_bob_v.txt", port, mint(key, "bob"),
-                 hdrs={"Destination": f"http://127.0.0.1:{port}{SD}/sb_carol_v.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}{SD}/sb_carol_v.txt"})
     not_clobbered = (os.path.exists(carol_fp)
                      and os.stat(carol_fp).st_uid == UID_CAROL
                      and b"carol-victim" in open(carol_fp, "rb").read())
@@ -9061,7 +9063,7 @@ def run_mixed_owner_trees(key, data, port, s3port):
         os.chmod(edst_parent, 0o755)
     except OSError:
         pass
-    dst_url = f"http://127.0.0.1:{port}/{TAG}_b_erin/copied"
+    dst_url = f"http://{HOST}:{port}/{TAG}_b_erin/copied"
     st, _ = http("COPY", f"/{TAG}_b_src", port, mint(key, "erin"),
                  hdrs={"Destination": dst_url, "Depth": "infinity"})
     copied_root = os.path.join(edst_parent, "copied")
@@ -9776,15 +9778,15 @@ def run_chown_chgrp_dac(key, data, port, s3port):
     # ===================================================================
     http("PUT", "/alice/%s_mv_src.txt" % TAG, port, ta, b"alice-move-src\n")
     st, _ = http("MOVE", "/alice/%s_mv_src.txt" % TAG, port, ta,
-                 hdrs={"Destination": "http://127.0.0.1:%d/alice/%s_mv_dst.txt"
-                                      % (port, TAG)})
+                 hdrs={"Destination": "http://%s:%d/alice/%s_mv_dst.txt"
+                                      % (HOST, port, TAG)})
     mvd = rel("alice", "%s_mv_dst.txt" % TAG)
     ok(st in (201, 204) and owned_by(mvd, UID_ALICE, UID_BOB),
        "MOVE dest stays alice-owned, not laundered to svc/root/bob (HTTP %s, uid=%s)"
        % (st, uid_of(mvd)))
     st, _ = http("COPY", "/alice/%s_mv_dst.txt" % TAG, port, ta,
-                 hdrs={"Destination": "http://127.0.0.1:%d/alice/%s_cp_dst.txt"
-                                      % (port, TAG)})
+                 hdrs={"Destination": "http://%s:%d/alice/%s_cp_dst.txt"
+                                      % (HOST, port, TAG)})
     cpd = rel("alice", "%s_cp_dst.txt" % TAG)
     ok(st in (201, 204) and owned_by(cpd, UID_ALICE, UID_BOB),
        "COPY dest owned by the copying actor alice, never svc/root/bob "
@@ -9795,8 +9797,8 @@ def run_chown_chgrp_dac(key, data, port, s3port):
     # world-readable source so the read leg is allowed and we isolate the chown
     # invariant: the resulting inode is the actor's, regardless of source owner.
     st, _ = http("COPY", "/grp/world_r.txt", port, tc,
-                 hdrs={"Destination": "http://127.0.0.1:%d/staffdir/%s_carol_cp.txt"
-                                      % (port, TAG)})
+                 hdrs={"Destination": "http://%s:%d/staffdir/%s_carol_cp.txt"
+                                      % (HOST, port, TAG)})
     ccp = rel("staffdir", "%s_carol_cp.txt" % TAG)
     if os.path.exists(ccp):
         ok(uid_of(ccp) == UID_CAROL and uid_of(ccp) not in OTHER,
@@ -12840,7 +12842,7 @@ def run_connection_errors(key, data, port, s3port):
     Cross-tenant denies each carry a positive control; read-denies also assert the
     secret marker is absent from the response."""
     ta, tb = mint(key, "alice"), mint(key, "bob")
-    H = "127.0.0.1"
+    H = HOST
     TAG = "cxe_"
 
     apath = lambda n: os.path.join(data, "alice", n)
@@ -13495,7 +13497,7 @@ def run_protocol_features_webdav(key, data, port, s3port):
     PROPPATCH/COPY/MOVE must be denied AND leave no residue; every read-side oracle
     must be marker-free.  Fixtures are prefixed `pfw_` to avoid collisions."""
     ta, tb = mint(key, "alice"), mint(key, "bob")
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     XML = {"Content-Type": "application/xml"}
 
     def adir(rel):
@@ -13518,7 +13520,7 @@ def run_protocol_features_webdav(key, data, port, s3port):
         """GET rel over a raw socket and parse the real ETag header value (or None).
         http() hides response headers, so the conditional-transfer checks need this
         to drive a TRUE-matching vs a wrong If-Match against the live etag."""
-        raw = ("GET " + rel + " HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        raw = ("GET " + rel + " HTTP/1.1\r\nHost: " + HOST + "\r\n"
                "Authorization: Bearer " + ta + "\r\nConnection: close\r\n\r\n")
         resp = raw_http(raw, port)
         m = re.search(rb"\r\n[Ee][Tt][Aa][Gg]:\s*([^\r\n]+)\r\n", resp or b"")
@@ -13827,7 +13829,7 @@ def run_combo_setgid_via_copymove(key, data, port, s3port):
     # cross-tenant group it should not.
     # =========================================================================
     TAG = "cgsv"
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
 
     t_alice = mint(key, "alice")
     t_bob = mint(key, "bob")
@@ -15105,7 +15107,7 @@ def run_combo_multipart_lock_identity(key, data, port, s3port):
     TAG = "cmli"
     MARK = b"CMLI-BOB-PRIVATE-MARKER-9F3Q"          # must never leak via any path
     GMARK = b"CMLI-STAFF-GROUP-CONTENT-7K2"          # carol/staff group file content
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     ta = mint(key, "alice")
     tb = mint(key, "bob")
     tc = mint(key, "carol")
@@ -15330,7 +15332,7 @@ def run_combo_multipart_lock_identity(key, data, port, s3port):
             q = _url_query(params)
             hdrs = s3_sign("PUT", spath, s3port, params)
             req = (f"PUT {spath}?{q} HTTP/1.1\r\n"
-                   f"Host: 127.0.0.1:{s3port}\r\n"
+                   f"Host: {HOST}:{s3port}\r\n"
                    f"x-amz-date: {hdrs['x-amz-date']}\r\n"
                    f"x-amz-content-sha256: UNSIGNED-PAYLOAD\r\n"
                    f"Authorization: {hdrs['Authorization']}\r\n"
@@ -16824,10 +16826,10 @@ def run_combo_encoding_group_targets(key, data, port, s3port):
     # carol's tree — must not land there.
     http("PUT", "/bob/cegt_movesrc.txt", port, tb, b"MOVE-SRC-CEGT\n")
     dest_norm = [
-        f"http://127.0.0.1:{port}/bob/../staffdir/cegt_moved.txt",
-        f"http://127.0.0.1:{port}/bob/..%2fstaffdir%2fcegt_moved2.txt",
-        f"http://127.0.0.1:{port}/bob/../carol/cegt_moved3.txt",
-        f"http://127.0.0.1:{port}/sgiddir/cegt_moved4.txt",
+        f"http://{HOST}:{port}/bob/../staffdir/cegt_moved.txt",
+        f"http://{HOST}:{port}/bob/..%2fstaffdir%2fcegt_moved2.txt",
+        f"http://{HOST}:{port}/bob/../carol/cegt_moved3.txt",
+        f"http://{HOST}:{port}/sgiddir/cegt_moved4.txt",
     ]
     for d in dest_norm:
         http("COPY", "/bob/cegt_movesrc.txt", port, tb, hdrs={"Destination": d})
@@ -16839,7 +16841,7 @@ def run_combo_encoding_group_targets(key, data, port, s3port):
        "nothing there")
     # control: in-tenant COPY for bob still works + owned by bob.
     st, _ = http("COPY", "/bob/cegt_movesrc.txt", port, tb,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/bob/cegt_copyok.txt"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/bob/cegt_copyok.txt"})
     cpok = os.path.join(data, "bob", "cegt_copyok.txt")
     ok(st in (200, 201, 204) and os.path.exists(cpok)
        and owner_of(cpok)[0] == UID_BOB,
@@ -18267,13 +18269,13 @@ def run_combo_idmap_edge_full_matrix(key, data, port, s3port):
     # A-WebDAV COPY (own file -> new), then MOVE the copy
     fcopy = f"{TAG}_floor_copy.txt"
     st, _ = http("COPY", f"/pub/{fput}", port, tfloor,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/pub/{fcopy}"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/pub/{fcopy}"})
     ex, u, _g = owner_of(fcopy)
     ok(st in (201, 204) and ex and u == UID_FLOOR,
        f"floor MATRIX WebDAV COPY ok, copy owned 1000 (HTTP {st}, uid={u})")
     fmoved = f"{TAG}_floor_moved.txt"
     st, _ = http("MOVE", f"/pub/{fcopy}", port, tfloor,
-                 hdrs={"Destination": f"http://127.0.0.1:{port}/pub/{fmoved}"})
+                 hdrs={"Destination": f"http://{HOST}:{port}/pub/{fmoved}"})
     ex, u, _g = owner_of(fmoved)
     ok(st in (201, 204) and ex and not lexists(fcopy) and u == UID_FLOOR,
        f"floor MATRIX WebDAV MOVE ok, moved owned 1000 (HTTP {st}, uid={u})")
@@ -18377,7 +18379,7 @@ def run_combo_idmap_edge_full_matrix(key, data, port, s3port):
         # ---- WebDAV COPY of the floor seed -> new path (read seed + create as sub) ----
         crel2 = f"{TAG}_{sub}_copy.txt"
         st, _ = http("COPY", f"/pub/{TAG}_seed_floor.txt", port, tok,
-                     hdrs={"Destination": f"http://127.0.0.1:{port}/pub/{crel2}"})
+                     hdrs={"Destination": f"http://{HOST}:{port}/pub/{crel2}"})
         ex, u, _g = owner_of(crel2)
         ok(st not in (200, 201, 204) and not ex,
            f"{sub} WebDAV COPY DENIED, no copy created (HTTP {st}, exists={ex})")
@@ -18387,7 +18389,7 @@ def run_combo_idmap_edge_full_matrix(key, data, port, s3port):
         # ---- WebDAV MOVE of alice's victim (would relocate another tenant's file) ----
         mrel = f"{TAG}_{sub}_moved.txt"
         st, _ = http("MOVE", f"/pub/{VICT}", port, tok,
-                     hdrs={"Destination": f"http://127.0.0.1:{port}/pub/{mrel}"})
+                     hdrs={"Destination": f"http://{HOST}:{port}/pub/{mrel}"})
         ok(st not in (200, 201, 204) and not lexists(mrel) and lexists(VICT),
            f"{sub} WebDAV MOVE of alice victim DENIED, victim intact (HTTP {st})")
         ok(owner_of(VICT)[1] == UID_ALICE,
@@ -19309,7 +19311,7 @@ def run_combo_connection_state_identity(key, data, port, s3port):
     by the DRIVING identity (never svc/root/other), and the worker SURVIVES (a
     follow-up legit op works).  All deny checks carry a positive control."""
     TAG = "ccsi_"
-    H = "127.0.0.1"
+    H = HOST
     ta, tb, tc = mint(key, "alice"), mint(key, "bob"), mint(key, "carol")
 
     def apath(name):
@@ -19869,7 +19871,7 @@ def run_combo_error_rollback(key, data, port, s3port):
     fixtures are prefixed `cer_` to avoid collisions with the rest of the battery."""
     TAG = "cer"
     ta, tb = mint(key, "alice"), mint(key, "bob")
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     MARK_BOB = b"CER-BOB-PRIVATE-MARKER-7Q"      # must never appear at any alice dest
     MARK_SVC = b"CER-SVC-ONLY-MARKER-9Z"         # must never appear at any user dest
 
@@ -20895,7 +20897,7 @@ def run_webdav_undispatched_methods(key, data, port, s3port):
     batch attacks the UN-routed verb space + override smuggling, a surface neither
     touches.  All fixtures prefixed `und_`."""
     ta, tb = mint(key, "alice"), mint(key, "bob")
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     bpriv = os.path.join(data, "bob", "private.txt")
     adir = os.path.join(data, "alice")
 
@@ -21069,7 +21071,7 @@ def run_webdav_undispatched_methods(key, data, port, s3port):
     # plant the Authorization header verbatim and inspect the raw bytes.
     trace_raw = (
         "TRACE /alice/und_trace HTTP/1.1\r\n"
-        "Host: 127.0.0.1\r\n"
+        f"Host: {HOST}\r\n"
         f"Authorization: Bearer {ta}\r\n"
         "X-Reflect-Marker: UND-XST-REFLECT-7Q\r\n"
         "Connection: close\r\n\r\n"
@@ -21356,7 +21358,7 @@ def run_http_smuggling_desync_deep(key, data, port, s3port):
     (XML/XXE/Content-Length-lies): here every vector is a NEW desync framing."""
     ta = mint(key, "alice")
     tb = mint(key, "bob")
-    H = "127.0.0.1"
+    H = HOST
     bpriv = os.path.join(data, "bob", "private.txt")
     SECRET = b"BOB-PRIVATE-SECRET"
 
@@ -21582,7 +21584,7 @@ def run_conditional_header_matrix(key, data, port, s3port):
     targeting bob's space stay denied (verified on disk), and conditional requests
     never leak bob's 0600 content OR its ETag/Last-Modified validators."""
     ta, tb = mint(key, "alice"), mint(key, "bob")
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
 
     def adir(rel):
         return os.path.join(data, "alice", rel)
@@ -21889,7 +21891,7 @@ def run_content_negotiation_ranges(key, data, port, s3port):
     def raw_req(method, relpath, token, extra):
         """method GET/HEAD via raw socket so we can read Content-Range / Content-Type /
         Content-Encoding / ETag response headers that http() discards."""
-        lines = ["%s %s HTTP/1.1" % (method, relpath), "Host: 127.0.0.1:%d" % port,
+        lines = ["%s %s HTTP/1.1" % (method, relpath), "Host: %s:%d" % (HOST, port),
                  "Authorization: Bearer %s" % token, "Connection: close"]
         for k, v in extra.items():
             lines.append("%s: %s" % (k, v))
@@ -22848,7 +22850,7 @@ def run_resource_dos_limits(key, data, port, s3port):
     T = "rdl_"
     ta = mint(key, "alice")
     adir = os.path.join(data, "alice")
-    host = "127.0.0.1:%d" % port
+    host = "%s:%d" % (HOST, port)
     bearer = "Bearer %s" % ta
 
     # ---- recovery anchor: write a KNOWN body to /alice/hello.txt as alice up front so
@@ -23311,7 +23313,7 @@ def run_header_injection_matrix(key, data, port, s3port):
     Every case: no response-splitting/reflection, no escape, no cross-tenant mutation,
     worker survives."""
     ta, tb = mint(key, "alice"), mint(key, "bob")
-    H = "127.0.0.1:%d" % port
+    H = "%s:%d" % (HOST, port)
     BOB = b"BOB-PRIVATE-SECRET"
     bpriv = os.path.join(data, "bob", "private.txt")
     outside = os.path.join(os.path.dirname(data), "HIM_ESCAPE_SENTINEL")
@@ -23861,7 +23863,7 @@ def run_multistep_lifecycle_invariants(key, data, port, s3port):
     idempotency (replace not append, single inode), and a rename-chain leaving exactly
     one inode.  All fixtures prefixed `msli_` to avoid collisions with the battery."""
     TAG = "msli"
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     ta = mint(key, "alice")
     tb = mint(key, "bob")
     tc = mint(key, "carol")
@@ -24305,8 +24307,8 @@ def run_http_tpc_webdav(key, data, port, s3port):
 
     # remote endpoint = THIS server (loopback); src/protocols/webdav/tpc.c requires an
     # https:// Source/Destination, but the !conf->tpc 405 gate fires first.
-    base_s = "https://127.0.0.1:%d" % port
-    base_h = "http://127.0.0.1:%d" % port
+    base_s = "https://%s:%d" % (HOST, port)
+    base_h = "http://%s:%d" % (HOST, port)
 
     # seed an alice-owned source we control (for the legit self-copy leg).
     a_src_rel = "/alice/%s_src.bin" % TAG
@@ -25782,7 +25784,7 @@ def run_special_file_rename_matrix(key, data, port, s3port):
             return False
 
     def webdav_move(src, dst_path, token, overwrite=None):
-        hdrs = {"Destination": f"http://127.0.0.1:{port}{dst_path}"}
+        hdrs = {"Destination": f"http://{HOST}:{port}{dst_path}"}
         if overwrite is not None:
             hdrs["Overwrite"] = overwrite
         return http("MOVE", src, port, token, hdrs=hdrs)
@@ -26492,7 +26494,7 @@ def run_deep_novel_combos_r8(key, data, port, s3port):
     and no failed/aborted TPC leaves an svc/root-owned partial.  Fixtures: `dnc8_`.
     <=8 threads, <=64 KiB bodies, <=6 concurrent subprocesses."""
     TAG = "dnc8"
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     ta = mint(key, "alice")
     tb = mint(key, "bob")
     tc = mint(key, "carol")
@@ -26680,7 +26682,7 @@ def run_deep_novel_combos_r8(key, data, port, s3port):
     # =====================================================================
     pull_dst = f"/{SG}/{TAG}_pulled.bin"
     sp, _bp = http("COPY", pull_dst, port, tc,
-                   hdrs={"Source": "https://127.0.0.1:1/nonexistent/src.bin",
+                   hdrs={"Source": "https://127.0.0.1:1/nonexistent/src.bin",  # net-literal-allow: SSRF COPY-pull Source target under test
                          "Credential": "none"})
     ok(sp in (400, 403, 404, 405, 422, 500, 502, 504, 501, -1, 201, 202, 207),
        f"{TAG}(1): HTTP-TPC pull into setgid dir resolved a verdict (405 when TPC "
@@ -27844,7 +27846,7 @@ def run_compression_impersonation(key, data, port, s3port):
     def raw_get_headers(relpath, token, accept_enc):
         """GET via raw socket so we can read the Content-Encoding response header that
         http() discards.  Returns (status_int, content_encoding_lower, body_bytes)."""
-        lines = ["GET %s HTTP/1.1" % relpath, "Host: 127.0.0.1:%d" % port,
+        lines = ["GET %s HTTP/1.1" % relpath, "Host: %s:%d" % (HOST, port),
                  "Authorization: Bearer %s" % token,
                  "Accept-Encoding: %s" % accept_enc, "Connection: close"]
         raw = raw_http(("\r\n".join(lines) + "\r\n\r\n").encode(), port)
@@ -27865,7 +27867,7 @@ def run_compression_impersonation(key, data, port, s3port):
         return status, ce, bdy
 
     def raw_head(relpath, token, accept_enc):
-        lines = ["HEAD %s HTTP/1.1" % relpath, "Host: 127.0.0.1:%d" % port,
+        lines = ["HEAD %s HTTP/1.1" % relpath, "Host: %s:%d" % (HOST, port),
                  "Authorization: Bearer %s" % token,
                  "Accept-Encoding: %s" % accept_enc, "Connection: close"]
         raw = raw_http(("\r\n".join(lines) + "\r\n\r\n").encode(), port)
@@ -28497,7 +28499,7 @@ def run_phase_features_combos(key, data, port, s3port):
     <=64 KiB bodies, no subprocesses."""
     import zlib
     TAG = "pfc"
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://{HOST}:{port}"
     ta = mint(key, "alice")
     tb = mint(key, "bob")
     tc = mint(key, "carol")

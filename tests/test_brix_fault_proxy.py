@@ -27,6 +27,8 @@ import time
 
 import pytest
 
+from settings import BIND_HOST, HOST
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -46,7 +48,7 @@ def bfp():
 
 def _free_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -56,7 +58,7 @@ def _wait_port(port, deadline=5.0):
     end = time.time() + deadline
     while time.time() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+            with socket.create_connection((HOST, port), timeout=0.25):
                 return True
         except OSError:
             time.sleep(0.02)
@@ -70,7 +72,7 @@ class _Echo:
         self.port = _free_port()
         self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind(("127.0.0.1", self.port))
+        self._srv.bind((BIND_HOST, self.port))
         self._srv.listen(8)
         self._stop = False
         self._t = threading.Thread(target=self._run, daemon=True)
@@ -105,7 +107,7 @@ class _StreamEcho:
         self.port = _free_port()
         self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind(("127.0.0.1", self.port))
+        self._srv.bind((BIND_HOST, self.port))
         self._srv.listen(8)
         self._stop = False
         self._t = threading.Thread(target=self._run, daemon=True)
@@ -159,7 +161,7 @@ def _drain(sock, want, deadline=3.0):
 def _spawn(bfp, echo_port, extra=None):
     """Start a proxy in front of `echo_port`; return (proc, listen, ctl)."""
     listen, ctl = _free_port(), _free_port()
-    argv = [bfp, "--listen", str(listen), "--target", f"127.0.0.1:{echo_port}",
+    argv = [bfp, "--listen", str(listen), "--target", f"{HOST}:{echo_port}",
             "--control", str(ctl), "--quiet"] + (extra or [])
     proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     assert _wait_port(ctl), "control port never came up"
@@ -168,7 +170,7 @@ def _spawn(bfp, echo_port, extra=None):
 
 
 def _ctl(port, cmd):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall((cmd + "\n").encode())
         return s.recv(4096).decode()
 
@@ -203,7 +205,7 @@ def test_relay_and_control_levers(bfp):
     echo = _Echo()
     listen, ctl = _free_port(), _free_port()
     proc = subprocess.Popen(
-        [bfp, "--listen", str(listen), "--target", f"127.0.0.1:{echo.port}",
+        [bfp, "--listen", str(listen), "--target", f"{HOST}:{echo.port}",
          "--control", str(ctl), "--quiet"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
@@ -212,7 +214,7 @@ def test_relay_and_control_levers(bfp):
         assert _wait_port(listen), "listen port never came up"
 
         # byte-exact relay through the proxy
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"hello")
             assert s.recv(64) == b"echo:hello"
 
@@ -254,8 +256,8 @@ def test_non_loopback_bind_refused_without_optin(bfp):
     # The control port is unauthenticated: a non-loopback bind must be refused
     # unless the operator explicitly opts in with --insecure-bind.
     proc = subprocess.run(
-        [bfp, "--listen", "1", "--target", "127.0.0.1:2", "--control", "3",
-         "--bind", "0.0.0.0"],
+        [bfp, "--listen", "1", "--target", f"{HOST}:2", "--control", "3",
+         "--bind", "0.0.0.0"],  # net-literal-allow: non-loopback bind address is the security subject under test
         capture_output=True, text=True, timeout=10,
     )
     assert proc.returncode == 2
@@ -269,7 +271,7 @@ def test_default_bind_serves_loopback(bfp):
     echo = _Echo()
     listen, ctl = _free_port(), _free_port()
     proc = subprocess.Popen(
-        [bfp, str(listen), "127.0.0.1", str(echo.port), str(ctl)],
+        [bfp, str(listen), HOST, str(echo.port), str(ctl)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     try:
@@ -296,7 +298,7 @@ def test_corrupt_down_directional_and_counters(bfp):
         assert "corrupt=0.0000%" in st.split("down[")[0]  # up side untouched
 
         payload = b"A" * 20000
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(payload)
             got = _drain(s, len(payload))
         assert len(got) == len(payload), "stream length must be preserved"
@@ -319,7 +321,7 @@ def test_seed_makes_corruption_reproducible(bfp):
         try:
             _ctl(ctl, "corrupt 50 down")
             payload = bytes((i * 7) & 0xFF for i in range(4000))
-            with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+            with socket.create_connection((HOST, listen), timeout=3) as s:
                 s.sendall(payload)
                 got = _drain(s, len(payload))
             return [i for i, (a, b) in enumerate(zip(payload, got)) if a != b]
@@ -342,7 +344,7 @@ def test_truncate_at_severs_mid_transfer(bfp):
     proc, listen, ctl = _spawn(bfp, echo.port)
     try:
         _ctl(ctl, "truncate-at 5000 down")
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"B" * 40000)
             got = _drain(s, 40000)
         # The download is cut once ~5000 bytes have flowed — well short of 40000.
@@ -374,7 +376,7 @@ def test_fail_nth_fails_only_that_connection(bfp):
         _ctl(ctl, f"fail-nth {base + 2}")
 
         def roundtrip():
-            with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+            with socket.create_connection((HOST, listen), timeout=3) as s:
                 s.sendall(b"ping")
                 return _drain(s, 4, deadline=1.5)
 
@@ -395,7 +397,7 @@ def test_reset_severs_live_connection(bfp):
     echo = _StreamEcho()
     proc, listen, ctl = _spawn(bfp, echo.port)
     try:
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"hi")
             assert _drain(s, 2, deadline=1.5) == b"hi"
             assert _ctl(ctl, "reset").strip() == "ok"
@@ -414,12 +416,12 @@ def test_hang_black_holes_new_connections(bfp):
     proc, listen, ctl = _spawn(bfp, echo.port)
     try:
         _ctl(ctl, "hang")
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"anyone there?")
             # Black hole: the request is accepted but never relayed or answered.
             assert _drain(s, 1, deadline=1.0) == b""
         _ctl(ctl, "unhang")
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"now?")
             assert _drain(s, 4, deadline=1.5) == b"now?"
     finally:
@@ -437,7 +439,7 @@ def test_rate_limit_throttles(bfp):
         _ctl(ctl, "rate 100 down")
         payload = b"C" * 200000
         start = time.time()
-        with socket.create_connection(("127.0.0.1", listen), timeout=5) as s:
+        with socket.create_connection((HOST, listen), timeout=5) as s:
             s.sendall(payload)
             got = _drain(s, len(payload), deadline=8.0)
         elapsed = time.time() - start
@@ -456,15 +458,15 @@ def test_multi_target_failover(bfp):
     dead = _free_port()
     listen, ctl = _free_port(), _free_port()
     proc = subprocess.Popen(
-        [bfp, "--listen", str(listen), "--target", f"127.0.0.1:{dead}",
-         "--target", f"127.0.0.1:{echo.port}", "--control", str(ctl), "--quiet"],
+        [bfp, "--listen", str(listen), "--target", f"{HOST}:{dead}",
+         "--target", f"{HOST}:{echo.port}", "--control", str(ctl), "--quiet"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     try:
         assert _wait_port(ctl) and _wait_port(listen)
         got = b""
         for _ in range(4):  # a couple of round-robin picks land on the dead one
-            with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+            with socket.create_connection((HOST, listen), timeout=3) as s:
                 s.sendall(b"hello")
                 got = _drain(s, 5, deadline=1.5)
                 if got == b"hello":
@@ -487,12 +489,12 @@ def test_max_conns_refuses_over_cap(bfp):
                 break
             time.sleep(0.02)
         # Hold one relay open (no upstream EOF because StreamEcho stays open).
-        held = socket.create_connection(("127.0.0.1", listen), timeout=3)
+        held = socket.create_connection((HOST, listen), timeout=3)
         held.sendall(b"hold")
         assert _drain(held, 4, deadline=1.5) == b"hold"
         time.sleep(0.2)
         # A second connection is over the cap: accepted then immediately closed.
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s2:
+        with socket.create_connection((HOST, listen), timeout=3) as s2:
             s2.sendall(b"second")
             assert _drain(s2, 6, deadline=1.0) == b""
         assert "refused=0" not in _ctl(ctl, "status")

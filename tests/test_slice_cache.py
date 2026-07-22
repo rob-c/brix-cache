@@ -28,7 +28,8 @@ from cmdscripts import c_object_units
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-slice-cache")]
 
 _HERE = os.path.dirname(__file__)
 _OBJS = os.environ.get("TEST_NGINX_OBJS", "/tmp/nginx-1.28.3/objs")
@@ -255,7 +256,7 @@ def xcache(lifecycle, tmp_path_factory):
         template_values={"ORIGIN_PORT": origin.port, "CACHE_DIR": cache_root},
         reason="Slice-cache node (1 MiB slice mode) in front of the origin.",
     ))
-    return {"host": "127.0.0.1", "port": cache.port,
+    return {"host": HOST, "port": cache.port,
             "origin_data": origin_data, "cache_root": cache_root}
 
 

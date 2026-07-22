@@ -26,6 +26,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
+from settings import HOST
 
 REPO = "test.cern.ch"
 NEG_TTL = 2                       # seconds; keep expiry tests fast
@@ -70,7 +71,7 @@ def web():
 # ---- local helpers (file-local by mandate: shared infra is frozen) ---------
 
 def GET(s, path, method="GET"):
-    return request("127.0.0.1", s.nginx_port, method, path)
+    return request(HOST, s.nginx_port, method, path)
 
 
 def take(s):

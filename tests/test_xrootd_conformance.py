@@ -21,8 +21,9 @@ import struct
 import pytest
 
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 PORT = None  # bound to the harness-assigned dynamic port by the `server` fixture
 
 # opcodes
@@ -45,7 +46,8 @@ kXR_SHA256_sig = 0x01
 KNOWN = "/known.bin"
 KNOWN_SIZE = 8192
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrootd-conformance")]
 
 
 # --------------------------------------------------------------------------- #

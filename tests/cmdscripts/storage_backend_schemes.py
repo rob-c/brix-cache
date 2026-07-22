@@ -10,7 +10,10 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_port
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
+
+_PORTS = cmdscript_ports("storage_backend_schemes")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
@@ -21,11 +24,11 @@ PARSE_OK = (
     ("posix:<path>", "brix_storage_backend posix:{data};"),
     ("posix://<path>", "brix_storage_backend posix://{data};"),
     ("pblock://<path>", "brix_storage_backend pblock://{pb};"),
-    ("root://host:port", "brix_storage_backend root://127.0.0.1:{origin_port};"),
-    ("roots://host:port", "brix_storage_backend roots://127.0.0.1:{origin_port};"),
+    ("root://host:port", "brix_storage_backend root://{host}:{origin_port};"),
+    ("roots://host:port", "brix_storage_backend roots://{host}:{origin_port};"),
     ("http://host/base", "brix_storage_backend http://origin.example:8080/d;"),
     ("https://host/base", "brix_storage_backend https://origin.example/d;"),
-    ("s3://host:port/bucket", "brix_storage_backend s3://127.0.0.1:9000/mybucket;"),
+    ("s3://host:port/bucket", "brix_storage_backend s3://{host}:9000/mybucket;"),
     ("s3://host/bucket", "brix_storage_backend s3://s3.example.com/data;"),
     ("rados://pool/ns", "brix_storage_backend rados://mypool/myns;"),
     ("rados://pool", "brix_storage_backend rados://mypool;"),
@@ -37,7 +40,7 @@ PARSE_OK = (
 
 PARSE_NO = (
     ("bare s3://", "brix_storage_backend s3://;", ("needs", "host", "bucket")),
-    ("s3:// no bucket", "brix_storage_backend s3://127.0.0.1:9000;", ("needs", "bucket")),
+    ("s3:// no bucket", "brix_storage_backend s3://{host}:9000;", ("needs", "bucket")),
     ("bare rados://", "brix_storage_backend rados://;", ("needs", "pool")),
     ("rados:/// empty pool", "brix_storage_backend rados:///ns;", ("needs", "pool")),
     (
@@ -70,6 +73,7 @@ def render_directives(template: str, base: Path, origin_port: int) -> str:
         tape=base / "tape",
         cache=base / "cache",
         origin_port=origin_port,
+        host=HOST,
     )
 
 
@@ -79,7 +83,7 @@ def write_parse_config(base: Path, port: int, directives: str) -> Path:
     conf.write_text(
         f"""daemon on; error_log {base / 'logs' / 'e.log'} info; pid {base / 't.pid'};
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_auth none; {directives} }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_auth none; {directives} }} }}
 """,
         encoding="utf-8",
     )
@@ -94,8 +98,8 @@ def parse_check(
     expect_ok: bool,
     patterns: tuple[str, ...] = (),
 ) -> tuple[bool, str]:
-    port = free_port()
-    origin_port = free_port()
+    port = _PORTS[0]  # was free_port()
+    origin_port = _PORTS[1]  # was free_port()
     conf = write_parse_config(base, port, render_directives(directives, base, origin_port))
     result = run([nginx_bin, "-p", str(base), "-c", str(conf), "-t"])
     output = (result.stdout or "") + (result.stderr or "")
@@ -110,7 +114,7 @@ def parse_check(
 def posix_data_plane(base: Path, nginx_bin: str, xrdcp: Path = XRDCP) -> tuple[bool, str]:
     if not os.access(xrdcp, os.X_OK):
         return True, "SKIP posix:// data plane (native xrdcp not built)"
-    port = free_port()
+    port = _PORTS[2]  # was free_port()
     data = base / "data"
     logs = base / "logs"
     data.mkdir(parents=True, exist_ok=True)
@@ -121,7 +125,7 @@ def posix_data_plane(base: Path, nginx_bin: str, xrdcp: Path = XRDCP) -> tuple[b
     conf.write_text(
         f"""daemon on; error_log {logs / 'p.log'} info; pid {base / 'p.pid'};
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_auth none; brix_storage_backend posix://{data}; }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_auth none; brix_storage_backend posix://{data}; }} }}
 """,
         encoding="utf-8",
     )
@@ -131,7 +135,7 @@ stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_auth none; brix_
     try:
         time.sleep(1)
         got = base / "got.bin"
-        cp = run([str(xrdcp), f"root://127.0.0.1:{port}//blob.bin", str(got), "-f"])
+        cp = run([str(xrdcp), f"root://{HOST}:{port}//blob.bin", str(got), "-f"])
         return cp.returncode == 0 and got.read_bytes() == payload.read_bytes(), "posix:// GET byte-exact (no brix_export)"
     finally:
         stop_pidfile(base / "p.pid")
@@ -141,7 +145,7 @@ stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_auth none; brix_
 def frm_data_plane(base: Path, nginx_bin: str, xrdfs: Path = XRDFS) -> tuple[bool, str]:
     if not os.access(xrdfs, os.X_OK):
         return True, "SKIP frm:// data plane (native xrdfs not built)"
-    port = free_port()
+    port = _PORTS[3]  # was free_port()
     tape = base / "tape"
     fcache = base / "fcache"
     fexport = base / "fexport"
@@ -157,7 +161,7 @@ def frm_data_plane(base: Path, nginx_bin: str, xrdfs: Path = XRDFS) -> tuple[boo
 env BRIX_FRM_STUB_RECALL_DELAY_MS=800;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {fexport}; brix_auth none;
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {fexport}; brix_auth none;
     brix_storage_backend frm://stub{base}/tape;
     brix_cache_store posix:{fcache}; }} }}
 """,
@@ -168,14 +172,14 @@ stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {fexport}
         return False, "frm:// node start"
     try:
         time.sleep(1)
-        stat = run([str(xrdfs), f"root://127.0.0.1:{port}", "stat", "/f.bin"])
+        stat = run([str(xrdfs), f"root://{HOST}:{port}", "stat", "/f.bin"])
         if "Offline" not in (stat.stdout or ""):
             return False, "frm:// nearline object reports Offline"
         got = base / "f.got"
         try:
             with got.open("wb") as out:
                 cat = subprocess.run(
-                    [str(xrdfs), f"root://127.0.0.1:{port}", "cat", "/f.bin"],
+                    [str(xrdfs), f"root://{HOST}:{port}", "cat", "/f.bin"],
                     stdout=out,
                     stderr=subprocess.PIPE,
                     timeout=60,

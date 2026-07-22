@@ -9,7 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
@@ -47,7 +48,7 @@ events {{ worker_connections 64; }}
 
 http {{
     server {{
-        listen 127.0.0.1:{s3_port};
+        listen {BIND_HOST}:{s3_port};
         location / {{
             brix_s3 on;
             brix_export {s3root};
@@ -67,11 +68,11 @@ stream {{
         s3_region us-east-1;
     }}
     server {{
-        listen 127.0.0.1:{node_port};
+        listen {BIND_HOST}:{node_port};
         brix_root on;
         brix_export {export};
         brix_auth none;
-        brix_storage_backend s3://127.0.0.1:{s3_port}/testbucket;
+        brix_storage_backend s3://{HOST}:{s3_port}/testbucket;
         brix_storage_credential s3origin;
         brix_cache_store posix:{cache};
         brix_cache_export /;
@@ -84,7 +85,7 @@ stream {{
 
 
 def xrdfs_cat(port: int, path: str, dest: Path | None = None, xrdfs: Path = XRDFS) -> subprocess.CompletedProcess:
-    cmd = [str(xrdfs), f"root://127.0.0.1:{port}", "cat", path]
+    cmd = [str(xrdfs), f"root://{HOST}:{port}", "cat", path]
     try:
         if dest is None:
             return subprocess.run(
@@ -108,7 +109,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
     if not os.access(xrdfs, os.X_OK):
         return [(True, "SKIP cache S3 origin data plane (native xrdfs not built)")]
 
-    s3_port, node_port = free_ports(2)
+    s3_port, node_port = cmdscript_ports("cache_s3_origin")
     conf = write_config(base, s3_port, node_port)
     (base / "s3root" / "hello.bin").write_bytes(deterministic_bytes(700_000, 41))
 

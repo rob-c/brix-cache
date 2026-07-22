@@ -35,7 +35,7 @@ import time
 
 import pytest
 
-from guard_http_lib import NGINX_BIN, AuditLog, GuardServer, free_port
+from guard_http_lib import NGINX_BIN, AuditLog, GuardServer
 from settings import HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
@@ -43,7 +43,8 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
 FILTER_DIR = REPO / "deploy" / "fail2ban" / "filter.d"
 
-pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-guard-endpoints")]
 
 SCANNER_PROBES = ["/wp-login.php", "/cgi-bin/probe.cgi", "/phpMyAdmin/index",
                   "/.git/config", "/x/.env"]
@@ -94,16 +95,12 @@ def fleet(lifecycle, tmp_path):
     (s3_root / "bucket" / "obj.bin").write_bytes(b"s3-object\n")
     (xrd_root / "f.bin").write_bytes(os.urandom(4096))
 
-    ports = {name: free_port() for name in ("dav", "s3", "ops", "xrd", "cms")}
     audits = {name: tmp_path / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
 
-    lifecycle.start(NginxInstanceSpec(
+    ep = lifecycle.start(NginxInstanceSpec(
         name="lc-guard-endpoints",
         template="nginx_guard_endpoints_lc.conf",
         readiness="none",
-        extra_ports={"DAV_PORT": ports["dav"], "S3_PORT": ports["s3"],
-                     "OPS_PORT": ports["ops"], "XRD_PORT": ports["xrd"],
-                     "CMS_PORT": ports["cms"]},
         template_values={
             "BIND_HOST": BIND_HOST,
             "DAV_AUDIT": str(audits["dav"]),
@@ -114,6 +111,9 @@ def fleet(lifecycle, tmp_path):
             "XRD_ROOT": str(xrd_root),
         },
         reason="phase-65 multi-front-door guard endpoints"))
+    ports = {"dav": ep.extra_ports["DAV_PORT"], "s3": ep.extra_ports["S3_PORT"],
+             "ops": ep.extra_ports["OPS_PORT"], "xrd": ep.extra_ports["XRD_PORT"],
+             "cms": ep.extra_ports["CMS_PORT"]}
     deadline = time.time() + 10
     while time.time() < deadline and not all(
             _port_alive(p) for p in ports.values()):

@@ -23,7 +23,8 @@ import requests
 from mu_authz_lib import creds, ports, principals
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-mu-sidecar")]
 
 _PROBE = "sidecarprobe"
 _KEEP = "keep.dat"                       # a genuine user file — must stay visible

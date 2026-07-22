@@ -30,9 +30,10 @@ from pathlib import Path
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import free_port
+from ephemeral_port import free_port
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -88,7 +89,7 @@ def gsi_tpc(lifecycle, tmp_path_factory):
     # is unreachable from a loopback leg), and a "localhost" URL lets the client
     # reach the dual-stack source over ::1 ("localhost") while the v4-only nginx
     # dest names the same client "[::ffff:127.0.0.1]".
-    loop = "127.0.0.1"
+    loop = "127.0.0.1"  # net-literal-allow: numeric IPv4 loopback deliberately forces IPv4 for both TPC legs (see comment)
 
     def osl(*a):
         r = _run(["openssl", *a])

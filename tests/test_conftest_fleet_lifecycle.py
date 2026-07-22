@@ -17,6 +17,7 @@ no real server is started or stopped.
 
 import importlib.util
 import os
+import types
 
 import pytest
 
@@ -85,8 +86,8 @@ class _Options:
 
 class _Config:
     """Minimal stand-in for pytest's Config as pytest_collection_finish sees it:
-    no ``workerinput`` attribute (controller), an ``option`` namespace, and the
-    positional ``args`` that _selected_tests_do_not_need_server() inspects."""
+    no ``workerinput`` attribute (controller), an ``option`` namespace, and a
+    positional ``args`` list."""
 
     def __init__(self, numprocesses=None, collectonly=False):
         self.option = _Options(numprocesses=numprocesses, collectonly=collectonly)
@@ -152,31 +153,43 @@ def test_collection_finish_skips_collect_only_and_empty_sessions(
     assert collection_finish_env == []
 
 
+def _named_spec(name):
+    """A minimal stand-in for a registry spec: only ``.name`` is read by the
+    boot-set closure filter."""
+    spec = types.SimpleNamespace()
+    spec.name = name
+    return spec
+
+
 def test_subset_boot_is_the_default(monkeypatch):
-    """_specs_to_boot returns the declared union unless REGISTRY_SUBSET_BOOT=0."""
+    """The default path boots the dependency closure of the collected *seed* —
+    required/declared specs ∪ autouse specs ∪ conftest-fixture specs — filtered
+    against the registered fleet, not the whole fleet."""
     monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
-    monkeypatch.setattr(conftest, "_always_on_specs", lambda: {"backbone"})
-    seen = {}
-
-    def fake_selected(items, always_on=()):
-        seen["always_on"] = set(always_on)
-        return ["declared-union"]
-
-    monkeypatch.setattr(conftest, "selected_specs", fake_selected)
-    assert conftest._specs_to_boot([]) == ["declared-union"]
-    assert seen["always_on"] == {"backbone"}
-
-
-def test_subset_boot_opt_out_restores_full_fleet(monkeypatch):
-    import server_registry
-
-    monkeypatch.setenv("REGISTRY_SUBSET_BOOT", "0")
-    monkeypatch.setattr(server_registry, "registered_specs", lambda: ["every-spec"])
+    monkeypatch.setattr(conftest, "_required_specs_for", lambda items: {"a"})
+    monkeypatch.setattr(conftest, "_autouse_specs_for", lambda items: {"b"})
+    monkeypatch.setattr(conftest, "_conftest_fixture_specs_for", lambda items: set())
+    monkeypatch.setattr(conftest, "dependency_closure",
+                        lambda seed: set(seed) | {"a-dep"})
     monkeypatch.setattr(
-        conftest, "selected_specs",
-        lambda *a, **k: pytest.fail("subset path must not run when opted out"),
-    )
-    assert conftest._specs_to_boot([]) == ["every-spec"]
+        conftest, "registered_specs",
+        lambda: [_named_spec(n) for n in ("a", "b", "a-dep", "unrelated")])
+    boot = conftest._specs_to_boot([])
+    assert sorted(s.name for s in boot) == ["a", "a-dep", "b"]
+
+
+def test_empty_seed_boots_nothing(monkeypatch):
+    """Goal 5 (zero servers for tests that need none): a collected set that
+    reaches no server yields an empty seed, so the fleet launches nothing and
+    the registered fleet is never even scanned."""
+    monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
+    monkeypatch.setattr(conftest, "_required_specs_for", lambda items: set())
+    monkeypatch.setattr(conftest, "_autouse_specs_for", lambda items: set())
+    monkeypatch.setattr(conftest, "_conftest_fixture_specs_for", lambda items: set())
+    monkeypatch.setattr(
+        conftest, "registered_specs",
+        lambda: pytest.fail("must not scan the fleet for an empty seed"))
+    assert conftest._specs_to_boot([]) == []
 
 
 def test_subset_boot_unions_module_autouse_specs(monkeypatch, tmp_path):
@@ -206,17 +219,14 @@ def test_subset_boot_unions_module_autouse_specs(monkeypatch, tmp_path):
         fspath = str(mod)
 
     monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
-    monkeypatch.setattr(conftest, "_always_on_specs", lambda: {"backbone"})
-    seen = {}
-
-    def fake_selected(items, always_on=()):
-        seen["always_on"] = set(always_on)
-        return sorted(always_on)
-
-    monkeypatch.setattr(conftest, "selected_specs", fake_selected)
-    conftest._specs_to_boot([_Item()])
-    assert ded_spec in seen["always_on"]
-    assert "backbone" in seen["always_on"]
+    # Isolate the autouse source: the other seed contributors return nothing, so
+    # only the autouse fixture's spec can reach the boot set.
+    monkeypatch.setattr(conftest, "_required_specs_for", lambda items: set())
+    monkeypatch.setattr(conftest, "_conftest_fixture_specs_for", lambda items: set())
+    monkeypatch.setattr(conftest, "dependency_closure", lambda seed: set(seed))
+    monkeypatch.setattr(conftest, "registered_specs", lambda: [_named_spec(ded_spec)])
+    boot = conftest._specs_to_boot([_Item()])
+    assert ded_spec in {s.name for s in boot}
 
 
 def test_decision_is_memoized(fleet_decision_env):

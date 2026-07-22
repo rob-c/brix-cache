@@ -70,7 +70,7 @@ def handle(client):
 def main():
     port = int(sys.argv[1])
     s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("127.0.0.1", port)); s.listen(64)
+    s.bind(("127.0.0.1", port)); s.listen(64)  # net-literal-allow: standalone-spawned helper server (no tests/ on sys.path); loopback bind
     log("proxy listening %d" % port)
     while True:
         c, _ = s.accept()

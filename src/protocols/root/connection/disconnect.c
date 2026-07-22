@@ -9,6 +9,7 @@
 #include "net/ratelimit/ratelimit.h"
 #include "net/ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "net/mirror/stream_wmirror.h"
+#include "fs/xfer/backend_async_queue.h"   /* baq_drop_client — parked-mutation cleanup */
 #include "observability/sesslog/sesslog_ngx.h"
 #include "core/aio/uring.h"   /* brix_uring_orphan_owner (late-CQE UAF guard) */
 
@@ -242,6 +243,16 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
      * funnel always runs on close, and the release is gated by ctx->login.gsi_counted
      * so a completed handshake (already released) is a no-op. */
     brix_gsi_inflight_release(ctx);
+
+    /* backend-async: if a namespace mutation this connection issued is still parked
+     * in the backend-async queue, drop its client row so the eventual bulk flush
+     * never dereferences this (about-to-be-freed) park record. The durable journal
+     * record is intentionally LEFT on disk, so the mutation still replays at the
+     * next flush or at boot — only the (now-impossible) synchronous reply is lost. */
+    if (ctx->baq_park != NULL) {
+        brix_baq_drop_client(ctx->baq_park);
+        ctx->baq_park = NULL;
+    }
 
     if (ctx->upstream != NULL) {
         brix_upstream_cleanup(ctx->upstream);

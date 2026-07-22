@@ -76,6 +76,21 @@ brix_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
             brix_schedule_read_resume(c);
             return 1;
         }
+        if (ctx->state == XRD_ST_WAITING_BAQ) {
+            /* The backend-async flush took longer than the park deadline (a stuck
+             * backend). The mutation is durably journaled and will be replayed at
+             * the next flush or at boot, so tear the connection down: the parked
+             * waker is dropped by the disconnect funnel (brix_baq_drop_client) and
+             * never fires on freed memory. The client sees a transport sever and
+             * retries — the replay makes the eventual result idempotent. */
+            rev->timedout = 0;
+            ctx->deadline.read_armed = 0;
+            BRIX_SRV_METRIC_INC(ctx, read_pdu_timeouts_total);
+            brix_on_disconnect(ctx, c);
+            brix_close_all_files(ctx);
+            ngx_stream_finalize_session(s, NGX_STREAM_OK);
+            return 1;
+        }
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
                       "brix: client connection timed out");
         /* Phase 39: our steady-state read deadline fired — it is the only c->read
@@ -126,7 +141,8 @@ brix_recv_handoff_state(brix_ctx_t *ctx, ngx_event_t *rev)
         || ctx->state == XRD_ST_UPSTREAM
         || ctx->state == XRD_ST_PROXY
         || ctx->state == XRD_ST_WAITING_CMS
-        || ctx->state == XRD_ST_WAITING_FRM)
+        || ctx->state == XRD_ST_WAITING_FRM
+        || ctx->state == XRD_ST_WAITING_BAQ)
     {
         if (ngx_handle_read_event(rev, 0) != NGX_OK) {
             return BRIX_RECV_BREAK;

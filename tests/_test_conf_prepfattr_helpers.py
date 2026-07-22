@@ -66,6 +66,7 @@ import struct
 import pytest
 
 import official_interop_lib as L
+from settings import BIND_HOST
 
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.skipif(not L.have_official(),
@@ -76,7 +77,7 @@ pytestmark = [pytest.mark.timeout(300),
 # See _test_conf_sessions_helpers.py for the full rationale.
 OUR_PORT = L.FLEET_OUR_PORT
 OFF_PORT = L.FLEET_OFF_PORT
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 
 # opcodes / status
 kXR_login = 3007

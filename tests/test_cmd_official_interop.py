@@ -5,6 +5,7 @@ import socket
 import pytest
 
 from cmdscripts import official_interop
+from settings import HOST
 
 
 def test_official_interop_scenarios_are_importable():
@@ -19,7 +20,7 @@ def test_official_interop_scenarios_are_importable():
 
 def _fleet_anon_listening() -> bool:
     try:
-        with socket.create_connection(("127.0.0.1", official_interop.anon_port()), timeout=1):
+        with socket.create_connection((HOST, official_interop.anon_port()), timeout=1):
             return True
     except OSError:
         return False

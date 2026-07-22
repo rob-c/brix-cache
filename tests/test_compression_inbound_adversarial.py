@@ -35,11 +35,11 @@ import pytest
 import requests
 import urllib3
 
-from settings import NGINX_WEBDAV_PORT
+from settings import NGINX_WEBDAV_PORT, SERVER_HOST
 
 urllib3.disable_warnings()
 
-BASE = f"https://localhost:{NGINX_WEBDAV_PORT}"
+BASE = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
 
 # A 4xx is the contract for a malformed body. Servers may map decode failure
 # to 400 (bad request), 415 (unsupported/undecodable), or 422 (unprocessable).

@@ -29,14 +29,17 @@ import time
 
 import pytest
 
-import settings
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN
 
-pytestmark = pytest.mark.skipif(
-    not os.path.isfile(NGINX_BIN),
-    reason=f"nginx binary not built at {NGINX_BIN}",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not os.path.isfile(NGINX_BIN),
+        reason=f"nginx binary not built at {NGINX_BIN}",
+    ),
+    # Fixed ledger port (lc-speed) → one driver at a time.
+    pytest.mark.xdist_group("lc-speed"),
+]
 
 
 def _wait_for(elog, pattern, timeout=15.0):
@@ -85,13 +88,13 @@ class Instance:
             knobs += f"        brix_gsi_keypool_size {keypool_size};\n"
         if keypool_seed is not None:
             knobs += f"        brix_gsi_keypool_seed {keypool_seed};\n"
-        (gsi_port,) = settings.free_ports(1)
+        # PORT + GSI_PORT come from the fleet_lifecycle_ports ledger (lc-speed);
+        # the ledger overrides any extra_ports passed here, so none is set.
         endpoint = harness.start(
             NginxInstanceSpec(
                 name=name,
                 template="nginx_lifecycle_speed.conf",
                 data_root=str(data),
-                extra_ports={"GSI_PORT": gsi_port},
                 template_values={
                     "WORKERS": workers,
                     "THREAD_POOL_LINE": (
@@ -108,16 +111,14 @@ class Instance:
         self.elog = os.path.join(endpoint.prefix, "logs", "error.log")
 
 
-# Module-wide counter: registry prefixes live under a per-name directory whose
-# error.log appends across starts, so every instance in this module needs a
-# distinct name or a later test would match phase lines from an earlier one.
-_SEQ = iter(range(10_000))
-
-
 @pytest.fixture
 def instance(lifecycle, tmp_path):
     def _make(**kw):
-        name = f"lc-speed-{next(_SEQ)}"
+        # Fixed ledger name (lc-speed) reused across tests: the file serialises on
+        # xdist_group("lc-speed") and the harness wipes the stopped instance's
+        # prefix (incl. its appended error.log) at each register, so consecutive
+        # tests never match an earlier run's phase lines.
+        name = "lc-speed"
         return Instance(lifecycle, tmp_path / name, name, **kw)
 
     yield _make

@@ -2,13 +2,73 @@
 import Layout from '../layouts/Layout.astro';
 import Band from '../components/Band.astro';
 import Cta from '../components/Cta.astro';
+import { REPO_URL } from '../lib/site';
 
 // Client row — each speaks one protocol, tinted with that protocol's accent.
 const clients = [
   { name: 'xrdcp · xrdfs · pyxrootd', scheme: 'root://', tint: 'var(--root)' },
   { name: 'curl · rucio · browser', scheme: 'davs://', tint: 'var(--dav)' },
   { name: 'aws-cli · boto3', scheme: 's3://', tint: 'var(--s3)' },
+  { name: 'globus-url-copy · gfal2 · fts', scheme: 'gsiftp://', tint: 'var(--ftp)' },
 ];
+
+// Headline numbers for the hero stat strip — all defensible from the tree.
+const stats = [
+  { n: '4', l: 'wire protocols', s: 'root · dav · s3 · gsiftp' },
+  { n: '32', l: 'XRootD opcodes', s: 'the full 5.2 verb set' },
+  { n: '1', l: 'nginx binary', s: 'one event loop' },
+  { n: '~8.7k', l: 'tests', s: 'cross-checked vs. stock' },
+];
+
+// Recently landed — the headline work of 2026. Each carries an honest status:
+// "Landed" = shipped and tested; "Native-tested" / "Code-complete" flag work
+// whose full container-fleet or live-cluster verification is infra-blocked.
+const recent = [
+  {
+    t: 'A GridFTP door',
+    tint: 'var(--ftp)',
+    status: 'Landed · native-interop tested',
+    d: 'A full gsiftp:// GridFTP server: GSI / X.509 control-channel auth, parallel MODE E data streams, encrypted (PROT P) data channels, and server-to-server third-party copy — every transfer bridged onto the same POSIX tree, or delegated onward to a root:// origin as the user.',
+    cite: 'src/protocols/gridftp/ev/ · tests/test_gridftp_gsiftp_ev.py',
+  },
+  {
+    t: 'Identity survives the hop',
+    tint: 'var(--root)',
+    status: 'Landed · opt-in',
+    d: 'Each authenticated request reaches the storage origin under its own identity — a per-user GSI proxy, WLCG token, S3 SigV4 key, or CephX keyring — with opt-in minting of short-lived x509 proxies for bearer-only clients. Stock XRootD collapses every proxied request onto one service credential.',
+    cite: 'src/fs/backend/cred_mint.c · vfs_staged.c',
+  },
+  {
+    t: 'Real cmsd cluster parity',
+    tint: 'var(--dav)',
+    status: 'Landed · wire-tested',
+    d: 'BriX-Cache speaks the genuine XrdCms / cmsd cluster-management wire: manager ↔ server selection by real load, dynamic file location, forwarded staging, and multi-replica delete fan-out — drop-in interop with an existing XRootD cmsd mesh, every step flag-gated to legacy behaviour by default.',
+    cite: 'src/net/cms/ · tests/test_cms_*.py',
+  },
+  {
+    t: 'Write paths that fail closed',
+    tint: 'var(--s3)',
+    status: 'Landed',
+    d: 'Every write path — WebDAV PUT, S3 PutObject, GridFTP STOR, native kXR_write / pgwrite, and TPC commit legs — gained fail-closed truncation guards plus opt-in end-to-end digest verification, each found and pinned with a userland TCP fault injector that corrupts and truncates the wire on purpose.',
+    cite: 'tests/resilience/ · docs/07-security/hostile-network-lessons.md',
+  },
+  {
+    t: 'CVMFS, client and cache',
+    tint: 'var(--root)',
+    status: 'Landed',
+    d: 'A clean-room native CVMFS client with live-repo signature verification, a FUSE writable overlay over a read-only mount, and stock-style on-demand /cvmfs/<repo> automounting with no autofs kernel module or systemd dependency — works unprivileged, in containers, on WSL2.',
+    cite: 'client/apps/fs/ · docs/05-operations/cvmfs-automount.md',
+  },
+  {
+    t: 'Ceph / RADOS, natively',
+    tint: 'var(--dav)',
+    status: 'Code-complete · live lab pending',
+    d: 'RADOS object storage as a first-class backend — striper-aware I/O, per-user CephX credentials, staged writes, and hierarchical directory listing projected over a flat key namespace — reached through the same VFS seam as every other backend.',
+    cite: 'src/fs/backend/rados/ · tests/run_rados_parity.sh',
+  },
+];
+
+const DEVGUIDE_URL = `${REPO_URL}/blob/main/docs/09-developer-guide/development-history.md`;
 
 // The seven src/ concept buckets — the shape of the codebase.
 const buckets = [
@@ -31,18 +91,51 @@ const backends = [
 
 <Layout
   title="About"
-  description="How BriX-Cache is built: three protocol front-ends, one shared auth-and-cache core, and a VFS that is the sole storage truth — all inside a single nginx binary. A full architecture diagram of the project."
+  description="How BriX-Cache is built: four protocol front-ends — root://, WebDAV, S3, and a gsiftp:// GridFTP gateway — over one shared auth-and-cache core and a VFS that is the sole storage truth, all inside a single nginx binary. A full architecture diagram of the project."
   accent="dav"
 >
   <!-- HERO -->
   <Band first={true}>
     <span class="eyebrow">About the project</span>
-    <h1 class="display hero-head">One binary. Three protocols. One path to disk.</h1>
+    <h1 class="display hero-head">One binary.<br />Four protocols.<br />One path to disk.</h1>
     <p class="lede">
       BriX-Cache is a single nginx module that speaks <span class="mono">root://</span> (XRootD),
-      WebDAV, and S3 off the same POSIX tree. Every request enters nginx's event loop, passes one
-      shared core that decides auth and handles caching &amp; metrics, then reaches storage through
-      a VFS where all raw file I/O lives in exactly one place. Here is the whole system in one picture.
+      WebDAV, and S3 off the same POSIX tree — and now terminates a full <span class="mono">gsiftp://</span>
+      GridFTP server besides. Every request enters nginx's event loop, passes one shared core that
+      decides auth and handles caching &amp; metrics, then reaches storage through a VFS where all raw
+      file I/O lives in exactly one place.
+    </p>
+    <dl class="stats" aria-label="Project at a glance">
+      {stats.map((x) => (
+        <div class="stat">
+          <dt class="stat-n mono">{x.n}</dt>
+          <dd class="stat-l">{x.l}<span class="stat-s mono">{x.s}</span></dd>
+        </div>
+      ))}
+    </dl>
+  </Band>
+
+  <!-- RECENTLY LANDED -->
+  <Band variant="ink" id="recent">
+    <span class="eyebrow">Recently landed</span>
+    <h2 class="display sect-head">What shipped this year.</h2>
+    <p class="lede muted intro recent-intro">
+      The project moves in phases, and 2026 has been a heavy one — a fourth protocol, identity that
+      survives the proxy hop, real cluster-management parity, and a write path hardened against a
+      hostile wire. Each card carries an honest status.
+    </p>
+    <div class="grid grid-3 rgrid">
+      {recent.map((r) => (
+        <article class="panel panel--hover rcard" style={`--tint:${r.tint}`}>
+          <span class="rstatus mono">{r.status}</span>
+          <h3 class="rcard-t">{r.t}</h3>
+          <p class="muted rcard-d">{r.d}</p>
+          <p class="mono rcard-cite">{r.cite}</p>
+        </article>
+      ))}
+    </div>
+    <p class="recent-more mono">
+      The full phase-by-phase record lives in the tree: <a href={DEVGUIDE_URL}>docs · development-history.md ↗</a>
     </p>
   </Band>
 
@@ -52,11 +145,11 @@ const backends = [
     <h2 class="display sect-head">The whole system, one picture.</h2>
 
     <div class="diagram" role="img"
-      aria-label="Architecture: clients speaking root, WebDAV and S3 enter nginx; stream and http blocks front-end each protocol; all converge on a shared core, then a VFS, then storage backends.">
+      aria-label="Architecture: clients speaking root, WebDAV, S3 and gsiftp enter nginx; stream and http blocks front-end each protocol; all converge on a shared core, then a VFS, then storage backends.">
 
       <!-- L0 clients -->
       <div class="layer-tag">clients</div>
-      <div class="row row-3">
+      <div class="row row-4">
         {clients.map((c) => (
           <div class="node" style={`--tint:${c.tint}`}>
             <b>{c.name}</b>
@@ -74,6 +167,7 @@ const backends = [
           <div class="lane" style="--tint:var(--root)">
             <div class="lane-h mono">stream {'{}'} block</div>
             <div class="node" style="--tint:var(--root)"><b>Native root:// handler</b><small>open · read · pgread · write · stat · 32 opcodes</small></div>
+            <div class="node" style="--tint:var(--ftp)"><b>GridFTP gateway</b><small>gsiftp · GSI · MODE E · TPC</small></div>
             <div class="node" style="--tint:var(--root)"><b>Transparent proxy / relay</b><small>tap · mirror · handoff</small></div>
           </div>
           <div class="lane" style="--tint:var(--dav)">
@@ -158,9 +252,50 @@ const backends = [
 </Layout>
 
 <style>
-  .hero-head { margin: 0.6rem 0 1.2rem; max-width: 18ch; }
+  .hero-head { margin: 0.6rem 0 1.2rem; max-width: 14ch; }
   .sect-head { margin: 0.5rem 0 1.4rem; max-width: 26ch; }
   .intro { margin-bottom: 1.8rem; max-width: 62ch; }
+
+  /* hero stat strip */
+  .stats {
+    margin-top: 2rem; display: grid; gap: 0;
+    grid-template-columns: repeat(2, 1fr); border: var(--border); box-shadow: var(--shadow-sm);
+  }
+  @media (min-width: 720px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+  .stat {
+    display: flex; flex-direction: column; gap: 0.15rem;
+    padding: 1rem 1.15rem; border-right: var(--border-2); border-bottom: var(--border-2);
+    background: var(--panel);
+  }
+  @media (min-width: 720px) { .stat { border-bottom: none; } .stat:last-child { border-right: none; } }
+  .stat-n {
+    font-family: var(--display); font-stretch: 125%; font-weight: 800;
+    font-size: clamp(2rem, 4.5vw, 2.8rem); line-height: 0.95; letter-spacing: -0.03em;
+  }
+  .stat-l { font-weight: 700; font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.1rem; }
+  .stat-s { font-weight: 400; font-size: 0.7rem; color: var(--ink-2); }
+
+  /* recently landed */
+  .recent-intro { max-width: 60ch; }
+  .rgrid { align-items: stretch; margin-top: 0.4rem; }
+  .rcard {
+    display: flex; flex-direction: column; gap: 0.55rem; height: 100%;
+    border-top: 9px solid var(--tint);
+  }
+  .rstatus {
+    align-self: flex-start; font-size: 0.62rem; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    border: var(--border-2); border-color: var(--tint); color: var(--paper);
+    padding: 0.18em 0.55em;
+  }
+  .rcard-t {
+    font-family: var(--display); font-stretch: 112%; font-weight: 700;
+    font-size: 1.28rem; line-height: 1.05;
+  }
+  .rcard-d { font-size: 0.9rem; }
+  .rcard-cite { margin-top: auto; font-size: 0.7rem; color: #a8a29e; word-break: break-word; }
+  .recent-more { margin-top: 1.8rem; font-size: 0.85rem; }
+  .recent-more a { color: var(--accent); }
 
   /* ---- diagram ---- */
   .diagram { display: flex; flex-direction: column; align-items: stretch; gap: 0; }

@@ -368,6 +368,11 @@ static ngx_command_t  brix_http_common_commands[] = {
     BRIX_TIER_DIRECTIVES("brix_", ngx_http_brix_common_conf_t,
                          BRIX_HTTP_ALL_CONF, NGX_HTTP_LOC_CONF_OFFSET),
 
+    /* Durable async backend-op queue (brix_backend_async[_batch|_wait]) — shared
+     * with the root:// stream plane, adopted into each http protocol's `common`. */
+    BRIX_BACKEND_ASYNC_DIRECTIVES("brix_", ngx_http_brix_common_conf_t,
+                         BRIX_HTTP_ALL_CONF, NGX_HTTP_LOC_CONF_OFFSET),
+
       ngx_null_command
 };
 
@@ -467,6 +472,9 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(session_log,       NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_enable,      NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_flush_async, NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_VAL(backend_async,       NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(backend_async_batch, NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_VAL(backend_async_wait,  NGX_CONF_UNSET_MSEC);
     BRIX_ADOPT_VAL(cache_max_object,  NGX_CONF_UNSET);          /* off_t */
     BRIX_ADOPT_VAL(cache_evict_at,    NGX_CONF_UNSET_UINT);     /* ngx_uint_t */
     BRIX_ADOPT_VAL(cache_evict_to,    NGX_CONF_UNSET_UINT);     /* ngx_uint_t */

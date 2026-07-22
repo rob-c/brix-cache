@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import NGINX_BIN, PortBlock, srv_instance
 from repo_forge import Dir, File, RepoForge
+from settings import HOST
 
 REPO = "test.cern.ch"
 
@@ -87,7 +88,7 @@ def _srv(web, pub=None, **kw):
 
 
 def _get(srv, name, repo=REPO):
-    url = f"http://127.0.0.1:{srv.nginx_port}/cvmfs/{repo}/{name}"
+    url = f"http://{HOST}:{srv.nginx_port}/cvmfs/{repo}/{name}"
     try:
         with urllib.request.urlopen(url, timeout=25) as r:
             return r.status, r.read()

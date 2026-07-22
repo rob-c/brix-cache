@@ -20,7 +20,6 @@ import json
 import os
 import pathlib
 import shutil
-import socket
 import subprocess
 import time
 import urllib.error
@@ -73,20 +72,13 @@ def test_scan_core_suite(scan_core_bin):
 from settings import HOST, BIND_HOST, NGINX_BIN  # noqa: E402
 from server_registry import NginxInstanceSpec  # noqa: E402
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-scan-dashboard")]
 
 SCAN_PW = "scan_admin_pw_42"
 
 A_BYTES = b"A" * 1000
 B_BYTES = b"B" * 2000
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 def _xattr_supported(path):
@@ -115,15 +107,14 @@ def scan_server(lifecycle, tmp_path):
 
     xattr_ok = _xattr_supported(str(data / "a.bin"))
 
-    off_port = _free_port()
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-scan-dashboard",
         template="nginx_lc_scan_dashboard.conf",
         protocol="http",
-        extra_ports={"OFF_PORT": off_port},
         template_values={"BIND_HOST": BIND_HOST, "PASSWORD": SCAN_PW,
                          "DATA_DIR": str(data)},
         reason="storage-scan dashboard endpoint over a seeded tree"))
+    off_port = ep.extra_ports["OFF_PORT"]
 
     base = "http://%s:%d" % (HOST, ep.port)
     for _ in range(50):

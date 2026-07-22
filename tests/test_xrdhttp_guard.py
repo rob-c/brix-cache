@@ -19,14 +19,22 @@ from guard_http_lib import NGINX_BIN, AuditLog, GuardServer, StubBackend
 from settings import HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+# The guard-stub mock holds a shared hit counter + reply status, so these tests
+# must run sequentially (serial → one xdist worker); each resets the mock first.
+pytestmark = [
+    pytest.mark.timeout(120),
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.serial,
+    pytest.mark.registry_server("guard-stub"),
+    pytest.mark.xdist_group("lc-xrdhttp-guard"),
+]
 
 
 @pytest.fixture(scope="module")
 def stub_backend():
-    backend = StubBackend()
-    yield backend
-    backend.stop()
+    # The mock is a fixed-port registry singleton (declared above); this is just
+    # the control client — no per-test server to start or stop.
+    return StubBackend()
 
 
 @pytest.fixture()

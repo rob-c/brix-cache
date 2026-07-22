@@ -82,12 +82,15 @@ def _is_fixture(node) -> bool:
     return False
 
 
-def _fixture_reachable_specs(source: str, is_root) -> frozenset[str]:
+def _fixture_reachable_specs(source: str, is_root, drop_backbone: bool = True) -> frozenset[str]:
     """Dedicated specs reachable from every fixture ``is_root`` accepts.
 
     Resolves each root fixture's settings-constant references transitively
     through the helpers and fixtures it in turn calls or requests, then maps
-    the constants to owning specs and drops the always-on backbone.
+    the constants to owning specs.  With ``drop_backbone`` (default) the
+    always-on backbone is subtracted; boot-set callers pass ``drop_backbone=
+    False`` because — since the forced always-on backbone was retired (zero-boot
+    default) — a core server reached only through a fixture must still be booted.
 
     Note: this deliberately over-approximates — a kitchen-sink fixture that
     merely builds a URL lookup table pulls in every port it lists — which is the
@@ -120,7 +123,8 @@ def _fixture_reachable_specs(source: str, is_root) -> frozenset[str]:
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and is_root(node):
             specs |= _const_specs(resolve(node.name, set()))
-    return frozenset(specs) - backbone_specs()
+    result = frozenset(specs)
+    return result - backbone_specs() if drop_backbone else result
 
 
 def conftest_fixture_specs(source: str) -> frozenset[str]:
@@ -132,6 +136,54 @@ def conftest_fixture_specs(source: str) -> frozenset[str]:
     keep their servers up even under subset selection.
     """
     return _fixture_reachable_specs(source, _is_fixture)
+
+
+def conftest_fixture_spec_map(source: str) -> dict[str, frozenset[str]]:
+    """Map each conftest fixture name to the specs it reaches (backbone KEPT).
+
+    Unlike :func:`conftest_fixture_specs` (which unions every fixture together
+    and drops the always-on backbone), this keeps the attribution *per fixture*
+    and *keeps* the backbone.  With the forced always-on backbone removed
+    (Phase 3, zero-boot default), this is how the boot set discovers that a test
+    reaches a server only through a session fixture it requests — including a
+    core server it never names by port.  A test's boot contribution is then the
+    union over the fixtures in its fixture closure (``item._fixtureinfo``), so a
+    test that requests no server fixture (and names no port) boots nothing.
+
+    Fixtures reaching no fleet server are omitted (empty entries carry no boot
+    signal).  Attribution flows transitively through the helpers and fixtures a
+    root fixture calls/requests, exactly as :func:`_fixture_reachable_specs`.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return {}
+    direct, aliases = _settings_bindings(tree)
+    defs: dict[str, object] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            defs.setdefault(node.name, node)
+
+    def resolve(name: str, seen: set[str]) -> set[str]:
+        if name in seen or name not in defs:
+            return set()
+        seen.add(name)
+        node = defs[name]
+        scanner = _RefScanner(direct, aliases)
+        for child in node.body:
+            scanner.visit(child)
+        consts = set(scanner.consts)
+        for nxt in scanner.calls | _function_params(node):
+            consts |= resolve(nxt, seen)
+        return consts
+
+    out: dict[str, frozenset[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_fixture(node):
+            specs = _const_specs(resolve(node.name, set()))
+            if specs:
+                out[node.name] = frozenset(specs)
+    return out
 
 
 def _is_autouse_fixture(node) -> bool:
@@ -160,8 +212,13 @@ def module_autouse_specs(source: str) -> frozenset[str]:
     module at the fixture's port wait.  The boot set unions these in for every
     module a subset collects from (the gate itself is unaffected: declarations
     still describe what the *test* uses).
+
+    Backbone is KEPT here (unlike :func:`conftest_fixture_specs`): with the
+    forced always-on backbone retired, an autouse fixture that binds its module
+    to a *core* server (e.g. the reference root-TPC xrootd) is the only static
+    signal that the boot set must start it, so it must not be subtracted.
     """
-    return _fixture_reachable_specs(source, _is_autouse_fixture)
+    return _fixture_reachable_specs(source, _is_autouse_fixture, drop_backbone=False)
 
 
 def _settings_bindings(tree: ast.AST) -> tuple[set[str], set[str]]:

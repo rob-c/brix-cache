@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.delegation_twostep import run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-delegation_twostep")
+
 
 def test_delegation_twostep_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

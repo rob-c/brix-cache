@@ -32,6 +32,7 @@ typedef enum {
     XRD_ST_PROXY,         /* proxy request forwarded, awaiting response */
     XRD_ST_WAITING_CMS,   /* kYR_locate sent to manager; awaiting kYR_select */
     XRD_ST_WAITING_FRM,   /* kXR_waitresp sent; awaiting async stage completion */
+    XRD_ST_WAITING_BAQ,   /* mutation parked in the backend-async queue; awaiting flush */
 } brix_state_t;
 
 /* Opaque upstream context — defined in src/upstream/ */

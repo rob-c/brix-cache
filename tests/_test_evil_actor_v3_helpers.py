@@ -60,11 +60,14 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Fixed-port target (evil-actor-v3 ledger, 30357 + TLS/HTTPS/metrics extras): one
+# driver at a time.  serial because the client-side flood exhausts ephemeral fds.
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("evil-actor-v3")]
 
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
@@ -135,19 +138,6 @@ CRASH_PATTERNS = ("signal 11", "signal 6", "signal 4", "signal 7", "signal 8",
 
 
 # ----------------------------- process helpers ------------------------------
-
-def _free_ports(n):
-    socks, ports = [], []
-    try:
-        for _ in range(n):
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((BIND_HOST, 0)); socks.append(s); ports.append(s.getsockname()[1])
-    finally:
-        for s in socks:
-            s.close()
-    return ports
-
 
 def _reachable(port, t=0.5):
     try:
@@ -513,8 +503,8 @@ def _gen_cert(workdir):
     key = os.path.join(workdir, "key.pem")
     r = subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-keyout", key,
-         "-out", cert, "-days", "1", "-nodes", "-subj", "/CN=127.0.0.1",
-         "-addext", "subjectAltName=IP:127.0.0.1"],
+         "-out", cert, "-days", "1", "-nodes", "-subj", "/CN=127.0.0.1",  # net-literal-allow: throwaway TLS cert subject CN
+         "-addext", "subjectAltName=IP:127.0.0.1"],  # net-literal-allow: throwaway TLS cert SAN
         capture_output=True, text=True)
     if r.returncode != 0 or not os.path.exists(cert):
         return None, None
@@ -646,9 +636,9 @@ def srv():
             template="nginx_evil_actor_v3.conf",
             protocol="root",
             data_root=datadir,
-            extra_ports={"ROOT_TLS_PORT": free_port(),
-                         "HTTPS_PORT": free_port(),
-                         "METRICS_PORT": free_port()},
+            # ROOT_TLS_PORT / HTTPS_PORT / METRICS_PORT arrive from the
+            # fleet_lifecycle_ports ledger (evil-actor-v3 extras); read back
+            # post-start from endpoint.extra_ports below.
             readiness="tcp",
             template_values={"WORKERS": WORKERS, "BIND_HOST": BIND_HOST,
                              "CERT": cert, "KEY": key, "FRM_BLOCK": frm_block},

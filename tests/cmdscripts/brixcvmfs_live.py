@@ -27,7 +27,10 @@ import time
 from pathlib import Path
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
-from settings import free_port
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, SERVER_HOST
+
+_PORTS = cmdscript_ports("brixcvmfs_live")
 
 
 class LiveSkip(RuntimeError):
@@ -185,18 +188,18 @@ def _make_repo(run: LiveRun, mkrepo: Path, web: Path, pub: Path) -> str:
 
 
 def _serve(run: LiveRun, web: Path) -> int:
-    port = free_port()
-    run.spawn([sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1"], cwd=web)
+    port = _PORTS[0]  # was free_port()
+    run.spawn([sys.executable, "-m", "http.server", str(port), "--bind", BIND_HOST], cwd=web)
     from lib_py.util import wait_tcp
 
-    if not wait_tcp("127.0.0.1", port, 10):
+    if not wait_tcp(BIND_HOST, port, 10):
         raise LiveFailure(f"mock repo http.server did not listen on {port}")
     return port
 
 
 def _repo_env(run: LiveRun, port: int, pub: Path, *, cache: Path | None = None, tmp: Path | None = None) -> dict[str, str]:
     env = {
-        "BRIXCVMFS_SERVER": f"http://localhost:{port}/cvmfs/{REPO}",
+        "BRIXCVMFS_SERVER": f"http://{SERVER_HOST}:{port}/cvmfs/{REPO}",
         "BRIXCVMFS_PUBKEY": str(pub),
         "BRIXCVMFS_TMP": str(tmp if tmp is not None else run.mkdir("tmp")),
     }
@@ -600,12 +603,12 @@ def scvmfs(nginx: Path | None = None) -> int:
             raise LiveSkip("openssl not installed")
         run.mkdir("cache")
         run.mkdir("logs")
-        mock_port, tls_port = free_port(), free_port()
+        mock_port, tls_port = _PORTS[1], _PORTS[2]  # was free_port(), free_port()
 
         # throwaway TLS identity for the listener
         run.call([
             "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-            "-subj", "/CN=localhost", "-keyout", run.root / "key.pem", "-out", run.root / "crt.pem",
+            "-subj", "/CN=localhost", "-keyout", run.root / "key.pem", "-out", run.root / "crt.pem",  # net-literal-allow: throwaway TLS cert subject CN
         ])
         # minimal issuer registry for the bearer negatives: one REAL RSA key
         # that simply never signed our test tokens.
@@ -626,9 +629,9 @@ def scvmfs(nginx: Path | None = None) -> int:
         run.spawn([sys.executable, REPO_ROOT / "tests/cvmfs/mock_stratum1.py", "--port", str(mock_port), "--objects", "4", "--seed", "55"])
         from lib_py.util import wait_tcp
 
-        if not wait_tcp("127.0.0.1", mock_port, 10):
+        if not wait_tcp(BIND_HOST, mock_port, 10):
             raise LiveFailure(f"mock Stratum-1 did not listen on {mock_port}")
-        objects = json.loads(run.call(["curl", "-sS", f"http://127.0.0.1:{mock_port}/ctl/objects"]).stdout)
+        objects = json.loads(run.call(["curl", "-sS", f"http://{HOST}:{mock_port}/ctl/objects"]).stdout)
         obj = objects[0]
 
         def mkconf(authz: str, extra: str) -> Path:
@@ -638,11 +641,11 @@ def scvmfs(nginx: Path | None = None) -> int:
 thread_pool default threads=2;
 events {{ worker_connections 128; }}
 http {{ access_log off; server {{
-    listen 127.0.0.1:{tls_port} ssl;
+    listen {BIND_HOST}:{tls_port} ssl;
     ssl_certificate     {run.root}/crt.pem;
     ssl_certificate_key {run.root}/key.pem;
     location /cvmfs/ {{
-        brix_storage_backend http://127.0.0.1:{mock_port};
+        brix_storage_backend http://{HOST}:{mock_port};
         brix_cache_store posix:{run.root}/cache;
         brix_cvmfs on;
         brix_scvmfs on;
@@ -656,23 +659,23 @@ http {{ access_log off; server {{
         # 1: TLS parity (authz none)
         config = mkconf("none", "")
         run.start_nginx(run.root, config, tls_port)
-        tls_body = run.curl_bytes(f"https://127.0.0.1:{tls_port}{obj}", "-k")
-        ref_body = run.curl_bytes(f"http://127.0.0.1:{mock_port}{obj}")
+        tls_body = run.curl_bytes(f"https://{HOST}:{tls_port}{obj}", "-k")
+        ref_body = run.curl_bytes(f"http://{HOST}:{mock_port}{obj}")
         # 2: plain HTTP to the TLS port is refused, not served
-        plain_status = run.curl_status(f"http://127.0.0.1:{tls_port}{obj}")
+        plain_status = run.curl_status(f"http://{HOST}:{tls_port}{obj}")
         # 3: bearer authz-negs
         run.stop_nginx(run.root)
         config = mkconf("bearer", f"        brix_scvmfs_token_issuers {run.root}/scitokens.cfg;")
         run.start_nginx(run.root, config, tls_port)
-        missing_status = run.curl_status(f"https://127.0.0.1:{tls_port}{obj}", "-k")
-        garbage_status = run.curl_status(f"https://127.0.0.1:{tls_port}{obj}", "-k", "-H", "Authorization: Bearer not.a.token")
+        missing_status = run.curl_status(f"https://{HOST}:{tls_port}{obj}", "-k")
+        garbage_status = run.curl_status(f"https://{HOST}:{tls_port}{obj}", "-k", "-H", "Authorization: Bearer not.a.token")
         # positive bearer acceptance is exercised by the fleet token fixtures,
         # not by this port (parity with the shell script's scope).
         # 4: layering enforced at config time
         bad = run.write(
             run.root / "bad.conf",
             f"""events {{ worker_connections 32; }}
-http {{ server {{ listen 127.0.0.1:{tls_port} ssl;
+http {{ server {{ listen {BIND_HOST}:{tls_port} ssl;
     ssl_certificate {run.root}/crt.pem; ssl_certificate_key {run.root}/key.pem;
     location / {{ brix_scvmfs on; }} }} }}
 """,

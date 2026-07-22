@@ -9,7 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_port
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 
 def write_config(prefix: Path, port: int) -> Path:
@@ -25,11 +26,11 @@ events {{ worker_connections 64; }}
 http {{
     brix_credential origin {{ token s3cr3t-tok; }}
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         location / {{
             brix_webdav on; brix_export {export}; brix_webdav_auth none;
             brix_allow_write on;
-            brix_storage_backend root://127.0.0.1:19999;
+            brix_storage_backend root://{HOST}:19999;
             brix_storage_credential origin;
             brix_webdav_storage_staging on;
         }}
@@ -55,7 +56,7 @@ def stop_nginx(prefix: Path) -> None:
 
 def fetch_metrics(port: int) -> str:
     result = subprocess.run(
-        ["curl", "-s", f"http://127.0.0.1:{port}/metrics"],
+        ["curl", "-s", f"http://{HOST}:{port}/metrics"],
         capture_output=True,
         text=True,
     )
@@ -63,7 +64,7 @@ def fetch_metrics(port: int) -> str:
 
 
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
-    port = free_port()
+    port = cmdscript_ports("storage_backend_metrics")[0]
     conf = write_config(base, port)
     start = run([nginx_bin, "-p", str(base), "-c", str(conf)])
     if start.returncode != 0:
@@ -78,7 +79,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
             ('backend="xroot"' in line, 'backend="xroot"'),
             ('auth="token"' in line, 'auth="token"'),
             ('staging="1"' in line, 'staging="1"'),
-            ('origin="127.0.0.1:19999"' in line, "origin host:port"),
+            ('origin="127.0.0.1:19999"' in line, "origin host:port"),  # net-literal-allow: metric origin label value under test
         ]
     finally:
         stop_nginx(base)

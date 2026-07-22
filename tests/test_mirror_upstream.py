@@ -37,13 +37,15 @@ from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
-from settings import SERVER_HOST, HOST, free_port
+from settings import SERVER_HOST, HOST
+from ephemeral_port import free_port          # native stock-xrootd upstreams
 
 # Self-provisions a stateful mirror front/sink + upstream mesh. Parallel
 # co-execution with other suites contended the shared backends and flaked
 # TestMirrorFrontServes (passes in isolation), so pin the module to the isolated
 # serial lane — the pattern the other mesh/topology suites already use.
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-mirror-upstream")]
 
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REF_XROOTD_BIN = os.environ.get(
@@ -53,13 +55,13 @@ REF_XROOTD_BIN = os.environ.get(
 H = SERVER_HOST
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_mirror_upstream")
 
-# Dedicated ports for this test's self-provisioned stack.  Each is a free OS
-# port unless explicitly overridden via env, so this stack never collides with
-# the managed fleet or with another self-contained test.
+# The two UPSTREAMS are native stock /usr/bin/xrootd daemons (not registry
+# servers) the mirror front DIALS — they take an OS-assigned ephemeral port
+# (env-overridable).  The mirror FRONTS are registry nginx instances: their
+# fixed ports come from the fleet_lifecycle_ports ledger (mirror-up-front /
+# -front-bare / -sel), injected by name at register — no constant here.
 UP_CKS_PORT   = int(os.environ.get("TEST_MU_UP_CKS_PORT")   or free_port())  # checksum upstream
 UP_BARE_PORT  = int(os.environ.get("TEST_MU_UP_BARE_PORT")  or free_port())  # no-checksum upstream
-FRONT_PORT    = int(os.environ.get("TEST_MU_FRONT_PORT")    or free_port())  # mirror -> UP_CKS
-FRONT_BARE_PORT = int(os.environ.get("TEST_MU_FRONT_BARE_PORT") or free_port())  # mirror -> UP_BARE
 
 _COMMON = b"common-file-bytes-" * 512          # present on front AND upstream
 _FRONTONLY = b"front-only-bytes-" * 256        # present on the front ONLY
@@ -127,20 +129,20 @@ def _stop_xrootd(cfg):
     subprocess.run(["pkill", "-f", cfg], capture_output=True)
 
 
-def _start_front(h, name, data_dir, upstream_port, opcode_line="", port=None):
+def _start_front(h, name, data_dir, upstream_port, opcode_line=""):
     """Launch a mirror-front nginx through the registry LifecycleHarness.
 
     opcode_line is an optional extra directive line (e.g.
     'brix_mirror_exclude_opcodes stat;' or 'brix_mirror_opcodes dirlist;');
     when empty, the front uses the DEFAULT — mirror ALL ops.  The upstream
     xrootd is already running, so its host/port are routed into the template as
-    values.  h.start renders the template, runs nginx -t, launches, and waits
-    for readiness, returning the ServerEndpoint."""
+    values.  The front's listen port comes from the ledger (by `name`), so no
+    port is passed here.  h.start renders the template, runs nginx -t, launches,
+    and waits for readiness, returning the ServerEndpoint."""
     extra = f"        {opcode_line}\n" if opcode_line else ""
     return h.start(NginxInstanceSpec(
         name=name,
         template="nginx_lc_mirror_upstream_front.conf",
-        port=port,
         protocol="root",
         data_root=data_dir,
         template_values={
@@ -198,7 +200,7 @@ def stack():
     try:
         if not _wait_port(UP_CKS_PORT):
             pytest.skip("upstream xrootd did not come up")
-        ep = _start_front(h, "front", front_data, UP_CKS_PORT, port=FRONT_PORT)
+        ep = _start_front(h, "mirror-up-front", front_data, UP_CKS_PORT)
         yield {
             "front_url": f"root://{H}:{ep.port}",
             "up_url":    f"root://{H}:{UP_CKS_PORT}",
@@ -341,8 +343,7 @@ class TestMirrorGracefulUnsupported:
         try:
             if not _wait_port(UP_BARE_PORT):
                 pytest.skip("bare upstream xrootd did not come up")
-            ep = _start_front(h, "front_bare", front_data, UP_BARE_PORT,
-                              port=FRONT_BARE_PORT)
+            ep = _start_front(h, "mirror-up-front-bare", front_data, UP_BARE_PORT)
 
             log = _front_log(ep)
             off = os.path.getsize(log) if os.path.exists(log) else 0
@@ -375,29 +376,20 @@ _OP_DIRLIST = 3004
 _OP_STAT    = 3017
 _OP_STATX   = 3022
 
-# Per-test front ports (one fresh front per opcode-config under test).  When the
-# env override is set we keep the contiguous base+offset idiom; otherwise each
-# front grabs a fresh free OS port at spawn time.
-_SEL_PORT_BASE = int(os.environ["TEST_MU_SEL_PORT_BASE"]) \
-    if os.environ.get("TEST_MU_SEL_PORT_BASE") else None
-
-
 @pytest.fixture
 def front_factory(stack):
-    """Spawn mirror fronts (serving stack's front_data, mirroring to stack's
-    checksum upstream) with arbitrary opcode directives; tear them all down.
+    """Spawn a mirror front (serving stack's front_data, mirroring to stack's
+    checksum upstream) with an arbitrary opcode directive; tear it down.
 
     Function-scoped, so it drives its own LifecycleHarness; close() stops and
-    unregisters every front it spawned."""
+    unregisters the front.  The module is serial and each test calls make()
+    exactly once, so the single ledger name (mirror-up-sel) is reused across
+    tests with no concurrent driver."""
     h = LifecycleHarness()
-    state = {"n": 0}
 
     def make(opcode_line):
-        port = (_SEL_PORT_BASE + state["n"]) if _SEL_PORT_BASE else None
-        name = f"sel_{state['n']}"
-        state["n"] += 1
-        ep = _start_front(h, name, stack["front_data"], UP_CKS_PORT,
-                          opcode_line, port=port)
+        ep = _start_front(h, "mirror-up-sel", stack["front_data"], UP_CKS_PORT,
+                          opcode_line)
         return f"root://{H}:{ep.port}", _front_log(ep)
 
     yield make

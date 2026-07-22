@@ -19,10 +19,12 @@ import pytest
 import settings
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frmsec")]
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 BASE = os.path.join(settings.TEST_ROOT, "frmsec")
 TAPE_BYTES = b"TAPE-STUB-NO-EXEC-" + b"t" * 200 + b"\n"
 

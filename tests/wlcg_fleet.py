@@ -21,6 +21,7 @@ from pathlib import Path
 import settings
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import HOST
 
 _SERVER_CERT: Path | None = None
 _SERVER_KEY: Path | None = None
@@ -37,8 +38,8 @@ def _ensure_server_cert(base: Path) -> tuple[Path, Path]:
     subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
          "-keyout", str(key), "-out", str(cert), "-days", "3650",
-         "-subj", "/CN=localhost",
-         "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"],
+         "-subj", "/CN=localhost",  # net-literal-allow: throwaway TLS cert subject CN
+         "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"],  # net-literal-allow: throwaway TLS cert SAN under test
         check=True, capture_output=True)
     _SERVER_CERT, _SERVER_KEY = cert, key
     return cert, key
@@ -56,8 +57,6 @@ class WlcgInstance:
     a config-text change, exactly as the old ``-s reload`` path did.
     """
 
-    _SEQ = 0
-
     def __init__(self, prefix, ca_dir=None, *, cafile=None, signing_policy="on",
                  crl="", crl_mode="try"):
         self.prefix = Path(prefix)
@@ -73,8 +72,11 @@ class WlcgInstance:
             ca_line = f"            brix_webdav_cadir    {Path(ca_dir)};\n"
         crl_line = f"            brix_webdav_crl {crl};\n" if crl else ""
 
-        WlcgInstance._SEQ += 1
-        self._name = f"lc-wlcginst-{WlcgInstance._SEQ}"
+        # Fixed name → fixed exclusive-band port from the lifecycle ledger
+        # (fleet_lifecycle_ports["lc-wlcg"]).  Only one instance is live at a time
+        # within a file, and the four consumer files share xdist_group("lc-wlcg"),
+        # so reusing one name/port across sequential instances is race-free.
+        self._name = "lc-wlcg"
         self._spec = NginxInstanceSpec(
             name=self._name,
             template="nginx_wlcg_conformance.conf",
@@ -127,7 +129,7 @@ class WlcgInstance:
         while time.time() < deadline:
             r = subprocess.run(
                 ["curl", "-k", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                 "--max-time", "2", f"https://127.0.0.1:{self.davs_port}/"],
+                 "--max-time", "2", f"https://{HOST}:{self.davs_port}/"],
                 capture_output=True, text=True)
             if r.stdout.strip():
                 return
@@ -146,7 +148,7 @@ class WlcgInstance:
              "--max-time", "10",
              "--cert", str(cred_pem), "--key", str(cred_pem),
              "-X", "PROPFIND", "-H", "Depth: 0",
-             f"https://127.0.0.1:{self.davs_port}/"],
+             f"https://{HOST}:{self.davs_port}/"],
             capture_output=True, text=True)
         code = r.stdout.strip() or "000"
         # PROPFIND on the (existing) export root yields 2xx (207 Multi-Status)

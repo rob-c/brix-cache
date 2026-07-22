@@ -43,7 +43,8 @@ from settings import (
     url_host,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-krb5-auth")]
 
 TEST_FILE = "/test.txt"
 TEST_CONTENT = b"hello from nginx-xrootd\n"

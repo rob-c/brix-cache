@@ -45,6 +45,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import HOST
 
 try:
     import requests
@@ -103,7 +104,7 @@ def test_corrupt_put_with_content_md5_is_rejected(tmp_path):
         for _ in range(8):
             name = f"corrupt-{uuid.uuid4().hex}.bin"
             body = _body()
-            url = _key_url(f"127.0.0.1:{fp.listen}", name)
+            url = _key_url(f"{HOST}:{fp.listen}", name)
             try:
                 r = requests.put(url, data=body, headers=_content_md5(body),
                                  timeout=60)
@@ -127,7 +128,7 @@ def test_honest_put_with_content_md5_succeeds(tmp_path):
     with servers.NginxS3Anon() as ng, servers.FaultProxy(ng.port) as fp:
         name = f"honest-{uuid.uuid4().hex}.bin"
         body = _body()
-        url = _key_url(f"127.0.0.1:{fp.listen}", name)
+        url = _key_url(f"{HOST}:{fp.listen}", name)
         r = requests.put(url, data=body, headers=_content_md5(body), timeout=60)
         assert r.status_code == 200, f"honest PUT rejected: {r.status_code} {r.text}"
         stored = _stored_path(ng.data, name)
@@ -144,7 +145,7 @@ def test_malformed_content_md5_rejected(tmp_path):
         # No fault proxy needed: the point is a syntactically bad Content-MD5.
         name = f"badmd5-{uuid.uuid4().hex}.bin"
         body = _body()
-        url = _key_url(f"127.0.0.1:{ng.port}", name)
+        url = _key_url(f"{HOST}:{ng.port}", name)
         r = requests.put(url, data=body,
                          headers={"Content-MD5": "not-a-valid-base64-md5!!"},
                          timeout=60)

@@ -113,6 +113,12 @@ def build_coverage(nginx_src: Path) -> list[tuple[bool, str]]:
     built = run(["make", f"-j{nproc()}"], cwd=nginx_src)
     if built.returncode != 0:
         return [result(False, f"coverage nginx build failed: {(built.stderr or built.stdout)[-3000:]}")]
+    # A pre-existing up-to-date client build satisfies make, leaving ZERO
+    # instrumented objects (and the lane silently reporting no client
+    # coverage) — force a full recompile under the coverage flags.
+    cleaned = run(["make", "clean"], cwd=REPO_ROOT / "client")
+    if cleaned.returncode != 0:
+        return [result(False, f"coverage client clean failed: {(cleaned.stderr or cleaned.stdout)[-3000:]}")]
     client = run(
         ["make", f"-j{nproc()}", f"CFLAGS={cov}", f"LDFLAGS={cov}"],
         cwd=REPO_ROOT / "client",

@@ -23,7 +23,7 @@ import subprocess
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN
 
 # The pinned inventory — must match directives_net.inc exactly.  A directive
 # added or removed there without touching this list is the drift this test
@@ -60,7 +60,7 @@ def _nginx_t(root, srv_directives):
     conf.write_text(f"""daemon off; error_log {root}/logs/e.log info;
 pid {root}/n.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:13299;
+stream {{ server {{ listen {BIND_HOST}:13299;
     brix_root on;
     brix_storage_backend posix:{root}/data;
     brix_auth none;

@@ -26,7 +26,8 @@ import pytest
 from cmdscripts.live_common import LiveRun, random_file, sha256
 from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-pblock-nearline")]
 
 
 def _sql(catalog: Path, *stmts: tuple) -> None:

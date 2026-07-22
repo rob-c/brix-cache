@@ -42,7 +42,8 @@ from server_registry import NginxInstanceSpec
 # registry (LifecycleHarness); the marker keeps this suite out of the
 # registry-lint direct-launch scope.  The rest of the module drives the
 # session fleet.
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("xrddiag")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDDIAG = os.path.join(REPO, "client", "bin", "xrddiag")

@@ -24,12 +24,13 @@ import urllib.request
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from settings import HOST, BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
 DASH_PW = "files_admin_pw_42"
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-dashboard-files")]
 
 
 @pytest.fixture
@@ -37,14 +38,13 @@ def server(lifecycle):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    off_port = free_port(BIND_HOST)   # second server: dashboard WITHOUT browse_root
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-dashboard-files",
         template="nginx_lc_dashboard_files.conf",
         protocol="webdav",
-        extra_ports={"OFF_PORT": off_port},
         template_values={"BIND_HOST": BIND_HOST, "PASSWORD": DASH_PW},
         reason="dashboard admin file browser coverage"))
+    off_port = ep.extra_ports["OFF_PORT"]   # dashboard WITHOUT browse_root
 
     # DATA_ROOT is the browse root; seed the tree and a sibling secret OUTSIDE it.
     data = pathlib.Path(ep.data_root)

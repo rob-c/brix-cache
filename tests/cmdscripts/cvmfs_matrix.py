@@ -29,7 +29,10 @@ from pathlib import Path
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from cmdscripts.brixcvmfs_live import LiveSkip, _checks
 from lib_py.util import wait_tcp
-from settings import free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST
+
+_PORTS = cmdscript_ports("cvmfs_matrix")
 
 CVMFS_DIR = REPO_ROOT / "tests/cvmfs"
 BASELINES_DIR = REPO_ROOT / "deploy/cvmfs/baselines"
@@ -233,7 +236,7 @@ def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path)
         run.call(["squid", "-f", conf])
         stop = ["squid", "-f", str(conf), "-k", "shutdown"]
         # squid is a forward proxy: harness must use proxy-style URLs
-        harness_env["http_proxy"] = f"http://127.0.0.1:{port}"
+        harness_env["http_proxy"] = f"http://{HOST}:{port}"
         cache_base = f"http://{origin}"
     elif name == "varnish":
         if shutil.which("varnishd") is None:
@@ -250,13 +253,13 @@ def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path)
         run.root.chmod(0o755)
         work.chmod(0o755)
         vcl.chmod(0o644)
-        run.call(["varnishd", "-a", f"127.0.0.1:{port}", "-f", vcl, "-n", work / "vn", "-s", "malloc,256m"])
+        run.call(["varnishd", "-a", f"{BIND_HOST}:{port}", "-f", vcl, "-n", work / "vn", "-s", "malloc,256m"])
         stop = ["pkill", "-f", f"varnishd .*{work}/vn"]
-        cache_base = f"http://127.0.0.1:{port}"
+        cache_base = f"http://{HOST}:{port}"
     else:
         raise LiveFailure(f"unknown baseline: {name}")
     try:
-        if not wait_tcp("127.0.0.1", port, 10):
+        if not wait_tcp(BIND_HOST, port, 10):
             return False, f"{name} did not listen on {port}"
         harness = run.call(
             [sys.executable, CVMFS_DIR / "harness.py", "--cache", cache_base, "--mock", f"http://{origin}", "--out", out],
@@ -282,9 +285,9 @@ def cvmfs_baselines(nginx: Path | None = None) -> int:
     """Standalone squid/varnish baseline runs against a local mock Stratum-1."""
     out_dir = Path(os.environ.get("CVMFS_BASELINE_OUT", os.getcwd()))
     with LiveRun("cvmfs_baseline", nginx) as run:
-        mock_port, squid_port, varnish_port = free_ports(3)
-        _start_mock(run, [], "127.0.0.1", mock_port)
-        origin = f"127.0.0.1:{mock_port}"
+        mock_port, squid_port, varnish_port = _PORTS[0:3]  # was free_ports(3)
+        _start_mock(run, [], BIND_HOST, mock_port)
+        origin = f"{HOST}:{mock_port}"
         checks = [
             run_baseline(run, "squid", squid_port, origin, out_dir),
             run_baseline(run, "varnish", varnish_port, origin, out_dir),
@@ -304,7 +307,7 @@ http {{ access_log off;
     send_timeout 300s; client_header_timeout 300s;
     reset_timedout_connection off;
     server {{
-    listen 127.0.0.1:{listen_port} so_keepalive=60s:10s:6 backlog=2048;
+    listen {BIND_HOST}:{listen_port} so_keepalive=60s:10s:6 backlog=2048;
     location {location} {{
 {directives}
     }}
@@ -332,7 +335,7 @@ def matrix(nginx: Path | None = None) -> int:
     with LiveRun("cvmfs_matrix", nginx) as run:
         if not run.nginx.exists():
             raise LiveSkip(f"nginx binary not found: {run.nginx}")
-        mock_port, cache_port, proxy_port = free_ports(3)
+        mock_port, cache_port, proxy_port = _PORTS[3:6]  # was free_ports(3)
         netns = ["ip", "netns", "exec", NS]
         try:
             for cache in MATRIX_CACHES:
@@ -368,7 +371,7 @@ def _matrix_cell(run: LiveRun, cache: str, profile: str, work: Path, out_dir: Pa
         (work / "cache").mkdir(exist_ok=True)
         (work / "logs").mkdir(exist_ok=True)
         run.call([run.nginx, "-c", config, "-p", work])
-        cache_base = f"http://127.0.0.1:{cache_port}"
+        cache_base = f"http://{HOST}:{cache_port}"
     elif cache == "module-proxy":
         config = run.write(work / "nginx.conf", _module_conf_body(proxy_port, "/", f"""        brix_cache_store posix:{work}/cache;
         brix_cache_verify cvmfs-cas;
@@ -378,7 +381,7 @@ def _matrix_cell(run: LiveRun, cache: str, profile: str, work: Path, out_dir: Pa
         (work / "cache").mkdir(exist_ok=True)
         (work / "logs").mkdir(exist_ok=True)
         run.call([run.nginx, "-c", config, "-p", work])
-        harness_env["http_proxy"] = f"http://127.0.0.1:{proxy_port}"
+        harness_env["http_proxy"] = f"http://{HOST}:{proxy_port}"
         cache_base = f"http://{origin}"
     elif cache == "stock-nginx":
         template = (REPO_ROOT / "deploy/cvmfs/nginx-proxy-cache.conf").read_text()
@@ -394,7 +397,7 @@ def _matrix_cell(run: LiveRun, cache: str, profile: str, work: Path, out_dir: Pa
         (work / "store").mkdir(exist_ok=True)
         (work / "logs").mkdir(exist_ok=True)
         run.call([run.nginx, "-c", config, "-p", work])
-        cache_base = f"http://127.0.0.1:{cache_port}"
+        cache_base = f"http://{HOST}:{cache_port}"
     elif cache in ("squid", "varnish"):
         # delegate to the baseline runner; it sets its own proxy env/base
         ok, message = run_baseline(run, cache, cache_port, origin, out_dir)

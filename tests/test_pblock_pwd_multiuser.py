@@ -22,6 +22,7 @@ import pytest
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -35,7 +36,8 @@ ACCOUNTS = {
     "dave":  ("dave-pw-4",  None),
 }
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-pblock-pwd")]
 
 
 def _run(cmd, **kw):
@@ -83,7 +85,7 @@ def pb_server(tmp_path_factory):
             protocol="root", readiness="tcp",
             data_root=str(export),
             template_values={"PWD_FILE": str(pwdfile)}))
-        yield {"url": f"root://127.0.0.1:{ep.port}", "export": export}
+        yield {"url": f"root://{HOST}:{ep.port}", "export": export}
     finally:
         harness.close()
 

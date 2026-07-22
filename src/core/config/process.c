@@ -20,6 +20,7 @@
 #include "core/compat/lifecycle_timing.h"  /* brix_phase_timer_* boot-cost breakdown */
 #include "fs/cache/cache_storage.h"        /* brix_cache_storage_cleanup (exit) */
 #include "fs/xfer/stage_engine.h"          /* phase-64 SP4 durable stage engine */
+#include "fs/xfer/backend_async_queue.h"    /* durable async backend-op queue */
 #include "auth/gsi/keypool.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
@@ -57,8 +58,15 @@ brix_init_stage_engine_worker(ngx_cycle_t *cycle)
      * write reaches the backend (only staged writes are recoverable - a non-staged
      * direct write's partial is reaped, not replayed; §11.3). */
     brix_stage_engine_init(getenv("BRIX_STAGE_JOURNAL_DIR"));
+    /* Durable async backend-op queue shares the same journal root (a private
+     * backend/ subdir); init it right after so it inherits the same opt-in dir. */
+    brix_baq_init();
     if (ngx_worker == 0) {
         brix_stage_reconcile(NULL);
+        /* Replay any backend mutation (unlink/rmdir/rename/mkdir) a crash stranded
+         * between "journalled" and "flushed" — the client was told to wait for it,
+         * so it must reach the backend rather than vanish. Idempotent. */
+        brix_baq_reconcile();
         /* Clean up the OTHER half: a NON-staged direct write interrupted by the
          * crash left an orphan "<final>.xrd-tmp.<dead-pid>.*" in the export tree -
          * reap it (the broken write is discarded; the client retries). */

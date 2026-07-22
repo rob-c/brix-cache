@@ -52,20 +52,12 @@ from test_pgwrite_cse import (
 )
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-require-pgwrite")]
 
 kXR_write       = 3019     # request opcode (distinct domain from kXR_ChkSumErr)
 kXR_writev      = 3031
 kXR_Unsupported = 3013     # error code (distinct domain from the kXR_read opcode)
-
-
-def _free_port():
-    import socket
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 def _write(sock, fhandle, offset, data):
@@ -102,16 +94,17 @@ def node(tmp_path_factory):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    off_port = _free_port()
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="root-require-pgwrite",
         template="nginx_root_require_pgwrite.conf",
         protocol="root",
         readiness="tcp",
-        extra_ports={"OFF_PORT": off_port},
         template_values={"BIND_HOST": BIND_HOST},
     ))
+    # OFF_PORT is the knob-off server's embedded listen, owned by the lifecycle
+    # ledger (fleet_lifecycle_ports.root-require-pgwrite); read it back post-start.
+    off_port = endpoint.extra_ports["OFF_PORT"]
     yield {"on_port": endpoint.port, "off_port": off_port,
            "root": endpoint.data_root}
     harness.close()

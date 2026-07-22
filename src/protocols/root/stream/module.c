@@ -321,6 +321,28 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, session_slots),
       NULL },
 
+    /* ---- durable async backend-op queue (brix_backend_async{,_batch,_wait}) ----
+     * Route backend mutations through the durable coalescing queue; park the client
+     * until the batch flushes in bulk to the backend. */
+    { ngx_string("brix_backend_async"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, backend_async),
+      NULL },
+    { ngx_string("brix_backend_async_batch"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, backend_async_batch),
+      NULL },
+    { ngx_string("brix_backend_async_wait"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, backend_async_wait),
+      NULL },
+
     /* ---- clustering/proxy/traffic directives (split into directives_net.inc) ---- */
 #include "directives_net.inc"
 

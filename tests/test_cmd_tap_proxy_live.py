@@ -5,6 +5,8 @@ import pytest
 
 from cmdscripts import tap_proxy_live
 
+pytestmark = pytest.mark.xdist_group("cmd-tap_proxy_live")
+
 
 def test_tap_proxy_live_are_importable():
     assert set(tap_proxy_live.SCENARIOS) == {

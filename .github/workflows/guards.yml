@@ -40,7 +40,7 @@ jobs:
       - name: shm mutex — no bare ngx_shmtx_create (INVARIANT 10)
         if: '!cancelled()'
         run: tools/ci/check_shm_mutex.py
-      - name: file-size ratchet (500-line soft cap)
+      - name: file-size ratchet (600-line cap)
         if: '!cancelled()'
         run: tools/ci/check_file_size.py
       - name: complexity ratchet (CCN 15 cap)

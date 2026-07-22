@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_xroot_origin import XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_xroot_origin")
+
 
 def test_cache_xroot_origin_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

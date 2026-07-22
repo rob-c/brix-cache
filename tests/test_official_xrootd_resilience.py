@@ -34,6 +34,7 @@ import threading
 import time
 
 import pytest
+from settings import BIND_HOST, HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -64,7 +65,7 @@ ENV = _toolchain_env()
 
 def _free_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -72,14 +73,14 @@ def _free_port():
 
 def _port_up(port):
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=1):
+        with socket.create_connection((HOST, port), timeout=1):
             return True
     except OSError:
         return False
 
 
 def _ctl(port, cmd):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall((cmd + "\n").encode())
         return s.recv(128).decode().strip()
 
@@ -155,14 +156,14 @@ def mount(server, tmp_path_factory):
 
     listen, ctlp = _free_port(), _free_port()
     mnt = tmp_path_factory.mktemp("mnt")
-    proxy = subprocess.Popen([FAULT_PROXY, str(listen), "127.0.0.1",
+    proxy = subprocess.Popen([FAULT_PROXY, str(listen), HOST,
                               str(server["port"]), str(ctlp)],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.5)
     mlog = open(os.path.join(str(mnt) + ".log"), "w")
     fs = subprocess.Popen(
         [AIO, "--max-stall", "30000", "--keepalive", "3000", "--max-retries", "12",
-         f"root://127.0.0.1:{listen}/", "-f", str(mnt)],
+         f"root://{HOST}:{listen}/", "-f", str(mnt)],
         env=ENV, stdout=mlog, stderr=mlog)
     mfile = os.path.join(str(mnt), "data", "med.bin")
     ready = False

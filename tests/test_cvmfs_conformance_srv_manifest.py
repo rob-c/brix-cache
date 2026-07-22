@@ -39,6 +39,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
+from settings import HOST
 
 REPO = "test.cern.ch"
 NAMES = (".cvmfspublished", ".cvmfswhitelist", ".cvmfsreflog")
@@ -94,7 +95,7 @@ def _meta_url(srv, name, repo=REPO):
 
 
 def _head(srv, name, headers=None, repo=REPO):
-    return request("127.0.0.1", srv.nginx_port, "HEAD",
+    return request(HOST, srv.nginx_port, "HEAD",
                    f"/cvmfs/{repo}/{name}", headers)
 
 

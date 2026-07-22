@@ -56,6 +56,7 @@ DIR_XATTR_NAMES = ("user.fqrn", "user.revision", "user.root_hash", "user.host",
                    "user.proxy")
 
 import shutil  # noqa: E402
+from settings import HOST
 
 _FUSE_READY = (os.path.exists("/dev/fuse")
                and shutil.which("fusermount3") is not None
@@ -105,13 +106,13 @@ def rig(tmp_path_factory):
         [sys.executable, MOCK, "--port", str(port), "--repo", REPO,
          "--webroot", str(web)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    url = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    url = f"http://{HOST}:{port}/cvmfs/{REPO}"
     try:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline and mock.poll() is None:
             try:
                 import urllib.request
-                urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/log",
+                urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log",
                                        timeout=0.3)
                 break
             except Exception:

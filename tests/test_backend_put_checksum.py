@@ -47,7 +47,8 @@ import time
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
+from fleet_lifecycle_ports import lifecycle_ports_for
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -66,7 +67,8 @@ from test_pgwrite_cse import (
 )
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-putck")]
 
 S3_AK = "AKIDBACKENDPUTCK01"
 S3_SK = "YmFja2VuZC1wdXQtY2hlY2tzdW0tc2VjcmV0LWZvci10ZXN0"
@@ -234,8 +236,13 @@ def node(tmp_path_factory):
     # is keyed by canonical root, so sharing the knob-ON server's DATA_ROOT would
     # collide on one entry (last registration — put_checksum off — wins for both).
     off_root = tmp_path_factory.mktemp("offroot")
-    s3_port = _free_port()
-    port_off = _free_port()
+    # S3_PORT (S3 origin plane) and PORT_OFF (knob-off server) are embedded
+    # listens owned by the lifecycle ledger (fleet_lifecycle_ports.root-s3-putck);
+    # read them up-front because the body-corrupt proxy targets S3_PORT before the
+    # server starts.  CORRUPT_PORT (the proxy's own bind) stays a dynamic mock port.
+    _putck_extra = lifecycle_ports_for("root-s3-putck")[1]
+    s3_port = _putck_extra["S3_PORT"]
+    port_off = _putck_extra["PORT_OFF"]
 
     # The corruptor listens on CORRUPT_PORT (referenced in the node backend URIs
     # at parse) and forwards to the S3 origin plane on S3_PORT.
@@ -285,7 +292,7 @@ def _obj_bytes(node, name):
 def _write_object(port, key, data):
     """Native pgwrite the whole object then close -> the staged s3 backend commits
     it as one signed PUT.  Returns the close (status, errcode)."""
-    sock = _handshake_login(host="localhost", port=port)
+    sock = _handshake_login(host=SERVER_HOST, port=port)
     try:
         fh = _open(sock, key)
         st, off, cse = send_pgwrite(sock, fh, 0, build_payload(data, 0))

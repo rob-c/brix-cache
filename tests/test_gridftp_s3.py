@@ -36,23 +36,16 @@ import zlib
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-gridftp-s3")]
 
 S3_AK = "AKIDGRIDFTPS3TEST1"
 S3_SK = "Z3JpZGZ0cC1zMy1zZWNyZXQta2V5LWZvci10ZXN0aW5n"
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 def _port_up(host, port):
@@ -71,20 +64,20 @@ def gateway(tmp_path_factory):
     # The S3 endpoint's posix root must exist (with the bucket dir) at parse.
     s3_dir = tmp_path_factory.mktemp("s3store")
     (s3_dir / "testbucket").mkdir()
-    s3_port = _free_port()
-
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="gridftp-s3",
         template="nginx_gridftp_s3.conf",
         protocol="root",
         readiness="tcp",
-        extra_ports={"S3_PORT": s3_port},
         template_values={"BIND_HOST": BIND_HOST,
                          "S3_DIR": str(s3_dir),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
     ))
+    # S3_PORT is a second embedded listen owned by the lifecycle ledger
+    # (fleet_lifecycle_ports.gridftp-s3); read it back post-start.
+    s3_port = endpoint.extra_ports["S3_PORT"]
 
     # Harness waits on the gridftp {PORT}; poll the S3 plane too.
     for _ in range(50):
@@ -98,7 +91,7 @@ def gateway(tmp_path_factory):
 
 def _connect(gateway):
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gateway["port"], timeout=30)
+    ftp.connect(SERVER_HOST, gateway["port"], timeout=30)
     ftp.login()
     return ftp
 

@@ -33,13 +33,15 @@ def test_phase2_policy_consumes_identity():
     # converted in phase-79: its open path now authorises through
     # brix_auth_gate()/brix_auth_gate_op() instead of calling the helper.)
     for relpath in (
-        "src/protocols/root/query/prepare.c",
+        # prepare.c was split; the VO ACL check now lives in the check sibling.
+        "src/protocols/root/query/prepare_check.c",
     ):
         _assert_markers(relpath, ["brix_check_vo_acl_identity("])
         _assert_absent(relpath, ["ctx->vo_list) != NGX_OK"])
-    _assert_markers("src/protocols/root/read/open_request.c",
+    # open_request.c was split; the auth-gated resolve path moved to the sibling.
+    _assert_markers("src/protocols/root/read/open_request_resolve.c",
                     ["brix_auth_gate("])
-    _assert_absent("src/protocols/root/read/open_request.c",
+    _assert_absent("src/protocols/root/read/open_request_resolve.c",
                    ["ctx->vo_list) != NGX_OK", "brix_check_vo_acl_identity("])
     # dirlist was fully converted to auth_gate; confirm it no longer duplicates
     # the triad and instead delegates to the gate.
@@ -435,13 +437,20 @@ def test_implementation_plan_feature_gaps_are_closed():
             "brix_handle_chkpoint",
         ],
     )
+    # pgread.c was split; the page-encode + in-place CRC moved to pgread_encode.c,
+    # while the status-frame builder stayed in pgread.c.
     _assert_markers(
-        "src/protocols/root/read/pgread.c",
+        "src/protocols/root/read/pgread_encode.c",
         [
             "brix_pgread_encode_pages(",
             # pgread uses the in-place 3-way CRC (zero-copy) rather than the
             # copy-while-summing variant the write path uses.
             "brix_crc32c_value(",
+        ],
+    )
+    _assert_markers(
+        "src/protocols/root/read/pgread.c",
+        [
             "brix_build_pgread_status(",
         ],
     )
@@ -468,12 +477,18 @@ def test_implementation_plan_feature_gaps_are_closed():
         "src/protocols/webdav/access.c",
         [
             "webdav_add_cors_headers(r)",
-            "webdav_verify_proxy_cert(r, conf)",
-            "webdav_verify_bearer_token(r, conf)",
             # 7de0b6d renamed webdav_check_token_write_scope → _scope
             # (now enforces READ and WRITE scope, not write-only).
             "webdav_check_token_scope(r, mname)",
             "webdav_metrics_return(r,",
+        ],
+    )
+    # access.c was split; the cert/bearer verification calls moved to access_auth.c.
+    _assert_markers(
+        "src/protocols/webdav/access_auth.c",
+        [
+            "webdav_verify_proxy_cert(r, conf)",
+            "webdav_verify_bearer_token(r, conf)",
         ],
     )
     _assert_markers(

@@ -34,7 +34,8 @@ DASH_PW = "storage_panel_pw_1"
 N = 4 * 1024 * 1024  # transfer size: large enough to dwarf noise
 
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-storage-backend-panel")]
 
 
 @pytest.fixture

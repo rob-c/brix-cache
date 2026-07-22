@@ -10,9 +10,9 @@ def _fixed_now():
 
 def test_signature_is_deterministic_for_fixed_time():
     h1 = s3sig.signed_headers("GET", "/bucket/obj", "AKIATEST", "secret",
-                              host="127.0.0.1:12105", now=_fixed_now())
+                              host="127.0.0.1:12105", now=_fixed_now())  # net-literal-allow: S3 SigV4 signed Host in golden-signature selftest
     h2 = s3sig.signed_headers("GET", "/bucket/obj", "AKIATEST", "secret",
-                              host="127.0.0.1:12105", now=_fixed_now())
+                              host="127.0.0.1:12105", now=_fixed_now())  # net-literal-allow: S3 SigV4 signed Host in golden-signature selftest
     assert h1 == h2
     assert h1["Authorization"].startswith("AWS4-HMAC-SHA256 Credential=AKIATEST/20260706/")
     assert "SignedHeaders=host;x-amz-date" in h1["Authorization"]

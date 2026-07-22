@@ -19,7 +19,8 @@ import pytest
 from settings import BIND_HOST  # noqa: E402
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-host-auth")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -27,7 +28,7 @@ NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
 def _loopback_host():
     r = subprocess.run(
-        ["bash", "-c", "getent hosts 127.0.0.1 | awk '{print $2}' | head -1"],
+        ["bash", "-c", "getent hosts 127.0.0.1 | awk '{print $2}' | head -1"],  # net-literal-allow: loopback reverse-DNS resolution under test
         capture_output=True, text=True, timeout=30)
     return r.stdout.strip()
 
@@ -40,7 +41,7 @@ def _start(lifecycle, name, allow):
         template_values={"BIND_HOST": BIND_HOST, "ALLOWLIST": allow},
         reason="phase-52 host-auth allowlist coverage"))
     Path(endpoint.data_root, "h.txt").write_text("hello-host-auth\n")
-    return f"root://127.0.0.1:{endpoint.port}"
+    return f"root://127.0.0.1:{endpoint.port}"  # net-literal-allow: loopback dial required for host-auth peer match
 
 
 @pytest.fixture
@@ -49,10 +50,10 @@ def host_servers(lifecycle):
         pytest.skip("native client/bin/xrdcp must be built (make -C client)")
     lh = _loopback_host()
     if not lh:
-        pytest.skip("127.0.0.1 has no reverse-DNS name on this host")
+        pytest.skip("127.0.0.1 has no reverse-DNS name on this host")  # net-literal-allow: loopback reverse-DNS skip condition
 
     # ok allows the loopback name; deny allows only an unrelated host.
-    ok = _start(lifecycle, "lc-host-ok", f"{lh} localhost localhost.localdomain")
+    ok = _start(lifecycle, "lc-host-ok", f"{lh} localhost localhost.localdomain")  # net-literal-allow: host-auth allowlist names under test
     deny = _start(lifecycle, "lc-host-deny", "not-this-host.invalid .nope.example")
     return {"ok": ok, "deny": deny}
 

@@ -5,6 +5,13 @@
 #include "fs/backend/sd.h"   /* brix_sd_obj_t — driver-backed flush read-back */
 #include "stage_admit.h"        /* brix_wt_admit_t + pure band logic */
 
+/* Push one cf->args[1] prefix onto *target (created on first use, cf->pool-lived
+ * so it persists across merges). Shared by the write-through AND read-cache
+ * allow/deny directives (directives.c + directives_wt.c) so both lists are parsed
+ * identically. Returns NGX_CONF_OK / NGX_CONF_ERROR. */
+char *brix_conf_push_prefix(ngx_conf_t *cf, ngx_array_t **target,
+    const char *log_label);
+
 /*
  * Two-tier write-back-staging backpressure: sample the staging filesystem and
  * return ALLOW / WAIT / REJECT for a new write. Defined in stage_admit.c; the
@@ -270,6 +277,11 @@ int brix_cache_origin_auth_gsi(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const char *gsi_parms, const char *proxy_path);
 int brix_cache_origin_auth_sss(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const char *keytab_path);
+/* Frame one kXR_auth request (credtype = the 4-byte protocol id + payload) on the
+ * connector stream.  Shared across origin_auth.c (ztn/sss) and origin_auth_gsi.c.
+ * Returns 0, or -1 (errno set). */
+int cache_origin_send_kxr_auth(brix_cache_origin_conn_t *oc,
+    const char credtype[4], const u_char *payload, uint32_t plen);
 /* kXR_open (read|retstat) on t->clean_path. Copies the file handle into fhandle
  * (XRD_FHANDLE_LEN bytes, caller-provided) and parses the retstat string to set
  * t->file_size when present. A redirect response is rejected as kXR_Unsupported

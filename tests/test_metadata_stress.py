@@ -39,10 +39,12 @@ import time
 
 import pytest
 
-from settings import HOST, BIND_HOST, free_port
+from settings import HOST, BIND_HOST
+from fleet_lifecycle_ports import lifecycle_ports_for
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-metadata-stress")]
 
 # ---- wire constants (XProtocol; mirror tests/test_a_robustness.py) ----
 kXR_dirlist  = 3004
@@ -95,8 +97,8 @@ def _http_spec(data, rl_rule=""):
 def _mesh_spec(rl_rule=""):
     rl_zone = "brix_rate_limit_zone zone=rlm:4m;" if rl_rule else ""
     # The redirector answers locate itself; the advertised target need not be
-    # live, so an unused free port stands in for the data node.
-    ds_port = free_port(HOST)
+    # live, so the fixed (never-bound) ledger DS_PORT stands in for the data node.
+    ds_port = lifecycle_ports_for("lc-metadata-stress-mesh")[1]["DS_PORT"]
     return NginxInstanceSpec(
         name="lc-metadata-stress-mesh",
         template="nginx_lc_metadata_stress_mesh.conf",

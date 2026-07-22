@@ -9,7 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
@@ -39,7 +40,7 @@ def write_origin_config(prefix: Path, port: int) -> Path:
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {root};
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth none; }} }}
 """,
         encoding="utf-8",
@@ -58,8 +59,8 @@ def write_cache_config(prefix: Path, port: int, origin_port: int) -> Path:
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_auth none;
-    brix_storage_backend root://127.0.0.1:{origin_port};
+    listen {BIND_HOST}:{port}; brix_root on; brix_auth none;
+    brix_storage_backend root://{HOST}:{origin_port};
     brix_cache_store posix:{cache};
     brix_cache_export /;
 }} }}
@@ -72,7 +73,7 @@ stream {{ server {{
 def xrdfs_cat(port: int, path: str, dest: Path, xrdfs: Path = XRDFS) -> subprocess.CompletedProcess:
     with dest.open("wb") as out:
         return subprocess.run(
-            [str(xrdfs), f"root://127.0.0.1:{port}", "cat", path],
+            [str(xrdfs), f"root://{HOST}:{port}", "cat", path],
             stdout=out,
             stderr=subprocess.PIPE,
         )
@@ -82,7 +83,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
     if not os.access(xrdfs, os.X_OK):
         return [(True, "SKIP cache root origin data plane (native xrdfs not built)")]
 
-    origin_port, cache_port = free_ports(2)
+    origin_port, cache_port = cmdscript_ports("cache_xroot_origin")
     origin = base / "o"
     node = base / "n"
     origin_conf = write_origin_config(origin, origin_port)

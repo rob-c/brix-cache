@@ -9,7 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import CA_CERT, CA_DIR, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
@@ -84,7 +85,7 @@ def write_origin_config(prefix: Path, port: int) -> Path:
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_export {root};
+    listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth gsi;
     brix_certificate {SERVER_CERT};
     brix_certificate_key {SERVER_KEY};
@@ -122,9 +123,9 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{
 {credential_block}    server {{
-        listen 127.0.0.1:{port}; brix_root on; brix_export {export}; brix_auth none;
+        listen {BIND_HOST}:{port}; brix_root on; brix_export {export}; brix_auth none;
         brix_allow_write on;
-        brix_storage_backend root://127.0.0.1:{origin_port};
+        brix_storage_backend root://{HOST}:{origin_port};
 {credential_ref}        brix_cache_store posix:{cache};
         brix_stage on; brix_stage_store posix:{staging}; brix_stage_flush async;
     }}
@@ -136,7 +137,7 @@ stream {{
 
 
 def xrdcp_put(port: int, source: Path, dest: str, xrdcp: Path = XRDCP) -> subprocess.CompletedProcess:
-    return run([str(xrdcp), "-f", str(source), f"root://127.0.0.1:{port}//{dest}"])
+    return run([str(xrdcp), "-f", str(source), f"root://{HOST}:{port}//{dest}"])
 
 
 def wait_for_bytes(path: Path, expected: bytes, attempts: int) -> bool:
@@ -154,7 +155,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> l
     if not pki_ok:
         return [(True, pki_message)]
 
-    origin_port, write_port, negative_port = free_ports(3)
+    origin_port, write_port, negative_port = cmdscript_ports("credential_xroot_gsi_writeback")
     origin = base / "o"
     writer = base / "w"
     negative = base / "n"

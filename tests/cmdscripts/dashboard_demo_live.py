@@ -28,14 +28,15 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveRun
+from settings import BIND_HOST, SERVER_HOST
 
 TESTS_DIR = Path(__file__).resolve().parents[1]
 
 ROOT_PORT = int(os.environ.get("DEMO_ROOT_PORT", "11094"))     # anonymous root:// (read + write)
 DASH_PORT = int(os.environ.get("DEMO_DASH_PORT", "8445"))      # dedicated dashboard portal
 DASH_GATE_PORT = int(os.environ.get("DEMO_DASH_GATE_PORT", "8443"))
-ROOT_URL = f"root://localhost:{ROOT_PORT}"
-DASH_HOST_PORT = f"localhost:{DASH_PORT}"
+ROOT_URL = f"root://{SERVER_HOST}:{ROOT_PORT}"
+DASH_HOST_PORT = f"{SERVER_HOST}:{DASH_PORT}"
 DASH_URL = f"https://{DASH_HOST_PORT}/brix/"
 DASH_PASS = "testpassword"                                     # from the test config
 DEMO_OBJ = "dashboard_demo_100mb.bin"
@@ -54,7 +55,7 @@ def _say(text: str) -> None:
     print(f"\n{text}", flush=True)
 
 
-def _listening(port: int, host: str = "127.0.0.1") -> bool:
+def _listening(port: int, host: str = BIND_HOST) -> bool:
     try:
         with socket.create_connection((host, port), timeout=1):
             return True

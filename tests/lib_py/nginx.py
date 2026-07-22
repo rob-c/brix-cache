@@ -7,6 +7,7 @@ import os
 
 from .pki import substitute_config
 from .util import kill_pid_list, pids_on_port, run, wait_ready_xrdfs
+from settings import SERVER_HOST
 
 
 FIXED_NGINX_PORTS = [
@@ -54,7 +55,7 @@ def start_nginx() -> bool:
     if started.returncode != 0:
         raise RuntimeError(started.stderr or started.stdout)
     if not os.environ.get("SKIP_XRDFS_CHECK"):
-        wait_ready_xrdfs(f"root://localhost:{os.environ.get('NGINX_PORT', '11094')}")
+        wait_ready_xrdfs(f"root://{SERVER_HOST}:{os.environ.get('NGINX_PORT', '11094')}")
     return True
 
 

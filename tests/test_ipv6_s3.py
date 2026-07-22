@@ -82,7 +82,7 @@ def _ipv6_s3(requires_ipv6_loopback):
 
     if not reachable6(IPV6_S3_PORT):
         pytest.skip(
-            f"dedicated ipv6-s3 nginx not reachable on [::1]:{IPV6_S3_PORT} — "
+            f"dedicated ipv6-s3 nginx not reachable on [{HOST6}]:{IPV6_S3_PORT} — "
             f"run tests/manage_test_servers.sh start-all"
         )
 

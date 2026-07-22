@@ -10,6 +10,8 @@ import tempfile
 import time
 
 from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST
 
 
 CVMFS_CORE_DEPS = [
@@ -211,17 +213,11 @@ def brixcvmfs_build(base: Path) -> tuple[bool, str]:
     return result(True, f"brixcvmfs built ({size} bytes); usage rc={usage.returncode}")
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
-
-
 def _wait_http(port: int, timeout: float = 5.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+            with socket.create_connection((HOST, port), timeout=0.25):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -274,11 +270,11 @@ def brixcvmfs_check(base: Path) -> tuple[bool, str]:
         return result(False, f"brix_mkrepo failed: {_tail(repo_created)}")
 
     try:
-        port = _free_port()
+        port = cmdscript_ports("cvmfs_driver_units")[0]
     except PermissionError as exc:
         return result(True, f"SKIP: local sockets unavailable for brixcvmfs --check: {exc}")
     server = subprocess.Popen(
-        ["python3", "-m", "http.server", str(port), "--bind", "127.0.0.1"],
+        ["python3", "-m", "http.server", str(port), "--bind", BIND_HOST],
         cwd=str(web),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -288,7 +284,7 @@ def brixcvmfs_check(base: Path) -> tuple[bool, str]:
         if not _wait_http(port):
             return result(False, f"python http.server failed to listen on {port}")
         env = {
-            "BRIXCVMFS_SERVER": f"http://127.0.0.1:{port}/cvmfs/{repo}",
+            "BRIXCVMFS_SERVER": f"http://{HOST}:{port}/cvmfs/{repo}",
             "BRIXCVMFS_CACHE": str(cache),
             "BRIXCVMFS_TMP": str(tmp),
         }

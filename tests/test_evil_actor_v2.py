@@ -49,11 +49,12 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-evil-actor-v2")]
 
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
@@ -76,19 +77,6 @@ CRASH_PATTERNS = ("signal 11", "signal 6", "signal 4", "signal 7", "signal 8",
 
 
 # ----------------------------- process helpers ------------------------------
-
-def _free_ports(n):
-    socks, ports = [], []
-    try:
-        for _ in range(n):
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((BIND_HOST, 0)); socks.append(s); ports.append(s.getsockname()[1])
-    finally:
-        for s in socks:
-            s.close()
-    return ports
-
 
 def _reachable(port, t=0.5):
     try:
@@ -391,9 +379,6 @@ def srv():
             template="nginx_evil_actor_v2.conf",
             protocol="root",
             data_root=datadir,
-            extra_ports={"METRICS_PORT": free_port(),
-                         "S3_PORT": free_port(),
-                         "WEBDAV_PORT": free_port()},
             readiness="tcp",
             template_values={"BIND_HOST": BIND_HOST},
             env=env,

@@ -27,6 +27,7 @@ import time
 
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
+from settings import SERVER_HOST
 
 BIN = REPO_ROOT / "client/bin"
 USAGE_ERROR = 50
@@ -38,7 +39,7 @@ class Session:
     def __init__(self, run: LiveRun, url: str | None = None) -> None:
         self.run = run
         self.work = run.root
-        self.url = url or os.environ.get("XRD_TEST_URL", "root://localhost:11094")
+        self.url = url or os.environ.get("XRD_TEST_URL", f"root://{SERVER_HOST}:11094")
         self.xrdcp = BIN / "xrdcp"
         self.xrdfs = BIN / "xrdfs"
         self.xrdcksum = BIN / "xrdcksum"
@@ -688,7 +689,7 @@ def section_diag_json(s: Session) -> None:
     s.check("replay: M-record-truncated fixture exits nonzero", rc != 0)
 
     # check --json with unreachable endpoint (no fleet needed).
-    proc = s.call([s.xrddiag, "check", "--json", "root://localhost:1"])
+    proc = s.call([s.xrddiag, "check", "--json", f"root://{SERVER_HOST}:1"])
     s.check("check --json unreachable: nonzero exit", proc.returncode != 0)
     s.check("check --json unreachable: no stdout on error", not (proc.stdout or "").strip())
 
@@ -808,7 +809,7 @@ SCENARIOS["all"] = lambda url=None: run_sections(list(SECTIONS), url)
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scenario", nargs="?", default="all", choices=SCENARIOS)
-    parser.add_argument("--url", default=None, help="fleet endpoint (default $XRD_TEST_URL or root://localhost:11094)")
+    parser.add_argument("--url", default=None, help="fleet endpoint (default $XRD_TEST_URL or root://localhost:11094)")  # net-literal-allow: argparse help text describing default endpoint
     ns = parser.parse_args(argv)
     return SCENARIOS[ns.scenario](ns.url)
 

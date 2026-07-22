@@ -1,0 +1,367 @@
+---
+// The Chaos Mesh — an interactive, animated topology of the test suite's
+// maximal-coverage interoperability scenario (tests/test_chaos_mesh.py,
+// docs §12 "The Chaos Mesh"). Five nodes across three protocols; pick a
+// stress to trace its route. Built entirely from inline SVG + CSS + a small
+// vanilla script — no image assets, no chart library (matches the site).
+//
+// `run` records what daemon each node actually is: nearly the whole mesh is
+// one nginx binary (BriX-Cache) wearing different hats; the lone stock XRootD
+// at Tier 2b exists only to cross-check conformance.
+
+// The nodes of the mesh. x/y/w/h are SVG user units in the 1060×620 viewBox.
+const nodes = [
+  { id: 'client', x: 36,  y: 258, w: 150, h: 82,  run: 'client', kicker: 'CLIENT',    title: 'xrdcp -S 4',        sub: 'WLCG bearer token',        accent: 'root' },
+  { id: 't1',     x: 298, y: 250, w: 192, h: 100, run: 'nginx',  kicker: 'TIER 1',    title: 'Perimeter Gateway', sub: 'manager + proxy',          accent: 'root' },
+  { id: 't2',     x: 596, y: 166, w: 184, h: 100, run: 'nginx',  kicker: 'TIER 2',    title: 'Regional Cache',    sub: 'read- / write-through',    accent: 'dav'  },
+  { id: 't3',     x: 866, y: 166, w: 172, h: 100, run: 'nginx',  kicker: 'TIER 3',    title: 'Storage Node',      sub: '',                         accent: 's3'   },
+  { id: 't2b',    x: 596, y: 360, w: 192, h: 82,  run: 'xrootd', kicker: 'TIER 2b',   title: 'Reference Origin',  sub: 'stock XRootD · cross-check', accent: 'root' },
+  { id: 'redir',  x: 298, y: 480, w: 192, h: 82,  run: 'nginx',  kicker: 'DISCOVERY', title: 'CMS Redirector',    sub: 'manager · late start',     accent: 'dav'  },
+  { id: 'ds',     x: 596, y: 480, w: 192, h: 82,  run: 'nginx',  kicker: 'DISCOVERY', title: 'Data Server',       sub: 'registers · kYR_login',    accent: 's3'   },
+];
+
+// The edges. `d` is the SVG path; packets animate along it. `reverse` flips
+// packet direction (used for the data-server → manager registration).
+const edges = [
+  { id: 'e-client-t1',    accent: 'root', d: 'M186,299 L298,302',                                          label: 'root:// · JWT',  lx: 242, ly: 289, dur: '2.4s' },
+  { id: 'e-t1-t2',        accent: 'root', d: 'M490,278 C544,250 548,220 596,216',                           label: 'root:// · SSS',  lx: 544, ly: 206, dur: '2.2s' },
+  { id: 'e-t2-t3',        accent: 'dav',  d: 'M780,216 L866,216',                                           label: 'cache fill',     lx: 823, ly: 206, dur: '1.8s' },
+  { id: 'e-t1-t2b',       accent: 'root', d: 'M490,326 C546,352 550,398 596,401',    dashed: true,          label: 'root:// · ref',  lx: 548, ly: 387, dur: '2.6s' },
+  { id: 'e-client-redir', accent: 'dav',  d: 'M111,340 C111,456 200,521 298,521',                          label: 'root:// · redirect', lx: 152, ly: 440, dur: '2.6s' },
+  { id: 'e-redir-ds',     accent: 's3',   d: 'M490,521 L596,521',                     reverse: true,        label: 'cms · register', lx: 543, ly: 511, dur: '2.0s' },
+  { id: 'e-tpc',          accent: 'tpc',  d: 'M952,166 C952,88 912,54 830,54 L470,54 C400,54 394,120 394,250', label: 'TPC bridge · s3:// ⇒ root://', lx: 660, ly: 44, dur: '3.2s' },
+];
+
+// Human-readable runtime labels for the corner badge.
+const runLabel = { nginx: 'nginx', xrootd: 'XRootD', client: 'client' };
+
+// The five stresses the mesh runs, plus the default full-mesh view. Each names
+// the nodes/edges it lights up and cites the code + test that proves it.
+const scenarios = [
+  {
+    id: 'overview', label: 'Full mesh', tone: 'root',
+    nodes: nodes.map((n) => n.id), edges: edges.map((e) => e.id),
+    desc: 'Five nodes, three wire protocols, one file — the maximal-coverage scenario the suite calls the Chaos Mesh. Nearly all of it is one nginx binary wearing different hats; the lone stock XRootD is there to cross-check. Pick a stress to trace which subsystems it drives.',
+    code: ['tests/test_chaos_mesh.py', 'docs §12 · The Chaos Mesh'],
+  },
+  {
+    id: 'identity', label: 'Identity shifting', tone: 'root',
+    nodes: ['client', 't1', 't2', 't3'], edges: ['e-client-t1', 'e-t1-t2', 'e-t2-t3'],
+    desc: 'The client authenticates to Tier 1 with a WLCG bearer JWT. Tier 1 validates it and re-mints a site-internal SSS shared secret for the Tier 1→Tier 2 hop — the Tier 2 access log records sss, never the JWT. Identity is translated at the perimeter, not forwarded.',
+    code: ['src/protocols/root/session/signing.c', 'TestChaosMeshStep1IdentityShifting'],
+  },
+  {
+    id: 'discovery', label: 'Delayed discovery', tone: 'dav',
+    nodes: ['client', 'redir', 'ds'], edges: ['e-client-redir', 'e-redir-ds'],
+    desc: 'The data server boots before its CMS redirector. It retries, and when the manager finally appears it registers retroactively via kYR_login — the redirector then locate-redirects clients to it. Startup order is never a correctness dependency.',
+    code: ['src/net/cms/', 'TestChaosMeshDiscovery'],
+  },
+  {
+    id: 'tpc', label: 'Protocol-bridged TPC', tone: 's3',
+    nodes: ['client', 't1', 't3'], edges: ['e-tpc', 'e-client-t1'],
+    desc: 'A third-party copy whose source speaks S3 REST and whose destination speaks binary root://. nginx parses SigV4, translates to internal I/O, launches a TPC task, and bridges the bytes into an XRootD stream with full handle translation — two wire protocols, one transfer.',
+    code: ['src/tpc/bridge.c', 'src/net/proxy/handle_table.c', 'TestChaosMeshStep3MultiStreamTPC'],
+  },
+  {
+    id: 'conflict', label: 'Synchronous conflict', tone: 'danger',
+    nodes: ['client', 't1', 't2', 't3'], edges: ['e-client-t1', 'e-t1-t2', 'e-t2-t3'],
+    desc: 'While the TPC is writing, a second client opens the same path — kXR_open(kXR_new) — through the write-through cache. The lock contention at Tier 3 bubbles up through every tier and the second open is refused. The destination is never silently corrupted.',
+    code: ['src/net/proxy/handle_table.c', 'TestChaosMeshStep4SynchronousConflict'],
+  },
+  {
+    id: 'sighup', label: 'SIGHUP chaos', tone: 'root', reload: 't2',
+    nodes: ['client', 't1', 't2', 't3'], edges: ['e-client-t1', 'e-t1-t2', 'e-t2-t3'],
+    desc: 'Mid-transfer, Tier 2 is sent SIGHUP. The graceful reload drains onto fresh workers while the in-flight proxy handles survive — the client transfer finishes byte-for-byte with zero kXR_IOError. Chaos in the control plane, calm in the data plane.',
+    code: ['src/fs/cache/', 'brix-fault-proxy', 'TestChaosMeshStep5SIGHUPDuringTPC'],
+  },
+];
+---
+
+<figure class="mesh-fig" role="group" aria-label="Interactive diagram of the test suite's Chaos Mesh topology">
+  <!-- scenario control strip -->
+  <div class="mesh-controls" role="tablist" aria-label="Chaos Mesh stress scenarios">
+    {scenarios.map((s, i) => (
+      <button
+        type="button"
+        role="tab"
+        class:list={['mesh-btn', { on: i === 0 }]}
+        data-scenario={s.id}
+        aria-selected={i === 0 ? 'true' : 'false'}
+      >{s.label}</button>
+    ))}
+  </div>
+
+  <div class="mesh-stage">
+    <svg class="mesh" viewBox="0 0 1060 620" data-tone="root" role="img" aria-hidden="true">
+      <defs>
+        <marker id="cm-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#0a0a0a" />
+        </marker>
+        <linearGradient id="cm-tpc" gradientUnits="userSpaceOnUse" x1="952" y1="54" x2="394" y2="120">
+          <stop offset="0" stop-color="var(--s3)" />
+          <stop offset="0.5" stop-color="var(--s3)" />
+          <stop offset="1" stop-color="var(--root)" />
+        </linearGradient>
+      </defs>
+
+      <!-- edges (drawn first, under the nodes) -->
+      <g class="edges">
+        {edges.map((e) => (
+          <g class="edge" data-edge={e.id} class:list={['edge', { dashed: e.dashed, tpc: e.accent === 'tpc' }]} style={`--ec: var(--${e.accent === 'tpc' ? 'root' : e.accent})`}>
+            <path id={`p-${e.id}`} class="wire" d={e.d} marker-end="url(#cm-arrow)" />
+            <text class="elabel" x={e.lx} y={e.ly} text-anchor="middle">{e.label}</text>
+            <circle class="packet" r="5">
+              <animateMotion dur={e.dur} repeatCount="indefinite" calcMode="linear"
+                keyPoints={e.reverse ? '1;0' : null} keyTimes={e.reverse ? '0;1' : null}>
+                <mpath href={`#p-${e.id}`} />
+              </animateMotion>
+            </circle>
+            <circle class="packet packet--2" r="4">
+              <animateMotion dur={e.dur} repeatCount="indefinite" calcMode="linear" begin="-1.1s"
+                keyPoints={e.reverse ? '1;0' : null} keyTimes={e.reverse ? '0;1' : null}>
+                <mpath href={`#p-${e.id}`} />
+              </animateMotion>
+            </circle>
+          </g>
+        ))}
+      </g>
+
+      <!-- nodes -->
+      <g class="nodes">
+        {nodes.map((n) => {
+          const tall = n.h >= 90;
+          const bw = n.run === 'xrootd' ? 58 : n.run === 'nginx' ? 46 : 50;
+          const bx = n.x + n.w - bw - 10;
+          const by = n.y + 15;
+          return (
+            <g class="node" data-node={n.id} class:list={['node', `run-${n.run}`]} style={`--nc: var(--${n.accent})`}>
+              <rect class="shadow" x={n.x + 6} y={n.y + 6} width={n.w} height={n.h} />
+              <rect class="box" x={n.x} y={n.y} width={n.w} height={n.h} />
+              <rect class="bar" x={n.x} y={n.y} width={n.w} height="9" />
+              <text class="reload-badge" x={n.x + n.w / 2} y={n.y - 12} text-anchor="middle">⟳ SIGHUP · reload</text>
+              <rect class="run-badge" x={bx} y={by} width={bw} height="20" />
+              <text class="run-txt" x={bx + bw / 2} y={by + 14} text-anchor="middle">{runLabel[n.run]}</text>
+              <text class="n-kicker" x={n.x + 14} y={n.y + 31}>{n.kicker}</text>
+              <text class="n-title" x={n.x + 14} y={n.y + (tall ? 62 : 54)}>{n.title}</text>
+              <text class="n-sub" x={n.x + 14} y={n.y + (tall ? 83 : 72)}>{n.sub}</text>
+            </g>
+          );
+        })}
+
+        <!-- Tier 3 speaks all three protocols at once — one tree, three doors -->
+        <g class="t3chips" aria-hidden="true">
+          <rect x="874" y="230" width="42" height="20" class="chip chip-root" /><text x="895" y="244" class="chiptxt" text-anchor="middle">root</text>
+          <rect x="920" y="230" width="42" height="20" class="chip chip-dav" /><text x="941" y="244" class="chiptxt" text-anchor="middle">dav</text>
+          <rect x="966" y="230" width="42" height="20" class="chip chip-s3" /><text x="987" y="244" class="chiptxt" text-anchor="middle">s3</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <!-- legend -->
+  <div class="mesh-legend" aria-hidden="true">
+    <div class="lg-row">
+      <span class="lg-h">runtime</span>
+      <span class="lg"><i class="pill pill-nginx">nginx</i> BriX-Cache</span>
+      <span class="lg"><i class="pill pill-xrootd">XRootD</i> stock daemon</span>
+      <span class="lg"><i class="pill pill-client">client</i> xrdcp</span>
+    </div>
+    <div class="lg-row">
+      <span class="lg-h">wire</span>
+      <span class="lg"><i class="sw sw-root"></i>root://</span>
+      <span class="lg"><i class="sw sw-dav"></i>davs:// · cms</span>
+      <span class="lg"><i class="sw sw-s3"></i>s3://</span>
+      <span class="lg"><i class="sw sw-tpc"></i>TPC bridge</span>
+      <span class="lg"><i class="sw sw-danger"></i>fault / conflict</span>
+    </div>
+  </div>
+
+  <!-- live details, driven by the script -->
+  <figcaption class="mesh-detail panel" aria-live="polite">
+    <p class="md-desc">{scenarios[0].desc}</p>
+    <ul class="md-code">
+      {scenarios[0].code.map((c) => <li>{c}</li>)}
+    </ul>
+  </figcaption>
+</figure>
+
+<script define:vars={{ scenarios }}>
+  const fig = document.currentScript.previousElementSibling;
+  const svg = fig.querySelector('.mesh');
+  const nodeEls = fig.querySelectorAll('[data-node]');
+  const edgeEls = fig.querySelectorAll('[data-edge]');
+  const btns = fig.querySelectorAll('.mesh-btn');
+  const descEl = fig.querySelector('.md-desc');
+  const codeEl = fig.querySelector('.md-code');
+  const byId = Object.fromEntries(scenarios.map((s) => [s.id, s]));
+
+  function apply(id) {
+    const s = byId[id];
+    if (!s) return;
+    const nodeSet = new Set(s.nodes);
+    const edgeSet = new Set(s.edges);
+
+    svg.dataset.tone = s.tone;
+    nodeEls.forEach((el) => {
+      const on = nodeSet.has(el.dataset.node);
+      el.classList.toggle('dim', !on);
+      el.classList.toggle('active', on);
+      el.classList.toggle('reloading', s.reload === el.dataset.node);
+    });
+    edgeEls.forEach((el) => {
+      const on = edgeSet.has(el.dataset.edge);
+      el.classList.toggle('dim', !on);
+      el.classList.toggle('active', on);
+    });
+
+    descEl.textContent = s.desc;
+    codeEl.replaceChildren(
+      ...s.code.map((c) => {
+        const li = document.createElement('li');
+        li.textContent = c;
+        return li;
+      }),
+    );
+
+    btns.forEach((b) => {
+      const sel = b.dataset.scenario === id;
+      b.classList.toggle('on', sel);
+      b.setAttribute('aria-selected', sel ? 'true' : 'false');
+    });
+  }
+
+  btns.forEach((b) =>
+    b.addEventListener('click', () => {
+      apply(b.dataset.scenario);
+      history.replaceState(null, '', b.dataset.scenario === 'overview' ? '#' : `#${b.dataset.scenario}`);
+    }),
+  );
+
+  // Each stress is deep-linkable: /interoperability#tpc selects it on load.
+  const initial = decodeURIComponent(location.hash.slice(1));
+  apply(byId[initial] ? initial : 'overview');
+  window.addEventListener('hashchange', () => {
+    const h = decodeURIComponent(location.hash.slice(1));
+    if (byId[h]) apply(h);
+  });
+</script>
+
+<style>
+  .mesh-fig { margin: 0; }
+
+  /* --- controls ---------------------------------------------------------- */
+  .mesh-controls {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;
+  }
+  .mesh-btn {
+    font-family: var(--mono); font-weight: 600; font-size: 0.8rem;
+    padding: 0.45em 0.8em; border: var(--border-2); background: var(--panel);
+    color: var(--ink); cursor: pointer; box-shadow: 3px 3px 0 var(--ink);
+    transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+  }
+  .mesh-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+  .mesh-btn.on { background: var(--ink); color: var(--paper); box-shadow: 3px 3px 0 var(--accent); }
+
+  /* --- stage ------------------------------------------------------------- */
+  .mesh-stage {
+    border: var(--border); box-shadow: var(--shadow); background: var(--panel);
+    padding: 0.6rem; overflow-x: auto;
+  }
+  .mesh { width: 100%; height: auto; min-width: 720px; display: block; }
+
+  /* nodes */
+  .node .shadow { fill: var(--ink); }
+  .node .box { fill: var(--panel); stroke: var(--ink); stroke-width: 3; }
+  .node .bar { fill: var(--nc); }
+  .node .n-kicker { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.14em; fill: var(--ink-2); }
+  .node .n-title { font-family: var(--display); font-weight: 800; font-stretch: 100%; font-size: 15.5px; letter-spacing: -0.01em; fill: var(--ink); }
+  .node .n-sub { font-family: var(--mono); font-size: 11px; fill: var(--ink-2); }
+  .node { transition: opacity 0.35s ease; }
+  .node.dim { opacity: 0.14; }
+
+  /* runtime badge — nginx (product) is solid ink; stock XRootD is outlined;
+     the client is ghosted. This is the "who runs what" signal. */
+  .run-badge { stroke: var(--ink); stroke-width: 2; }
+  .run-txt { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+  .run-nginx .run-badge { fill: var(--ink); }
+  .run-nginx .run-txt { fill: var(--paper); }
+  .run-xrootd .run-badge { fill: var(--paper); stroke-dasharray: 4 3; }
+  .run-xrootd .run-txt { fill: var(--ink); }
+  .run-client .run-badge { fill: var(--band); }
+  .run-client .run-txt { fill: var(--ink-2); }
+
+  .reload-badge {
+    font-family: var(--mono); font-size: 12px; font-weight: 700; fill: var(--danger);
+    opacity: 0; transition: opacity 0.2s ease;
+  }
+  .node.reloading .reload-badge { opacity: 1; }
+  .node.reloading .box { animation: cm-reload 1.05s ease-in-out infinite; }
+  @keyframes cm-reload {
+    0%, 100% { stroke: var(--ink); }
+    50% { stroke: var(--danger); }
+  }
+
+  /* Tier 3 protocol chips */
+  .chip { stroke: var(--ink); stroke-width: 2; }
+  .chip-root { fill: var(--root); }
+  .chip-dav { fill: var(--dav); }
+  .chip-s3 { fill: var(--s3); }
+  .chiptxt { font-family: var(--mono); font-size: 10px; font-weight: 600; fill: var(--ink); }
+  .t3chips { transition: opacity 0.35s ease; }
+
+  /* edges */
+  .edge .wire {
+    fill: none; stroke: var(--ec); stroke-width: 3.5; stroke-linecap: round;
+  }
+  .edge.dashed .wire { stroke-dasharray: 9 7; }
+  .edge.tpc .wire { stroke: url(#cm-tpc); stroke-width: 4; }
+  .elabel {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600; fill: var(--ink);
+    paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round;
+  }
+  .packet { fill: var(--ec); stroke: var(--ink); stroke-width: 1.5; }
+  .edge.tpc .packet { fill: var(--s3); }
+  .edge { transition: opacity 0.35s ease; }
+  .edge.dim { opacity: 0.1; }
+  .edge.dim .packet { visibility: hidden; }
+  .edge .packet { visibility: hidden; }
+  .edge.active .packet { visibility: visible; }
+
+  /* danger tone recolors the active data plane */
+  .mesh[data-tone='danger'] .edge.active .wire { stroke: var(--danger); }
+  .mesh[data-tone='danger'] .edge.active .packet { fill: var(--danger); }
+  .mesh[data-tone='danger'] .node.active .bar { fill: var(--danger); }
+
+  /* --- legend ------------------------------------------------------------ */
+  .mesh-legend { margin: 0.9rem 0 1.1rem; display: grid; gap: 0.5rem; }
+  .lg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.05rem; font-family: var(--mono); font-size: 0.76rem; color: var(--ink-2); }
+  .lg-h { font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 0.68rem; color: var(--ink); min-width: 4.4em; }
+  .lg { display: inline-flex; align-items: center; gap: 0.45em; }
+  .sw { width: 1.5em; height: 0.7em; border: 2px solid var(--ink); display: inline-block; }
+  .sw-root { background: var(--root); }
+  .sw-dav { background: var(--dav); }
+  .sw-s3 { background: var(--s3); }
+  .sw-tpc { background: linear-gradient(90deg, var(--s3), var(--root)); }
+  .sw-danger { background: var(--danger); }
+  .pill { font-style: normal; font-weight: 700; font-size: 0.7rem; padding: 0.1em 0.5em; border: 2px solid var(--ink); }
+  .pill-nginx { background: var(--ink); color: var(--paper); }
+  .pill-xrootd { background: var(--paper); color: var(--ink); border-style: dashed; }
+  .pill-client { background: var(--band); color: var(--ink-2); }
+
+  /* --- detail panel ------------------------------------------------------ */
+  .mesh-detail { display: grid; gap: 0.9rem; }
+  @media (min-width: 760px) { .mesh-detail { grid-template-columns: 1fr auto; align-items: start; } }
+  .md-desc { margin: 0; color: var(--ink); max-width: 66ch; }
+  .md-code {
+    display: flex; flex-direction: column; gap: 0.3rem; margin: 0;
+    font-family: var(--mono); font-size: 0.74rem; color: var(--ink-2);
+  }
+  .md-code li { white-space: nowrap; }
+  @media (min-width: 760px) { .md-code { border-left: var(--border-2); padding-left: 1rem; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .packet { display: none; }
+    .node.reloading .box { animation: none; }
+    .node.reloading .reload-badge { opacity: 1; }
+  }
+</style>

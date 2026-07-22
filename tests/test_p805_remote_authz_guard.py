@@ -18,6 +18,7 @@ import pytest
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
@@ -38,6 +39,7 @@ def guard(tmp_path):
         name = f"lc-p805-guard-{next(_SEQ)}"
         harness.register(NginxInstanceSpec(
             name=name, template="nginx_p805_authz_guard.conf",
+            port=SHARED_PARSE_PLACEHOLDER_PORT,
             protocol="root", readiness="tcp",
             template_values={"SERVER_BODY": server_body}))
         harness.launcher.render_nginx(harness.spec(name))
@@ -60,7 +62,7 @@ def test_guard_fires_authdb_no_export(guard, authdb):
     """s3 backend + xrdacc authdb + manager mode (no runtime export) → EMERG."""
     r = guard(f"""\
         brix_manager_mode on;
-        brix_storage_backend s3://127.0.0.1:29000/brixfwd;
+        brix_storage_backend s3://127.0.0.1:29000/brixfwd;  # net-literal-allow: S3 origin in nginx -t authz-guard config, never dialed
         brix_authdb_format xrdacc;
         brix_authdb {authdb};
 """)
@@ -75,7 +77,7 @@ def test_guard_fires_vo_rules_no_export(guard):
     must win even with brix_auth none."""
     r = guard("""\
         brix_manager_mode on;
-        brix_storage_backend s3://127.0.0.1:29000/brixfwd;
+        brix_storage_backend s3://127.0.0.1:29000/brixfwd;  # net-literal-allow: S3 origin in nginx -t authz-guard config, never dialed
         brix_require_vo /atlas atlas;
 """)
     assert r.returncode != 0, f"-t unexpectedly passed:\n{r.stderr}"
@@ -91,7 +93,7 @@ def test_no_rules_and_exported_server_pass(guard, tmp_path, authdb):
         the guard message prescribes."""
     r = guard("""\
         brix_manager_mode on;
-        brix_storage_backend s3://127.0.0.1:29000/brixfwd;
+        brix_storage_backend s3://127.0.0.1:29000/brixfwd;  # net-literal-allow: S3 origin in nginx -t authz-guard config, never dialed
 """)
     assert r.returncode == 0, f"rule-less manager server rejected:\n{r.stderr}"
     assert GUARD_NEEDLE not in r.stderr
@@ -100,7 +102,7 @@ def test_no_rules_and_exported_server_pass(guard, tmp_path, authdb):
     export.mkdir()
     r = guard(f"""\
         brix_export {export};
-        brix_storage_backend s3://127.0.0.1:29000/brixfwd;
+        brix_storage_backend s3://127.0.0.1:29000/brixfwd;  # net-literal-allow: S3 origin in nginx -t authz-guard config, never dialed
         brix_authdb_format xrdacc;
         brix_authdb {authdb};
 """)

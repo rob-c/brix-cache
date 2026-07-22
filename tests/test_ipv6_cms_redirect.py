@@ -82,12 +82,12 @@ def _require_ipv6(requires_ipv6_loopback):
 
 def _skip_if_stream_down():
     if not reachable6(IPV6_MGR_PORT):
-        pytest.skip(f"ipv6-mgr stream [::1]:{IPV6_MGR_PORT} not reachable")
+        pytest.skip(f"ipv6-mgr stream [{HOST6}]:{IPV6_MGR_PORT} not reachable")
 
 
 def _skip_if_http_down():
     if not reachable6(IPV6_MGR_HTTP_PORT):
-        pytest.skip(f"ipv6-mgr http [::1]:{IPV6_MGR_HTTP_PORT} not reachable")
+        pytest.skip(f"ipv6-mgr http [{HOST6}]:{IPV6_MGR_HTTP_PORT} not reachable")
 
 
 # ===========================================================================
@@ -389,7 +389,7 @@ class TestDashboardClusterRoundTrip:
         assert isinstance(servers, list), data
         match = [s for s in servers
                  if s.get("host") == IPV6_HOST and s.get("port") == DS_PORT]
-        assert match, f"registered [::1]:{DS_PORT} not found in cluster JSON: {servers}"
+        assert match, f"registered [{HOST6}]:{DS_PORT} not found in cluster JSON: {servers}"
         # The JSON host is stored bare (canonical); it must NOT be a bracketed
         # literal here — bracketing happens only at wire/redirect emit time.
         assert "[" not in match[0]["host"], match[0]
@@ -448,9 +448,9 @@ class TestManagerRedirectBracketing:
         # The host segment (before any "?opaque") must be exactly "[::1]".
         host_only = host.split("?", 1)[0]
         assert host_only == f"[{IPV6_HOST}]", \
-            f"redirect host {host_only!r} must be bracketed [::1], not bare"
+            f"redirect host {host_only!r} must be bracketed [::1], not bare"  # net-literal-allow: [::1] bracketing-format assertion
         assert not host_only.startswith(IPV6_HOST), \
-            "bare ::1 (unbracketed) leaked into the redirect host field"
+            "bare ::1 (unbracketed) leaked into the redirect host field"  # net-literal-allow: bare-::1 redirect-leak assertion
 
     @pytest.mark.registry_server("ipv6-mgr")
     def test_cluster_open_returns_bracketed_redirect(self):
@@ -464,7 +464,7 @@ class TestManagerRedirectBracketing:
         port, host = _parse_redirect(body)
         assert port == DS_PORT, f"redirect port {port} != DS port {DS_PORT}"
         assert host.split("?", 1)[0] == f"[{IPV6_HOST}]", \
-            f"open redirect host {host!r} must be bracketed [::1]"
+            f"open redirect host {host!r} must be bracketed [::1]"  # net-literal-allow: [::1] bracketing-format assertion
 
     @pytest.mark.registry_server("ipv6-mgr")
     def test_locate_and_open_redirect_to_same_target(self):
@@ -499,7 +499,7 @@ class TestManagerRedirectBracketing:
         assert host_bytes.startswith(b"["), \
             f"redirect host must start with '[' (got {host_bytes[:8]!r})"
         assert not host_bytes.startswith(IPV6_HOST.encode()), \
-            "bare ::1 must not be the first byte of the host field"
+            "bare ::1 must not be the first byte of the host field"  # net-literal-allow: bare-::1 host-field assertion
 
 
 # ===========================================================================

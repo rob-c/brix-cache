@@ -40,4 +40,30 @@ ngx_int_t brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_open_manager_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, int is_write, const char *clean_path);
 
+/*
+ * Opaque CGI negotiation helpers (open_request_opaque.c).
+ *
+ * open_negotiate_compress_codec — phase-42 W4/W5 inline-compression codec
+ *   selection from the kXR_open "?xrootd.compress=" opaque; returns the codec
+ *   ordinal or BRIX_CODEC_IDENTITY (0) when disabled/absent/unknown.
+ * open_extract_zip_member — phase-57 W2 validated ZIP member name from the
+ *   "?xrdcl.unzip=" opaque; 1 with out[] filled, 0 when absent, -1 on an invalid
+ *   (empty/too-long/traversal) value.
+ */
+uint8_t open_negotiate_compress_codec(brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf, ngx_flag_t is_write);
+int open_extract_zip_member(brix_ctx_t *ctx, char *out, size_t outsz);
+
+/*
+ * Path-resolution phases (open_request_resolve.c).  Same NGX_DECLINED-to-proceed
+ * contract as the in-file open phases.  Each builds full_path from clean_path and
+ * runs the auth gate (read: before any existence probe; write: create/update op).
+ */
+ngx_int_t brix_open_read_resolve(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *clean_path,
+    char *full_path, uint16_t options, uint16_t mode_bits);
+ngx_int_t brix_open_write_resolve(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *clean_path,
+    char *full_path, uint16_t options);
+
 #endif /* BRIX_OPEN_INTERNAL_H */

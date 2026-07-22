@@ -36,6 +36,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from test_cvmfs_conformance_fuse_refresh_failover import publish_revision  # noqa: E402
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 
@@ -58,7 +59,7 @@ class _QuietHandler(SimpleHTTPRequestHandler):
 @contextmanager
 def static_origin(port, webroot):
     handler = partial(_QuietHandler, directory=str(webroot))
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    httpd = ThreadingHTTPServer((BIND_HOST, port), handler)
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
@@ -85,7 +86,7 @@ def pin_mount(pubkey, port, *, pin, expect_mounted=True, timeout=15):
     env["BRIXCVMFS_PUBKEY"] = str(pubkey)
     env["BRIXCVMFS_TMP"] = str(workdir / "tmp")
     env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
-    env["BRIXCVMFS_SERVER"] = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    env["BRIXCVMFS_SERVER"] = f"http://{HOST}:{port}/cvmfs/{REPO}"
 
     opts = f"auto_unmount,attr_timeout=0,entry_timeout=0,retries=1,pin={pin}"
     log = workdir / "brixmount.log"

@@ -28,11 +28,12 @@ import subprocess
 import pytest
 
 from cmdscripts.delegation_twostep import curl, ensure_pki, mint_certs
-from settings import CA_CERT, SERVER_CERT, SERVER_KEY
+from settings import CA_CERT, HOST, SERVER_CERT, SERVER_KEY
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-certfolder")]
 
 
 @pytest.fixture(scope="module")
@@ -108,7 +109,7 @@ def test_cert_folder_auto_picks_issuer(lifecycle, pki, outsider, tmp_path):
     folder = _hashed_ca_dir(tmp_path / "igtf",
                             pathlib.Path(CA_CERT), outsider["cert"])
     ep = lifecycle.start(_spec("lc-certfolder-ok", folder))
-    code, _err = curl(f"https://127.0.0.1:{ep.port}/", pki["a_cert"],
+    code, _err = curl(f"https://{HOST}:{ep.port}/", pki["a_cert"],
                       pki["a_key"], output=tmp_path / "out.txt")
     assert code == "204", \
         f"auto-picked issuer file must satisfy ssl_verify_client (got {code})"
@@ -142,7 +143,7 @@ def test_cert_folder_rejects_unrelated_ca(lifecycle, outsider, tmp_path):
     folder = _hashed_ca_dir(tmp_path / "igtf",
                             pathlib.Path(CA_CERT), outsider["cert"])
     ep = lifecycle.start(_spec("lc-certfolder-deny", folder))
-    code, _err = curl(f"https://127.0.0.1:{ep.port}/", outsider["cert"],
+    code, _err = curl(f"https://{HOST}:{ep.port}/", outsider["cert"],
                       outsider["key"], output=tmp_path / "out.txt")
     assert code != "204", \
         "a client whose CA is not the auto-picked file must be rejected"

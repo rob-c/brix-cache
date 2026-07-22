@@ -11,7 +11,8 @@ import sys
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKE_TOKEN = REPO_ROOT / "utils" / "make_token.py"
@@ -73,7 +74,7 @@ def write_origin_config(prefix: Path, port: int, token_dir: Path) -> Path:
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_export {root};
+    listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth token; brix_token_jwks {token_dir / 'jwks.json'};
     brix_token_issuer https://test.example.com; brix_token_audience nginx-xrootd;
     brix_allow_write on; brix_upload_resume off;
@@ -101,10 +102,10 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{
 {credential_block}    server {{
-        listen 127.0.0.1:{port}; brix_root on; brix_export {export}; brix_auth none;
+        listen {BIND_HOST}:{port}; brix_root on; brix_export {export}; brix_auth none;
         brix_allow_write on; brix_upload_resume off;
         brix_write_through on; brix_wt_mode sync;
-        brix_wt_origin root://127.0.0.1:{origin_port};
+        brix_wt_origin root://{HOST}:{origin_port};
 {credential_ref}    }}
 }}
 """,
@@ -114,7 +115,7 @@ stream {{
 
 
 def xrdcp_put(port: int, source: Path, dest: str, xrdcp: Path = XRDCP) -> subprocess.CompletedProcess:
-    return run([str(xrdcp), "-f", str(source), f"root://127.0.0.1:{port}//{dest}"])
+    return run([str(xrdcp), "-f", str(source), f"root://{HOST}:{port}//{dest}"])
 
 
 def wait_listening(ports: list[int], timeout: float = 10.0) -> bool:
@@ -122,7 +123,7 @@ def wait_listening(ports: list[int], timeout: float = 10.0) -> bool:
     for port in ports:
         while True:
             try:
-                with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                with socket.create_connection((HOST, port), timeout=0.5):
                     break
             except OSError:
                 if time.monotonic() > deadline:
@@ -154,7 +155,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> l
     if not token_ok:
         return [(True, "SKIP: " + token_msg)]
 
-    origin_port, writer_port, negative_port = free_ports(3)
+    origin_port, writer_port, negative_port = cmdscript_ports("credential_wt_ztn")
     origin = base / "o"
     writer = base / "b"
     negative = base / "n"

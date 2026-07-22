@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.s3_store_writable import run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-s3_store_writable")
+
 
 def test_s3_store_writable_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

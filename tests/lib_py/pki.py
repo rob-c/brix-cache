@@ -7,6 +7,7 @@ import os
 import sys
 
 from .util import render_cfg, run
+from settings import BIND_HOST, BIND_HOST6
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,14 +38,14 @@ DEFAULTS = {
     "WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT": "18454",
     "WEBDAV_TPC_DEST_DISABLED_PORT": "18455",
     "WEBDAV_TPC_DEST_READONLY_PORT": "18456",
-    "BIND_HOST": "127.0.0.1",
-    "BIND6_HOST": "[::1]",
+    "BIND_HOST": BIND_HOST,
+    "BIND6_HOST": f"[{BIND_HOST6}]",
     "CMS_PORT": "11161",
     "CMS_PATHS": "/",
     "METRICS_PORT": "9100",
     "META_CMS_PORT": "11186",
     "SELF_REGISTER_PORT": "11189",
-    "KRB5_PRINCIPAL": "xrootd/localhost@NGINX.TEST",
+    "KRB5_PRINCIPAL": "xrootd/localhost@NGINX.TEST",  # net-literal-allow: krb5 service principal host identity (test realm)
 }
 
 

@@ -1,0 +1,265 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import Cta from '../components/Cta.astro';
+import { REPO_URL } from '../lib/site';
+
+const BIDI_URL = `${REPO_URL}/blob/main/docs/10-reference/xrdceph-cephfs-bidirectional-migration.md`;
+const GLASGOW_URL = `${REPO_URL}/blob/main/docs/10-reference/cephfs-migration-glasgow-ral.md`;
+const PYMIG_URL = `${REPO_URL}/blob/main/docs/10-reference/python-migration-tools.md`;
+const RECORD_URL = `${REPO_URL}/blob/main/docs/10-reference/xrdceph-cephfs-migration-test-record.md`;
+const HISTORY_URL = `${REPO_URL}/blob/main/docs/09-developer-guide/history-storage-and-caching.md`;
+
+// The tools that ship in the brix-tools subpackage. Names + capabilities
+// verified against packaging/rpm/nginx-mod-brix-cache.spec and client/apps/ceph/.
+const tools = [
+  {
+    name: 'xrdceph_striper_migrate',
+    tag: 'FORWARD', tint: 'var(--s3)',
+    d: 'Enable CephFS over an existing stock-XrdCeph / libradosstriper RADOS pool. Zero-move by default (RADOS redirect stubs, no bytes copied); also --mode copy for server-side OSD→OSD, plus --finalize, --rollback, and --verify (adler32 against the carried user.XrdCks.adler32).',
+  },
+  {
+    name: 'xrdceph_cephfs_to_striper',
+    tag: 'REVERSE', tint: 'var(--root)',
+    d: 'The other direction: expose an unmounted CephFS as stock-XrdCeph (libradosstriper) storage, zero-move via redirects, then --finalize to a self-owned striper layout so the CephFS can be torn down.',
+  },
+  {
+    name: 'xrdceph_migrate',
+    tag: 'FLAT → TREE', tint: 'var(--dav)',
+    d: 'Migrate a flat RADOS pool (object-key == logical path) into a real filesystem tree by copy-through-mount — point the destination at a CephFS mount and the MDS builds the namespace. Carries user.* xattrs including the checksums-at-rest.',
+  },
+  {
+    name: 'xrdrados_rescue',
+    tag: 'RESCUE', tint: 'var(--s3)',
+    d: 'Offline, pure-RADOS recovery: ls / stat / get / cp objects straight out of a flat pool with no namespace service running at all.',
+  },
+  {
+    name: 'xrdcephfs_rescue',
+    tag: 'RESCUE', tint: 'var(--root)',
+    d: 'Offline CephFS recovery with no MDS, no mount, no libcephfs — reads a quiesced CephFS directly from its RADOS pools via a read-only decoder: ls / stat / cat / get / cp -r.',
+  },
+];
+
+// What is actually decoupled, stated as capabilities not slogans.
+const freedoms = [
+  {
+    t: 'Read stock XrdCeph, byte-for-byte',
+    d: 'The flat RADOS backend probes whether an object is a stock libradosstriper object and, if so, reads it back through the exact upstream OID convention — first-stripe suffix, stripe-data detection, OID→PFN recovery, directory listing reconstructed over the flat keys. Existing petabytes stay readable without a rewrite.',
+  },
+  {
+    t: 'Read a CephFS with no MDS',
+    d: 'A read-only decoder walks CephFS on-disk metadata — backtrace and layout denc — straight out of RADOS. If the MDS is gone, the filesystem is still legible.',
+  },
+  {
+    t: 'Move between layouts, both ways',
+    d: 'Migrate bidirectionally between the XrdCeph striper layout, CephFS, flat RADOS, and a POSIX tree — zero-move by redirect, or intra-cluster server-side copy — with verify and rollback at every step.',
+  },
+  {
+    t: 'Metadata travels with the bytes',
+    d: 'Checksums-at-rest live as RADOS object xattrs (user.XrdCks.*) and are carried through every path, so a migrated object arrives with the same recorded digest it left with — integrity is not re-asserted, it is preserved.',
+  },
+];
+---
+
+<Layout
+  title="Ceph migration"
+  description="Your data's object layout and metadata should not be captive to one client. BriX-Cache ships XrdCeph/CephFS migration and rescue tooling that reads stock libradosstriper and CephFS byte-for-byte and moves data bidirectionally between XrdCeph, CephFS, flat RADOS, and a POSIX tree — zero-move or server-side copy, with verify and rollback. Validated on a single-node Ceph Reef cluster."
+  accent="s3"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <span class="eyebrow">Ceph migration</span>
+    <h1 class="display cm-head">Your bytes. Not your client&rsquo;s hostage.</h1>
+    <p class="lede cm-lede">
+      A site&rsquo;s data should never be captive to the one tool that happened to write it. BriX-Cache
+      ships migration and rescue tooling that treats a RADOS cluster as <em>your</em> object store —
+      not XrdCeph&rsquo;s, not XrdCl&rsquo;s. Read a stock striped-RADOS pool byte-for-byte, decode a
+      CephFS with the MDS switched off, and move data between layouts on your terms — zero-move,
+      verified, reversible.
+    </p>
+  </Band>
+
+  <!-- THE LOCK-IN -->
+  <Band variant="ink" id="lockin">
+    <span class="eyebrow">The problem</span>
+    <h2 class="display band-head">Object layout is a lock-in you didn&rsquo;t sign up for.</h2>
+    <div class="grid grid-2 cm-lock">
+      <div class="stack">
+        <p class="muted">
+          When a site commits to a storage client, it quietly commits to that client&rsquo;s
+          on-object format too — the stripe geometry, the OID naming, where checksums and namespace
+          metadata are stashed. Years later the data is measured in petabytes and the format is a wall:
+          you can&rsquo;t change client without rewriting everything, and you can&rsquo;t read it with
+          anything else.
+        </p>
+        <p class="muted">
+          BriX-Cache refuses that bargain. It knows the stock <span class="mono">XrdCeph</span>
+          striper layout <em>and</em> the CephFS on-disk format precisely enough to read either
+          without conversion — so the format stops being a wall and becomes a starting point you can
+          migrate off, into, or out of.
+        </p>
+      </div>
+      <div class="term" aria-label="Layouts BriX-Cache reads and moves between">
+        <div class="term-title">layouts it reads &amp; moves between</div>
+        <div><span class="k">XrdCeph striper</span>  <span class="c"># libradosstriper OIDs</span></div>
+        <div><span class="k">CephFS</span>          <span class="c"># on-disk, MDS optional</span></div>
+        <div><span class="k">flat RADOS</span>      <span class="c"># object-key == logical path</span></div>
+        <div><span class="k">POSIX tree</span>      <span class="c"># any filesystem mount</span></div>
+        <div class="mt"><span class="c"># any → any, zero-move or server-side copy</span></div>
+      </div>
+    </div>
+  </Band>
+
+  <!-- WHAT'S DECOUPLED -->
+  <Band id="freedom">
+    <span class="eyebrow">What you get back</span>
+    <h2 class="display band-head">Four freedoms, all citable.</h2>
+    <div class="grid grid-2 cm-free-grid">
+      {freedoms.map((f) => (
+        <article class="panel cm-free">
+          <h3 class="cm-free-t">{f.t}</h3>
+          <p class="muted">{f.d}</p>
+        </article>
+      ))}
+    </div>
+  </Band>
+
+  <!-- THE TOOLS -->
+  <Band variant="sunken" id="tools">
+    <span class="eyebrow">The toolchain</span>
+    <h2 class="display band-head">Five tools in the brix-tools package.</h2>
+    <p class="lede muted cm-intro">
+      All ship in the <span class="mono">brix-tools</span> RPM subpackage, with their migration guides
+      installed as docs. Forward, reverse, flatten, and two offline rescuers for when the namespace
+      service is already gone.
+    </p>
+    <div class="cm-tools">
+      {tools.map((t) => (
+        <article class="panel cm-tool" style={`--tint: ${t.tint}`}>
+          <div class="cm-tool-top">
+            <code class="cm-tool-n">{t.name}</code>
+            <span class="cm-tool-tag">{t.tag}</span>
+          </div>
+          <p class="muted">{t.d}</p>
+        </article>
+      ))}
+    </div>
+  </Band>
+
+  <!-- ZERO-MOVE, HONESTLY -->
+  <Band id="zeromove">
+    <div class="grid grid-2 cm-zm">
+      <div class="stack">
+        <span class="eyebrow">How zero-move works</span>
+        <h2 class="display band-head cm-zm-head">A redirect first, a rewrite only if you say so.</h2>
+        <p class="muted">
+          Zero-move migration doesn&rsquo;t copy bytes: it lays down RADOS redirect stubs so the new
+          layout points at the existing objects. That makes the cut-over instant and cheap — but it is
+          a <strong>staging state, not a finished one</strong>.
+        </p>
+        <p class="muted">
+          While staged, a redirect stub is write-through and delete-through to the source: deleting a
+          stub deletes the original. It is safe only until <span class="mono">--finalize</span> makes
+          the new layout the true owner. Rollback unsets the manifest <em>before</em> unlinking. And
+          the one thing that is a firm no-go is a zero-copy <em>upgrade</em> of a flat pool to CephFS —
+          the MDS has to mint real inodes, so that move always copies.
+        </p>
+      </div>
+      <div class="term" aria-label="A zero-move migration">
+        <div class="term-title">xrdceph_striper_migrate · zero-move</div>
+        <div><span class="p">$</span> xrdceph_striper_migrate --pool data \</div>
+        <div>&nbsp;&nbsp;--target cephfs   <span class="c"># redirect stubs, no copy</span></div>
+        <div><span class="p">$</span> xrdceph_striper_migrate --verify   <span class="c"># adler32 vs xattr</span></div>
+        <div class="mt"><span class="c"># happy? make the new layout the owner:</span></div>
+        <div><span class="p">$</span> xrdceph_striper_migrate --finalize</div>
+        <div class="mt"><span class="c"># or back out cleanly:</span></div>
+        <div><span class="p">$</span> xrdceph_striper_migrate --rollback</div>
+      </div>
+    </div>
+  </Band>
+
+  <!-- THE HONEST BOUNDARY -->
+  <Band variant="sunken" id="boundary">
+    <span class="eyebrow">The honest boundary</span>
+    <h2 class="display band-head">What this does — and doesn&rsquo;t — cover.</h2>
+    <div class="grid grid-3 cm-bound">
+      <article class="panel cm-b">
+        <h3 class="cm-b-t">CVMFS is a separate plane</h3>
+        <p class="muted">
+          BriX-Cache serves CVMFS as its own content-addressed protocol, alongside these tools — but
+          the migration toolchain does not touch CVMFS object format. The freedom here is from the
+          <span class="mono">XrdCeph</span> / <span class="mono">XrdCl</span> striper and CephFS
+          layouts, not from CVMFS.
+        </p>
+      </article>
+      <article class="panel cm-b">
+        <h3 class="cm-b-t">Production reads need one site rule</h3>
+        <p class="muted">
+          The striper read path is contract-complete, but touching a real RAL/Glasgow pool needs the
+          site&rsquo;s own <span class="mono">lfn2pfn</span> name-mapping rule. That last-mile rule was
+          never supplied to us, so production enablement is a site step, not a claim we make for you.
+        </p>
+      </article>
+      <article class="panel cm-b">
+        <h3 class="cm-b-t">Validated on single-node Reef</h3>
+        <p class="muted">
+          The mechanics are verified on Ceph Reef 18.2.4 — but on a one-OSD demo cluster, which proves
+          object and metadata correctness, not multi-OSD failure, recovery, or scrub-under-load. The
+          live lab is infra-constrained, not yet CI-wired.
+        </p>
+      </article>
+    </div>
+    <p class="muted cm-cites mono">
+      Read the record: <a href={BIDI_URL}>bidirectional migration ↗</a> ·
+      <a href={GLASGOW_URL}>Glasgow / RAL guide ↗</a> ·
+      <a href={PYMIG_URL}>python migration tools ↗</a> ·
+      <a href={RECORD_URL}>test record ↗</a> ·
+      <a href={HISTORY_URL}>history §3.2 ↗</a>
+    </p>
+  </Band>
+
+  <Band>
+    <Cta
+      title="Own your object layout again."
+      note="The migration and rescue tools ship in brix-tools with their guides. Validated on single-node Ceph Reef; production XrdCeph reads need your site's lfn2pfn rule."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .cm-head { max-width: 15ch; margin: 0.4rem 0 0; }
+  .cm-lede { margin-top: 1.2rem; }
+  .band-head { margin: 0.5rem 0 1.2rem; max-width: 26ch; }
+  .cm-intro { margin: 0.3rem 0 1.6rem; }
+
+  /* lock-in */
+  .cm-lock { align-items: start; gap: 2rem; }
+
+  /* freedoms */
+  .cm-free-grid { margin-top: 0.4rem; }
+  .cm-free { display: flex; flex-direction: column; gap: 0.5rem; border-top: 9px solid var(--accent); }
+  .cm-free-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.25rem; line-height: 1.08; }
+
+  /* tools */
+  .cm-tools { display: grid; gap: 1.1rem; margin-top: 0.4rem; }
+  @media (min-width: 720px) { .cm-tools { grid-template-columns: repeat(2, 1fr); } }
+  .cm-tool { display: flex; flex-direction: column; gap: 0.5rem; border-left: 9px solid var(--tint); }
+  .cm-tool-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap; }
+  .cm-tool-n { font-family: var(--mono); font-weight: 600; font-size: 0.9rem; word-break: break-word; }
+  .cm-tool-tag {
+    font-family: var(--mono); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.14em;
+    padding: 0.15em 0.5em; border: 2px solid var(--ink); background: var(--tint); white-space: nowrap;
+  }
+
+  /* zero-move */
+  .cm-zm { align-items: start; gap: 2rem; }
+  .cm-zm-head { max-width: 20ch; }
+
+  /* boundary */
+  .cm-bound { margin-top: 0.4rem; }
+  .cm-b { display: flex; flex-direction: column; gap: 0.5rem; }
+  .cm-b-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.15rem; line-height: 1.1; }
+  .cm-cites { margin-top: 1.6rem; text-align: center; font-size: 0.8rem; }
+
+  .term .mt { margin-top: 0.6rem; }
+</style>

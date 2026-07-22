@@ -30,7 +30,7 @@ import subprocess
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +57,7 @@ def _run_nginx_t(tmp_path, listen: str, extra: str, data_root: str):
         "events { worker_connections 64; }\n"
         "stream {\n"
         "  server {\n"
-        f"    listen 127.0.0.1:18391 {listen};\n"
+        f"    listen {BIND_HOST}:18391 {listen};\n"
         "    brix_root on;\n"
         f"    brix_storage_backend posix:{data_root};\n"
         f"{extra}"

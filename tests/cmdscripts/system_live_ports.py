@@ -20,6 +20,7 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
+from settings import BIND_HOST, HOST, SERVER_HOST
 
 
 def _checks(items: list[tuple[bool, str]]) -> int:
@@ -32,7 +33,7 @@ def _stream_config(run: LiveRun, root: Path, pid_name: str, port: int, body: str
     return run.write(root / "nginx.conf", f"""daemon on; error_log {root}/logs/e.log info; pid {root}/{pid_name};
 thread_pool default threads=4;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; {body} }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; {body} }} }}
 """)
 
 
@@ -64,7 +65,7 @@ def cache_af_family(nginx: Path | None = None) -> int:
                 "nginx.pid",
                 11941,
                 f"""brix_root on; brix_auth none;
-    brix_storage_backend root://127.0.0.1:11940;
+    brix_storage_backend root://{HOST}:11940;
     brix_cache_store posix:{node}/cache; brix_cache_export /;
     brix_cache_origin_family {family};""",
             )
@@ -78,7 +79,7 @@ def cache_af_family(nginx: Path | None = None) -> int:
         def cat_bytes() -> subprocess.CompletedProcess:
             try:
                 return subprocess.run(
-                    [str(xrdfs), "root://127.0.0.1:11941", "cat", "/f.bin"],
+                    [str(xrdfs), f"root://{HOST}:11941", "cat", "/f.bin"],
                     capture_output=True, timeout=60,
                 )
             except subprocess.TimeoutExpired:
@@ -128,11 +129,11 @@ def proxy_metadata_phase(nginx: Path | None = None) -> int:
             proxy,
             "nginx.pid",
             11645,
-            "brix_root on; brix_auth none; brix_tap_proxy on; brix_tap_proxy_upstream 127.0.0.1:11644; brix_tap_proxy_auth anonymous;",
+            f"brix_root on; brix_auth none; brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:11644; brix_tap_proxy_auth anonymous;",
         )
         run.start_nginx(origin, origin_conf, 11644)
         run.start_nginx(proxy, proxy_conf, 11645)
-        endpoint = "root://127.0.0.1:11645"
+        endpoint = f"root://{HOST}:11645"
         source = run.root / "w.bin"
         random_file(source, 4096)
         mkdir = run.call([xrdfs, endpoint, "mkdir", "/d"], check=False).returncode == 0
@@ -190,7 +191,7 @@ def io_uring_backend(nginx: Path | None = None) -> int:
             return 0
         big = run.root / "big.bin"
         big_digest = random_file(big, 33554432)
-        local_put = run.call([xrdcp, "-f", big, "root://127.0.0.1:11780//big.bin"], check=False)
+        local_put = run.call([xrdcp, "-f", big, f"root://{HOST}:11780//big.bin"], check=False)
         origin_conf = _stream_config(
             run,
             origin,
@@ -204,14 +205,14 @@ def io_uring_backend(nginx: Path | None = None) -> int:
             "nginx.pid",
             11779,
             f"""brix_root on; brix_export {backend}/export; brix_auth none; brix_allow_write on; brix_upload_resume off;
-    brix_io_uring on; brix_storage_backend root://127.0.0.1:11778;""",
+    brix_io_uring on; brix_storage_backend root://{HOST}:11778;""",
         )
         run.start_nginx(origin, origin_conf, 11778)
         run.start_nginx(backend, backend_conf, 11779)
         remote = run.root / "remote.bin"
         remote_digest = random_file(remote, 2600000)
-        remote_put = run.call([xrdcp, "-f", remote, "root://127.0.0.1:11779//remote.bin"], check=False)
-        killed = subprocess.Popen([str(xrdcp), "-f", "--xrate", "8m", str(big), "root://127.0.0.1:11780//killed.bin"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        remote_put = run.call([xrdcp, "-f", remote, f"root://{HOST}:11779//remote.bin"], check=False)
+        killed = subprocess.Popen([str(xrdcp), "-f", "--xrate", "8m", str(big), f"root://{HOST}:11780//killed.bin"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(2)
         if killed.poll() is None:
             killed.kill()
@@ -219,7 +220,7 @@ def io_uring_backend(nginx: Path | None = None) -> int:
         crash_log = (local / "logs/e.log").read_text(errors="replace")
         probe_file = run.root / "probe.bin"
         probe_digest = random_file(probe_file, 500000)
-        probe_put = run.call([xrdcp, "-f", probe_file, "root://127.0.0.1:11780//probe.bin"], check=False)
+        probe_put = run.call([xrdcp, "-f", probe_file, f"root://{HOST}:11780//probe.bin"], check=False)
         return _checks([
             (local_put.returncode == 0 and sha256(local / "export/big.bin") == big_digest, "32 MiB local write completed"),
             (remote_put.returncode == 0 and sha256(origin / "root/remote.bin") == remote_digest, "remote write-through byte-exact on origin"),
@@ -263,7 +264,7 @@ def ktls(nginx: Path | None = None) -> int:
         if proc.returncode:
             return False
         from lib_py.util import wait_tcp
-        return wait_tcp("127.0.0.1", 12792, 15)
+        return wait_tcp(BIND_HOST, 12792, 15)
 
     try:
         invalid = subprocess.run([str(nginx_bin), "-t", "-c", str(mkconf("maybe")), "-p", "/tmp/xrd-perf-test"], capture_output=True, text=True)
@@ -273,7 +274,7 @@ def ktls(nginx: Path | None = None) -> int:
             out = Path(f"/tmp/ktls_t_{value}_dl.bin")
             started = start(mkconf(value))
             before = tls_tx_sw()
-            curl = subprocess.run(["curl", "-s", "-o", str(out), "-k", "--tls13-ciphers", "TLS_AES_128_GCM_SHA256", "https://localhost:12792/ktls_t.bin"], capture_output=True)
+            curl = subprocess.run(["curl", "-s", "-o", str(out), "-k", "--tls13-ciphers", "TLS_AES_128_GCM_SHA256", f"https://{SERVER_HOST}:12792/ktls_t.bin"], capture_output=True)
             after = tls_tx_sw()
             checks.append((started and curl.returncode == 0 and out.exists() and out.read_bytes() == source.read_bytes(), f"{label}: HTTPS GET byte-identical"))
             if value == "on":

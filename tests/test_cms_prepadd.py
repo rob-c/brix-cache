@@ -29,7 +29,7 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import free_port
+from ephemeral_port import free_port
 from test_cms_state_have_select import (
     _ManagerPeer,
     _send_frame,
@@ -38,7 +38,8 @@ from test_cms_state_have_select import (
     _NOISE,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-prep")]
 
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_cms_prepadd")
 

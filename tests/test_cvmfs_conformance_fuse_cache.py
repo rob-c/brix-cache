@@ -138,6 +138,7 @@ def fuse_mount(fqrn, server_url, pubkey, *, cache=None, tmp=None, mount_type="cv
         shutil.rmtree(workdir, ignore_errors=True)
 from lib_py.util import wait_tcp
 from repo_forge import Dir, File, RepoForge, Symlink
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 MOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs", "mock_stratum1.py")
@@ -170,7 +171,7 @@ class MockOrigin:
 
     @property
     def url(self) -> str:
-        return f"http://127.0.0.1:{self.port}/cvmfs/{self.repo}"
+        return f"http://{HOST}:{self.port}/cvmfs/{self.repo}"
 
     def start(self) -> "MockOrigin":
         # A stale listener on a cycled port (leaked mock from a crashed run) makes
@@ -183,7 +184,7 @@ class MockOrigin:
                 [sys.executable, MOCK, "--port", str(self.port), "--repo", self.repo,
                  "--webroot", str(self.web)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if wait_tcp("127.0.0.1", self.port, 10) and self.proc.poll() is None:
+            if wait_tcp(BIND_HOST, self.port, 10) and self.proc.poll() is None:
                 return self
             self.kill()                      # reap the bind-loser (or non-starter)
             self.port = next(_PORTS)         # and try the next port in the block
@@ -204,12 +205,12 @@ class MockOrigin:
         self.start()
 
     def log(self) -> list:
-        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/ctl/log", timeout=10) as r:
+        with urllib.request.urlopen(f"http://{HOST}:{self.port}/ctl/log", timeout=10) as r:
             return json.load(r)
 
     def reset_log(self) -> None:
         urllib.request.urlopen(urllib.request.Request(
-            f"http://127.0.0.1:{self.port}/ctl/reset-log", method="POST"), timeout=10).read()
+            f"http://{HOST}:{self.port}/ctl/reset-log", method="POST"), timeout=10).read()
 
     def data_fetches(self, key: str = "", suffix: str = "") -> int:
         """GET count for one CAS object, or all /data/ traffic with no key."""
@@ -1125,7 +1126,7 @@ def test_cold_cache_mount_with_dead_origin_fails_cleanly(tmp_path):
     # mount must fail with a clean error after its bounded retry/backoff (~15s).
     forge, web, pub = _forge(tmp_path, _std_tree())
     dead = next(_PORTS)
-    url = f"http://127.0.0.1:{dead}/cvmfs/{REPO}"
+    url = f"http://{HOST}:{dead}/cvmfs/{REPO}"
     mnt = tmp_path / "m"
     mnt.mkdir()
     with own_mount(REPO, url, pub, mnt=mnt, cache_env=tmp_path / "cache",

@@ -21,8 +21,10 @@ from pathlib import Path
 import pytest
 
 from server_registry import NginxInstanceSpec
+from settings import HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -104,7 +106,7 @@ def test_tpc_pull_over_tls(tls_nginx):
     out = Path(tls_nginx["ddata"]) / "pulled.txt"
     r = _run([XRDCP, "-f", "--tpc", "only",
               f"root://{tls_nginx['fqdn']}:{tls_nginx['src_port']}//hello.txt",
-              f"root://127.0.0.1:{tls_nginx['dst_port']}//pulled.txt"],
+              f"root://{HOST}:{tls_nginx['dst_port']}//pulled.txt"],
              env=tls_nginx["env"])
     if r.returncode != 0 or not out.exists():
         tail = ""

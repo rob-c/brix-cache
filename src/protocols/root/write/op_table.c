@@ -12,6 +12,7 @@
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"   /* chmod/rm/rmdir via the VFS seam */
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "backend_async_root.h"           /* brix_backend_async park/resume     */
 
 /* Build a stream VFS ctx for a simple namespace op on e->resolved.
  *
@@ -148,6 +149,14 @@ brix_dispatch_op(brix_ctx_t *ctx, ngx_connection_t *c,
                          reqpath, resolved, conf,
                          d->auth_level, d->need_write) != NGX_OK) {
         return ctx->write_rc;
+    }
+
+    /* brix_backend_async: after auth, a queueable mutation (RM/RMDIR) is enqueued
+     * durably and the connection parked (XRD_ST_WAITING_BAQ) — the reply is sent
+     * by the queue waker after the bulk flush. Returns 0 (run inline) when async
+     * is off, the op is not queueable, or the enqueue is refused. */
+    if (brix_root_backend_async_try(ctx, c, conf, d, resolved)) {
+        return NGX_OK;
     }
 
     ex.ctx      = ctx;

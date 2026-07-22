@@ -17,11 +17,11 @@ import zipfile
 
 import pytest
 
-from settings import NGINX_ANON_PORT
+from settings import NGINX_ANON_PORT, SERVER_HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-BASE = f"root://localhost:{NGINX_ANON_PORT}"
+BASE = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 
 MEMBERS = {
     "stored.txt":   (bytes((i * 7) & 0xFF for i in range(5000)), zipfile.ZIP_STORED),

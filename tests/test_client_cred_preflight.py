@@ -24,13 +24,14 @@ import subprocess
 import time
 
 import pytest
+from settings import HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
 # A closed loopback port: connect() is refused instantly, so the copy fails fast
 # right after the pre-flight line we care about is already on stderr.
-DEAD_DST = "root://127.0.0.1:9//tmp/preflight_dst"
+DEAD_DST = f"root://{HOST}:9//tmp/preflight_dst"
 
 
 def _b64url(raw: bytes) -> str:
@@ -113,7 +114,7 @@ def test_s3_destination_skips_token_gsi_preflight(src_file):
     env.pop("BEARER_TOKEN_FILE", None)
     proc = subprocess.run(
         [XRDCP, "--retry", "0", "--s3-access", "AK", "--s3-secret", "SK",
-         src_file, "s3://127.0.0.1:9/bucket/obj"],
+         src_file, f"s3://{HOST}:9/bucket/obj"],
         env=env, capture_output=True, text=True, timeout=30,
     )
     assert "bearer token has EXPIRED" not in proc.stderr, proc.stderr

@@ -298,7 +298,7 @@ def _ipv6_gate(requires_ipv6_loopback):
 def _require_ipv6_stream():
     if not reachable6(IPV6_STREAM_PORT):
         pytest.skip(
-            f"ipv6-stream dedicated instance not up on [::1]:{IPV6_STREAM_PORT}"
+            f"ipv6-stream dedicated instance not up on [{HOST6}]:{IPV6_STREAM_PORT}"
         )
 
 
@@ -309,14 +309,14 @@ def _require_ssrf_default():
             pass
     except OSError:
         pytest.skip(
-            f"tpc-ssrf-default instance not up on 127.0.0.1:{TPC_SSRF_DEFAULT_PORT}"
+            f"tpc-ssrf-default instance not up on {HOST}:{TPC_SSRF_DEFAULT_PORT}"
         )
 
 
 def _require_ipv6_webdav():
     if not reachable6(IPV6_WEBDAV_PORT):
         pytest.skip(
-            f"ipv6-webdav dedicated instance not up on [::1]:{IPV6_WEBDAV_PORT}"
+            f"ipv6-webdav dedicated instance not up on [{HOST6}]:{IPV6_WEBDAV_PORT}"
         )
     if shutil.which("curl") is None:
         pytest.skip("curl not found")
@@ -454,7 +454,7 @@ class TestNativeTpcIpv6SsrfNegatives:
         )
         assert status == kXR_error, f"expected rejection, got status {status}"
         assert "prohibited" in err, (
-            f"[::1] loopback source must be SSRF-prohibited, got: {err!r}"
+            f"[::1] loopback source must be SSRF-prohibited, got: {err!r}"  # net-literal-allow: [::1] SSRF-prohibited source assertion message
         )
 
     @pytest.mark.registry_servers("ipv6-stream", "tpc-ssrf-default")
@@ -465,14 +465,14 @@ class TestNativeTpcIpv6SsrfNegatives:
         and is prohibited under allow_local=off.  This is the canonical
         v4-mapped SSRF-evasion vector."""
         _require_ssrf_default()
-        src = f"root://[::ffff:127.0.0.1]:{IPV6_STREAM_PORT}//test.txt"
+        src = f"root://[::ffff:127.0.0.1]:{IPV6_STREAM_PORT}//test.txt"  # net-literal-allow: v4-mapped-loopback SSRF source payload under test
         status, err = _native_tpc_open_and_sync(
             lambda: _connect4(HOST, TPC_SSRF_DEFAULT_PORT),
             "/ipv6_ssrf_v4mapped.dat", src,
         )
         assert status == kXR_error, f"expected rejection, got status {status}"
         assert "prohibited" in err, (
-            f"[::ffff:127.0.0.1] mapped-loopback source must be SSRF-prohibited, "
+            f"[::ffff:127.0.0.1] mapped-loopback source must be SSRF-prohibited, "  # net-literal-allow: [::ffff:127.0.0.1] SSRF assertion message
             f"got: {err!r}"
         )
 
@@ -547,7 +547,7 @@ class TestWebdavTpcIpv6Copy:
         code = _curl_code(proc)
         assert code != -1, f"no HTTP status from COPY: {proc.stdout!r}"
         assert code != 400, (
-            f"bracketed IPv6 Source header rejected as malformed (400); "
+            f"bracketed IPv6 Source header rejected as malformed (400); "  # net-literal-allow: bracketed-IPv6 Source-header rejection assertion
             f"the [::1] authority must parse. body status={code}"
         )
         assert code in (201, 202, 204, 207, 403, 404, 405, 409, 412, 502), (
@@ -611,7 +611,7 @@ class TestWebdavTpcIpv6Copy:
         proc = _curl_copy(
             f"{base}/test.txt",
             "Credential: none",
-            "Destination: http://[::1]:9999/should-be-rejected.txt",
+            "Destination: http://[::1]:9999/should-be-rejected.txt",  # net-literal-allow: SSRF Destination payload under test
             timeout=30,
         )
         assert proc.returncode == 0, proc.stderr.decode(errors="replace")

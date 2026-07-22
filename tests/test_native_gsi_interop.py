@@ -24,7 +24,8 @@ import pytest
 from settings import NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-native-gsi")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")

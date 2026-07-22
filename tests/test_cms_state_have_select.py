@@ -40,9 +40,11 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import SERVER_HOST, HOST, BIND_HOST, free_port
+from settings import SERVER_HOST, HOST, BIND_HOST
+from ephemeral_port import free_port
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-state")]
 
 H = SERVER_HOST
 
@@ -401,7 +403,7 @@ class TestSelectTryParsing:
         connection must survive (proving the port bytes were consumed, not
         misread as trailing payload that desyncs the framer)."""
         conn = client_stack["conn"]
-        payload = b"127.0.0.1\x00" + struct.pack(">H", 8080)
+        payload = b"127.0.0.1\x00" + struct.pack(">H", 8080)  # net-literal-allow: CMS wire payload IP bytes under test
         assert payload[-2:] == b"\x1f\x90", "test built a non-BE port"
         _send_frame(conn, 0x53, CMS_RR_SELECT, payload=payload)
         _ping_sanity(conn)

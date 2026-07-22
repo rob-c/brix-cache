@@ -10,6 +10,8 @@ import subprocess
 import sys
 import tempfile
 
+from settings import BIND_HOST, HOST
+
 
 def _run_nginx_test(nginx: Path, prefix: Path, name: str, expect_fail: bool, body: str) -> tuple[bool, str]:
     config = prefix / "nginx.conf"
@@ -43,13 +45,13 @@ def run(nginx: Path | None = None) -> int:
         cache = prefix / "cache"
         data = prefix / "data"
         cv = f"""brix_cvmfs on; brix_export {data};
-    brix_storage_backend http://127.0.0.1:1;
+    brix_storage_backend http://{HOST}:1;
     brix_cache_store posix:{cache};"""
         cases = [
             (
                 "unified names parse in webdav location",
                 False,
-                f"""server {{ listen 127.0.0.1:18499;
+                f"""server {{ listen {BIND_HOST}:18499;
   location /dav/ {{
     brix_webdav on;
     brix_webdav_auth none;
@@ -61,11 +63,11 @@ def run(nginx: Path | None = None) -> int:
             (
                 "server-level brix_cache_store inherits",
                 False,
-                f"""server {{ listen 127.0.0.1:18499;
+                f"""server {{ listen {BIND_HOST}:18499;
   brix_cache_store posix:{cache};
   brix_export {data};
   location /dav/ {{ brix_webdav on; brix_webdav_auth none; }} }}
-server {{ listen 127.0.0.1:18498;
+server {{ listen {BIND_HOST}:18498;
   brix_cache_store posix:{cache};
   brix_export {data};
   location /v/   {{ brix_s3 on; brix_s3_bucket b; }} }}""",
@@ -73,66 +75,66 @@ server {{ listen 127.0.0.1:18498;
             (
                 "brix_cache_evict_at rejects non-numeric",
                 True,
-                f"""server {{ listen 127.0.0.1:18499;
+                f"""server {{ listen {BIND_HOST}:18499;
   location /dav/ {{ brix_webdav on; brix_webdav_auth none; brix_export {data};
     brix_cache_evict_at lots; }} }}""",
             ),
             (
                 "two protocols in one location rejected",
                 True,
-                f"""server {{ listen 127.0.0.1:18499;
+                f"""server {{ listen {BIND_HOST}:18499;
   location / {{ brix_webdav on; brix_webdav_auth none; brix_export {data};
                brix_s3 on; brix_s3_bucket b; }} }}""",
             ),
             (
                 "two protocols on one port rejected",
                 True,
-                f"""server {{ listen 127.0.0.1:18499;
+                f"""server {{ listen {BIND_HOST}:18499;
   location /dav/ {{ brix_webdav on; brix_webdav_auth none; brix_export {data}; }}
   location /v/   {{ brix_s3 on; brix_s3_bucket b; brix_export {data}; }} }}""",
             ),
             (
                 "protocols on separate ports accepted",
                 False,
-                f"""server {{ listen 127.0.0.1:18499;
+                f"""server {{ listen {BIND_HOST}:18499;
   location /dav/ {{ brix_webdav on; brix_webdav_auth none; brix_export {data}; }} }}
-server {{ listen 127.0.0.1:18498;
+server {{ listen {BIND_HOST}:18498;
   location /v/   {{ brix_s3 on; brix_s3_bucket b; brix_export {data}; }} }}""",
             ),
             (
                 "brix_stage under cvmfs rejected",
                 True,
-                f"""server {{ listen 127.0.0.1:18499; location / {{ {cv}
+                f"""server {{ listen {BIND_HOST}:18499; location / {{ {cv}
   brix_stage on; brix_stage_store posix:{data}; }} }}""",
             ),
             (
                 "brix_stage_store alone under cvmfs rejected",
                 True,
-                f"""server {{ listen 127.0.0.1:18499; location / {{ {cv}
+                f"""server {{ listen {BIND_HOST}:18499; location / {{ {cv}
   brix_stage_store posix:{data}; }} }}""",
             ),
             (
                 "brix_cache_slice_size under cvmfs rejected",
                 True,
-                f"""server {{ listen 127.0.0.1:18499; location / {{ {cv} brix_cache_slice_size 1m; }} }}""",
+                f"""server {{ listen {BIND_HOST}:18499; location / {{ {cv} brix_cache_slice_size 1m; }} }}""",
             ),
             (
                 "brix_allow_write under cvmfs rejected",
                 True,
-                f"""server {{ listen 127.0.0.1:18499; location / {{ {cv} brix_allow_write on; }} }}""",
+                f"""server {{ listen {BIND_HOST}:18499; location / {{ {cv} brix_allow_write on; }} }}""",
             ),
             (
                 "origin_select geo without brix_cvmfs_here rejected",
                 True,
-                f"""server {{ listen 127.0.0.1:18499; location / {{ {cv}
+                f"""server {{ listen {BIND_HOST}:18499; location / {{ {cv}
   brix_cvmfs_origin_select geo; }} }}""",
             ),
             (
                 "cvmfs pure cache node without brix_export accepted",
                 False,
-                f"""server {{ listen 127.0.0.1:18499; location / {{
+                f"""server {{ listen {BIND_HOST}:18499; location / {{
   brix_cvmfs on;
-  brix_storage_backend http://127.0.0.1:1;
+  brix_storage_backend http://{HOST}:1;
   brix_cache_store posix:{cache}; }} }}""",
             ),
         ]

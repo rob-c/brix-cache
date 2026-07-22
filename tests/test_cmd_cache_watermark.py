@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_watermark import run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_watermark")
+
 
 def test_cache_watermark_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

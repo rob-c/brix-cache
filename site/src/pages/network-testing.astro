@@ -1,0 +1,282 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import Cta from '../components/Cta.astro';
+import { REPO_URL } from '../lib/site';
+
+const MAN_URL = `${REPO_URL}/blob/main/client/man/brix-fault-proxy.1`;
+const SRC_URL = `${REPO_URL}/blob/main/client/apps/diag/brix_fault_proxy.c`;
+const LESSONS_URL = `${REPO_URL}/blob/main/docs/07-security/hostile-network-lessons.md`;
+
+// The real levers, verified against client/apps/diag/brix_fault_proxy.c and the
+// man page. Every byte-level lever is per-direction (up = client→upstream,
+// down = upstream→client); default is both. Every lever is off/0 by default.
+const levers = [
+  { k: 'latency <ms>', d: 'Delay every forwarded chunk — a high-RTT link.' },
+  { k: 'jitter <ms>', d: 'Random 0..ms delay per chunk — the application-visible signature of IP reordering.' },
+  { k: 'chunk <bytes>', d: 'Split writes into ≤N-byte segments so the peer sees genuine partial reads.' },
+  { k: 'drip <bytes> <ms>', d: 'Forward N bytes, sleep, repeat — a Slowloris slow-drip.' },
+  { k: 'rate <KB/s>', d: 'A hard bandwidth ceiling.' },
+  { k: 'corrupt <pct>', d: 'Flip a random bit in pct% of forwarded bytes — a real in-band MITM mutation.' },
+  { k: 'lossy <pct>', d: 'Per-chunk probability to sever the stream (loss modelled as a reset, not a byte drop).' },
+  { k: 'reorder <pct> [ms]', d: 'Hold back a fraction of chunks by ms.' },
+  { k: 'dup <pct>', d: 'Deliver a fraction of chunks twice.' },
+  { k: 'truncate-at <bytes>', d: 'A deterministic mid-transfer cut once N bytes have flowed that direction.' },
+  { k: 'fail-nth <n>', d: 'Fail exactly the Nth accepted connection.' },
+  { k: 'heal-after <ms> · one-shot', d: 'Auto-clear all levers after ms, or self-heal the instant the next sever fires.' },
+  { k: 'drop · reset · half-close', d: 'FIN- or RST-sever every live connection now; or FIN the up path while down keeps flowing.' },
+  { k: 'hang · block', d: 'Black-hole (accept but never relay) or full outage (drop live, refuse new); unhang / unblock to resume.' },
+];
+
+// Concrete bugs the harness caught — the write-path integrity sweep.
+// docs §6.1, findings #1/#6/#8/#13; fixes fail closed.
+const catches = [
+  {
+    n: '#1', t: 'A truncated fill served as a complete hit',
+    d: 'A mid-transfer cut on the origin→cache link left a short .part that was committed and served forever as a complete object. Now the fill spine refuses to commit a fill shorter than the known object size.',
+    cite: 'tests/test_cache_truncation_poison.py',
+  },
+  {
+    n: '#6', t: 'A WebDAV PUT that never checked its own digest',
+    d: 'A byte flipped in flight — with a valid RFC-3230 Digest / Content-MD5 present — returned 201 and committed poison. Now the asserted digest is verified over the staged bytes before publish, and a mismatch fails 400 BadDigest.',
+    cite: 'tests/resilience/test_webdav_put_corruption.py',
+  },
+  {
+    n: '#8', t: 'A GridFTP MODE E hole answered as 226 complete',
+    d: 'A flipped 17-byte EBLOCK offset (or a short sender that still emits EOD) left a zero-filled gap reported as a complete transfer. Now the accepted ranges must tile [0, high-water) gaplessly, or it is 550 and the file is unlinked.',
+    cite: 'tests/test_gridftp_mode_e_truncation.py',
+  },
+  {
+    n: '#13', t: 'A third-party pull with no end-to-end check',
+    d: 'Native TPC committed both truncated and corrupted pulls as complete. Now an always-on source-size completion gate runs, with an opt-in post-copy checksum on top.',
+    cite: 'tests/test_tpc_pull_integrity.py',
+  },
+];
+---
+
+<Layout
+  title="Network testing"
+  description="Treat every network as adversarial. brix-fault-proxy is a root-free TCP relay you splice in front of any endpoint to prove a client survives a degraded — or actively hostile — wire: latency, jitter, partial writes, resets, bit-flip corruption, truncation, and black-holes, per-direction, live over a control port. The invariant never changes: the bytes that arrive are the bytes that were published, or the transfer fails loudly."
+  accent="danger"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <span class="eyebrow">Network testing</span>
+    <h1 class="display nt-head">The network is not your friend.</h1>
+    <p class="lede nt-lede">
+      No matter how good your fabric is — dedicated fibre, a private LHCONE circuit, a switch you
+      trust — you should never treat it as anything other than <strong>adversarial</strong>. A
+      middlebox can cut a connection early, hold it open forever, or flip a byte, and it will do so in
+      the way that keeps every length field, checksum-of-the-wrong-thing, and signature looking valid.
+      BriX-Cache assumes exactly that, and ships the tool that proves it.
+    </p>
+  </Band>
+
+  <!-- THE THESIS -->
+  <Band variant="ink" id="thesis">
+    <span class="eyebrow">The threat model</span>
+    <h2 class="display band-head">Two questions every transfer must answer.</h2>
+    <p class="lede muted nt-intro">
+      A transfer that ends is not a transfer that finished. Length framing answers <em>how many
+      bytes</em>, never <em>which bytes</em>. So every write path is held to two questions — and a
+      path can be provably safe against one while wide open to the other.
+    </p>
+    <div class="grid grid-2 nt-thesis">
+      <article class="panel nt-q">
+        <span class="nt-q-n mono">Q1</span>
+        <h3 class="nt-q-t">What signals COMPLETE — not merely STOPPED?</h3>
+        <p class="muted">
+          An idle timer is not a deadline. A slow-drip adversary that sends one byte per
+          <span class="mono">timeout − ε</span> keeps a connection hostage forever. A logical
+          operation needs an absolute deadline across the whole operation, and a positive signal that
+          the last byte is really the last byte.
+        </p>
+      </article>
+      <article class="panel nt-q">
+        <span class="nt-q-n mono">Q2</span>
+        <h3 class="nt-q-t">What proves the bytes are the peer&rsquo;s?</h3>
+        <p class="muted">
+          Integrity has a direction. &ldquo;Verify on ingest&rdquo; plus &ldquo;verify on read&rdquo;
+          still leaves the outbound commit leg — the gateway writing to its own origin — completely
+          naked, and it is the hop most easily forgotten because it feels internal. Prefer a
+          peer-validated inline header that fails the write closed over a post-commit probe that races.
+        </p>
+      </article>
+    </div>
+    <p class="nt-rule mono">
+      The posture, in one line: <strong>new-integrity surfaces are opt-in knobs; clear bugs fail
+      closed.</strong>
+    </p>
+  </Band>
+
+  <!-- THE TOOL -->
+  <Band id="tool">
+    <div class="grid grid-2 nt-tool">
+      <div class="stack">
+        <span class="eyebrow">The instrument</span>
+        <h2 class="display band-head nt-tool-head">A hostile wire, on demand.</h2>
+        <p class="muted">
+          <span class="mono">brix-fault-proxy</span> is a root-free, userspace TCP relay — a
+          &ldquo;toxiproxy-lite&rdquo; — you splice in front of any brix, stock-XRootD, or HTTP
+          endpoint. It needs no <span class="mono">CAP_NET_ADMIN</span>, no <span class="mono">tc</span>,
+          no <span class="mono">netem</span>: just <span class="mono">--listen</span>,
+          <span class="mono">--target</span>, and a loopback <span class="mono">--control</span> port
+          you drive live.
+        </p>
+        <p class="muted">
+          Under all of it the assertion never changes: the bytes that arrive are the bytes that were
+          published, or the transfer fails loudly. Never a silent corruption, never a short read
+          dressed up as a complete one.
+        </p>
+        <p class="mono nt-src">
+          <a href={MAN_URL}>man brix-fault-proxy ↗</a> ·
+          <a href={SRC_URL}>client/apps/diag/brix_fault_proxy.c ↗</a>
+        </p>
+      </div>
+      <div class="term" aria-label="brix-fault-proxy, real invocation">
+        <div class="term-title">brix-fault-proxy · real invocation</div>
+        <div><span class="p">$</span> brix-fault-proxy \</div>
+        <div>&nbsp;&nbsp;--listen 11940 --target cache.example:1094 \</div>
+        <div>&nbsp;&nbsp;--control 11941</div>
+        <div class="mt"><span class="c"># then, live over the loopback control port:</span></div>
+        <div><span class="p">$</span> printf '<span class="k">corrupt 0.024 down</span>\n' | nc -q1 127.0.0.1 11941</div>
+        <div><span class="c"># ~1-bit-in-4096 MITM on the download</span></div>
+        <div><span class="p">$</span> printf '<span class="k">truncate-at 5242880 down</span>\n' | nc -q1 127.0.0.1 11941</div>
+        <div><span class="c"># cut every download at exactly 5 MiB</span></div>
+        <div><span class="p">$</span> printf '<span class="k">hang</span>\n' | nc -q1 127.0.0.1 11941</div>
+        <div><span class="c"># data-plane black hole — client must not corrupt</span></div>
+      </div>
+    </div>
+  </Band>
+
+  <!-- THE LEVERS -->
+  <Band variant="sunken" id="levers">
+    <span class="eyebrow">The levers</span>
+    <h2 class="display band-head">Every way a wire goes wrong.</h2>
+    <p class="lede muted nt-intro">
+      Each lever is off by default and — for the byte-level ones — <strong>per-direction</strong>
+      (<span class="mono">up</span> = client→upstream, <span class="mono">down</span> =
+      upstream→client). Set them at launch with <span class="mono">--&lt;lever&gt;</span> flags, or
+      live by writing one newline-terminated command to the control port.
+    </p>
+    <div class="nt-levers">
+      {levers.map((l) => (
+        <article class="nt-lever">
+          <code class="nt-lever-k">{l.k}</code>
+          <p class="muted nt-lever-d">{l.d}</p>
+        </article>
+      ))}
+    </div>
+    <p class="muted nt-honest">
+      <strong>Honest about the model.</strong> Packet loss is modelled as a connection sever, not a
+      byte drop — dropping bytes from an already-ACKed TCP stream corrupts it rather than emulating
+      loss. True out-of-order <em>packet</em> delivery can&rsquo;t be faked either, since TCP
+      reassembles in order, so <span class="mono">jitter</span> and <span class="mono">reorder</span>
+      inject the variable latency reordering imposes. <span class="mono">corrupt</span>, by contrast,
+      <em>is</em> a real in-band byte mutation — exactly what an application-layer checksum exists to
+      catch.
+    </p>
+  </Band>
+
+  <!-- WHAT IT CAUGHT -->
+  <Band id="caught">
+    <span class="eyebrow">What it caught</span>
+    <h2 class="display band-head">Real bugs, found by a hostile wire.</h2>
+    <p class="lede muted nt-intro">
+      These are not hypotheticals. Each was a live &ldquo;COMPLETE vs STOPPED&rdquo; poisoning found
+      by the write-path integrity sweep and now fixed to fail closed — every one pinned by its own
+      gate test.
+    </p>
+    <div class="grid grid-2 nt-catch-grid">
+      {catches.map((c) => (
+        <article class="panel nt-catch">
+          <span class="nt-catch-n mono">{c.n}</span>
+          <h3 class="nt-catch-t">{c.t}</h3>
+          <p class="muted">{c.d}</p>
+          <p class="mono nt-catch-cite">{c.cite}</p>
+        </article>
+      ))}
+    </div>
+    <p class="muted nt-status">
+      Status, stated plainly: the tool itself is a first-class, tested client binary. The integrity
+      fixes above were found and closed in the write-path hardening sweep; several are recent and land
+      alongside their gate tests rather than in a tagged release.
+    </p>
+  </Band>
+
+  <!-- THE SUITES -->
+  <Band variant="ink" id="suites">
+    <span class="eyebrow">The suites</span>
+    <h2 class="display band-head">Byte-exact under fault, or fail loudly.</h2>
+    <p class="lede muted nt-intro">
+      The proxy is wrapped by a <span class="mono">FaultProxy</span> harness in
+      <span class="mono">tests/resilience/</span> and driven across the storage estate. The invariant
+      is uniform everywhere: never exit 0 with corrupt or short bytes; zero silent
+      <span class="mono">EIO</span> / <span class="mono">kXR_IOError</span> surfaced as success.
+    </p>
+    <div class="term nt-suites" aria-label="Resilience suites">
+      <div class="term-title">tests/ — resilience & fault suites</div>
+      <div><span class="k">test_fault_proxy_corruption.py</span> <span class="c"># pgrw CRC32c + --verify detect the tamper</span></div>
+      <div><span class="k">test_slow_drip_deadline.py</span> <span class="c"># an idle timer is not a deadline</span></div>
+      <div><span class="k">resilience/test_s3_put_corruption.py</span></div>
+      <div><span class="k">resilience/test_webdav_put_corruption.py</span></div>
+      <div><span class="k">test_xrootdfs_resilience.py</span></div>
+      <div><span class="k">test_official_vs_brix_cache_faults.py</span> <span class="c"># cross-checked vs stock XRootD</span></div>
+      <div><span class="k">test_cache_verify_require.py</span> · <span class="k">test_backend_put_checksum.py</span></div>
+      <div><span class="k">test_gridftp_mode_e_truncation.py</span> · <span class="k">test_tpc_pull_integrity.py</span></div>
+    </div>
+  </Band>
+
+  <Band>
+    <p class="nt-doclink mono">
+      The durable principles a reviewer should carry into the next gateway:
+      <a href={LESSONS_URL}>docs/07-security/hostile-network-lessons.md ↗</a>
+    </p>
+    <Cta
+      title="Assume the wire is lying. Then prove it can't."
+      note="The fault proxy, the harness, and every gate test above are in the repository. Splice it in front of your own reference XRootD and try to make it lie."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .nt-head { max-width: 16ch; margin: 0.4rem 0 0; }
+  .nt-lede { margin-top: 1.2rem; }
+  .band-head { margin: 0.5rem 0 1.2rem; max-width: 26ch; }
+  .nt-intro { margin: 0.3rem 0 1.6rem; }
+  .nt-src { font-size: 0.8rem; margin-top: 0.4rem; }
+
+  /* thesis */
+  .nt-thesis { margin-top: 0.4rem; }
+  .nt-q { display: flex; flex-direction: column; gap: 0.5rem; border-top: 9px solid var(--accent); }
+  .nt-q-n { font-size: 1.4rem; font-weight: 600; color: var(--accent); line-height: 1; }
+  .nt-q-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.25rem; line-height: 1.05; }
+  .nt-rule { margin-top: 1.6rem; text-align: center; font-size: 0.9rem; }
+
+  /* tool */
+  .nt-tool { align-items: start; gap: 2rem; }
+  .nt-tool-head { max-width: 18ch; }
+
+  /* levers */
+  .nt-levers { display: grid; gap: 0; border: var(--border); background: var(--panel); box-shadow: var(--shadow-sm); }
+  .nt-lever {
+    display: grid; grid-template-columns: minmax(11rem, 15rem) 1fr; gap: 1rem;
+    padding: 0.8rem 1rem; border-top: 2px solid var(--ink); align-items: baseline;
+  }
+  .nt-lever:first-child { border-top: none; }
+  .nt-lever-k { font-family: var(--mono); font-weight: 600; font-size: 0.82rem; color: var(--ink); word-break: break-word; }
+  .nt-lever-d { font-size: 0.92rem; }
+  @media (max-width: 620px) { .nt-lever { grid-template-columns: 1fr; gap: 0.25rem; } }
+  .nt-honest { margin-top: 1.4rem; max-width: var(--measure); font-size: 0.92rem; }
+
+  /* catches */
+  .nt-catch-grid { margin-top: 0.4rem; }
+  .nt-catch { display: flex; flex-direction: column; gap: 0.4rem; border-top: 9px solid var(--accent); }
+  .nt-catch-n { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+  .nt-catch-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.2rem; line-height: 1.08; }
+  .nt-catch-cite { margin-top: auto; font-size: 0.72rem; color: var(--ink-2); word-break: break-word; }
+  .nt-status { margin-top: 1.4rem; max-width: var(--measure); font-size: 0.92rem; }
+
+  .nt-suites { margin-top: 0.4rem; font-size: 0.8rem; }
+  .nt-doclink { text-align: center; margin-bottom: 1.6rem; font-size: 0.85rem; }
+</style>

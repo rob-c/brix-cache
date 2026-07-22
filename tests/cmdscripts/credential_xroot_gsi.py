@@ -14,7 +14,8 @@ from cmdscripts.credential_xroot_gsi_writeback import (
     split_proxy,
     deterministic_bytes,
 )
-from settings import CA_CERT, CA_DIR, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
@@ -42,7 +43,7 @@ def write_origin_config(prefix: Path, port: int) -> Path:
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_export {root};
+    listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth gsi;
     brix_certificate {SERVER_CERT};
     brix_certificate_key {SERVER_KEY};
@@ -69,8 +70,8 @@ events {{ worker_connections 64; }}
 stream {{
     brix_credential origin {{ x509_proxy {PROXY_STD}; ca_dir {ca_dir}; }}
     server {{
-        listen 127.0.0.1:{port}; brix_root on; brix_export {export}; brix_auth none;
-        brix_storage_backend root://127.0.0.1:{origin_port};
+        listen {BIND_HOST}:{port}; brix_root on; brix_export {export}; brix_auth none;
+        brix_storage_backend root://{HOST}:{origin_port};
         brix_storage_credential origin;
         brix_cache on; brix_cache_export {cache};
     }}
@@ -95,8 +96,8 @@ events {{ worker_connections 64; }}
 stream {{
     brix_credential origin {{ x509_cert {cert_part}; x509_key {key_part}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port}; brix_root on; brix_export {export}; brix_auth none;
-        brix_storage_backend root://127.0.0.1:{origin_port};
+        listen {BIND_HOST}:{port}; brix_root on; brix_export {export}; brix_auth none;
+        brix_storage_backend root://{HOST}:{origin_port};
         brix_storage_credential origin;
         brix_cache on; brix_cache_export {cache};
     }}
@@ -119,8 +120,8 @@ def write_anonymous_node_config(prefix: Path, port: int, origin_port: int) -> Pa
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_export {export}; brix_auth none;
-    brix_storage_backend root://127.0.0.1:{origin_port};
+    listen {BIND_HOST}:{port}; brix_root on; brix_export {export}; brix_auth none;
+    brix_storage_backend root://{HOST}:{origin_port};
     brix_cache on; brix_cache_export {cache};
 }} }}
 """,
@@ -132,7 +133,7 @@ stream {{ server {{
 def xrdfs_cat(port: int, path: str, dest: Path, xrdfs: Path = XRDFS) -> subprocess.CompletedProcess:
     with dest.open("wb") as out:
         return subprocess.run(
-            [str(xrdfs), f"root://127.0.0.1:{port}", "cat", path],
+            [str(xrdfs), f"root://{HOST}:{port}", "cat", path],
             stdout=out,
             stderr=subprocess.PIPE,
         )
@@ -149,7 +150,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
     if not pki_ok:
         return [(True, pki_message)]
 
-    origin_port, proxy_port, anon_port, wrong_ca_port, cert_key_port = free_ports(5)
+    origin_port, proxy_port, anon_port, wrong_ca_port, cert_key_port = cmdscript_ports("credential_xroot_gsi")
     origin = base / "o"
     proxy_node = base / "b"
     anon_node = base / "n"

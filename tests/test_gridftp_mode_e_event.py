@@ -37,7 +37,7 @@ import struct
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -126,7 +126,7 @@ def test_get_mode_e_roundtrip(ev_gateway):
         fh.write(payload)
 
     ftp = ftplib.FTP()
-    ftp.connect("localhost", ev_gateway.port, timeout=30)
+    ftp.connect(SERVER_HOST, ev_gateway.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")
@@ -153,7 +153,7 @@ def test_get_mode_e_roundtrip(ev_gateway):
 def test_get_mode_e_missing_fails(ev_gateway):
     """RETR MODE E of a non-existent object fails on the control channel (550)."""
     ftp = ftplib.FTP()
-    ftp.connect("localhost", ev_gateway.port, timeout=30)
+    ftp.connect(SERVER_HOST, ev_gateway.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")
@@ -175,7 +175,7 @@ def test_get_mode_e_missing_fails(ev_gateway):
 def _mode_e_stor_single(gw, name, frames, eod_total=1, close_eof=True):
     """STOR `name` over a single MODE E data stream, then a combined EOF|EOD."""
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gw.port, timeout=30)
+    ftp.connect(SERVER_HOST, gw.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")
@@ -250,7 +250,7 @@ def test_put_mode_e_parallel_streams(ev_gateway):
     payload = os.urandom(chunk * nstreams)
 
     ftp = ftplib.FTP()
-    ftp.connect("localhost", ev_gateway.port, timeout=30)
+    ftp.connect(SERVER_HOST, ev_gateway.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")

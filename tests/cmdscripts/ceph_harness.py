@@ -166,7 +166,7 @@ def cmd_start() -> int:
             "run", "-d", "--name", container, "--network", "host",
             "-e", f"MON_IP={mon}", "-e", f"CEPH_PUBLIC_NETWORK={net}",
             "-e", "CEPH_DAEMON=demo", "-e", "DEMO_DAEMONS=mon,mgr,osd",
-            "-e", "RGW_NAME=localhost",
+            "-e", "RGW_NAME=localhost",  # net-literal-allow: RadosGW instance hostname identity, container-internal
             ceph_image(),
         ])
         if started.returncode != 0:

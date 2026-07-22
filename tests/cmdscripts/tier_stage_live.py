@@ -17,7 +17,10 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
-from settings import free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST
+
+_PORTS = cmdscript_ports("tier_stage_live")
 
 XRDCP = REPO_ROOT / "client/bin/xrdcp"
 XRDFS = REPO_ROOT / "client/bin/xrdfs"
@@ -40,7 +43,7 @@ def _origin_config(run: LiveRun, root: Path, port: int, *, writable: bool = True
     write = " brix_allow_write on;" if writable else ""
     return run.write(root / "nginx.conf", f"""daemon on; error_log {root}/logs/e.log {level}; pid {root}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {root}/root; brix_auth none;{write} }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {root}/root; brix_auth none;{write} }} }}
 """)
 
 
@@ -60,7 +63,7 @@ def instance_lifetime(nginx: Path | None = None) -> int:
     the stack in production shape (master + 2 workers), exercises every tier
     surface, reloads, exercises again, and requires zero worker deaths.
     """
-    oport, bport = free_ports(2)
+    oport, bport = _PORTS[0:2]  # was free_ports(2)
     with LiveRun("tier_life", nginx) as run:
         origin, node = run.mkdir("o"), run.mkdir("b")
         for directory, names in ((origin, ("root", "logs")), (node, ("export", "cache", "stage", "logs"))):
@@ -72,9 +75,9 @@ error_log {node}/logs/e.log info; pid {node}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{bport}; brix_root on; brix_export {node}/export;
+    listen {BIND_HOST}:{bport}; brix_root on; brix_export {node}/export;
     brix_auth none; brix_allow_write on;
-    brix_storage_backend root://127.0.0.1:{oport};
+    brix_storage_backend root://{HOST}:{oport};
     brix_cache_store posix:{node}/cache; brix_cache_export /;
     brix_stage on; brix_stage_store posix:{node}/stage; brix_stage_flush async;
 }} }}
@@ -87,7 +90,7 @@ stream {{ server {{
         random_file(big, 2600000)
         pre = origin / "root/pre.bin"
         random_file(pre, 500000)
-        target = f"root://127.0.0.1:{bport}"
+        target = f"root://{HOST}:{bport}"
         checks: list[tuple[bool, str]] = []
 
         small_put = run.call([XRDCP, "-f", small, f"{target}//small.bin"], check=False).returncode == 0
@@ -122,7 +125,7 @@ stream {{ server {{
 def stage_async_remote_flush(nginx: Path | None = None) -> int:
     """Async stage-flush mover runs on the thread pool so a flush to a REMOTE
     root:// backend works; the stage copy is dropped on completion."""
-    oport, bport = free_ports(2)
+    oport, bport = _PORTS[2:4]  # was free_ports(2)
     with LiveRun("saf", nginx) as run:
         origin, node = run.mkdir("o"), run.mkdir("b")
         for directory, names in ((origin, ("root", "logs")), (node, ("export", "stage", "tmp", "logs"))):
@@ -132,10 +135,10 @@ def stage_async_remote_flush(nginx: Path | None = None) -> int:
         node_conf = run.write(node / "nginx.conf", f"""daemon on; error_log {node}/logs/e.log info; pid {node}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {node}/tmp; server {{ listen 127.0.0.1:{bport};
+http {{ client_body_temp_path {node}/tmp; server {{ listen {BIND_HOST}:{bport};
   location / {{ dav_methods PUT DELETE;
     brix_webdav on; brix_export {node}/export; brix_webdav_auth none; brix_allow_write on;
-    brix_storage_backend root://127.0.0.1:{oport};
+    brix_storage_backend root://{HOST}:{oport};
     brix_stage on; brix_stage_store posix:{node}/stage; brix_stage_flush async; }} }} }}
 """)
         run.start_nginx(node, node_conf, bport)
@@ -143,7 +146,7 @@ http {{ client_body_temp_path {node}/tmp; server {{ listen 127.0.0.1:{bport};
 
         source = run.root / "src.bin"
         digest = random_file(source, 420000)
-        status = run.curl_status(f"http://127.0.0.1:{bport}/o.bin", "-T", str(source))
+        status = run.curl_status(f"http://{HOST}:{bport}/o.bin", "-T", str(source))
         # Informational in the shell (`|| true`): the async flush may already
         # have raced the stage copy away by the time we look.
         if (node / "stage/o.bin").exists():
@@ -180,7 +183,7 @@ def root_stage_writeback(nginx: Path | None = None) -> int:
     """root:// kXR_write routed through the sd_stage write-back object: a
     root:// upload buffers on the stage store and flushes to the origin on
     close, byte-exact."""
-    oport, bport = free_ports(2)
+    oport, bport = _PORTS[4:6]  # was free_ports(2)
     with LiveRun("root_wb", nginx) as run:
         origin, node = run.mkdir("o"), run.mkdir("b")
         for directory, names in ((origin, ("root", "logs")), (node, ("export", "stage", "logs"))):
@@ -191,9 +194,9 @@ def root_stage_writeback(nginx: Path | None = None) -> int:
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{bport}; brix_root on; brix_export {node}/export;
+    listen {BIND_HOST}:{bport}; brix_root on; brix_export {node}/export;
     brix_auth none; brix_allow_write on; brix_upload_resume off;
-    brix_storage_backend root://127.0.0.1:{oport};
+    brix_storage_backend root://{HOST}:{oport};
     brix_stage on;
     brix_stage_store posix:{node}/stage;
     brix_stage_flush sync;
@@ -204,13 +207,13 @@ stream {{ server {{
 
         source = run.root / "src.bin"
         random_file(source, 2621440)  # 2.5 MiB, multi-write
-        uploaded = run.call([XRDCP, "-f", source, f"root://127.0.0.1:{bport}//m.bin"], check=False).returncode == 0
+        uploaded = run.call([XRDCP, "-f", source, f"root://{HOST}:{bport}//m.bin"], check=False).returncode == 0
         if not uploaded:
             log = (node / "logs/e.log").read_text(errors="replace")
             for line in [l for l in log.splitlines() if re.search(r"stage|flush|origin|error|write", l, re.I)][-10:]:
                 print(f"    {line}")
         flushed = origin / "root/m.bin"
-        got = run.call([XRDFS, f"root://127.0.0.1:{bport}", "cat", "/m.bin"], input=b"", check=False).stdout
+        got = run.call([XRDFS, f"root://{HOST}:{bport}", "cat", "/m.bin"], input=b"", check=False).stdout
         return _checks([
             (uploaded, "upload accepted"),
             (flushed.exists() and sha256(flushed) == sha256(source),
@@ -222,7 +225,7 @@ stream {{ server {{
 def root_slice_fill(nginx: Path | None = None) -> int:
     """Legacy-config slice cache fills per-slice from a root:// origin and
     serves byte-exact over root:// (cold fill, warm hit, multi-slice)."""
-    oport, cport = free_ports(2)
+    oport, cport = _PORTS[6:8]  # was free_ports(2)
     with LiveRun("root_slice", nginx) as run:
         origin, cache = run.mkdir("o"), run.mkdir("c")
         for directory, names in ((origin, ("root", "logs")), (cache, ("export", "cache", "logs"))):
@@ -234,11 +237,11 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{cport};
+        listen {BIND_HOST}:{cport};
         brix_root on;
         brix_export {cache}/export;
         brix_auth none;
-        brix_storage_backend root://127.0.0.1:{oport};
+        brix_storage_backend root://{HOST}:{oport};
         brix_cache_store posix:{cache}/cache; brix_cache_export /;
         brix_cache_slice_size 1m;
     }}
@@ -250,7 +253,7 @@ stream {{
         small, big = origin / "root/small.bin", origin / "root/big.bin"
         random_file(small, 900000)   # < 1 slice
         random_file(big, 4194304)    # 4 slices
-        target = f"root://127.0.0.1:{cport}"
+        target = f"root://{HOST}:{cport}"
 
         cold_small = run.call([XRDFS, target, "cat", "/small.bin"], input=b"", check=False).stdout
         cold_ok = cold_small == small.read_bytes()

@@ -111,7 +111,7 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
     """Send kXR_open for a TPC-destination pull from src_url."""
     # Body: NUL-terminated path followed by opaque query string
     # For TPC, a key is required: tpc.key=<some_token>
-    opaque = "tpc.src=%s&tpc.key=testkey&tpc.dst=root://localhost//%s" % (
+    opaque = "tpc.src=%s&tpc.key=testkey&tpc.dst=root://localhost//%s" % (  # net-literal-allow: loopback SSRF destination under test
         src_url, dst_path.lstrip("/"),
     )
     path_with_opaque = ("%s?%s" % (dst_path, opaque)).encode() + b"\x00"
@@ -201,7 +201,7 @@ class TestSSRFDefaultPolicy:
     @pytest.mark.registry_server("tpc-ssrf-default")
     def test_loopback_ipv4_rejected(self, nginx_default):
         port = nginx_default["port"]
-        status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")
+        status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")  # net-literal-allow: loopback SSRF destination under test
         assert status == kXR_error, "expected kXR_error, got %d" % status
         assert "prohibited" in err, "error should mention 'prohibited': %r" % err
 
@@ -209,7 +209,7 @@ class TestSSRFDefaultPolicy:
     def test_loopback_localhost_name_rejected(self, nginx_default):
         # 'localhost' resolves to 127.0.0.1 (or ::1) — both are blocked by default
         port = nginx_default["port"]
-        status, err = _tpc_attempt(port, "root://localhost//test.txt")
+        status, err = _tpc_attempt(port, "root://localhost//test.txt")  # net-literal-allow: loopback SSRF destination under test
         assert status == kXR_error, "expected kXR_error, got %d" % status
         assert "prohibited" in err or "refused" in err, (
             "expected SSRF or connection-refused: %r" % err
@@ -260,7 +260,7 @@ class TestSSRFAllowLocalPolicy:
     @pytest.mark.registry_server("tpc-ssrf-allow-local")
     def test_loopback_not_ssrf_blocked_when_allow_local(self, nginx_allow_local):
         port = nginx_allow_local["port"]
-        status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")
+        status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")  # net-literal-allow: loopback SSRF destination under test
         assert status == kXR_error, "expected some error, got %d" % status
         # The error should be a connection failure, NOT a SSRF rejection
         assert "prohibited" not in err, (
@@ -314,7 +314,7 @@ class TestSSRFDenyPrivatePolicy:
     def test_loopback_still_rejected(self, nginx_deny_private):
         # loopback is governed by allow_local (off by default), not allow_private
         port = nginx_deny_private["port"]
-        status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")
+        status, err = _tpc_attempt(port, "root://127.0.0.1//test.txt")  # net-literal-allow: loopback SSRF destination under test
         assert status == kXR_error
         assert "prohibited" in err, "loopback should still be prohibited: %r" % err
 

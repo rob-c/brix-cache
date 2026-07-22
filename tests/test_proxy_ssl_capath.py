@@ -22,17 +22,18 @@ Run:
 """
 
 import pathlib
-import socket
 import subprocess
 import urllib.request
 
 import pytest
 
-from settings import CA_CERT, SERVER_CERT, SERVER_KEY
+from settings import CA_CERT, HOST, SERVER_CERT, SERVER_KEY
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
+from fleet_lifecycle_ports import lifecycle_ports_for
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-proxycapath")]
 
 
 @pytest.fixture(scope="module")
@@ -62,19 +63,18 @@ def _hashed_ca_dir(path: pathlib.Path, *ca_pems: pathlib.Path) -> pathlib.Path:
     return path
 
 
-def _free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
-
-
 def _spec(name, capath, template="nginx_lc_proxy_ssl_capath.conf"):
     values = {"CAPATH": str(capath)}
     if template == "nginx_lc_proxy_ssl_capath.conf":
+        # BACKEND_PORT is the in-instance https backend listen the front leg
+        # proxies to; take it from this name's fixed-port ledger entry (never a
+        # dynamic port) — the LIVE specs bind it, the parse-only specs only
+        # render it.
+        _, extra = lifecycle_ports_for(name)
         values.update({
             "HOST_CERT": SERVER_CERT,
             "HOST_KEY": SERVER_KEY,
-            "BACKEND_PORT": str(_free_port()),
+            "BACKEND_PORT": str(extra["BACKEND_PORT"]),
         })
     return NginxInstanceSpec(
         name=name,
@@ -99,7 +99,7 @@ def _nginx_t(lifecycle, spec):
 
 def _get_status(port: int) -> int:
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/",
+        with urllib.request.urlopen(f"http://{HOST}:{port}/",
                                     timeout=5) as res:
             return res.status
     except urllib.error.HTTPError as err:

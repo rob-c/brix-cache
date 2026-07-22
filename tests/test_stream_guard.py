@@ -31,7 +31,8 @@ from server_registry import NginxInstanceSpec
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
 
-pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-stream-guard")]
 
 
 def _xrdfs(port, *args, timeout=30):

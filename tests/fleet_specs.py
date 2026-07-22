@@ -272,6 +272,14 @@ def support_specs() -> list[NginxInstanceSpec]:
     * The krb5 acceptor nginx is included only when nginx links libkrb5.
     """
     py = sys.executable or "python3"
+    # Phase-5: the meshes are `external` orchestrators — start_argv blocks until
+    # converged, so completion IS readiness and the primary port is never TCP-probed.
+    # It is still pinned to each mesh's real front door (the source of truth in the
+    # mesh libs) so `endpoint("...-mesh").port` is a stable fixed port, never the old
+    # `endpoint_for` free_port fallback (now removed).  Local imports: cms_mesh_lib
+    # runs shutil.which() at import, kept out of module top-level.
+    from hybrid_mesh_lib import PORTS as _HYBRID_PORTS
+    from cms_mesh_lib import PORTS as _CMS_PORTS
     specs: list[NginxInstanceSpec] = [
         # Protocol stub backend for the stub-upstream-* proxies (binds a band in
         # the 131xx range; 13121 is a representative liveness anchor).
@@ -282,6 +290,42 @@ def support_specs() -> list[NginxInstanceSpec]:
             template_values={"argv": [py, os.path.join(_TESTS_DIR, "upstream_protocol_stubs.py")]},
             tags=("support",),
             reason="XRootD protocol stub backends (wait/redirect/authmore/gotoTLS).",
+        ),
+        # Hit-counting HTTP upstream for the phase-65 guard suites (mocks band).
+        NginxInstanceSpec(
+            name="guard-stub", template="", port=S.GUARD_STUB_PORT,
+            protocol="http", data_root=_data("data-guard-stub"),
+            kind="proc", readiness="tcp",
+            template_values={"argv": [py, os.path.join(_TESTS_DIR, "lib", "guard_stub_server.py")]},
+            tags=("support", "mock"),
+            reason="Hit-counting HTTP stub backend for the guard suites.",
+        ),
+        # Stateless ORIGIN-OK backend for admin-API URL validation (mocks band).
+        NginxInstanceSpec(
+            name="static-origin", template="", port=S.STATIC_ORIGIN_PORT,
+            protocol="http", data_root=_data("data-static-origin"),
+            kind="proc", readiness="tcp",
+            template_values={"argv": [py, os.path.join(_TESTS_DIR, "lib", "static_origin_server.py")]},
+            tags=("support", "mock"),
+            reason="Static HTTP origin backend for the dashboard admin-API suite.",
+        ),
+        # Hit-recording mirror shadow upstream for phase-24 (mocks band).
+        NginxInstanceSpec(
+            name="mirror-shadow", template="", port=S.MIRROR_SHADOW_PORT,
+            protocol="http", data_root=_data("data-mirror-shadow"),
+            kind="proc", readiness="tcp",
+            template_values={"argv": [py, os.path.join(_TESTS_DIR, "lib", "mirror_shadow_server.py")]},
+            tags=("support", "mock"),
+            reason="Hit-recording HTTP shadow upstream for the mirror suite.",
+        ),
+        # Mock RFC 7662 token-introspection IdP for phase-21 OIDC (mocks band).
+        NginxInstanceSpec(
+            name="introspect-idp", template="", port=S.INTROSPECT_IDP_PORT,
+            protocol="http", data_root=_data("data-introspect-idp"),
+            kind="proc", readiness="tcp",
+            template_values={"argv": [py, os.path.join(_TESTS_DIR, "lib", "introspect_idp_server.py")]},
+            tags=("support", "mock"),
+            reason="Mock OAuth token-introspection endpoint for the phase-21 suite.",
         ),
         # CMS parent-lookup stub for cluster-select/try/esc (binds 12601/12606/12607).
         NginxInstanceSpec(
@@ -294,7 +338,7 @@ def support_specs() -> list[NginxInstanceSpec]:
         ),
         # CMS mesh: self-contained cmsd/brix/nginx topologies (own port band).
         NginxInstanceSpec(
-            name="cms-mesh", template="", port=None,
+            name="cms-mesh", template="", port=_CMS_PORTS["a_mgr"],
             protocol="root", data_root=_data("cms-mesh"),
             kind="external", readiness="tcp", allow_remote_skip=True,
             env={"TEST_NGINX_BIN": S.NGINX_BIN, "CMS_MESH_DIR": _data("cms-mesh")},
@@ -307,7 +351,7 @@ def support_specs() -> list[NginxInstanceSpec]:
         ),
         # Hybrid two-tier cross-backend mesh (own 11300-11317 band + /tmp tree).
         NginxInstanceSpec(
-            name="hybrid-mesh", template="", port=None,
+            name="hybrid-mesh", template="", port=_HYBRID_PORTS["a_data"],
             protocol="root", data_root=_data("hybrid-mesh"),
             kind="external", readiness="tcp", allow_remote_skip=True,
             env={"TEST_NGINX_BIN": S.NGINX_BIN, "HYBRID_MESH_DIR": _data("hybrid-mesh")},
@@ -397,7 +441,13 @@ def dedicated_specs() -> list[NginxInstanceSpec]:
         # --- ACL / token roles ------------------------------------------------
         _ded("readonly", "nginx_readonly.conf", S.READONLY_PORT),
         _ded("vo-acl", "nginx_vo_acl.conf", S.VO_PORT),
-        _ded("manager", "nginx_manager.conf", S.MANAGER_PORT),
+        # The manager map front-ends the reference xrootd pair: MAP_A defaults to
+        # ref-anon (REF_PORT) and MAP_B to ref-gsi (REF_PORT+1) via
+        # fleet_values.  Those backends used to be always-on backbone; with the
+        # zero-boot default they must be pulled in explicitly, so the dependency
+        # is declared here (dependency_closure then boots them for any manager test).
+        _ded("manager", "nginx_manager.conf", S.MANAGER_PORT,
+             requires=("ref-anon", "ref-gsi")),
         _ded("token-strict", "nginx_token_strict.conf", S.NGINX_TOKEN_STRICT_PORT),
         _ded("token-multikey", "nginx_token_multikey.conf", S.NGINX_TOKEN_MULTIKEY_PORT),
         _ded("token-registry", "nginx_token_registry.conf", S.NGINX_TOKEN_REGISTRY_PORT),

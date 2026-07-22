@@ -20,12 +20,15 @@ import os
 
 import pytest
 
-from settings import NGINX_BIN, NGINX_METRICS_PORT
+from settings import HOST, NGINX_BIN, NGINX_METRICS_PORT
 from server_registry import NginxInstanceSpec
 
 
 pytestmark = [
     pytest.mark.uses_lifecycle_harness,
+    # Fixed exclusive-band ledger ports (lc-phase51-*) → serialise the family so a
+    # fixed port never has two concurrent drivers.
+    pytest.mark.xdist_group("lc-phase51"),
     pytest.mark.skipif(
         not os.path.exists(NGINX_BIN),
         reason=f"nginx binary not found at {NGINX_BIN}"),
@@ -82,7 +85,7 @@ def test_resilience_metrics_exported():
     import urllib.request
     import urllib.error
 
-    url = f"http://127.0.0.1:{NGINX_METRICS_PORT}/metrics"
+    url = f"http://{HOST}:{NGINX_METRICS_PORT}/metrics"
     try:
         body = urllib.request.urlopen(url, timeout=5).read().decode("utf-8", "replace")
     except (urllib.error.URLError, OSError) as exc:

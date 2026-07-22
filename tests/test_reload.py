@@ -18,8 +18,8 @@ security-neg" rule, applied to the reload feature as a whole):
     partial apply, generation unchanged).
 
 Registry-backed: the throwaway instance is driven entirely through the
-`lifecycle` harness (config template `nginx_lifecycle_reload.conf`, OS-assigned
-free ports) — no hand-rolled nginx subprocess calls.
+`lifecycle` harness (config template `nginx_lifecycle_reload.conf`, fixed ports
+from the lifecycle-exclusive ledger) — no hand-rolled nginx subprocess calls.
 """
 
 import json
@@ -30,10 +30,15 @@ import urllib.request
 
 import pytest
 
-import settings
+from config_parse import nginx_t
 from server_registry import NginxInstanceSpec
+from settings import HOST
 
-pytestmark = pytest.mark.timeout(120)
+# Bucket-2 lifecycle subject: one fixed-port `lc-reload` instance the tests
+# mutate (reload/reopen/broken-config).  xdist_group serialises the whole module
+# onto a single worker so the fixed exclusive-band port never has two concurrent
+# drivers (see fleet_lifecycle_ports.LIFECYCLE_EXCLUSIVE_PORTS["lc-reload"]).
+pytestmark = [pytest.mark.timeout(120), pytest.mark.xdist_group("lc-reload")]
 
 
 # --------------------------------------------------------------------------- #
@@ -41,7 +46,7 @@ pytestmark = pytest.mark.timeout(120)
 # --------------------------------------------------------------------------- #
 def _http_get(port, path, timeout=3):
     """Return (status, body) for GET; HTTP errors come back as (code, body)."""
-    url = "http://127.0.0.1:%d%s" % (port, path)
+    url = "http://%s:%d%s" % (HOST, port, path)
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             return resp.status, resp.read().decode("utf-8", "replace")
@@ -80,14 +85,14 @@ DEFAULTS = {"SESSION_SLOTS": 256, "ALLOW_WRITE": "off", "METRICS": "on"}
 class Instance:
     def __init__(self, harness, tmp_path):
         self.harness = harness
-        (stream_port,) = settings.free_ports(1)
+        # Fixed listen + stream ports come from the lifecycle-exclusive ledger
+        # (fleet_lifecycle_ports); the harness supplies them for name "lc-reload".
         self.endpoint = harness.start(
             NginxInstanceSpec(
                 name=NAME,
                 template="nginx_lifecycle_reload.conf",
                 protocol="http",
                 data_root=str(tmp_path / "data"),
-                extra_ports={"STREAM_PORT": stream_port},
                 template_values=dict(DEFAULTS),
                 reason="reload-semantics lifecycle coverage",
             )
@@ -200,13 +205,11 @@ def test_managed_access_log_reopens_after_rotation(inst):
 # --------------------------------------------------------------------------- #
 # SECURITY-NEG
 # --------------------------------------------------------------------------- #
-def test_invalid_config_is_rejected_and_old_config_keeps_serving(inst, lifecycle):
+def test_invalid_config_is_rejected_and_old_config_keeps_serving(inst, tmp_path):
     before = _healthz(inst.http_port)["config_generation"]
 
-    # `nginx -t` rejects the broken config (fresh throwaway spec, never started).
-    cp = lifecycle.expect_config_failure(
-        NginxInstanceSpec(name="lc-reload-broken", template="nginx_lifecycle_broken.conf")
-    )
+    # `nginx -t` rejects the broken config — a pure parse property, no boot.
+    cp = nginx_t("nginx_lifecycle_broken.conf", tmp_path)
     assert cp.returncode != 0, "nginx -t should fail on broken config:\n%s" % cp.stdout
 
     # `-s reload` with the broken config fails and does NOT swap the live config.

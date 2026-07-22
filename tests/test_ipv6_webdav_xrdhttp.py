@@ -99,7 +99,7 @@ def _ipv6_webdav(requires_ipv6_loopback):
 
     if not reachable6(IPV6_WEBDAV_PORT):
         pytest.skip(
-            f"dedicated ipv6-webdav nginx not reachable on [::1]:{IPV6_WEBDAV_PORT} — "
+            f"dedicated ipv6-webdav nginx not reachable on [{HOST6}]:{IPV6_WEBDAV_PORT} — "
             f"run tests/manage_test_servers.sh start-all"
         )
 
@@ -408,8 +408,8 @@ def test_ipv6_webdav_move_destination_header_bracketed():
 
     # Any reflected authority (Location) must be bracketed, never bare ::1.
     loc = r.headers.get("Location", "")
-    if "::1" in loc:
-        assert "[::1]" in loc, f"bare IPv6 literal in MOVE Location: {loc!r}"
+    if "::1" in loc:  # net-literal-allow: asserting bare ::1 absent from returned Location
+        assert "[::1]" in loc, f"bare IPv6 literal in MOVE Location: {loc!r}"  # net-literal-allow: asserting bracketed [::1] present in returned Location
 
 
 @pytest.mark.registry_server("ipv6-webdav")
@@ -433,8 +433,8 @@ def test_ipv6_webdav_copy_destination_header():
     assert copied.content == content
 
     loc = r.headers.get("Location", "")
-    if "::1" in loc:
-        assert "[::1]" in loc, f"bare IPv6 literal in COPY Location: {loc!r}"
+    if "::1" in loc:  # net-literal-allow: asserting bare ::1 absent from returned Location
+        assert "[::1]" in loc, f"bare IPv6 literal in COPY Location: {loc!r}"  # net-literal-allow: asserting bracketed [::1] present in returned Location
 
 
 # ---------------------------------------------------------------------------
@@ -511,7 +511,7 @@ def _assert_href_has_no_host_literal(href: str):
     """A WebDAV href must not embed the IPv6 host literal.  A bare ``::1`` would
     be the §3 bracket bug; an absolute ``http://[::1]:PORT/...`` (bracketed or
     not) is also wrong here because nginx emits server-relative hrefs."""
-    for bad in ("::1", "[::1]", "[::"):
+    for bad in ("::1", "[::1]", "[::"):  # net-literal-allow: malformed IPv6 host payloads under test
         assert bad not in href, f"href carries IPv6 host literal {bad!r}: {href!r}"
 
 

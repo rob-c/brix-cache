@@ -32,7 +32,7 @@ import zlib
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -75,7 +75,7 @@ def gateway():
 
 def _connect(gw):
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gw.port, timeout=30)
+    ftp.connect(SERVER_HOST, gw.port, timeout=30)
     ftp.login()
     return ftp
 
@@ -109,7 +109,7 @@ def test_mode_e_stor_via_pblock(gateway):
     rather than posix."""
     payload = os.urandom(40000)
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gateway.port, timeout=30)
+    ftp.connect(SERVER_HOST, gateway.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")

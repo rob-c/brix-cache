@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import BRIXMOUNT  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from test_cvmfs_prefetch import _start_origin, _stop_origin  # noqa: E402
+from settings import HOST
 
 REPO = "test.cern.ch"
 
@@ -89,7 +90,7 @@ def _run_prewarm(tmp_path, port, cache: Path):
     env["BRIXCVMFS_PUBKEY"] = str(tmp_path / "repo.pub")
     env["BRIXCVMFS_TMP"] = str(tmp_path / "tmp")
     env["BRIXCVMFS_CACHE"] = str(cache)
-    env["BRIXCVMFS_SERVER"] = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    env["BRIXCVMFS_SERVER"] = f"http://{HOST}:{port}/cvmfs/{REPO}"
     (tmp_path / "tmp").mkdir(exist_ok=True)
     return subprocess.run([BRIXMOUNT, "cvmfs", "--prewarm", REPO],
                           env=env, capture_output=True, text=True, timeout=90)

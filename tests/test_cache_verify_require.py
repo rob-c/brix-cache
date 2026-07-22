@@ -51,11 +51,12 @@ from server_registry import NginxInstanceSpec  # noqa: E402
 
 XROOTD = shutil.which("xrootd")
 
-HOST = "127.0.0.1"
+from settings import HOST
 FILE_MB = 8
 FILE_BYTES = FILE_MB * 1024 * 1024
 
 pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-verify-require"),
               pytest.mark.timeout(300)]
 
 _SKIP = None

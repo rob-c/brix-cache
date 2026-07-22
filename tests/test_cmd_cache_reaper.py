@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_reaper import run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_reaper")
+
 
 def test_cache_reaper_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

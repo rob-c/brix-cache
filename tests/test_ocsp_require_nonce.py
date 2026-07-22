@@ -93,6 +93,8 @@ class TestOcspRequireNonceWiring:
 # Config-gate: the directive is accepted by `nginx -t`, and OFF is the default
 # (an explicit `on` and an explicit `off` both parse; a bad value is rejected).
 # --------------------------------------------------------------------------- #
+pytestmark = pytest.mark.xdist_group("lc-a6-nonce")
+
 _GATE = pytest.mark.uses_lifecycle_harness
 
 

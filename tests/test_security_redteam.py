@@ -26,6 +26,7 @@ import pytest
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
@@ -54,7 +55,7 @@ class _RedTeam:
     def check(self, template, **values):
         name = f"lc-redteam-{next(_SEQ)}"
         self._h.register(NginxInstanceSpec(
-            name=name, template=template,
+            name=name, template=template, port=SHARED_PARSE_PLACEHOLDER_PORT,
             protocol="root", readiness="tcp", template_values=values))
         self._h.launcher.render_nginx(self._h.spec(name))
         r = self._h.nginx_test(name, check=False)

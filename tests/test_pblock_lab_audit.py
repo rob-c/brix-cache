@@ -21,7 +21,8 @@ import pytest
 from cmdscripts.live_common import LiveRun, random_file
 from cmdscripts.pblock_live import XRDCP, pblock_lab_spec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-pblock-audit")]
 
 
 def _oplog(catalog: Path) -> list[sqlite3.Row]:

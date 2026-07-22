@@ -93,7 +93,7 @@ def main():
             except OSError: pass
 
     s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("127.0.0.1", a.port)); s.listen(128)
+    s.bind(("127.0.0.1", a.port)); s.listen(128)  # net-literal-allow: standalone-spawned helper server (no tests/ on sys.path); loopback bind
     logline("failproxy mode=%s rate=%.2f port=%d" % (a.mode, a.rate, a.port))
     def reaper():
         while True:

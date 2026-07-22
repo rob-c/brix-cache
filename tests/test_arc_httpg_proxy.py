@@ -33,7 +33,7 @@ back to the client.
 The suite drives two grid users (alice, bob) end-to-end through nginx:
 
     delegate  (PUT /.well-known/brix-delegation, per user)
-    arcsub    (-C https://localhost:<front>/arex -T arcrest -Q NONE)
+    arcsub    (-C https://{SERVER_HOST}:<front>/arex -T arcrest -Q NONE)
     arcstat   (asserts Owner: = each user's own DN; -v output shown with -s)
     arcget    (retrieve session dir, assert job stdout)
 
@@ -66,8 +66,10 @@ import http.client
 
 import pytest
 
-from guard_http_lib import NGINX_BIN, AuditLog, free_port
+from guard_http_lib import NGINX_BIN, AuditLog
+from ephemeral_port import free_port
 from config_templates import render_config
+from settings import BIND_HOST, HOST, SERVER_HOST
 
 pytestmark = [pytest.mark.slow, pytest.mark.serial,
               pytest.mark.timeout(600)]
@@ -107,7 +109,7 @@ def _https(port, cert=None, key=None):
     ctx = ssl._create_unverified_context()
     if cert is not None:
         ctx.load_cert_chain(str(cert), str(key) if key else None)
-    return http.client.HTTPSConnection("127.0.0.1", port, timeout=15,
+    return http.client.HTTPSConnection(HOST, port, timeout=15,
                                        context=ctx)
 
 
@@ -121,7 +123,7 @@ def _wait_tls(port, tries=100):
             return
         except Exception:
             time.sleep(0.5)
-    pytest.fail(f"TLS endpoint on 127.0.0.1:{port} never became ready")
+    pytest.fail(f"TLS endpoint on {HOST}:{port} never became ready")
 
 
 @pytest.fixture(scope="module")
@@ -136,7 +138,7 @@ def arc_ce(tmp_path_factory):
 
     _run(["docker", "rm", "-f", name])
     rc = _run(["docker", "run", "-d", "--name", name, "--hostname",
-               "localhost", "-p", f"127.0.0.1:{port}:443",
+               "localhost", "-p", f"{BIND_HOST}:{port}:443",  # net-literal-allow: docker --hostname container identity
                ARC_IMAGE, "sleep", "infinity"])
     if rc.returncode != 0:
         pytest.skip(f"docker run failed: {rc.stderr.strip()}")
@@ -262,7 +264,7 @@ def test_delegated_submit_stat_get_per_user(front, delegated, tmp_path):
     alice's job is run to completion and retrieved with arcget."""
     xrsl = tmp_path / "hello.xrsl"
     xrsl.write_text(JOB_XRSL)
-    ce = f"https://localhost:{front['port']}/arex"
+    ce = f"https://{SERVER_HOST}:{front['port']}/arex"
 
     for name, u in delegated.items():
         jobs = tmp_path / f"{name}-jobs.dat"

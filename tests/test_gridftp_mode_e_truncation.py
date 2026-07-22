@@ -41,12 +41,13 @@ import struct
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-gridftp-mode-e")]
 
 # EBLOCK descriptor bits (GFD.020 §3.4); an EOF block carries the total EOD count
 # in its OFFSET field and folds EOD in on the last stream.
@@ -101,7 +102,7 @@ def _final_code(ftp):
 def _mode_e_stor_single(gw, name, frames, eod_total=1, close_eof=True):
     """STOR `name` over a single MODE E data stream, then a combined EOF|EOD."""
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gw.port, timeout=30)
+    ftp.connect(SERVER_HOST, gw.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")

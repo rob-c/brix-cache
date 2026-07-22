@@ -84,7 +84,7 @@ LIB   := libxrdproto.a
 # extractor for client JWT-claim display — NO jansson, the safe replacement for
 # the old strstr() hack.  The module keeps its jansson src/auth/token/json.c for the
 # security-critical JWKS path; this is the lightweight diagnostic core only.)
-NAMES := crc32c crc64 crc32_ieee hex crypto error_mapping checksum_core uri \
+NAMES := crc32c crc32c_hw crc64 crc32_ieee hex crypto error_mapping checksum_core uri \
          host_format host_split kxr_names sigv4 pgio vendor_ext sss_bf fattr_codec \
          subprocess json_min \
          codec_core codec_zlib codec_zstd codec_lzma codec_brotli codec_bzip2 \

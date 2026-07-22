@@ -24,7 +24,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 from server_registry import NginxInstanceSpec  # noqa: E402
-from settings import free_port, BIND_HOST  # noqa: E402
+from settings import BIND_HOST  # noqa: E402
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
@@ -91,14 +91,12 @@ def _stat(port, path):
 def cluster(lifecycle, tmp_path_factory):
     base = tmp_path_factory.mktemp("cns")
     data = base / "data"; data.mkdir()
-    cms_port = free_port()
 
     mgr = lifecycle.start(NginxInstanceSpec(
         name="lc-cns-manager",
         template="nginx_cns_manager.conf",
         protocol="root",
         readiness="tcp",
-        extra_ports={"CMS_PORT": cms_port},
         reason="CNS manager (brix_cns collect) + CMS server port.",
     ))
     ds = lifecycle.start(NginxInstanceSpec(
@@ -107,7 +105,7 @@ def cluster(lifecycle, tmp_path_factory):
         protocol="root",
         readiness="tcp",
         data_root=str(data),
-        template_values={"CMS_PORT": cms_port},
+        template_values={"CMS_PORT": mgr.extra_ports["CMS_PORT"]},
         reason="CNS data server (brix_cns emit) CMS-linked to the manager.",
     ))
 

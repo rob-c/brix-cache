@@ -27,6 +27,7 @@ pytestmark = [
     pytest.mark.uses_lifecycle_harness,
     # serial: asserts large reads are "fast" — timing-sensitive under the pool.
     pytest.mark.serial,
+    pytest.mark.xdist_group("lc-proxy-large-read"),
 ]
 
 

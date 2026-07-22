@@ -48,7 +48,14 @@ from server_registry import NginxInstanceSpec  # noqa: E402
 # Every nginx GSI server in this module is a throwaway registry instance driven
 # through the phase-81 LifecycleHarness (never a direct nginx launch), so the
 # registry lint treats the file as migrated.
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Both test_gsi_handshake.py and test_gsi_handshake_b.py `import *` from here and
+# share these module-scoped GSI server fixtures (same fixed-port ledger names),
+# so both files must run on one worker — otherwise two workers would race the
+# same fixed listen.  One xdist_group here (propagated to both files via __all__)
+# serialises them; each module tears its fixtures down before the next starts, so
+# the shared ledger ports are reused rather than contended.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("gsihs")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")

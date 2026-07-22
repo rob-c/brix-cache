@@ -184,6 +184,20 @@ nginx proxy in front.
 | 11244 | IPV6_S3_PORT | s3 |
 | 11245 / 11246 | IPV6_UPSTREAM_PORT / IPV6_PROXY_PORT | davs origin + proxy |
 
+## Registry-managed Python mock singletons (mocks band 32000+)
+
+Former in-process `ThreadingHTTPServer` stubs, now standalone `proc` fleet specs on
+fixed ports (`tests/lib/*_server.py`, registered by `fleet_specs`) so every test reaches
+ONE declared mock instead of spawning its own. The band sits BELOW the OS ephemeral-port
+floor (32768) so a client socket can never transiently steal a mock's fixed listen.
+
+| Port | Constant | Purpose |
+|---|---|---|
+| 32001 | GUARD_STUB_PORT | Hit-counter + mutable reply-status guard backend (`test_xrdhttp_guard.py`, `test_arc_guard.py`); `/__introspect` + `/__reset` control API |
+| 32002 | STATIC_ORIGIN_PORT | Stateless `ORIGIN-OK` backend for admin-API URL-validation coverage (`test_phase23_admin_api.py`); no introspection |
+| 32003 | MIRROR_SHADOW_PORT | Hit-recording mirror shadow upstream (`test_phase24_mirror.py`): records path/headers/method + write bodies behind a control API |
+| 32004 | INTROSPECT_IDP_PORT | Mock RFC 7662 token-introspection endpoint (`test_phase21_proxy_filter.py`): `revoked` in token → active:false, else active:true |
+
 ## Launcher-level overrides (not fixed ports)
 
 | Constant | Default | What |

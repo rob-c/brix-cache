@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.credential_dup_warn import run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-credential_dup_warn")
+
 
 def test_credential_dup_warn_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

@@ -177,7 +177,7 @@ def ratelimit_gauge_reset(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[
 
 
 def delegation_store(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
-    names = ["hex.o", "ucred.o", "store_policy.o", "signing_policy.o", "proxy_req.o"]
+    names = ["hex.o", "ucred.o", "ucred_parse.o", "store_policy.o", "signing_policy.o", "proxy_req.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -248,7 +248,15 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(REPO_ROOT / "src"),
             *cflags,
             str(backend / "pblock/sd_pblock_unittest.c"),
+            str(backend / "pblock/sd_pblock_unittest_core.c"),
+            str(backend / "pblock/sd_pblock_unittest_block.c"),
+            str(backend / "pblock/sd_pblock_unittest_ident.c"),
+            str(backend / "pblock/sd_pblock_unittest_lab.c"),
+            str(backend / "pblock/sd_pblock_unittest_dedup.c"),
             str(backend / "pblock/sd_pblock.c"),
+            str(backend / "pblock/sd_pblock_lifecycle.c"),
+            str(backend / "pblock/sd_pblock_open.c"),
+            str(backend / "pblock/sd_pblock_namespace_copy.c"),
             str(backend / "pblock/sd_pblock_io.c"),
             str(backend / "pblock/pblock_ctl.c"),
             str(backend / "pblock/pblock_fault.c"),
@@ -261,6 +269,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/pblock_snap.c"),
             str(backend / "pblock/pblock_hist.c"),
             str(REPO_ROOT / "src/core/compat/crc32c.c"),
+            str(REPO_ROOT / "src/core/compat/crc32c_hw.c"),
             str(REPO_ROOT / "src/core/compat/wverify.c"),
             str(backend / "pblock/sd_pblock_namespace.c"),
             str(backend / "pblock/sd_pblock_staged.c"),
@@ -445,7 +454,11 @@ def sreq_compat(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]
 
 
 def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
-    names = ["sd_remote.o", "sd_s3.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    # sd_remote's getxattr/listxattr path (S3 x-amz-meta passthrough) pulls in
+    # sd_s3_meta.o, which in turn needs meta_advisory.o for the advisory
+    # encode/decode helpers — both were added when S3 listxattr landed but were
+    # never reflected in this hand-maintained object closure.
+    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)

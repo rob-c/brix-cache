@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.storage_backend_metrics import run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-storage_backend_metrics")
+
 
 def test_storage_backend_metrics_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

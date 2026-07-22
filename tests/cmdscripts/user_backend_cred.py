@@ -4,8 +4,9 @@ Ports ``run_user_backend_cred.sh`` (base), ``run_user_backend_cred_root.sh``
 (root), ``run_user_backend_cred_ns.sh`` (ns), ``run_user_backend_cred_p2.sh``
 (p2), and ``run_multiuser_authz.sh`` (multiuser-authz).  Every externally
 visible assertion of the shell scripts is reproduced as a Python check; ports
-are allocated dynamically via ``settings.free_ports`` and all scratch state
-lives under a ``LiveRun`` root that the context manager reaps.
+come from the fixed ``cmdscripts`` band (``fleet_ports.CMDSCRIPTS_PORTS`` via
+the module ``_PORTS`` slice) and all scratch state lives under a ``LiveRun``
+root that the context manager reaps.
 """
 
 from __future__ import annotations
@@ -23,7 +24,10 @@ import tempfile
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
-from settings import CA_CERT, CA_DIR, CA_KEY, PROXY_STD, SERVER_CERT, SERVER_KEY, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, PROXY_STD, SERVER_CERT, SERVER_KEY
+
+_PORTS = cmdscript_ports("user_backend_cred")
 
 SKIP = 77  # distinct scenario outcome: prerequisites unavailable
 
@@ -229,7 +233,7 @@ error_log {prefix}/logs/e.log info;
 pid {prefix}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port};
+    listen {BIND_HOST}:{port};
     brix_root on;
     brix_export {prefix}/root;
     brix_allow_write on;
@@ -289,7 +293,7 @@ http {{
     client_body_temp_path {prefix}/export;
     brix_credential origin {{ x509_proxy {service_proxy}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port} ssl;
+        listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -302,7 +306,7 @@ http {{
             brix_export {prefix}/export;
             brix_webdav_cafile {CA_CERT};
             brix_webdav_auth required;
-            brix_storage_backend root://127.0.0.1:{origin_port};
+            brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential origin;
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback {fallback};
@@ -334,7 +338,7 @@ def base(nginx: Path | None = None) -> int:
             return _skip("user-B cert mint failed")
         b_cert, b_key = minted
 
-        oport, fport = free_ports(2)
+        oport, fport = _PORTS[0:2]  # was free_ports(2)
         started, detail = _start_prefixed(run, origin, _origin_conf(origin, oport))
         if not started:
             return _skip(f"origin start failed: {detail}")
@@ -342,7 +346,7 @@ def base(nginx: Path | None = None) -> int:
         time.sleep(0.5)
 
         flog = front / "logs/e.log"
-        url = f"https://127.0.0.1:{fport}"
+        url = f"https://{HOST}:{fport}"
 
         def front_start(fallback: str, flush: str) -> bool:
             conf = _base_front_conf(front, fport, oport, creds, fallback, flush, PROXY_STD)
@@ -552,7 +556,7 @@ events {{ worker_connections 64; }}
 stream {{
     brix_credential origin {{ x509_proxy {service_proxy}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {prefix}/export;
         brix_allow_write on;
@@ -561,7 +565,7 @@ stream {{
         brix_certificate     {SERVER_CERT};
         brix_certificate_key {SERVER_KEY};
         brix_trusted_ca      {CA_CERT};
-        brix_storage_backend root://127.0.0.1:{origin_port};
+        brix_storage_backend root://{HOST}:{origin_port};
         brix_storage_credential origin;
         brix_storage_credential_dir {creds};
         brix_storage_credential_fallback {fallback};
@@ -602,14 +606,14 @@ def root(nginx: Path | None = None) -> int:
             return _skip("service proxy mint failed")
         svc_proxy = _combine(*minted_svc, run.root / "svc/proxy.pem")
 
-        oport, fport = free_ports(2)
+        oport, fport = _PORTS[2:4]  # was free_ports(2)
         started, detail = _start_prefixed(run, origin, _origin_conf(origin, oport))
         if not started:
             return _skip(f"origin start failed: {detail}")
         olog = origin / "logs/e.log"
         time.sleep(0.5)
         flog = front / "logs/e.log"
-        target = f"root://127.0.0.1:{fport}"
+        target = f"root://{HOST}:{fport}"
 
         def front_start(fallback: str) -> bool:
             conf = _root_front_conf(front, fport, oport, creds, fallback, svc_proxy)
@@ -636,7 +640,7 @@ pid {front}/bad.pid;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{fport};
+        listen {BIND_HOST}:{fport};
         brix_root on;
         brix_export {front}/export;
         brix_storage_credential_dir {creds};
@@ -657,7 +661,7 @@ pid {front}/mint.pid;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{fport};
+        listen {BIND_HOST}:{fport};
         brix_root on;
         brix_export {front}/export;
         brix_storage_credential_dir {creds};
@@ -680,7 +684,7 @@ pid {front}/mint_bad.pid;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{fport};
+        listen {BIND_HOST}:{fport};
         brix_root on;
         brix_export {front}/export;
         brix_storage_credential_mint_ca /nonexistent/cert.pem /nonexistent/key.pem;
@@ -746,7 +750,7 @@ stream {{
 
         # 1e/1f: kXR_mv identity threading
         _truncate(olog)
-        mv = run.call([XRDFS, f"127.0.0.1:{fport}", "mv", "a1.bin", "a1_moved.bin"], env=_gsi_env(PROXY_STD), check=False)
+        mv = run.call([XRDFS, f"{HOST}:{fport}", "mv", "a1.bin", "a1_moved.bin"], env=_gsi_env(PROXY_STD), check=False)
         if not suite.check(mv.returncode == 0, "1e: A's xrdfs mv succeeded",
                            f"1e: A's xrdfs mv failed (rc={mv.returncode})"):
             print(mv.stderr)
@@ -763,7 +767,7 @@ stream {{
         (origin / "root/dirlist_e1.txt").touch()
         (origin / "root/dirlist_e2.txt").touch()
         _truncate(olog)
-        listing = run.call([XRDFS, f"127.0.0.1:{fport}", "ls", "/"], env=_gsi_env(PROXY_STD), check=False)
+        listing = run.call([XRDFS, f"{HOST}:{fport}", "ls", "/"], env=_gsi_env(PROXY_STD), check=False)
         if not suite.check(listing.returncode == 0, "1g: A's xrdfs ls succeeded",
                            f"1g: A's xrdfs ls failed (rc={listing.returncode})"):
             print(listing.stderr)
@@ -784,7 +788,7 @@ stream {{
 
         # 1i/1j: kXR_Qcksum identity threading
         _truncate(olog)
-        cksum = run.call([XRDFS, f"127.0.0.1:{fport}", "query", "checksum", "a1_moved.bin"], env=_gsi_env(PROXY_STD), check=False)
+        cksum = run.call([XRDFS, f"{HOST}:{fport}", "query", "checksum", "a1_moved.bin"], env=_gsi_env(PROXY_STD), check=False)
         if not suite.check(cksum.returncode == 0, "1i: A's xrdfs query checksum succeeded",
                            f"1i: A's xrdfs query checksum failed (rc={cksum.returncode})"):
             print(cksum.stderr)
@@ -884,7 +888,7 @@ http {{
     client_body_temp_path {prefix}/export;
     brix_credential origin {{ x509_proxy {service_proxy}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port} ssl;
+        listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -897,7 +901,7 @@ http {{
             brix_export {prefix}/export;
             brix_webdav_cafile {CA_CERT};
             brix_webdav_auth required;
-            brix_storage_backend root://127.0.0.1:{origin_port};
+            brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential origin;
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback {fallback};
@@ -934,14 +938,14 @@ def ns(nginx: Path | None = None) -> int:
             return _skip("service proxy mint failed")
         svc_proxy = _combine(*minted_svc, run.root / "svc/proxy.pem")
 
-        nsop, nsfp = free_ports(2)
+        nsop, nsfp = _PORTS[4:6]  # was free_ports(2)
         started, detail = _start_prefixed(run, origin, _origin_conf(origin, nsop))
         if not started:
             return _skip(f"origin start failed: {detail}")
         olog = origin / "logs/e.log"
         time.sleep(0.5)
         flog = front / "logs/e.log"
-        url = f"https://127.0.0.1:{nsfp}"
+        url = f"https://{HOST}:{nsfp}"
 
         def front_start(fallback: str) -> bool:
             conf = _ns_front_conf(front, nsfp, nsop, creds, fallback, svc_proxy)
@@ -1081,7 +1085,7 @@ http {{
     client_body_temp_path {prefix}/export;
     brix_credential origin {{ x509_proxy {svc}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port} ssl;
+        listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -1094,7 +1098,7 @@ http {{
             brix_export {prefix}/export;
             brix_webdav_cafile {CA_CERT};
             brix_webdav_auth required;
-            brix_storage_backend root://127.0.0.1:{origin_port};
+            brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential origin;
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback allow;
@@ -1118,12 +1122,12 @@ http {{
     access_log {prefix}/logs/access.log;
     brix_credential origin {{ x509_proxy {svc}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         location / {{
             brix_s3 on;
             brix_export {prefix}/root;
             brix_s3_bucket testbucket;
-{write_line}            brix_storage_backend root://127.0.0.1:{origin_port};
+{write_line}            brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential origin;
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback {fallback};
@@ -1160,7 +1164,7 @@ def p2(nginx: Path | None = None) -> int:
         a_combined = _combine(*minted_a, run.root / "a/combined.pem")
         svc_combined = _combine(*minted_svc, run.root / "svc/combined.pem")
 
-        oport, fport, s3port = free_ports(3)
+        oport, fport, s3port = _PORTS[6:9]  # was free_ports(3)
         started, detail = _start_prefixed(run, origin, _origin_conf(origin, oport))
         if not started:
             return _skip(f"origin start failed: {detail}")
@@ -1171,7 +1175,7 @@ def p2(nginx: Path | None = None) -> int:
         if not started:
             return _skip(f"davs frontend start failed: {detail}")
         time.sleep(0.5)
-        furl = f"https://127.0.0.1:{fport}"
+        furl = f"https://{HOST}:{fport}"
         _wait_ready(furl)
 
         # Learn A's derived credential key via a probe PUT.
@@ -1230,7 +1234,7 @@ def p2(nginx: Path | None = None) -> int:
             suite.bad(f"S3 frontend start failed: {detail}")
             return suite.finish()
         time.sleep(0.5)
-        s3url = f"http://127.0.0.1:{s3port}"
+        s3url = f"http://{HOST}:{s3port}"
         _wait_ready(s3url)
         (origin / "root/s3_src.bin").write_bytes(os.urandom(16384))
 

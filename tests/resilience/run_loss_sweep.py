@@ -43,6 +43,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import HOST
 
 
 def measure(url, file_path, expected_bytes, timeout, client_max_stall_ms=None):
@@ -138,7 +139,7 @@ def main():
         targets = [("nginx", nginx.port), ("xrootd", xrootd.port)]
         # 0% sanity (direct, no proxy) for each server before the sweep.
         for name, port in targets:
-            ok, el, nb, why = measure(f"root://127.0.0.1:{port}/", args.file_path,
+            ok, el, nb, why = measure(f"root://{HOST}:{port}/", args.file_path,
                                       size_bytes, args.timeout,
                                       client_max_stall_ms=args.client_max_stall)
             print(f"[sanity] {name:7s} direct 0%: success={ok} {el:6.2f}s {nb}B ({why})")

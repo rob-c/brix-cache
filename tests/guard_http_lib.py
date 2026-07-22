@@ -5,74 +5,57 @@ and an HTTP driver that maps nginx's 444 connection-drop to status 444.
 """
 
 import http.client
-import http.server
+import json
 import os
-import socket
-import threading
 import time
 
-from settings import BIND_HOST
+from settings import HOST, GUARD_STUB_PORT
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 
-def free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-class _StubHandler(http.server.BaseHTTPRequestHandler):
-    """Counts hits; replies with the server's configurable status."""
-
-    def _reply(self):
-        self.server.hits += 1
-        status = self.server.reply_status
-        body = b"stub-ok\n"
-        self.send_response(status)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    do_GET = do_PUT = do_POST = do_DELETE = _reply
-
-    def log_message(self, *args):
-        pass
-
-
 class StubBackend:
-    """Thread-hosted stub upstream with a hit counter + settable status."""
+    """Client of the fixed-port ``guard-stub`` fleet mock (lib/guard_stub_server.py).
 
-    def __init__(self):
-        self.port = free_port()
-        self.httpd = http.server.ThreadingHTTPServer(
-            (BIND_HOST, self.port), _StubHandler)
-        self.httpd.hits = 0
-        self.httpd.reply_status = 200
-        self.thread = threading.Thread(
-            target=self.httpd.serve_forever, daemon=True)
-        self.thread.start()
+    Formerly a per-test in-process ThreadingHTTPServer; now the mock is a single
+    registry-managed ``proc`` singleton on ``GUARD_STUB_PORT`` that every guard
+    test declares (``@pytest.mark.registry_server("guard-stub")``).  This object
+    is the out-of-band control client: it reads the hit counter and drives the
+    reply status over the mock's tiny control API.  The counter is shared global
+    state, so the two guard suites run ``serial`` and each test ``reset()``s
+    first — see lib/guard_stub_server.py for the contract.
+    """
+
+    def __init__(self, host=None, port=None):
+        self.host = host or HOST
+        self.port = port or GUARD_STUB_PORT
+
+    def _call(self, method, path):
+        conn = http.client.HTTPConnection(self.host, self.port, timeout=5)
+        try:
+            conn.request(method, path)
+            resp = conn.getresponse()
+            return resp.read()
+        finally:
+            conn.close()
 
     @property
     def hits(self):
-        return self.httpd.hits
+        return json.loads(self._call("GET", "/__introspect"))["hits"]
 
     @property
     def reply_status(self):
-        return self.httpd.reply_status
+        return json.loads(self._call("GET", "/__introspect"))["reply_status"]
 
     @reply_status.setter
     def reply_status(self, status):
-        self.httpd.reply_status = status
+        self._call("POST", f"/__status/{int(status)}")
 
     def reset(self):
-        self.httpd.hits = 0
-        self.httpd.reply_status = 200
+        self._call("POST", "/__reset")
 
     def stop(self):
-        self.httpd.shutdown()
+        """No-op: the registry owns the mock's lifecycle (it is a fleet spec)."""
 
 
 class AuditLog:
