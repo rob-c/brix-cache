@@ -42,7 +42,7 @@ import time
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -61,20 +61,13 @@ from test_pgwrite_cse import (
 )
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-staged")]
 
 kXR_sync = 3016
 
 S3_AK = "AKIDPGWSTAGEDSYNC1"
 S3_SK = "cGd3cml0ZS1zdGFnZWQtc3luYy1nYXRlLXNlY3JldC10ZXN0"
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 def _port_up(host, port):
@@ -106,20 +99,20 @@ def node(tmp_path_factory):
     # root IS the bucket root — so committed objects land directly in s3_dir.
     s3_dir = tmp_path_factory.mktemp("s3store")
     (s3_dir / "testbucket").mkdir()
-    s3_port = _free_port()
-
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="root-s3-staged",
         template="nginx_root_s3_staged.conf",
         protocol="root",
         readiness="tcp",
-        extra_ports={"S3_PORT": s3_port},
         template_values={"BIND_HOST": BIND_HOST,
                          "S3_DIR": str(s3_dir),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
     ))
+    # S3_PORT is a second embedded listen owned by the lifecycle ledger
+    # (fleet_lifecycle_ports.root-s3-staged); read it back post-start.
+    s3_port = endpoint.extra_ports["S3_PORT"]
 
     # The harness waits on the root:// {PORT}; poll the S3 plane too.
     for _ in range(50):
@@ -139,7 +132,7 @@ def _store_objects(node):
 
 
 def _login(node):
-    return _handshake_login(host="localhost", port=node["port"])
+    return _handshake_login(host=SERVER_HOST, port=node["port"])
 
 
 def test_clean_staged_pgwrite_sync_commits(node):

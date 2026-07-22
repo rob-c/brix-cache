@@ -42,13 +42,13 @@ import zlib
 
 import pytest
 
-from settings import NGINX_ANON_PORT, NGINX_WEBDAV_PORT
+from settings import NGINX_ANON_PORT, NGINX_WEBDAV_PORT, SERVER_HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
-BASE = f"root://localhost:{NGINX_ANON_PORT}"
-WEBDAV_BASE = f"https://localhost:{NGINX_WEBDAV_PORT}"
+BASE = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
+WEBDAV_BASE = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
 
 # Small, fixed payload — the digest only has to match the oracle, so keep it
 # cheap and deterministic (no read-window exercise needed here).

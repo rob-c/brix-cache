@@ -13,6 +13,8 @@ import pytest
 
 from cmdscripts import tpc_fwd_live
 
+pytestmark = pytest.mark.xdist_group("cmd-tpc_fwd_live")
+
 
 def test_tpc_fwd_live_is_importable():
     assert set(tpc_fwd_live.SCENARIOS) == {

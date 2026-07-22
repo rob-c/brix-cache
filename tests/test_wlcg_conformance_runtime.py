@@ -10,7 +10,10 @@ import pytest
 import x509forge
 from wlcg_fleet import WlcgInstance
 
-pytestmark = [pytest.mark.x509conf, pytest.mark.slow]
+# Bucket-2 lifecycle subjects: all four WLCG conformance files share one
+# fixed-port WlcgInstance ("lc-wlcg") and serialise onto one worker via a shared
+# xdist_group so the fixed exclusive-band port never has two concurrent drivers.
+pytestmark = [pytest.mark.x509conf, pytest.mark.slow, pytest.mark.xdist_group("lc-wlcg")]
 
 
 def test_reload_preserves_valid_credential(tmp_path):

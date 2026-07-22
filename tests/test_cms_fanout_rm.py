@@ -32,7 +32,7 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import SERVER_HOST, free_port
+from settings import SERVER_HOST
 from test_cms_wire_pup_conformance import (
     _build_frame,
     _minimal_login_payload,
@@ -42,7 +42,8 @@ from test_cms_locate_have import (
     _recv_response,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-fanout")]
 
 H = SERVER_HOST
 
@@ -125,16 +126,14 @@ class _Manager:
 
 @pytest.fixture
 def manager(lifecycle):
-    cms_port = free_port()
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-cms-fanout",
         template="nginx_cms_fanout.conf",
         protocol="root",
         readiness="tcp",
-        template_values={"CMS_PORT": cms_port},
         reason="Phase-89 W8: rm/rmdir fan-out to all holder nodes.",
     ))
-    return _Manager(ep.port, cms_port)
+    return _Manager(ep.port, ep.extra_ports["CMS_PORT"])
 
 
 def _rm(sock, path):

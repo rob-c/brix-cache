@@ -24,10 +24,11 @@ import time
 import pytest
 
 from cmdscripts import fake_exec
+from settings import HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-ROOT_HOST, ROOT_PORT = "127.0.0.1", 11094
+ROOT_HOST, ROOT_PORT = HOST, 11094
 DATA_DIR = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "data")
 SMALL = f"root://{ROOT_HOST}:{ROOT_PORT}//test.txt"
 

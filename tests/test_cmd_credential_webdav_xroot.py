@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.credential_webdav_xroot import MAKE_TOKEN, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-credential_webdav_xroot")
+
 
 def test_credential_webdav_xroot_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

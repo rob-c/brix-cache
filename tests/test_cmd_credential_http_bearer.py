@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.credential_http_bearer import XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-credential_http_bearer")
+
 
 def test_credential_http_bearer_flow(tmp_path):
     for tool in (NGINX_BIN, str(XRDFS)):

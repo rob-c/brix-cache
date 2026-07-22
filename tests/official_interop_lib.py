@@ -21,9 +21,9 @@ import socket
 import subprocess
 import time
 
-from settings import TEST_ROOT
+from settings import BIND_HOST, TEST_ROOT
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 
 # --------------------------------------------------------------------------- #
 # Permission harmonisation for out-of-band, test-CREATED working files.
@@ -572,9 +572,6 @@ def _wait_both(t=15.0):
     return _wait(FLEET_OUR_PORT, t) and _wait(FLEET_OFF_PORT, t)
 
 
-_PAIR_SEQ = 0
-
-
 def start_pair(base=None, rich=True, our_port=None, off_port=None):
     """Provision an in-process differential pair via the registry LifecycleHarness.
 
@@ -591,15 +588,15 @@ def start_pair(base=None, rich=True, our_port=None, off_port=None):
     user, so their kXR stat flags already agree without root/nobody harmonisation
     (harmonize_perms/chown_stock stay as belt-and-braces no-ops off-root).
 
-    The ``base``, ``our_port`` and ``off_port`` arguments are retained for
-    signature compatibility with the ~33 existing srv fixtures — they are ignored;
-    the harness owns port allocation. Returns (procs, ctx) where procs == the
+    ``base`` is retained for signature compatibility and ignored.  ``our_port`` /
+    ``off_port`` are the fixed per-worker listens (every call site passes
+    ``L.worker_port(base)``); the pair binds them directly — the old dynamic
+    free_port allocation was retired in Phase 5. Returns (procs, ctx) where procs == the
     owning harness list (stop_pair closes it) and ctx carries the same keys
     callers use: our/off root:// urls, our_data/off_data disk roots, and
     our_port/off_port for the raw-wire clients. Raises RuntimeError on launch
     failure so each srv fixture's ``except RuntimeError: pytest.skip(...)`` turns a
     missing toolchain / launch error into a clean skip, never a fixture ERROR."""
-    global _PAIR_SEQ
     from server_launcher import LifecycleHarness
     from server_registry import NginxInstanceSpec
 
@@ -618,18 +615,25 @@ def start_pair(base=None, rich=True, our_port=None, off_port=None):
     except Exception as exc:                      # noqa: BLE001 — re-raise as skip
         raise RuntimeError(f"interop tree seed failed: {exc}") from exc
 
-    _PAIR_SEQ += 1
-    tag = "%s-%d" % (worker_tag(), _PAIR_SEQ)
+    # Fixed ports, per-worker isolation.  Every call site passes fixed per-worker
+    # ports via L.worker_port(base) (a deterministic band unique to this xdist
+    # worker); bind those directly rather than the retired dynamic free_port
+    # fallback.  The instance name carries worker_tag() so concurrent workers use
+    # distinct registry prefixes for their own fixed-port pairs.  (A caller that
+    # omits the ports would now fail loudly in endpoint_for — intended.)
+    tag = worker_tag()
     harness = LifecycleHarness()
     try:
         our_ep = harness.start(NginxInstanceSpec(
             name="lc-interop-our-%s" % tag,
             template="nginx_lc_interop_our.conf",
+            port=our_port,
             protocol="root", readiness="tcp",
             data_root=FLEET_OUR_DATA))
         off_ep = harness.start(NginxInstanceSpec(
             name="lc-interop-off-%s" % tag,
             template="xrootd_interop_anon.cfg",
+            port=off_port,
             kind="xrootd", protocol="root", readiness="tcp",
             data_root=FLEET_OFF_DATA))
     except Exception as exc:                      # noqa: BLE001 — clean up, re-raise as skip

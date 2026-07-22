@@ -44,6 +44,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import HOST
 
 try:
     import requests
@@ -102,7 +103,7 @@ def test_corrupt_put_with_digest_is_rejected(tmp_path):
         for _ in range(8):
             name = f"corrupt-{uuid.uuid4().hex}.bin"
             body = _body()
-            url = f"http://127.0.0.1:{fp.listen}/{name}"
+            url = f"http://{HOST}:{fp.listen}/{name}"
             try:
                 r = requests.put(url, data=body, headers=_digest_headers(body),
                                  timeout=60)
@@ -126,7 +127,7 @@ def test_honest_put_with_digest_succeeds(tmp_path):
     with servers.NginxWebdavAnon() as ng, servers.FaultProxy(ng.port) as fp:
         name = f"honest-{uuid.uuid4().hex}.bin"
         body = _body()
-        url = f"http://127.0.0.1:{fp.listen}/{name}"
+        url = f"http://{HOST}:{fp.listen}/{name}"
         r = requests.put(url, data=body, headers=_digest_headers(body), timeout=60)
         assert 200 <= r.status_code < 300, f"honest PUT rejected: {r.status_code}"
         stored = _stored_path(ng.data, name)
@@ -143,7 +144,7 @@ def test_require_digest_rejects_missing(tmp_path):
         # No fault proxy needed: the point is the *absence* of a digest header.
         name = f"nodigest-{uuid.uuid4().hex}.bin"
         body = _body()
-        url = f"http://127.0.0.1:{ng.port}/{name}"
+        url = f"http://{HOST}:{ng.port}/{name}"
         r = requests.put(url, data=body, timeout=60)  # no Digest / Content-MD5
         assert 400 <= r.status_code < 500, (
             f"require_digest must refuse a digest-less PUT, got {r.status_code}")

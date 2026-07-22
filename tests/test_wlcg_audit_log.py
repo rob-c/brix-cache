@@ -134,7 +134,7 @@ class TestStreamWLCGAuditLog:
 
         chunk = _wait_for_log_entry(STREAM_LOG, offset, name)
         assert chunk, f"No log entry for {name} in {STREAM_LOG}"
-        assert "127.0.0.1" in chunk or SERVER_HOST in chunk, (
+        assert "127.0.0.1" in chunk or SERVER_HOST in chunk, (  # net-literal-allow: audit-log client-IP content assertion
             f"Client IP not found in audit log entry:\n{chunk[:300]}"
         )
 
@@ -251,7 +251,7 @@ class TestWebDAVWLCGAuditLog:
 
         chunk = _wait_for_log_entry(WEBDAV_LOG, offset, name)
         assert chunk, f"No log entry for {name}"
-        assert "127.0.0.1" in chunk or SERVER_HOST in chunk, (
+        assert "127.0.0.1" in chunk or SERVER_HOST in chunk, (  # net-literal-allow: audit-log client-IP content assertion
             f"Client IP not found in WebDAV audit log:\n{chunk[:300]}"
         )
 

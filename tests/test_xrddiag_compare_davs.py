@@ -21,9 +21,10 @@ import subprocess
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import HOST, free_port
+from settings import HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrddiag-compare-davs")]
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,7 +60,8 @@ def fixture(lifecycle, tmp_path_factory):
         protocol="root",
         readiness="tcp",
         data_root=str(dataR),
-        extra_ports={"OK_PORT": free_port(), "BAD_PORT": free_port()},
+        # OK_PORT / BAD_PORT (the two WebDAV planes) come from the fixed-port
+        # lifecycle ledger via lifecycle_ports_for("lc-xrddiag-compare-davs").
         template_values={"DATA_B": str(dataB)},
         reason="root:// + two WebDAV planes (same data / different data) for the compare oracle.",
     ))

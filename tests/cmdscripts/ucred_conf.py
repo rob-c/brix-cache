@@ -6,7 +6,7 @@ from pathlib import Path
 import os
 
 from cmdscripts.compile_run import result, run
-from settings import NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN
 
 
 def write_config(prefix: Path, extra: str) -> Path:
@@ -23,7 +23,7 @@ http {{
     fastcgi_temp_path {prefix / 'fastcgi_temp'};
     uwsgi_temp_path {prefix / 'uwsgi_temp'};
     scgi_temp_path {prefix / 'scgi_temp'};
-    server {{ listen 127.0.0.1:18443;
+    server {{ listen {BIND_HOST}:18443;
         location / {{ brix_webdav on; brix_webdav_auth none; brix_export {prefix / 'export'}; {extra} }}
     }}
 }}

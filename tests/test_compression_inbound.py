@@ -24,11 +24,11 @@ import pytest
 import requests
 import urllib3
 
-from settings import NGINX_WEBDAV_PORT
+from settings import NGINX_WEBDAV_PORT, SERVER_HOST
 
 urllib3.disable_warnings()
 
-BASE = f"https://localhost:{NGINX_WEBDAV_PORT}"
+BASE = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}"
 
 
 # ---- client-side compressors: python stdlib where possible, else CLI ----

@@ -21,6 +21,7 @@
   --root: #a3e635;    /* root://  */
   --dav: #67e8f9;     /* davs://  */
   --s3: #facc15;      /* s3://    */
+  --ftp: #c084fc;     /* gsiftp:// (GridFTP) */
   --danger: #fb7185;
 
   /* the current accent — overridden per-section via [data-accent] */
@@ -41,9 +42,11 @@
 }
 
 /* accent scopes */
-[data-accent='root'] { --accent: var(--root); }
-[data-accent='dav']  { --accent: var(--dav); }
-[data-accent='s3']   { --accent: var(--s3); }
+[data-accent='root']   { --accent: var(--root); }
+[data-accent='dav']    { --accent: var(--dav); }
+[data-accent='s3']     { --accent: var(--s3); }
+[data-accent='ftp']    { --accent: var(--ftp); }
+[data-accent='danger'] { --accent: var(--danger); }
 
 /* --- reset --------------------------------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -151,6 +154,8 @@ h2.display { font-size: clamp(2rem, 4.5vw, 3.1rem); }
 .chip--root { background: var(--root); }
 .chip--dav  { background: var(--dav); }
 .chip--s3   { background: var(--s3); }
+.chip--ftp  { background: var(--ftp); }
+.chip--danger { background: var(--danger); }
 .chip--ghost { background: transparent; }
 
 /* buttons */

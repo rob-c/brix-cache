@@ -157,7 +157,7 @@ class TestSSRFPolicy:
 
     def test_tpc_loopback_destination_rejected(self):
         """nginx must return a valid HTTP response for a loopback COPY Credential."""
-        dest_url = "http://127.0.0.1:80/evil.bin"
+        dest_url = "http://127.0.0.1:80/evil.bin"  # net-literal-allow: evil TPC destination (SSRF) under test
 
         code = _http_code(
             "-X", "COPY",

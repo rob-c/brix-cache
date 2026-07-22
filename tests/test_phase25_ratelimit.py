@@ -32,10 +32,16 @@ from pathlib import Path
 
 import pytest
 
+from config_parse import nginx_t
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
-from settings import NGINX_BIN, free_ports, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Every lifecycle-subject instance in this file draws a fixed exclusive-band port
+# from the lifecycle ledger (lc-rl-*); xdist_group("lc-rl") serialises the whole
+# family onto one worker so no fixed port ever has two concurrent drivers.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-rl")]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -145,16 +151,13 @@ def _parse_ok(lifecycle, name, template, values):
     lifecycle.nginx_test(name)  # raises on parse failure
 
 
-def _parse_fail(lifecycle, tmp_path, name, template, values):
-    # expect_config_failure renders from template_values only, so all
-    # launcher-provided placeholders are passed explicitly here.
-    (port,) = free_ports(1)
+def _parse_fail(tmp_path, template, values):
+    # Pure config-parse property: render + `nginx -t`, no server ever boots, so
+    # the listen port is a non-binding placeholder (nginx -t never binds).
     data = tmp_path / "data"; data.mkdir(exist_ok=True)
-    values = dict(values, PORT=port, DATA_ROOT=str(data),
+    values = dict(values, PORT=PARSE_PLACEHOLDER_PORT, DATA_ROOT=str(data),
                   LOG_DIR=str(tmp_path), TMP_DIR=str(tmp_path))
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name=name, template=template, template_values=values,
-        reason="phase-25 rate-limit directive rejection coverage"))
+    result = nginx_t(template, tmp_path, **values)
     return result.returncode, (result.stdout or "") + (result.stderr or "")
 
 
@@ -183,8 +186,8 @@ def test_subject_key_wired_and_parses(lifecycle):
         "    brix_rate_limit_zone zone=rls:1m;\n"))
 
 
-def test_bad_rate_rejected(lifecycle, tmp_path):
-    rc, out = _parse_fail(lifecycle, tmp_path, "lc-rl-badrate",
+def test_bad_rate_rejected(tmp_path):
+    rc, out = _parse_fail(tmp_path,
                           "nginx_rl_http.conf", _http_values(
         "            brix_rate_limit_rule zone=rl key=ip rate=500 burst=10;\n",
         http_extra="    brix_rate_limit_zone zone=rl:1m;\n"))
@@ -192,8 +195,8 @@ def test_bad_rate_rejected(lifecycle, tmp_path):
     assert "rate" in out.lower()
 
 
-def test_unknown_zone_rejected(lifecycle, tmp_path):
-    rc, out = _parse_fail(lifecycle, tmp_path, "lc-rl-nozone",
+def test_unknown_zone_rejected(tmp_path):
+    rc, out = _parse_fail(tmp_path,
                           "nginx_rl_http.conf", _http_values(
         "            brix_rate_limit_rule zone=missing key=ip rate=5r/s burst=5;\n"))
     assert rc != 0
@@ -491,10 +494,10 @@ def test_stream_concurrency_directive_parses(lifecycle):
               _stream_values(_conc_knobs(4), _CONC_ZONE))
 
 
-def test_stream_concurrency_bad_limit_rejected(lifecycle, tmp_path):
+def test_stream_concurrency_bad_limit_rejected(tmp_path):
     # limit= must be a positive integer (security/neg: a 0 or garbage cap is a
     # silent no-cap footgun, so the parser must reject it).
-    rc, out = _parse_fail(lifecycle, tmp_path, "lc-rl-cbad",
+    rc, out = _parse_fail(tmp_path,
                           "nginx_rl_stream.conf",
                           _stream_values(_conc_knobs(0), _CONC_ZONE))
     assert rc != 0

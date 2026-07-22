@@ -78,7 +78,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # which flaked TestMirrorTopology and the cluster-cms endpoint (both pass in
 # isolation). Mark the module `serial` so conftest pins it to the isolated serial
 # lane — the same pattern test_conformance_topologies / test_cms_mesh_interop use.
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-im")]
 
 # Deterministic-but-distinct payloads.  Sizes chosen to span multiple read
 # chunks and a non-page-aligned tail.

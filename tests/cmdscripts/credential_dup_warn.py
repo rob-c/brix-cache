@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_port
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, NGINX_BIN
 
 WARN = 'brix_credential "origin" is defined more than once'
 
@@ -20,7 +21,7 @@ events {{ worker_connections 64; }}
 stream {{
 {stream_body}
     server {{
-        listen 127.0.0.1:{free_port()}; brix_root on; brix_export {base / 'export'}; brix_auth none;
+        listen {BIND_HOST}:{cmdscript_ports("credential_dup_warn")[0]}; brix_root on; brix_export {base / 'export'}; brix_auth none;
     }}
 }}
 """,

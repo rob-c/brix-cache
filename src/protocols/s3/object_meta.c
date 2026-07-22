@@ -225,6 +225,35 @@ s3_handle_get_bucket_location(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
  * DELETE /bucket/key
  * */
 
+/*
+ * Emit the S3 DELETE response for a completed unlink whose result is `op_errno`
+ * (0 = removed). Shared by the synchronous path and the async-queue wake so both
+ * map errnos to status identically: 0/ENOENT → 204 (idempotent, ENOENT also
+ * counts DELETE_MISSING); ENOTEMPTY → 409 BucketNotEmpty; else 500.
+ */
+ngx_int_t
+s3_delete_respond(ngx_http_request_t *r, int op_errno)
+{
+    if (op_errno == 0 || op_errno == ENOENT) {
+        if (op_errno == ENOENT) {   /* the object did not exist */
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_DELETE_MISSING]);
+        }
+        r->headers_out.status           = NGX_HTTP_NO_CONTENT;
+        r->headers_out.content_length_n = 0;
+        ngx_http_send_header(r);
+        return ngx_http_send_special(r, NGX_HTTP_LAST);
+    }
+
+    if (op_errno == ENOTEMPTY) {
+        return s3_send_xml_error(r, NGX_HTTP_CONFLICT,
+                                 "BucketNotEmpty",
+                                 "The directory is not empty.");
+    }
+
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+}
+
 ngx_int_t
 s3_handle_delete(ngx_http_request_t *r,
                  const char *fs_path,
@@ -241,24 +270,7 @@ s3_handle_delete(ngx_http_request_t *r,
     s3_vfs_ctx(r, fs_path, cf, &vctx);
     rc = brix_vfs_unlink(&vctx);
 
-    if (rc == NGX_OK || errno == ENOENT) {
-        if (rc != NGX_OK) {   /* ENOENT: the object did not exist */
-            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_DELETE_MISSING]);
-        }
-        r->headers_out.status           = NGX_HTTP_NO_CONTENT;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        return ngx_http_send_special(r, NGX_HTTP_LAST);
-    }
-
-    if (errno == ENOTEMPTY) {
-        return s3_send_xml_error(r, NGX_HTTP_CONFLICT,
-                                 "BucketNotEmpty",
-                                 "The directory is not empty.");
-    }
-
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
-    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    return s3_delete_respond(r, (rc == NGX_OK) ? 0 : errno);
 }
 /*
  * WHY: S3 DELETE is idempotent — deleting a non-existent key returns 204 No Content (not 404), matching AWS behavior. This allows clients to safely retry delete operations without checking existence first.

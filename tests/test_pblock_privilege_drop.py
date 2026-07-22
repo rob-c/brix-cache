@@ -37,6 +37,7 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 import impersonation_gridmap_helpers as H
+from settings import BIND_HOST
 
 pytestmark = [
     pytest.mark.privileged,
@@ -45,7 +46,7 @@ pytestmark = [
                               "master + worker"),
 ]
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 BASE = os.path.join(settings.TEST_ROOT, "pbdrop")
 NOBODY_UID = pwd.getpwnam("nobody").pw_uid
 

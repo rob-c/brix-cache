@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from pathlib import Path
-import atexit
 import hashlib
 import os
 import shutil
@@ -17,6 +16,7 @@ from typing import Iterable
 
 from cmdscripts.compile_run import REPO_ROOT
 from lib_py.util import kill_pid_list, pids_on_port, wait_tcp
+from settings import BIND_HOST
 
 
 class LiveFailure(RuntimeError):
@@ -34,17 +34,46 @@ _FROZEN_NGINX: Path | None = None
 _FREEZE_ROOT = Path("/tmp")
 
 
+def _session_freeze_dir() -> Path:
+    """The one freeze directory shared by every process of a test session.
+
+    Keyed off ``TEST_ROOT`` so all xdist workers (and every ``LiveRun``) of a
+    single session resolve to the SAME frozen binary — one shared copy, never a
+    per-process private one — while sessions that run under a distinct private
+    ``TEST_ROOT`` stay isolated and cannot clobber each other's binary.  Lives
+    under ``_FREEZE_ROOT`` (literal ``/tmp`` — deliberately NOT under the lane's
+    ``TMPDIR``, which pytest's basetemp rotation rm -rf's mid-session).
+    """
+    try:
+        from settings import TEST_ROOT  # noqa: PLC0415 — lazy, avoids import cycle
+        key = str(TEST_ROOT)
+    except Exception:
+        key = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+    tag = hashlib.sha1(key.encode()).hexdigest()[:12]
+    return _FREEZE_ROOT / f"brix-nginx-session-{tag}"
+
+
+def _nginx_validates(binary: Path) -> bool:
+    try:
+        return subprocess.run([str(binary), "-v"], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
 def freeze_nginx(src: str | Path) -> Path:
-    """Return a private, immutable copy of the nginx binary.
+    """Return the session's single immutable copy of the nginx binary.
 
     The shared build tree's ``objs/nginx`` can be relinked by a concurrent
     incremental build; ``exec`` of a binary during its relink window fails with
-    EACCES, surfacing as a flaky ``PermissionError`` the moment a live scenario
-    spawns a server.  Copy the binary once per test process to a stable path so
-    every scenario spawns a frozen binary no build can disturb.  The copy is
-    validated (``nginx -v``) and retried, so a binary caught mid-relink is never
-    frozen in a half-written state.  Falls back to the live path if no stable
-    copy can be taken.
+    EACCES, surfacing as a flaky ``PermissionError`` the moment a scenario spawns
+    a server.  Freeze the binary ONCE per session to a stable, session-shared
+    path so every server the harness starts execs the same frozen binary no
+    build can disturb.  The first process to reach here copies it; every later
+    process (and every xdist worker) reuses that copy as long as it still matches
+    the current source — ``copy2`` preserves size+mtime, so a rebuilt source no
+    longer matches and is re-frozen.  The copy is validated (``nginx -v``) and
+    the swap is atomic (``os.replace``), so no process ever execs a half-written
+    binary.  Falls back to the live path if no stable copy can be taken.
     """
     global _FROZEN_NGINX
     if _FROZEN_NGINX is not None and _FROZEN_NGINX.exists():
@@ -52,19 +81,38 @@ def freeze_nginx(src: str | Path) -> Path:
     src = Path(src)
     if not src.exists():
         return src
-    frozen = _FREEZE_ROOT / f"brix-live-nginx-{os.getpid()}" / "nginx"
+    frozen = _session_freeze_dir() / "nginx"
     frozen.parent.mkdir(parents=True, exist_ok=True)
+    sstat = src.stat()
+    # Reuse a copy an earlier process (the controller, another xdist worker)
+    # already froze — the common path once the session is warm.
+    if frozen.exists():
+        fstat = frozen.stat()
+        if (fstat.st_size == sstat.st_size
+                and int(fstat.st_mtime) == int(sstat.st_mtime)
+                and _nginx_validates(frozen)):
+            _FROZEN_NGINX = frozen
+            return frozen
+    tmp = frozen.with_name(f".nginx.{os.getpid()}.tmp")
     for _ in range(6):
         try:
-            shutil.copy2(src, frozen)
-            frozen.chmod(0o755)
-            if subprocess.run([str(frozen), "-v"], capture_output=True).returncode == 0:
+            shutil.copy2(src, tmp)
+            tmp.chmod(0o755)
+            if _nginx_validates(tmp):
+                # Atomic swap: rename over a binary another worker is exec'ing is
+                # safe — the running process keeps its open inode; new execs get
+                # the fresh file.
+                os.replace(tmp, frozen)
                 _FROZEN_NGINX = frozen
-                atexit.register(shutil.rmtree, frozen.parent, ignore_errors=True)
                 return frozen
+            tmp.unlink()
         except OSError:
             pass  # source mid-relink (EACCES/ETXTBSY/short read) — retry
         time.sleep(0.5)
+    try:
+        tmp.unlink()
+    except OSError:
+        pass
     return src
 
 
@@ -250,7 +298,7 @@ class LiveRun(AbstractContextManager["LiveRun"]):
             raise LiveFailure(result.stderr or result.stdout or f"nginx failed to start for {config}")
         pidfile = prefix / "nginx.pid"
         self.pidfiles.append(pidfile)
-        if not wait_tcp("127.0.0.1", port, timeout):
+        if not wait_tcp(BIND_HOST, port, timeout):
             error_log = prefix / "logs/e.log"
             detail = error_log.read_text(errors="replace") if error_log.exists() else ""
             raise LiveFailure(f"nginx was not ready on {port}: {detail}")

@@ -31,12 +31,16 @@ try:
 except Exception:                                    # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST   # noqa: E402
+from settings import NGINX_BIN, HOST, BIND_HOST             # noqa: E402
 from server_registry import NginxInstanceSpec                # noqa: E402
+from fleet_lifecycle_ports import lifecycle_ports_for        # noqa: E402
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-macaroon-negative")]
 
-PORT = int(os.environ.get("TEST_MACAROON_PORT") or free_port())
+# Placeholder until the fixture reassigns from ep.port; default to the ledger
+# port (lc-macaroon-negative) so import-time URLs match the live bind.
+PORT = int(os.environ.get("TEST_MACAROON_PORT") or lifecycle_ports_for("lc-macaroon-negative")[0])
 SECRET_HEX = "deadbeef" * 8
 SECRET = bytes.fromhex(SECRET_HEX)
 WRONG_SECRET = bytes.fromhex("cafebabe" * 8)

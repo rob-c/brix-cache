@@ -59,7 +59,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import (BRIXMOUNT, MOCK, _unmount, _wait_mounted,  # noqa: E402
                                 check_repo)
 from repo_forge import Dir, File, RepoForge  # noqa: E402
-from settings import free_port  # noqa: E402
+from ephemeral_port import free_port  # noqa: E402
+from settings import HOST
 
 REPO = "trust.cern.ch"
 pytestmark = pytest.mark.timeout(180)
@@ -100,13 +101,13 @@ def _serve(web: str) -> str:
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         try:
-            urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/log", timeout=0.3)
+            urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log", timeout=0.3)
             break
         except Exception:
             if proc.poll() is not None:
                 raise RuntimeError("mock exited before it listened")
             time.sleep(0.05)
-    return f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    return f"http://{HOST}:{port}/cvmfs/{REPO}"
 
 
 def _forge(**kw) -> tuple[RepoForge, str, str]:

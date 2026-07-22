@@ -22,10 +22,11 @@ import time
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrd-doctor-login")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -104,7 +105,7 @@ def test_doctor_endpoint_connect_ok(server):
 
 def test_doctor_dead_endpoint_nonzero(server):
     """doctor against a closed port reports a connect failure and exits nonzero."""
-    r = subprocess.run([XRD, "doctor", "root://127.0.0.1:1/"],
+    r = subprocess.run([XRD, "doctor", f"root://{HOST}:1/"],
                        capture_output=True, text=True, timeout=30, env=_clean_env())
     assert r.returncode != 0, f"{r.stdout}\n{r.stderr}"
     assert "FAILED" in r.stdout and "connect:" in r.stdout

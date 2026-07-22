@@ -299,12 +299,12 @@ def _login_session6(port):
 
 def _skip_unless_mgr_http():
     if not reachable6(MGR_HTTP):
-        pytest.skip(f"ipv6-mgr HTTP endpoint [::1]:{MGR_HTTP} not reachable")
+        pytest.skip(f"ipv6-mgr HTTP endpoint [{HOST6}]:{MGR_HTTP} not reachable")
 
 
 def _skip_unless_stream():
     if not reachable6(STREAM):
-        pytest.skip(f"ipv6-stream [::1]:{STREAM} not reachable")
+        pytest.skip(f"ipv6-stream [{HOST6}]:{STREAM} not reachable")
 
 
 def _skip_unless_admin_enabled():
@@ -358,11 +358,11 @@ def test_admin_no_bearer_token_admitted_from_loopback():
     port = 41021
     status, _hdrs, body = _admin(
         "POST", "/cluster/servers", token=None,
-        json_body={"host": "::1", "port": port, "paths": "/store"})
-    assert status == 200, ("loopback admin write must be admitted by the "
+        json_body={"host": "::1", "port": port, "paths": "/store"})  # net-literal-allow: admin-API IPv6 host registration payload under test
+    assert status == 200, ("loopback admin write must be admitted by the "  # net-literal-allow: ::1/128 CIDR allowlist named in assert message
                            "::1/128 CIDR allowlist without a token", body)
     assert json.loads(body.decode())["result"] == "registered"
-    _admin("DELETE", f"/cluster/servers/[::1]/{port}")
+    _admin("DELETE", f"/cluster/servers/[::1]/{port}")  # net-literal-allow: admin-API bracket-parse URI under test
 
 
 @pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
@@ -376,10 +376,10 @@ def test_admin_wrong_bearer_token_still_admitted_from_loopback():
     port = 41022
     status, _hdrs, body = _admin(
         "POST", "/cluster/servers", token="not-the-secret",
-        json_body={"host": "::1", "port": port, "paths": "/store"})
+        json_body={"host": "::1", "port": port, "paths": "/store"})  # net-literal-allow: admin-API IPv6 host registration payload under test
     assert status == 200, body
     assert json.loads(body.decode())["result"] == "registered"
-    _admin("DELETE", f"/cluster/servers/[::1]/{port}")
+    _admin("DELETE", f"/cluster/servers/[::1]/{port}")  # net-literal-allow: admin-API bracket-parse URI under test
 
 
 @pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
@@ -391,21 +391,21 @@ def test_admin_api_register_ipv6_host_json_body():
     port = 41001
     status, _hdrs, body = _admin(
         "POST", "/cluster/servers",
-        json_body={"host": "::1", "port": port, "paths": "/store",
+        json_body={"host": "::1", "port": port, "paths": "/store",  # net-literal-allow: admin-API IPv6 host registration payload under test
                    "free_mb": 1000, "util_pct": 7})
     assert status == 200, body
     assert json.loads(body.decode())["result"] == "registered"
 
     cstatus, servers = _cluster_servers()
     assert cstatus == 200, "dashboard cluster snapshot must be readable"
-    entry = _find_server(servers, "::1", port)
-    assert entry is not None, ("registered ::1 not in cluster snapshot", servers)
+    entry = _find_server(servers, "::1", port)  # net-literal-allow: asserting registry round-trips the bare ::1 we registered
+    assert entry is not None, ("registered ::1 not in cluster snapshot", servers)  # net-literal-allow: assert message names the registered ::1
     # The registry stores the address bare — never bracketed.
-    assert entry["host"] == "::1"
+    assert entry["host"] == "::1"  # net-literal-allow: asserting registry stores the host bare (::1)
     assert "[" not in entry["host"] and "]" not in entry["host"]
 
     # cleanup so the registry does not accrete across runs
-    _admin("DELETE", f"/cluster/servers/[::1]/{port}")
+    _admin("DELETE", f"/cluster/servers/[::1]/{port}")  # net-literal-allow: admin-API bracket-parse URI under test
 
 
 @pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
@@ -441,23 +441,23 @@ def test_admin_api_drain_ipv6_server_uri_bracket_parse():
     _skip_unless_admin_enabled()
     port = 41003
     reg, _h, rb = _admin("POST", "/cluster/servers",
-                         json_body={"host": "::1", "port": port,
+                         json_body={"host": "::1", "port": port,  # net-literal-allow: admin-API IPv6 host registration payload under test
                                     "paths": "/store"})
     assert reg == 200, rb
 
     status, _hdrs, body = _admin(
-        "POST", f"/cluster/servers/[::1]/{port}/drain",
+        "POST", f"/cluster/servers/[::1]/{port}/drain",  # net-literal-allow: admin-API bracket-parse URI under test
         json_body={"duration_s": 60})
     assert status == 200, body
     assert json.loads(body.decode())["result"] == "drained"
 
     _cstatus, servers = _cluster_servers()
-    entry = _find_server(servers, "::1", port)
+    entry = _find_server(servers, "::1", port)  # net-literal-allow: asserting registry round-trips the bare ::1 we registered
     assert entry is not None, servers
     assert entry.get("draining") is True, ("drain via bracketed URI did not "
                                            "match the bare registry host", entry)
 
-    _admin("DELETE", f"/cluster/servers/[::1]/{port}")
+    _admin("DELETE", f"/cluster/servers/[::1]/{port}")  # net-literal-allow: admin-API bracket-parse URI under test
 
 
 @pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
@@ -467,8 +467,8 @@ def test_admin_api_undrain_ipv6_server_uri_bracket_parse():
     undrain.  undrain returns 200 only if the bracket-stripped host matched the
     drained entry (brix_srv_undrain reports true)."""
     _skip_unless_admin_enabled()
-    host_bare = "::ffff:127.0.0.1"
-    host_uri = "[::ffff:127.0.0.1]"
+    host_bare = "::ffff:127.0.0.1"  # net-literal-allow: v4-mapped IPv6 literal under test (bracket-strip)
+    host_uri = "[::ffff:127.0.0.1]"  # net-literal-allow: v4-mapped IPv6 literal under test (bracket-strip)
     port = 41004
     reg, _h, rb = _admin("POST", "/cluster/servers",
                          json_body={"host": host_bare, "port": port,
@@ -522,26 +522,26 @@ def test_admin_api_all_cluster_operations_ipv6_hosts():
     using bracketed [::1] URIs end-to-end, asserting consistent bracket handling
     (every operation matches the same bare registry entry)."""
     _skip_unless_admin_enabled()
-    host_uri = "[::1]"
+    host_uri = "[::1]"  # net-literal-allow: admin-API bracketed URI under test
     port = 41006
 
     assert _admin("PUT", f"/cluster/servers/{host_uri}/{port}",
-                  json_body={"host": "::1", "port": port,
+                  json_body={"host": "::1", "port": port,  # net-literal-allow: admin-API IPv6 host registration payload under test
                              "paths": "/store"})[0] == 200
 
     _cstatus, servers = _cluster_servers()
-    assert _find_server(servers, "::1", port) is not None, servers
+    assert _find_server(servers, "::1", port) is not None, servers  # net-literal-allow: asserting registry round-trips the bare ::1 we registered
 
     assert _admin("POST", f"/cluster/servers/{host_uri}/{port}/drain",
                   json_body={"duration_s": 30})[0] == 200
     _cstatus, servers = _cluster_servers()
-    assert _find_server(servers, "::1", port).get("draining") is True
+    assert _find_server(servers, "::1", port).get("draining") is True  # net-literal-allow: asserting registry round-trips the bare ::1 we registered
 
     assert _admin("POST", f"/cluster/servers/{host_uri}/{port}/undrain")[0] == 200
     assert _admin("DELETE", f"/cluster/servers/{host_uri}/{port}")[0] == 200
 
     _cstatus, servers = _cluster_servers()
-    assert _find_server(servers, "::1", port) is None, servers
+    assert _find_server(servers, "::1", port) is None, servers  # net-literal-allow: asserting registry round-trips the bare ::1 we registered
 
 
 @pytest.mark.registry_servers("ipv6-mgr", "ipv6-stream")
@@ -552,7 +552,7 @@ def test_admin_api_ipv6_host_validation_rejects_malformed():
     _skip_unless_admin_enabled()
     status, _hdrs, body = _admin(
         "POST", "/cluster/servers",
-        json_body={"host": "::1;rm -rf/", "port": 1094, "paths": "/store"})
+        json_body={"host": "::1;rm -rf/", "port": 1094, "paths": "/store"})  # net-literal-allow: shell-injection host payload under test
     assert status == 400, body
     assert json.loads(body.decode())["error"] == "invalid_field"
 
@@ -670,8 +670,8 @@ def _assert_no_raw_ipv6_in_metric_labels(text):
             if key in _CLUSTER_IDENTITY_LABEL_KEYS:
                 # Bounded cluster-membership identity (host:port) — allowed.
                 continue
-            assert "::1" not in val, (
-                f"raw ::1 in label {key} of {name}: {block!r}")
+            assert "::1" not in val, (  # net-literal-allow: invariant-8 raw-IPv6-in-label check; ::1 is the search subject
+                f"raw ::1 in label {key} of {name}: {block!r}")  # net-literal-allow: invariant-8 raw-IPv6-in-label check; ::1 is the search subject
             assert not _IPV6_BRACKET_RE.search(val), (
                 f"bracketed IPv6 literal in label {key} of {name}: {block!r}")
             assert not _RAW_IPV6_RE.search(val), (

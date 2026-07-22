@@ -25,6 +25,7 @@ import urllib.request
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
 from lib_py.util import wait_tcp
+from settings import BIND_HOST, HOST
 
 MOCK = str(REPO_ROOT / "tests/cvmfs/mock_stratum1.py")
 BRIXMOUNT = os.environ.get("BRIXMOUNT_BIN", str(REPO_ROOT / "client/bin/brixMount"))
@@ -79,14 +80,14 @@ def _claim_tile(tile_lo: int) -> bool:
     global _TILE_LOCK
     lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        lock.bind(("127.0.0.1", tile_lo + _TILE - 1))
+        lock.bind((BIND_HOST, tile_lo + _TILE - 1))
     except OSError:
         lock.close()
         return False
     for d in (0, _TILE // 3, 2 * _TILE // 3, _TILE - 2):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            s.bind(("127.0.0.1", tile_lo + d))
+            s.bind((BIND_HOST, tile_lo + d))
         except OSError:
             lock.close()
             return False
@@ -146,13 +147,13 @@ class PortBlock:
 # ---- mock control-plane helpers -------------------------------------------
 
 def _ctl_get(port: int, endpoint: str) -> object:
-    with urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/{endpoint}", timeout=10) as r:
+    with urllib.request.urlopen(f"http://{HOST}:{port}/ctl/{endpoint}", timeout=10) as r:
         return json.load(r)
 
 
 def _ctl_post(port: int, endpoint: str, payload: dict | None = None) -> None:
     data = json.dumps(payload).encode() if payload is not None else b""
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/ctl/{endpoint}",
+    req = urllib.request.Request(f"http://{HOST}:{port}/ctl/{endpoint}",
                                  method="POST", data=data)
     urllib.request.urlopen(req, timeout=10).read()
 
@@ -173,11 +174,11 @@ class Server:
 
     @property
     def base_url(self) -> str:
-        return f"http://127.0.0.1:{self.nginx_port}"
+        return f"http://{HOST}:{self.nginx_port}"
 
     @property
     def mock_url(self) -> str:
-        return f"http://127.0.0.1:{self.mock_ports[0]}"
+        return f"http://{HOST}:{self.mock_ports[0]}"
 
     @property
     def nginx_pid(self) -> int | None:
@@ -206,7 +207,7 @@ class Server:
         _ctl_post(self.mock_ports[mock], "reset-log")
 
     def bump(self, mock: int = 0) -> None:
-        urllib.request.urlopen(f"http://127.0.0.1:{self.mock_ports[mock]}/ctl/manifest/bump",
+        urllib.request.urlopen(f"http://{HOST}:{self.mock_ports[mock]}/ctl/manifest/bump",
                                timeout=10).read()
 
     def count_log(self, needle: str, *, mock: int = 0) -> int:
@@ -222,7 +223,7 @@ def _spawn_mock(run: LiveRun, port: int, *, webroot=None, objects=8, seed=1,
     if keepalive:
         argv.append("--keepalive")
     run.spawn(argv)
-    if not wait_tcp("127.0.0.1", port, 10):
+    if not wait_tcp(BIND_HOST, port, 10):
         raise RuntimeError(f"mock Stratum-1 did not listen on {port}")
 
 
@@ -270,12 +271,12 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
 
         lines = ["brix_cvmfs on;", f"brix_cache_store posix:{cache};"]
         if not proxy_mode:
-            backend = origins or "|".join(f"http://127.0.0.1:{p}" for p in mock_ports)
+            backend = origins or "|".join(f"http://{HOST}:{p}" for p in mock_ports)
             lines.append(f'brix_storage_backend "{backend}";')
         if upstream_allow:
             lines.append(f"brix_cvmfs_upstream_allow {upstream_allow};")
         elif proxy_mode:
-            lines.append("brix_cvmfs_upstream_allow 127.0.0.1;")
+            lines.append(f"brix_cvmfs_upstream_allow {HOST};")
         if scvmfs:
             lines.append("brix_scvmfs on;")
         for key, directive in _KNOBS.items():
@@ -285,7 +286,7 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
             lines.append(extra_directives)
 
         nginx_port = block.nginx()
-        listen = f"listen 127.0.0.1:{nginx_port}"
+        listen = f"listen {BIND_HOST}:{nginx_port}"
         if ssl_cert:
             listen += " ssl"
         ssl_lines = (f"ssl_certificate {ssl_cert}; ssl_certificate_key {ssl_key};"

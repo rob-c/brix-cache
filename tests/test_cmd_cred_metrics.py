@@ -5,6 +5,8 @@ import pytest
 
 from cmdscripts import cred_metrics
 
+pytestmark = pytest.mark.xdist_group("cmd-cred_metrics")
+
 
 def test_cred_metrics_scenarios_are_importable():
     assert set(cred_metrics.SCENARIOS) == {"counters"}

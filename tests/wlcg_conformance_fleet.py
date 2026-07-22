@@ -24,6 +24,7 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from wlcg_fleet import _ensure_server_cert
 from x509forge import GROUPS
+from settings import HOST
 
 
 class ConformanceFleet:
@@ -76,7 +77,7 @@ class ConformanceFleet:
             ["curl", "-k", "-s", "-o", "/dev/null", "-w", "%{http_code}",
              "--max-time", "10", "--cert", str(cred), "--key", str(cred),
              "-X", "PROPFIND", "-H", "Depth: 0",
-             f"https://127.0.0.1:{port}/"],
+             f"https://{HOST}:{port}/"],
             capture_output=True, text=True)
         code = r.stdout.strip() or "000"
         return code.startswith("2"), code

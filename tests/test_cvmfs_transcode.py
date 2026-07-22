@@ -41,6 +41,7 @@ import zstandard
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, raw_http, srv_instance
+from settings import HOST
 
 REPO = "test.cern.ch"
 
@@ -76,7 +77,7 @@ def _get(srv, path, accept_encoding=None):
     hdrs = {}
     if accept_encoding is not None:
         hdrs["Accept-Encoding"] = accept_encoding
-    return raw_http("127.0.0.1", srv.nginx_port, f"GET {path} HTTP/1.1", hdrs)
+    return raw_http(HOST, srv.nginx_port, f"GET {path} HTTP/1.1", hdrs)
 
 
 def _origin_bytes(srv, path):

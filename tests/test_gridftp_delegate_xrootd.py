@@ -44,13 +44,15 @@ import time
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN, PKI_DIR, free_port
+from settings import BIND_HOST, NGINX_BIN, PKI_DIR, SERVER_HOST
+from ephemeral_port import free_port          # native stock-xrootd upstream
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from gridftp_client_env import gsi_client_env
 
 pytestmark = [pytest.mark.slow, pytest.mark.serial,
-              pytest.mark.timeout(300), pytest.mark.uses_lifecycle_harness]
+              pytest.mark.timeout(300), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("gridftp-deleg")]
 
 GUC = shutil.which("globus-url-copy")
 SERVER_CERT = os.path.join(PKI_DIR, "server", "hostcert.pem")
@@ -60,7 +62,7 @@ USER_PROXY = os.path.join(PKI_DIR, "user", "proxy_std.pem")
 
 # The upstream host cert CN is `localhost` (shared PKI), so the gateway must dial
 # the xrootd via that exact name for the GSI host-name/DN check to pass.
-REF_HOST = "localhost"
+REF_HOST = SERVER_HOST
 USER_DN_MARK = "CN=Test User"
 
 
@@ -228,7 +230,7 @@ def test_delegated_get_authenticates_as_user(gateway, xrd, tmp_path):
     payload = b"delegated-through-xrootd \x00\x01\x02 " + os.urandom(4096)
     xrd.place("dl.bin", payload)
     dst = os.path.join(str(tmp_path), "got.bin")
-    r = _guc(f"gsiftp://localhost:{gateway.port}/dl.bin", f"file://{dst}")
+    r = _guc(f"gsiftp://{SERVER_HOST}:{gateway.port}/dl.bin", f"file://{dst}")
     assert r.returncode == 0, (
         f"delegated get failed rc={r.returncode}\n{r.stderr}\n"
         f"--- gateway ---\n{gateway.error_log()}\n--- xrootd ---\n{xrd.log_text()}")
@@ -243,7 +245,7 @@ def test_delegated_get_authenticates_as_user(gateway, xrd, tmp_path):
 def test_missing_object_errors(gateway, xrd):
     """A RETR of an absent object fails with a nonzero client rc even on the
     delegating path (error handling intact under forwarding)."""
-    r = _guc(f"gsiftp://localhost:{gateway.port}/does-not-exist.bin",
+    r = _guc(f"gsiftp://{SERVER_HOST}:{gateway.port}/does-not-exist.bin",
              "file:///dev/null")
     assert r.returncode != 0, (
         f"missing object unexpectedly succeeded\n{r.stdout}\n{gateway.error_log()}")
@@ -260,7 +262,7 @@ def test_mode_select_does_not_forward(xrd, tmp_path):
                   "mode select;")
     try:
         dst = os.path.join(str(tmp_path), "denied.bin")
-        r = _guc(f"gsiftp://localhost:{gw.port}/guarded.bin", f"file://{dst}")
+        r = _guc(f"gsiftp://{SERVER_HOST}:{gw.port}/guarded.bin", f"file://{dst}")
         assert r.returncode != 0, (
             "mode select still served the object — the client proxy was forwarded "
             f"despite forwarding being disabled\n{r.stdout}\n{gw.error_log()}")

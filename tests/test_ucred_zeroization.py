@@ -29,6 +29,8 @@ import pytest
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
 UCRED_C = _SRC / "fs" / "backend" / "ucred.c"
+# The per-reader parsers (ucred_read_token/_s3/_keyring) live in the split sibling.
+UCRED_PARSE_C = _SRC / "fs" / "backend" / "ucred_parse.c"
 UCRED_H = _SRC / "fs" / "backend" / "ucred.h"
 
 # Consumers that resolve a credential and must wipe it when done.  Sampled across
@@ -37,7 +39,7 @@ WIPE_CONSUMERS = [
     _SRC / "fs" / "vfs" / "vfs_open.c",
     _SRC / "fs" / "vfs" / "vfs_staged.c",
     _SRC / "fs" / "xfer" / "stage_engine.c",
-    _SRC / "protocols" / "root" / "read" / "open_request.c",
+    _SRC / "protocols" / "root" / "read" / "open_request_resolve.c",
     _SRC / "protocols" / "webdav" / "tpc_user_proxy.c",
 ]
 
@@ -45,7 +47,8 @@ WIPE_CONSUMERS = [
 class TestUcredZeroization:
     @pytest.fixture(scope="class")
     def ucred(self):
-        return UCRED_C.read_text(encoding="utf-8")
+        return (UCRED_C.read_text(encoding="utf-8") + "\n"
+                + UCRED_PARSE_C.read_text(encoding="utf-8"))
 
     @pytest.fixture(scope="class")
     def header(self):

@@ -25,7 +25,7 @@ import urllib.request
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from settings import HOST, BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
 DASH_PW = "SECRET_DASH_PW_123"
@@ -37,7 +37,8 @@ URL_CRED = "credpassLEAK"
 PLANTED_SECRETS = [DASH_PW, MACAROON_HEX, SET_SECRET, HEADER_SECRET, URL_CRED]
 
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-dashboard-config-anon")]
 
 
 @pytest.fixture
@@ -45,16 +46,15 @@ def server(lifecycle):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
 
-    root_port = free_port(BIND_HOST)
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-dashboard-config-anon",
         template="nginx_lc_dashboard_config_anon.conf",
         protocol="webdav",
-        extra_ports={"ROOT_PORT": root_port},
         template_values={"BIND_HOST": BIND_HOST, "URL_CRED": URL_CRED,
                          "PASSWORD": DASH_PW, "MACAROON_HEX": MACAROON_HEX,
                          "SET_SECRET": SET_SECRET, "HEADER_SECRET": HEADER_SECRET},
         reason="dashboard config-redaction + anonymous-tier PII coverage"))
+    root_port = ep.extra_ports["ROOT_PORT"]
 
     data = ep.data_root
     with open(os.path.join(data, "probe.txt"), "wb") as fh:
@@ -211,7 +211,7 @@ def test_live_transfer_row_pii_redacted_for_anonymous(server):
         assert '"client":"[redacted]"' in anon.replace(" ", "")
         assert '"path":"[redacted]"' in anon.replace(" ", "")
         # the real client IP / file path must not appear anywhere in the anon body
-        assert "127.0.0.1" not in anon
+        assert "127.0.0.1" not in anon  # net-literal-allow: dashboard anonymization assertion (IP must be absent)
         assert "big.bin" not in anon
         assert server["data"] not in anon
         # authed row: full PII present

@@ -22,7 +22,10 @@ import time
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
 from lib_py.pki import regenerate_pki
 from server_registry import NginxInstanceSpec
-from settings import BIND_HOST, TEST_ROOT, free_ports
+from settings import BIND_HOST, HOST, TEST_ROOT
+from fleet_ports import cmdscript_ports
+
+_PORTS = cmdscript_ports("pblock_live")
 
 XRDCP = REPO_ROOT / "client/bin/xrdcp"
 XRDFS = REPO_ROOT / "client/bin/xrdfs"
@@ -59,7 +62,7 @@ def pblock_root(nginx: Path | None = None) -> int:
     """End-to-end root:// on the pblock storage driver: data movement,
     metadata, checksum-at-rest, and namespace mutation, all landing in the
     block catalog + data dir."""
-    (port,) = free_ports(1)
+    (port,) = _PORTS[0:1]  # was free_ports(1)
     with LiveRun("pblock_root", nginx) as run:
         run.mkdir("root")
         run.mkdir("logs")
@@ -69,7 +72,7 @@ pid {run.root}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {run.root}/root;
         brix_auth none;
@@ -83,7 +86,7 @@ stream {{
 """)
         run.start_nginx(run.root, config, port)
         time.sleep(1)
-        host = f"root://127.0.0.1:{port}"
+        host = f"root://{HOST}:{port}"
         hub = f"{host}/"
 
         small, multi = run.root / "small.bin", run.root / "multi.bin"
@@ -128,7 +131,7 @@ stream {{
 def pblock_webdav(nginx: Path | None = None) -> int:
     """End-to-end WebDAV-on-pblock matrix: data movement, metadata, namespace
     mutation, the phase-68 orphan-parent regression, and the on-disk catalog."""
-    (port,) = free_ports(1)
+    (port,) = _PORTS[1:2]  # was free_ports(1)
     with LiveRun("pblock_webdav", nginx) as run:
         for name in ("root", "tmp", "logs"):
             run.mkdir(name)
@@ -140,7 +143,7 @@ http {{
     client_body_temp_path {run.root}/tmp;
     client_max_body_size 200m;
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         location / {{
             dav_methods PUT DELETE MKCOL MOVE COPY;
             brix_webdav on;
@@ -155,7 +158,7 @@ http {{
 """)
         run.start_nginx(run.root, config, port)
         time.sleep(1)
-        url = f"http://127.0.0.1:{port}"
+        url = f"http://{HOST}:{port}"
 
         small, multi = run.root / "small.bin", run.root / "multi.bin"
         random_file(small, 700000)    # < 1 block
@@ -202,7 +205,7 @@ def pblock_writethrough(nginx: Path | None = None) -> int:
     """The cache fronts a driver-backed PRIMARY: a pblock-backed export with
     sync write-through mirrors a multi-block file to a separate root://
     origin by reading it back THROUGH the pblock driver."""
-    origin_port, primary_port = free_ports(2)
+    origin_port, primary_port = _PORTS[2:4]  # was free_ports(2)
     with LiveRun("pblock_wt", nginx) as run:
         origin, primary = run.mkdir("o"), run.mkdir("p")
         for directory, names in ((origin, ("root", "logs")), (primary, ("root", "cache", "logs"))):
@@ -214,7 +217,7 @@ pid {origin}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{origin_port};
+        listen {BIND_HOST}:{origin_port};
         brix_root on;
         brix_storage_backend posix:{origin}/root;
         brix_auth none;
@@ -230,7 +233,7 @@ events {{ worker_connections 64; }}
 thread_pool default threads=2;
 stream {{
     server {{
-        listen 127.0.0.1:{primary_port};
+        listen {BIND_HOST}:{primary_port};
         brix_root on;
         brix_auth none;
         brix_allow_write on;
@@ -239,7 +242,7 @@ stream {{
         brix_pblock_block_size 1m;
         brix_write_through on;
         brix_wt_mode sync;
-        brix_wt_origin 127.0.0.1:{origin_port};
+        brix_wt_origin {HOST}:{origin_port};
     }}
 }}
 """)
@@ -249,7 +252,7 @@ stream {{
 
         source = run.root / "src.bin"
         random_file(source, 2621440)  # 2.5 pblock blocks
-        put = run.call([XRDCP, "-f", source, f"root://127.0.0.1:{primary_port}//m.bin"], check=False).returncode == 0
+        put = run.call([XRDCP, "-f", source, f"root://{HOST}:{primary_port}//m.bin"], check=False).returncode == 0
         time.sleep(1)  # sync-mode flush completes during close; let the origin settle
 
         mirror = origin / "root/m.bin"
@@ -296,7 +299,7 @@ http {{
     client_body_temp_path {run.root}/tmp;
     client_max_body_size 200m;
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         location / {{
             dav_methods PUT DELETE MKCOL MOVE COPY;
             brix_webdav on;
@@ -315,7 +318,7 @@ pid {run.root}/nginx.pid;
 {wp}events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {run.root}/root;
         brix_auth none;
@@ -423,14 +426,14 @@ def pblock_lab(nginx: Path | None = None) -> int:
     checks: list[tuple[bool, str]] = []
 
     # (success) lab gate ON: sidecar written, transfers clean before any rule.
-    (port,) = free_ports(1)
+    (port,) = _PORTS[4:5]  # was free_ports(1)
     with LiveRun("pblock_lab_on", nginx) as run:
         run.mkdir("root")
         run.mkdir("logs")
         config = _lab_conf(run, port, "?lab=1")
         run.start_nginx(run.root, config, port)
         time.sleep(1)
-        host = f"root://127.0.0.1:{port}"
+        host = f"root://{HOST}:{port}"
         hub = f"{host}/"
 
         sidecar = run.root / "root/pblock.opts"
@@ -454,14 +457,14 @@ def pblock_lab(nginx: Path | None = None) -> int:
         checks.append((rc != 0, "GET after fault.pread=EIO fails (snapshot-at-open)"))
 
     # (security-neg) gate OFF: identical ctl rule is inert — read still succeeds.
-    (port2,) = free_ports(1)
+    (port2,) = _PORTS[5:6]  # was free_ports(1)
     with LiveRun("pblock_lab_off", nginx) as run:
         run.mkdir("root")
         run.mkdir("logs")
         config = _lab_conf(run, port2, "")          # no `?tail` ⇒ lab OFF
         run.start_nginx(run.root, config, port2)
         time.sleep(1)
-        host = f"root://127.0.0.1:{port2}"
+        host = f"root://{HOST}:{port2}"
         hub = f"{host}/"
 
         src = run.root / "src.bin"
@@ -540,7 +543,7 @@ def pblock_meta_gsi(nginx: Path | None = None, *,
             print(f"SKIP: missing {need}")
             return 0
 
-    (port,) = free_ports(1)
+    (port,) = _PORTS[6:7]  # was free_ports(1)
     with LiveRun("pblock_meta_gsi", nginx) as run:
         run.mkdir("root")
         run.mkdir("logs")
@@ -550,7 +553,7 @@ def pblock_meta_gsi(nginx: Path | None = None, *,
             "X509_USER_PROXY": proxy_override or str(PROXY_STD),
             "X509_CERT_DIR": str(CA_DIR),
         }
-        host = f"root://127.0.0.1:{port}/"
+        host = f"root://{HOST}:{port}/"
         config = run.write(run.root / "nginx.conf", f"""daemon on;
 error_log {run.root}/logs/error.log info;
 pid {run.root}/nginx.pid;
@@ -558,7 +561,7 @@ events {{ worker_connections 256; }}
 thread_pool default threads=8 max_queue=512;
 stream {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export            {run.root}/root;
         brix_auth            gsi;

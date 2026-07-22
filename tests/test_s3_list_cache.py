@@ -28,7 +28,8 @@ import requests
 from settings import BIND_HOST, HOST as _HOST, NGINX_BIN  # noqa: F401  (NGINX_BIN: harness gate)
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-s3-list-cache")]
 
 TTL_SECONDS = 2
 BUCKET = "testbucket"

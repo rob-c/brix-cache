@@ -7,7 +7,9 @@
 #include "core/http/http_conditionals.h"
 #include "auth/impersonate/impersonate.h"
 #include "fs/path/path.h"
+#include "protocols/shared/backend_async_http.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -442,6 +444,39 @@ webdav_move_dispatch(const webdav_move_req_t *req, int is_dir)
 }
 
 /*
+ * Async-queue wake for a deferred fresh-destination MOVE: render the response
+ * for the batch's rename result and finalise. The destination did not exist when
+ * the request was accepted (the intercept requires !dst_existed), so success is
+ * always 201 Created; the error ladder mirrors webdav_move_execute_cred. Runs on
+ * the event loop after the flush; ctx is unused.
+ */
+static void
+webdav_move_async_render(ngx_http_request_t *r, void *ctx, int op_errno)
+{
+    ngx_int_t status;
+
+    (void) ctx;
+
+    if (op_errno == 0) {
+        webdav_metrics_finalize_request(r,
+            webdav_send_no_body(r, NGX_HTTP_CREATED));
+        return;
+    }
+    if (op_errno == EEXIST) {
+        status = NGX_HTTP_PRECONDITION_FAILED;
+    } else if (op_errno == ENOTDIR || op_errno == ENOENT) {
+        status = NGX_HTTP_CONFLICT;
+    } else if (op_errno == EACCES || op_errno == EPERM) {
+        status = NGX_HTTP_FORBIDDEN;
+    } else {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, op_errno,
+                      "brix_webdav MOVE: async rename() failed");
+        status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    webdav_metrics_finalize_request(r, status);
+}
+
+/*
  * webdav_handle_move — implement RFC 4918 §9.9 MOVE.
  *
  * Key protocol requirements enforced:
@@ -519,6 +554,27 @@ webdav_handle_move(ngx_http_request_t *r)
         && src_sb.st_dev == dst_sb.st_dev)
     {
         return NGX_HTTP_FORBIDDEN;
+    }
+
+    /* Async backend: defer the rename to the coalescing queue and park the
+     * request until the batch flushes. Scoped to the fresh-destination, non-
+     * directory case (!dst_existed && !S_ISDIR): the queue's rename applies
+     * overwrite=0 and models a single leaf rename, so it exactly matches this
+     * branch (success => 201 Created) without diverging from the Overwrite:T
+     * replacement or collection-tree offload the sync dispatch handles. The
+     * Overwrite/self-move/412 preconditions above have all been checked
+     * synchronously, and MOVE is allow_write-gated at the access phase, so the
+     * mutation is fully authorised before it reaches the queue. Keyed by the
+     * absolute confined src_path/dst_path (matching the sync VFS rename). */
+    if (conf->common.backend_async && !req.dst_existed
+        && !S_ISDIR(src_sb.st_mode))
+    {
+        if (brix_baq_http_try(r, &conf->common, BRIX_BAQ_RENAME,
+                              conf->common.root_canon, src_path, dst_path, 0,
+                              webdav_move_async_render, NULL) == NGX_DONE)
+        {
+            return NGX_DONE;
+        }
     }
 
     return webdav_move_dispatch(&req, S_ISDIR(src_sb.st_mode));

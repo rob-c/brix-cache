@@ -22,7 +22,8 @@ import pytest
 from settings import BIND_HOST, HOST, NGINX_BIN, url_host
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-acc")]
 
 # authdb: anonymous (u *) gets read+lookup on /sub only; nothing elsewhere.
 AUTHDB = "u * /sub rl\n"

@@ -41,9 +41,10 @@ from cmdscripts.delegation_twostep import (
 )
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
-from settings import CA_CERT, SERVER_CERT, SERVER_KEY
+from settings import CA_CERT, HOST, SERVER_CERT, SERVER_KEY
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-t4-delegation")]
 
 CERT_BLOCK = re.compile(
     r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.S
@@ -76,26 +77,26 @@ def front(tmp_path_factory, pki):
     base = tmp_path_factory.mktemp("t4front")
     creds = base / "creds"
     creds.mkdir()
-    from settings import free_ports
-    (verify_port,) = free_ports(1)
     harness = LifecycleHarness()
     try:
         ep = harness.start(NginxInstanceSpec(
             name="lc-t4-delegation",
             template="nginx_t4_delegation_handshake.conf",
             protocol="https", readiness="tcp",
-            extra_ports={"VERIFY_PORT": verify_port},
             template_values={"HOST_CERT": str(SERVER_CERT),
                              "HOST_KEY": str(SERVER_KEY),
                              "CA_CERT": str(CA_CERT),
                              "CRED_DIR": str(creds)}))
+        # VERIFY_PORT is a second embedded listen; the ledger owns it (see
+        # fleet_lifecycle_ports.lc-t4-delegation), so read it back post-start.
+        verify_port = ep.extra_ports["VERIFY_PORT"]
     except Exception:
         harness.close()
         raise
     yield {
         "base": base,
         "creds": creds,
-        "deleg_url": (f"https://127.0.0.1:{ep.port}"
+        "deleg_url": (f"https://{HOST}:{ep.port}"
                       "/.well-known/brix-delegation"),
         "verify_port": verify_port,
     }
@@ -139,7 +140,7 @@ def _handshake(port, cert_file):
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     ctx.load_cert_chain(str(cert_file))
-    conn = http.client.HTTPSConnection("127.0.0.1", port, context=ctx, timeout=10)
+    conn = http.client.HTTPSConnection(HOST, port, context=ctx, timeout=10)
     try:
         conn.request("GET", "/")
         resp = conn.getresponse()

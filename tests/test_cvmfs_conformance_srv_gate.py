@@ -59,7 +59,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
 
 REPO = "test.cern.ch"
-HOST = "127.0.0.1"
+from settings import HOST
 HEX = ("0123456789abcdef" * 9)  # 144 chars — covers the 130-digit rows
 
 requires_nginx = pytest.mark.skipif(not os.path.exists(NGINX_BIN),

@@ -35,12 +35,12 @@ import uuid
 
 import pytest
 
-from settings import NGINX_ANON_PORT, LOG_DIR
+from settings import LOG_DIR, NGINX_ANON_PORT, SERVER_HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
-BASE = f"root://localhost:{NGINX_ANON_PORT}"
+BASE = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 # ~5 MiB of highly compressible repeating text — big enough to span MANY read
@@ -188,7 +188,7 @@ def test_qconfig_cmpread_advertises_codecs():
     if not os.access(XRDFS, os.X_OK):
         pytest.skip(f"xrdfs not built: {XRDFS}")
     r = subprocess.run(
-        [XRDFS, f"localhost:{NGINX_ANON_PORT}", "query", "config", "cmpread"],
+        [XRDFS, f"{SERVER_HOST}:{NGINX_ANON_PORT}", "query", "config", "cmpread"],
         capture_output=True, text=True, timeout=30)
     out = (r.stdout or "") + (r.stderr or "")
     if r.returncode != 0:

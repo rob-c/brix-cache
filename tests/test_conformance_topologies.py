@@ -52,7 +52,8 @@ from settings import (
 # serial: spawns 4 full nested conformance runs that hammer the shared reference
 # xrootd with concurrent dirlists — only reliable run one-at-a-time, not in the pool.
 pytestmark = [pytest.mark.timeout(420), pytest.mark.serial,
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-ct")]
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 H = SERVER_HOST
@@ -108,17 +109,15 @@ def _build_mesh(lifecycle):
 
 def _build_cluster(lifecycle):
     """CMS redirector + a data server that serves DATA_ROOT and registers '/'."""
-    from settings import free_port
-    cms_port = free_port()
     redir = lifecycle.start(NginxInstanceSpec(
         name="lc-ct-clu-redir", template="nginx_conformance_topo_cluster_redir.conf",
-        protocol="root", readiness="tcp", extra_ports={"CMS_PORT": cms_port},
+        protocol="root", readiness="tcp",
         reason="Cluster redirector (manager mode) + CMS server port.",
     ))
     lifecycle.start(NginxInstanceSpec(
         name="lc-ct-clu-ds", template="nginx_conformance_topo_cluster_ds.conf",
         protocol="root", readiness="tcp", data_root=DATA_ROOT,
-        template_values={"CMS_MANAGER": f"{HOST}:{cms_port}"},
+        template_values={"CMS_MANAGER": f"{HOST}:{redir.extra_ports['CMS_PORT']}"},
         reason="Cluster data server serving the shared DATA_ROOT, registers '/' with the redirector.",
     ))
     return f"root://{H}:{redir.port}"

@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 import requests
 
-from settings import TEST_ROOT
+from settings import HOST, TEST_ROOT
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX_BIN = "/tmp/nginx-1.28.3/objs/nginx"
@@ -69,7 +69,7 @@ def _resp(sock):
 
 
 def _session(port):
-    s = socket.create_connection(("127.0.0.1", port), timeout=8)
+    s = socket.create_connection((HOST, port), timeout=8)
     s.settimeout(8)
     s.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))   # handshake
     assert _resp(s)[0] == kXR_ok
@@ -197,7 +197,7 @@ def test_server_deflate_member_seeks(zipsrv):
 # ---- HTTP/WebDAV GET member tests (server MUST extract — no client-side unzip) ----
 
 def _http(member, **kw):
-    return requests.get(f"http://127.0.0.1:{HTTP_PORT}/a.zip",
+    return requests.get(f"http://{HOST}:{HTTP_PORT}/a.zip",
                         params={"xrdcl.unzip": member}, timeout=15, **kw)
 
 
@@ -238,7 +238,7 @@ def test_http_deflate_member_range(zipsrv):
 # ---- S3 GetObject member tests (server MUST extract) ----
 
 def _s3(member, **kw):
-    return requests.get(f"http://127.0.0.1:{S3_PORT}/{S3_BUCKET}/a.zip",
+    return requests.get(f"http://{HOST}:{S3_PORT}/{S3_BUCKET}/a.zip",
                         params={"xrdcl.unzip": member}, timeout=15, **kw)
 
 
@@ -272,5 +272,5 @@ def test_native_client_does_clientside_unzip(zipsrv, tmp_path):
         pytest.skip("native xrdcp not built")
     out = str(tmp_path / "got")
     r = _run([XRDCP, "-f", "-s",
-              f"root://127.0.0.1:{PORT}//a.zip?xrdcl.unzip=stored.txt", out])
+              f"root://{HOST}:{PORT}//a.zip?xrdcl.unzip=stored.txt", out])
     assert r.returncode == 0 and Path(out).read_bytes() == STORED

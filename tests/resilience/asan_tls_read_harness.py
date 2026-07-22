@@ -29,6 +29,7 @@ from config_templates import render_config
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import BIND_HOST, HOST
 
 XRDCP = os.path.join(servers.CLIENT_BIN, "xrdcp")
 ASAN_MARKERS = ("AddressSanitizer", "runtime error:", "heap-use-after-free",
@@ -45,7 +46,7 @@ def md5_file(path):
 
 def free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -54,10 +55,10 @@ def free_port():
 def tls_read(port, name, want, env, timeout=60, tls_flags=False):
     dst = tempfile.mktemp(suffix=".bin")
     if tls_flags:
-        url = f"root://127.0.0.1:{port}/{name}"
+        url = f"root://{HOST}:{port}/{name}"
         argv = [XRDCP, "--tls", "--noverifyhost", "-f", "-s", url, dst]
     else:
-        url = f"roots://127.0.0.1:{port}/{name}"
+        url = f"roots://{HOST}:{port}/{name}"
         argv = [XRDCP, "-f", "-s", url, dst]
     try:
         r = subprocess.run(argv, env=env, stdout=subprocess.PIPE,
@@ -132,7 +133,7 @@ def main():
                             stdout=stderr_fh, stderr=stderr_fh, env=nginx_env)
     for _ in range(80):
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+            socket.create_connection((HOST, port), timeout=0.3).close()
             break
         except OSError:
             time.sleep(0.1)

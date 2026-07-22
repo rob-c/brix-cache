@@ -265,6 +265,11 @@ brix_proxy_wbuf_release(brix_proxy_ctx_t *proxy)
 void brix_proxy_tls_handshake_done(ngx_connection_t *uconn);
 #endif
 
+/* Build the 68-byte upstream bootstrap buffer (client hello + kXR_protocol +
+ * kXR_login) into buf; username NULL/empty defaults to "xrd". Returns byte
+ * count written. Defined in connect_upstream_bootstrap.c. */
+size_t brix_proxy_build_bootstrap(u_char *buf, const char *username);
+
 /* Worker-local health status array — defined in pool.c, used in connect.c */
 extern brix_proxy_up_status_t *proxy_up_status;
 

@@ -29,7 +29,7 @@ import struct
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -79,7 +79,7 @@ def gateway(request):
 
 def _connect(gw):
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gw.port, timeout=30)
+    ftp.connect(SERVER_HOST, gw.port, timeout=30)
     ftp.login()
     return ftp
 
@@ -116,7 +116,7 @@ def test_verified_mode_e_out_of_order(gateway):
     accumulator coalesces extents by offset, so the read-back CRC matches."""
     payload = os.urandom(40000)
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gateway.port, timeout=30)
+    ftp.connect(SERVER_HOST, gateway.port, timeout=30)
     ftp.login()
     try:
         ftp.sendcmd("TYPE I")

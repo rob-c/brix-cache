@@ -8,9 +8,9 @@
  *       EVP_PKEY ownership), so it is tested without a running nginx.
  *
  * WHY:  The store functions (brix_deleg_store_put/_take/_sweep,
- *       brix_deleg_entry_free) are `static` to delegation.c by design (an
- *       internal implementation detail, not a public API) — this test
- *       #includes delegation.c directly (a standard technique for unit-
+ *       brix_deleg_entry_free) are `static` to delegation_store.c by design
+ *       (an internal implementation detail, not a public API) — this test
+ *       #includes delegation_store.c directly (a standard technique for unit-
  *       testing static functions) rather than relaxing their linkage or
  *       exposing them via delegation.h, which would leak internal store
  *       shape into the public header for no runtime benefit.
@@ -143,8 +143,13 @@ brix_http_body_read_all(ngx_http_request_t *r, size_t max_bytes,
     abort();
 }
 
-/* ---- pull in the store implementation under test ---- */
-#include "protocols/webdav/delegation.c"
+/* ---- pull in the store implementation under test ----
+ * The store (brix_deleg_store_put/_take, brix_deleg_entry_free + the
+ * brix_deleg_entry_t/store_t shapes) lives in delegation_store.c since the
+ * delegation.c size-split; that TU is self-contained (its only cross-file
+ * call is brix_hex_encode, satisfied by the linked hex.o), so we include it
+ * directly instead of the now-slimmer delegation.c. */
+#include "protocols/webdav/delegation_store.c"
 
 /* ---- test helpers ---- */
 

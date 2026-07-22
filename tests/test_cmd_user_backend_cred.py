@@ -5,6 +5,8 @@ import pytest
 
 from cmdscripts import user_backend_cred
 
+pytestmark = pytest.mark.xdist_group("cmd-user_backend_cred")
+
 
 def test_user_backend_cred_scenarios_are_importable():
     assert set(user_backend_cred.SCENARIOS) == {

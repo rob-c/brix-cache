@@ -37,6 +37,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
+from settings import BIND_HOST, HOST
 
 try:                                     # cryptography is an optional test dep
     from tokenforge import TokenForge, write_scitokens_cfg
@@ -75,7 +76,7 @@ class ConfCheck:
         self.stage.mkdir(exist_ok=True)
         # Enabled-location preamble mirroring the live suites: an http origin
         # backend (never dialled by -t) + a posix cache store.
-        self.base = ("brix_cvmfs on; brix_storage_backend http://127.0.0.1:9; "
+        self.base = ("brix_cvmfs on; brix_storage_backend http://127.0.0.1:9; "  # net-literal-allow: config-load-only origin backend, never dialled by nginx -t
                      f"brix_cache_store posix:{self.cache};")
 
     def run(self, location_directives):
@@ -83,7 +84,7 @@ class ConfCheck:
         conf.write_text(f"""daemon off; error_log {self.root}/logs/t.log info;
 pid {self.root}/t.pid; thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ access_log off; server {{ listen 127.0.0.1:13259;
+http {{ access_log off; server {{ listen {BIND_HOST}:13259;
     location /cvmfs/ {{ {location_directives} }}
 }} }}
 """)
@@ -166,7 +167,7 @@ def test_unified_origin_with_http_backend_loads(cc):
 
 def test_unified_origin_multi_endpoint_loads(cc):
     cc.ok(f"brix_cvmfs on; brix_cache_store posix:{cc.cache}; "
-          'brix_storage_backend "http://127.0.0.1:9|http://127.0.0.1:8"; '
+          'brix_storage_backend "http://127.0.0.1:9|http://127.0.0.1:8"; '  # net-literal-allow: config-load-only origin endpoints, never dialled by nginx -t
           "brix_cvmfs_unified_origin on;")
 
 
@@ -215,7 +216,7 @@ def test_duplicate_directive_rejected(cc, directive, value):
 @pytest.mark.parametrize("directives", [
     pytest.param("brix_cvmfs_upstream_allow a.example b.example; "
                  "brix_cvmfs_upstream_allow c.example;", id="upstream_allow"),
-    pytest.param("brix_cvmfs_origin_coords 127.0.0.1 46.2:6.1; "
+    pytest.param("brix_cvmfs_origin_coords 127.0.0.1 46.2:6.1; "  # net-literal-allow: config-load-only origin-coords host, never dialled by nginx -t
                  "brix_cvmfs_origin_coords 127.0.0.2 55.9:-3.2;", id="origin_coords"),
 ])
 def test_accumulating_directive_repeats_load(cc, directives):
@@ -281,12 +282,12 @@ def test_geo_select_requires_origin_coords(cc):
 
 def test_geo_full_config_loads(cc):
     cc.ok(cc.base + "brix_cvmfs_origin_select geo; brix_cvmfs_here 55.9:-3.2; "
-          "brix_cvmfs_origin_coords 127.0.0.1 46.2:6.1;")
+          "brix_cvmfs_origin_coords 127.0.0.1 46.2:6.1;")  # net-literal-allow: config-load-only origin-coords host, never dialled by nginx -t
 
 
 def test_coords_without_geo_mode_warns_but_loads(cc):
     """Coords in non-geo mode: loads OK with the ignored-coordinates WARN."""
-    out = cc.ok(cc.base + "brix_cvmfs_origin_coords 127.0.0.1 1:1;")
+    out = cc.ok(cc.base + "brix_cvmfs_origin_coords 127.0.0.1 1:1;")  # net-literal-allow: config-load-only origin-coords host, never dialled by nginx -t
     assert "coordinates are ignored" in out
 
 
@@ -299,7 +300,7 @@ def test_coords_without_geo_mode_warns_but_loads(cc):
     pytest.param("brix_cvmfs_geo_max_servers 1;", id="geo_max_servers-1"),
     pytest.param("brix_cvmfs_origin_attempt_timeout 0;", id="attempt_timeout-0"),
     pytest.param("brix_cvmfs_origin_stall_bytes 0;", id="stall_bytes-0"),
-    pytest.param("brix_cvmfs_origin_coords 127.0.0.1:8000 -90:180;",
+    pytest.param("brix_cvmfs_origin_coords 127.0.0.1:8000 -90:180;",  # net-literal-allow: config-load-only origin-coords host:port, never dialled by nginx -t
                  id="coords-boundary-latlon-with-port"),
 ])
 def test_corner_value_loads(cc, directives):
@@ -314,7 +315,7 @@ def test_full_inventory_single_config_loads(cc):
                                   "brix_scvmfs_token_issuers"))
     cc.ok(cc.base + every
           + " brix_cvmfs_origin_select geo;"
-          + " brix_cvmfs_origin_coords 127.0.0.1 46.2:6.1;"
+          + " brix_cvmfs_origin_coords 127.0.0.1 46.2:6.1;"  # net-literal-allow: config-load-only origin-coords host, never dialled by nginx -t
           + " brix_cvmfs_upstream_allow a.example;")
 
 
@@ -325,7 +326,7 @@ def test_full_inventory_single_config_loads(cc):
 def _tls_fetch(port, path, token=None, headers=None, method="GET"):
     """HTTPS request with an unverified context; returns (status, body)."""
     ctx = ssl._create_unverified_context()
-    req = urllib.request.Request(f"https://127.0.0.1:{port}{path}", method=method)
+    req = urllib.request.Request(f"https://{HOST}:{port}{path}", method=method)
     if token is not None:
         req.add_header("Authorization", f"Bearer {token}")
     for k, v in (headers or {}).items():
@@ -345,7 +346,7 @@ def tls_identity(tmp_path_factory):
     d = tmp_path_factory.mktemp("scvmfs_tls")
     subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-         "-subj", "/CN=localhost", "-keyout", str(d / "key.pem"),
+         "-subj", "/CN=localhost", "-keyout", str(d / "key.pem"),  # net-literal-allow: throwaway TLS cert subject CN
          "-out", str(d / "crt.pem")],
         check=True, capture_output=True)
     return d / "crt.pem", d / "key.pem"
@@ -527,7 +528,7 @@ def test_scvmfs_none_random_auth_header_changes_nothing(none_srv):
 @requires_openssl
 def test_plain_http_to_scvmfs_tls_port_refused(none_srv):
     """Cleartext HTTP on the ssl listener: nginx core 400s the plain request."""
-    status, _, _ = request("127.0.0.1", none_srv.nginx_port, "GET",
+    status, _, _ = request(HOST, none_srv.nginx_port, "GET",
                            none_srv.objects()[0])
     assert status == 400
 
@@ -535,7 +536,7 @@ def test_plain_http_to_scvmfs_tls_port_refused(none_srv):
 def test_scvmfs_on_plain_listener_400(scvmfs_plain_srv):
     """secure.c: no r->connection->ssl -> 400 even when the listener itself is
     plain (config loads; the transport requirement is enforced per request)."""
-    status, _, _ = request("127.0.0.1", scvmfs_plain_srv.nginx_port, "GET",
+    status, _, _ = request(HOST, scvmfs_plain_srv.nginx_port, "GET",
                            scvmfs_plain_srv.objects()[0])
     assert status == 400
 
@@ -544,8 +545,8 @@ def test_scvmfs_on_plain_listener_400(scvmfs_plain_srv):
 
 def test_public_anonymous_equals_authorized_object(plain_srv):
     obj = plain_srv.objects()[0]
-    anon = request("127.0.0.1", plain_srv.nginx_port, "GET", obj)
-    authed = request("127.0.0.1", plain_srv.nginx_port, "GET", obj,
+    anon = request(HOST, plain_srv.nginx_port, "GET", obj)
+    authed = request(HOST, plain_srv.nginx_port, "GET", obj,
                      headers={"Authorization": "Bearer whatever.some.token"})
     assert anon[0] == authed[0] == 200
     assert anon[2] == authed[2] == _origin_bytes(plain_srv, obj)
@@ -553,8 +554,8 @@ def test_public_anonymous_equals_authorized_object(plain_srv):
 
 def test_public_anonymous_equals_authorized_manifest(plain_srv):
     path = f"/cvmfs/{REPO}/.cvmfspublished"
-    anon = request("127.0.0.1", plain_srv.nginx_port, "GET", path)
-    authed = request("127.0.0.1", plain_srv.nginx_port, "GET", path,
+    anon = request(HOST, plain_srv.nginx_port, "GET", path)
+    authed = request(HOST, plain_srv.nginx_port, "GET", path,
                      headers={"Authorization": "Basic dXNlcjpwdw=="})
     assert anon[0] == authed[0] == 200 and anon[2] == authed[2]
 
@@ -563,17 +564,17 @@ def test_public_anonymous_equals_authorized_manifest(plain_srv):
 
 def test_put_never_creates_object(plain_srv):
     target = f"/cvmfs/{REPO}/data/ab/" + "ef" * 19
-    status, _, _ = request("127.0.0.1", plain_srv.nginx_port, "PUT", target,
+    status, _, _ = request(HOST, plain_srv.nginx_port, "PUT", target,
                            body=b"evil payload")
     assert status >= 400, f"PUT must be refused, got {status}"
-    status, _, _ = request("127.0.0.1", plain_srv.nginx_port, "GET", target)
+    status, _, _ = request(HOST, plain_srv.nginx_port, "GET", target)
     assert status == 404, "PUT body must never materialize"
 
 
 def test_delete_never_removes_cached_object(plain_srv):
     obj = plain_srv.objects()[2]
     ref = urllib.request.urlopen(plain_srv.base_url + obj, timeout=15).read()
-    status, _, _ = request("127.0.0.1", plain_srv.nginx_port, "DELETE", obj)
+    status, _, _ = request(HOST, plain_srv.nginx_port, "DELETE", obj)
     assert status >= 400, f"DELETE must be refused, got {status}"
     again = urllib.request.urlopen(plain_srv.base_url + obj, timeout=15).read()
     assert again == ref, "DELETE must not disturb the cached object"
@@ -581,6 +582,6 @@ def test_delete_never_removes_cached_object(plain_srv):
 
 def test_post_with_body_rejected(plain_srv):
     obj = plain_srv.objects()[3]
-    status, _, _ = request("127.0.0.1", plain_srv.nginx_port, "POST", obj,
+    status, _, _ = request(HOST, plain_srv.nginx_port, "POST", obj,
                            body=b"x" * 128)
     assert status >= 400, f"POST must be refused, got {status}"

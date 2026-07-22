@@ -24,10 +24,16 @@ from pathlib import Path
 
 import pytest
 
+from config_parse import nginx_t
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from server_registry import NginxInstanceSpec
-from settings import NGINX_BIN, HOST, BIND_HOST, free_ports, url_host
+from settings import NGINX_BIN, HOST, BIND_HOST, url_host
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# The four live admin-API instances (lc-admin-rl-*) draw fixed ports from the
+# fleet_lifecycle_ports ledger; xdist_group serialises the file so no fixed port
+# ever has two concurrent drivers.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-admin-rl")]
 
 SECRET = "admin-ratelimit-secret-token-value"
 
@@ -160,26 +166,20 @@ def test_off_disables_throttle(lifecycle, tmp_path):
         assert status == 400, f"write #{i} throttled despite off: {status}"
 
 
-def test_bad_directive_argument_rejected(lifecycle, tmp_path):
-    # expect_config_failure renders from template_values only, so the
-    # launcher-provided placeholders are passed explicitly here.
+def test_bad_directive_argument_rejected(tmp_path):
+    # Pure config-parse property: render + `nginx -t`, no server ever boots.
     secret = tmp_path / "admin.secret"
     secret.write_text(SECRET + "\n")
-    (port,) = free_ports(1)
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-admin-rl-bad",
-        template="nginx_admin_ratelimit.conf",
-        protocol="http",
-        template_values={
-            "BIND_HOST": BIND_HOST,
-            "PORT": port,
-            "LOG_DIR": str(tmp_path),
-            "TMP_DIR": str(tmp_path),
-            "SECRET_FILE": str(secret),
-            "RL_LINE": "brix_admin_rate_limit banana;",
-        },
-        reason="admin rate-limit directive validation",
-    ))
+    result = nginx_t(
+        "nginx_admin_ratelimit.conf",
+        tmp_path,
+        BIND_HOST=BIND_HOST,
+        PORT=PARSE_PLACEHOLDER_PORT,  # nginx -t never binds; non-binding placeholder
+        LOG_DIR=str(tmp_path),
+        TMP_DIR=str(tmp_path),
+        SECRET_FILE=str(secret),
+        RL_LINE="brix_admin_rate_limit banana;",
+    )
     out = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0
     assert "requests/minute" in out

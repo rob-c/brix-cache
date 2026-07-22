@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.af_family_conf import INVALID_TOKEN, VALID_TOKENS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-af_family_conf")
+
 
 def test_brix_cache_origin_family_config_tokens(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

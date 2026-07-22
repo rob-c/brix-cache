@@ -14,6 +14,8 @@ import pytest
 
 from cmdscripts import fwd_matrix_live
 
+pytestmark = pytest.mark.xdist_group("cmd-fwd_matrix_live")
+
 
 def test_fwd_matrix_live_is_importable():
     assert set(fwd_matrix_live.SCENARIOS) == {

@@ -17,7 +17,8 @@ from mu_authz_lib import ports, principals
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-mu-guard")]
 
 _TEMPLATES = {
     "stream": "nginx_mu_guard_stream.conf",

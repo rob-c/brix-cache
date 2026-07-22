@@ -51,6 +51,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import BRIXMOUNT, PortBlock, fuse_mount  # noqa: E402
 from repo_forge import File, RepoForge  # noqa: E402
+from settings import HOST
 
 # The module fixture forges the corpus and runs ~20 refusing --checks in
 # parallel (each ~12.6s of client-side trust-chain backoff); its setup and the
@@ -352,7 +353,7 @@ def env(tmp_path_factory):
             cdir.mkdir(parents=True, exist_ok=True)
             tdir.mkdir(parents=True, exist_ok=True)
             cenv = {**os.environ,
-                    "BRIXCVMFS_SERVER": f"http://127.0.0.1:{port}/cvmfs/{fqrn}",
+                    "BRIXCVMFS_SERVER": f"http://{HOST}:{port}/cvmfs/{fqrn}",
                     "BRIXCVMFS_PUBKEY": str(pubkeys[case["client"]]),
                     "BRIXCVMFS_CACHE": str(cdir), "BRIXCVMFS_TMP": str(tdir)}
             return case["name"], subprocess.run(
@@ -378,7 +379,7 @@ def _wait_listen(port: int, timeout: float = 10) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return
         except OSError:
             time.sleep(0.1)
@@ -449,7 +450,7 @@ def test_fingerprint_is_uppercase_colon_hex(env):
 @requires_fuse
 def test_mount_valid_repo_reads_content(env):
     fqrn = env["fqrns"]["valid_baseline"]
-    url = f"http://127.0.0.1:{env['port']}/cvmfs/{fqrn}"
+    url = f"http://{HOST}:{env['port']}/cvmfs/{fqrn}"
     with fuse_mount(fqrn, url, env["base_pub"]) as (mnt, _):
         assert os.path.ismount(str(mnt)), "valid whitelist failed to mount"
         assert (mnt / "hello").read_bytes() == b"whitelist corpus\n"
@@ -460,7 +461,7 @@ def test_mount_expired_whitelist_refused(env):
     # Wall-clock expiry is enforced (retired divergence): a whitelist dated in
     # the year 2000 must NOT mount, matching official CVMFS.
     fqrn = env["fqrns"]["expiry_year_2000"]
-    url = f"http://127.0.0.1:{env['port']}/cvmfs/{fqrn}"
+    url = f"http://{HOST}:{env['port']}/cvmfs/{fqrn}"
     with fuse_mount(fqrn, url, env["base_pub"], timeout=8) as (mnt, _):
         assert not os.path.ismount(str(mnt)), \
             "an expired whitelist must NOT mount (wall-clock expiry enforcement)"
@@ -469,7 +470,7 @@ def test_mount_expired_whitelist_refused(env):
 @requires_fuse
 def test_mount_wrong_pubkey_refused(env):
     fqrn = env["fqrns"]["valid_baseline"]
-    url = f"http://127.0.0.1:{env['port']}/cvmfs/{fqrn}"
+    url = f"http://{HOST}:{env['port']}/cvmfs/{fqrn}"
     with fuse_mount(fqrn, url, env["foreign_pub"], timeout=8) as (mnt, _):
         assert not os.path.ismount(str(mnt)), \
             "a whitelist signed by an unknown master key must NOT mount"

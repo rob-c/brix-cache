@@ -15,7 +15,8 @@ import pytest
 from settings import NGINX_BIN, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-resume-sweep")]
 
 
 @pytest.fixture

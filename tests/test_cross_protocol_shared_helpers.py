@@ -17,8 +17,9 @@ def test_copy_and_http_file_response_helpers_are_shared():
         "src/protocols/webdav/fs/copy_engine.c",
         ["fs/vfs.h", "brix_vfs_copyfile("],
     )
+    # vfs_walk.c was split; the copy_file_range impl moved to the copy sibling.
     _assert_markers(
-        "src/fs/vfs/vfs_walk.c",
+        "src/fs/vfs/vfs_walk_copy.c",
         ["brix_copy_range("],
     )
     # Phase 12: the range-parse → headers → send pipeline (including the

@@ -11,7 +11,8 @@ import time
 import urllib.request
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 
 def objs_dir_from_nginx(nginx_bin: str = NGINX_BIN) -> Path:
@@ -82,6 +83,7 @@ int main(int argc, char **argv) {
         meta_dir / "xmeta_decode.o",
         meta_dir / "xmeta_carrier.o",
         cinfo_o.parents[1] / "compat" / "crc32c.o",
+        cinfo_o.parents[1] / "compat" / "crc32c_hw.o",
     ]
     missing = [str(path) for path in objects if not path.is_file()]
     if missing:
@@ -100,15 +102,15 @@ def write_config(prefix: Path, port: int, high: int, low: int, metrics_port: int
         path.mkdir(parents=True, exist_ok=True)
     metrics = ""
     if metrics_port is not None:
-        metrics = f"http {{ server {{ listen 127.0.0.1:{metrics_port}; location /metrics {{ brix_metrics on; }} }} }}\n"
+        metrics = f"http {{ server {{ listen {BIND_HOST}:{metrics_port}; location /metrics {{ brix_metrics on; }} }} }}\n"
     conf = prefix / "nginx.conf"
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_auth none;
-    brix_storage_backend root://127.0.0.1:1; brix_cache_store posix:{cache}; brix_cache_export /;
+    listen {BIND_HOST}:{port}; brix_root on; brix_auth none;
+    brix_storage_backend root://{HOST}:1; brix_cache_store posix:{cache}; brix_cache_export /;
     brix_cache_high_watermark {high}%;
     brix_cache_low_watermark {low}%;
     brix_cache_reap_interval 1;
@@ -184,7 +186,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, objs_dir: Path | None = N
     if not built:
         return [(False, f"failed to build dirty marker: {build_error}")]
 
-    purge_port, calm_port, metrics_port = free_ports(3)
+    purge_port, calm_port, metrics_port = cmdscript_ports("cache_watermark")
     started: list[Path] = []
     for name, port, high, low, maybe_metrics_port in (
         ("purge", purge_port, high_purge, low_purge, metrics_port),
@@ -224,7 +226,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, objs_dir: Path | None = N
         results.append(("watermark reaper purged" in purge_log_text, "purge: watermark NOTICE logged"))
 
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{metrics_port}/metrics", timeout=5) as response:
+            with urllib.request.urlopen(f"http://{HOST}:{metrics_port}/metrics", timeout=5) as response:
                 metrics = response.read().decode("utf-8", errors="replace")
         except OSError as exc:
             metrics = ""

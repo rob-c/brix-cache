@@ -59,11 +59,14 @@ _CONFIG_RE = re.compile(r"\$ngx_addon_dir/(src/[a-zA-Z0-9_/.-]*\.c)")
 
 
 def _tree_files(root: Path) -> list[str]:
-    """find src -name '*.c' ! -name '*_unittest.c' | sort."""
+    """find src -name '*.c' ! -name '*_unittest.c' ! -name '*_unittest_*.c' | sort.
+    The second pattern excuses the per-group TUs a large `*_unittest.c` is split
+    into (e.g. `sd_pblock_unittest_core.c`) — standalone-built like their parent
+    via `c_regression_units.py`, never wired into ./config."""
     return sorted(
         str(p.relative_to(root))
         for p in (root / "src").rglob("*.c")
-        if not p.name.endswith("_unittest.c")
+        if not (p.name.endswith("_unittest.c") or "_unittest_" in p.name)
     )
 
 

@@ -289,6 +289,13 @@ typedef struct brix_ctx_s {
     /* CMS locate suspension (state == XRD_ST_WAITING_CMS) */
     uint32_t    cms_wait_streamid;  /* pending-table key for removal on timeout */
 
+    /* Backend-async mutation park (state == XRD_ST_WAITING_BAQ).  Non-NULL while a
+     * mutation this connection issued is queued in the backend-async queue awaiting
+     * a bulk flush; points at the heap park record used as the queue's client token
+     * and read back by the waker to send the real reply.  Cleared when the waker
+     * fires or the connection tears down (brix_baq_drop_client on disconnect). */
+    void       *baq_park;           /* brix_baq_root_park_t * — see write/backend_async_root.c */
+
     /* Phase 24 W3: data-write mirror accumulation (brix_wmirror_conn_t *).
      * NULL until a write-open occurs; freed by brix_stream_wmirror_cleanup()
      * on disconnect.  void* keeps the mirror type out of this header. */

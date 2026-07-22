@@ -14,12 +14,13 @@ import shutil
 import subprocess
 
 import pytest
+from settings import HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCRC32C = os.path.join(REPO, "client", "bin", "xrdcrc32c")
 
-ROOT_BASE = "root://127.0.0.1:11094"
-DAVS_BASE = "davs://127.0.0.1:8443"
+ROOT_BASE = f"root://{HOST}:11094"
+DAVS_BASE = f"davs://{HOST}:8443"
 CA_DIR = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "pki", "ca")
 
 

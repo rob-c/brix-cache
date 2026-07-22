@@ -457,6 +457,19 @@ brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf,
         conf->advertise.ns = prev->advertise.ns;
     }
 
+    /* Durable async backend-op queue: default off; batch 64 ops; coalesce cap
+     * 200ms. When enabled, mutations (unlink/rmdir/rename/mkdir/write-commit) are
+     * journalled + parked until the batch flushes (size OR time, whichever first).
+     * A batch of 0 or a 0ms wait would defeat coalescing, so clamp both up. */
+    ngx_conf_merge_value(conf->backend_async, prev->backend_async, 0);
+    ngx_conf_merge_uint_value(conf->backend_async_batch,
+                              prev->backend_async_batch, 64);
+    if (conf->backend_async_batch < 1) {
+        conf->backend_async_batch = 1;
+    }
+    ngx_conf_merge_msec_value(conf->backend_async_wait,
+                              prev->backend_async_wait, 200);
+
     /* Inherit compiled regex from parent if the child didn't set one */
     if (!conf->include_regex.set && prev->include_regex.set) {
         conf->include_regex.str = prev->include_regex.str;

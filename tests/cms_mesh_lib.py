@@ -257,7 +257,7 @@ def gen_cert(root):
     if not os.path.exists(cert):
         subprocess.run(
             ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-keyout", key,
-             "-out", cert, "-days", "1", "-nodes", "-subj", "/CN=localhost"],
+             "-out", cert, "-days", "1", "-nodes", "-subj", "/CN=localhost"],  # net-literal-allow: cert subject CN under test
             capture_output=True, check=False,
         )
     return cert, key

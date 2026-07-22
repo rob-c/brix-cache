@@ -206,6 +206,18 @@ void sd_ceph_conn_unpin(sd_ceph_conn_t *c);
  * there and by the cred-scoped open in sd_ceph_cred.c. */
 brix_sd_obj_t *sd_ceph_open_on_ioctx(const sd_ceph_open_req_t *req, int *err_out);
 
+/* sd_ceph_child_probe_t / _cb — bounded "does this prefix have any child?"
+ * probe over the catalog enumeration, aborting on the first hit. The callback
+ * is DEFINED in sd_ceph_object.c (beside the synthetic-directory rmdir that
+ * consumes it) and REFERENCED from sd_ceph_object_rename.c (rename's absent-
+ * source classifier), so the type + prototype live here. */
+typedef struct {
+    const char *dir;
+    int         found;
+} sd_ceph_child_probe_t;
+
+int sd_ceph_child_probe_cb(void *ctx, const brix_sd_catalog_ent_t *ent);
+
 /* ---- vtable op functions (defined in the sibling TUs, wired into
  * brix_sd_ceph_driver in sd_ceph.c) -------------------------------------- */
 

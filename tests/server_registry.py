@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from settings import HOST, REGISTRY_MANIFEST, REGISTRY_ROOT, TEST_ROOT, free_port
+from settings import HOST, REGISTRY_MANIFEST, REGISTRY_ROOT, TEST_ROOT
 
 
 @dataclass(frozen=True)
@@ -74,14 +74,12 @@ _SPECS: dict[str, NginxInstanceSpec] = {}
 _COMMAND_SPECS: dict[str, CommandSpec] = {}
 _REGISTRATION_SITES: dict[str, str] = {}
 _MANIFEST: dict[str, Any] | None = None
-_RESERVED_PORTS: dict[str, int] = {}
 
 
 def clear_registry() -> None:
     _SPECS.clear()
     _COMMAND_SPECS.clear()
     _REGISTRATION_SITES.clear()
-    _RESERVED_PORTS.clear()
 
 
 def register_nginx(spec: NginxInstanceSpec) -> NginxInstanceSpec:
@@ -106,7 +104,6 @@ def unregister(name: str) -> None:
     """
     _SPECS.pop(name, None)
     _REGISTRATION_SITES.pop(name, None)
-    _RESERVED_PORTS.pop(name, None)
 
 
 def replace_spec(spec: NginxInstanceSpec) -> NginxInstanceSpec:
@@ -259,10 +256,13 @@ def endpoint_for(spec: NginxInstanceSpec) -> ServerEndpoint:
     prefix = os.path.join(REGISTRY_ROOT, spec.name)
     port = spec.port
     if port is None:
-        port = _RESERVED_PORTS.get(spec.name)
-        if port is None:
-            port = free_port(HOST)
-            _RESERVED_PORTS[spec.name] = port
+        raise ValueError(
+            f"server spec {spec.name!r} has no port. The dynamic free_port "
+            f"fallback was removed in Phase 5 — every registered server must "
+            f"declare a fixed port: a settings constant / fleet_ports ledger "
+            f"entry (see fleet_lifecycle_ports for lifecycle-subject names) or "
+            f"an explicit port= on the spec."
+        )
     return ServerEndpoint(
         name=spec.name,
         host=spec.host or HOST,

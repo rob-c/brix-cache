@@ -31,13 +31,14 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import SERVER_HOST, free_port
+from settings import SERVER_HOST
 from test_cms_wire_pup_conformance import (
     _build_frame,
     _minimal_login_payload,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-locate-have")]
 
 H = SERVER_HOST
 
@@ -189,16 +190,15 @@ def manager(lifecycle):
     """One CMS manager with the dynamic-location window enabled.  The CMS
     listener needs its own port: brix_cms_server replaces the stream handler
     for its whole server block."""
-    cms_port = free_port()
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-cms-locate-have",
         template="nginx_cms_locate_have.conf",
         protocol="root",
         readiness="tcp",
-        template_values={"WINDOW_MS": WINDOW_MS, "CMS_PORT": cms_port},
+        template_values={"WINDOW_MS": WINDOW_MS},
         reason="Phase-89 W3: kYR_state fan-out + kYR_have + loc cache.",
     ))
-    return _Manager(ep.port, cms_port)
+    return _Manager(ep.port, ep.extra_ports["CMS_PORT"])
 
 
 def test_have_wins_redirect_then_loc_cache(manager):

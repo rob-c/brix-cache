@@ -23,7 +23,8 @@ from mu_authz_lib import creds, ports, principals
 from mu_authz_lib.adapters import measure_webdav
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-mu-webdav-authz")]
 
 
 def _spec():

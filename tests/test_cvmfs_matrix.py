@@ -13,6 +13,8 @@ import pytest
 from cmdscripts import cvmfs_matrix
 from cmdscripts.brixcvmfs_live import LiveSkip
 
+pytestmark = pytest.mark.xdist_group("cmd-cvmfs_matrix")
+
 
 def test_cvmfs_matrix_scenarios_are_importable():
     assert set(cvmfs_matrix.SCENARIOS) == {

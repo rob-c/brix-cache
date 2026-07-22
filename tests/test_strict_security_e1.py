@@ -31,7 +31,7 @@ import subprocess
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN
 
 pytestmark = pytest.mark.usefixtures()  # self-contained; no fleet attach
 
@@ -54,7 +54,7 @@ def _run_nginx_t(tmp_path, body: str):
         "events { worker_connections 64; }\n"
         "http {\n"
         "  server {\n"
-        "    listen 127.0.0.1:18390;\n"
+        f"    listen {BIND_HOST}:18390;\n"
         "    location / {\n"
         f"{body}\n"
         "    }\n"

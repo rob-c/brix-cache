@@ -133,6 +133,18 @@ def test_freeze_nginx_returns_validated_private_copy(fresh_freeze, tmp_path):
     assert live_common.freeze_nginx(src) == frozen, "second call must hit the cache"
 
 
+def test_freeze_nginx_is_session_shared_not_per_process(fresh_freeze, tmp_path):
+    # Every process of a session must resolve to ONE shared copy: the path is
+    # deterministic (no pid), and a second process (cache reset) reuses the
+    # first's frozen binary instead of making its own — the single-binary model.
+    src = Path(fake_nginx.install(tmp_path))
+    first = live_common.freeze_nginx(src)
+    assert f"-{os.getpid()}" not in first.name, "frozen path must not be per-process"
+    live_common._FROZEN_NGINX = None  # simulate a fresh xdist worker process
+    second = live_common.freeze_nginx(src)
+    assert second == first, "a second process must reuse the shared frozen copy"
+
+
 def test_freeze_nginx_missing_source_falls_back_to_live_path(fresh_freeze, tmp_path):
     src = tmp_path / "no-such-nginx"
     assert live_common.freeze_nginx(src) == src

@@ -130,6 +130,7 @@ def sd_ceph_live(base: Path) -> tuple[bool, str]:
         "src/fs/backend/rados/sd_ceph_internal.h",
         "src/fs/backend/rados/sd_ceph.h",
         "src/fs/backend/rados/sd_ceph_striper.h",
+        "src/fs/backend/rados/sd_ceph_object_rename.c",
         "src/fs/backend/rados/sd_ceph_compat.c",
         "tests/ceph/sd_ceph_live_test.c",
         "client/apps/ceph/ngx_shim.h",
@@ -142,6 +143,7 @@ def sd_ceph_live(base: Path) -> tuple[bool, str]:
         "cd /work/repo && gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH "
         "-I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h "
         "tests/ceph/sd_ceph_live_test.c src/fs/backend/rados/sd_ceph.c "
+        "src/fs/backend/rados/sd_ceph_object_rename.c "
         "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_object.c "
         "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_dir.c "
         "src/fs/backend/rados/sd_ceph_compat.c "
@@ -178,6 +180,7 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
         "src/fs/backend/rados/sd_ceph_object.c", "src/fs/backend/rados/sd_ceph_cred.c",
         "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_internal.h", "src/fs/backend/rados/sd_ceph.h",
+        "src/fs/backend/rados/sd_ceph_object_rename.c",
         "src/fs/backend/rados/sd_ceph_compat.c", "src/fs/backend/rados/sd_ceph_compat.h",
         "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/ucred.h",
         "tests/ceph/sd_ceph_cred_live_test.c", "client/apps/ceph/ngx_shim.h",
@@ -190,6 +193,7 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
         "cd /work/repo && gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH "
         "-I src -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h "
         "tests/ceph/sd_ceph_cred_live_test.c src/fs/backend/rados/sd_ceph.c "
+        "src/fs/backend/rados/sd_ceph_object_rename.c "
         "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_object.c "
         "src/fs/backend/rados/sd_ceph_cred.c src/fs/backend/rados/sd_ceph_dir.c "
         "src/fs/backend/rados/sd_ceph_compat.c "
@@ -217,6 +221,7 @@ def cephfs_ro_live(base: Path) -> tuple[bool, str]:
         "src/fs/backend/rados/cephfs_layout.h", "src/fs/backend/rados/sd_cephfs_ro.c",
         "src/fs/backend/rados/sd_cephfs_ro_internal.h", "src/fs/backend/rados/sd_cephfs_ro_resolve.c",
         "src/fs/backend/rados/sd_cephfs_ro_dir.c", "client/apps/ceph/ngx_shim.h",
+        "src/fs/backend/rados/sd_ceph_object_rename.c",
         "tests/ceph/sd_cephfs_ro_live_test.c",
     ]
     _docker_text(["exec", work, "mkdir", "-p", "/work/repo/src/fs/backend/rados", "/work/repo/tests/ceph", "/work/repo/client/apps/ceph"])
@@ -229,7 +234,8 @@ def cephfs_ro_live(base: Path) -> tuple[bool, str]:
         "tests/ceph/sd_cephfs_ro_live_test.c src/fs/backend/rados/sd_cephfs_ro.c "
         "src/fs/backend/rados/sd_cephfs_ro_resolve.c src/fs/backend/rados/sd_cephfs_ro_dir.c "
         "src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_io.c "
-        "src/fs/backend/rados/sd_ceph_object.c src/fs/backend/rados/sd_ceph_cred.c "
+        "src/fs/backend/rados/sd_ceph_object.c src/fs/backend/rados/sd_ceph_object_rename.c "
+        "src/fs/backend/rados/sd_ceph_cred.c "
         "src/fs/backend/rados/sd_ceph_dir.c "
         "src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/cephfs_layout.c "
         "src/fs/backend/rados/cephfs_denc.c -lrados -o /tmp/cephfsro_live && /tmp/cephfsro_live"
@@ -246,6 +252,7 @@ def ceph_export_smoke(base: Path) -> tuple[bool, str]:
     if not _container_running(work):
         return result(True, f"SKIP: work container {work} not running")
     cmd = r"""
+# net-literal-allow: container-internal loopback (script runs inside ceph container)
 set -u
 NGINX=/opt/nginx-src/objs/nginx
 RUN=/work/run
@@ -303,6 +310,7 @@ def cephfs_ro_smoke(base: Path) -> tuple[bool, str]:
     if not _container_running(work):
         return result(True, f"SKIP: work container {work} not running")
     cmd = r"""
+# net-literal-allow: container-internal loopback (script runs inside ceph container)
 set -u
 NGINX=/opt/nginx-src/objs/nginx
 RUN=/work/run-ro
@@ -373,6 +381,7 @@ def rescue_tools(base: Path) -> tuple[bool, str]:
         "src/fs/backend/sd.h", "src/fs/backend/rados/sd_ceph.c", "src/fs/backend/rados/sd_ceph.h",
         "src/fs/backend/rados/sd_ceph_internal.h", "src/fs/backend/rados/sd_ceph_io.c",
         "src/fs/backend/rados/sd_ceph_cred.c", "src/fs/backend/rados/sd_ceph_object.c",
+        "src/fs/backend/rados/sd_ceph_object_rename.c",
         "src/fs/backend/rados/sd_ceph_dir.c",
         "src/fs/backend/rados/sd_ceph_striper.h", "src/fs/backend/rados/sd_ceph_compat.c",
         "src/fs/backend/rados/sd_ceph_compat.h", "src/fs/backend/rados/cephfs_denc.c",
@@ -395,7 +404,8 @@ def rescue_tools(base: Path) -> tuple[bool, str]:
     cmd = (
         "cd /work/repo && FLAT_SRCS='src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c "
         "src/fs/backend/rados/sd_ceph_io.c src/fs/backend/rados/sd_ceph_cred.c "
-        "src/fs/backend/rados/sd_ceph_object.c src/fs/backend/rados/sd_ceph_dir.c' && "
+        "src/fs/backend/rados/sd_ceph_object.c src/fs/backend/rados/sd_ceph_object_rename.c "
+        "src/fs/backend/rados/sd_ceph_dir.c' && "
         "CEPHFS_SRCS=\"src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_cephfs_ro_dir.c "
         "src/fs/backend/rados/sd_cephfs_ro_resolve.c src/fs/backend/rados/cephfs_layout.c "
         "src/fs/backend/rados/cephfs_denc.c $FLAT_SRCS\" && "

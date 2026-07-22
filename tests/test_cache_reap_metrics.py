@@ -37,7 +37,7 @@ try:
     from settings import NGINX_BIN, BIND_HOST
 except Exception:  # noqa: BLE001 — settings import optional outside the harness
     NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-    BIND_HOST = "127.0.0.1"
+    BIND_HOST = "127.0.0.1"  # net-literal-allow: fallback BIND_HOST when settings module unavailable outside harness
 
 _OBJS = os.path.dirname(NGINX_BIN)
 _CINFO_O = os.path.join(_OBJS, "addon", "cache", "cinfo.o")
@@ -53,6 +53,9 @@ _CINFO_DEPS = [
     os.path.join(_OBJS, "addon", "meta", "xmeta_path.o"),
     os.path.join(_OBJS, "addon", "meta", "xmeta_carrier.o"),
     os.path.join(_OBJS, "addon", "compat", "crc32c.o"),
+    # crc32c.c was split; the SSE4.2 hw path moved to crc32c_hw.o — link it too
+    # or the standalone link fails on brix_crc32c_sse42_available/_hw_extend refs.
+    os.path.join(_OBJS, "addon", "compat", "crc32c_hw.o"),
 ]
 _CC = os.environ.get("CC", "cc")
 
@@ -62,6 +65,7 @@ pytestmark = [
         reason="nginx binary or built cinfo.o not present",
     ),
     pytest.mark.uses_lifecycle_harness,
+    pytest.mark.xdist_group("lc-cache-reap-metrics"),
 ]
 
 # A tiny C helper that drives the real cinfo write-back API against a cache path.
@@ -89,18 +93,11 @@ int main(int argc, char **argv) {
 }
 """
 
-def _free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
 
 def _brix_handshake(port):
     """Open + handshake a root:// connection so the server marks its metrics slot
     in_use (a metric row is only exported for an in_use server)."""
-    s = socket.create_connection(("127.0.0.1", port), timeout=5)
+    s = socket.create_connection((BIND_HOST, port), timeout=5)
     # ClientInitHandShake: five big-endian int32 — 0,0,0,4,2012.
     s.sendall(struct.pack(">5i", 0, 0, 0, 4, 2012))
     try:
@@ -122,7 +119,7 @@ def _reaped_by_reason(metrics_text):
 
 def _scrape(port):
     import urllib.request
-    with urllib.request.urlopen("http://127.0.0.1:%d/metrics" % port,
+    with urllib.request.urlopen("http://%s:%d/metrics" % (BIND_HOST, port),
                                 timeout=5) as resp:
         return resp.read().decode("utf-8", "replace")
 
@@ -179,15 +176,14 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
         assert _has_cinfo_record(f), "planted cinfo record missing for " + f
 
     # 3. Stand up nginx (stream cache reaper + HTTP /metrics).
-    mport = _free_port()
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-cache-reap-metrics",
         template="nginx_lc_cache_reap_metrics.conf",
         protocol="root",
-        extra_ports={"METRICS_PORT": mport},
         template_values={"BIND_HOST": BIND_HOST,
                          "ROOT_DIR": str(root), "STATE_DIR": str(state)},
         reason="cache stale-dirty reaper per-reason metrics"))
+    mport = ep.extra_ports["METRICS_PORT"]
     sport = ep.port
 
     # Mark the stream server's metrics slot in_use so the rows export.

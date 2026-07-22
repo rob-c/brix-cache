@@ -29,6 +29,7 @@ import time
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST, HOST
 
 # --- Layout ------------------------------------------------------------------
 
@@ -85,13 +86,13 @@ def _chmod(argv):
 def free_port():
     """An ephemeral TCP port currently free on loopback."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     port = s.getsockname()[1]
     s.close()
     return port
 
 
-def port_up(port, host="127.0.0.1"):
+def port_up(port, host=HOST):
     """True if something accepts a TCP connection on host:port right now."""
     try:
         with socket.create_connection((host, port), timeout=1):
@@ -401,7 +402,7 @@ class XrootdGsi:
 
     def _wait_gsi_ready(self, timeout=20.0):
         deadline = time.monotonic() + timeout
-        url = f"root://127.0.0.1:{self.port}/"
+        url = f"root://{HOST}:{self.port}/"
         last = ""
         while time.monotonic() < deadline:
             r = subprocess.run([XRDFS, url, "ls", "/"], env=gsi_env(),
@@ -505,7 +506,7 @@ class XrootdAnon:
             time.sleep(1.0)
             return
         deadline = time.monotonic() + timeout
-        url = f"root://127.0.0.1:{self.port}/"
+        url = f"root://{HOST}:{self.port}/"
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
         while time.monotonic() < deadline:
@@ -540,7 +541,7 @@ class FaultProxy:
     to `jitter <ms>` (per-chunk uniform-random 0..ms delay — the faithful app-layer
     signature of out-of-order packet delivery on a TCP stream)."""
 
-    def __init__(self, target_port, target_host="127.0.0.1"):
+    def __init__(self, target_port, target_host=HOST):
         self.target_host = target_host
         self.target_port = target_port
         self.listen = free_port()
@@ -562,7 +563,7 @@ class FaultProxy:
     def ctl(self, cmd):
         # `status` returns a multi-lever + counters line (hundreds of bytes); read
         # generously so counter assertions never see a truncated reply.
-        with socket.create_connection(("127.0.0.1", self.control), timeout=3) as s:
+        with socket.create_connection((HOST, self.control), timeout=3) as s:
             s.sendall((cmd + "\n").encode())
             return s.recv(4096).decode(errors="replace").strip()
 
@@ -610,7 +611,7 @@ class FaultProxy:
                 if nbytes > 0 else self.ctl("clear"))
 
     def url(self, path="/"):
-        return f"root://127.0.0.1:{self.listen}/"
+        return f"root://{HOST}:{self.listen}/"
 
     def __exit__(self, *exc):
         if self.proc and self.proc.poll() is None:

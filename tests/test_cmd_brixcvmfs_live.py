@@ -10,6 +10,8 @@ import pytest
 
 from cmdscripts import brixcvmfs_live
 
+pytestmark = pytest.mark.xdist_group("cmd-brixcvmfs_live")
+
 
 def test_brixcvmfs_live_scenarios_are_importable():
     assert set(brixcvmfs_live.SCENARIOS) == {

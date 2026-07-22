@@ -30,7 +30,7 @@ def main() -> int:
     serve_dir, port, cert, key = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
     os.chdir(serve_dir)
 
-    httpd = http.server.HTTPServer(("127.0.0.1", port),
+    httpd = http.server.HTTPServer(("127.0.0.1", port),  # net-literal-allow: standalone-spawned helper server (no tests/ on sys.path); loopback bind
                                    http.server.SimpleHTTPRequestHandler)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(cert, key)

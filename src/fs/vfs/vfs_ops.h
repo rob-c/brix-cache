@@ -97,6 +97,9 @@ int brix_vfs_unlink_at(int rootfd, const char *logical, int is_dir);
 /* Confined unlink of a regular file. 0 / -1 with errno set. */
 int brix_vfs_unlink_path(ngx_log_t *log, const char *root_canon,
     const char *logical);
+/* Confined rmdir of a single (empty) directory. 0 / -1 with errno set. */
+int brix_vfs_rmdir_path(ngx_log_t *log, const char *root_canon,
+    const char *logical);
 /* Confined mkdir of a single directory (mode). 0 / -1 with errno set (EEXIST if
  * it already exists — caller decides whether that is benign). */
 /* Recursively create `logical` (export-relative) + missing parents through a

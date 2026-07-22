@@ -31,11 +31,13 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, SERVER_HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, SERVER_HOST, BIND_HOST
+from ephemeral_port import free_port
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-dropin-front")]
 
 REF_XROOTD_BIN = os.environ.get(
     "TEST_REF_BIN",

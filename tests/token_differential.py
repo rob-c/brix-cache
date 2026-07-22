@@ -19,7 +19,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from tokenforge import TokenForge
 from lib.tokenconf import root_ztn, ensure_conformance_data
-from settings import NGINX_TOKEN_PORT, TOKENS_DIR
+from settings import NGINX_TOKEN_PORT, SERVER_HOST, TOKENS_DIR
 
 FINDINGS = os.path.join(
     os.path.dirname(__file__), "..", "docs", "10-reference",
@@ -44,7 +44,7 @@ def _mint(forge, recipe):
     return getattr(forge, method)(*args)
 
 
-def run(stock_port=None, stock_host="localhost"):
+def run(stock_port=None, stock_host=SERVER_HOST):
     ensure_conformance_data()
     forge = TokenForge(TOKENS_DIR)
     rows = []

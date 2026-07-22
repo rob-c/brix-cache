@@ -46,6 +46,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import HOST
 
 REPO_XRDCP = os.path.join(servers.CLIENT_BIN, "xrdcp")
 OFFICIAL_XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"
@@ -77,10 +78,10 @@ def client_env(name, max_stall_ms, repo_backoff_ms):
 
 
 def copy_once(client_bin, env, port, want_md5, expect_bytes, timeout):
-    """One `xrdcp root://127.0.0.1:<port>//path <tmp>` download through the proxy.
+    """One `xrdcp root://{HOST}:<port>//path <tmp>` download through the proxy.
     Returns (ok, secs, reason). ok = rc 0 AND byte-exact (size + md5)."""
     dst = tempfile.mktemp(suffix=".bin", dir=os.environ.get("TMPDIR", "/tmp"))
-    url = f"root://127.0.0.1:{port}/{FILE_PATH}"  # //loss/big.bin
+    url = f"root://{HOST}:{port}/{FILE_PATH}"  # //loss/big.bin
     argv = [client_bin, "-f", "-s", url, dst]
     start = time.monotonic()
     try:

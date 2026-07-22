@@ -153,6 +153,7 @@ def run_cred_mint(base: Path) -> list[tuple[bool, str]]:
     obj = find_obj("cred_mint.o")
     if obj is None:
         return [result(True, "SKIP build cred_mint.o first")]
+    siblings = [str(s) for s in (find_obj("cred_mint_cert.o"),) if s]
     ok, message = compile_and_run(
         base / "test_cred_mint",
         [
@@ -170,6 +171,7 @@ def run_cred_mint(base: Path) -> list[tuple[bool, str]]:
             str(OBJS),
             "tests/c/test_cred_mint.c",
             str(obj),
+            *siblings,
             "-lcrypto",
         ],
     )
@@ -185,6 +187,7 @@ def run_ucred(base: Path) -> list[tuple[bool, str]]:
     obj = find_obj("ucred.o")
     if obj is None:
         return [result(True, "SKIP build ucred.o first")]
+    siblings = [str(s) for s in (find_obj("ucred_parse.o"),) if s]
     ok, message = compile_and_run(
         base / "test_ucred",
         [
@@ -202,6 +205,7 @@ def run_ucred(base: Path) -> list[tuple[bool, str]]:
             str(OBJS),
             "tests/c/test_ucred.c",
             str(obj),
+            *siblings,
             "-lcrypto",
         ],
     )

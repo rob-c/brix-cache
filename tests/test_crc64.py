@@ -25,10 +25,11 @@ import urllib.request
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from settings import HOST, BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-crc64")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCRC64 = os.path.join(REPO, "client", "bin", "xrdcrc64")
@@ -80,7 +81,6 @@ def srv(lifecycle, tmp_path):
         template="nginx_lc_crc64.conf",
         protocol="root",
         template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
-        extra_ports={"S3_PORT": free_port(HOST), "WEBDAV_PORT": free_port(HOST)},
         reason="cross-protocol crc64: S3 + WebDAV + root against a shared anon "
                "POSIX backend"))
     s3_port = ep.extra_ports["S3_PORT"]

@@ -27,7 +27,7 @@ import time
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -40,7 +40,8 @@ from test_pgwrite_cse import (
 )
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(120),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-readonly-wire")]
 
 kXR_open, kXR_read = 3010, 3013
 kXR_mkdir, kXR_mv, kXR_truncate = 3008, 3009, 3028
@@ -53,14 +54,6 @@ kXR_Unsupported = 3013       # ENOTSUP
 
 S3_AK = "AKIDREADONLYWIRE01"
 S3_SK = "cmVhZC1vbmx5LWJhY2tlbmQtd2lyZS1zZWNyZXQtdGVzdA"
-
-
-def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
 
 
 def _port_up(host, port):
@@ -82,20 +75,20 @@ def node(tmp_path_factory):
     (s3_dir / "testbucket").mkdir()
     seed = os.urandom(4096)
     (s3_dir / "seeded.bin").write_bytes(seed)
-    s3_port = _free_port()
-
     harness = LifecycleHarness()
     endpoint = harness.start(NginxInstanceSpec(
         name="root-s3-readonly-wire",
         template="nginx_root_s3_staged.conf",
         protocol="root",
         readiness="tcp",
-        extra_ports={"S3_PORT": s3_port},
         template_values={"BIND_HOST": BIND_HOST,
                          "S3_DIR": str(s3_dir),
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
     ))
+    # S3_PORT is a second embedded listen owned by the lifecycle ledger
+    # (fleet_lifecycle_ports.root-s3-readonly-wire); read it back post-start.
+    s3_port = endpoint.extra_ports["S3_PORT"]
     for _ in range(50):
         if _port_up(HOST, s3_port):
             break
@@ -106,7 +99,7 @@ def node(tmp_path_factory):
 
 
 def _login(node):
-    return _handshake_login(host="localhost", port=node["port"])
+    return _handshake_login(host=SERVER_HOST, port=node["port"])
 
 
 def _errcode(status, body):

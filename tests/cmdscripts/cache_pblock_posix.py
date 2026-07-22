@@ -9,7 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
@@ -40,7 +41,7 @@ def write_origin_config(prefix: Path, port: int) -> Path:
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_storage_backend posix:{root};
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_storage_backend posix:{root};
     brix_auth none; brix_allow_write on; brix_upload_resume off; }} }}
 """,
         encoding="utf-8",
@@ -63,7 +64,7 @@ events {{ worker_connections 64; }}
 thread_pool default threads=2;
 stream {{
     server {{
-        listen 127.0.0.1:{write_port};
+        listen {BIND_HOST}:{write_port};
         brix_root on;
         brix_auth none;
         brix_allow_write on;
@@ -72,15 +73,15 @@ stream {{
         brix_pblock_block_size 1m;
         brix_write_through on;
         brix_wt_mode sync;
-        brix_wt_origin 127.0.0.1:{origin_port};
+        brix_wt_origin {HOST}:{origin_port};
         brix_cache_wt_stage_root {stage};
     }}
     server {{
-        listen 127.0.0.1:{read_port};
+        listen {BIND_HOST}:{read_port};
         brix_root on;
         brix_auth none;
         brix_export {read_root};
-        brix_storage_backend root://127.0.0.1:{origin_port};
+        brix_storage_backend root://{HOST}:{origin_port};
         brix_cache_store posix:{cache};
         brix_cache_export /;
     }}
@@ -94,7 +95,7 @@ stream {{
 def xrdfs_cat(port: int, path: str, dest: Path, xrdfs: Path = XRDFS) -> subprocess.CompletedProcess:
     with dest.open("wb") as out:
         return subprocess.run(
-            [str(xrdfs), f"root://127.0.0.1:{port}", "cat", path],
+            [str(xrdfs), f"root://{HOST}:{port}", "cat", path],
             stdout=out,
             stderr=subprocess.PIPE,
         )
@@ -106,7 +107,7 @@ def run_checks(
     xrdcp: Path = XRDCP,
     xrdfs: Path = XRDFS,
 ) -> list[tuple[bool, str]]:
-    origin_port, write_port, read_port = free_ports(3)
+    origin_port, write_port, read_port = cmdscript_ports("cache_pblock_posix")
     origin = base / "o"
     node = base / "n"
     origin_conf = write_origin_config(origin, origin_port)
@@ -127,7 +128,7 @@ def run_checks(
 
         write_payload = base / "cpp_w.bin"
         write_payload.write_bytes(deterministic_bytes(2_621_440, 67))
-        put = run([str(xrdcp), "-f", str(write_payload), f"root://127.0.0.1:{write_port}//w.bin"])
+        put = run([str(xrdcp), "-f", str(write_payload), f"root://{HOST}:{write_port}//w.bin"])
         results.append((put.returncode == 0, "PUT to pblock primary"))
         time.sleep(1)
 

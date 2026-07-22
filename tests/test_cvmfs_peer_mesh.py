@@ -31,6 +31,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 
@@ -78,13 +79,13 @@ def mesh():
         assert peer.nginx_port == peer_port, "port-block allocation drifted"
         main = stack.enter_context(srv_instance(
             block, webroot=root,
-            extra_directives=(f"brix_cache_peers self=127.0.0.1:{main_port} "
-                              f"127.0.0.1:{peer_port};")))
+            extra_directives=(f"brix_cache_peers self={HOST}:{main_port} "
+                              f"{HOST}:{peer_port};")))
         assert main.nginx_port == main_port, "port-block allocation drifted"
 
         m = Mesh()
         m.webroot, m.main, m.peer, m.block = root, main, peer, block
-        m.labels = [f"127.0.0.1:{main_port}", f"127.0.0.1:{peer_port}"]
+        m.labels = [f"{HOST}:{main_port}", f"{HOST}:{peer_port}"]
 
         # Layout probe on the PEER: fill one object and learn where its hot
         # cache stores it, so the tamper test can corrupt a cached blob.
@@ -105,7 +106,7 @@ def mesh():
 # ---- local helpers (file-local by mandate: shared infra is frozen) ---------
 
 def GET(s, path):
-    return request("127.0.0.1", s.nginx_port, "GET", path)
+    return request(HOST, s.nginx_port, "GET", path)
 
 
 def put_obj(m, body):
@@ -216,9 +217,9 @@ def test_dead_sibling_falls_back_to_origin(mesh):
     dead = block.base + 9          # inside this session's tile, never listened
     with srv_instance(block, webroot=mesh.webroot,
                       extra_directives=("brix_cache_peers "
-                                        "self=127.0.0.1:{0} 127.0.0.1:{1};"
-                                        .format(block.base + 12, dead))) as solo:
-        labels = [f"127.0.0.1:{solo.nginx_port}", f"127.0.0.1:{dead}"]
+                                        "self={h}:{0} {h}:{1};"
+                                        .format(block.base + 12, dead, h=HOST))) as solo:
+        labels = [f"{HOST}:{solo.nginx_port}", f"{HOST}:{dead}"]
         assert solo.nginx_port == block.base + 12, "port-block allocation drifted"
         # a key owned by the dead member
         for i in range(4096):
@@ -246,9 +247,9 @@ def _nginx_t(tmp_path, directives: str) -> str:
     conf = tmp_path / "nginx.conf"
     conf.write_text(f"""daemon off; error_log {logs}/e.log info; pid {tmp_path}/nginx.pid;
 events {{ worker_connections 64; }}
-http {{ server {{ listen 127.0.0.1:1;
+http {{ server {{ listen {BIND_HOST}:1;
     location /cvmfs/ {{ brix_cvmfs on;
-        brix_storage_backend "http://127.0.0.1:1";
+        brix_storage_backend "http://{HOST}:1";
         {directives}
     }}
 }} }}
@@ -261,7 +262,7 @@ http {{ server {{ listen 127.0.0.1:1;
 
 def test_peers_without_cache_store_refused(tmp_path):
     out = _nginx_t(tmp_path,
-                   "brix_cache_peers self=127.0.0.1:1 127.0.0.1:2;")
+                   f"brix_cache_peers self={HOST}:1 {HOST}:2;")
     assert "requires brix_cache_store" in out
 
 
@@ -269,7 +270,7 @@ def test_peers_without_self_refused(tmp_path):
     (tmp_path / "cache").mkdir()
     out = _nginx_t(tmp_path,
                    f"brix_cache_store posix:{tmp_path}/cache;\n"
-                   "        brix_cache_peers 127.0.0.1:1 127.0.0.1:2;")
+                   f"        brix_cache_peers {HOST}:1 {HOST}:2;")
     assert "self=host:port" in out
 
 
@@ -277,5 +278,5 @@ def test_single_member_ring_refused(tmp_path):
     (tmp_path / "cache").mkdir()
     out = _nginx_t(tmp_path,
                    f"brix_cache_store posix:{tmp_path}/cache;\n"
-                   "        brix_cache_peers self=127.0.0.1:1;")
+                   f"        brix_cache_peers self={HOST}:1;")
     assert "at least 2 ring members" in out

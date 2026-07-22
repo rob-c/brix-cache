@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_port
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
+
+_PORTS = cmdscript_ports("cache_watermark_config")
 
 
 def write_cache_config(base: Path, high: str, low: str = "", extra: str = "") -> Path:
@@ -18,8 +21,8 @@ def write_cache_config(base: Path, high: str, low: str = "", extra: str = "") ->
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{free_port()}; brix_root on; brix_auth none;
-    brix_storage_backend root://127.0.0.1:1;
+    listen {BIND_HOST}:{_PORTS[0]}; brix_root on; brix_auth none;
+    brix_storage_backend root://{HOST}:1;
     brix_cache on; brix_cache_export {base / 'cache'}; {extra}
     {high} {low}
 }} }}
@@ -38,9 +41,9 @@ def write_stage_config(base: Path, directives: str) -> Path:
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{free_port()}; brix_root on; brix_auth none;
+    listen {BIND_HOST}:{_PORTS[1]}; brix_root on; brix_auth none;
     brix_storage_backend posix:{base / 'root'};
-    brix_allow_write on; brix_write_through on; brix_wt_origin 127.0.0.1:1;
+    brix_allow_write on; brix_write_through on; brix_wt_origin {HOST}:1;
     {directives}
 }} }}
 """,

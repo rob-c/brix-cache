@@ -24,10 +24,11 @@ Run:
 import pytest
 
 from cmdscripts.delegation_twostep import curl, ensure_pki, key_for_dn, mint_certs
-from settings import CA_CERT, SERVER_CERT, SERVER_KEY
+from settings import CA_CERT, HOST, SERVER_CERT, SERVER_KEY
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-delegcred")]
 
 
 @pytest.fixture(scope="module")
@@ -63,7 +64,7 @@ def _spec(name, cred_dir):
 
 
 def _fetch(ep, cert, key, out):
-    code, _err = curl(f"https://127.0.0.1:{ep.port}/", cert, key, output=out)
+    code, _err = curl(f"https://{HOST}:{ep.port}/", cert, key, output=out)
     body = out.read_text(encoding="utf-8") if out.exists() else ""
     return code, body
 

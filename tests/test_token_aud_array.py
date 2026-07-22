@@ -35,7 +35,8 @@ except Exception:                                # pragma: no cover
 from settings import NGINX_BIN, HOST, BIND_HOST                    # noqa: E402
 from server_registry import NginxInstanceSpec                      # noqa: E402
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-token-aud-array")]
 
 AUDIENCE = "nginx-xrootd"
 PORT = None                              # bound by the aud_server fixture

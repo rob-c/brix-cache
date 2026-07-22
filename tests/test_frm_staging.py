@@ -45,13 +45,12 @@ import time
 import pytest
 
 from cmdscripts import frm_stagecmd
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
-pytestmark = pytest.mark.uses_lifecycle_harness
-
-PORT = int(os.environ.get("TEST_FRM_STAGING_PORT") or free_port())
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-staging")]
 
 kXR_login   = 3007
 kXR_stat    = 3017

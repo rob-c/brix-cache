@@ -16,7 +16,10 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
-from settings import free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST
+
+_PORTS = cmdscript_ports("cachestore_live")
 
 CLIENT_REQUIREMENTS = {
     "cache-xroot-webdav-offload": (),
@@ -47,7 +50,7 @@ def cache_xroot_webdav_offload(nginx: Path | None = None) -> int:
     """The HTTP read plane fills a cache MISS from a remote root:// source on
     a worker thread: cold GET byte-exact + 'offloaded cache fill' logged,
     warm GET a local cache hit, multi-chunk cold GET byte-exact."""
-    oport, bport = free_ports(2)
+    oport, bport = _PORTS[0:2]  # was free_ports(2)
     with LiveRun("cache_xrdav", nginx) as run:
         origin, node = run.mkdir("o"), run.mkdir("b")
         for directory, names in ((origin, ("root", "logs")), (node, ("export", "cache", "tmp", "logs"))):
@@ -55,7 +58,7 @@ def cache_xroot_webdav_offload(nginx: Path | None = None) -> int:
                 (directory / name).mkdir(exist_ok=True)
         origin_conf = run.write(origin / "nginx.conf", f"""daemon on; error_log {origin}/logs/e.log info; pid {origin}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{oport}; brix_root on; brix_export {origin}/root; brix_auth none; }} }}
+stream {{ server {{ listen {BIND_HOST}:{oport}; brix_root on; brix_export {origin}/root; brix_auth none; }} }}
 """)
         node_conf = run.write(node / "nginx.conf", f"""daemon on; error_log {node}/logs/e.log info; pid {node}/nginx.pid;
 thread_pool default threads=2;
@@ -63,12 +66,12 @@ events {{ worker_connections 64; }}
 http {{
     client_body_temp_path {node}/tmp;
     server {{
-        listen 127.0.0.1:{bport};
+        listen {BIND_HOST}:{bport};
         location / {{
             brix_webdav on;
             brix_export {node}/export;
             brix_webdav_auth none;
-            brix_storage_backend root://127.0.0.1:{oport};
+            brix_storage_backend root://{HOST}:{oport};
             brix_cache_store posix:{node}/cache;
         }}
     }}
@@ -81,7 +84,7 @@ http {{
         run.start_nginx(origin, origin_conf, oport)
         run.start_nginx(node, node_conf, bport)
         time.sleep(1)
-        url = f"http://127.0.0.1:{bport}"
+        url = f"http://{HOST}:{bport}"
 
         cold = run.root / "cold.got"
         cold_status = int(run.call(["curl", "-sS", "--max-time", "25", "-o", cold, "-w", "%{http_code}", f"{url}/small.bin"], check=False).stdout.strip() or 0)
@@ -109,7 +112,7 @@ def xroot_cachestore_serve(nginx: Path | None = None) -> int:
     """A REMOTE root:// cache_store served over WebDAV: the whole cache open
     runs off-loop; cold GET fills the store + serves byte-exact, warm GET
     serves from the store with the posix source hidden."""
-    sport, bport = free_ports(2)
+    sport, bport = _PORTS[2:4]  # was free_ports(2)
     with LiveRun("xrcs", nginx) as run:
         store, node = run.mkdir("s"), run.mkdir("b")
         for directory, names in ((store, ("root", "logs")), (node, ("backend", "tmp", "logs"))):
@@ -117,21 +120,21 @@ def xroot_cachestore_serve(nginx: Path | None = None) -> int:
                 (directory / name).mkdir(exist_ok=True)
         store_conf = run.write(store / "nginx.conf", f"""daemon on; error_log {store}/logs/e.log info; pid {store}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{sport}; brix_root on; brix_export {store}/root; brix_auth none; brix_allow_write on; }} }}
+stream {{ server {{ listen {BIND_HOST}:{sport}; brix_root on; brix_export {store}/root; brix_auth none; brix_allow_write on; }} }}
 """)
         node_conf = run.write(node / "nginx.conf", f"""daemon on; error_log {node}/logs/e.log info; pid {node}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {node}/tmp; server {{ listen 127.0.0.1:{bport};
+http {{ client_body_temp_path {node}/tmp; server {{ listen {BIND_HOST}:{bport};
   location / {{ brix_webdav on; brix_export {node}/backend; brix_webdav_auth none;
-    brix_cache_store root://127.0.0.1:{sport}; }} }} }}
+    brix_cache_store root://{HOST}:{sport}; }} }} }}
 """)
         source = node / "backend/f.bin"
         digest = random_file(source, 600000)
         run.start_nginx(store, store_conf, sport)
         run.start_nginx(node, node_conf, bport)
         time.sleep(1)
-        url = f"http://127.0.0.1:{bport}/f.bin"
+        url = f"http://{HOST}:{bport}/f.bin"
 
         cold = run.root / "cold.got"
         cold_status = int(run.call(["curl", "-sS", "--max-time", "25", "-o", cold, "-w", "%{http_code}", url], check=False).stdout.strip() or 0)
@@ -169,21 +172,21 @@ def _sidecar_cell(run: LiveRun, label: str, kind: str, sport: int, bport: int,
     if kind == "s3":
         run.write(store_node / "nginx.conf", f"""daemon on; error_log {store_node}/logs/e.log info; pid {store_node}/nginx.pid;
 events {{ worker_connections 64; }}
-http {{ server {{ listen 127.0.0.1:{sport};
+http {{ server {{ listen {BIND_HOST}:{sport};
   location / {{ brix_s3 on; brix_export {store_node}/store; brix_s3_bucket xrdcache; brix_allow_write on; brix_cache_store_endpoint on; }} }} }}
 """)
-        store_url = f"s3://127.0.0.1:{sport}/xrdcache"
+        store_url = f"s3://{HOST}:{sport}/xrdcache"
     else:
         run.write(store_node / "nginx.conf", f"""daemon on; error_log {store_node}/logs/e.log info; pid {store_node}/nginx.pid;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {store_node}/tmp; server {{ listen 127.0.0.1:{sport};
+http {{ client_body_temp_path {store_node}/tmp; server {{ listen {BIND_HOST}:{sport};
   location / {{ dav_methods PUT DELETE; brix_webdav on; brix_export {store_node}/store; brix_webdav_auth none; brix_allow_write on; brix_cache_store_endpoint on; }} }} }}
 """)
-        store_url = f"http://127.0.0.1:{sport}"
+        store_url = f"http://{HOST}:{sport}"
     node_conf = run.write(node / "nginx.conf", f"""daemon on; error_log {node}/logs/e.log info; pid {node}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {node}/tmp; server {{ listen 127.0.0.1:{bport};
+http {{ client_body_temp_path {node}/tmp; server {{ listen {BIND_HOST}:{bport};
   location / {{ brix_webdav on; brix_export {node}/backend; brix_webdav_auth none;
     brix_cache_store {store_url}; }} }} }}
 """)
@@ -200,7 +203,7 @@ http {{ client_body_temp_path {node}/tmp; server {{ listen 127.0.0.1:{bport};
         checks.append((False, f"{label} node failed: {exc}"))
         return
     time.sleep(1)
-    url = f"http://127.0.0.1:{bport}/f.bin"
+    url = f"http://{HOST}:{bport}/f.bin"
 
     cold = run.root / f"{label}_cold.got"
     cold_status = int(run.call(["curl", "-sS", "--max-time", "25", "-o", cold, "-w", "%{http_code}", url], check=False).stdout.strip() or 0)
@@ -243,7 +246,7 @@ def cachestore_sidecar(nginx: Path | None = None) -> int:
     """http/s3 as a cache_store via SIDECAR cinfo: a cold GET fills the store
     + writes '<key>.cinfo'; after a node restart with the source hidden, the
     sidecar is loaded and the object serves from the store (G3)."""
-    s3_sport, s3_bport, http_sport, http_bport = free_ports(4)
+    s3_sport, s3_bport, http_sport, http_bport = _PORTS[4:8]  # was free_ports(4)
     with LiveRun("cssc", nginx) as run:
         checks: list[tuple[bool, str]] = []
         _sidecar_cell(run, "s3", "s3", s3_sport, s3_bport, checks)

@@ -27,7 +27,8 @@ from typing import Iterator, NamedTuple
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from lib_py.util import wait_tcp
-from settings import CA_CERT, CA_DIR, CA_KEY, SERVER_CERT, SERVER_KEY, free_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
+from ephemeral_port import free_ports
 
 BRIX_XRDCP = REPO_ROOT / "client/bin/xrdcp"
 BRIX_XRDFS = REPO_ROOT / "client/bin/xrdfs"
@@ -96,7 +97,7 @@ class ForwardHarness:
         self.any_fail = 0
         self.last_log: Path | None = None
         self.oidc_port = free_ports(1)[0]
-        self.tok_issuer = f"https://localhost:{self.oidc_port}"
+        self.tok_issuer = f"https://localhost:{self.oidc_port}"  # net-literal-allow: cert-CN-bound issuer host
         self.tok_jwks: Path | None = None
         self.token_a: Path | None = None
         self.token_b: Path | None = None
@@ -292,7 +293,7 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {d}/export;
         brix_allow_write on;
@@ -305,7 +306,7 @@ stream {{
 """)
         elif proto in ("davs", "http"):
             if proto == "davs":
-                ssl = f"""listen 127.0.0.1:{port} ssl;
+                ssl = f"""listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -313,7 +314,7 @@ stream {{
         ssl_verify_depth 10;
         brix_webdav_proxy_certs on;"""
             else:
-                ssl = f"listen 127.0.0.1:{port};"
+                ssl = f"listen {BIND_HOST}:{port};"
             conf = self.run.write(d / "nginx.conf", f"""daemon on;
 error_log {log} info;
 pid {d}/nginx.pid;
@@ -399,7 +400,7 @@ default_user = fwduser
         pidfile.write_text(str(proc.pid))
         self.node_pidfiles.append(pidfile)
         self.last_log = log
-        wait_tcp("127.0.0.1", port, 6)
+        wait_tcp(HOST, port, 6)
         time.sleep(0.4)
         return True
 
@@ -533,7 +534,7 @@ pss.setopt DebugLevel 0
         back.unlink(missing_ok=True)
         put_ok, deny_obs = False, ""
         if hop1 == "root":
-            url = f"root://127.0.0.1:{port}/{obj}"
+            url = f"root://{HOST}:{port}/{obj}"
             if cred == "gsi":
                 env = self.gsi_env(self.proxy_a if who == "A" else self.proxy_b)
             else:
@@ -544,7 +545,7 @@ pss.setopt DebugLevel 0
                 deny_obs = "1"
             _call([BRIX_XRDCP, "-f", url, back], env_add=env, timeout=60)
         else:
-            url = f"https://127.0.0.1:{port}/{obj}"
+            url = f"https://{HOST}:{port}/{obj}"
             if cred == "gsi":
                 px = self.proxy_a if who == "A" else self.proxy_b
                 auth = ["--cert", str(px), "--key", str(px)]
@@ -563,12 +564,12 @@ pss.setopt DebugLevel 0
     def install_gsi_cred(self, cred_dir: Path, front_log: Path, hop1: str, port: int) -> None:
         """Learn the front's derived credential stem via a probe, install A's proxy."""
         if hop1 == "root":
-            _call([BRIX_XRDCP, "-f", "/dev/null", f"root://127.0.0.1:{port}//_probe_key.bin"],
+            _call([BRIX_XRDCP, "-f", "/dev/null", f"root://{HOST}:{port}//_probe_key.bin"],
                   env_add=self.gsi_env(self.proxy_a), timeout=30)
         else:
             _call(["curl", "-sk", "--cert", str(self.proxy_a), "--key", str(self.proxy_a),
                    "-o", os.devnull, "-T", str(self.proxy_a),
-                   f"https://127.0.0.1:{port}/_probe_key.bin"], timeout=30)
+                   f"https://{HOST}:{port}/_probe_key.bin"], timeout=30)
         time.sleep(0.3)
         stem = ""
         if front_log.is_file():
@@ -687,7 +688,7 @@ stream {{
     brix_credential origin {{ x509_proxy {h.svc_proxy}; ca_dir {CA_DIR}; }}
     brix_credential origin_ca {{ ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{fport};
+        listen {BIND_HOST}:{fport};
         brix_root on;
         brix_export {d}/export;
         brix_allow_write on;
@@ -715,7 +716,7 @@ http {{
     brix_credential origin {{ x509_proxy {h.svc_proxy}; ca_dir {CA_DIR}; }}
     brix_credential origin_ca {{ ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{fport} ssl;
+        listen {BIND_HOST}:{fport} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -756,9 +757,9 @@ def _run_cell_c(h: ForwardHarness, wire: str, cred: str) -> None:
         return
     bport, fport = free_ports(2)
     if hop2 == "root":
-        bproto, burl = "root", f"root://127.0.0.1:{bport}"
+        bproto, burl = "root", f"root://{HOST}:{bport}"
     else:
-        bproto, burl = "davs", f"https://127.0.0.1:{bport}"
+        bproto, burl = "davs", f"https://{HOST}:{bport}"
     fproto = "root" if hop1 == "root" else "davs"
 
     blog = h.spawn_brix_node(f"cbk_{wire}_{cred}", bproto, bport, "", _c_backend_extra(h, bproto, cred))
@@ -853,7 +854,7 @@ events {{ worker_connections 64; }}
 stream {{
     {svc_block}
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {d}/export;
         brix_allow_write on;
@@ -884,7 +885,7 @@ http {{
     client_body_temp_path {d}/export;
     brix_credential origin {{ x509_proxy {h.svc_proxy}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port} ssl;
+        listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -925,16 +926,16 @@ def _run_cell_a(h: ForwardHarness, wire: str, cred: str) -> None:
         if blog is None:
             h.record(key, "FAIL", "stock token origin start failed")
             return
-        burl = f"roots://127.0.0.1:{oport}"
+        burl = f"roots://{HOST}:{oport}"
     elif hop2 == "https":
         blog = h.spawn_xrootd_node(f"obk_{wire}_{cred}", "xrdhttp", oport, "", "gsi")
         if blog is None:
             h.record(key, "FAIL", "stock XrdHttp origin start failed")
             return
-        burl = f"https://127.0.0.1:{oport}"
+        burl = f"https://{HOST}:{oport}"
     else:
         blog = h.spawn_xrootd_node(f"obk_{wire}_{cred}", "origin", oport, "", "gsi")
-        burl = f"root://127.0.0.1:{oport}"
+        burl = f"root://{HOST}:{oport}"
 
     cred_dir = h.run.mkdir(f"creds_{wire}_{cred}")
     cred_dir.chmod(0o777)
@@ -1060,7 +1061,7 @@ def _run_cell_b(h: ForwardHarness, wire: str, cred: str) -> None:
         h.record(key, "FAIL", "brix backend start failed")
         return
     bexport = h.prefix / f"bbk_{wire}_{cred}/export"
-    h.spawn_xrootd_node(f"bfront_{wire}_{cred}", "pss", fport, f"127.0.0.1:{bport}", cred)
+    h.spawn_xrootd_node(f"bfront_{wire}_{cred}", "pss", fport, f"{HOST}:{bport}", cred)
 
     blog.write_text("")
     payload = h.prefix / "payloadB_A.bin"
@@ -1069,7 +1070,7 @@ def _run_cell_b(h: ForwardHarness, wire: str, cred: str) -> None:
         env = h.gsi_env(h.proxy_a)
     else:
         env = {"BEARER_TOKEN": h.token_a.read_text().strip()}
-    _call([SYS_XRDCP, "-f", payload, f"root://127.0.0.1:{fport}//posB_{wire}.bin"],
+    _call([SYS_XRDCP, "-f", payload, f"root://{HOST}:{fport}//posB_{wire}.bin"],
           env_add=env, timeout=60)
     time.sleep(0.5)
 
@@ -1187,9 +1188,9 @@ def _probe_variant(h: ForwardHarness, variant: str, probe_results: list[tuple[st
         rec("SKIP", "brix token backend failed to start")
         return
     bexport = h.prefix / f"bbk_tok_{variant}/export"
-    front_log = _probe_spawn_front(h, f"sf_{variant}", variant, fport, f"127.0.0.1:{bport}")
+    front_log = _probe_spawn_front(h, f"sf_{variant}", variant, fport, f"{HOST}:{bport}")
 
-    if not wait_tcp("127.0.0.1", fport, 2):
+    if not wait_tcp(HOST, fport, 2):
         why = ";".join(_grep_tail(front_log, r"Config|error|persona|unsupported|unable", 3))
         rec("BLOCKED", f"front did not listen: {why or f'see {front_log}'}")
         return
@@ -1202,7 +1203,7 @@ def _probe_variant(h: ForwardHarness, variant: str, probe_results: list[tuple[st
            "XRD_CONNECTIONWINDOW": "8", "XRD_CONNECTIONRETRY": "1",
            "XRD_REQUESTTIMEOUT": "12", "XRD_STREAMTIMEOUT": "12",
            "XRD_TIMEOUTRESOLUTION": "1"}
-    _call([SYS_XRDCP, "-f", payload, f"roots://127.0.0.1:{fport}//probe_{variant}.bin"],
+    _call([SYS_XRDCP, "-f", payload, f"roots://{HOST}:{fport}//probe_{variant}.bin"],
           env_add=env, timeout=40)
     time.sleep(0.8)
 
@@ -1271,13 +1272,13 @@ def transparent_relay(nginx: Path | None = None) -> int:
         (relay / "logs").mkdir()
         origin_conf = run.write(origin / "nginx.conf", f"""daemon on; error_log {origin}/logs/e.log info; pid {origin}/pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{origin_port}; brix_root on; brix_export {origin}/root; brix_auth none; }} }}
+stream {{ server {{ listen {BIND_HOST}:{origin_port}; brix_root on; brix_export {origin}/root; brix_auth none; }} }}
 """)
         relay_conf = run.write(relay / "nginx.conf", f"""daemon on; error_log {relay}/logs/e.log info; pid {relay}/pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{relay_port}; brix_root on;
-    brix_transparent_proxy 127.0.0.1:{origin_port};
+    listen {BIND_HOST}:{relay_port}; brix_root on;
+    brix_transparent_proxy {HOST}:{origin_port};
 }} }}
 """)
         # Root harness: these configs pin no `user`, so the always-on
@@ -1299,9 +1300,9 @@ stream {{ server {{
         payload.write_bytes(os.urandom(300000))
 
         got = run.root / "relay_a.got"
-        _call([BRIX_XRDFS, f"root://127.0.0.1:{relay_port}", "cat", "/f.bin"],
+        _call([BRIX_XRDFS, f"root://{HOST}:{relay_port}", "cat", "/f.bin"],
               stdout_to=got, timeout=60)
-        stat = _call([BRIX_XRDFS, f"root://127.0.0.1:{relay_port}", "stat", "/f.bin"], timeout=60)
+        stat = _call([BRIX_XRDFS, f"root://{HOST}:{relay_port}", "stat", "/f.bin"], timeout=60)
         time.sleep(0.5)
         relay_log = (relay / "logs/e.log").read_text(errors="replace")
         checks = [

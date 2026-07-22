@@ -51,6 +51,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
             addon("meta/xmeta_encode.o"),
             addon("meta/xmeta_carrier.o"),
             addon("compat/crc32c.o"),
+            addon("compat/crc32c_hw.o"),
         ),
         (
             "-O",
@@ -63,6 +64,7 @@ SPECS: dict[str, ObjectUnitSpec] = {
             str(addon("meta/xmeta_encode.o")),
             str(addon("meta/xmeta_carrier.o")),
             str(addon("compat/crc32c.o")),
+            str(addon("compat/crc32c_hw.o")),
         ),
     ),
     "slice": ObjectUnitSpec(

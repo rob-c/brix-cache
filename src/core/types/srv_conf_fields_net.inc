@@ -193,3 +193,16 @@
                                                XrdSecsss protocol; "" = no SSS. Set on
                                                sd_xroot's synthetic conf from the
                                                credential (sss_keytab field). */
+
+    /* ---- durable async backend-op queue (brix_backend_async) ----
+     * When enabled, backend MUTATIONS (unlink/rmdir/rename/mkdir/write-commit) are
+     * routed through the per-worker durable coalescing queue instead of running
+     * inline: the op is journalled (fsync, survives reboot), the client is PARKED,
+     * and the batch is flushed in bulk to the backend when it reaches
+     * backend_async_batch ops OR backend_async_wait ms elapse — whichever first;
+     * the client is then answered with the real backend result (it may time out
+     * waiting). Reads/stats/lists always pass through synchronously. The http-plane
+     * S3/WebDAV modules carry a parallel loc-conf triple (tier_directives.h). */
+    ngx_flag_t  backend_async;        /* [brix_backend_async on|off] */
+    ngx_uint_t  backend_async_batch;  /* [brix_backend_async_batch N] flush at N ops */
+    ngx_msec_t  backend_async_wait;   /* [brix_backend_async_wait 200ms] coalesce cap */

@@ -11,7 +11,8 @@ import time
 import requests
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 
 def deterministic_bytes(size: int, seed: int) -> bytes:
@@ -31,7 +32,7 @@ def write_s3_config(prefix: Path, port: int) -> Path:
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
-http {{ server {{ listen 127.0.0.1:{port};
+http {{ server {{ listen {BIND_HOST}:{port};
   location / {{ brix_s3 on; brix_export {root}; brix_s3_bucket xrdstage; brix_allow_write on; }} }} }}
 """,
         encoding="utf-8",
@@ -50,10 +51,10 @@ def write_webdav_config(prefix: Path, port: int, s3_port: int) -> Path:
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {tmp}; server {{ listen 127.0.0.1:{port};
+http {{ client_body_temp_path {tmp}; server {{ listen {BIND_HOST}:{port};
   location / {{ dav_methods PUT DELETE;
     brix_webdav on; brix_export {backend}; brix_webdav_auth none; brix_allow_write on;
-    brix_stage on; brix_stage_store s3://127.0.0.1:{s3_port}/xrdstage; brix_stage_flush sync; }} }} }}
+    brix_stage on; brix_stage_store s3://{HOST}:{s3_port}/xrdstage; brix_stage_flush sync; }} }} }}
 """,
         encoding="utf-8",
     )
@@ -72,7 +73,7 @@ def stop_nginx(prefix: Path) -> None:
 
 
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
-    s3_port, webdav_port = free_ports(2)
+    s3_port, webdav_port = cmdscript_ports("s3_store_writable")
     s3 = base / "a"
     webdav = base / "b"
     s3_conf = write_s3_config(s3, s3_port)
@@ -93,13 +94,13 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         time.sleep(1)
         results: list[tuple[bool, str]] = []
         direct = requests.put(
-            f"http://127.0.0.1:{s3_port}/xrdstage/ping.txt",
+            f"http://{HOST}:{s3_port}/xrdstage/ping.txt",
             data=b"hello\n",
             timeout=10,
         )
         results.append((direct.status_code in {200, 201, 204}, f"direct PUT to A ({direct.status_code})"))
 
-        put = requests.put(f"http://127.0.0.1:{webdav_port}/o.bin", data=payload, timeout=30)
+        put = requests.put(f"http://{HOST}:{webdav_port}/o.bin", data=payload, timeout=30)
         backend = webdav / "backend" / "o.bin"
         results.append((put.status_code in {200, 201, 204}, f"WebDAV PUT status={put.status_code}"))
         results.append(
@@ -109,7 +110,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
             )
         )
 
-        got = requests.get(f"http://127.0.0.1:{webdav_port}/o.bin", timeout=30)
+        got = requests.get(f"http://{HOST}:{webdav_port}/o.bin", timeout=30)
         results.append((got.status_code == 200 and sha256(got.content) == expected_sha, "GET byte-exact"))
         return results
     finally:

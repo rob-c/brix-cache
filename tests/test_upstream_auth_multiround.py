@@ -24,9 +24,10 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HOST = "127.0.0.1"
+from settings import HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-upstream-multiround")]
 
 kXR_ok, kXR_redirect, kXR_authmore = 0, 4004, 4002
 kXR_protocol, kXR_login, kXR_auth, kXR_locate = 3006, 3007, 3000, 3027

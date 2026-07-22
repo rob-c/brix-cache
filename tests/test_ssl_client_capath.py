@@ -27,11 +27,12 @@ import subprocess
 import pytest
 
 from cmdscripts.delegation_twostep import curl, ensure_pki, mint_certs
-from settings import CA_CERT, SERVER_CERT, SERVER_KEY
+from settings import CA_CERT, HOST, SERVER_CERT, SERVER_KEY
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-capath")]
 
 
 @pytest.fixture(scope="module")
@@ -105,7 +106,7 @@ def test_capath_trusts_hashed_dir(lifecycle, pki, decoy_ca, tmp_path):
     """Success: client CA lives ONLY in the hashed dir -> handshake OK, 204."""
     capath = _hashed_ca_dir(tmp_path / "igtf", pathlib.Path(CA_CERT))
     ep = lifecycle.start(_spec("lc-capath-ok", capath, decoy_ca))
-    code, _err = curl(f"https://127.0.0.1:{ep.port}/", pki["a_cert"],
+    code, _err = curl(f"https://{HOST}:{ep.port}/", pki["a_cert"],
                       pki["a_key"], output=tmp_path / "out.txt")
     assert code == "204", \
         f"client signed by a hash-dir CA must pass ssl_verify_client (got {code})"
@@ -127,7 +128,7 @@ def test_capath_without_client_ca_rejects(lifecycle, pki, decoy_ca, tmp_path):
     """Security-negative: hashed dir lacking the client's CA -> no service."""
     capath = _hashed_ca_dir(tmp_path / "decoy-only", decoy_ca)
     ep = lifecycle.start(_spec("lc-capath-deny", capath, decoy_ca))
-    code, _err = curl(f"https://127.0.0.1:{ep.port}/", pki["a_cert"],
+    code, _err = curl(f"https://{HOST}:{ep.port}/", pki["a_cert"],
                       pki["a_key"], output=tmp_path / "out.txt")
     assert code != "204", \
         "a client whose CA is absent from the hash dir must be rejected"

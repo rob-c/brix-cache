@@ -40,7 +40,8 @@ except Exception:                                # pragma: no cover
 from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-token-es256")]
 
 KID = "ec-key-1"
 ISSUER = "https://test.example.com"

@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 
@@ -59,7 +60,7 @@ def _start_origin(webroot):
     collisions (another session's test.cern.ch origin on a fixed port fails
     OUR trust chain with its foreign keys). Port via httpd.server_address."""
     handler = partial(_QuietHandler, directory=str(webroot))
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    httpd = ThreadingHTTPServer((BIND_HOST, 0), handler)
     httpd.daemon_threads = True
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd
@@ -85,7 +86,7 @@ def pf_mount(pubkey, port, *, prefetch, budget=None, timeout=15):
     env["BRIXCVMFS_PUBKEY"] = str(pubkey)
     env["BRIXCVMFS_TMP"] = str(workdir / "tmp")
     env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
-    env["BRIXCVMFS_SERVER"] = f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    env["BRIXCVMFS_SERVER"] = f"http://{HOST}:{port}/cvmfs/{REPO}"
 
     opts = f"auto_unmount,attr_timeout=0,entry_timeout=0,retries=1,prefetch={prefetch}"
     if budget is not None:

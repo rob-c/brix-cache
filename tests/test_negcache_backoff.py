@@ -25,13 +25,16 @@ import struct
 
 import pytest
 
+from config_parse import nginx_t
 from server_registry import NginxInstanceSpec
-from settings import NGINX_BIN, HOST, BIND_HOST, free_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 from test_phase25_ratelimit import (
     _xrd_stat, _xrd_open, KXR_WAIT, KXR_OK,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-negcache")]
 
 
 @pytest.fixture(autouse=True)
@@ -110,7 +113,7 @@ def test_other_identity_unaffected(lifecycle, tmp_path):
     port = _start(lifecycle, data, "lc-negcache-isolation", _KNOBS)
 
     # Identity A (127.0.0.1) floods missing paths until it is throttled.
-    a = _login(port, src_ip="127.0.0.1")
+    a = _login(port, src_ip=HOST)
     a_statuses = [_xrd_stat(a, f"/ghost/a-{i}.dat")[0] for i in range(12)]
     assert KXR_WAIT in a_statuses, ("flooding identity must be throttled", a_statuses)
 
@@ -126,16 +129,14 @@ def test_other_identity_unaffected(lifecycle, tmp_path):
 # --------------------------------------------------------------------------- #
 # error: a malformed directive is refused at config parse.
 # --------------------------------------------------------------------------- #
-def test_bogus_config_refused(lifecycle, tmp_path):
-    (port,) = free_ports(1)
+def test_bogus_config_refused(tmp_path):
+    # nginx -t rejects before any bind; a non-binding placeholder port suffices.
+    port = PARSE_PLACEHOLDER_PORT
     data = tmp_path / "data"; data.mkdir()
     values = dict(_stream_values("        brix_negcache_backoff abc;\n"),
                   PORT=port, DATA_ROOT=str(data),
                   LOG_DIR=str(tmp_path), TMP_DIR=str(tmp_path))
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-negcache-bogus", template="nginx_rl_stream.conf",
-        template_values=values,
-        reason="E-4 negcache directive rejection coverage"))
+    result = nginx_t("nginx_rl_stream.conf", tmp_path, **values)
     out = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, out
     assert "brix_negcache_backoff" in out, out

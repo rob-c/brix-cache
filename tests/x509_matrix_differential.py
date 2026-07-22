@@ -26,10 +26,11 @@ import subprocess
 import time
 from pathlib import Path
 
-import settings
+import ephemeral_port
 import x509forge
 from clauses import ALL_CLAUSES
 from wlcg_conformance_fleet import ConformanceFleet
+from settings import HOST
 
 FINDINGS = (Path(__file__).resolve().parents[1]
             / "docs/10-reference/conformance/differential-findings.md")
@@ -46,7 +47,8 @@ class _XrdHttp:
         self.work = Path(work)
         self.ca_dir = ca_dir
         self.work.mkdir(parents=True, exist_ok=True)
-        self.port, self.base = settings.free_ports(2)
+        # Native stock-XRootD upstream (differential ref) — ephemeral exemption.
+        self.port, self.base = ephemeral_port.free_ports(2)
         self.proc = None
 
     def start(self):
@@ -54,7 +56,7 @@ class _XrdHttp:
         subprocess.run(
             ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
              "-keyout", str(key), "-out", str(cert), "-days", "3650",
-             "-subj", "/CN=localhost"], check=True, capture_output=True)
+             "-subj", "/CN=localhost"], check=True, capture_output=True)  # net-literal-allow: throwaway TLS server cert subject CN (curl -k, no verify)
         cfg = self.work / "xrootd.cfg"
         cfg.write_text(f"""\
 xrd.port {self.base}
@@ -72,7 +74,7 @@ xrd.trace none
         for _ in range(60):
             r = subprocess.run(
                 ["curl", "-k", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                 "--max-time", "2", f"https://127.0.0.1:{self.port}/"],
+                 "--max-time", "2", f"https://{HOST}:{self.port}/"],
                 capture_output=True, text=True)
             if r.stdout.strip() not in ("", "000"):
                 return True
@@ -83,7 +85,7 @@ xrd.trace none
         r = subprocess.run(
             ["curl", "-k", "-s", "-o", "/dev/null", "-w", "%{http_code}",
              "--max-time", "8", "--cert", str(cred), "--key", str(cred),
-             f"https://127.0.0.1:{self.port}/"], capture_output=True, text=True)
+             f"https://{HOST}:{self.port}/"], capture_output=True, text=True)
         code = r.stdout.strip()
         if not code or code == "000":
             return "unavailable"

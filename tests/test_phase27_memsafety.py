@@ -24,7 +24,8 @@ import pytest
 from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-memsafety")]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -60,7 +61,8 @@ def test_w3_scoped_header():
 
 
 def test_f1_readv_segment_guard():
-    rv = _read("src/protocols/root/read/readv.c")
+    # readv.c was split; the segment-guard logic now spans readv.c + readv_engine.c.
+    rv = _read("src/protocols/root/read/readv.c") + _read("src/protocols/root/read/readv_engine.c")
     assert "safe_size.h" in rv
     assert "BRIX_READV_MAXSEGS" in rv
     assert "brix_size_mul" in rv

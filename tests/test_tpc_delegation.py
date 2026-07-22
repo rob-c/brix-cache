@@ -31,9 +31,10 @@ from pathlib import Path
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import free_port
+from ephemeral_port import free_port
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-tpc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = "/usr/bin/xrdcp"          # STOCK client (knows GSI delegation)

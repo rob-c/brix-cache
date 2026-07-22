@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import NGINX_BIN, PortBlock, srv_instance, wait_tcp
 from mock_stratum1 import make_repo, manifest
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 NGHTTPD = __import__("shutil").which("nghttpd")
@@ -98,9 +99,9 @@ def test_h2_origin_parity_byte_identical(tmp_path):
         [NGHTTPD, "--no-tls", "-d", str(root), str(h2_port)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        assert wait_tcp("127.0.0.1", h2_port, 10), "nghttpd did not listen"
+        assert wait_tcp(BIND_HOST, h2_port, 10), "nghttpd did not listen"
         with srv_instance(_BLOCK, webroot=root,
-                          origins=f"http://127.0.0.1:{h2_port}",
+                          origins=f"http://{HOST}:{h2_port}",
                           extra_directives=("brix_cvmfs_origin_http_version "
                                             "2-direct; brix_cvmfs_trace on;")
                           ) as srv:
@@ -146,7 +147,7 @@ def _nginx_t(tmp_path, version_value):
     # an unprivileged, almost-surely-free port: -t bind-checks the listener,
     # and 127.0.0.1:1 would fail on bind permission and mask the real verdict
     conf.write_text(f"""daemon off; events {{}}
-http {{ server {{ listen 127.0.0.1:64431; location /cvmfs/ {{
+http {{ server {{ listen {BIND_HOST}:64431; location /cvmfs/ {{
     brix_cvmfs on;
     brix_cache_store posix:{tmp_path}/cache;
     brix_cvmfs_origin_http_version {version_value};

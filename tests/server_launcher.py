@@ -18,10 +18,12 @@ from typing import Sequence
 import pytest
 
 from config_templates import render_config_to_path
+from fleet_lifecycle_ports import lifecycle_ports_for
 from fleet_values import session_template_values
 from server_registry import (
     NginxInstanceSpec,
     build_manifest,
+    declared_ports,
     endpoint_for,
     read_manifest,
     register_nginx,
@@ -682,12 +684,22 @@ class RegistryLauncher:
                 try:
                     os.kill(master, 0)
                 except OSError:
-                    return
+                    break
                 time.sleep(0.05)
-            try:
-                os.kill(master, signal.SIGKILL)
-            except OSError:
-                pass
+            else:
+                # Deadline hit with the master still alive — force it down.
+                try:
+                    os.kill(master, signal.SIGKILL)
+                except OSError:
+                    pass
+        # Master exit unlinks the pidfile, but the kernel may not have released
+        # the LISTEN socket yet — a worker still draining, or the master's own
+        # close lagging the process death. Under the fixed-port ledger the very
+        # next test rebinds this exact port, so a stop that returns before the
+        # socket is free hands the successor an intermittent EADDRINUSE (the
+        # stop/start reuse race the dynamic-port model used to mask). Wait until
+        # the port is actually bindable before returning.
+        self._wait_ports_released(spec)
 
     def reload(self, name: str, check: bool = True) -> subprocess.CompletedProcess:
         return self._signal(name, "reload", check=check)
@@ -927,6 +939,42 @@ class RegistryLauncher:
                 time.sleep(0.1)
         raise RuntimeError(f"server did not become ready on {host}:{port}")
 
+    def _wait_ports_released(self, spec: NginxInstanceSpec, timeout: float = 8.0) -> None:
+        """Block until every fixed port ``spec`` declared is bindable again.
+
+        The stop/start reuse race on a fixed-port ledger: ``stop()`` returns once
+        the master process is gone, but the kernel can still hold the listen
+        socket for a beat (a worker draining, close() lagging the exit). The next
+        test reusing this exact port then loses ``bind()`` to the stale socket
+        with ``Address already in use``. We probe each declared port exactly the
+        way nginx binds it — wildcard address, ``SO_REUSEADDR`` set — so a socket
+        merely in ``TIME_WAIT`` does NOT read as busy (nginx would rebind over it
+        fine), only a still-live overlapping listener does. That is precisely the
+        condition worth waiting out.
+
+        Best-effort: on timeout we return quietly rather than raise. A genuinely
+        stuck port surfaces as the successor's own EADDRINUSE with full nginx
+        diagnostics — a clearer failure than one raised from teardown.
+        """
+        ports = declared_ports(spec)
+        if not ports:
+            return
+        deadline = time.time() + timeout
+        for port in ports:
+            while True:
+                probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    probe.bind(("0.0.0.0", port))  # net-literal-allow: wildcard bind (all interfaces) for port-availability probe
+                    return_now = True
+                except OSError:
+                    return_now = False
+                finally:
+                    probe.close()
+                if return_now or time.time() >= deadline:
+                    break
+                time.sleep(0.05)
+
     def _stop_from_disk(self, spec: NginxInstanceSpec, endpoint) -> None:
         """Reap a non-nginx daemon kind with no in-memory handle (cross-process
         stop-all). Each kind is torn down from state it left on disk:
@@ -1043,8 +1091,36 @@ class LifecycleHarness:
         self._names: list[str] = []
 
     def register(self, spec: NginxInstanceSpec) -> NginxInstanceSpec:
-        suffix = f"-{os.getpid()}"
-        unique = spec if spec.name.endswith(suffix) else replace(spec, name=spec.name + suffix)
+        fixed_port, fixed_extra = lifecycle_ports_for(spec.name)
+        if fixed_port is not None:
+            # Fixed-port lifecycle-subject (Bucket 2): keep the stable name — the
+            # owning test serialises with @pytest.mark.xdist_group(name) so the
+            # fixed exclusive-band port never has two concurrent drivers — and
+            # take the port from the ledger, not a per-pid dynamic allocation.
+            unique = replace(
+                spec,
+                port=fixed_port,
+                extra_ports={**spec.extra_ports, **fixed_extra},
+            )
+        elif spec.port is not None:
+            # The spec already carries an explicit fixed port — the parse-only
+            # helpers pass SHARED_PARSE_PLACEHOLDER_PORT (nginx -t never binds
+            # it), so many uniquely-named throwaway instances can share it.  Keep
+            # the caller's unique name, suffixed per-pid for on-disk prefix
+            # isolation across worker processes.
+            suffix = f"-{os.getpid()}"
+            unique = spec if spec.name.endswith(suffix) else replace(spec, name=spec.name + suffix)
+        else:
+            # Phase 5: the dynamic per-pid + free_port fallback is gone.  A
+            # lifecycle spec with no port must either be on the ledger (by name)
+            # or pass an explicit port.
+            raise RuntimeError(
+                f"lifecycle spec {spec.name!r} has no fixed port: add it to "
+                f"fleet_lifecycle_ports (LIFECYCLE_SHARED_PORTS or "
+                f"LIFECYCLE_EXCLUSIVE_PORTS) and serialise its file with "
+                f"@pytest.mark.xdist_group, or pass an explicit port (e.g. "
+                f"SHARED_PARSE_PLACEHOLDER_PORT for a parse-only nginx -t check)."
+            )
         register_nginx(unique)
         self._names.append(unique.name)
         # Throwaway prefixes accumulate under REGISTRY_ROOT across runs; a

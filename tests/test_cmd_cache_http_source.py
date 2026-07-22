@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_http_source import XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_http_source")
+
 
 def test_cache_http_source_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

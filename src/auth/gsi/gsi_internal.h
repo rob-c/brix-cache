@@ -77,4 +77,15 @@ ngx_int_t brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 
+/*---- GSI kXR_auth split-file seam (auth.c <-> auth_cert.c) ----
+ *
+ * WHAT: brix_gsi_complete_auth() (defined in auth.c) finalizes a verified GSI
+ *       login; gsi_auth_step_cert() (defined in auth_cert.c) runs GSI round 2
+ *       (kXGC_cert). They call across the auth.c / auth_cert.c split, so both
+ *       are declared here rather than kept file-static. */
+ngx_int_t brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
+ngx_int_t gsi_auth_step_cert(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
+
 #endif /* BRIX_GSI_INTERNAL_H */

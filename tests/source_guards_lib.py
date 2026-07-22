@@ -63,7 +63,9 @@ def config_coverage(root: Path = ROOT) -> tuple[bool, list[str]]:
     tree = sorted(
         str(p.relative_to(root))
         for p in (root / "src").rglob("*.c")
-        if not p.name.endswith("_unittest.c")
+        # Exclude standalone-built unit tests, including the per-group TUs a large
+        # `*_unittest.c` is split into (e.g. `sd_pblock_unittest_core.c`).
+        if not (p.name.endswith("_unittest.c") or "_unittest_" in p.name)
     )
     config = set(_CONFIG_RE.findall((root / "config").read_text()))
     allow = set(_CONFIG_ALLOWLIST)

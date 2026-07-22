@@ -21,7 +21,8 @@ from test_ssi_wire import (
     kXR_open, kXR_ok, SSI_CMD_RXQ,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-ssi-cfg")]
 
 
 def _directives(extra_ssi):

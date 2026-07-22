@@ -111,6 +111,31 @@ ssize_t   sd_xroot_staged_write(brix_sd_staged_t *handle, const void *buf,
 ngx_int_t sd_xroot_staged_commit(brix_sd_staged_t *handle, int noreplace);
 void      sd_xroot_staged_abort(brix_sd_staged_t *handle);
 
+/* ---- shared namespace helpers (defined in sd_xroot_ns.c) ------------------
+ * Reused by the credential-scoped wrappers (sd_xroot_ns_cred.c) and the
+ * directory-listing path (sd_xroot_ns_dir.c) after the file-size split. */
+
+/* The kXR_fattr handler stores user attr "X" as on-disk "user.U.X"; strip one
+ * prefix before forwarding to another origin, re-add it on list (see
+ * sd_xroot_ns.c for the full rationale). */
+#define SD_XROOT_FATTR_PFX     "user.U."
+#define SD_XROOT_FATTR_PFX_LEN 7
+
+/* Strip a leading "user.U." so a forwarded fattr key is not double-prefixed. */
+const char *sd_xroot_fattr_unmap(const char *name);
+
+/* Connect + bootstrap a fresh origin session (no file open) for a path-based op;
+ * cred NULL ⇒ service credential.  Fills *oc + *t_out; -1 with *err_out on
+ * failure. */
+int sd_xroot_session(ngx_stream_brix_srv_conf_t *conf,
+              const brix_sd_cred_t *cred, brix_cache_origin_conn_t *oc,
+              brix_cache_fill_t **t_out, int *err_out);
+
+/* Byte-copy src_fh→dst_fh on an open session, then truncate+sync dst. */
+ngx_int_t sd_xroot_copy_body(brix_cache_fill_t *t,
+              brix_cache_origin_conn_t *oc, const u_char *src_fh,
+              const u_char *dst_fh, off_t *bytes_out);
+
 /* Namespace + metadata vtable ops (sd_xroot_ns.c), wired into the driver struct
  * in sd_xroot.c.  Plain ops (service credential / anonymous): */
 ssize_t   sd_xroot_getxattr(brix_sd_instance_t *inst, const char *path,

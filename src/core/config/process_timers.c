@@ -27,6 +27,7 @@
 #include "core/compat/staged_file.h"         /* brix_stage_reap_all, brix_stage_dir_count */
 #include "fs/cache/cache_reap.h"             /* brix_cache_reap_dirty */
 #include "fs/xfer/stage_engine.h"            /* brix_stage_scheduler_tick */
+#include "fs/xfer/backend_async_queue.h"     /* brix_baq_tick */
 
 /*
  * nginx's timer-expiry debug log (ngx_event_expire_timers, compiled in on a
@@ -181,6 +182,11 @@ static void
 brix_stage_sched_handler(ngx_event_t *ev)
 {
     brix_stage_scheduler_tick();
+    /* Same per-worker cadence drains the durable async backend-op queue's TIME
+     * trigger (the SIZE trigger posts its own deferred drain event). The wait_ms
+     * cap is thus honoured at ~1s granularity — a coalescing backstop, not a
+     * precise deadline. */
+    brix_baq_tick();
     if (!ngx_exiting) {
         ngx_add_timer(ev, BRIX_STAGE_SCHED_MS);
     }

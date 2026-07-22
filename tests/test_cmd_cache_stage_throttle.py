@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_stage_throttle import XRDCP, XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_stage_throttle")
+
 
 def test_cache_stage_throttle_flow(tmp_path):
     for tool in (NGINX_BIN, str(XRDCP), str(XRDFS)):

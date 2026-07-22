@@ -27,12 +27,12 @@ import uuid
 
 import pytest
 
-from settings import NGINX_ANON_PORT, LOG_DIR
+from settings import LOG_DIR, NGINX_ANON_PORT, SERVER_HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
-BASE = f"root://localhost:{NGINX_ANON_PORT}"
+BASE = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 # Highly compressible: ~1.5 MiB of repeating text spans several read windows.

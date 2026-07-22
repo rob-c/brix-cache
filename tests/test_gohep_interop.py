@@ -32,9 +32,10 @@ import subprocess
 import pytest
 
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 
 # Wire constants (stable XRootD protocol values).
 kXR_dirlist = 3004
@@ -45,7 +46,8 @@ kXR_ok = 0
 kXR_redirect = 4004
 kXR_SHA256_sig = 0x01
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-gohep")]
 
 
 # --------------------------------------------------------------------------- #

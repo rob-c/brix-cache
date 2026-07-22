@@ -24,7 +24,8 @@ import pytest
 from settings import BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-sweep")]
 
 LOCK_KEY = "user.nginx_xrootd.lock"
 LOCK_VAL = (b"token=opaquelocktoken:11111111-2222-3333-4444-555555555555|"

@@ -24,7 +24,8 @@ import pytest
 from settings import BIND_HOST, CLUSTER_REDIR_PORT, HOST, NGINX_BIN, SERVER_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrdmapc")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")

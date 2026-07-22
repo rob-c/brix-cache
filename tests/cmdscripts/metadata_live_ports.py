@@ -12,6 +12,7 @@ import time
 
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
+from settings import BIND_HOST, HOST
 
 
 def _checks(items: list[tuple[bool, str]]) -> int:
@@ -38,6 +39,7 @@ def xmeta() -> int:
             str(REPO_ROOT / "src/fs/meta/xmeta_encode.c"),
             str(REPO_ROOT / "src/fs/meta/xmeta_decode.c"),
             str(REPO_ROOT / "src/core/compat/crc32c.c"),
+            str(REPO_ROOT / "src/core/compat/crc32c_hw.c"),
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -83,7 +85,7 @@ def nonstaged_reap(nginx: Path | None = None) -> int:
             f"""daemon on; error_log {run.root}/logs/e.log info; pid {run.root}/nginx.pid;
 worker_processes 1;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:8583;
+http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:8583;
   location / {{ dav_methods PUT DELETE;
     brix_webdav on; brix_storage_backend posix:{export}; brix_webdav_auth none; brix_allow_write on; }} }} }}
 """,
@@ -98,7 +100,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:8583;
         time.sleep(1)
         source = run.root / "src.bin"
         digest = random_file(source, 200000)
-        code = run.curl_status("http://127.0.0.1:8583/real.bin", "-T", str(source))
+        code = run.curl_status(f"http://{HOST}:8583/real.bin", "-T", str(source))
         log = (run.root / "logs/e.log").read_text(errors="replace")
         return _checks(
             [
@@ -128,7 +130,7 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 http {{
     server {{
-        listen 127.0.0.1:9012;
+        listen {BIND_HOST}:9012;
         location / {{
             brix_s3 on;
             brix_storage_backend posix:{s3root};
@@ -150,11 +152,11 @@ http {{
                 "x-amz-meta-foo: bar",
                 "--data-binary",
                 "payload",
-                "http://127.0.0.1:9012/testbucket/obj.txt",
+                f"http://{HOST}:9012/testbucket/obj.txt",
             ],
             check=False,
         )
-        smoke_run = run.call([smoke, "127.0.0.1", "9012", "/testbucket/obj.txt"], check=False)
+        smoke_run = run.call([smoke, HOST, "9012", "/testbucket/obj.txt"], check=False)
         return _checks([(seed.returncode == 0, "seed object with user metadata"), (smoke_run.returncode == 0, "sd_s3 metadata smoke harness passed")])
 
 
@@ -172,7 +174,7 @@ def xfer_audit_sink(nginx: Path | None = None) -> int:
             f"""daemon on; error_log {origin}/logs/e.log info; pid {origin}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:11774; brix_root on; brix_export {origin}/root;
+    listen {BIND_HOST}:11774; brix_root on; brix_export {origin}/root;
     brix_auth none; brix_allow_write on;
 }} }}
 """,
@@ -191,9 +193,9 @@ stream {{ server {{
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:11775; brix_root on; brix_export {node}/export;
+    listen {BIND_HOST}:11775; brix_root on; brix_export {node}/export;
     brix_auth none; brix_allow_write on; brix_upload_resume off;
-    brix_storage_backend root://127.0.0.1:11774;
+    brix_storage_backend root://{HOST}:11774;
     brix_stage on;
     brix_stage_store posix:{node}/stage;
     brix_stage_flush sync;
@@ -206,7 +208,7 @@ stream {{ server {{
         def upload(name: str) -> bool:
             source = run.root / "src.bin"
             random_file(source, 65536)
-            return run.call([xrdcp, "-f", source, f"root://127.0.0.1:11775//{name}"], check=False).returncode == 0
+            return run.call([xrdcp, "-f", source, f"root://{HOST}:11775//{name}"], check=False).returncode == 0
 
         node = start_node()
         first = upload("a.bin")

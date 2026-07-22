@@ -760,6 +760,27 @@ Implemented in Phase 2
 > infrastructure now exists; the remaining step is one clean fleet run in CI to read
 > the number and set the 85% (→90%, §3.4) floor. Same infra-blocked class as the
 > hyper-hardening B-lane items (phase-88 §4).
+>
+> **UPDATE 2026-07-21 (b) — FIRST BASELINE READ locally + two latent lane bugs fixed +
+> genuinely-dark gaps closed.** Ran the instrumented lane end-to-end for the first
+> time (private tree `/tmp/nginx-cov-*`, gcov-instrumented nginx+client, full fast
+> fleet tier). **Fast-tier baseline: `src/` 67.5 % lines (59 484 / 88 166), 76.5 %
+> functions, 46.8 % branches; `client/` 53.4 % lines, 63.0 % functions.** This is a
+> *floor* estimate — the fast tier excludes the `slow`/`serial`/`uses_lifecycle_harness`
+> (privileged broker), docker and ceph lanes, so whole subsystems read 0 % here that
+> are in fact exercised by those excluded lanes (e.g. `src/protocols/gridftp/ev/*`,
+> `src/auth/gssapi/gsi_mech.c`, `src/auth/impersonate/*`). Two latent bugs in the lane
+> itself surfaced and were fixed: (1) `operator_build build_coverage` never `make clean`ed
+> the client, so an up-to-date client tree produced **zero** instrumented objects (the lane
+> would have silently reported no client coverage); (2) `tools/ci/coverage.py` derived ROOT
+> from `git rev-parse`, which aborts (exit 128) when the guard wrapper runs it with cwd inside
+> the fleet root — now derived from the script path like the other guards. Gap analysis then
+> separated *excluded-lane* 0 % files from *genuinely-untested-yet-fast-tractable* ones; the
+> latter set was closed with 20 new tests: `tests/test_webdav_search.py` (10 — RFC-5323
+> `SEARCH`, `src/protocols/webdav/search.c` 0 %→95 %) and the ListParts/ListMultipartUploads
+> classes in `tests/test_s3_multipart.py` (10 — `multipart_complete_list_parts.c` 0 %→92 %,
+> `multipart_complete_list_uploads.c` 0 %→86 %). The 85 % floor still awaits a **full-tier**
+> (not fast-only) CI run per the B-1 lesson.
 
 **Objective:** Improve test coverage from 60% to 85%+
 

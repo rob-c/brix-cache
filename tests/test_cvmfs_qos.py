@@ -33,6 +33,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, srv_instance
+from settings import BIND_HOST, HOST
 
 try:                                     # cryptography is an optional test dep
     from tokenforge import TokenForge, write_scitokens_cfg
@@ -63,7 +64,7 @@ def tls_identity(tmp_path_factory):
     d = tmp_path_factory.mktemp("qos_tls")
     subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-         "-subj", "/CN=localhost", "-keyout", str(d / "key.pem"),
+         "-subj", "/CN=localhost", "-keyout", str(d / "key.pem"),  # net-literal-allow: throwaway TLS cert subject CN
          "-out", str(d / "crt.pem")],
         check=True, capture_output=True)
     return d / "crt.pem", d / "key.pem"
@@ -99,7 +100,7 @@ def _srv(qos, *, gate_cfg=None, tls=None, **kw):
 
 def _fetch(port, path, *, https, token=None):
     scheme = "https" if https else "http"
-    req = urllib.request.Request(f"{scheme}://127.0.0.1:{port}{path}")
+    req = urllib.request.Request(f"{scheme}://{HOST}:{port}{path}")
     if token is not None:
         req.add_header("Authorization", f"Bearer {token}")
     kw = {"context": ssl._create_unverified_context()} if https else {}
@@ -188,7 +189,7 @@ def test_bad_directive_rejected(tmp_path):
     (tmp_path / "cache").mkdir()
     conf = tmp_path / "bad.conf"
     conf.write_text(f"""daemon off; events {{}}
-http {{ server {{ listen 127.0.0.1:1; location /cvmfs/ {{
+http {{ server {{ listen {BIND_HOST}:1; location /cvmfs/ {{
     brix_cvmfs on;
     brix_cache_store posix:{tmp_path}/cache;
     brix_cvmfs_qos heavy sub=alice fills=lots;

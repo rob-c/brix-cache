@@ -145,7 +145,9 @@ def _write_configs():
     }}
 
 [domain_realm]
+    # net-literal-allow: krb5 domain_realm loopback host mapping (test realm identity)
     localhost = {KRB5_REALM}
+    # net-literal-allow: krb5 domain_realm loopback subdomain mapping (test realm identity)
     .localhost = {KRB5_REALM}
 """
     # kdc.conf — consumed by kdb5_util / krb5kdc only.  Both UDP and TCP listen
@@ -179,7 +181,7 @@ def _service_principals():
     """
     principals = [KRB5_SERVICE_PRINCIPAL]
     fqdn = socket.getfqdn()
-    if fqdn and fqdn not in ("localhost", "localhost.localdomain"):
+    if fqdn and fqdn not in ("localhost", "localhost.localdomain"):  # net-literal-allow: system fqdn == localhost identity check
         fqdn_principal = f"xrootd/{fqdn}@{KRB5_REALM}"
         if fqdn_principal not in principals:
             principals.append(fqdn_principal)

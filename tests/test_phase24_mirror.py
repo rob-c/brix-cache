@@ -19,22 +19,35 @@ the `lifecycle` harness (templates nginx_mirror_http.conf /
 nginx_mirror_stream_parse.conf / nginx_mirror_stream_pair.conf).
 """
 
+import base64
+import http.client
+import json
 import os
 import re
 import socket
 import struct
-import threading
 import time
-import http.server
 import urllib.request
 from pathlib import Path
 
 import pytest
 
+from config_parse import nginx_t
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT, lifecycle_ports_for
 from server_registry import NginxInstanceSpec
-from settings import NGINX_BIN, free_ports, HOST, BIND_HOST
+from settings import (NGINX_BIN, HOST, BIND_HOST,
+                      MIRROR_SHADOW_PORT, PROXY_DEAD_UPSTREAM_PORT)
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# The shadow upstream is a shared fixed-port fleet mock whose capture is global
+# state, so these tests run serial (one xdist worker) and each resets it first.
+# Every nginx here draws a fixed exclusive-band port from the lifecycle ledger
+# (lc-mir-*); xdist_group("lc-mir") keeps those fixed ports single-driver too.
+pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.serial,
+    pytest.mark.registry_server("mirror-shadow"),
+    pytest.mark.xdist_group("lc-mir"),
+]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -141,7 +154,9 @@ def _parse_stream(lifecycle, name, knobs, shadow_port):
 
 
 def test_http_mirror_directives_parse(lifecycle):
-    s1, s2 = free_ports(2)
+    # mirror_url targets are directive VALUES only — never dialed under `nginx -t`
+    # — so a non-binding placeholder is correct (the two schemes keep them distinct).
+    s1 = s2 = PARSE_PLACEHOLDER_PORT
     _parse_http(lifecycle, "lc-mir-hparse", (
         f"            brix_mirror_url     http://{HOST}:{s1};\n"
         f"            brix_mirror_url     https://{HOST}:{s2};\n"
@@ -153,28 +168,25 @@ def test_http_mirror_directives_parse(lifecycle):
     ))
 
 
-def test_http_mirror_bad_scheme_rejected(lifecycle, tmp_path):
-    port, shadow = free_ports(2)
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-mir-badscheme",
-        template="nginx_mirror_http.conf",
-        template_values={
-            "BIND_HOST": BIND_HOST,
-            "PORT": port,
-            "DATA_ROOT": str(tmp_path / "data"),
-            "LOG_DIR": str(tmp_path),
-            "TMP_DIR": str(tmp_path),
-            "MIRROR_KNOBS": f"            brix_mirror_url ftp://{HOST}:{shadow};\n",
-        },
-        reason="mirror URL bad-scheme rejection coverage",
-    ))
+def test_http_mirror_bad_scheme_rejected(tmp_path):
+    port = shadow = PARSE_PLACEHOLDER_PORT  # reject-parse: nginx -t never binds
+    result = nginx_t(
+        "nginx_mirror_http.conf",
+        tmp_path,
+        BIND_HOST=BIND_HOST,
+        PORT=port,
+        DATA_ROOT=str(tmp_path / "data"),
+        LOG_DIR=str(tmp_path),
+        TMP_DIR=str(tmp_path),
+        MIRROR_KNOBS=f"            brix_mirror_url ftp://{HOST}:{shadow};\n",
+    )
     out = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0
     assert "http://" in out
 
 
 def test_stream_mirror_directives_parse(lifecycle):
-    (shadow,) = free_ports(1)
+    shadow = PARSE_PLACEHOLDER_PORT  # directive value only — nginx -t never dials it
     _parse_stream(lifecycle, "lc-mir-sparse", (
         "        brix_mirror_opcodes stat locate dirlist;\n"
         "        brix_mirror_sample 50;\n"
@@ -183,22 +195,19 @@ def test_stream_mirror_directives_parse(lifecycle):
     ), shadow)
 
 
-def test_stream_mirror_bad_opcode_rejected(lifecycle, tmp_path):
-    port, shadow = free_ports(2)
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-mir-badop",
-        template="nginx_mirror_stream_parse.conf",
-        template_values={
-            "BIND_HOST": BIND_HOST,
-            "HOST": HOST,
-            "PORT": port,
-            "SHADOW_PORT": shadow,
-            "DATA_ROOT": str(tmp_path / "data"),
-            "LOG_DIR": str(tmp_path),
-            "MIRROR_KNOBS": "        brix_mirror_opcodes bogus;\n",
-        },
-        reason="mirror bad-opcode rejection coverage",
-    ))
+def test_stream_mirror_bad_opcode_rejected(tmp_path):
+    port = shadow = PARSE_PLACEHOLDER_PORT  # reject-parse: nginx -t never binds
+    result = nginx_t(
+        "nginx_mirror_stream_parse.conf",
+        tmp_path,
+        BIND_HOST=BIND_HOST,
+        HOST=HOST,
+        PORT=port,
+        SHADOW_PORT=shadow,
+        DATA_ROOT=str(tmp_path / "data"),
+        LOG_DIR=str(tmp_path),
+        MIRROR_KNOBS="        brix_mirror_opcodes bogus;\n",
+    )
     out = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0
     assert "brix_mirror_opcodes" in out
@@ -210,7 +219,7 @@ def test_stream_mirror_bad_opcode_rejected(lifecycle, tmp_path):
 
 def test_stream_mirror_write_opcodes_and_gate_parse(lifecycle):
     """The write opcodes + brix_mirror_writes gate parse on the stream side."""
-    (shadow,) = free_ports(1)
+    shadow = PARSE_PLACEHOLDER_PORT  # directive value only — nginx -t never dials it
     _parse_stream(lifecycle, "lc-mir-wparse", (
         "        brix_mirror_writes on;\n"
         "        brix_mirror_opcodes mkdir rm rmdir mv truncate chmod;\n"
@@ -244,54 +253,54 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
 # HTTP functional helpers                                                      #
 # --------------------------------------------------------------------------- #
 
-class _ShadowHandler(http.server.BaseHTTPRequestHandler):
-    received = []          # list of (path, headers-dict)
-    bodies = {}            # path -> request body bytes (write methods)
-    methods = []           # list of (method, path)
-    lock = threading.Lock()
+class ShadowClient:
+    """Out-of-band control client for the fixed-port ``mirror-shadow`` fleet mock
+    (tests/lib/mirror_shadow_server.py).
 
-    def _record(self):
-        with _ShadowHandler.lock:
-            _ShadowHandler.received.append(
-                (self.path, {k.lower(): v for k, v in self.headers.items()}))
-            _ShadowHandler.methods.append((self.command, self.path))
-        body = b"SHADOW\n"
-        self.send_response(200)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+    The mirror nginx replays requests to the mock's data port; this reads the
+    captured (path, headers, method, body) state and resets it between tests over
+    the mock's tiny control API.  The capture is shared global state, so the suite
+    runs ``serial`` and each shadow-using test ``reset()``s first.
+    """
 
-    def _record_write(self):
-        clen = int(self.headers.get("Content-Length", 0) or 0)
-        body = self.rfile.read(clen) if clen else b""
-        with _ShadowHandler.lock:
-            _ShadowHandler.received.append(
-                (self.path, {k.lower(): v for k, v in self.headers.items()}))
-            _ShadowHandler.bodies[self.path] = body
-            _ShadowHandler.methods.append((self.command, self.path))
-        self.send_response(201)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+    def __init__(self, host=None, port=None):
+        self.host = host or HOST
+        self.port = port or MIRROR_SHADOW_PORT
 
-    do_GET = _record
-    do_HEAD = _record
-    do_PUT = _record_write
-    do_DELETE = _record_write
-    do_MKCOL = _record_write
-    do_MOVE = _record_write
-    do_COPY = _record_write
+    def _call(self, method, path):
+        conn = http.client.HTTPConnection(self.host, self.port, timeout=5)
+        try:
+            conn.request(method, path)
+            return conn.getresponse().read()
+        finally:
+            conn.close()
 
-    def log_message(self, *a):
-        pass
+    def _state(self):
+        return json.loads(self._call("GET", "/__introspect"))
+
+    def reset(self):
+        self._call("POST", "/__reset")
+
+    @property
+    def received(self):
+        """List of (path, headers-dict) as the shadow saw them."""
+        return [(p, h) for p, h in self._state()["received"]]
+
+    @property
+    def methods(self):
+        """List of (method, path) tuples."""
+        return [(m, p) for m, p in self._state()["methods"]]
+
+    def paths(self):
+        return [p for p, _ in self._state()["received"]]
+
+    def body(self, path):
+        b = self._state()["bodies"].get(path)
+        return base64.b64decode(b) if b is not None else None
 
 
-def _start_shadow():
-    _ShadowHandler.received = []
-    _ShadowHandler.bodies = {}
-    _ShadowHandler.methods = []
-    srv = http.server.HTTPServer((BIND_HOST, 0), _ShadowHandler)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    return srv, srv.server_address[1]
+#: One shared control client for the fixed-port shadow mock.
+_shadow = ShadowClient()
 
 
 def _start_mirror_primary(lifecycle, tmp_path, name, knobs, seed_files=()):
@@ -352,8 +361,7 @@ def _put(port, path, body):
 
 
 def _shadow_paths():
-    with _ShadowHandler.lock:
-        return [p for p, _ in _ShadowHandler.received]
+    return _shadow.paths()
 
 
 def _wait_shadow(path, timeout=6):
@@ -367,18 +375,15 @@ def _wait_shadow(path, timeout=6):
 
 @pytest.fixture
 def http_mirror_server(lifecycle, tmp_path):
-    shadow, shadow_port = _start_shadow()
-    try:
-        port = _start_mirror_primary(
-            lifecycle, tmp_path, "lc-mir-http",
-            (f"            brix_mirror_url     http://{HOST}:{shadow_port};\n"
-             "            brix_mirror_methods GET HEAD;\n"
-             "            brix_mirror_sample  100;\n"
-             "            brix_mirror_strip_auth on;\n"),
-            seed_files=[("hello.txt", "hello mirror\n")])
-        yield port, shadow_port
-    finally:
-        shadow.shutdown()
+    _shadow.reset()
+    port = _start_mirror_primary(
+        lifecycle, tmp_path, "lc-mir-http",
+        (f"            brix_mirror_url     http://{HOST}:{MIRROR_SHADOW_PORT};\n"
+         "            brix_mirror_methods GET HEAD;\n"
+         "            brix_mirror_sample  100;\n"
+         "            brix_mirror_strip_auth on;\n"),
+        seed_files=[("hello.txt", "hello mirror\n")])
+    yield port, MIRROR_SHADOW_PORT
 
 
 # --------------------------------------------------------------------------- #
@@ -397,16 +402,15 @@ def test_auth_stripped_from_shadow(http_mirror_server):
                        extra_headers="Authorization: Bearer secret-token\r\n")
     assert status == 200
     assert _wait_shadow("/hello.txt")
-    with _ShadowHandler.lock:
-        for p, hdrs in _ShadowHandler.received:
-            assert "authorization" not in hdrs, \
-                "shadow must not receive the client's Authorization header"
+    for p, hdrs in _shadow.received:
+        assert "authorization" not in hdrs, \
+            "shadow must not receive the client's Authorization header"
 
 
 def test_shadow_failure_transparent(lifecycle, tmp_path):
     # Shadow port has nothing listening → mirror connect fails, but the primary
     # GET must still succeed (the client never sees the shadow path).
-    (dead_shadow,) = free_ports(1)
+    dead_shadow = PROXY_DEAD_UPSTREAM_PORT
     port = _start_mirror_primary(
         lifecycle, tmp_path, "lc-mir-dead",
         (f"            brix_mirror_url     http://{HOST}:{dead_shadow};\n"
@@ -428,19 +432,16 @@ def test_write_not_mirrored(http_mirror_server):
 
 
 def test_sample_zero_mirrors_nothing(lifecycle, tmp_path):
-    shadow, shadow_port = _start_shadow()
-    try:
-        port = _start_mirror_primary(
-            lifecycle, tmp_path, "lc-mir-zero",
-            (f"            brix_mirror_url     http://{HOST}:{shadow_port};\n"
-             "            brix_mirror_methods GET;\n"
-             "            brix_mirror_sample  0;\n"),
-            seed_files=[("z.txt", "z\n")])
-        assert _http_get(port, "/z.txt") == 200
-        time.sleep(1.0)
-        assert _shadow_paths() == [], "sample 0 must mirror nothing"
-    finally:
-        shadow.shutdown()
+    _shadow.reset()
+    port = _start_mirror_primary(
+        lifecycle, tmp_path, "lc-mir-zero",
+        (f"            brix_mirror_url     http://{HOST}:{MIRROR_SHADOW_PORT};\n"
+         "            brix_mirror_methods GET;\n"
+         "            brix_mirror_sample  0;\n"),
+        seed_files=[("z.txt", "z\n")])
+    assert _http_get(port, "/z.txt") == 200
+    time.sleep(1.0)
+    assert _shadow_paths() == [], "sample 0 must mirror nothing"
 
 
 # --------------------------------------------------------------------------- #
@@ -520,17 +521,18 @@ def _start_stream_pair(lifecycle, tmp_path, name, primary_files, shadow_files):
         (pdata / n).write_text("x\n")
     for n in shadow_files:
         (sdata / n).write_text("x\n")
-    shadow_port, metrics_port = free_ports(2)
+    # SHADOW_PORT + METRICS_PORT are real secondary listens of this one instance;
+    # the harness injects them from the lc-mir-* ledger entry (by name) into the
+    # template and onto endpoint.extra_ports — no dynamic allocation.
     endpoint = lifecycle.start(NginxInstanceSpec(
         name=name,
         template="nginx_mirror_stream_pair.conf",
         data_root=str(pdata),
-        extra_ports={"SHADOW_PORT": shadow_port, "METRICS_PORT": metrics_port},
         template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
                          "SHADOW_DATA": str(sdata)},
         reason="stream mirror + divergence functional coverage",
     ))
-    return endpoint.port, metrics_port
+    return endpoint.port, endpoint.extra_ports["METRICS_PORT"]
 
 
 # --------------------------------------------------------------------------- #
@@ -595,16 +597,14 @@ def _http_req(port, method, path, body=b"", extra=""):
 
 
 def _shadow_body(path):
-    with _ShadowHandler.lock:
-        return _ShadowHandler.bodies.get(path)
+    return _shadow.body(path)
 
 
 def _wait_shadow_method(method, path, timeout=6):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        with _ShadowHandler.lock:
-            if (method, path) in _ShadowHandler.methods:
-                return True
+        if (method, path) in _shadow.methods:
+            return True
         time.sleep(0.1)
     return False
 
@@ -622,14 +622,11 @@ def _writes_knobs(shadow_port, writes="on",
 
 @pytest.fixture
 def http_mirror_writes_server(lifecycle, tmp_path):
-    shadow, shadow_port = _start_shadow()
-    try:
-        port = _start_mirror_primary(
-            lifecycle, tmp_path, "lc-mir-writes",
-            _writes_knobs(shadow_port))
-        yield port, shadow_port
-    finally:
-        shadow.shutdown()
+    _shadow.reset()
+    port = _start_mirror_primary(
+        lifecycle, tmp_path, "lc-mir-writes",
+        _writes_knobs(MIRROR_SHADOW_PORT))
+    yield port, MIRROR_SHADOW_PORT
 
 
 def test_put_body_mirrored_to_shadow(http_mirror_writes_server):
@@ -651,15 +648,11 @@ def test_delete_mirrored_to_shadow(http_mirror_writes_server):
 
 def test_writes_off_not_mirrored(lifecycle, tmp_path):
     """With brix_mirror_writes off, a PUT is NOT replayed to the shadow."""
-    shadow, shadow_port = _start_shadow()
-    try:
-        port = _start_mirror_primary(
-            lifecycle, tmp_path, "lc-mir-writesoff",
-            _writes_knobs(shadow_port, writes="off"))
-        _http_req(port, "PUT", "/off.bin", b"data")
-        time.sleep(1.0)
-        with _ShadowHandler.lock:
-            assert ("PUT", "/off.bin") not in _ShadowHandler.methods, \
-                "PUT mirrored despite brix_mirror_writes off"
-    finally:
-        shadow.shutdown()
+    _shadow.reset()
+    port = _start_mirror_primary(
+        lifecycle, tmp_path, "lc-mir-writesoff",
+        _writes_knobs(MIRROR_SHADOW_PORT, writes="off"))
+    _http_req(port, "PUT", "/off.bin", b"data")
+    time.sleep(1.0)
+    assert ("PUT", "/off.bin") not in _shadow.methods, \
+        "PUT mirrored despite brix_mirror_writes off"

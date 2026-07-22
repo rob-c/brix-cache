@@ -22,13 +22,21 @@ import struct
 
 import pytest
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
+from fleet_lifecycle_ports import lifecycle_ports_for
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Bucket-2 lifecycle subject: one fixed-port `lc-frm-queue` instance the test
+# restart()s; xdist_group serialises it so the fixed exclusive-band port never
+# has two concurrent drivers.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-queue")]
 
-PORT = int(os.environ.get("TEST_FRM_QUEUE_PORT") or free_port())
+# Fixed exclusive-band port from the ledger (env override kept for ad-hoc runs);
+# the `frm` fixture re-binds this module global to the started endpoint's port.
+PORT = int(os.environ.get("TEST_FRM_QUEUE_PORT")
+           or lifecycle_ports_for("lc-frm-queue")[0])
 
 # --- wire constants (XProtocol.hh) ---
 kXR_login    = 3007

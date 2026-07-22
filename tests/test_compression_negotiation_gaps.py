@@ -39,13 +39,14 @@ import uuid
 import pytest
 import requests
 import urllib3
+from settings import HOST
 
 urllib3.disable_warnings()
 
 # Fixed port of the fleet "compress" instance WebDAV surface (see
 # tests/lib/dedicated.sh -> start_all_dedicated + tests/configs/nginx_compress.conf).
 COMPRESS_WEBDAV_PORT = int(os.environ.get("TEST_COMPRESS_WEBDAV_PORT", "12960"))
-BASE_URL = f"http://127.0.0.1:{COMPRESS_WEBDAV_PORT}"
+BASE_URL = f"http://{HOST}:{COMPRESS_WEBDAV_PORT}"
 _POOL = urllib3.PoolManager()
 
 

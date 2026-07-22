@@ -37,12 +37,13 @@ import socket
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN, PKI_DIR
+from settings import BIND_HOST, NGINX_BIN, PKI_DIR, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-gridftp-gsi-evil")]
 
 SERVER_CERT = os.path.join(PKI_DIR, "server", "hostcert.pem")
 SERVER_KEY = os.path.join(PKI_DIR, "server", "hostkey.pem")
@@ -90,7 +91,7 @@ class _Ctrl:
     """A raw cleartext control connection; consumes the 220 greeting on open."""
 
     def __init__(self, port):
-        self.sock = socket.create_connection(("localhost", port), timeout=30)
+        self.sock = socket.create_connection((SERVER_HOST, port), timeout=30)
         self.sock.settimeout(30)
         self._buf = b""
         assert self._line().startswith("220"), "expected 220 greeting"

@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.storage_backend_schemes import PARSE_NO, PARSE_OK, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-storage_backend_schemes")
+
 
 @pytest.mark.timeout(240)
 def test_storage_backend_schemes_flow(tmp_path):

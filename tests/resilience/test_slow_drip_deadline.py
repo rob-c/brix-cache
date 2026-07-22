@@ -36,6 +36,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import HOST
 
 pytestmark = pytest.mark.timeout(240)
 
@@ -97,7 +98,7 @@ def nginx():
 def _xrdcp(port, dst, env, timeout, extra=()):
     return subprocess.run(
         [servers.XRDCP, "-f", "-s", *extra,
-         f"root://127.0.0.1:{port}/{DATA}", str(dst)],
+         f"root://{HOST}:{port}/{DATA}", str(dst)],
         env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
 
 

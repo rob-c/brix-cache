@@ -10,7 +10,8 @@ import time
 import urllib.request
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
@@ -58,15 +59,15 @@ def write_config(prefix: Path, port: int, high: int, low: int, metrics_port: int
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port}; brix_root on; brix_auth none;
+    listen {BIND_HOST}:{port}; brix_root on; brix_auth none;
     brix_storage_backend posix:{root};
     brix_allow_write on; brix_upload_resume off;
-    brix_write_through on; brix_wt_mode sync; brix_wt_origin 127.0.0.1:1;
+    brix_write_through on; brix_wt_mode sync; brix_wt_origin {HOST}:1;
     brix_cache_wt_stage_root {stage};
     brix_wt_stage_high_watermark {high}%;
     brix_wt_stage_low_watermark {low}%;
 }} }}
-http {{ server {{ listen 127.0.0.1:{metrics_port}; location /metrics {{ brix_metrics on; }} }} }}
+http {{ server {{ listen {BIND_HOST}:{metrics_port}; location /metrics {{ brix_metrics on; }} }} }}
 """,
         encoding="utf-8",
     )
@@ -92,7 +93,7 @@ def start_instance(
 
 def fetch_metrics(port: int) -> str:
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=5) as response:
+        with urllib.request.urlopen(f"http://{HOST}:{port}/metrics", timeout=5) as response:
             return response.read().decode("utf-8", errors="replace")
     except OSError:
         return ""
@@ -110,7 +111,7 @@ def metric_positive(metrics: str, prefix: str) -> bool:
 
 def xrdfs_cat_text(port: int, path: str, xrdfs: Path = XRDFS) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [str(xrdfs), f"root://127.0.0.1:{port}", "cat", path],
+        [str(xrdfs), f"root://{HOST}:{port}", "cat", path],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -147,7 +148,7 @@ def run_checks(
     wait_high = min(99, used + 3)
     wait_low = max(1, used - 3)
 
-    reject_port, wait_port, reject_metrics, wait_metrics = free_ports(4)
+    reject_port, wait_port, reject_metrics, wait_metrics = cmdscript_ports("cache_stage_throttle")
     started: list[Path] = []
     for args in (
         ("reject", reject_port, reject_high, reject_low, reject_metrics),
@@ -166,7 +167,7 @@ def run_checks(
         payload.write_bytes(deterministic_bytes(4096, 113))
 
         results: list[tuple[bool, str]] = []
-        reject_put = xrdcp_put_bounded(xrdcp, payload, f"root://127.0.0.1:{reject_port}//w.bin")
+        reject_put = xrdcp_put_bounded(xrdcp, payload, f"root://{HOST}:{reject_port}//w.bin")
         results.append((reject_put.returncode != 0, "reject: root:// write failed (staging full)"))
         results.append((not (base / "reject" / "root" / "w.bin").exists(), "reject: no file created (shed before any write)"))
 
@@ -178,7 +179,7 @@ def run_checks(
         results.append(("brix_wt_stage_usage_ratio " in reject_m, "reject: wt_stage_usage_ratio gauge present"))
 
         wait_proc = subprocess.Popen(
-            [str(xrdcp), "-f", str(payload), f"root://127.0.0.1:{wait_port}//w.bin"],
+            [str(xrdcp), "-f", str(payload), f"root://{HOST}:{wait_port}//w.bin"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )

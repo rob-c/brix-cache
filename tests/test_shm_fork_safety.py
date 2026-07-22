@@ -52,7 +52,11 @@ from server_launcher import LifecycleHarness, RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, REMOTE_SERVER, HOST
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Bucket-2 lifecycle subject: one fixed-port `lc-shmfork` master the tests
+# kill_worker(); xdist_group serialises it so the fixed exclusive-band ports
+# never have two concurrent drivers.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-shmfork")]
 
 NAME = "lc-shmfork"
 
@@ -156,17 +160,15 @@ def server(tmp_path_factory):
     with open(datadir / "probe.bin", "wb") as f:
         f.write(b"shm-fork-safety probe payload\n" * 64)
 
-    mgr_port, http_port, s3_port = settings.free_ports(3)
-
     # The `lifecycle` fixture is function-scoped; this module wants ONE
-    # instance across both tests, so it owns a harness directly.
+    # instance across both tests, so it owns a harness directly.  The primary +
+    # secondary (mgr/http/s3) listens come from the fixed lifecycle-exclusive
+    # ledger for "lc-shmfork" — the harness injects them by name.
     harness = LifecycleHarness()
     spec = NginxInstanceSpec(
         name=NAME,
         template="nginx_shm_fork_comprehensive.conf",
         data_root=str(datadir),
-        extra_ports={"MGR_PORT": mgr_port, "HTTP_PORT": http_port,
-                     "S3_PORT": s3_port},
         template_values={
             "WORKERS": WORKERS,
             "BIND_HOST": settings.BIND_HOST,

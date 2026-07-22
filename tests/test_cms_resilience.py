@@ -33,9 +33,11 @@ import time
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import HOST, free_port
+from settings import HOST
+from ephemeral_port import free_port
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-resilience")]
 
 H = HOST
 
@@ -266,7 +268,7 @@ class ManagerPeer:
         bound = False
         for _ in range(40):
             try:
-                self._srv.bind(("0.0.0.0", port))
+                self._srv.bind(("0.0.0.0", port))  # net-literal-allow: wildcard bind (all interfaces) for mock CMS server
                 bound = True
                 break
             except OSError:

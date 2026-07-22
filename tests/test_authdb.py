@@ -156,10 +156,10 @@ def authdb_setup():
         f.write("g cms /cms r\n")
         f.write("g atlas /atlas r\n")
         f.write("u * /private rw\n")
-        f.write("p 127.0.0.1 /host r\n")
-        f.write("p ::1 /host r\n")
+        f.write("p 127.0.0.1 /host r\n")  # net-literal-allow: authdb host-ACL rule under test
+        f.write("p ::1 /host r\n")  # net-literal-allow: authdb IPv6 host-ACL rule under test
         f.write("p 127.0.0.0/8 /hostcidr r\n")
-        f.write("p ::1/128 /hostcidr r\n")
+        f.write("p ::1/128 /hostcidr r\n")  # net-literal-allow: authdb IPv6 CIDR host-ACL rule under test
         f.write("p 192.0.2.0/24 /hostdeny r\n")
 
     for subdir in ("public", "cms", "atlas", "private", "host",

@@ -86,6 +86,110 @@ def test_no_port_value_is_owned_by_two_specs():
     assert not clash, f"port value owned by >1 spec (socket race): {clash}"
 
 
+def test_port_bands_do_not_overlap():
+    """The documented bands must be disjoint — an overlap would let a new
+    lifecycle/mock allocation silently land in another family's range."""
+    bands = sorted(fp.PORT_BANDS, key=lambda b: b[1])
+    for (n1, _lo1, hi1, _), (n2, lo2, _hi2, _) in zip(bands, bands[1:]):
+        assert hi1 < lo2, f"port bands {n1!r} and {n2!r} overlap ({hi1} >= {lo2})"
+
+
+def test_all_fixed_bands_sit_below_the_ephemeral_port_floor():
+    """Every band holds FIXED server listens, so every band must end below the OS
+    ephemeral (local) port range floor.  A fixed listen inside the ephemeral range
+    is a latent flake: an outbound client socket can transiently claim the number
+    as its source port and nginx then fails to bind (Address already in use).  This
+    is the regression guard for the original 34000-36999 placement, which sat wholly
+    inside the 32768+ ephemeral range and flaked intermittently on bind."""
+    floor = 32768  # conservative default if the sysctl is unreadable
+    try:
+        with open("/proc/sys/net/ipv4/ip_local_port_range", encoding="utf-8") as fh:
+            floor = int(fh.read().split()[0])
+    except (OSError, ValueError):
+        pass
+    offenders = [(name, lo, hi) for name, lo, hi, _ in fp.PORT_BANDS if hi >= floor]
+    assert not offenders, (
+        f"fixed-port bands overlap the OS ephemeral range (floor={floor}); a client "
+        f"socket can steal these listens intermittently — move them below the floor: "
+        f"{offenders}"
+    )
+
+
+def test_every_port_constant_falls_in_a_band():
+    """Every settings port constant lives in exactly one documented band, so a
+    new fixed port cannot be added outside the reserved ranges."""
+    unbanded = sorted(
+        n for n, v in fp._port_constants().items() if fp.band_of(v) is None
+    )
+    assert not unbanded, (
+        "settings port constants outside every fleet_ports.PORT_BANDS range — "
+        f"widen a band or move the port into one: {unbanded}"
+    )
+
+
+def test_lifecycle_ledgers_are_banded_and_collision_free():
+    """Every Phase-4 lifecycle fixed port (primary + extras) must sit in its
+    ledger's band and be globally unique across BOTH ledgers, so a mutating
+    reload/restart subject or an idempotent Bucket-1 instance never shares a
+    fixed port with another instance.
+
+    - ``LIFECYCLE_EXCLUSIVE_PORTS`` (mutation subjects) → ``lifecycle-exclusive``
+      band (31000-31999).
+    - ``LIFECYCLE_SHARED_PORTS`` (idempotent Bucket-1 instances) →
+      ``lifecycle-shared`` band (30000-30999).
+    """
+    from fleet_lifecycle_ports import (
+        LIFECYCLE_EXCLUSIVE_PORTS,
+        LIFECYCLE_SHARED_PORTS,
+    )
+
+    seen: dict[int, str] = {}
+    misbanded = []
+    collisions = []
+    for ledger, want_band in (
+        (LIFECYCLE_EXCLUSIVE_PORTS, "lifecycle-exclusive"),
+        (LIFECYCLE_SHARED_PORTS, "lifecycle-shared"),
+    ):
+        for name, entry in ledger.items():
+            ports = [(name, "port", entry["port"])]
+            ports += [
+                (name, key, val) for key, val in entry.get("extra", {}).items()
+            ]
+            for owner, label, port in ports:
+                if fp.band_of(port) != want_band:
+                    misbanded.append((owner, label, port, want_band, fp.band_of(port)))
+                if port in seen:
+                    collisions.append((port, seen[port], f"{owner}.{label}"))
+                else:
+                    seen[port] = f"{owner}.{label}"
+    assert not misbanded, (
+        "lifecycle ledger ports outside their (want, got) band: " f"{misbanded}"
+    )
+    assert not collisions, f"lifecycle ledger port collisions: {collisions}"
+
+
+def test_cmdscripts_ledger_is_banded_and_collision_free():
+    """Every ``CMDSCRIPTS_PORTS`` block (Phase 5) must sit wholly inside the
+    ``cmdscripts`` band (29020-29999) and no two blocks may overlap — so two
+    cmdscript self-launchers running concurrently on different xdist workers can
+    never fight over a fixed listen."""
+    seen: dict[int, str] = {}
+    misbanded = []
+    collisions = []
+    for stem, (base, span) in fp.CMDSCRIPTS_PORTS.items():
+        for port in range(base, base + span):
+            if fp.band_of(port) != "cmdscripts":
+                misbanded.append((stem, port, fp.band_of(port)))
+            if port in seen:
+                collisions.append((port, seen[port], stem))
+            else:
+                seen[port] = stem
+    assert not misbanded, (
+        "cmdscripts ledger ports outside the cmdscripts band: " f"{misbanded}"
+    )
+    assert not collisions, f"cmdscripts ledger port collisions: {collisions}"
+
+
 def test_secondary_listens_agree_with_env_injection():
     """Where a hand-authored secondary listen is also injected through the spec's
     ``env`` as an owned-listen key, the two must name the same spec."""

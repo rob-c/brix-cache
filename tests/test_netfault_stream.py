@@ -36,9 +36,10 @@ from test_a_robustness import (
 )
 
 pytestmark = [pytest.mark.netfault, pytest.mark.serial,
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-netfault-stream")]
 
-HOST = "127.0.0.1"
+from settings import HOST
 
 HANDSHAKE_TIMEOUT_MS = 1000
 READ_TIMEOUT_MS = 2000

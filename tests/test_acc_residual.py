@@ -32,7 +32,8 @@ import pytest
 from settings import HOST, BIND_HOST, NGINX_BIN, url_host
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-acc-residual")]
 
 # Wire constants (XProtocol.hh).
 kXR_login = 3007
@@ -245,7 +246,7 @@ class TestPrepareStage:
 
 def _loopback_ptr():
     try:
-        return socket.getnameinfo(("127.0.0.1", 0), 0)[0]
+        return socket.getnameinfo(("127.0.0.1", 0), 0)[0]  # net-literal-allow: loopback reverse-DNS resolution under test
     except Exception:
         return None
 
@@ -255,8 +256,8 @@ class TestResolveHosts:
 
     def _authdb(self):
         name = _loopback_ptr()
-        if not name or name == "127.0.0.1":
-            pytest.skip("127.0.0.1 has no usable PTR record on this host")
+        if not name or name == "127.0.0.1":  # net-literal-allow: loopback PTR identity check under test
+            pytest.skip("127.0.0.1 has no usable PTR record on this host")  # net-literal-allow: loopback PTR skip condition
         return f"h {name} /pub rl\n"         # grant ONLY via the host rule
 
     def test_off_ip_does_not_match(self, make_server):

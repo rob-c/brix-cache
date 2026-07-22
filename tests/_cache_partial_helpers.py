@@ -72,7 +72,7 @@ def _optline(directive, value, indent="        "):
 
 def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=None,
                     max_object=None, deny_prefix=None, include_regex=None,
-                    origin_backend="posix"):
+                    origin_backend="posix", allow_write=False):
     """Start a cache node in front of `backend` through the registry lifecycle
     harness, returning a CacheNode.
 
@@ -105,7 +105,8 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
                                   " brix_upload_resume off;\n")
         else:
             origin_storage = f"brix_export {origin_root};"
-            origin_allow_write = ""
+            origin_allow_write = (
+                "        brix_allow_write on;\n" if allow_write else "")
         origin_ep = lifecycle.start(NginxInstanceSpec(
             name=ORIGIN_NAME,
             template="nginx_lc_cache_partial_origin.conf",
@@ -126,7 +127,9 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
             data_root=cache_dir,
             template_values={
                 "BIND_HOST": BIND_HOST,
-                "CACHE_ALLOW_WRITE": "",
+                "CACHE_ALLOW_WRITE": (
+                    "        brix_allow_write on; brix_upload_resume off;\n"
+                    if allow_write else ""),
                 "CACHE_EXPORT": f"        brix_export {export};\n",
                 "CACHE_BACKEND": f"root://{HOST}:{backend_port}",
                 "CACHE_STORE": cache_dir,

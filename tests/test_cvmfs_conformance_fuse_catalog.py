@@ -62,6 +62,7 @@ from conformance_common import BRIXMOUNT, MOCK, PortBlock, fuse_mount
 from lib_py.util import wait_tcp
 from repo_forge import Dir, File, RepoForge, Symlink, md5path
 from repo_forge import (FLAG_DIR, FLAG_DIR_NESTED_MOUNT, FLAG_FILE)
+from settings import BIND_HOST, HOST
 
 _IFDIR, _IFREG = 0o040000, 0o100000
 
@@ -259,7 +260,7 @@ def ports():
 def _serve(spawn, web: Path, port: int, fqrn: str) -> None:
     spawn([sys.executable, MOCK, "--port", str(port), "--repo", fqrn,
            "--webroot", str(web)])
-    assert wait_tcp("127.0.0.1", port, 10), f"mock did not listen on {port}"
+    assert wait_tcp(BIND_HOST, port, 10), f"mock did not listen on {port}"
 
 
 def _mounted_repo(spawn, ports, tmp_path_factory, fqrn, tree, mutate=None):
@@ -272,7 +273,7 @@ def _mounted_repo(spawn, ports, tmp_path_factory, fqrn, tree, mutate=None):
     port = ports.mock()
     _serve(spawn, root / "web", port, fqrn)
     try:
-        url = f"http://127.0.0.1:{port}/cvmfs/{fqrn}"
+        url = f"http://{HOST}:{port}/cvmfs/{fqrn}"
         with fuse_mount(fqrn, url, pub) as (mnt, _):
             if not os.path.ismount(str(mnt)):
                 pytest.fail(f"brixMount failed to mount forged repo {fqrn}")

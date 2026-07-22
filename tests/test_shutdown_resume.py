@@ -28,10 +28,14 @@ from pathlib import Path
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN, free_port
+from settings import HOST, BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness]
+# Bucket-2 lifecycle subjects: three fixed-port instances the file's tests
+# reload()/hard-kill mid-transfer; a shared xdist_group serialises the whole
+# module so its fixed exclusive-band ports never have two concurrent drivers.
+pytestmark = [pytest.mark.timeout(180), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-shutdown-resume")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -73,7 +77,7 @@ def srv(lifecycle):
         name=DUAL_NAME,
         template="nginx_lc_shutdown_resume_dual.conf",
         protocol="root",
-        extra_ports={"HTTP_PORT": free_port(HOST)},
+        # root primary + HTTP_PORT secondary come from the fixed ledger.
         template_values={"BIND_HOST": BIND_HOST},
         reason="fast worker teardown + mid-transfer resume across reload/restart",
     ))

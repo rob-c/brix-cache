@@ -32,7 +32,6 @@ onto the new surface):
 Self-provisioned; skips cleanly only when xrdcp is unavailable.
 """
 
-import itertools
 import os
 import shutil
 import subprocess
@@ -43,12 +42,14 @@ from cmdscripts import frm_stagecmd
 from settings import HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Serialised onto one worker: every test drives a self-contained frm:// server on
+# the adapter's single fixed ledger port (lc-frm-exec / lc-frm-stub), reusing it
+# across tests since each test closes its harness at teardown.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-scratch")]
 
 XRDCP = shutil.which("xrdcp")
 TAPE_BYTES = b"REAL-TAPE-CONTENT-" + b"t" * 200 + b"\n"
-
-_SEQ = itertools.count()
 
 
 def _start(harness, tmp_path, *, adapter="exec", nearline=True):
@@ -78,7 +79,7 @@ def _start(harness, tmp_path, *, adapter="exec", nearline=True):
             (tape / "near.dat").write_bytes(TAPE_BYTES)
         storage = f"frm://stub{tape}"
 
-    name = f"lc-frm-{adapter}-{next(_SEQ)}"
+    name = f"lc-frm-{adapter}"
     endpoint = harness.start(NginxInstanceSpec(
         name=name,
         template="nginx_lc_frm_exec.conf",

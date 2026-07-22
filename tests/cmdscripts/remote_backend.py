@@ -10,15 +10,16 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
+from settings import BIND_HOST, HOST
 
 
 def _stream_config(run: LiveRun, root: Path, port: int, *, backend: int | None = None, writable: bool = False) -> Path:
-    backend_line = f" brix_storage_backend root://127.0.0.1:{backend};" if backend else ""
+    backend_line = f" brix_storage_backend root://{HOST}:{backend};" if backend else ""
     write_line = " brix_allow_write on; brix_upload_resume off;" if writable else ""
     return run.write(root / "nginx.conf", f"""daemon on; error_log {root}/logs/e.log info; pid {root}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {root}/export; brix_auth none;{write_line}{backend_line} }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {root}/export; brix_auth none;{write_line}{backend_line} }} }}
 """)
 
 
@@ -28,9 +29,9 @@ def _dav_config(run: LiveRun, root: Path, port: int, origin: int, *, writable: b
     return run.write(root / "nginx.conf", f"""daemon on; error_log {root}/logs/e.log info; pid {root}/nginx.pid;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {root}/tmp; client_max_body_size 50m; server {{ listen 127.0.0.1:{port};
+http {{ client_body_temp_path {root}/tmp; client_max_body_size 50m; server {{ listen {BIND_HOST}:{port};
   location / {{ {write_line} brix_webdav on; brix_export {root}/export; brix_webdav_auth none;
-    brix_storage_backend root://127.0.0.1:{origin}; {staging_line} }} }} }}
+    brix_storage_backend root://{HOST}:{origin}; {staging_line} }} }} }}
 """)
 
 
@@ -57,7 +58,7 @@ def serve_offload(nginx: Path | None = None) -> int:
         small, big = origin / "export/small.bin", origin / "export/big.bin"
         random_file(small, 500000)
         random_file(big, 2600000)
-        url = "http://127.0.0.1:8531"
+        url = f"http://{HOST}:8531"
         got = run.root / "small.got"
         status = run.call(["curl", "-sS", "-o", got, "-w", "%{http_code}", f"{url}/small.bin"], check=False).stdout.strip()
         ranged = run.curl_bytes(f"{url}/big.bin", "-r", "1000-1010")
@@ -78,10 +79,10 @@ def webdav_write(nginx: Path | None = None, *, staging: bool = False) -> int:
         origin, node = _make_nodes(run, origin_port, port, webdav=True, writable=True, staging=staging)
         one, two = run.root / "a.bin", run.root / "b.bin"
         first_digest, second_digest = random_file(one, 700000 if staging else 250000), random_file(two, 1800000)
-        status_one = run.curl_status(f"http://127.0.0.1:{port}/a.bin", "-T", str(one))
+        status_one = run.curl_status(f"http://{HOST}:{port}/a.bin", "-T", str(one))
         got = run.root / "a.got"
-        got.write_bytes(run.curl_bytes(f"http://127.0.0.1:{port}/a.bin"))
-        status_two = run.curl_status(f"http://127.0.0.1:{port}/b.bin", "-T", str(two))
+        got.write_bytes(run.curl_bytes(f"http://{HOST}:{port}/a.bin"))
+        status_two = run.curl_status(f"http://{HOST}:{port}/b.bin", "-T", str(two))
         export_empty = not any((node / "export").iterdir())
         return _checks([
             (status_one in (200, 201, 204), f"first PUT accepted ({status_one})"),
@@ -98,7 +99,7 @@ def stream_write(nginx: Path | None = None) -> int:
         origin, node = _make_nodes(run, 11650, 11651, webdav=False, writable=True)
         small, big = run.root / "small.bin", run.root / "big.bin"
         small_digest, big_digest = random_file(small, 300000), random_file(big, 2600000)
-        target = "root://127.0.0.1:11651"
+        target = f"root://{HOST}:11651"
         small_put = run.call([xrdcp, "-f", small, f"{target}//small.bin"], check=False).returncode
         output = run.call([xrdfs, target, "cat", "/small.bin"], check=False).stdout.encode()
         stat_out = run.call([xrdfs, target, "stat", "/small.bin"], check=False).stdout
@@ -125,16 +126,16 @@ def metadata(nginx: Path | None = None) -> int:
         run.start_nginx(dav, _dav_config(run, dav, dav_port, origin_port, writable=True), dav_port)
         source = run.root / "a.bin"
         random_file(source, 4096)
-        target = f"root://127.0.0.1:{stream_port}"
+        target = f"root://{HOST}:{stream_port}"
         copied = run.call([xrdcp, "-f", source, f"{target}//f.bin"], check=False).returncode == 0
         xset = run.call([xrdfs, target, "xattr", "set", "/f.bin", "user.color", "blue"], check=False).returncode == 0
         get = run.call([xrdfs, target, "xattr", "get", "/f.bin", "user.color"], check=False).stdout
-        origin_get = run.call([xrdfs, f"root://127.0.0.1:{origin_port}", "xattr", "get", "/f.bin", "user.color"], check=False).stdout
+        origin_get = run.call([xrdfs, f"root://{HOST}:{origin_port}", "xattr", "get", "/f.bin", "user.color"], check=False).stdout
         listing = run.call([xrdfs, target, "xattr", "ls", "/f.bin"], check=False).stdout
         renamed = run.call([xrdfs, target, "mv", "/f.bin", "/g.bin"], check=False).returncode == 0
         copy_status = run.curl_status(
-            f"http://127.0.0.1:{dav_port}/g.bin",
-            "-X", "COPY", "-H", f"Destination: http://127.0.0.1:{dav_port}/copy.bin",
+            f"http://{HOST}:{dav_port}/g.bin",
+            "-X", "COPY", "-H", f"Destination: http://{HOST}:{dav_port}/copy.bin",
         )
         origin_file, copied_file = origin / "export/g.bin", origin / "export/copy.bin"
         return _checks([
@@ -155,14 +156,14 @@ def stage_reconcile(nginx: Path | None = None) -> int:
 env BRIX_STAGE_JOURNAL_DIR={run.root}/journal;
 worker_processes 1; thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:{port}; location / {{
+http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{port}; location / {{
   dav_methods PUT DELETE; brix_webdav on; brix_export {run.root}/backend; brix_webdav_auth none; brix_allow_write on;
   brix_stage on; brix_stage_store posix:{run.root}/stage; brix_stage_flush async; }} }} }}
 """)
         run.start_nginx(run.root, config, port)
         source = run.root / "src.bin"
         digest = random_file(source, 350000)
-        status = run.curl_status(f"http://127.0.0.1:{port}/o.bin", "-T", str(source))
+        status = run.curl_status(f"http://{HOST}:{port}/o.bin", "-T", str(source))
         pid = int((run.root / "nginx.pid").read_text())
         os.kill(pid, signal.SIGKILL)
         time.sleep(0.2)
@@ -173,7 +174,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen 127.0.0.1:{port};
             run.start_nginx(run.root, config, port)
             time.sleep(1.5)
         got = run.root / "got.bin"
-        get_status = run.call(["curl", "-sS", "-o", got, "-w", "%{http_code}", f"http://127.0.0.1:{port}/o.bin"], check=False).stdout.strip()
+        get_status = run.call(["curl", "-sS", "-o", got, "-w", "%{http_code}", f"http://{HOST}:{port}/o.bin"], check=False).stdout.strip()
         return _checks([
             (status == 201, "async staged PUT accepted"),
             (backend.exists() or (journal and staged.exists()), "backend commit raced crash or durable stage journal survived"),

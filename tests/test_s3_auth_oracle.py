@@ -32,7 +32,8 @@ except Exception:                                # pragma: no cover
 from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-s3-auth-oracle")]
 
 PORT = None
 BUCKET = "testbucket"

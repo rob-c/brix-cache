@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_backend_source import XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_backend_source")
+
 
 def test_cache_backend_source_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

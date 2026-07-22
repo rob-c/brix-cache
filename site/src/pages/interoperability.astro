@@ -1,0 +1,211 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import Cta from '../components/Cta.astro';
+import ChaosMesh from '../components/ChaosMesh.astro';
+import { REPO_URL, url } from '../lib/site';
+
+const ROADMAP_URL = `${REPO_URL}/blob/main/docs/_archive/comprehensive-testing-roadmap.md`;
+const TEST_URL = `${REPO_URL}/blob/main/tests/test_chaos_mesh.py`;
+
+// The nodes of the mesh, described for the reader below the diagram. `run`
+// is the actual daemon — the whole mesh is one nginx binary except the lone
+// stock XRootD reference origin.
+const tiers = [
+  {
+    tag: 'TIER 1', accent: 'root', run: 'nginx', title: 'Perimeter Gateway',
+    body: 'The front door. Validates the client\'s WLCG bearer token, then acts as a binary proxy and CMS manager — re-minting a site-internal SSS secret for every hop it makes inward.',
+    port: ':11165 · nginx_proxy_mode.conf',
+  },
+  {
+    tag: 'TIER 2', accent: 'dav', run: 'nginx', title: 'Regional Cache',
+    body: 'A read-through / write-through cache. Fills from Tier 3 on a miss, serves the byte range while the fill is still in flight, and survives a SIGHUP mid-transfer without dropping a proxy handle.',
+    port: ':11164 · nginx_chaos_tier2_cache.conf',
+  },
+  {
+    tag: 'TIER 3', accent: 's3', run: 'nginx', title: 'Storage Node',
+    body: 'The origin of truth. Exposes the same POSIX tree over root://, davs://, and s3:// at once — so a transfer can enter as S3 REST and leave as binary XRootD.',
+    port: ':11163 · nginx_chaos_tier3_storage.conf',
+  },
+  {
+    tag: 'TIER 2b', accent: 'root', run: 'xrootd', title: 'Reference Origin',
+    body: 'A stock upstream XRootD daemon sitting beside the cache — the one node in the mesh that is not BriX-Cache. Every scenario is cross-checked against it, so conformance is measured, not asserted.',
+    port: 'stock xrootd · differential origin',
+  },
+  {
+    tag: 'DISCOVERY', accent: 'dav', run: 'nginx', title: 'CMS Redirector',
+    body: 'The cluster manager, deliberately started late. When it finally appears, the data server registers retroactively over the cmsd protocol and the redirector begins locate-redirecting clients to it.',
+    port: ':11166 · nginx_cluster_redir.conf',
+  },
+  {
+    tag: 'DISCOVERY', accent: 's3', run: 'nginx', title: 'Data Server',
+    body: 'Boots before its manager exists, retries a failed CMS login, and registers via kYR_login the moment the redirector comes up — proving startup order is never a correctness dependency.',
+    port: ':11168 · nginx_cluster_ds.conf',
+  },
+];
+
+const runMeta = {
+  nginx: { label: 'nginx · BriX-Cache', cls: 'run-nginx' },
+  xrootd: { label: 'stock XRootD', cls: 'run-xrootd' },
+};
+
+// The five stresses, restated as evidence with citations.
+const stresses = [
+  { n: '01', t: 'Identity shifting', d: 'A JWT at the edge becomes an SSS secret internally. The Tier 2 access log records sss — never the bearer token it never sees.', cite: 'TestChaosMeshStep1IdentityShifting' },
+  { n: '02', t: 'Delayed discovery', d: 'The data server registers with a manager that did not exist when it started, over the real cmsd path — no mock, no fixed boot order.', cite: 'TestChaosMeshDiscovery' },
+  { n: '03', t: 'Protocol-bridged TPC', d: 'One third-party copy, two wire protocols: an S3 REST source bridged into a binary root:// destination with full handle translation.', cite: 'TestChaosMeshStep3MultiStreamTPC' },
+  { n: '04', t: 'Synchronous conflict', d: 'A competing exclusive open during an in-flight TPC is refused — lock contention bubbles up every tier and the destination is never corrupted.', cite: 'TestChaosMeshStep4SynchronousConflict' },
+  { n: '05', t: 'SIGHUP chaos injection', d: 'Tier 2 is reloaded mid-transfer. In-flight proxy handles survive the drain and the client gets byte-identical data with zero kXR_IOError.', cite: 'TestChaosMeshStep5SIGHUPDuringTPC' },
+];
+---
+
+<Layout
+  title="Interoperability"
+  description="The Chaos Mesh: an interactive topology of the test suite's maximal-coverage interoperability scenario. Five nodes across root://, WebDAV and S3 prove identity translation, delayed CMS discovery, protocol-bridged third-party copy, lock-contention propagation, and byte-exact survival of a reload mid-transfer — every claim cited to a test in the repository."
+  accent="dav"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <span class="eyebrow">Interoperability</span>
+    <h1 class="display io-head">Three protocols. One file. Proven under chaos.</h1>
+    <p class="lede io-lede">
+      BriX-Cache speaks native XRootD, WebDAV, and S3 against the same bytes — and the test suite
+      has a scenario built to prove those planes actually cooperate under stress. It is called the
+      <strong>Chaos Mesh</strong>: five nodes, three wire protocols, and one transfer that is made to
+      cross every seam at once. Pick a stress below and watch it route through the mesh.
+    </p>
+  </Band>
+
+  <!-- THE GRAPH -->
+  <Band variant="sunken" id="mesh">
+    <span class="eyebrow">The Chaos Mesh · live topology</span>
+    <h2 class="display band-head">The interoperability torture test, drawn to scale.</h2>
+    <p class="lede muted io-intro">
+      This is the exact fleet <span class="mono">tests/test_chaos_mesh.py</span> brings up — storage
+      behind cache behind gateway, a reference XRootD origin alongside, and a CMS discovery pair that
+      registers late. The animated packets show real data flow; the buttons trace each stress.
+    </p>
+    <ChaosMesh />
+    <p class="io-src mono muted">
+      Sources: <a href={TEST_URL}>tests/test_chaos_mesh.py ↗</a> ·
+      <a href={ROADMAP_URL}>docs §12 · The Chaos Mesh ↗</a>
+    </p>
+  </Band>
+
+  <!-- THE NODES -->
+  <Band id="nodes">
+    <span class="eyebrow">The nodes</span>
+    <h2 class="display band-head">Every box does one job.</h2>
+    <p class="lede muted io-intro">
+      Here is the tell: five of the six nodes are the <strong>same nginx binary</strong> — BriX-Cache
+      speaking XRootD, WebDAV, and S3 — configured into different roles. Only the reference origin is a
+      <strong>stock XRootD</strong> daemon, and it exists purely to cross-check the others.
+    </p>
+    <div class="grid grid-3 io-grid">
+      {tiers.map((t) => (
+        <article class="panel io-node" style={`--tint: var(--${t.accent})`}>
+          <div class="io-node-top">
+            <span class="io-tag">{t.tag}</span>
+            <span class:list={['io-run', runMeta[t.run].cls]}>{runMeta[t.run].label}</span>
+          </div>
+          <h3 class="io-node-t">{t.title}</h3>
+          <p class="muted">{t.body}</p>
+          <p class="mono io-port">{t.port}</p>
+        </article>
+      ))}
+    </div>
+  </Band>
+
+  <!-- THE STRESSES -->
+  <Band variant="ink" id="stresses">
+    <span class="eyebrow">The five stresses</span>
+    <h2 class="display band-head">What the mesh is trying to break.</h2>
+    <p class="lede muted io-intro">
+      Each stress is a single end-to-end flow chosen to drive a different family of subsystems —
+      and each is pinned by its own test, run against BriX-Cache and cross-checked against stock
+      XRootD.
+    </p>
+    <div class="io-stresses">
+      {stresses.map((s) => (
+        <article class="io-stress">
+          <span class="io-num mono">{s.n}</span>
+          <div>
+            <h3 class="io-stress-t">{s.t}</h3>
+            <p class="muted">{s.d}</p>
+            <p class="mono io-cite">{s.cite}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  </Band>
+
+  <!-- FAULT INJECTION → its own page -->
+  <Band variant="sunken" id="faults">
+    <span class="eyebrow">The chaos is real</span>
+    <h2 class="display band-head io-fault-head">And the wire itself is made hostile.</h2>
+    <p class="lede muted io-intro">
+      The mesh does not just reload servers — it degrades the network between them.
+      <span class="mono">brix-fault-proxy</span> splices a root-free relay into the wire and injects
+      latency, corruption, truncation, resets, and black-holes, per-direction, live. Under all of it
+      the assertion never changes: the bytes that arrive are the bytes that were published, or the
+      transfer fails loudly.
+    </p>
+    <p class="io-doclink mono">
+      <a href={url('/network-testing')}>Network testing — treat every network as adversarial →</a>
+    </p>
+  </Band>
+
+  <Band>
+    <p class="io-doclink mono">
+      Read the topology in the tree: <a href={TEST_URL}>tests/test_chaos_mesh.py ↗</a>
+    </p>
+    <Cta
+      title="Interoperability you can watch fail — and recover."
+      note="The mesh and every stress above are in the repository. Bring your own reference XRootD and cross-check it yourself."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .io-head { max-width: 18ch; margin: 0.4rem 0 0; }
+  .io-lede { margin-top: 1.2rem; }
+  .band-head { margin: 0.5rem 0 1.2rem; max-width: 26ch; }
+  .io-intro { margin: 0.3rem 0 1.6rem; }
+  .io-src { font-size: 0.8rem; margin-top: 1rem; text-align: center; }
+
+  /* nodes grid */
+  .io-grid { margin-top: 0.4rem; }
+  .io-node {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    border-top: 9px solid var(--tint);
+  }
+  .io-node-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+  .io-tag {
+    font-family: var(--mono); font-size: 0.7rem; font-weight: 600;
+    letter-spacing: 0.16em; color: var(--ink-2);
+  }
+  .io-run {
+    font-family: var(--mono); font-size: 0.66rem; font-weight: 700;
+    padding: 0.15em 0.5em; border: 2px solid var(--ink); white-space: nowrap;
+  }
+  .run-nginx { background: var(--ink); color: var(--paper); }
+  .run-xrootd { background: var(--paper); color: var(--ink); border-style: dashed; }
+  .io-node-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.25rem; line-height: 1.05; }
+  .io-port { margin-top: auto; font-size: 0.72rem; color: var(--ink-2); word-break: break-word; }
+
+  /* stresses */
+  .io-stresses { display: grid; gap: 0; margin-top: 0.4rem; }
+  .io-stress {
+    display: grid; grid-template-columns: auto 1fr; gap: 1.1rem; align-items: start;
+    padding: 1.3rem 0; border-top: 2px solid #333;
+  }
+  .io-stress:first-child { border-top: none; }
+  .io-num { font-size: 1.5rem; font-weight: 600; color: var(--accent); line-height: 1; }
+  .io-stress-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.2rem; margin-bottom: 0.4rem; }
+  .io-cite { margin-top: 0.5rem; font-size: 0.72rem; color: #a8a29e; }
+
+  /* fault band → its own page */
+  .io-fault-head { max-width: 24ch; }
+
+  .io-doclink { text-align: center; margin-bottom: 1.6rem; font-size: 0.85rem; }
+</style>

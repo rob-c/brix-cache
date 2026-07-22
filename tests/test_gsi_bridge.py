@@ -51,6 +51,7 @@ import zlib
 import pytest
 from XRootD import client
 from XRootD.client.flags import OpenFlags, QueryCode
+from settings import BIND_HOST
 from settings import (
     CA_DIR,
     DATA_ROOT,
@@ -86,7 +87,7 @@ BRIDGE_DATA = os.path.join(TEST_ROOT, "data-gsi-bridge")
 # start a throwaway stock xrootd ourselves, using the harness PKI and exporting
 # BRIDGE_DATA exactly as the harness reference config does.
 # ---------------------------------------------------------------------------
-def _port_open(port, host="127.0.0.1"):
+def _port_open(port, host=BIND_HOST):
     s = socket.socket()
     s.settimeout(0.3)
     try:

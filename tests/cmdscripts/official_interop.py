@@ -22,6 +22,7 @@ import sys
 
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
+from settings import SERVER_HOST
 
 BRIX_SRC = Path(os.environ.get("BRIX_SRC", "/tmp/brix-src"))
 TEST_DIR = BRIX_SRC / "tests/XRootD"
@@ -42,7 +43,7 @@ def anon_port() -> int:
 
 
 def _host_url() -> str:
-    return f"root://localhost:{anon_port()}/"
+    return f"root://{SERVER_HOST}:{anon_port()}/"
 
 
 def _missing_tools() -> list[str]:

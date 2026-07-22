@@ -29,19 +29,20 @@ import urllib.request
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import SERVER_HOST, free_port
+from settings import SERVER_HOST
 from test_cms_wire_pup_conformance import (
     CMS_RR_LOGIN,
     _build_frame,
     _minimal_login_payload,
 )
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-blfile")]
 
 H = SERVER_HOST
 # What the registry stores as the node's host is the CMS connection's remote
 # IP TEXT (ctx->host), not a name — the blacklist file must use the literal.
-NODE_IP = "127.0.0.1"
+NODE_IP = "127.0.0.1"  # net-literal-allow: CMS node remote-IP literal the blacklist file must match (see comment)
 SECRET = "blfile-admin-secret"
 
 # Distinct advertised data ports so each test's registry entry is its own.
@@ -135,18 +136,16 @@ def manager(lifecycle, tmp_path):
     secret = tmp_path / "admin.secret"
     secret.write_text(SECRET + "\n")
 
-    http_port = free_port()
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-cms-blfile",
         template="nginx_cms_blfile_server.conf",
         protocol="root",
         readiness="tcp",
         template_values={"BLACKLIST_FILE": str(blfile),
-                         "HTTP_PORT": http_port,
                          "SECRET_FILE": str(secret)},
         reason="Phase-89 W6' file-driven blacklist: poll + re-assert semantics.",
     ))
-    return _BlfileManager(ep.port, http_port, str(blfile))
+    return _BlfileManager(ep.port, ep.extra_ports["HTTP_PORT"], str(blfile))
 
 
 def test_file_listed_cidr_drained_at_registration(manager):
@@ -178,7 +177,7 @@ def test_malformed_line_skipped_good_line_applies(manager):
     the good line still drains the node and the manager keeps serving."""
     manager.write_blacklist(
         "10.0.0.0/64\n"          # CIDR prefix out of range
-        "127.0.0.1:99999\n"      # port out of range
+        "127.0.0.1:99999\n"      # port out of range  # net-literal-allow: malformed blacklist line under test (port out of range)
         "not a host line at all with spaces\n"
         f"{NODE_IP}:{PORT_MALFORM}\n"  # the one good line
     )

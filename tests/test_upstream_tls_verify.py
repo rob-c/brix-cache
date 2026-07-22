@@ -37,13 +37,15 @@ import pytest
 
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
-from settings import BIND_HOST
+from settings import BIND_HOST, HOST
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
-RUNTIME_SERVER = _SRC / "core" / "config" / "runtime_server.c"
+# The TLS ctx-build helpers were split out of runtime_server.c into the sibling.
+RUNTIME_SERVER = _SRC / "core" / "config" / "runtime_server_tls.c"
 UP_TLS = _SRC / "net" / "upstream" / "tls.c"
-PROXY_UP = _SRC / "net" / "proxy" / "connect_upstream.c"
+# The proxy handshake-done callback was split out of connect_upstream.c.
+PROXY_UP = _SRC / "net" / "proxy" / "connect_upstream_tls.c"
 
 
 class TestUpstreamTlsVerify:
@@ -107,10 +109,15 @@ class TestUpstreamTlsVerify:
 # proves the operator cannot LEAVE it unwired: a TLS leg turned on without a CA is
 # refused at `nginx -t` unless verification is explicitly, loudly disabled.
 # --------------------------------------------------------------------------- #
+# Serialise the whole file onto one xdist worker: every harness parse-check
+# registers a fixed-port (never-bound) spec, and the group keeps the file's
+# tests from racing the shared registry.
+pytestmark = pytest.mark.xdist_group("lc-a1")
+
 _GATE = pytest.mark.uses_lifecycle_harness
 
-_REDIR_HOST = "brix_upstream 127.0.0.1:1095;"
-_PROXY = "brix_tap_proxy on;\n        brix_tap_proxy_upstream 127.0.0.1:1095;"
+_REDIR_HOST = f"brix_upstream {HOST}:1095;"
+_PROXY = f"brix_tap_proxy on;\n        brix_tap_proxy_upstream {HOST}:1095;"
 
 
 @pytest.fixture(scope="module")

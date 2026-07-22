@@ -24,7 +24,8 @@ import pytest
 from settings import NGINX_BIN, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-ssi")]
 
 kXR_login, kXR_open, kXR_read, kXR_write, kXR_close = 3007, 3010, 3013, 3019, 3003
 kXR_ok, kXR_error = 0, 4003

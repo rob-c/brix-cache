@@ -27,6 +27,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 from run_loss_sweep import measure  # noqa: E402
+from settings import HOST
 
 SIZE = 8 * 1024 * 1024            # small: smoke, not benchmark
 TIMEOUT = 30
@@ -67,7 +68,7 @@ def fleet():
 @pytest.mark.parametrize("name", ["nginx", "xrootd"])
 def test_baseline_0pct_byte_exact(fleet, name):
     """Clean (no-proxy) GSI cat returns the whole file."""
-    url = f"root://127.0.0.1:{fleet[name]}/"
+    url = f"root://{HOST}:{fleet[name]}/"
     ok, elapsed, nbytes, why = measure(url, FILE_PATH, SIZE, TIMEOUT)
     assert ok, f"{name} 0% baseline failed: {why}"
     assert nbytes == SIZE

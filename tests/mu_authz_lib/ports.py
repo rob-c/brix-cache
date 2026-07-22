@@ -6,6 +6,7 @@ a cache-OFF `direct` server (the authoritative oracle) and a cache-ON `cache`
 server (the read cache + stage path under test).
 """
 import os
+from settings import HOST
 
 
 def _p(name: str, default: int) -> int:
@@ -13,7 +14,7 @@ def _p(name: str, default: int) -> int:
 
 
 class MU:
-    HOST = os.environ.get("TEST_MU_HOST", "127.0.0.1")
+    HOST = os.environ.get("TEST_MU_HOST", HOST)
 
     # Paired direct (cache-off, oracle) + cache (cache-on) servers per protocol.
     ROOT_DIRECT   = _p("TEST_MU_ROOT_DIRECT",   12100)

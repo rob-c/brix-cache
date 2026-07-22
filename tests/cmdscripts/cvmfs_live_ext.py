@@ -38,9 +38,12 @@ import time
 from cmdscripts.cvmfs_live import _checks, _count_log, _ctl
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, sha256
 from lib_py.util import wait_tcp
-from settings import free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST
 
 MOCK_STRATUM1 = REPO_ROOT / "tests/cvmfs/mock_stratum1.py"
+
+_PORTS = cmdscript_ports("cvmfs_live_ext")
 
 
 class LiveSkip(RuntimeError):
@@ -60,7 +63,7 @@ def _mock(run: LiveRun, port: int, objects: int, seed: int, *, keepalive: bool =
     for _ in range(50):
         if proc.poll() is not None:
             raise LiveFailure(f"mock Stratum-1 on port {port} did not start")
-        ready = run.call(["curl", "-sf", "-m", "1", "-o", os.devnull, f"http://127.0.0.1:{port}/ctl/objects"], check=False)
+        ready = run.call(["curl", "-sf", "-m", "1", "-o", os.devnull, f"http://{HOST}:{port}/ctl/objects"], check=False)
         if ready.returncode == 0:
             return proc
         time.sleep(0.1)
@@ -75,7 +78,7 @@ def _mock_stop(run: LiveRun, proc: subprocess.Popen[str] | None, port: int) -> N
         except subprocess.TimeoutExpired:
             proc.kill()
     for _ in range(50):
-        gone = run.call(["curl", "-sf", "-m", "1", "-o", os.devnull, f"http://127.0.0.1:{port}/ctl/objects"], check=False)
+        gone = run.call(["curl", "-sf", "-m", "1", "-o", os.devnull, f"http://{HOST}:{port}/ctl/objects"], check=False)
         if gone.returncode != 0:
             return
         time.sleep(0.1)
@@ -89,7 +92,7 @@ def _objects(run: LiveRun, port: int) -> list[str]:
 
 def _fault(run: LiveRun, port: int, mode: str, count: int) -> None:
     run.call(["curl", "-sS", "-o", os.devnull, "-X", "POST", "-d",
-              f'{{"mode":"{mode}","count":{count}}}', f"http://127.0.0.1:{port}/ctl/fault"])
+              f'{{"mode":"{mode}","count":{count}}}', f"http://{HOST}:{port}/ctl/fault"])
 
 
 def _curl_code_to(run: LiveRun, url: str, out: Path, *extra: str, timeout: int = 25) -> int:
@@ -112,7 +115,7 @@ def _concurrent_gets(url: str, count: int) -> None:
 
 
 def _metrics(run: LiveRun, port: int) -> str:
-    return run.call(["curl", "-sS", f"http://127.0.0.1:{port}/metrics"]).stdout
+    return run.call(["curl", "-sS", f"http://{HOST}:{port}/metrics"]).stdout
 
 
 def _mval(text: str, prefix: str) -> float:
@@ -294,7 +297,7 @@ def bench(nginx: Path | None = None) -> int:
         _require(shutil.which("fusermount3") or shutil.which("fusermount"), "no fusermount")
         _require(Path(keys).exists(), f"CVMFS keys missing: {keys}")
         brix = _ensure_brixcvmfs(run)
-        (pport,) = free_ports(1)
+        (pport,) = _PORTS[0:1]  # was free_ports(1)
 
         print(f"== enumerate {nfiles} {repo} files (clean brix mount) ==")
         e_mnt, e_cache, e_tmp = run.mkdir("emnt"), run.mkdir("ecache"), run.mkdir("etmp")
@@ -320,7 +323,7 @@ def bench(nginx: Path | None = None) -> int:
 
                 bc, bt, bm = run.mkdir(f"bc{rate}"), run.mkdir(f"bt{rate}"), run.mkdir(f"bm{rate}")
                 bp = _brix_mount(run, brix, repo, s1, keys, bc, bt, bm,
-                                 extra_env={"http_proxy": f"http://127.0.0.1:{pport}"})
+                                 extra_env={"http_proxy": f"http://{HOST}:{pport}"})
                 brix_ok = _wait_mount_ready(bm)
                 brix_res = _read_files(bm, files, 25) if brix_ok else None
                 _umount_wait(run, bm)
@@ -329,7 +332,7 @@ def bench(nginx: Path | None = None) -> int:
 
                 sc, sm = run.mkdir(f"sc{rate}"), run.mkdir(f"sm{rate}")
                 conf = _stock_cvmfs2_conf(run.root / f"bench_stock.{rate}.conf", s1,
-                                          f"http://127.0.0.1:{pport}", keys, sc, 5)
+                                          f"http://{HOST}:{pport}", keys, sc, 5)
                 sp = run.spawn(["timeout", "60", "cvmfs2", "-o", f"config={conf}", repo, sm])
                 stock_ok = _wait_mount_ready(sm)
                 stock_res = _read_files(sm, files, 25) if stock_ok else None
@@ -370,7 +373,7 @@ def bench(nginx: Path | None = None) -> int:
 # ---------------------------------------------------------------------------
 
 def reverse(nginx: Path | None = None) -> int:
-    mport, cport, xport, dport = free_ports(4)
+    mport, cport, xport, dport = _PORTS[1:5]  # was free_ports(4)
     with LiveRun("cvmfs_rev", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         access_log = logs / "cvmfs_access.log"
@@ -387,9 +390,9 @@ http {{
     send_timeout 300s; client_header_timeout 300s;
     reset_timedout_connection off;
     server {{
-        listen 127.0.0.1:{cport} so_keepalive=60s:10s:6 backlog=2048;
+        listen {BIND_HOST}:{cport} so_keepalive=60s:10s:6 backlog=2048;
         location /cvmfs/ {{
-            brix_storage_backend http://127.0.0.1:{mport};
+            brix_storage_backend http://{HOST}:{mport};
             brix_cache_store posix:{cache};
             brix_cvmfs on;
             brix_cvmfs_manifest_ttl 1;
@@ -397,13 +400,13 @@ http {{
         location / {{ return 403; }}
     }}
     server {{
-        listen 127.0.0.1:{xport};
+        listen {BIND_HOST}:{xport};
         access_log off;
         location /metrics {{ brix_metrics on; }}
         location /healthz {{ brix_health on; }}
     }}
     server {{
-        listen 127.0.0.1:{dport};
+        listen {BIND_HOST}:{dport};
         access_log off;
         location /brix/ {{ brix_dashboard on; brix_dashboard_password "t16"; }}
     }}
@@ -417,21 +420,21 @@ http {{
         obj = objects[0]
 
         # success: cold fill + warm hit, byte-exact, warm served without origin
-        cold = run.curl_bytes(f"http://127.0.0.1:{cport}{obj}")
+        cold = run.curl_bytes(f"http://{HOST}:{cport}{obj}")
         after_cold = _count_log(run, mport, obj)
-        warm = run.curl_bytes(f"http://127.0.0.1:{cport}{obj}")
+        warm = run.curl_bytes(f"http://{HOST}:{cport}{obj}")
         after_warm = _count_log(run, mport, obj)
-        origin = run.curl_bytes(f"http://127.0.0.1:{mport}{obj}")
+        origin = run.curl_bytes(f"http://{HOST}:{mport}{obj}")
 
         # stampede: exactly 1 origin fetch (module fill-lock)
         obj2 = objects[4]
-        _concurrent_gets(f"http://127.0.0.1:{cport}{obj2}", 40)
+        _concurrent_gets(f"http://{HOST}:{cport}{obj2}", 40)
         stampede_fetches = _count_log(run, mport, obj2)
 
         # manifest: 1s TTL — a bump becomes visible after expiry (poll windows)
-        manifest_url = f"http://127.0.0.1:{cport}/cvmfs/test.cern.ch/.cvmfspublished"
+        manifest_url = f"http://{HOST}:{cport}/cvmfs/test.cern.ch/.cvmfspublished"
         m1 = run.curl_bytes(manifest_url)
-        run.call(["curl", "-s", "-o", os.devnull, f"http://127.0.0.1:{mport}/ctl/manifest/bump"])
+        run.call(["curl", "-s", "-o", os.devnull, f"http://{HOST}:{mport}/ctl/manifest/bump"])
         revalidated = False
         for _ in range(3):
             time.sleep(2)
@@ -440,26 +443,26 @@ http {{
                 break
 
         # geo passthrough
-        geo = run.curl_bytes(f"http://127.0.0.1:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/a,b")
+        geo = run.curl_bytes(f"http://{HOST}:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/a,b")
 
         # security-neg: rejects for non-CVMFS shapes; 405 for writes
-        c1 = run.curl_status(f"http://127.0.0.1:{cport}/cvmfs/../etc/passwd")
-        c2 = run.curl_status(f"http://127.0.0.1:{cport}/cvmfs/repo/random.txt")
-        c3 = run.curl_status(f"http://127.0.0.1:{cport}/cvmfs/test.cern.ch/.cvmfspublished",
+        c1 = run.curl_status(f"http://{HOST}:{cport}/cvmfs/../etc/passwd")
+        c2 = run.curl_status(f"http://{HOST}:{cport}/cvmfs/repo/random.txt")
+        c3 = run.curl_status(f"http://{HOST}:{cport}/cvmfs/test.cern.ch/.cvmfspublished",
                              "-X", "PUT", "--data", "x")
 
         # negative cache: 2 misses for the same bogus CAS name -> 1 origin probe
         bogus = "/cvmfs/test.cern.ch/data/aa/" + "ab" * 19
-        cn1 = run.curl_status(f"http://127.0.0.1:{cport}{bogus}")
+        cn1 = run.curl_status(f"http://{HOST}:{cport}{bogus}")
         nb1 = _count_log(run, mport, bogus, endpoint="heads")
-        cn2 = run.curl_status(f"http://127.0.0.1:{cport}{bogus}")
+        cn2 = run.curl_status(f"http://{HOST}:{cport}{bogus}")
         nb2 = _count_log(run, mport, bogus, endpoint="heads")
 
         # T16: dashboard sees an IN-FLIGHT cvmfs fill (stalled origin)
         obj6 = objects[6]
         _fault(run, mport, "stall", 1)
         stalled = run.spawn(["curl", "-s", "--max-time", "6",
-                             f"http://127.0.0.1:{cport}{obj6}", "-o", os.devnull])
+                             f"http://{HOST}:{cport}{obj6}", "-o", os.devnull])
         dashboard_json = ""
         slot_visible = False
         for _ in range(25):
@@ -467,7 +470,7 @@ http {{
             digest = hmac.new(b"t16", ts.encode(), hashlib.sha256).hexdigest()
             dashboard_json = run.call(
                 ["curl", "-s", "-H", f"Cookie: xrd_dashboard={digest}.{ts}",
-                 f"http://127.0.0.1:{dport}/brix/api/v1/transfers"], check=False).stdout
+                 f"http://{HOST}:{dport}/brix/api/v1/transfers"], check=False).stdout
             if '"protocol":"cvmfs"' in dashboard_json and f'"path":"{obj6}"' in dashboard_json:
                 slot_visible = True
                 break
@@ -486,7 +489,7 @@ http {{
         fill_bytes = _mval(metrics, 'brix_cvmfs_bytes_served_total{source="fill"} ')
         fill_line = _grep(access_log, "class=cas cache=fill")
         hit_line = _grep(access_log, "class=cas cache=hit")
-        healthz = run.call(["curl", "-s", f"http://127.0.0.1:{xport}/healthz?verbose"]).stdout
+        healthz = run.call(["curl", "-s", f"http://{HOST}:{xport}/healthz?verbose"]).stdout
         origins_present = '"cvmfs_origins":[{"host"' in healthz
 
         # per-repository families (bounded fqrn label set)
@@ -499,7 +502,7 @@ http {{
         # cardinality bound: 40 bogus fqrns fold into repo="_other"
         flood_bogus = "ab" * 19
         for i in range(1, 41):
-            run.curl_status(f"http://127.0.0.1:{cport}/cvmfs/flood{i}.example.org/data/aa/{flood_bogus}")
+            run.curl_status(f"http://{HOST}:{cport}/cvmfs/flood{i}.example.org/data/aa/{flood_bogus}")
         metrics2 = _metrics(run, xport)
         nrepo = sum(1 for line in metrics2.splitlines()
                     if line.startswith("brix_cvmfs_repo_files_accessed_total{"))
@@ -539,7 +542,7 @@ http {{
 # ---------------------------------------------------------------------------
 
 def holdopen(nginx: Path | None = None) -> int:
-    mport, cport = free_ports(2)
+    mport, cport = _PORTS[5:7]  # was free_ports(2)
     with LiveRun("cvmfs_hold", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
 
@@ -548,9 +551,9 @@ def holdopen(nginx: Path | None = None) -> int:
 thread_pool default threads=4;
 events {{ worker_connections 128; }}
 http {{ access_log off; server {{
-    listen 127.0.0.1:{cport};
+    listen {BIND_HOST}:{cport};
     location /cvmfs/ {{
-        brix_storage_backend http://127.0.0.1:{mport};
+        brix_storage_backend http://{HOST}:{mport};
         brix_cache_store posix:{cache};
         brix_cvmfs on;
         brix_cvmfs_client_hold {client_hold};
@@ -575,10 +578,10 @@ http {{ access_log off; server {{
             [sys.executable, MOCK_STRATUM1, "--port", str(mport), "--objects", "6", "--seed", "20"])))
         timer.start()
         a_bin = run.root / "a.bin"
-        code = _curl_code_to(run, f"http://127.0.0.1:{cport}{objs[0]}", a_bin, timeout=30)
+        code = _curl_code_to(run, f"http://{HOST}:{cport}{objs[0]}", a_bin, timeout=30)
         timer.join()
         time.sleep(0.5)
-        ref = run.curl_bytes(f"http://127.0.0.1:{mport}{objs[0]}")
+        ref = run.curl_bytes(f"http://{HOST}:{mport}{objs[0]}")
         checks.append((code == 200 and a_bin.read_bytes() == ref,
                        f"held through outage, served on recovery ({code})"))
 
@@ -591,7 +594,7 @@ http {{ access_log off; server {{
         run.start_nginx(run.root, config, cport)
         same_socket_ok = False
         recovery_mock: subprocess.Popen[str] | None = None
-        conn = http.client.HTTPConnection("127.0.0.1", cport, timeout=30)
+        conn = http.client.HTTPConnection(HOST, cport, timeout=30)
         try:
             conn.request("GET", objs[1])
             r1 = conn.getresponse()
@@ -618,11 +621,11 @@ http {{ access_log off; server {{
         cache.mkdir(parents=True, exist_ok=True)
         run.start_nginx(run.root, config, cport)
         run.call(["curl", "-s", "--max-time", "1",
-                  f"http://127.0.0.1:{cport}{objs[2]}", "-o", os.devnull], check=False)  # aborts
+                  f"http://{HOST}:{cport}{objs[2]}", "-o", os.devnull], check=False)  # aborts
         _mock(run, mport, 6, 20)
         time.sleep(6)  # detached fill (max_life 60) retries and lands
         n1 = _count_log(run, mport, objs[2])
-        code = run.curl_status(f"http://127.0.0.1:{cport}{objs[2]}")
+        code = run.curl_status(f"http://{HOST}:{cport}{objs[2]}")
         n2 = _count_log(run, mport, objs[2])
         checks.append((code == 200 and n1 >= 1 and n1 == n2,
                        f"detached fill populated cache (code={code} origin={n1}->{n2})"))
@@ -630,7 +633,7 @@ http {{ access_log off; server {{
         # --- 4: 404 definitive, immediate -------------------------------------
         bogus = "/cvmfs/test.cern.ch/data/aa/" + "ef" * 19
         t0 = time.monotonic()
-        code = run.curl_status(f"http://127.0.0.1:{cport}{bogus}")
+        code = run.curl_status(f"http://{HOST}:{cport}{bogus}")
         elapsed = time.monotonic() - t0
         checks.append((code == 404 and elapsed <= 2,
                        f"404 immediate (no hold): code={code} took {elapsed:.1f}s"))
@@ -643,7 +646,7 @@ http {{ access_log off; server {{
 # ---------------------------------------------------------------------------
 
 def proxy(nginx: Path | None = None) -> int:
-    m1, m2, cport, cport2 = free_ports(4)
+    m1, m2, cport, cport2 = _PORTS[7:11]  # was free_ports(4)
     with LiveRun("cvmfs_proxy", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         _mock(run, m1, 4, 11)
@@ -652,31 +655,31 @@ def proxy(nginx: Path | None = None) -> int:
 thread_pool default threads=2;
 events {{ worker_connections 128; }}
 http {{ access_log off; server {{
-    listen 127.0.0.1:{cport};
+    listen {BIND_HOST}:{cport};
     location / {{
         brix_cache_store posix:{cache};
         brix_cvmfs on;
-        brix_cvmfs_upstream_allow 127.0.0.1;
+        brix_cvmfs_upstream_allow {HOST};
         brix_cvmfs_upstream_max 4;
     }}
 }} }}
 """)
         run.start_nginx(run.root, config, cport)
-        proxy_url = f"http://127.0.0.1:{cport}"
+        proxy_url = f"http://{HOST}:{cport}"
 
         o1 = _objects(run, m1)[0]
         o2 = _objects(run, m2)[0]
 
         # 1: proxy-style fetch, byte-exact, warm hit stays local
-        p1 = run.curl_bytes(f"http://127.0.0.1:{m1}{o1}", "-x", proxy_url)
-        r1 = run.curl_bytes(f"http://127.0.0.1:{m1}{o1}")
+        p1 = run.curl_bytes(f"http://{HOST}:{m1}{o1}", "-x", proxy_url)
+        r1 = run.curl_bytes(f"http://{HOST}:{m1}{o1}")
         na = _count_log(run, m1, o1)
-        run.curl_bytes(f"http://127.0.0.1:{m1}{o1}", "-x", proxy_url)
+        run.curl_bytes(f"http://{HOST}:{m1}{o1}", "-x", proxy_url)
         nb = _count_log(run, m1, o1)
 
         # 2: second upstream is independent (different seed -> different objects)
-        p2 = run.curl_bytes(f"http://127.0.0.1:{m2}{o2}", "-x", proxy_url)
-        r2 = run.curl_bytes(f"http://127.0.0.1:{m2}{o2}")
+        p2 = run.curl_bytes(f"http://{HOST}:{m2}{o2}", "-x", proxy_url)
+        r2 = run.curl_bytes(f"http://{HOST}:{m2}{o2}")
 
         # 3: disallowed authority -> 403
         evil = run.curl_status("http://evil.example.org/cvmfs/x/data/aa/" + "cd" * 19,
@@ -691,23 +694,23 @@ events {{ worker_connections 128; }}
 http {{
     log_format cvt '$status class=$cvmfs_class uri=$request_uri';
     server {{
-    listen 127.0.0.1:{cport2};
+    listen {BIND_HOST}:{cport2};
     access_log {logs2}/a.log cvt;
     location / {{
         brix_cache_store posix:{cache2};
         brix_cvmfs on;
-        brix_cvmfs_upstream_allow bogus.example.org 127.0.0.1 also-bogus.example.org;
+        brix_cvmfs_upstream_allow bogus.example.org {HOST} also-bogus.example.org;
         brix_cvmfs_upstream_max 4;
     }}
 }} }}
 """)
         run.start_nginx(prefix2, config2, cport2)
-        proxy2 = f"http://127.0.0.1:{cport2}"
-        multi_ok = run.curl_status(f"http://127.0.0.1:{m1}{o1}", "-x", proxy2)
+        proxy2 = f"http://{HOST}:{cport2}"
+        multi_ok = run.curl_status(f"http://{HOST}:{m1}{o1}", "-x", proxy2)
         multi_reject = run.curl_status("http://evil.example.org/cvmfs/x/.cvmfspublished", "-x", proxy2)
 
         # 5: regression — a REJECTED request logs its TRUE URL class
-        run.curl_status("http://evil.example.org/cvmfs/x/api/v1.0/geo/localhost/a,b", "-x", proxy2)
+        run.curl_status("http://evil.example.org/cvmfs/x/api/v1.0/geo/localhost/a,b", "-x", proxy2)  # net-literal-allow: geo request client-name path segment under test
         time.sleep(0.2)
         alog = logs2 / "a.log"
         manifest_class = _grep(alog, "403 class=manifest uri=/cvmfs/x/.cvmfspublished")
@@ -730,7 +733,7 @@ http {{
 # ---------------------------------------------------------------------------
 
 def resilience(nginx: Path | None = None) -> int:
-    mport, cport = free_ports(2)
+    mport, cport = _PORTS[11:13]  # was free_ports(2)
     # Ports 8000/2222 are semantic: the geo probe guard allows the standard
     # CVMFS port (8000) and must never touch a disallowed one (2222).
     with LiveRun("cvmfs_res", nginx) as run:
@@ -739,7 +742,7 @@ def resilience(nginx: Path | None = None) -> int:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
                 probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                probe.bind(("127.0.0.1", 8000))
+                probe.bind(("127.0.0.1", 8000))  # net-literal-allow: geo-probe sink bind coupled to the 127.0.0.1:8000 geo payload under test
             port_free = True
         except OSError:
             port_free = False
@@ -758,9 +761,9 @@ thread_pool default threads=4;
 events {{ worker_connections 128; }}
 http {{
     server {{
-        listen 127.0.0.1:{cport};
+        listen {BIND_HOST}:{cport};
         location /cvmfs/ {{
-            brix_storage_backend http://127.0.0.1:{mport};
+            brix_storage_backend http://{HOST}:{mport};
             brix_cache_store posix:{cache};
             brix_cvmfs on;
             brix_cvmfs_manifest_ttl 1;
@@ -785,11 +788,11 @@ http {{
 
         # Part A: stuck-before-data origin -> force-through, not a stall
         obj = _objects(run, mport)[0]
-        orig = run.curl_bytes(f"http://127.0.0.1:{mport}{obj}")
+        orig = run.curl_bytes(f"http://{HOST}:{mport}{obj}")
         _fault(run, mport, "stall", 1)
         got = run.root / "got.bin"
         t0 = time.monotonic()
-        code = _curl_code_to(run, f"http://127.0.0.1:{cport}{obj}", got, timeout=15)
+        code = _curl_code_to(run, f"http://{HOST}:{cport}{obj}", got, timeout=15)
         dt = time.monotonic() - t0
         checks.append((code == 200 and got.read_bytes() == orig,
                        f"stalled origin forced through (code={code} in {dt:.1f}s, no 504/hang)"))
@@ -798,9 +801,9 @@ http {{
 
         # Part B: RTT-ranked geo answer + probe guard
         if sink is not None:
-            geo_list = "192.0.2.2:8000,127.0.0.1:8000,127.0.0.1:2222"
+            geo_list = "192.0.2.2:8000,127.0.0.1:8000,127.0.0.1:2222"  # net-literal-allow: geo-order RTT ranking payload under test
             answer = run.call(["curl", "-s",
-                               f"http://127.0.0.1:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/{geo_list}"]).stdout
+                               f"http://{HOST}:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/{geo_list}"]).stdout
             answer = "".join(answer.split())
             checks.append((answer == "2,1,3",
                            f"geo RTT rank: reachable<unreachable<disallowed ({answer!r})"))
@@ -809,9 +812,9 @@ http {{
             checks.append((hits_8000 >= 1, f"guard: allowed port 8000 was probed ({hits_8000})"))
             checks.append((hits_2222 == 0,
                            f"guard: disallowed port 2222 never connected ({hits_2222} connects)"))
-            geo_list2 = "127.0.0.1:2222,127.0.0.1:8000,192.0.2.2:8000,127.0.0.1:22,127.0.0.1:8000"
+            geo_list2 = "127.0.0.1:2222,127.0.0.1:8000,192.0.2.2:8000,127.0.0.1:22,127.0.0.1:8000"  # net-literal-allow: geo-order RTT ranking payload under test
             answer2 = run.call(["curl", "-s",
-                                f"http://127.0.0.1:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/{geo_list2}"]).stdout
+                                f"http://{HOST}:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/{geo_list2}"]).stdout
             answer2 = "".join(answer2.split())
             ordered = ",".join(sorted(answer2.split(","), key=lambda item: int(item or "0")))
             checks.append((ordered == "1,2,3,4,5",
@@ -819,7 +822,7 @@ http {{
 
         # robustness: unresolvable-hostname list still yields a well-formed answer
         fallback = run.call(["curl", "-s",
-                             f"http://127.0.0.1:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/a,b"]).stdout
+                             f"http://{HOST}:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/a,b"]).stdout
         fallback = "".join(fallback.split())
         checks.append((len(fallback) > 0,
                        f"geo answer/fallback returns non-empty for name list ({fallback!r})"))
@@ -831,7 +834,7 @@ http {{
 # ---------------------------------------------------------------------------
 
 def stock(nginx: Path | None = None) -> int:
-    mport, rport, pport = free_ports(3)
+    mport, rport, pport = _PORTS[13:16]  # was free_ports(3)
     with LiveRun("cvmfs_stock", nginx) as run:
         run.mkdir("store")
         run.mkdir("logs")
@@ -841,8 +844,8 @@ def stock(nginx: Path | None = None) -> int:
                     .replace("@PORT@", str(rport))
                     .replace("@PPORT@", str(pport))
                     .replace("@CACHEDIR@", str(run.root))
-                    .replace("@ORIGIN@", f"127.0.0.1:{mport}")
-                    .replace("@ORIGINHOST@", "127.0.0.1")
+                    .replace("@ORIGIN@", f"{HOST}:{mport}")
+                    .replace("@ORIGINHOST@", HOST)
                     .replace("@ORIGINPORT@", str(mport)))
         config = run.write(run.root / "nginx.conf", rendered)
         run.start_nginx(run.root, config, rport)
@@ -851,20 +854,20 @@ def stock(nginx: Path | None = None) -> int:
         obj = objects[0]
 
         # 1: cold + warm byte-exact
-        cold = run.curl_bytes(f"http://127.0.0.1:{rport}{obj}")
-        warm = run.curl_bytes(f"http://127.0.0.1:{rport}{obj}")
-        orig = run.curl_bytes(f"http://127.0.0.1:{mport}{obj}")
+        cold = run.curl_bytes(f"http://{HOST}:{rport}{obj}")
+        warm = run.curl_bytes(f"http://{HOST}:{rport}{obj}")
+        orig = run.curl_bytes(f"http://{HOST}:{mport}{obj}")
 
         # 2: stampede coalescing on a fresh object
         obj2 = objects[3]
         n0 = _count_log(run, mport, obj2)
-        _concurrent_gets(f"http://127.0.0.1:{rport}{obj2}", 40)
+        _concurrent_gets(f"http://{HOST}:{rport}{obj2}", 40)
         n1 = _count_log(run, mport, obj2)
 
         # 3: security-neg
-        c1 = run.curl_status(f"http://127.0.0.1:{rport}/etc/passwd")
+        c1 = run.curl_status(f"http://{HOST}:{rport}/etc/passwd")
         c2 = run.curl_status("http://evil.example.org/cvmfs/x/data/aa/bb",
-                             "-x", f"http://127.0.0.1:{pport}")
+                             "-x", f"http://{HOST}:{pport}")
 
         return _checks([
             (cold == orig and warm == orig, "cold+warm byte-exact"),
@@ -879,7 +882,7 @@ def stock(nginx: Path | None = None) -> int:
 # ---------------------------------------------------------------------------
 
 def unified_origin(nginx: Path | None = None) -> int:
-    m1, m2, cport = free_ports(3)
+    m1, m2, cport = _PORTS[16:19]  # was free_ports(3)
     with LiveRun("cvmfs_unified", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         mock1 = _mock(run, m1, 4, 55)
@@ -888,12 +891,12 @@ def unified_origin(nginx: Path | None = None) -> int:
 worker_processes 1; thread_pool default threads=2;
 events {{ worker_connections 128; }}
 http {{ access_log off; server {{
-    listen 127.0.0.1:{cport};
+    listen {BIND_HOST}:{cport};
     location / {{
-        brix_storage_backend "http://127.0.0.1:{m1}|http://127.0.0.1:{m2}";
+        brix_storage_backend "http://{HOST}:{m1}|http://{HOST}:{m2}";
         brix_cache_store posix:{cache};
         brix_cvmfs on;
-        brix_cvmfs_upstream_allow 127.0.0.1;
+        brix_cvmfs_upstream_allow {HOST};
         brix_cvmfs_unified_origin on;
         brix_cvmfs_origin_connect_timeout 1;
         brix_cvmfs_origin_attempt_timeout 2;
@@ -904,15 +907,15 @@ http {{ access_log off; server {{
         parses = run.call([run.nginx, "-t", "-c", config, "-p", run.root], check=False).returncode == 0
 
         obj = _objects(run, m1)[0]
-        ref = run.curl_bytes(f"http://127.0.0.1:{m1}{obj}")
+        ref = run.curl_bytes(f"http://{HOST}:{m1}{obj}")
 
         # B: two client-named authorities -> ONE origin fetch (unified backend)
         run.start_nginx(run.root, config, cport)
-        proxy_url = f"http://127.0.0.1:{cport}"
+        proxy_url = f"http://{HOST}:{cport}"
         b1 = _count_log(run, m1, obj)
         b2 = _count_log(run, m2, obj)
-        g1 = run.curl_bytes(f"http://127.0.0.1:{m1}{obj}", "-x", proxy_url)
-        g2 = run.curl_bytes(f"http://127.0.0.1:{m2}{obj}", "-x", proxy_url)
+        g1 = run.curl_bytes(f"http://{HOST}:{m1}{obj}", "-x", proxy_url)
+        g2 = run.curl_bytes(f"http://{HOST}:{m2}{obj}", "-x", proxy_url)
         f1 = _count_log(run, m1, obj)
         f2 = _count_log(run, m2, obj)
         delta = (f1 - b1) + (f2 - b2)
@@ -924,14 +927,14 @@ http {{ access_log off; server {{
         _mock_stop(run, mock1, m1)
         run.start_nginx(run.root, config, cport)
         ha = run.root / "ha.bin"
-        code = _curl_code_to(run, f"http://127.0.0.1:{m1}{obj}", ha, "-x", proxy_url, timeout=8)
+        code = _curl_code_to(run, f"http://{HOST}:{m1}{obj}", ha, "-x", proxy_url, timeout=8)
         failover_ok = code == 200 and ha.read_bytes() == ref
 
         # config guard: unified_origin without an http storage_backend rejected
         bad = run.write(run.root / "bad.conf", f"""daemon off; events {{ worker_connections 32; }}
-http {{ server {{ listen 127.0.0.1:{cport}; location / {{
+http {{ server {{ listen {BIND_HOST}:{cport}; location / {{
     brix_cache_store posix:{cache};
-    brix_cvmfs on; brix_cvmfs_upstream_allow 127.0.0.1;
+    brix_cvmfs on; brix_cvmfs_upstream_allow {HOST};
     brix_cvmfs_unified_origin on;
 }} }} }}
 """)
@@ -951,7 +954,7 @@ http {{ server {{ listen 127.0.0.1:{cport}; location / {{
 # ---------------------------------------------------------------------------
 
 def upstream_metrics(nginx: Path | None = None) -> int:
-    mral, malt, cport, xport, dead = free_ports(5)
+    mral, malt, cport, xport, dead = _PORTS[19:24]  # was free_ports(5)
     with LiveRun("cvmfs_upm", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         error_log = logs / "e.log"
@@ -965,24 +968,24 @@ def upstream_metrics(nginx: Path | None = None) -> int:
 thread_pool default threads=2;
 events {{ worker_connections 128; }}
 http {{ access_log off;
-    server {{ listen 127.0.0.1:{cport};
+    server {{ listen {BIND_HOST}:{cport};
         location /cvmfs/ {{
             brix_storage_backend "{backends}";
             brix_cache_store posix:{cache};
             brix_cvmfs on;
 {extra}
         }} }}
-    server {{ listen 127.0.0.1:{xport}; location = /metrics {{ brix_metrics on; }} }}
+    server {{ listen {BIND_HOST}:{xport}; location = /metrics {{ brix_metrics on; }} }}
 }}
 """)
 
         checks: list[tuple[bool, str]] = []
 
         # 1: attribution to the RAL upstream
-        config = mkconf(f"http://127.0.0.1:{mral}")
+        config = mkconf(f"http://{HOST}:{mral}")
         _restart_nginx(run, config, cport, cache)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj0}")
-        ral = f"127.0.0.1:{mral}"
+        run.curl_status(f"http://{HOST}:{cport}{obj0}")
+        ral = f"{HOST}:{mral}"
         metrics = _metrics(run, xport)
         requests = _mval(metrics, f'brix_cvmfs_upstream_requests_total{{upstream="{ral}"}}')
         fills = _mval(metrics, f'brix_cvmfs_upstream_fills_total{{upstream="{ral}"}}')
@@ -1000,10 +1003,10 @@ http {{ access_log off;
         checks.append((leaked is None, "upstream label is bounded host:port (no path/repo leak)"))
 
         # 2: failover attribution — dead primary, fills served by the fallback
-        config = mkconf(f"http://127.0.0.1:{dead}|http://127.0.0.1:{malt}")
+        config = mkconf(f"http://{HOST}:{dead}|http://{HOST}:{malt}")
         _restart_nginx(run, config, cport, cache)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj1}")
-        alt = f"127.0.0.1:{malt}"
+        run.curl_status(f"http://{HOST}:{cport}{obj1}")
+        alt = f"{HOST}:{malt}"
         metrics = _metrics(run, xport)
         failovers = _mval(metrics, f'brix_cvmfs_upstream_failovers_total{{upstream="{alt}"}}')
         alt_fills = _mval(metrics, f'brix_cvmfs_upstream_fills_total{{upstream="{alt}"}}')
@@ -1011,29 +1014,29 @@ http {{ access_log off;
                        f"failover fill attributed to the fallback upstream (failovers={failovers:g})"))
 
         # 4: trace ON -> client + upstream lines at INFO
-        config = mkconf(f"http://127.0.0.1:{mral}", "            brix_cvmfs_trace on;", "info")
+        config = mkconf(f"http://{HOST}:{mral}", "            brix_cvmfs_trace on;", "info")
         _restart_nginx(run, config, cport, cache)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj0}")
+        run.curl_status(f"http://{HOST}:{cport}{obj0}")
         time.sleep(0.3)
         checks.append((_grep(error_log, r"cvmfs-trace: client .*class=cas .*cache=fill", regex=True),
                        "trace on: client-op line at INFO"))
         checks.append((_grep(error_log,
-                             rf"cvmfs-trace: upstream (GET|HEAD) http://127.0.0.1:{mral}.*status=2[0-9][0-9]",
+                             rf"cvmfs-trace: upstream (GET|HEAD) http://{HOST}:{mral}.*status=2[0-9][0-9]",
                              regex=True),
                        "trace on: upstream-request line at INFO"))
 
         # 5: trace OFF + info level -> neither line
-        config = mkconf(f"http://127.0.0.1:{mral}", "", "info")
+        config = mkconf(f"http://{HOST}:{mral}", "", "info")
         _restart_nginx(run, config, cport, cache)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj1}")
+        run.curl_status(f"http://{HOST}:{cport}{obj1}")
         time.sleep(0.3)
         checks.append((not _grep(error_log, "cvmfs-trace:"),
                        "trace off + error_log info: no trace lines"))
 
         # 6: trace OFF + debug level -> both lines (debug path)
-        config = mkconf(f"http://127.0.0.1:{mral}", "", "debug")
+        config = mkconf(f"http://{HOST}:{mral}", "", "debug")
         _restart_nginx(run, config, cport, cache)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj0}")
+        run.curl_status(f"http://{HOST}:{cport}{obj0}")
         time.sleep(0.3)
         checks.append((_grep(error_log, "cvmfs-trace: client ") and _grep(error_log, "cvmfs-trace: upstream GET"),
                        "trace off + error_log debug: both lines at DEBUG"))
@@ -1046,7 +1049,7 @@ http {{ access_log off;
 # ---------------------------------------------------------------------------
 
 def logging(nginx: Path | None = None) -> int:
-    mport, cport = free_ports(2)
+    mport, cport = _PORTS[24:26]  # was free_ports(2)
     with LiveRun("cvmfs_log", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         log = logs / "e.log"
@@ -1056,9 +1059,9 @@ events {{ worker_connections 128; }}
 http {{
     access_log off;
     server {{
-        listen 127.0.0.1:{cport};
+        listen {BIND_HOST}:{cport};
         location /cvmfs/ {{
-            brix_storage_backend http://127.0.0.1:{mport};
+            brix_storage_backend http://{HOST}:{mport};
             brix_cache_store posix:{cache};
             brix_cvmfs on;
             brix_cvmfs_negative_ttl 30;
@@ -1074,14 +1077,14 @@ http {{
         checks: list[tuple[bool, str]] = []
 
         # 1: healthy cold fill logs a clean done
-        run.curl_status(f"http://127.0.0.1:{cport}{objects[0]}")
+        run.curl_status(f"http://{HOST}:{cport}{objects[0]}")
         time.sleep(0.3)
         checks.append((_grep(log, "xrootd-fill: event=done") and _grep(log, "attempts=1"),
                        "clean fill logs event=done attempts=1"))
 
         # 2: reset the origin repeatedly -> retry + recovered
         _fault(run, mport, "reset", 3)
-        run.curl_status(f"http://127.0.0.1:{cport}{objects[2]}", timeout=15)
+        run.curl_status(f"http://{HOST}:{cport}{objects[2]}", timeout=15)
         time.sleep(0.3)
         checks.append((_grep(log, "xrootd-fill: event=retry"),
                        "transient origin failure logs event=retry (attempt/backoff)"))
@@ -1094,7 +1097,7 @@ http {{
 
         # 4: stalled origin past the hold -> hold-expired + 504
         _fault(run, mport, "stall", 9)
-        code = run.curl_status(f"http://127.0.0.1:{cport}{objects[4]}", timeout=10)
+        code = run.curl_status(f"http://{HOST}:{cport}{objects[4]}", timeout=10)
         time.sleep(0.3)
         checks.append((code == 504, f"stalled origin -> client gets 504 (kept-alive) ({code})"))
         checks.append((_grep(log, "xrootd-fill: event=hold-expired") and _grep(log, "held_ms="),
@@ -1104,7 +1107,7 @@ http {{
         # 5: client abandons mid-fill -> client-gone
         _fault(run, mport, "stall", 9)
         run.call(["curl", "-s", "--max-time", "1",
-                  f"http://127.0.0.1:{cport}{objects[6]}", "-o", os.devnull], check=False)
+                  f"http://{HOST}:{cport}{objects[6]}", "-o", os.devnull], check=False)
         time.sleep(1)
         checks.append((_grep(log, "xrootd-fill: event=client-gone") and _grep(log, "parked_ms="),
                        "client abort mid-fill logs event=client-gone with parked_ms"))
@@ -1113,7 +1116,7 @@ http {{
         # 6: 404 hammering -> absorbed-404
         bogus = "/cvmfs/test.cern.ch/data/aa/" + "bc" * 19
         for _ in range(3):
-            run.curl_status(f"http://127.0.0.1:{cport}{bogus}")
+            run.curl_status(f"http://{HOST}:{cport}{bogus}")
         time.sleep(0.2)
         neg_lines = log.read_text(errors="replace").count("cvmfs-neg: event=absorbed-404")
         checks.append((neg_lines >= 1, f"repeated 404s log cvmfs-neg absorbed-404 ({neg_lines})"))
@@ -1153,7 +1156,7 @@ int main(void) {
 
 
 def select(nginx: Path | None = None) -> int:
-    ma, mb, cport = free_ports(3)
+    ma, mb, cport = _PORTS[26:29]  # was free_ports(3)
     with LiveRun("cvmfs_sel", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         checks: list[tuple[bool, str]] = []
@@ -1178,7 +1181,7 @@ def select(nginx: Path | None = None) -> int:
 thread_pool default threads=2;
 events {{ worker_connections 128; }}
 http {{ access_log off; server {{
-    listen 127.0.0.1:{cport};
+    listen {BIND_HOST}:{cport};
     location /cvmfs/ {{
         brix_storage_backend "{backends}";
         brix_cache_store posix:{cache};
@@ -1190,9 +1193,9 @@ http {{ access_log off; server {{
 
         # 1: static — first-listed (A) serves
         config = mkconf("        brix_cvmfs_origin_select static;",
-                        f"http://127.0.0.1:{ma}|http://127.0.0.1:{mb}")
+                        f"http://{HOST}:{ma}|http://{HOST}:{mb}")
         _restart_nginx(run, config, cport, cache)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj}")
+        run.curl_status(f"http://{HOST}:{cport}{obj}")
         na = _count_log(run, ma, obj)
         nb = _count_log(run, mb, obj)
         checks.append((na == 1 and nb == 0, f"static: first-listed served (A={na} B={nb})"))
@@ -1200,38 +1203,38 @@ http {{ access_log off; server {{
         # 2: geo — nearer origin (B=Edinburgh) wins although listed second
         config = mkconf(f"""        brix_cvmfs_origin_select geo;
         brix_cvmfs_here 55.95:-3.19;
-        brix_cvmfs_origin_coords 127.0.0.1:{ma} 46.23:6.05;
-        brix_cvmfs_origin_coords 127.0.0.1:{mb} 55.95:-3.19;""",
-                        f"http://127.0.0.1:{ma}|http://127.0.0.1:{mb}")
+        brix_cvmfs_origin_coords {HOST}:{ma} 46.23:6.05;
+        brix_cvmfs_origin_coords {HOST}:{mb} 55.95:-3.19;""",
+                        f"http://{HOST}:{ma}|http://{HOST}:{mb}")
         _restart_nginx(run, config, cport, cache)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj}")
+        run.curl_status(f"http://{HOST}:{cport}{obj}")
         nb = _count_log(run, mb, obj)
         checks.append((nb == 1, f"geo: nearer origin served (B={nb})"))
 
         # 3: rtt — refused endpoint pre-ranked out (not failed-over-from)
         config = mkconf("        brix_cvmfs_origin_select rtt;\n        brix_cvmfs_rtt_interval 1;",
-                        f"http://127.0.0.1:1|http://127.0.0.1:{mb}")
+                        f"http://{HOST}:1|http://{HOST}:{mb}")
         _restart_nginx(run, config, cport, cache)
         time.sleep(1.5)  # let the first probe run and rank
         nb0 = _count_log(run, mb, obj)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj}")
+        run.curl_status(f"http://{HOST}:{cport}{obj}")
         nb1 = _count_log(run, mb, obj)
         checks.append((_grep(error_log, rtt_log, regex=True) and nb1 - nb0 == 1,
                        f"rtt: probe pre-ranked live origin first (fills={nb1 - nb0})"))
 
         # 4: config-error negatives
         config = mkconf("        brix_cvmfs_origin_select geo;",
-                        f"http://127.0.0.1:{ma}|http://127.0.0.1:{mb}")
+                        f"http://{HOST}:{ma}|http://{HOST}:{mb}")
         rejected = run.call([run.nginx, "-t", "-c", config, "-p", run.root], check=False).returncode != 0
         checks.append((rejected, "geo misconfig (no here/coords) rejected"))
 
         # 5: default (no brix_cvmfs_origin_select) -> rtt pre-ranks live origin
         config = mkconf("        brix_cvmfs_rtt_interval 1;",
-                        f"http://127.0.0.1:1|http://127.0.0.1:{mb}")
+                        f"http://{HOST}:1|http://{HOST}:{mb}")
         _restart_nginx(run, config, cport, cache)
         time.sleep(1.5)
         nb0 = _count_log(run, mb, obj)
-        run.curl_status(f"http://127.0.0.1:{cport}{obj}")
+        run.curl_status(f"http://{HOST}:{cport}{obj}")
         nb1 = _count_log(run, mb, obj)
         checks.append((_grep(error_log, rtt_log, regex=True) and nb1 - nb0 == 1,
                        f"default: rtt active — probe pre-ranked live origin first (fills={nb1 - nb0})"))
@@ -1244,7 +1247,7 @@ http {{ access_log off; server {{
 # ---------------------------------------------------------------------------
 
 def selectlog(nginx: Path | None = None) -> int:
-    ral, cern, cport = free_ports(3)
+    ral, cern, cport = _PORTS[29:32]  # was free_ports(3)
     with LiveRun("cvmfs_sl", nginx) as run:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         error_log = logs / "e.log"
@@ -1254,14 +1257,14 @@ def selectlog(nginx: Path | None = None) -> int:
 thread_pool default threads=2;
 events {{ worker_connections 128; }}
 http {{ access_log off; server {{
-    listen 127.0.0.1:{cport};
+    listen {BIND_HOST}:{cport};
     location /cvmfs/ {{
-        brix_storage_backend "http://127.0.0.1:{ral}|http://127.0.0.1:{cern}";
+        brix_storage_backend "http://{HOST}:{ral}|http://{HOST}:{cern}";
         brix_cache_store posix:{cache};
         brix_cvmfs_origin_select geo;
         brix_cvmfs_here 51.57:-1.31;
-        brix_cvmfs_origin_coords 127.0.0.1:{ral}  51.57:-1.31;
-        brix_cvmfs_origin_coords 127.0.0.1:{cern} 46.23:6.05;
+        brix_cvmfs_origin_coords {HOST}:{ral}  51.57:-1.31;
+        brix_cvmfs_origin_coords {HOST}:{cern} 46.23:6.05;
         brix_cvmfs on;
         brix_cvmfs_client_hold 3;
     }}
@@ -1280,37 +1283,37 @@ http {{ access_log off; server {{
         if started.returncode:
             raise LiveFailure(started.stderr or started.stdout or "nginx failed to start")
         run.pidfiles.append(run.root / "nginx.pid")
-        if not wait_tcp("127.0.0.1", cport, 10):
+        if not wait_tcp(HOST, cport, 10):
             raise LiveFailure(f"nginx was not ready on {cport}")
 
         objs = _objects(run, ral)
         checks: list[tuple[bool, str]] = []
 
         # 1a: geo ranking table logged at config time, RAL preferred
-        checks.append((_grep(start_err, rf"selection report.*127.0.0.1:{ral} .*rank 0 \(preferred", regex=True),
+        checks.append((_grep(start_err, rf"selection report.*{HOST}:{ral} .*rank 0 \(preferred", regex=True),
                        "config-time geo table: RAL ranked preferred"))
-        checks.append((_grep(start_err, rf"selection report.*127.0.0.1:{cern} .*rank 1", regex=True),
+        checks.append((_grep(start_err, rf"selection report.*{HOST}:{cern} .*rank 1", regex=True),
                        "config-time geo table: CERN ranked behind"))
 
         # warm the cache from the preferred origin (RAL)
-        run.curl_status(f"http://127.0.0.1:{cport}{objs[0]}", timeout=20)
+        run.curl_status(f"http://{HOST}:{cport}{objs[0]}", timeout=20)
 
         # 1b: kill RAL, request an UNCACHED object -> failover to CERN, logged
         _mock_stop(run, mock_ral, ral)
         got = run.root / "a.bin"
-        _curl_code_to(run, f"http://127.0.0.1:{cport}{objs[1]}", got, timeout=25)
-        ref = run.curl_bytes(f"http://127.0.0.1:{cern}{objs[1]}")
+        _curl_code_to(run, f"http://{HOST}:{cport}{objs[1]}", got, timeout=25)
+        ref = run.curl_bytes(f"http://{HOST}:{cern}{objs[1]}")
         checks.append((got.read_bytes() == ref, "served via failover to CERN"))
-        checks.append((_grep(error_log, f"http origin 127.0.0.1:{ral} failed"),
+        checks.append((_grep(error_log, f"http origin {HOST}:{ral} failed"),
                        "driver logged RAL transport failure (per-attempt WARN)"))
-        checks.append((_grep(error_log, rf"http origin (failover for|switched to 127.0.0.1:{cern})", regex=True),
+        checks.append((_grep(error_log, rf"http origin (failover for|switched to {HOST}:{cern})", regex=True),
                        "driver logged the origin switch to CERN"))
         checks.append((_grep(error_log, "SKIPPED"),
                        "switch line explains preferred RAL was SKIPPED"))
 
         # 2: both down -> attempt trail + give-up, clean 504
         _mock_stop(run, mock_cern, cern)
-        code = run.curl_status(f"http://127.0.0.1:{cport}{objs[4]}", timeout=30)
+        code = run.curl_status(f"http://{HOST}:{cport}{objs[4]}", timeout=30)
         checks.append((code == 504, f"both-down -> clean keep-alive 504 ({code})"))
         checks.append((_grep(error_log, "http origin request exhausted all endpoints"),
                        "driver logged endpoint exhaustion"))
@@ -1318,7 +1321,7 @@ http {{ access_log off; server {{
                        "fill layer logged the per-attempt retry trail"))
 
         # 3: sec-neg — encoded CRLF in the path cannot inject a log line
-        run.curl_status(f"http://127.0.0.1:{cport}/cvmfs/data/%0d%0aFORGED-ORIGIN-SWITCH", timeout=10)
+        run.curl_status(f"http://{HOST}:{cport}/cvmfs/data/%0d%0aFORGED-ORIGIN-SWITCH", timeout=10)
         log_text = error_log.read_text(errors="replace")
         forged_at_bol = any(line.startswith("FORGED-ORIGIN-SWITCH") for line in log_text.splitlines())
         checks.append((not forged_at_bol, "CRLF in path did not forge a log record (key sanitised)"))
@@ -1336,9 +1339,9 @@ http {{ access_log off; server {{
 # ---------------------------------------------------------------------------
 
 def evict(nginx: Path | None = None) -> int:
-    oport, sport, bport, tport = free_ports(4)
+    oport, sport, bport, tport = _PORTS[32:36]  # was free_ports(4)
     with LiveRun("cvmfs_evict", nginx) as run:
-        base_url = f"http://127.0.0.1:{bport}"
+        base_url = f"http://{HOST}:{bport}"
         o_root, s_root = run.mkdir("o", "root"), run.mkdir("s", "root")
         run.mkdir("o", "logs"), run.mkdir("s", "logs")
         b_export, b_tmp = run.mkdir("b", "export"), run.mkdir("b", "tmp")
@@ -1352,11 +1355,11 @@ def evict(nginx: Path | None = None) -> int:
             return run.write(t_dir / "nginx.conf", f"""daemon off; pid {t_dir}/nginx.pid; error_log {t_dir}/logs.err warn;
 thread_pool default threads=2;
 events {{ worker_connections 64; }}
-http {{ server {{ listen 127.0.0.1:{tport};
+http {{ server {{ listen {BIND_HOST}:{tport};
   location /cvmfs/ {{
     brix_cvmfs on;
     brix_export {t_dir};
-    brix_storage_backend http://127.0.0.1:1;
+    brix_storage_backend http://{HOST}:1;
     brix_cache_store posix:{t_dir};
     {body}
   }} }} }}
@@ -1372,11 +1375,11 @@ http {{ server {{ listen 127.0.0.1:{tport};
         # B. BEHAVIOUR — real eviction on the shared cache store (O/S/B mesh)
         o_conf = run.write(run.root / "o/nginx.conf", f"""daemon on; error_log {run.root}/o/logs/e.log error; pid {run.root}/o/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{oport}; brix_root on; brix_export {o_root}; brix_auth none; brix_allow_write on; }} }}
+stream {{ server {{ listen {BIND_HOST}:{oport}; brix_root on; brix_export {o_root}; brix_auth none; brix_allow_write on; }} }}
 """)
         s_conf = run.write(run.root / "s/nginx.conf", f"""daemon on; error_log {run.root}/s/logs/e.log error; pid {run.root}/s/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{sport}; brix_root on; brix_export {s_root}; brix_auth none; brix_allow_write on; }} }}
+stream {{ server {{ listen {BIND_HOST}:{sport}; brix_root on; brix_export {s_root}; brix_auth none; brix_allow_write on; }} }}
 """)
         b_conf = run.write(run.root / "b/nginx.conf", f"""daemon on; error_log {run.root}/b/logs/e.log info; pid {run.root}/b/nginx.pid;
 thread_pool default threads=2;
@@ -1384,15 +1387,15 @@ events {{ worker_connections 64; }}
 http {{
     client_body_temp_path {b_tmp};
     server {{
-        listen 127.0.0.1:{bport};
+        listen {BIND_HOST}:{bport};
         location / {{
             dav_methods PUT DELETE;
             brix_webdav on;
             brix_export {b_export};
             brix_webdav_auth none;
             brix_allow_write on;
-            brix_storage_backend root://127.0.0.1:{oport};
-            brix_cache_store root://127.0.0.1:{sport};
+            brix_storage_backend root://{HOST}:{oport};
+            brix_cache_store root://{HOST}:{sport};
             brix_cache_evict_at 50;
             brix_cache_evict_to 20;
         }}
@@ -1518,7 +1521,7 @@ def brix_all(nginx: Path | None = None) -> int:
 
 def _fault_proxy_ctl(port: int, command: str) -> None:
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=2) as conn:
+        with socket.create_connection((HOST, port), timeout=2) as conn:
             conn.sendall(f"{command}\n".encode())
             conn.settimeout(2)
             try:
@@ -1546,14 +1549,14 @@ def faultproxy_bench(nginx: Path | None = None) -> int:
 
     with LiveRun("cvmfs_fpbench", nginx) as run:
         reachable = run.call(["curl", "-fsS", "-o", os.devnull, "--max-time", "8",
-                              "-H", "Host: 127.0.0.1",
+                              "-H", "Host: 127.0.0.1",  # net-literal-allow: literal Host header sent to the external Stratum-1
                               f"http://{s1host}/cvmfs/{repo}/.cvmfspublished"], check=False)
         _require(reachable.returncode == 0, f"{s1host} does not serve {repo} by path")
 
-        lport, ctl_port = free_ports(2)
+        lport, ctl_port = _PORTS[36:38]  # was free_ports(2)
         run.spawn([fault_proxy, str(lport), s1host, "80", str(ctl_port)])
         time.sleep(1)
-        surl = f"http://127.0.0.1:{lport}/cvmfs/{repo}"
+        surl = f"http://{HOST}:{lport}/cvmfs/{repo}"
 
         print(f"== enumerate {nfiles} {repo} files (fault-free) ==")
         _fault_proxy_ctl(ctl_port, "clear")

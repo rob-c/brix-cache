@@ -46,12 +46,10 @@ def run_or_abort(cmd, **kwargs) -> subprocess.CompletedProcess:
 
 
 def main() -> int:
-    # ROOT via `git rev-parse --show-toplevel`, exactly as the bash does (set -e
-    # aborts with git's exit code if this is not a git working tree).
-    root = run_or_abort(
-        ["git", "rev-parse", "--show-toplevel"],
-        stdout=subprocess.PIPE, text=True,
-    ).stdout.strip()
+    # ROOT from this script's location (tools/ci/ → repo root), like the other
+    # guards: the runner must work regardless of the caller's cwd (the pytest
+    # guard wrapper runs with cwd inside the test fleet root, not the repo).
+    root = str(Path(__file__).resolve().parents[2])
 
     nginx_src = os.environ.get("NGINX_SRC") or "/tmp/nginx-1.28.3"
     out_dir = os.environ.get("COVERAGE_OUT") or f"{root}/coverage"

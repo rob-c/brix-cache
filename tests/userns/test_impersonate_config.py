@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from server_launcher import LifecycleHarness  # noqa: E402
 from server_registry import NginxInstanceSpec  # noqa: E402
+from fleet_lifecycle_ports import SHARED_PARSE_PLACEHOLDER_PORT  # noqa: E402
 
 pytestmark = pytest.mark.uses_lifecycle_harness
 
@@ -42,6 +43,7 @@ def _check(harness, stream_body):
     name = f"lc-imp-config-{next(_SEQ)}"
     harness.register(NginxInstanceSpec(
         name=name, template="nginx_userns_impersonate.conf",
+        port=SHARED_PARSE_PLACEHOLDER_PORT,
         protocol="root", readiness="tcp",
         template_values={"STREAM_BODY": stream_body}))
     harness.launcher.render_nginx(harness.spec(name))

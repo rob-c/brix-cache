@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.cache_slice_gsi_legacy import XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-cache_slice_gsi_legacy")
+
 
 def test_cache_slice_gsi_legacy_flow(tmp_path):
     for tool in (NGINX_BIN, str(XRDFS)):

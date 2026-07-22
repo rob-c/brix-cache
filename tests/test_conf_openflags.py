@@ -42,6 +42,7 @@ import time
 import pytest
 
 import official_interop_lib as L
+from settings import BIND_HOST
 
 pytestmark = [pytest.mark.timeout(240),
               pytest.mark.skipif(not L.have_official(),
@@ -51,7 +52,7 @@ pytestmark = [pytest.mark.timeout(240),
 # fleet pair (worker_port() shifts into an unbound per-worker band → refused).
 OUR_PORT = L.FLEET_OUR_PORT
 OFF_PORT = L.FLEET_OFF_PORT
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 
 # opcodes / status
 kXR_login, kXR_open, kXR_close = 3007, 3010, 3003

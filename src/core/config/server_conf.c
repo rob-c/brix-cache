@@ -152,6 +152,9 @@ brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
     /* cache_verify_digest left zeroed (ngx_str_t {0,NULL}) by pcalloc */
     conf->advertise.enable          = NGX_CONF_UNSET;
     conf->advertise.interval = NGX_CONF_UNSET_MSEC;
+    conf->backend_async             = NGX_CONF_UNSET;
+    conf->backend_async_batch       = NGX_CONF_UNSET_UINT;
+    conf->backend_async_wait        = NGX_CONF_UNSET_MSEC;
     brix_wt_conf_init(&conf->wt);
 }
 

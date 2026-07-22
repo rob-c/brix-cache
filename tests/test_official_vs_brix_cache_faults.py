@@ -58,11 +58,12 @@ from server_registry import NginxInstanceSpec  # noqa: E402
 OFFICIAL_XRDCP = "/usr/bin/xrdcp"
 XROOTD = shutil.which("xrootd")
 
-HOST = "127.0.0.1"
+from settings import HOST
 FILE_MB = 4
 
 pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
-              pytest.mark.timeout(240)]
+              pytest.mark.timeout(240),
+              pytest.mark.xdist_group("lc-fault-cache")]
 
 _SKIP = None
 if not XROOTD:

@@ -31,12 +31,15 @@ from cmdscripts.fwd_matrix_live import (
     A_CN, A_SUB, BRIX_XRDCP, TOK_AUD, XROOTD_BIN, ForwardHarness, _call,
 )
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
+from fleet_ports import cmdscript_ports
 from lib_py.util import wait_tcp
-from settings import CA_CERT, CA_DIR, SERVER_CERT, SERVER_KEY, TEST_ROOT, free_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
+
+_PORTS = cmdscript_ports("tpc_fwd_live")
 
 # A NAME (matches the cert DNS:localhost SAN) so the GSI client does NOT fall
 # back to reverse-DNS, which forbids proxy delegation.
-TPC_HOST = "localhost"
+TPC_HOST = SERVER_HOST
 
 
 class TpcResult(NamedTuple):
@@ -69,7 +72,7 @@ class TpcHarness(ForwardHarness):
             (d / sub).mkdir(exist_ok=True)
         log = d / "logs/e.log"
         if cred == "gsi":
-            sslblock = f"""listen 127.0.0.1:{port} ssl;
+            sslblock = f"""listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -82,7 +85,7 @@ class TpcHarness(ForwardHarness):
             # TOKEN source is deliberately TOKEN-ONLY (no ssl_verify_client, no
             # proxy_certs) so the ONLY credential that authenticates the pull
             # leg is the forwarded bearer — proving forwarding unambiguously.
-            sslblock = (f"listen 127.0.0.1:{port} ssl;\n"
+            sslblock = (f"listen {BIND_HOST}:{port} ssl;\n"
                         f"        ssl_certificate     {SERVER_CERT};\n"
                         f"        ssl_certificate_key {SERVER_KEY};")
             authblock = (f"brix_webdav_cafile {CA_CERT};\n"
@@ -149,7 +152,7 @@ thread_pool default threads=4 max_queue=65536;
 events {{ worker_connections 64; }}
 stream {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {d}/export;
         brix_allow_write on;
@@ -203,7 +206,7 @@ http {{
     access_log {d}/logs/access.log;
     client_body_temp_path {d}/export;
     server {{
-        listen 127.0.0.1:{port} ssl;
+        listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -323,7 +326,7 @@ def _root_cell_bb(h: TpcHarness, cred: str) -> None:
     if cred == "token" and h.tok_jwks is None:
         h.record(key, "SKIP", "token authority unavailable")
         return
-    sport, dport = free_ports(2)
+    sport, dport = _PORTS[0:2]  # was free_ports(2)
     bearer_mode = "passthrough" if cred == "token" else ""
 
     slog = h.spawn_brix_source_root("srcroot", cred, sport)
@@ -371,9 +374,9 @@ def _root_cell_sb(h: TpcHarness, cred: str) -> None:
         h.record(key, "GAP", "stock xrootd delegates GSI credentials only for TPC (docs/man/xrdcp.1) — "
                              "token delegation to/from a stock peer is an upstream limitation")
         return
-    sport, dport = free_ports(2)
+    sport, dport = _PORTS[2:4]  # was free_ports(2)
     slog = h.spawn_xrootd_node("stocksrc", "origin", sport, "", "gsi")
-    if slog is None or not wait_tcp("127.0.0.1", sport, 3):
+    if slog is None or not wait_tcp(BIND_HOST, sport, 3):
         h.record(key, "SKIP", "stock GSI origin did not come up")
         return
     data = h.prefix / "stocksrc/data"
@@ -467,7 +470,7 @@ def _webdav_cell_bb_gsi(h: TpcHarness, key: str, sport: int, dport: int) -> None
     neg = h.drive_tpc_webdav("gsi", sport, dport, "negB.bin", "B")
     if h.assert_tpc_denied(neg, h.prefix / "dstdav/export/negB.bin"):
         h.record(key, "PASS", f"source authenticated userA (delegated proxy, CN={A_CN}, NOT the service "
-                              "CN=localhost); userB (no delegation, no fallback) denied, no bytes")
+                              "CN=localhost); userB (no delegation, no fallback) denied, no bytes")  # net-literal-allow: service cert CN named in assertion message
     else:
         h.record(key, "FAIL", f"userB not denied (code={neg.deny_obs}) or bytes leaked to dest")
 
@@ -477,7 +480,7 @@ def _webdav_cell_bb(h: TpcHarness, cred: str) -> None:
     if cred == "token" and h.tok_jwks is None:
         h.record(key, "SKIP", "token authority unavailable")
         return
-    sport, dport = free_ports(2)
+    sport, dport = _PORTS[4:6]  # was free_ports(2)
     if cred == "gsi":
         _webdav_cell_bb_gsi(h, key, sport, dport)
         return
@@ -576,7 +579,7 @@ def tpc_delegation_nginx(nginx: Path | None = None) -> int:
             print(f"SKIP: {msg}")
             return 0
 
-        srcp, dstp = free_ports(2)
+        srcp, dstp = _PORTS[6:8]  # was free_ports(2)
         src, dst = run.mkdir("src"), run.mkdir("dst")
         for d in (src, dst):
             (d / "root").mkdir()
@@ -587,14 +590,14 @@ def tpc_delegation_nginx(nginx: Path | None = None) -> int:
         # nginx SOURCE — GSI fileserver (read-only; still advertises TPC as a source)
         src_conf = run.write(run.root / "src.conf", f"""daemon on; error_log {src}/logs/e.log info; pid {run.root}/src.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{srcp}; brix_root on; brix_export {src}/root;
+stream {{ server {{ listen {BIND_HOST}:{srcp}; brix_root on; brix_export {src}/root;
   brix_auth gsi; brix_certificate {sc}; brix_certificate_key {sk}; brix_trusted_ca {ca}; }} }}
 """)
         # nginx DEST — GSI fileserver + delegation-capturing TPC pull
         dst_conf = run.write(run.root / "dst.conf", f"""daemon on; error_log {dst}/logs/e.log info; pid {run.root}/dst.pid;
 thread_pool default threads=4;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{dstp}; brix_root on; brix_export {dst}/root;
+stream {{ server {{ listen {BIND_HOST}:{dstp}; brix_root on; brix_export {dst}/root;
   brix_auth gsi; brix_gsi_signed_dh require; brix_allow_write on;
   brix_tpc_allow_local on; brix_tpc_allow_private on; brix_tpc_delegate on;
   brix_certificate {sc}; brix_certificate_key {sk}; brix_trusted_ca {ca}; }} }}
@@ -615,7 +618,7 @@ stream {{ server {{ listen 127.0.0.1:{dstp}; brix_root on; brix_export {dst}/roo
                 return 2
             run.pidfiles.append(run.root / f"{name}.pid")
         for port in (srcp, dstp):
-            if not wait_tcp("127.0.0.1", port, 3):
+            if not wait_tcp(BIND_HOST, port, 3):
                 print(f"FAIL: port {port} never listened")
                 return 2
 
@@ -629,7 +632,7 @@ stream {{ server {{ listen 127.0.0.1:{dstp}; brix_root on; brix_export {dst}/roo
             src_log.write_text("")
             (dst / "root" / out).unlink(missing_ok=True)
             proc = _call([xrdcp, "-f", *tpc_args,
-                          f"root://localhost:{srcp}//f.bin", f"root://localhost:{dstp}//{out}"],
+                          f"root://{SERVER_HOST}:{srcp}//f.bin", f"root://{SERVER_HOST}:{dstp}//{out}"],
                          env_add={**base_env, **env_extra}, timeout=120)
             copied = dst / "root" / out
             if proc.returncode == 0 and copied.is_file() and copied.read_bytes() == payload.read_bytes():

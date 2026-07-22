@@ -32,14 +32,15 @@ import textwrap
 
 import pytest
 
-from settings import NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN
 from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 
 BASE = "/tmp/staging"
 BANNER = "DEFAULT WRITE-STAGING"
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("stage-default")]
 
 
 def _san(url):
@@ -103,7 +104,7 @@ def clean_spool():
 
 def test_default_spool_created_and_banner(lifecycle, clean_spool):
     """Success: no stage directive -> banner + managed 0700 spool directory."""
-    backend = "https://127.0.0.1:39101/vo/stagedef"
+    backend = f"https://{HOST}:39101/vo/stagedef"
     spool = _spool(backend)
     clean_spool.append(spool)
 
@@ -124,7 +125,7 @@ def test_default_spool_created_and_banner(lifecycle, clean_spool):
 
 def test_explicit_off_opts_out(lifecycle, clean_spool):
     """Opt-out: `brix_stage off;` -> no banner, no spool directory."""
-    backend = "https://127.0.0.1:39102/vo/stageoff"
+    backend = f"https://{HOST}:39102/vo/stageoff"
     spool = _spool(backend)
     clean_spool.append(spool)
 
@@ -139,7 +140,7 @@ def test_explicit_off_opts_out(lifecycle, clean_spool):
 
 def test_stage_on_without_store_still_fatal(lifecycle, clean_spool):
     """Error: explicit `brix_stage on` without a store keeps the hard emerg."""
-    backend = "https://127.0.0.1:39103/vo/stagebroken"
+    backend = f"https://{HOST}:39103/vo/stagebroken"
     clean_spool.append(_spool(backend))
 
     code, out = _nginx_t(
@@ -151,7 +152,7 @@ def test_stage_on_without_store_still_fatal(lifecycle, clean_spool):
 
 def test_read_only_gateway_gets_no_spool(lifecycle, clean_spool):
     """Security-negative: a non-writable gateway must not gain a spool dir."""
-    backend = "https://127.0.0.1:39104/vo/stagero"
+    backend = f"https://{HOST}:39104/vo/stagero"
     spool = _spool(backend)
     clean_spool.append(spool)
 
@@ -191,13 +192,13 @@ def test_privatetmp_service_warned_loudly(tmp_path):
                 access_log off;
                 client_body_temp_path {base}/tmp;
                 server {{
-                    listen 127.0.0.1:39199;
+                    listen {BIND_HOST}:39199;
                     location /dav/ {{
                         brix_webdav on;
                         brix_export {base}/data;
                         brix_allow_write on;
                         brix_webdav_auth none;
-                        brix_storage_backend https://127.0.0.1:39105/vo/ptmp;
+                        brix_storage_backend https://{HOST}:39105/vo/ptmp;
                     }}
                 }}
             }}

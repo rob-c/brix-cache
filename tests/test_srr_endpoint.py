@@ -35,7 +35,8 @@ except Exception:                                # pragma: no cover
 from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-srr")]
 
 SRR_PATH = "/.well-known/wlcg-storage-resource-reporting"
 _Srr = namedtuple("_Srr", "url base data")

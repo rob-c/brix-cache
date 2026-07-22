@@ -31,7 +31,8 @@ import pytest
 from cmdscripts.live_common import LiveRun, random_file, sha256
 from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-pblock-locks")]
 
 
 FOREIGN_OWNER = 12345      # synthetic catalog uid; wire identity is 0

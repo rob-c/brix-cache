@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 TINY_PROXY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs", "tiny_proxy.py")
@@ -98,7 +99,7 @@ class LocalOrigin:
 
     def start(self):
         handler = _make_handler(self)
-        self._httpd = ThreadingHTTPServer(("127.0.0.1", self.port), handler)
+        self._httpd = ThreadingHTTPServer((BIND_HOST, self.port), handler)
         self._httpd.daemon_threads = True
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
@@ -367,7 +368,7 @@ def _tree_v2():
 
 
 def _url(port):
-    return f"http://127.0.0.1:{port}/cvmfs/{REPO}"
+    return f"http://{HOST}:{port}/cvmfs/{REPO}"
 
 
 def _stat_errno(path):
@@ -932,7 +933,7 @@ class TestServerListSyntax:
 
     def test_fqrn_placeholder_expansion(self, live):
         _, pub = live
-        url = f"http://127.0.0.1:{P_SYN_LIVE}/cvmfs/@fqrn@"
+        url = f"http://{HOST}:{P_SYN_LIVE}/cvmfs/@fqrn@"
         with conf_mount(REPO, pub, server_url=url) as (mnt, _):
             assert os.path.ismount(mnt)
             assert (mnt / "keep.txt").read_bytes() == KEEP_V1
@@ -1227,7 +1228,7 @@ class TestRedirectConfinement:
             # which would otherwise mask the redirect under a failover error.
             with conf_mount(REPO, pub, server_env=_url(P_REDIR), retries=1) as (mnt, _):
                 assert os.path.ismount(mnt), "mount failed"
-                origin.set_fault(f"redirect_host:127.0.0.1:{P_REDIR_MIRROR}", 1,
+                origin.set_fault(f"redirect_host:{HOST}:{P_REDIR_MIRROR}", 1,
                                  path_re=needle)
                 try:
                     obs["mirror_bytes"] = (mnt / "secret.bin").read_bytes()
@@ -1300,8 +1301,8 @@ class TestProxyPrecedence:
             log_b = tmp / "proxy_b.log"
             _spawn_proxy(procs, P_PROXY_A, log_a)
             _spawn_proxy(procs, P_PROXY_B, log_b)
-            purl_a = f"http://127.0.0.1:{P_PROXY_A}"
-            purl_b = f"http://127.0.0.1:{P_PROXY_B}"
+            purl_a = f"http://{HOST}:{P_PROXY_A}"
+            purl_b = f"http://{HOST}:{P_PROXY_B}"
 
             # env http_proxy → all traffic through proxy A
             with conf_mount(REPO, pub, server_env=_url(P_PROXY_ORIGIN),
@@ -1315,7 +1316,7 @@ class TestProxyPrecedence:
             mark = len(_forwards(log_a))
             with conf_mount(REPO, pub, server_env=_url(P_PROXY_ORIGIN),
                             env_extra={"http_proxy": purl_a,
-                                       "no_proxy": "127.0.0.1"}) as (mnt, _):
+                                       "no_proxy": HOST}) as (mnt, _):
                 assert os.path.ismount(mnt), "mount failed"
                 obs["np_keep"] = (mnt / "change.txt").read_bytes()
             obs["np_new_fwd"] = len(_forwards(log_a)) - mark

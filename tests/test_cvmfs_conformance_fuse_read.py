@@ -57,6 +57,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import BRIXMOUNT, PortBlock, fuse_mount
 from repo_forge import Chunk, Chunked, File, RepoForge
+from settings import HOST
 
 REPO = "read.test.cern.ch"
 CH = 64 * 1024                      # chunk quantum for the chunked corpus
@@ -115,7 +116,7 @@ def _start_mock(web: Path, port: int) -> subprocess.Popen:
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(50):
         try:
-            urllib.request.urlopen(f"http://127.0.0.1:{port}/ctl/log", timeout=0.3)
+            urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log", timeout=0.3)
             return proc
         except Exception:
             time.sleep(0.1)
@@ -133,7 +134,7 @@ def _repo_fixture(tmp_path_factory, name: str, tree: dict, mutate=None):
     port = _BLOCK.mock()
     proc = _start_mock(web, port)
     info = SimpleNamespace(forge=forge, web=web, pub=pub, port=port, proc=proc,
-                           url=f"http://127.0.0.1:{port}/cvmfs/{REPO}")
+                           url=f"http://{HOST}:{port}/cvmfs/{REPO}")
     return info
 
 

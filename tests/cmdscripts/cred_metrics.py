@@ -31,7 +31,8 @@ from cmdscripts.user_backend_cred import (
     _stop_prefixed,
     _wait_ready,
 )
-from settings import CA_CERT, CA_DIR, PROXY_STD, SERVER_CERT, SERVER_KEY, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, PROXY_STD, SERVER_CERT, SERVER_KEY
 
 
 def _metric_sum(family: str, text: str) -> int:
@@ -59,7 +60,7 @@ http {{
     client_body_temp_path {prefix}/export;
     brix_credential origin {{ x509_proxy {PROXY_STD}; ca_dir {CA_DIR}; }}
     server {{
-        listen 127.0.0.1:{port} ssl;
+        listen {BIND_HOST}:{port} ssl;
         ssl_certificate     {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -72,7 +73,7 @@ http {{
             brix_export {prefix}/export;
             brix_webdav_cafile {CA_CERT};
             brix_webdav_auth required;
-            brix_storage_backend root://127.0.0.1:{origin_port};
+            brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential origin;
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback {fallback};
@@ -82,7 +83,7 @@ http {{
         }}
     }}
     server {{
-        listen 127.0.0.1:{metrics_port};
+        listen {BIND_HOST}:{metrics_port};
         location /metrics {{ brix_metrics on; }}
     }}
 }}
@@ -112,13 +113,13 @@ def counters(nginx: Path | None = None) -> int:
         payload = run.root / "ucredm_payload.bin"
         payload.write_bytes(os.urandom(4096))
 
-        cmop, cmfp, cmmp = free_ports(3)
+        cmop, cmfp, cmmp = cmdscript_ports("cred_metrics")
         started, detail = _start_prefixed(run, origin, _origin_conf(origin, cmop))
         if not started:
             return _skip(f"origin start failed: {detail}")
         time.sleep(0.5)
         flog = front / "logs/e.log"
-        urlf = f"https://127.0.0.1:{cmfp}"
+        urlf = f"https://{HOST}:{cmfp}"
 
         def front_start(fallback: str) -> bool:
             conf = _front_conf(front, cmfp, cmmp, cmop, creds, fallback)
@@ -131,7 +132,7 @@ def counters(nginx: Path | None = None) -> int:
             return True
 
         def scrape() -> str:
-            return _quiet(["curl", "-s", "--max-time", "5", f"http://127.0.0.1:{cmmp}/metrics"]).stdout
+            return _quiet(["curl", "-s", "--max-time", "5", f"http://{HOST}:{cmmp}/metrics"]).stdout
 
         # ---- step 0: learn the derived key for user A ---------------------------
         print("--- step 0: learning derived key for user A ---")

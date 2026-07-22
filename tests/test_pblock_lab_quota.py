@@ -27,7 +27,8 @@ import pytest
 from cmdscripts.live_common import LiveRun, REPO_ROOT, random_file, sha256
 from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-pblock-quota")]
 
 FSCK_SRC = REPO_ROOT / "tools/pblock-fsck/pblock-fsck.c"
 

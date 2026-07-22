@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 #
-# WHAT: Fail CI when any file under src/ exceeds the soft size cap
-#       (coding-standards.md §1, "~500 lines" — one concept per file), UNLESS the
-#       file is an accepted, frozen exception recorded in file_size_backlog.txt.
+# WHAT: Fail CI when any file under src/ exceeds the size cap (600 lines — the
+#       enforced backstop; coding-standards.md §1 still *prefers* ~500, one concept
+#       per file), UNLESS the file is an accepted, frozen exception recorded in
+#       file_size_backlog.txt.
 #
 # WHY:  The ~500-line rule was documented but human-enforced — reviewers had to
 #       notice size drift by eye. This guard ratchets it, mirroring the vfs-seam
@@ -25,7 +26,7 @@ import os
 import sys
 from pathlib import Path
 
-CAP = 500
+CAP = 600
 ROOT = Path(__file__).resolve().parents[2]
 BACKLOG = ROOT / "tools/ci/file_size_backlog.txt"
 

@@ -21,10 +21,11 @@ import time
 
 import pytest
 
-from settings import HOST, BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrddiag-watch")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -78,7 +79,7 @@ def test_watch_down_endpoint_bounded(server):
     """A closed port reports up=0 (not a crash/hang) and exits 0 within the
     probe-timeout bound."""
     t0 = time.time()
-    r = subprocess.run([XRDDIAG, "watch", "root://127.0.0.1:1", "--count", "1",
+    r = subprocess.run([XRDDIAG, "watch", f"root://{HOST}:1", "--count", "1",
                         "--probe-timeout", "800", "--prometheus"],
                        capture_output=True, text=True, timeout=15)
     elapsed = time.time() - t0
@@ -92,7 +93,7 @@ def test_watch_json_multi_endpoint(server):
     """--json emits one NDJSON object per endpoint per cycle; a live + a dead
     endpoint in one cycle yield up:1 and up:0."""
     live = f"root://{HOST}:{server['rport']}//probe.bin"
-    r = subprocess.run([XRDDIAG, "watch", live, "root://127.0.0.1:1",
+    r = subprocess.run([XRDDIAG, "watch", live, f"root://{HOST}:1",
                         "--count", "1", "--probe-timeout", "800", "--json"],
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"

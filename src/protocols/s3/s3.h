@@ -313,6 +313,10 @@ ngx_int_t s3_handle_delete(ngx_http_request_t *r,
                              const char *fs_path,
                              ngx_http_s3_loc_conf_t *cf);
 
+/* Emit the DELETE response for a completed unlink (op_errno 0 = removed).
+ * Shared by the synchronous handler and the async-queue wake. (object_meta.c) */
+ngx_int_t s3_delete_respond(ngx_http_request_t *r, int op_errno);
+
 /* PUT body callback (registered by handler.c) */
 void s3_put_body_handler(ngx_http_request_t *r);
 

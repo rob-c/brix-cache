@@ -282,7 +282,7 @@ def _ipv6_stream_guard(requires_ipv6_loopback):
     """
     if not _reachable6(IPV6_PORT):
         pytest.skip(
-            f"IPv6 stream instance [::1]:{IPV6_PORT} unreachable "
+            f"IPv6 stream instance [{HOST6}]:{IPV6_PORT} unreachable "
             f"(start-all not run, or dedicated instance down)")
 
 
@@ -560,8 +560,8 @@ class TestIpv6Locate:
                 f"locate token must start with 'S': {token!r}"
             # The data server reached us over ::1, so the emitted host is the
             # bracketed IPv6 loopback literal followed by ':<port>'.
-            assert b"[::1]:" in token, (
-                f"IPv6 locate token not bracketed (expected 'Sr[::1]:<port>'): "
+            assert b"[::1]:" in token, (  # net-literal-allow: asserting locate token is bracketed [::1]
+                f"IPv6 locate token not bracketed (expected 'Sr[::1]:<port>'): "  # net-literal-allow: expected bracket-format in assertion message
                 f"{token!r}")
             # And explicitly NOT the bare un-bracketed form that the fix replaces.
             assert b"S" + token[1:2] + b"::1:" not in token, (
@@ -582,7 +582,7 @@ class TestIpv6Locate:
                 f"wildcard locate failed: {_error_code(body)}"
             token = body.split(b"\x00", 1)[0]
             assert token[:1] == b"S", f"bad wildcard locate token: {token!r}"
-            assert b"[::1]:" in token, (
+            assert b"[::1]:" in token, (  # net-literal-allow: asserting locate token is bracketed [::1]
                 f"wildcard IPv6 locate not bracketed: {token!r}")
             assert _ping(sock)[1] == kXR_ok
         finally:

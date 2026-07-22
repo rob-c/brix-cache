@@ -33,9 +33,10 @@ import subprocess
 import pytest
 
 from server_registry import NginxInstanceSpec
-from settings import HOST, free_port
+from settings import HOST
 
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xrddiag-multiproto")]
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,7 +79,7 @@ def servers(lifecycle, tmp_path_factory):
     key = str(root / "key.pem")
     r = subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
                         "-keyout", key, "-out", cert, "-days", "2",
-                        "-subj", "/CN=localhost"], capture_output=True)
+                        "-subj", "/CN=localhost"], capture_output=True)  # net-literal-allow: throwaway TLS cert subject CN
     if r.returncode != 0:
         pytest.skip("openssl cert generation failed")
 
@@ -88,9 +89,8 @@ def servers(lifecycle, tmp_path_factory):
         protocol="root",
         readiness="tcp",
         data_root=str(data),
-        extra_ports={"HTTP_PORT": free_port(),
-                     "HTTPS_PORT": free_port(),
-                     "S3_PORT": free_port()},
+        # HTTP_PORT / HTTPS_PORT / S3_PORT (the http/https/s3 planes) come from
+        # the fixed-port ledger via lifecycle_ports_for("lc-xrddiag-multiproto").
         template_values={"CERT": cert, "KEY": key},
         reason="Multi-protocol xrddiag deep-dive: root/http/https/davs/s3 on one nginx.",
     ))
@@ -235,7 +235,7 @@ def test_multi_protocol_one_run(servers):
 
 
 def test_http_dead_hop(servers):
-    p = _run("remote-doctor", "https://127.0.0.1:1/x",
+    p = _run("remote-doctor", f"https://{HOST}:1/x",
              "--json", "--probe-timeout", "2000")
     ep, dx = _dx(p.stdout)
     assert ep["status"] == "RED", ep

@@ -10,7 +10,8 @@ import time
 import requests
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_port
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 
 def write_config(prefix: Path, port: int) -> Path:
@@ -25,7 +26,7 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 http {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         location / {{
             brix_s3 on;
             brix_storage_backend posix:{root};
@@ -52,7 +53,7 @@ def stop_nginx(prefix: Path) -> None:
 
 
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
-    port = free_port()
+    port = cmdscript_ports("s3_usermeta")[0]
     conf = write_config(base, port)
     start = run([nginx_bin, "-p", str(base), "-c", str(conf)])
     if start.returncode != 0:
@@ -60,7 +61,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
 
     try:
         time.sleep(1)
-        bucket = f"http://127.0.0.1:{port}/testbucket"
+        bucket = f"http://{HOST}:{port}/testbucket"
         obj = f"{bucket}/obj.txt"
         copy = f"{bucket}/copy.txt"
         results: list[tuple[bool, str]] = []

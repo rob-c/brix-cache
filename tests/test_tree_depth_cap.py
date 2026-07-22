@@ -32,7 +32,7 @@ import pytest
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
 REMOVE_TREE = _SRC / "core" / "compat" / "fs_walk_remove.c"
-COPYTREE = _SRC / "fs" / "vfs" / "vfs_walk.c"
+COPYTREE = _SRC / "fs" / "vfs" / "vfs_walk_copy.c"
 DRIVER_RMTREE = _SRC / "fs" / "vfs" / "vfs_unlink.c"
 FS_WALK_H = _SRC / "core" / "compat" / "fs_walk.h"
 

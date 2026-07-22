@@ -6,7 +6,8 @@ from pathlib import Path
 import tempfile
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 
 VALID_TOKENS = ("auto", "inet", "inet6")
@@ -21,8 +22,8 @@ def write_config(prefix: Path, token: str, listen_port: int, upstream_port: int)
         f"""daemon off; error_log {prefix / 'e.log'} info; pid {prefix / 'pid'};
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{listen_port}; brix_root on; brix_auth none;
-    brix_storage_backend root://127.0.0.1:{upstream_port};
+    listen {BIND_HOST}:{listen_port}; brix_root on; brix_auth none;
+    brix_storage_backend root://{HOST}:{upstream_port};
     brix_cache_store posix:{cache}; brix_cache_export /;
     brix_cache_origin_family {token};
 }} }}
@@ -33,7 +34,7 @@ stream {{ server {{
 
 
 def check_token(nginx_bin: str, prefix: Path, token: str, expect_ok: bool) -> tuple[bool, str]:
-    listen_port, upstream_port = free_ports(2)
+    listen_port, upstream_port = cmdscript_ports("af_family_conf")
     conf = write_config(prefix, token, listen_port, upstream_port)
     result = run([nginx_bin, "-t", "-c", str(conf)])
     ok = result.returncode == 0

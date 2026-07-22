@@ -12,6 +12,7 @@ import sys
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
+from settings import BIND_HOST, HOST
 
 
 def _mock(run: LiveRun, port: int, objects: int, seed: int, *, keepalive: bool = False) -> subprocess.Popen[str]:
@@ -26,7 +27,7 @@ def _mock(run: LiveRun, port: int, objects: int, seed: int, *, keepalive: bool =
 
 
 def _ctl(run: LiveRun, port: int, endpoint: str) -> object:
-    return json.loads(run.call(["curl", "-sS", f"http://127.0.0.1:{port}/ctl/{endpoint}"]).stdout)
+    return json.loads(run.call(["curl", "-sS", f"http://{HOST}:{port}/ctl/{endpoint}"]).stdout)
 
 
 def _count_log(run: LiveRun, port: int, value: str, *, endpoint: str = "log") -> int:
@@ -39,7 +40,7 @@ def _config(run: LiveRun, port: int, body: str, *, worker_threads: int = 2, extr
         f"""daemon on; error_log {run.root}/logs/e.log info; pid {run.root}/nginx.pid;
 worker_processes 1; thread_pool default threads={worker_threads};
 events {{ worker_connections 256; }}
-http {{ access_log off; {extra_http} server {{ listen 127.0.0.1:{port};
+http {{ access_log off; {extra_http} server {{ listen {BIND_HOST}:{port};
 {body}
 }} }}
 """,
@@ -60,7 +61,7 @@ def minimal(nginx: Path | None = None) -> int:
         body = f"""    location /cvmfs/ {{
         brix_cvmfs on;
         brix_cache_store posix:{cache};
-        brix_storage_backend http://127.0.0.1:{mock_port};
+        brix_storage_backend http://{HOST}:{mock_port};
     }}"""
         config = _config(run, cache_port, body)
         parses = run.call([run.nginx, "-t", "-c", config, "-p", run.root], check=False).returncode == 0
@@ -69,21 +70,21 @@ def minimal(nginx: Path | None = None) -> int:
         assert isinstance(objects, list)
         obj, corrupt_obj = objects[1], objects[3]
         store_before = len(list(cache.rglob("*")))
-        got = run.curl_bytes(f"http://127.0.0.1:{cache_port}{obj}")
-        origin = run.curl_bytes(f"http://127.0.0.1:{mock_port}{obj}")
+        got = run.curl_bytes(f"http://{HOST}:{cache_port}{obj}")
+        origin = run.curl_bytes(f"http://{HOST}:{mock_port}{obj}")
         store_after = len(list(cache.rglob("*")))
         cold_count = _count_log(run, mock_port, obj)
-        run.curl_bytes(f"http://127.0.0.1:{cache_port}{obj}")
+        run.curl_bytes(f"http://{HOST}:{cache_port}{obj}")
         warm_count = _count_log(run, mock_port, obj)
-        run.call(["curl", "-sS", "-o", "/dev/null", "-X", "POST", "-d", '{"mode":"corrupt","count":8}', f"http://127.0.0.1:{mock_port}/ctl/fault"])
-        corrupt_status = run.curl_status(f"http://127.0.0.1:{cache_port}{corrupt_obj}")
-        run.call(["curl", "-sS", "-o", "/dev/null", "-X", "POST", "-d", '{"mode":"none","count":0}', f"http://127.0.0.1:{mock_port}/ctl/fault"])
-        clean = run.curl_bytes(f"http://127.0.0.1:{cache_port}{corrupt_obj}")
-        clean_origin = run.curl_bytes(f"http://127.0.0.1:{mock_port}{corrupt_obj}")
+        run.call(["curl", "-sS", "-o", "/dev/null", "-X", "POST", "-d", '{"mode":"corrupt","count":8}', f"http://{HOST}:{mock_port}/ctl/fault"])
+        corrupt_status = run.curl_status(f"http://{HOST}:{cache_port}{corrupt_obj}")
+        run.call(["curl", "-sS", "-o", "/dev/null", "-X", "POST", "-d", '{"mode":"none","count":0}', f"http://{HOST}:{mock_port}/ctl/fault"])
+        clean = run.curl_bytes(f"http://{HOST}:{cache_port}{corrupt_obj}")
+        clean_origin = run.curl_bytes(f"http://{HOST}:{mock_port}{corrupt_obj}")
         bogus = "/cvmfs/test.cern.ch/data/aa/" + "cd" * 19
-        first_miss = run.curl_status(f"http://127.0.0.1:{cache_port}{bogus}")
+        first_miss = run.curl_status(f"http://{HOST}:{cache_port}{bogus}")
         heads_before = _count_log(run, mock_port, bogus, endpoint="heads")
-        second_miss = run.curl_status(f"http://127.0.0.1:{cache_port}{bogus}")
+        second_miss = run.curl_status(f"http://{HOST}:{cache_port}{bogus}")
         heads_after = _count_log(run, mock_port, bogus, endpoint="heads")
         return _checks([
             (parses, "three-directive CVMFS configuration parses"),
@@ -103,23 +104,23 @@ def manifest(nginx: Path | None = None) -> int:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         mock = _mock(run, mock_port, 2, 1)
         config = _config(run, cache_port, f"""    location /cvmfs/ {{
-        brix_storage_backend http://127.0.0.1:{mock_port}; brix_cache_store posix:{cache};
+        brix_storage_backend http://{HOST}:{mock_port}; brix_cache_store posix:{cache};
         brix_cvmfs on; brix_cvmfs_manifest_ttl {ttl};
     }}""")
         run.start_nginx(run.root, config, cache_port)
         path = "/cvmfs/test.cern.ch/.cvmfspublished"
-        first = run.curl_bytes(f"http://127.0.0.1:{cache_port}{path}")
+        first = run.curl_bytes(f"http://{HOST}:{cache_port}{path}")
         count_one = _count_log(run, mock_port, "cvmfspublished")
-        second = run.curl_bytes(f"http://127.0.0.1:{cache_port}{path}")
+        second = run.curl_bytes(f"http://{HOST}:{cache_port}{path}")
         count_two = _count_log(run, mock_port, "cvmfspublished")
-        run.call(["curl", "-sS", f"http://127.0.0.1:{mock_port}/ctl/manifest/bump"])
+        run.call(["curl", "-sS", f"http://{HOST}:{mock_port}/ctl/manifest/bump"])
         time.sleep(ttl + 1)
-        third = run.curl_bytes(f"http://127.0.0.1:{cache_port}{path}")
+        third = run.curl_bytes(f"http://{HOST}:{cache_port}{path}")
         mock.terminate()
         mock.wait(2)
         time.sleep(ttl + 1)
-        stale_status = run.curl_status(f"http://127.0.0.1:{cache_port}{path}")
-        stale = run.curl_bytes(f"http://127.0.0.1:{cache_port}{path}") if stale_status == 200 else b""
+        stale_status = run.curl_status(f"http://{HOST}:{cache_port}{path}")
+        stale = run.curl_bytes(f"http://{HOST}:{cache_port}{path}") if stale_status == 200 else b""
         return _checks([
             (first == second and count_one == count_two, "manifest cached within TTL"),
             (third != first, "expired manifest revalidated"),
@@ -133,20 +134,20 @@ def connection_reuse(nginx: Path | None = None) -> int:
         cache, logs = run.mkdir("cache"), run.mkdir("logs")
         _mock(run, mock_port, 8, 31, keepalive=True)
         config = _config(run, cache_port, f"""    location /cvmfs/ {{
-        brix_storage_backend http://127.0.0.1:{mock_port}; brix_cache_store posix:{cache}; brix_cvmfs on;
+        brix_storage_backend http://{HOST}:{mock_port}; brix_cache_store posix:{cache}; brix_cvmfs on;
     }}""", worker_threads=1)
         parses = run.call([run.nginx, "-t", "-c", config, "-p", run.root], check=False).returncode == 0
         run.start_nginx(run.root, config, cache_port)
         objects = _ctl(run, mock_port, "objects")
         assert isinstance(objects, list)
-        reference = run.curl_bytes(f"http://127.0.0.1:{mock_port}{objects[0]}")
+        reference = run.curl_bytes(f"http://{HOST}:{mock_port}{objects[0]}")
         before_connections = int(_ctl(run, mock_port, "connections")["connections"])
         before_gets = _count_log(run, mock_port, "/cvmfs/")
         for obj in objects:
-            run.curl_bytes(f"http://127.0.0.1:{cache_port}{obj}")
+            run.curl_bytes(f"http://{HOST}:{cache_port}{obj}")
         delta_connections = int(_ctl(run, mock_port, "connections")["connections"]) - before_connections
         delta_gets = _count_log(run, mock_port, "/cvmfs/") - before_gets
-        hit = run.curl_bytes(f"http://127.0.0.1:{cache_port}{objects[0]}")
+        hit = run.curl_bytes(f"http://{HOST}:{cache_port}{objects[0]}")
         return _checks([
             (parses, "configuration parses"),
             (hit == reference, "cache serves byte-exact object"),
@@ -161,7 +162,7 @@ def failover(nginx: Path | None = None) -> int:
         first = _mock(run, first_port, 6, 5)
         second = _mock(run, second_port, 6, 5)
         config = _config(run, cache_port, f"""    location /cvmfs/ {{
-        brix_storage_backend "http://127.0.0.1:{first_port}|http://127.0.0.1:{second_port}";
+        brix_storage_backend "http://{HOST}:{first_port}|http://{HOST}:{second_port}";
         brix_cache_store posix:{cache}; brix_cvmfs on; brix_cvmfs_client_hold 3;
         brix_cvmfs_origin_select static;
     }}""")
@@ -171,17 +172,17 @@ def failover(nginx: Path | None = None) -> int:
         first.terminate()
         first.wait(2)
         time.sleep(0.1)
-        filled = run.curl_bytes(f"http://127.0.0.1:{cache_port}{objects[0]}")
-        reference = run.curl_bytes(f"http://127.0.0.1:{second_port}{objects[0]}")
+        filled = run.curl_bytes(f"http://{HOST}:{cache_port}{objects[0]}")
+        reference = run.curl_bytes(f"http://{HOST}:{second_port}{objects[0]}")
         served_secondary = _count_log(run, second_port, objects[0]) >= 1
         recovered = _mock(run, first_port, 6, 5)
         for obj in objects[1:4]:
-            run.curl_bytes(f"http://127.0.0.1:{cache_port}{obj}")
+            run.curl_bytes(f"http://{HOST}:{cache_port}{obj}")
         primary_returned = _count_log(run, first_port, "/data/") >= 1
         for proc in (recovered, second):
             proc.terminate()
         time.sleep(0.1)
-        both_down = run.curl_status(f"http://127.0.0.1:{cache_port}{objects[5]}", timeout=30)
+        both_down = run.curl_status(f"http://{HOST}:{cache_port}{objects[5]}", timeout=30)
         return _checks([
             (filled == reference and served_secondary, "primary-down fill served by secondary"),
             (primary_returned, "primary reused after recovery"),
@@ -198,21 +199,21 @@ def shared_cache(nginx: Path | None = None) -> int:
         objects = _ctl(run, first_port, "objects")
         assert isinstance(objects, list)
         obj = objects[0]
-        source_one = run.curl_bytes(f"http://127.0.0.1:{first_port}{obj}")
-        source_two = run.curl_bytes(f"http://127.0.0.1:{second_port}{obj}")
+        source_one = run.curl_bytes(f"http://{HOST}:{first_port}{obj}")
+        source_two = run.curl_bytes(f"http://{HOST}:{second_port}{obj}")
 
         def configure(shared: str) -> Path:
             return _config(run, proxy_port, f"""    location / {{
-        brix_cache_store posix:{cache}; brix_cvmfs on; brix_cvmfs_upstream_allow 127.0.0.1;
+        brix_cache_store posix:{cache}; brix_cvmfs on; brix_cvmfs_upstream_allow {HOST};
         brix_cvmfs_shared_cache {shared};
     }}""")
 
         on = configure("on")
         parses = run.call([run.nginx, "-t", "-c", on, "-p", run.root], check=False).returncode == 0
         run.start_nginx(run.root, on, proxy_port)
-        one = run.curl_bytes(f"http://127.0.0.1:{first_port}{obj}", "-x", f"http://127.0.0.1:{proxy_port}")
+        one = run.curl_bytes(f"http://{HOST}:{first_port}{obj}", "-x", f"http://{HOST}:{proxy_port}")
         before = _count_log(run, second_port, obj)
-        two = run.curl_bytes(f"http://127.0.0.1:{second_port}{obj}", "-x", f"http://127.0.0.1:{proxy_port}")
+        two = run.curl_bytes(f"http://{HOST}:{second_port}{obj}", "-x", f"http://{HOST}:{proxy_port}")
         after = _count_log(run, second_port, obj)
         run.stop_nginx(run.root)
         for child in cache.iterdir():
@@ -223,9 +224,9 @@ def shared_cache(nginx: Path | None = None) -> int:
                 child.unlink()
         off = configure("off")
         run.start_nginx(run.root, off, proxy_port)
-        run.curl_bytes(f"http://127.0.0.1:{first_port}{obj}", "-x", f"http://127.0.0.1:{proxy_port}")
+        run.curl_bytes(f"http://{HOST}:{first_port}{obj}", "-x", f"http://{HOST}:{proxy_port}")
         isolated_before = _count_log(run, second_port, obj)
-        run.curl_bytes(f"http://127.0.0.1:{second_port}{obj}", "-x", f"http://127.0.0.1:{proxy_port}")
+        run.curl_bytes(f"http://{HOST}:{second_port}{obj}", "-x", f"http://{HOST}:{proxy_port}")
         isolated_after = _count_log(run, second_port, obj)
         return _checks([
             (source_one == source_two, "same-seed origins are byte-identical"),
@@ -250,13 +251,13 @@ http {{
     keepalive_timeout 3600s; keepalive_requests 1000000;
     send_timeout 300s; client_header_timeout 300s; reset_timedout_connection off;
     server {{
-        listen 127.0.0.1:{keepalive_port} so_keepalive=60s:10s:6 backlog=2048;
-        location /cvmfs/ {{ brix_storage_backend http://127.0.0.1:{mock_port}; brix_cache_store posix:{cache}; brix_cvmfs on; }}
+        listen {BIND_HOST}:{keepalive_port} so_keepalive=60s:10s:6 backlog=2048;
+        location /cvmfs/ {{ brix_storage_backend http://{HOST}:{mock_port}; brix_cache_store posix:{cache}; brix_cvmfs on; }}
         location / {{ return 403; }}
     }}
     server {{
-        listen 127.0.0.1:{control_port};
-        location /cvmfs/ {{ brix_storage_backend http://127.0.0.1:{mock_port}; brix_cache_store posix:{cache}; brix_cvmfs on; }}
+        listen {BIND_HOST}:{control_port};
+        location /cvmfs/ {{ brix_storage_backend http://{HOST}:{mock_port}; brix_cache_store posix:{cache}; brix_cvmfs on; }}
     }}
 }}
 """,
@@ -267,14 +268,14 @@ http {{
         obj = objects[0]
         connections = []
         for port in (keepalive_port, control_port):
-            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            connection = http.client.HTTPConnection(HOST, port, timeout=10)
             connection.request("GET", obj)
             connection.getresponse().read()
             connections.append(connection)
         time.sleep(0.2)
         ss_keepalive = run.call(["ss", "-tno", "state", "established", f"( sport = :{keepalive_port} )"], check=False).stdout
         ss_control = run.call(["ss", "-tno", "state", "established", f"( sport = :{control_port} )"], check=False).stdout
-        client = http.client.HTTPConnection("127.0.0.1", keepalive_port, timeout=30)
+        client = http.client.HTTPConnection(HOST, keepalive_port, timeout=30)
         durable = True
         try:
             for _ in range(200):

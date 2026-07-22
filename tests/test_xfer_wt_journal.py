@@ -22,14 +22,18 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
 from official_interop_lib import worker_reachable
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
+from fleet_lifecycle_ports import lifecycle_ports_for
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-xfer-wt-journal")]
 
-PORT = int(os.environ.get("TEST_XFER_WTJ_PORT") or free_port())
+# Placeholder until the fixture reassigns from ep.port; default to the ledger
+# port (lc-xfer-wt-journal) so import-time URLs match the live bind.
+PORT = int(os.environ.get("TEST_XFER_WTJ_PORT") or lifecycle_ports_for("lc-xfer-wt-journal")[0])
 XRDCP = shutil.which("xrdcp")
 
 # brix_sreq_t on-disk layout (src/fs/xfer/stage_engine.h).  Little-endian, natural

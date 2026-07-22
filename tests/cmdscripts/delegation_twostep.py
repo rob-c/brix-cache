@@ -10,7 +10,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import CA_CERT, CA_KEY, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, CA_CERT, CA_KEY, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -85,7 +86,7 @@ error_log {logs / 'e.log'} info;
 pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen 127.0.0.1:{port};
+    listen {BIND_HOST}:{port};
     brix_root on;
     brix_export {root};
     brix_allow_write on;
@@ -120,7 +121,7 @@ http {{
     access_log {front / 'logs' / 'access.log'};
     client_body_temp_path {front / 'export'};
     server {{
-        listen 127.0.0.1:{front_port} ssl;
+        listen {BIND_HOST}:{front_port} ssl;
         ssl_certificate {SERVER_CERT};
         ssl_certificate_key {SERVER_KEY};
         ssl_client_certificate {CA_CERT};
@@ -133,7 +134,7 @@ http {{
             brix_export {front / 'export'};
             brix_webdav_cafile {CA_CERT};
             brix_webdav_auth required;
-            brix_storage_backend root://127.0.0.1:{origin_port};
+            brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback deny;
             brix_stage on;
@@ -230,7 +231,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
     if not mint_ok:
         return [(True, mint_message)]
 
-    origin_port, front_port = free_ports(2)
+    origin_port, front_port = cmdscript_ports("delegation_twostep")
     origin = base / "o"
     creds = base / "creds"
     certs = base / "certs"
@@ -243,7 +244,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         return [(True, "SKIP: origin start failed: " + msg)]
 
     results: list[tuple[bool, str]] = []
-    url = f"https://127.0.0.1:{front_port}"
+    url = f"https://{HOST}:{front_port}"
     req_url = url + "/.well-known/brix-delegation/request"
     try:
         ok, msg = start_front(base, nginx_bin, origin_port, front_port, "on")

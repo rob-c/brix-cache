@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.s3_storage_backend import MAKE_TOKEN, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-s3_storage_backend")
+
 
 def test_s3_storage_backend_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

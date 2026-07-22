@@ -48,7 +48,8 @@ import time
 
 import pytest
 
-from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST, free_ports
+from settings import BIND_HOST, HOST, NGINX_BIN, SERVER_HOST
+from ephemeral_port import free_ports
 from server_launcher import LifecycleHarness, RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 

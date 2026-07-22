@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 
 XROOTDFS = os.path.join(servers.CLIENT_BIN, "xrootdfs")
-HOST = "127.0.0.1"
+from settings import HOST
 
 
 def _md5(b):

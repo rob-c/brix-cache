@@ -5,6 +5,8 @@ import pytest
 
 from cmdscripts import tape_live
 
+pytestmark = pytest.mark.xdist_group("cmd-tape_live")
+
 
 def test_tape_live_are_importable():
     assert set(tape_live.SCENARIOS) == {

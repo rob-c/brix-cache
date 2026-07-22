@@ -25,6 +25,7 @@ import pytest
 
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -32,7 +33,8 @@ NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 PW = "multi-proto-pw"
 USER = "protouser"
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-pwd-multiproto")]
 
 
 def _run(cmd, **kw):
@@ -42,7 +44,7 @@ def _run(cmd, **kw):
 def _port_up(port, tries=60):
     for _ in range(tries):
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+            socket.create_connection((HOST, port), timeout=0.3).close()
             return True
         except OSError:
             time.sleep(0.1)
@@ -74,17 +76,14 @@ def multi_server(tmp_path_factory):
     key = base / "tls.key"
     r = _run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
               "-keyout", str(key), "-out", str(cert), "-days", "2",
-              "-subj", "/CN=127.0.0.1"])
+              "-subj", "/CN=127.0.0.1"])  # net-literal-allow: throwaway TLS cert subject CN
     assert r.returncode == 0, f"throwaway TLS cert generation failed: {r.stderr}"
 
-    from settings import free_ports
-    http_port, https_port = free_ports(2)
     spec = NginxInstanceSpec(
         name="lc-pwd-multiproto",
         template="nginx_pwd_multiproto.conf",
         protocol="root", readiness="tcp",
         data_root=str(data),
-        extra_ports={"HTTP_PORT": http_port, "HTTPS_PORT": https_port},
         template_values={"PWD_FILE": str(pwdfile),
                          "SERVER_CERT": str(cert),
                          "SERVER_KEY": str(key)})
@@ -101,11 +100,15 @@ def multi_server(tmp_path_factory):
         startup_log.write_text((probe.stdout or "") + (probe.stderr or ""))
 
         ep = harness.start_registered("lc-pwd-multiproto")
+        # HTTP_PORT/HTTPS_PORT are embedded listens owned by the ledger
+        # (fleet_lifecycle_ports.lc-pwd-multiproto); read them back post-start.
+        http_port = ep.extra_ports["HTTP_PORT"]
+        https_port = ep.extra_ports["HTTPS_PORT"]
         assert _port_up(https_port), "https listener did not come up"
         yield {"data": data, "log": startup_log,
-               "root": f"root://127.0.0.1:{ep.port}",
-               "http": f"http://127.0.0.1:{http_port}",
-               "https": f"https://127.0.0.1:{https_port}"}
+               "root": f"root://{HOST}:{ep.port}",
+               "http": f"http://{HOST}:{http_port}",
+               "https": f"https://{HOST}:{https_port}"}
     finally:
         harness.close()
 

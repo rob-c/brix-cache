@@ -16,10 +16,11 @@ import subprocess
 
 import pytest
 
-from settings import NGINX_BIN  # noqa: E402
+from settings import HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
-pytestmark = [pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-pwd-auth")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -58,7 +59,7 @@ def pwd_server(lifecycle, tmp_path):
         protocol="root",
         template_values={"DATA_DIR": str(data), "PWD_FILE": str(pwd_file)},
         reason="stream pwd-file auth"))
-    yield {"url": f"root://127.0.0.1:{ep.port}", "data": data}
+    yield {"url": f"root://{HOST}:{ep.port}", "data": data}
 
 
 def _env(password=PW, user=USER):

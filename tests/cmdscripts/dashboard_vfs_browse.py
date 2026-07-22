@@ -12,7 +12,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 PASSWORD = "vfsb"
 
@@ -41,7 +42,7 @@ events {{ worker_connections 128; }}
 http {{
     client_body_temp_path {tmp};
     server {{
-        listen 127.0.0.1:{posix_port};
+        listen {BIND_HOST}:{posix_port};
         location / {{
             brix_webdav on;
             brix_export {posix_root};
@@ -50,7 +51,7 @@ http {{
         }}
     }}
     server {{
-        listen 127.0.0.1:{pblock_port};
+        listen {BIND_HOST}:{pblock_port};
         location / {{
             dav_methods PUT;
             brix_webdav on;
@@ -61,7 +62,7 @@ http {{
         }}
     }}
     server {{
-        listen 127.0.0.1:{dash_port};
+        listen {BIND_HOST}:{dash_port};
         location /brix/ {{
             brix_dashboard on;
             brix_dashboard_password "{PASSWORD}";
@@ -69,7 +70,7 @@ http {{
         }}
     }}
     server {{
-        listen 127.0.0.1:{off_port};
+        listen {BIND_HOST}:{off_port};
         location /brix/ {{
             brix_dashboard on;
             brix_dashboard_password "{PASSWORD}";
@@ -114,7 +115,7 @@ def curl_code(url: str, cookie: str | None = None) -> str:
 
 
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
-    posix_port, dash_port, off_port, pblock_port = free_ports(4)
+    posix_port, dash_port, off_port, pblock_port = cmdscript_ports("dashboard_vfs_browse")
     conf = write_config(base, posix_port, dash_port, off_port, pblock_port)
     test = run([nginx_bin, "-t", "-c", str(conf), "-p", str(base)])
     results = [(test.returncode == 0, "config parses (brix_dashboard_vfs_browse)")]
@@ -130,10 +131,10 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
     try:
         time.sleep(0.6)
         cookie = dashboard_cookie()
-        api = f"http://127.0.0.1:{dash_port}/brix/api/v1"
+        api = f"http://{HOST}:{dash_port}/brix/api/v1"
         pb_src = base / "pb_src.bin"
         pb_src.write_text("pblock payload bytes", encoding="utf-8")
-        put = curl(["-s", "-o", "/dev/null", "-w", "%{http_code}", "-T", str(pb_src), f"http://127.0.0.1:{pblock_port}/stored.bin"]).stdout.strip()
+        put = curl(["-s", "-o", "/dev/null", "-w", "%{http_code}", "-T", str(pb_src), f"http://{HOST}:{pblock_port}/stored.bin"]).stdout.strip()
         results.append((put in {"201", "204"}, f"pblock seeded via WebDAV PUT ({put})"))
 
         census_text = curl_body(f"{api}/vfs", cookie)
@@ -203,7 +204,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
 
         results.append((curl_code(f"{api}/vfs/files?export={posix_idx}&path=/") == "401", "unauthenticated -> 401"))
         results.append((curl_code(f"{api}/vfs/files?export={posix_idx}&path=/../../../etc", cookie) == "400", "traversal path rejected (400)"))
-        results.append((curl_code(f"http://127.0.0.1:{off_port}/brix/api/v1/vfs", cookie) == "404", "feature off -> 404"))
+        results.append((curl_code(f"http://{HOST}:{off_port}/brix/api/v1/vfs", cookie) == "404", "feature off -> 404"))
     finally:
         stop_nginx(base)
 

@@ -36,12 +36,13 @@ import zlib
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
-              pytest.mark.uses_lifecycle_harness]
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-gridftp-ev")]
 
 
 def _require():
@@ -80,7 +81,7 @@ class _Ctrl:
     """A minimal line-oriented FTP control-channel client over a raw socket."""
 
     def __init__(self, port, login=True):
-        self.sock = socket.create_connection(("localhost", port), timeout=30)
+        self.sock = socket.create_connection((SERVER_HOST, port), timeout=30)
         self.sock.settimeout(30)
         self.buf = b""
         assert self.recv().startswith("220 "), "missing greeting"
@@ -223,7 +224,7 @@ from io import BytesIO
 def _ftp(gw):
     """A logged-in ftplib client (passive mode) against the event gateway."""
     f = ftplib.FTP()
-    f.connect("localhost", gw.port, timeout=30)
+    f.connect(SERVER_HOST, gw.port, timeout=30)
     f.login("anonymous", "x")
     return f
 
@@ -352,7 +353,7 @@ def test_stor_readonly_export_denied(harness_factory=None):
     ))
     try:
         f = ftplib.FTP()
-        f.connect("localhost", endpoint.port, timeout=30)
+        f.connect(SERVER_HOST, endpoint.port, timeout=30)
         f.login("anonymous", "x")
         with pytest.raises(ftplib.error_perm) as ei:
             f.storbinary("STOR /blocked.bin", BytesIO(b"nope"))

@@ -14,30 +14,29 @@ import urllib.request
 
 import pytest
 
-from settings import NGINX_BIN, BIND_HOST, free_port
+from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 from test_ssi_wire import _handshake_login, _open_ssi, _write_request, _query_wait
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-ssi-metrics")]
 
 
 @pytest.fixture()
 def ssi_metrics_server(lifecycle):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip("nginx binary not found")
-    mport = free_port()
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-ssi-metrics",
         template="nginx_lc_ssi_metrics.conf",
         protocol="root",
         template_values={"BIND_HOST": BIND_HOST},
-        extra_ports={"METRICS_PORT": mport},
         reason="SSI stream listener + http /metrics scrape target"))
     return ep.port, ep.extra_ports["METRICS_PORT"]
 
 
 def _scrape(mport):
-    with urllib.request.urlopen(f"http://127.0.0.1:{mport}/metrics", timeout=5) as r:
+    with urllib.request.urlopen(f"http://{HOST}:{mport}/metrics", timeout=5) as r:
         return r.read().decode()
 
 

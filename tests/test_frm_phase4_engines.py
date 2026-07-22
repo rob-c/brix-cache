@@ -27,11 +27,12 @@ import urllib.request
 import pytest
 
 from cmdscripts import frm_oracle_online
-from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-p4eng")]
 
 XRDCP = shutil.which("xrdcp")
 
@@ -131,7 +132,6 @@ def f5(lifecycle, tmp_path):
         pytest.skip("no user xattrs")
     data = d / "data"; data.mkdir()
     tape = d / "tape"; tape.mkdir()
-    mport = free_port(HOST)
 
     copycmd = str(d / "copy.py")
     shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
@@ -148,7 +148,6 @@ def f5(lifecycle, tmp_path):
         name="lc-frm-p4eng-f5",
         template="nginx_lc_frm_phase4_engines_f5.conf",
         protocol="root",
-        extra_ports={"METRICS_PORT": mport},
         template_values={
             "BIND_HOST": BIND_HOST,
             "DATA_DIR": str(data),
@@ -164,7 +163,8 @@ def f5(lifecycle, tmp_path):
         reason="Phase 4 F5 checksum-on-stage recall engine"))
 
     class S: pass
-    s = S(); s.port = endpoint.port; s.mport = mport; s.adler = adler
+    s = S(); s.port = endpoint.port
+    s.mport = endpoint.extra_ports["METRICS_PORT"]; s.adler = adler
     yield s
 
 

@@ -263,7 +263,7 @@ const families = [
       clients expect, and the test suite runs the same conformance tests against BriX-Cache
       and the reference XRootD implementation.
     </p>
-    <div class="grid grid-3">
+    <div class="grid grid-2">
       <article class="panel tl-fam">
         <span class="chip chip--root mono">root://</span>
         <p class="mono tl-fam-tools">stock xrdcp · xrdfs · pyxrootd</p>
@@ -278,6 +278,11 @@ const families = [
         <span class="chip chip--s3 mono">s3://</span>
         <p class="mono tl-fam-tools">aws-cli · boto3</p>
         <p class="muted">SigV4 REST against the same tree — point your existing S3 tooling at it.</p>
+      </article>
+      <article class="panel tl-fam">
+        <span class="chip chip--ftp mono">gsiftp://</span>
+        <p class="mono tl-fam-tools">globus-url-copy · gfal2 · fts</p>
+        <p class="muted">A GridFTP door with GSI auth, MODE E parallel streams, and third-party copy — for ARC-CE fronts and legacy fabric that can't migrate yet.</p>
       </article>
     </div>
   </Band>

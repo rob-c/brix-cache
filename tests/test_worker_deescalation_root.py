@@ -26,6 +26,7 @@ import pytest
 import settings
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST
 
 pytestmark = [
     pytest.mark.privileged,
@@ -34,7 +35,7 @@ pytestmark = [
                        reason="worker de-escalation needs a real root master"),
 ]
 
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 BASE = os.path.join(settings.TEST_ROOT, "wdeesc")
 NO_CAPS = "0000000000000000"
 

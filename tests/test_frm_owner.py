@@ -27,11 +27,12 @@ import time
 
 import pytest
 
-from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-owner")]
 
 try:
     import requests
@@ -106,12 +107,10 @@ def srv(lifecycle, tmp_path):
             except OSError:
                 pass
 
-    hport = free_port(BIND_HOST)
     spec = NginxInstanceSpec(
         name="lc-frm-owner",
         template="nginx_lc_frm_owner.conf",
         protocol="root",
-        extra_ports={"HTTP_PORT": hport},
         template_values={"BIND_HOST": BIND_HOST,
                          "DATA_DIR": str(data),
                          "QUEUE_PATH": str(queue),
@@ -129,7 +128,7 @@ def srv(lifecycle, tmp_path):
 
     global STREAM_PORT, HTTP_PORT
     STREAM_PORT = ep.port
-    HTTP_PORT = hport
+    HTTP_PORT = ep.extra_ports["HTTP_PORT"]
 
     class S:
         pass

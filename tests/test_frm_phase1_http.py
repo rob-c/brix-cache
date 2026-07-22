@@ -25,15 +25,15 @@ import urllib.error
 
 import pytest
 
-from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-phase1-http")]
 
 # Ports are bound at fixture time: the primary /metrics HTTP listener comes from
-# the registry endpoint (HTTP_PORT); the secondary stream/S3/WebDAV listeners get
-# OS-assigned free ports passed through as extra_ports.  The fleet's fixed range
-# (11094-11247) is thereby avoided without hard-coding anything.
+# the registry endpoint (HTTP_PORT); the secondary stream/S3/WebDAV listeners are
+# the fixed lifecycle-shared ledger `extra` ports carried on the started endpoint.
 STREAM_PORT = None
 HTTP_PORT = None
 S3_PORT = None
@@ -71,25 +71,18 @@ def srv(lifecycle, tmp_path):
     near.write_bytes(b"")
     os.setxattr(str(near), "user.frm.residency", b"nearline")
 
-    stream_port = free_port()
-    s3_port = free_port()
-    webdav_port = free_port()
-
     endpoint = lifecycle.start(NginxInstanceSpec(
         name="lc-frm-phase1-http",
         template="nginx_lc_frm_phase1_http.conf",
         protocol="http",
-        extra_ports={"STREAM_PORT": stream_port,
-                     "S3_PORT": s3_port,
-                     "WEBDAV_PORT": webdav_port},
         template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data)},
         reason="frm phase-1 http staging"))
 
     global STREAM_PORT, HTTP_PORT, S3_PORT, WEBDAV_PORT
     HTTP_PORT = endpoint.port
-    STREAM_PORT = stream_port
-    S3_PORT = s3_port
-    WEBDAV_PORT = webdav_port
+    STREAM_PORT = endpoint.extra_ports["STREAM_PORT"]
+    S3_PORT = endpoint.extra_ports["S3_PORT"]
+    WEBDAV_PORT = endpoint.extra_ports["WEBDAV_PORT"]
 
     class S:
         pass

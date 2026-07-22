@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.credential_xroot_ztn import XRDFS, run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-credential_xroot_ztn")
+
 
 def test_credential_xroot_ztn_flow(tmp_path):
     for tool in (NGINX_BIN, str(XRDFS)):

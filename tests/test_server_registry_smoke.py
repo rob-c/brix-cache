@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import settings
+from settings import HOST
 
 from config_templates import render_config_to_path
 from cmdscripts import main as cmd_main, run as cmd_run
@@ -50,26 +51,30 @@ def test_registry_manifest_round_trip(tmp_path, monkeypatch):
 
     assert manifest["servers"]["smoke"]["endpoint"]["port"] == 12345
     assert alias_manifest["servers"]["smoke"]["endpoint"]["port"] == 12345
-    assert loaded["servers"]["smoke"]["url"] == "root://127.0.0.1:12345/"
+    assert loaded["servers"]["smoke"]["url"] == "root://127.0.0.1:12345/"  # net-literal-allow: registry URL-construction assertion
     assert get_server("smoke").data_root == str(tmp_path / "data")
     assert server("smoke").port == 12345
     assert manifest_read(str(manifest_path))["version"] == 1
     clear_registry()
 
 
-def test_registry_reserves_missing_ports_stably(monkeypatch):
+def test_registry_rejects_a_portless_spec():
+    """Phase 5 removed the dynamic free_port fallback: a spec with no port is a
+    hard error, so every registered server must declare a fixed port (settings
+    constant, fleet_ports ledger, or explicit ``port=``)."""
     clear_registry()
-    ports = iter([23456, 23457])
-    monkeypatch.setattr("server_registry.free_port", lambda host="127.0.0.1": next(ports))
     spec = register_nginx(
-        NginxInstanceSpec(name="dynamic", template="nginx_registry_smoke.conf")
+        NginxInstanceSpec(name="portless", template="nginx_registry_smoke.conf")
     )
+    try:
+        endpoint_for(spec)
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("portless spec unexpectedly resolved to an endpoint")
 
-    first = endpoint_for(spec)
-    second = endpoint_for(spec)
-
-    assert first.port == 23456
-    assert second.port == 23456
+    assert "portless" in message
+    assert "no port" in message
     clear_registry()
 
 
@@ -204,8 +209,8 @@ def test_launcher_readiness_aliases_and_command_runner(monkeypatch):
             return False
 
     monkeypatch.setattr("server_launcher.socket.create_connection", lambda *args, **kwargs: Conn())
-    launcher._wait_ready("127.0.0.1", 1, "webdav")
-    launcher._wait_ready("127.0.0.1", 1, "metrics")
+    launcher._wait_ready(HOST, 1, "webdav")
+    launcher._wait_ready(HOST, 1, "metrics")
 
     result = subprocess.CompletedProcess(args=["tool"], returncode=0, stdout="ok", stderr="")
     monkeypatch.setattr("server_launcher.subprocess.run", lambda *args, **kwargs: result)
@@ -223,6 +228,7 @@ def test_cmdscripts_helpers_are_importable(monkeypatch):
 
 
 @pytest.mark.uses_lifecycle_harness
+@pytest.mark.xdist_group("lc-smoke")  # fixed-port lc-smoke → one driver at a time
 def test_lifecycle_harness_drives_throwaway_instance(lifecycle, tmp_path):
     if not os.access(settings.NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {settings.NGINX_BIN}")
@@ -267,10 +273,10 @@ def test_endpoint_honours_spec_host_and_brackets_ipv6_url():
     the address the readiness probe dials) and IPv6 literals are bracketed in
     the URL."""
     spec = NginxInstanceSpec(name="v6-probe-smoke", template="unused.conf",
-                             port=19321, host="::1")
+                             port=19321, host="::1")  # net-literal-allow: IPv6 endpoint construction under test
     endpoint = endpoint_for(spec)
-    assert endpoint.host == "::1"
-    assert endpoint.url == "root://[::1]:19321/"
+    assert endpoint.host == "::1"  # net-literal-allow: IPv6 endpoint host under test
+    assert endpoint.url == "root://[::1]:19321/"  # net-literal-allow: IPv6 endpoint URL formatting under test
 
 
 def test_endpoint_defaults_to_settings_host_without_spec_host():

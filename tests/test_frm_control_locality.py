@@ -25,11 +25,12 @@ import urllib.request
 import pytest
 
 from cmdscripts import frm_stagecmd
-from settings import NGINX_BIN, HOST, BIND_HOST, free_port
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-frm-control-locality")]
 
 
 def _post(http_port, path, obj, timeout=5):

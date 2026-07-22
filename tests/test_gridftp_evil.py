@@ -33,7 +33,7 @@ import socket
 
 import pytest
 
-from settings import BIND_HOST, NGINX_BIN
+from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
@@ -79,7 +79,7 @@ def gateway():
 
 def _connect(gw):
     ftp = ftplib.FTP()
-    ftp.connect("localhost", gw.port, timeout=30)
+    ftp.connect(SERVER_HOST, gw.port, timeout=30)
     ftp.login()
     return ftp
 
@@ -104,7 +104,7 @@ def test_file_verb_before_login_rejected(gateway):
     the reply changing from 530 to 550 for a missing file)."""
     with open(os.path.join(gateway.export, "gated.bin"), "wb") as fh:
         fh.write(b"secret")
-    raw = socket.create_connection(("localhost", gateway.port), timeout=30)
+    raw = socket.create_connection((SERVER_HOST, gateway.port), timeout=30)
     try:
         raw.settimeout(30)
         assert raw.recv(256).startswith(b"220"), "expected 220 greeting"
@@ -137,7 +137,7 @@ def test_preauth_command_flood(gateway):
     flood"): 300 gated commands must each be rejected without the session
     wedging or leaking state, and a real login afterwards must still succeed —
     proving the rejections did not corrupt the pre-auth state machine."""
-    raw = socket.create_connection(("localhost", gateway.port), timeout=30)
+    raw = socket.create_connection((SERVER_HOST, gateway.port), timeout=30)
     try:
         raw.settimeout(30)
         assert raw.recv(256).startswith(b"220"), "expected 220 greeting"
@@ -164,7 +164,7 @@ def test_oversize_command_line_refused(gateway):
     server either resets the socket (RST while our send is still in flight) or
     closes it cleanly after reaching the cap — both prove the line was rejected
     rather than buffered unboundedly."""
-    raw = socket.create_connection(("localhost", gateway.port), timeout=30)
+    raw = socket.create_connection((SERVER_HOST, gateway.port), timeout=30)
     try:
         raw.settimeout(30)
         assert raw.recv(256).startswith(b"220"), "expected 220 greeting"

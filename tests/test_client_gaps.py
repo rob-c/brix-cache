@@ -29,7 +29,8 @@ from server_registry import NginxInstanceSpec
 # Each self-hosted server here stands up through the phase-81 registry
 # (LifecycleHarness) rather than launching nginx directly; the marker keeps this
 # suite out of the registry-lint direct-launch scope.
-pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cgaps")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")

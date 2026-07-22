@@ -219,7 +219,7 @@ def main():
     ap.add_argument("--repo", default="test.cern.ch")
     ap.add_argument("--objects", type=int, default=16)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--bind", default="127.0.0.1")
+    ap.add_argument("--bind", default="127.0.0.1")  # net-literal-allow: standalone-spawned helper server (no tests/ on sys.path); loopback bind
     ap.add_argument("--webroot", default=None,
                     help="serve a forged repo tree from DIR instead of synthetic objects")
     ap.add_argument("--keepalive", action="store_true",

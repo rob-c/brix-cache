@@ -12,6 +12,7 @@ import socket
 import pytest
 
 from cvmfs import conformance_common as cc
+from settings import BIND_HOST
 
 
 @pytest.fixture
@@ -24,7 +25,7 @@ def spare_tile():
         lo = cc._CANON_LO + t * cc._TILE
         try:
             probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            probe.bind(("127.0.0.1", lo + cc._TILE - 1))
+            probe.bind((BIND_HOST, lo + cc._TILE - 1))
             probe.close()
             break
         except OSError:
@@ -45,7 +46,7 @@ def test_claim_holds_the_lock_port_so_a_rival_loses(spare_tile):
     # while the winner holds it.
     rival = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     with pytest.raises(OSError):
-        rival.bind(("127.0.0.1", spare_tile + cc._TILE - 1))
+        rival.bind((BIND_HOST, spare_tile + cc._TILE - 1))
     rival.close()
 
 
@@ -60,12 +61,12 @@ def test_occupied_sentinel_fails_the_claim_and_releases_the_lock(spare_tile):
     # Squat a sentinel port (not the lock port): the claim must fail AND must
     # not leak the lock bind, or the tile would look taken forever.
     squatter = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    squatter.bind(("127.0.0.1", spare_tile))
+    squatter.bind((BIND_HOST, spare_tile))
     try:
         assert cc._claim_tile(spare_tile) is False
         assert cc._TILE_LOCK is None
         relock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        relock.bind(("127.0.0.1", spare_tile + cc._TILE - 1))
+        relock.bind((BIND_HOST, spare_tile + cc._TILE - 1))
         relock.close()
     finally:
         squatter.close()

@@ -34,10 +34,11 @@ try:
 except Exception:                                # pragma: no cover
     _HAVE_REQUESTS = False
 
-from settings import NGINX_BIN, free_port, HOST, BIND_HOST
+from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-put-content-encoding")]
 
 BUCKET = "testbucket"
 
@@ -78,13 +79,10 @@ def ce_server(lifecycle, tmp_path):
         # staged-open with EACCES (surfaced as 403). Make them world-writable.
         for d in (wroot, sroot):
             os.chmod(d, 0o777)
-    s3_port = free_port(HOST)
-
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-put-content-encoding",
         template="nginx_lc_put_content_encoding.conf",
         protocol="http",
-        extra_ports={"S3_PORT": s3_port},
         template_values={"BIND_HOST": BIND_HOST,
                          "WEBDAV_DIR": str(wroot),
                          "S3_DIR": str(sroot),
@@ -92,7 +90,7 @@ def ce_server(lifecycle, tmp_path):
         reason="webdav+s3 PUT Content-Encoding decompress-on-store"))
 
     WEBDAV_PORT = ep.port
-    S3_PORT = s3_port
+    S3_PORT = ep.extra_ports["S3_PORT"]
 
     # Harness waits on the WebDAV {PORT} only; poll the S3 port too.
     if not _wait_port(S3_PORT):

@@ -5,6 +5,7 @@
 #include "webdav.h"
 #include "core/compat/fs_walk.h"
 #include "fs/vfs/vfs.h"
+#include "protocols/shared/backend_async_http.h"
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -59,6 +60,43 @@ webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
 }
 
 /*
+ * Map a completed DELETE's result (op_errno 0 = removed) to the WebDAV response.
+ * Shared by the synchronous handler and the async-queue wake so both render the
+ * same status: 0 -> 204; ENOTEMPTY -> 409; ENOENT -> 404; EACCES -> 403 (deny-mode
+ * per-user backend credential rejection); else 500. Success sends the body here;
+ * error branches return the status code for the caller to finalise.
+ */
+static ngx_int_t
+webdav_delete_respond(ngx_http_request_t *r, int op_errno)
+{
+    if (op_errno == 0) {
+        return webdav_send_no_body(r, NGX_HTTP_NO_CONTENT);
+    }
+    if (op_errno == ENOTEMPTY) {
+        return NGX_HTTP_CONFLICT;
+    }
+    if (op_errno == ENOENT) {
+        return NGX_HTTP_NOT_FOUND;
+    }
+    if (op_errno == EACCES) {
+        return NGX_HTTP_FORBIDDEN;
+    }
+    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+}
+
+/*
+ * Async-queue wake for a deferred DELETE: render the response for the batch's
+ * unlink/rmdir result and finalise the request. Runs on the event loop after the
+ * flush; ctx is unused (WebDAV finalises by rc, not a metrics slot).
+ */
+static void
+webdav_delete_async_render(ngx_http_request_t *r, void *ctx, int op_errno)
+{
+    (void) ctx;
+    webdav_metrics_finalize_request(r, webdav_delete_respond(r, op_errno));
+}
+
+/*
  * webdav_handle_delete — handle HTTP DELETE: remove a file or directory.
  *
  * RFC 4918 §9.6.1: DELETE on a collection MUST recursively delete all its
@@ -70,6 +108,8 @@ webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
 ngx_int_t
 webdav_handle_delete(ngx_http_request_t *r)
 {
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     char                              path[WEBDAV_MAX_PATH];
     struct stat                       sb;
     ngx_int_t                         rc;
@@ -83,6 +123,24 @@ webdav_handle_delete(ngx_http_request_t *r)
     rc = webdav_check_locks_tree(r, path);
     if (rc != NGX_OK) {
         return rc;
+    }
+
+    /* Async backend: enqueue the unlink/rmdir and park the request until the
+     * batch flushes. DELETE is already allow_write-gated at the access phase, so
+     * the write gate has passed before we reach the queue. The queue drives the
+     * same confined-VFS primitive as the sync path, keyed by the absolute
+     * resolved `path`; a directory maps to RMDIR (non-recursive => require-empty,
+     * the Standard WebDAV module policy), a file/symlink to UNLINK. NGX_DECLINED
+     * (async off / enqueue failure) falls through to the inline op. */
+    if (conf->common.backend_async) {
+        brix_baq_op_t op = S_ISDIR(sb.st_mode) ? BRIX_BAQ_RMDIR
+                                               : BRIX_BAQ_UNLINK;
+        if (brix_baq_http_try(r, &conf->common, op, conf->common.root_canon,
+                              path, NULL, 0, webdav_delete_async_render, NULL)
+            == NGX_DONE)
+        {
+            return NGX_DONE;
+        }
     }
 
     /* Route the delete through the metered VFS surface. webdav_resolve_stat
@@ -99,25 +157,7 @@ webdav_handle_delete(ngx_http_request_t *r)
         rc = brix_vfs_unlink(&vctx);
     }
 
-    if (rc == NGX_OK) {
-        return webdav_send_no_body(r, NGX_HTTP_NO_CONTENT);
-    }
-
-    /* Status mapping: ENOTEMPTY -> 409, ENOENT -> 404, EACCES -> 403 (deny-mode
-     * credential gate rejection from per-user backend cred gate), else 500. */
-    if (errno == ENOTEMPTY) {
-        return NGX_HTTP_CONFLICT;
-    }
-
-    if (errno == ENOENT) {
-        return NGX_HTTP_NOT_FOUND;
-    }
-
-    if (errno == EACCES) {
-        return NGX_HTTP_FORBIDDEN;
-    }
-
-    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    return webdav_delete_respond(r, (rc == NGX_OK) ? 0 : errno);
 }
 
 ngx_int_t

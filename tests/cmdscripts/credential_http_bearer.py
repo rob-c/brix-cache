@@ -9,7 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
@@ -32,7 +33,7 @@ events {{ worker_connections 64; }}
 http {{
     access_log off;
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         location / {{
             if ($http_authorization != "Bearer {token}") {{ return 401; }}
             root {root};
@@ -68,8 +69,8 @@ thread_pool default threads=2;
 events {{ worker_connections 64; }}
 stream {{
 {credential_block}    server {{
-        listen 127.0.0.1:{port}; brix_root on; brix_export {export}; brix_auth none;
-        brix_storage_backend http://127.0.0.1:{origin_port};
+        listen {BIND_HOST}:{port}; brix_root on; brix_export {export}; brix_auth none;
+        brix_storage_backend http://{HOST}:{origin_port};
 {credential_ref}        brix_cache on; brix_cache_export {cache};
     }}
 }}
@@ -98,7 +99,7 @@ def stop_nginx(prefix: Path) -> None:
 def xrdfs_cat(port: int, path: str, dest: Path, xrdfs: Path = XRDFS) -> subprocess.CompletedProcess:
     with dest.open("wb") as out:
         return subprocess.run(
-            [str(xrdfs), f"root://127.0.0.1:{port}", "cat", path],
+            [str(xrdfs), f"root://{HOST}:{port}", "cat", path],
             stdout=out,
             stderr=subprocess.PIPE,
             text=False,
@@ -115,7 +116,7 @@ def run_checks(
     nginx_bin: str = NGINX_BIN,
     xrdfs: Path = XRDFS,
 ) -> list[tuple[bool, str]]:
-    origin_port, bearer_port, negative_port = free_ports(3)
+    origin_port, bearer_port, negative_port = cmdscript_ports("credential_http_bearer")
     origin = base / "o"
     bearer = base / "b"
     negative = base / "n"

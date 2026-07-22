@@ -19,4 +19,16 @@
 ngx_int_t brix_prepare_send_fail(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *path, uint16_t errcode, const char *errmsg);
 
+/*
+ * Validate + authorize ONE newline-separated prepare path (length/extract/
+ * forbidden-component pre-checks, confined stat, three authorization tiers).
+ * Lives in prepare_check.c; the prepare.c scan pipeline is the sole caller.
+ * `out_resolved` is a PATH_MAX buffer filled with the absolute path on auth-pass
+ * paths ('\0' if unresolvable); pass NULL when staging collection is not needed.
+ * Returns NGX_OK on pass, NGX_DONE when a response was already sent, or an error.
+ */
+ngx_int_t brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const u_char *line, size_t line_len,
+    ngx_flag_t noerrs, ngx_uint_t *missing, char *out_resolved);
+
 #endif /* BRIX_PREPARE_INTERNAL_H */

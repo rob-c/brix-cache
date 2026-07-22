@@ -7,6 +7,7 @@ import os
 
 from .refxrootd import ref_launch
 from .util import find_xrd_library, find_xrd_sec_lib, kill_pid_list, pids_on_port, render_cfg, run, wait_tcp
+from settings import BIND_HOST
 
 
 def start_xrdhttp() -> bool:
@@ -44,7 +45,7 @@ def start_xrdhttp() -> bool:
         TPC_LIB=str(tpc_lib),
     )
     ref_launch(cfg, log)
-    return wait_tcp("127.0.0.1", port, timeout=10)
+    return wait_tcp(BIND_HOST, port, timeout=10)
 
 
 def stop_xrdhttp() -> None:
@@ -63,5 +64,5 @@ def stop_xrdhttp() -> None:
 
 def status_xrdhttp() -> str:
     port = int(os.environ.get("REF_XRDHTTP_HTTP_PORT", "11113"))
-    return "running" if pids_on_port(port) or wait_tcp("127.0.0.1", port, timeout=0.5) else "stopped"
+    return "running" if pids_on_port(port) or wait_tcp(BIND_HOST, port, timeout=0.5) else "stopped"
 

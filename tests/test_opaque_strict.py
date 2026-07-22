@@ -29,7 +29,8 @@ from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, HOST, BIND_HOST
 from test_phase25_ratelimit import _xrd_open, KXR_OK
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-opq")]
 
 KXR_ERROR = 4003
 kXR_ArgInvalid = 3000

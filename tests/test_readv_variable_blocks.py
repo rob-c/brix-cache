@@ -28,7 +28,8 @@ from server_registry import NginxInstanceSpec
 # Reuse the proven static-link probes from the libbrix test.
 from test_libbrix import _codec_link_libs, _krb5_link_libs, _uring_link_libs
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-readv-var1m")]
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(REPO, "client")

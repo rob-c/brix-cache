@@ -55,6 +55,7 @@ import threading
 import pytest
 
 import official_interop_lib as L
+from settings import BIND_HOST
 
 pytestmark = [pytest.mark.timeout(360),
               pytest.mark.skipif(not L.have_official(),
@@ -67,7 +68,7 @@ pytestmark = [pytest.mark.timeout(360),
 # worker from the one fixed pair, exactly like the ctx-based conf modules.
 OUR_PORT = L.FLEET_OUR_PORT
 OFF_PORT = L.FLEET_OFF_PORT
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 
 # opcodes
 kXR_query, kXR_close, kXR_dirlist = 3001, 3003, 3004

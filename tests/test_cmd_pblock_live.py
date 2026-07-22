@@ -5,6 +5,8 @@ import pytest
 
 from cmdscripts import pblock_live
 
+pytestmark = pytest.mark.xdist_group("cmd-pblock_live")
+
 
 def test_pblock_live_are_importable():
     assert set(pblock_live.SCENARIOS) == {

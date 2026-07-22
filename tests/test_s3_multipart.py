@@ -262,3 +262,161 @@ class TestMultipartUploadNegative:
 
         # Clean up — abort the initiated upload
         _abort(s3_url, key, upload_id)
+
+
+# ---------------------------------------------------------------------------
+# ListParts (GET /bucket/key?uploadId=...) and
+# ListMultipartUploads (GET /bucket/?uploads)
+# ---------------------------------------------------------------------------
+
+def _list_parts(s3_url, key, upload_id, extra=""):
+    url = f"{_obj_url(s3_url, key)}?uploadId={upload_id}"
+    if extra:
+        url += f"&{extra}"
+    return requests.get(url, timeout=10)
+
+
+def _parse_parts(xml_text):
+    """Return (root, [(part_number, size), ...]) from a ListPartsResult."""
+    root = ET.fromstring(xml_text)
+    parts = [
+        (int(p.findtext(f"{{{S3_NS}}}PartNumber")),
+         int(p.findtext(f"{{{S3_NS}}}Size")))
+        for p in root.findall(f"{{{S3_NS}}}Part")
+    ]
+    return root, parts
+
+
+class TestListParts:
+
+    def test_lists_uploaded_parts_sorted_with_sizes(self, s3_url):
+        """Parts uploaded out of order come back sorted by number, sizes exact."""
+        key = f"mpu_lp_{uuid.uuid4().hex}.bin"
+        upload_id = _initiate(s3_url, key)
+        for n, size in ((3, 300), (1, 100), (2, 200)):
+            r = _upload_part(s3_url, key, n, b"x" * size, upload_id)
+            assert r.status_code == 200, f"Part {n} upload failed: {r.status_code}"
+
+        r = _list_parts(s3_url, key, upload_id)
+        assert r.status_code == 200, f"ListParts failed: {r.status_code} {r.text}"
+        root, parts = _parse_parts(r.text)
+        assert root.tag == f"{{{S3_NS}}}ListPartsResult"
+        assert parts == [(1, 100), (2, 200), (3, 300)]
+        assert root.findtext(f"{{{S3_NS}}}Bucket") == BUCKET
+        assert root.findtext(f"{{{S3_NS}}}Key") == key
+        assert root.findtext(f"{{{S3_NS}}}UploadId") == upload_id
+        assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "false"
+        for part in root.findall(f"{{{S3_NS}}}Part"):
+            assert part.findtext(f"{{{S3_NS}}}ETag")
+            assert part.findtext(f"{{{S3_NS}}}LastModified")
+
+        _abort(s3_url, key, upload_id)
+
+    def test_pagination_max_parts_and_marker(self, s3_url):
+        """max-parts truncates with NextPartNumberMarker; the marker resumes."""
+        key = f"mpu_lp_{uuid.uuid4().hex}.bin"
+        upload_id = _initiate(s3_url, key)
+        for n in (1, 2, 3, 4):
+            r = _upload_part(s3_url, key, n, b"p", upload_id)
+            assert r.status_code == 200
+
+        r = _list_parts(s3_url, key, upload_id, "max-parts=2")
+        assert r.status_code == 200
+        root, parts = _parse_parts(r.text)
+        assert [n for n, _ in parts] == [1, 2]
+        assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "true"
+        assert root.findtext(f"{{{S3_NS}}}NextPartNumberMarker") == "2"
+
+        r = _list_parts(s3_url, key, upload_id, "part-number-marker=2")
+        assert r.status_code == 200
+        root, parts = _parse_parts(r.text)
+        assert [n for n, _ in parts] == [3, 4]
+        assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "false"
+
+        _abort(s3_url, key, upload_id)
+
+    def test_unknown_upload_returns_404(self, s3_url):
+        """A well-formed uploadId with no staging dir must 404 NoSuchUpload."""
+        key = f"mpu_lp_{uuid.uuid4().hex}.bin"
+        r = _list_parts(s3_url, key, "deadbeefdeadbeefdeadbeef")
+        assert r.status_code == 404
+        assert "NoSuchUpload" in r.text
+
+    def test_traversal_upload_id_rejected(self, s3_url):
+        """A path-traversal uploadId must be rejected 400, never probed on disk."""
+        key = f"mpu_lp_{uuid.uuid4().hex}.bin"
+        r = _list_parts(s3_url, key, "../../etc")
+        assert r.status_code == 400
+        assert "InvalidArgument" in r.text
+
+
+class TestListMultipartUploads:
+
+    @staticmethod
+    def _list_uploads(s3_url, extra=""):
+        url = f"{s3_url}/{BUCKET}/?uploads"
+        if extra:
+            url += f"&{extra}"
+        return requests.get(url, timeout=10)
+
+    @staticmethod
+    def _upload_pairs(xml_text):
+        """Return (root, [(key, upload_id), ...]) from a ListMultipartUploadsResult."""
+        root = ET.fromstring(xml_text)
+        return root, [
+            (u.findtext(f"{{{S3_NS}}}Key"), u.findtext(f"{{{S3_NS}}}UploadId"))
+            for u in root.findall(f"{{{S3_NS}}}Upload")
+        ]
+
+    def test_lists_active_uploads(self, s3_url):
+        """Both in-flight uploads appear with their key and uploadId, key-sorted."""
+        prefix = f"mpu_lu_{uuid.uuid4().hex}"
+        keys = [f"{prefix}_a.bin", f"{prefix}_b.bin"]
+        ids = {k: _initiate(s3_url, k) for k in keys}
+
+        r = self._list_uploads(s3_url)
+        assert r.status_code == 200, (
+            f"ListMultipartUploads failed: {r.status_code} {r.text}"
+        )
+        root, pairs = self._upload_pairs(r.text)
+        assert root.tag == f"{{{S3_NS}}}ListMultipartUploadsResult"
+        for k in keys:
+            assert (k, ids[k]) in pairs, f"{k} missing from listing"
+        # The shared bucket may hold other tests' uploads, so assert only the
+        # relative order of our two keys within the key-sorted listing.
+        ours = [p for p in pairs if p[0] in keys]
+        assert ours == sorted(ours)
+
+        for k in keys:
+            _abort(s3_url, k, ids[k])
+
+    def test_aborted_upload_disappears(self, s3_url):
+        """An upload is listed while in flight and gone after abort."""
+        key = f"mpu_lu_{uuid.uuid4().hex}.bin"
+        upload_id = _initiate(s3_url, key)
+
+        r = self._list_uploads(s3_url)
+        assert r.status_code == 200
+        assert (key, upload_id) in self._upload_pairs(r.text)[1]
+
+        r = _abort(s3_url, key, upload_id)
+        assert r.status_code == 204
+
+        r = self._list_uploads(s3_url)
+        assert r.status_code == 200
+        assert (key, upload_id) not in self._upload_pairs(r.text)[1]
+
+    def test_key_marker_skips_earlier_keys(self, s3_url):
+        """key-marker excludes keys that sort <= the marker."""
+        prefix = f"mpu_lu_{uuid.uuid4().hex}"
+        keys = [f"{prefix}_a.bin", f"{prefix}_b.bin"]
+        ids = {k: _initiate(s3_url, k) for k in keys}
+
+        r = self._list_uploads(s3_url, f"key-marker={keys[0]}")
+        assert r.status_code == 200
+        listed = [p[0] for p in self._upload_pairs(r.text)[1]]
+        assert keys[0] not in listed
+        assert keys[1] in listed
+
+        for k in keys:
+            _abort(s3_url, k, ids[k])

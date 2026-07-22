@@ -60,6 +60,7 @@ import zlib
 import pytest
 
 import official_interop_lib as L
+from settings import BIND_HOST
 
 pytestmark = [pytest.mark.timeout(360),
               pytest.mark.skipif(not L.have_official(),
@@ -67,7 +68,7 @@ pytestmark = [pytest.mark.timeout(360),
 
 OUR_PORT = L.worker_port(14056)
 OFF_PORT = L.worker_port(14057)
-BIND = "127.0.0.1"
+BIND = BIND_HOST
 
 
 # --------------------------------------------------------------------------- #

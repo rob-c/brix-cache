@@ -18,14 +18,14 @@ const buckets = [
 
 <Layout
   title="For engineers"
-  description="One nginx binary speaks root://, WebDAV, and S3 over a shared core. Seven concept buckets, a VFS that is the sole storage truth with pluggable backends, and a clean-room client suite with no libXrdCl dependency."
+  description="One nginx binary speaks root://, WebDAV, S3, and a gsiftp:// GridFTP gateway over a shared core. Seven concept buckets, a VFS that is the sole storage truth with pluggable backends, and a clean-room client suite with no libXrdCl dependency."
   accent="s3"
 >
   <Band first={true}>
     <AudienceHero
       group="infra & OSS engineers"
-      title="Three protocols, one core, no monolith."
-      lede="BriX-Cache is a single nginx module. Three protocol front-ends parse the wire, one auth layer decides access, and all storage funnels through a VFS — raw file I/O exists in exactly one place."
+      title="Four protocols, one core, no monolith."
+      lede="BriX-Cache is a single nginx module. Four protocol front-ends — root://, WebDAV, S3, and a gsiftp:// GridFTP gateway — parse the wire, one auth layer decides access, and all storage funnels through a VFS where raw file I/O exists in exactly one place."
     >
       <div class="term" aria-label="Source layout">
         <div class="term-title">src/ — seven concept buckets</div>
@@ -40,12 +40,13 @@ const buckets = [
     <span class="eyebrow">The architecture, honestly</span>
     <h2 class="display sect-head">Snap-together parts, one seam for bytes.</h2>
     <div class="grid grid-2">
-      <Benefit marker="shared-core" title="One event loop, three fronts">
+      <Benefit marker="shared-core" title="One event loop, four fronts">
         <p>
           The <span class="mono">stream {}</span> block owns native <span class="mono">root://</span>
-          / <span class="mono">roots://</span>; <span class="mono">http {}</span> owns WebDAV, S3,
-          and metrics. Both converge on one shared module core before touching a file — so auth,
-          path confinement, caching, and metrics are written once.
+          / <span class="mono">roots://</span> and the <span class="mono">gsiftp://</span> GridFTP
+          gateway; <span class="mono">http {}</span> owns WebDAV, S3, and metrics. All converge on one
+          shared module core before touching a file — so auth, path confinement, caching, and metrics
+          are written once.
         </p>
       </Benefit>
       <Benefit marker="vfs" title="The VFS is the sole storage truth">

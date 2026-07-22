@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
 
 REPO = "test.cern.ch"
-HOST = "127.0.0.1"
+from settings import HOST
 EPOCH = "Thu, 01 Jan 1970 00:00:01 GMT"
 FUTURE = "Fri, 31 Dec 2100 23:59:59 GMT"
 

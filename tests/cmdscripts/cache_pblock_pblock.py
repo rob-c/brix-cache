@@ -9,7 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
-from settings import NGINX_BIN, free_ports
+from fleet_ports import cmdscript_ports
+from settings import BIND_HOST, HOST, NGINX_BIN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
@@ -34,7 +35,7 @@ def write_origin_config(prefix: Path, port: int) -> Path:
     conf.write_text(
         f"""daemon on; error_log {logs / 'e.log'} info; pid {prefix / 'nginx.pid'};
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; brix_export {root};
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {root};
     brix_auth none; brix_allow_write on; brix_upload_resume off; }} }}
 """,
         encoding="utf-8",
@@ -56,13 +57,13 @@ events {{ worker_connections 64; }}
 thread_pool default threads=2;
 stream {{
     server {{
-        listen 127.0.0.1:{port};
+        listen {BIND_HOST}:{port};
         brix_root on;
         brix_export {root};
         brix_auth none;
         brix_allow_write on;
         brix_upload_resume off;
-        brix_storage_backend root://127.0.0.1:{origin_port};
+        brix_storage_backend root://{HOST}:{origin_port};
         brix_cache_store pblock:{cache} block_size=1m;
         brix_cache_export  /;
         brix_stage on;
@@ -102,7 +103,7 @@ def run_checks(
     xrdcp: Path = XRDCP,
     xrdfs: Path = XRDFS,
 ) -> list[tuple[bool, str]]:
-    origin_port, node_port = free_ports(2)
+    origin_port, node_port = cmdscript_ports("cache_pblock_pblock")
     origin = base / "o"
     node = base / "n"
     origin_conf = write_origin_config(origin, origin_port)
@@ -122,7 +123,7 @@ def run_checks(
 
         write_payload = base / "cpb_w.bin"
         write_payload.write_bytes(deterministic_bytes(2_621_440, 17))
-        put = run([str(xrdcp), "-f", str(write_payload), f"root://127.0.0.1:{node_port}//w.bin"])
+        put = run([str(xrdcp), "-f", str(write_payload), f"root://{HOST}:{node_port}//w.bin"])
         results.append((put.returncode == 0, "PUT through the stage tier"))
         time.sleep(1)
 
@@ -143,7 +144,7 @@ def run_checks(
         read_got = base / "cpb_r.got"
         with read_got.open("wb") as out:
             cat = subprocess.run(
-                [str(xrdfs), f"root://127.0.0.1:{node_port}", "cat", "/r.bin"],
+                [str(xrdfs), f"root://{HOST}:{node_port}", "cat", "/r.bin"],
                 stdout=out,
                 stderr=subprocess.PIPE,
                 text=False,
@@ -165,7 +166,7 @@ def run_checks(
         warm_got = base / "cpb_r2.got"
         with warm_got.open("wb") as out:
             warm = subprocess.run(
-                [str(xrdfs), f"root://127.0.0.1:{node_port}", "cat", "/r.bin"],
+                [str(xrdfs), f"root://{HOST}:{node_port}", "cat", "/r.bin"],
                 stdout=out,
                 stderr=subprocess.PIPE,
                 text=False,

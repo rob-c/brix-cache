@@ -26,6 +26,7 @@ import sys
 import time
 
 import pytest
+from settings import BIND_HOST, HOST
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -83,7 +84,7 @@ def _blackhole_bringup_seconds(connect_timeout_ms):
     swallow the protocol bytes)."""
     lst = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     lst.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    lst.bind(("127.0.0.1", 0))
+    lst.bind((BIND_HOST, 0))
     port = lst.getsockname()[1]
     lst.listen(8)
     try:
@@ -92,7 +93,7 @@ def _blackhole_bringup_seconds(connect_timeout_ms):
         t = time.time()
         # --timeout 0 => exactly one bring-up attempt (no outer retry loop).
         p = subprocess.run(
-            [WAIT41, "--timeout", "0", "--full", f"root://127.0.0.1:{port}"],
+            [WAIT41, "--timeout", "0", "--full", f"root://{HOST}:{port}"],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
         )
         return time.time() - t, p.returncode

@@ -23,7 +23,7 @@ import uuid
 import pytest
 import requests
 
-from settings import NGINX_S3_PORT, S3_PRESIGNED_PORT, S3_BUCKET, TEST_ROOT
+from settings import HOST, NGINX_S3_PORT, S3_BUCKET, S3_PRESIGNED_PORT, TEST_ROOT
 
 # The signed server (11183) writes objects under this root (bucket stripped).
 # It rejects unsigned GET/DELETE, so success/cleanup are checked on disk.
@@ -114,7 +114,7 @@ def _build_streaming_put(host, key, chunks, *, tamper_index=None):
 
 @pytest.fixture(scope="module")
 def signed_host():
-    return f"127.0.0.1:{S3_PRESIGNED_PORT}"
+    return f"{HOST}:{S3_PRESIGNED_PORT}"
 
 
 def _put(host, key, headers, body):
@@ -155,7 +155,7 @@ def test_tampered_chunk_signature_rejected(signed_host):
 def test_anonymous_server_ignores_chunk_signatures():
     """Regression: the verify-off (anonymous) endpoint still decodes a streaming
     body whose chunk signatures are garbage — behaviour is unchanged there."""
-    host = f"127.0.0.1:{NGINX_S3_PORT}"
+    host = f"{HOST}:{NGINX_S3_PORT}"
     key = f"chunksig_{uuid.uuid4().hex}"
     payload = b"unverified-but-valid-framing"
     body = (b"%x;chunk-signature=%s\r\n%s\r\n" % (len(payload), b"a" * 64, payload)

@@ -156,4 +156,8 @@ def test_pfs_key_is_single_use():
     # pop decrements the count and transfers the slot's key out (no copy/reuse).
     assert "brix_kp_ring[--brix_kp_count]" in kp
     # round-2 derive still frees the per-connection key (existing lifecycle).
-    assert "EVP_PKEY_free" in _rd("src/auth/gsi/auth.c")
+    # auth.c was split: the round-2 cert-response path that pops the pooled key
+    # (brix_gsi_keypool_pop) and frees it moved into cert_response.c.
+    cresp = _rd("src/auth/gsi/cert_response.c")
+    assert "brix_gsi_keypool_pop" in cresp
+    assert "EVP_PKEY_free" in cresp

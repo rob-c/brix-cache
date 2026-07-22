@@ -29,6 +29,8 @@ from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN
 
 pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.xdist_group("lc-seccomp-enforce"),
     pytest.mark.timeout(180),
     pytest.mark.skipif(not L.have_official(),
                        reason="stock xrdfs/xrdcp not installed"),
@@ -58,7 +60,7 @@ def _start(mode, tmp_path):
     harness = LifecycleHarness()
     try:
         ep = harness.start(NginxInstanceSpec(
-            name=f"seccomp-{mode}-{L.worker_tag()}",
+            name=f"seccomp-{mode}",
             template="nginx_seccomp.conf",
             protocol="root", readiness="tcp",
             data_root=data_root,

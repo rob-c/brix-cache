@@ -36,6 +36,7 @@ from server_registry import NginxInstanceSpec
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
+from settings import BIND_HOST, HOST
 
 REPO_XRDCP = os.path.join(servers.CLIENT_BIN, "xrdcp")
 CURL = shutil.which("curl") or "/usr/bin/curl"
@@ -53,7 +54,7 @@ def md5_file(path):
 
 def free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((BIND_HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -62,7 +63,7 @@ def free_port():
 def wait_port(port, proc, tries=80):
     for _ in range(tries):
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+            socket.create_connection((HOST, port), timeout=0.3).close()
             return True
         except OSError:
             if proc.poll() is not None:
@@ -111,9 +112,9 @@ xrd.protocol XrdHttp:{port} {XRDHTTP_LIB}
 
 
 def http_get(client, port, want, timeout):
-    """Download http://127.0.0.1:<port>/h.bin with the chosen client; (ok, secs)."""
+    """Download http://{HOST}:<port>/h.bin with the chosen client; (ok, secs)."""
     dst = tempfile.mktemp(suffix=".bin")
-    url = f"http://127.0.0.1:{port}/{FILE_NAME}"
+    url = f"http://{HOST}:{port}/{FILE_NAME}"
     if client == "repo":
         argv = [REPO_XRDCP, "-f", "-s", url, dst]
     else:  # curl

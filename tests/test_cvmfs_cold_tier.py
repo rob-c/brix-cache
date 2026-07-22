@@ -25,13 +25,17 @@ import pytest
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
+from config_parse import nginx_t
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
 from server_registry import NginxInstanceSpec
+from settings import BIND_HOST, HOST
 
 REPO = "test.cern.ch"
 
-pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
-                                reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [pytest.mark.skipif(not os.path.exists(NGINX_BIN),
+                                 reason=f"nginx binary not found: {NGINX_BIN}"),
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cvmfs-cold-demote")]
 
 BLOCK = PortBlock("srv_verify")
 
@@ -79,7 +83,7 @@ def tier():
 # ---- local helpers (file-local by mandate: shared infra is frozen) ---------
 
 def GET(s, path, method="GET"):
-    return request("127.0.0.1", s.nginx_port, method, path)
+    return request(HOST, s.nginx_port, method, path)
 
 
 def body_for(tag, n=6000):
@@ -194,22 +198,18 @@ def test_tampered_cold_copy_never_served_no_tamper_signal(tier):
 # 4. config gate: cold store without the hot tier is refused at nginx -t
 # ============================================================================
 
-def test_cold_store_without_hot_store_refused(lifecycle, tmp_path):
-    # Registry-driven negative gate: the config lives in
-    # tests/configs/nginx_cvmfs_cold_no_hot.conf and nginx -t is run through the
-    # lifecycle harness.  expect_config_failure renders non-strict and supplies
-    # only these template_values, so the test provides every placeholder.
-    r = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-cvmfs-cold-no-hot",
-        template="nginx_cvmfs_cold_no_hot.conf",
-        template_values={
-            "LOG_DIR": str(tmp_path),
-            "PORT": 1,
-            "BIND_HOST": "127.0.0.1",
-            "COLD_DIR": str(tmp_path / "cold"),
-        },
-        reason="CVMFS F7 cold-store-without-hot config gate",
-    ))
+def test_cold_store_without_hot_store_refused(tmp_path):
+    # Pure config-parse negative gate: the config lives in
+    # tests/configs/nginx_cvmfs_cold_no_hot.conf and `nginx -t` alone proves the
+    # rejection — no server ever boots.
+    r = nginx_t(
+        "nginx_cvmfs_cold_no_hot.conf",
+        tmp_path,
+        LOG_DIR=str(tmp_path),
+        PORT=1,
+        BIND_HOST=BIND_HOST,
+        COLD_DIR=str(tmp_path / "cold"),
+    )
     assert r.returncode != 0, "cold store without hot cache_store passed nginx -t"
     assert "requires brix_cache_store" in (r.stderr + r.stdout)
 
@@ -257,7 +257,7 @@ def test_demote_on_evict_stream(lifecycle, tmp_path):
         name="lc-cvmfs-cold-demote",
         template="nginx_cvmfs_cold_demote.conf",
         template_values={
-            "BIND_HOST": "127.0.0.1",
+            "BIND_HOST": BIND_HOST,
             "CACHE_DIR": str(cache),
             "COLD_DIR": str(cold),
             "HIGH_WM": used - 2,

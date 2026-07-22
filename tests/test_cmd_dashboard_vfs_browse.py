@@ -5,6 +5,8 @@ import pytest
 from cmdscripts.dashboard_vfs_browse import run_checks
 from settings import NGINX_BIN
 
+pytestmark = pytest.mark.xdist_group("cmd-dashboard_vfs_browse")
+
 
 def test_dashboard_vfs_browse_flow(tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):

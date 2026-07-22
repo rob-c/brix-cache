@@ -27,9 +27,10 @@ import subprocess
 import time
 from pathlib import Path
 
-import settings
+import ephemeral_port
 import x509forge
 from wlcg_fleet import WlcgInstance
+from settings import HOST
 
 FINDINGS = (Path(__file__).resolve().parents[1]
             / "docs/10-reference/wlcg-x509-differential-findings.md")
@@ -70,7 +71,8 @@ def _xrootd_verdict(work: Path, sc, cred_name) -> str:
     if xrootd is None:
         return "unavailable"
 
-    port, base_port = settings.free_ports(2)
+    # Native stock-XRootD upstream (differential ref) — ephemeral exemption.
+    port, base_port = ephemeral_port.free_ports(2)
     data = work / "data"
     data.mkdir(parents=True, exist_ok=True)
     server_cert, server_key = _server_cert(work)
@@ -96,7 +98,7 @@ xrd.trace none
         for _ in range(60):
             probe = subprocess.run(
                 ["curl", "-k", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                 "--max-time", "2", f"https://127.0.0.1:{port}/"],
+                 "--max-time", "2", f"https://{HOST}:{port}/"],
                 capture_output=True, text=True)
             if probe.stdout.strip() not in ("", "000"):
                 break
@@ -108,7 +110,7 @@ xrd.trace none
             ["curl", "-k", "-s", "-o", "/dev/null", "-w", "%{http_code}",
              "--max-time", "8", "--cert", str(sc.credentials[cred_name]),
              "--key", str(sc.credentials[cred_name]),
-             f"https://127.0.0.1:{port}/"],
+             f"https://{HOST}:{port}/"],
             capture_output=True, text=True)
         code = r.stdout.strip()
         if not code or code == "000":
@@ -135,7 +137,7 @@ def _server_cert(work: Path):
     subprocess.run(
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
          "-keyout", str(key), "-out", str(cert), "-days", "3650",
-         "-subj", "/CN=localhost"], check=True, capture_output=True)
+         "-subj", "/CN=localhost"], check=True, capture_output=True)  # net-literal-allow: throwaway TLS server cert subject CN (curl -k, no verify)
     _SRV = (cert, key)
     return _SRV
 

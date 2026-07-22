@@ -20,11 +20,17 @@ from pathlib import Path
 
 import pytest
 
-import settings
+from config_parse import nginx_t
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, HOST, BIND_HOST
+from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Bucket-2 lifecycle subjects: all health-check instances here take fixed
+# exclusive-band ports from the ledger (fleet_lifecycle_ports) and the whole
+# module serialises under one xdist_group so those ports never have two
+# concurrent drivers.  The two parse tests boot nothing (standalone `nginx_t`).
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-hc")]
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -83,6 +89,9 @@ def test_metrics_present():
 # --------------------------------------------------------------------------- #
 
 def test_all_directives_parse(lifecycle):
+    # Accept-case parse: register + `nginx -t` (never starts).  Uses the harness
+    # so the prefix (logs/ + export dir) exists for brix_export's accessibility
+    # check; the fixed port comes from the ledger ("lc-hc-parse").
     lifecycle.register(NginxInstanceSpec(
         name="lc-hc-parse",
         template="nginx_hc_parse.conf",
@@ -93,22 +102,17 @@ def test_all_directives_parse(lifecycle):
     lifecycle.nginx_test("lc-hc-parse")  # raises on parse failure
 
 
-def test_bad_type_rejected(lifecycle, tmp_path):
-    # expect_config_failure renders from template_values only, so all
-    # placeholders (including the launcher-provided ones) are passed here.
-    (port,) = settings.free_ports(1)
-    result = lifecycle.expect_config_failure(NginxInstanceSpec(
-        name="lc-hc-badtype",
-        template="nginx_hc_parse.conf",
-        template_values={
-            "BIND_HOST": BIND_HOST,
-            "HC_TYPE": "bogus",
-            "PORT": port,
-            "DATA_ROOT": str(tmp_path / "data"),
-            "LOG_DIR": str(tmp_path),
-        },
-        reason="health-check bad-type rejection coverage",
-    ))
+def test_bad_type_rejected(tmp_path):
+    # Pure config-parse property: render + `nginx -t`, no server ever boots.
+    result = nginx_t(
+        "nginx_hc_parse.conf",
+        tmp_path,
+        BIND_HOST=BIND_HOST,
+        HC_TYPE="bogus",
+        PORT=PARSE_PLACEHOLDER_PORT,
+        DATA_ROOT=str(tmp_path / "data"),
+        LOG_DIR=str(tmp_path),
+    )
     out = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0
     assert "brix_health_check_type" in out or "invalid" in out.lower()
@@ -192,16 +196,16 @@ def hc_cluster(lifecycle, tmp_path):
     data = tmp_path / "data"
     data.mkdir()
     (data / "f.txt").write_text("x\n")
-    cms_port, ds_port, metrics_port = settings.free_ports(3)
-    lifecycle.start(NginxInstanceSpec(
+    # cms/ds/metrics secondary listens come from the fixed ledger by name.
+    ep = lifecycle.start(NginxInstanceSpec(
         name="lc-hc-cluster",
         template="nginx_hc_cluster.conf",
         data_root=str(data),
-        extra_ports={"CMS_PORT": cms_port, "DS_PORT": ds_port,
-                     "METRICS_PORT": metrics_port},
         template_values={"BIND_HOST": BIND_HOST, "HOST": HOST},
         reason="manager + CMS + data server health-probe cluster",
     ))
+    ds_port = ep.extra_ports["DS_PORT"]
+    metrics_port = ep.extra_ports["METRICS_PORT"]
     if not (_wait_port(ds_port) and _wait_port(metrics_port)):
         pytest.skip("hc cluster did not become fully ready")
     yield metrics_port
@@ -274,19 +278,19 @@ def _tls_cluster(lifecycle, tmp_path, name, mgr_tls_knobs, pki):
     data = tmp_path / "data"
     data.mkdir(exist_ok=True)
     (data / "f.txt").write_text("x\n")
-    cms_port, ds_port, metrics_port = settings.free_ports(3)
-    lifecycle.start(NginxInstanceSpec(
+    # cms/ds/metrics secondary listens come from the fixed ledger by name.
+    ep = lifecycle.start(NginxInstanceSpec(
         name=name,
         template="nginx_hc_tls_cluster.conf",
         data_root=str(data),
-        extra_ports={"CMS_PORT": cms_port, "DS_PORT": ds_port,
-                     "METRICS_PORT": metrics_port},
         template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
                          "MGR_TLS_KNOBS": mgr_tls_knobs,
                          "CERT_FILE": pki["cert"], "KEY_FILE": pki["key"],
                          "CA_DIR": pki["ca_dir"]},
         reason="Step F TLS deep-probe cluster (gotoTLS data server)",
     ))
+    ds_port = ep.extra_ports["DS_PORT"]
+    metrics_port = ep.extra_ports["METRICS_PORT"]
     if not (_wait_port(ds_port) and _wait_port(metrics_port)):
         pytest.skip("hc TLS cluster did not become fully ready")
     return metrics_port
