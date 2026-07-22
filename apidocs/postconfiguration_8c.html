@@ -104,6 +104,7 @@ $(document).ready(function(){initNavTree('postconfiguration_8c.html',''); initRe
 <code>#include &quot;<a class="el" href="lifecycle_8h_source.html">auth/impersonate/lifecycle.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2core_2aio_2uring_8h_source.html">core/aio/uring.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="lifecycle__timing_8h_source.html">core/compat/lifecycle_timing.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="postconfiguration__internal_8h_source.html">postconfiguration_internal.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for postconfiguration.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
@@ -136,8 +137,6 @@ Functions</h2></td></tr>
 <tr class="separator:a793fcebebac012ed7d49f00c09f7735b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a07faad7ae9c0ff815b0df9ccea41387a" id="r_a07faad7ae9c0ff815b0df9ccea41387a"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="postconfiguration_8c.html#a07faad7ae9c0ff815b0df9ccea41387a">postconf_impersonation</a> (ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf, ngx_stream_core_srv_conf_t **cscfp)</td></tr>
 <tr class="separator:a07faad7ae9c0ff815b0df9ccea41387a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a813a40ffc898ea3854a7a4e69bc5b9cc" id="r_a813a40ffc898ea3854a7a4e69bc5b9cc"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="postconfiguration_8c.html#a813a40ffc898ea3854a7a4e69bc5b9cc">postconf_proxy_protocol_host_acl</a> (ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf)</td></tr>
-<tr class="separator:a813a40ffc898ea3854a7a4e69bc5b9cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9710e2cc7c15af4e1d80d9d43d0e87aa" id="r_a9710e2cc7c15af4e1d80d9d43d0e87aa"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="postconfiguration_8c.html#a9710e2cc7c15af4e1d80d9d43d0e87aa">postconf_log_summaries</a> (ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf, ngx_stream_core_srv_conf_t **cscfp)</td></tr>
 <tr class="separator:a9710e2cc7c15af4e1d80d9d43d0e87aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7490962a9a73555c13c9559a402369ca" id="r_a7490962a9a73555c13c9559a402369ca"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="postconfiguration_8c.html#a7490962a9a73555c13c9559a402369ca">postconf_shared_registries</a> (ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf, ngx_stream_core_srv_conf_t **cscfp)</td></tr>
@@ -170,11 +169,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00013">13</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00014">14</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
 <p class="reference">References <a class="el" href="tunables_8h_source.html#l00257">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00255">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_AUTH_HOST</a>, <a class="el" href="tunables_8h_source.html#l00260">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00254">BRIX_AUTH_NONE</a>, <a class="el" href="tunables_8h_source.html#l00262">BRIX_AUTH_PWD</a>, <a class="el" href="tunables_8h_source.html#l00258">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00256">BRIX_AUTH_TOKEN</a>, and <a class="el" href="tunables_8h_source.html#l00259">BRIX_AUTH_UNIX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00032">brix_log_startup_summary()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00033">brix_log_startup_summary()</a>.</p>
 
 </div>
 </div>
@@ -212,11 +211,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00032">32</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00033">33</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="tunables_8h_source.html#l00257">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00255">BRIX_AUTH_GSI</a>, <a class="el" href="postconfiguration_8c_source.html#l00013">brix_auth_mode_name()</a>, <a class="el" href="tunables_8h_source.html#l00254">BRIX_AUTH_NONE</a>, <a class="el" href="tunables_8h_source.html#l00262">BRIX_AUTH_PWD</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
+<p class="reference">References <a class="el" href="tunables_8h_source.html#l00257">BRIX_AUTH_BOTH</a>, <a class="el" href="tunables_8h_source.html#l00255">BRIX_AUTH_GSI</a>, <a class="el" href="postconfiguration_8c_source.html#l00014">brix_auth_mode_name()</a>, <a class="el" href="tunables_8h_source.html#l00254">BRIX_AUTH_NONE</a>, <a class="el" href="tunables_8h_source.html#l00262">BRIX_AUTH_PWD</a>, and <a class="el" href="pki__check_8h_source.html#l00035">log</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00476">postconf_log_summaries()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00365">postconf_log_summaries()</a>.</p>
 
 </div>
 </div>
@@ -236,9 +235,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00520">520</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00409">409</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="observability_2dashboard_2config_8c_source.html#l00024">brix_configure_dashboard()</a>, <a class="el" href="observability_2metrics_2config_8c_source.html#l00043">brix_configure_metrics()</a>, <a class="el" href="core_2aio_2config_8c_source.html#l00019">brix_configure_thread_pools()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00068">brix_phase_mark()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00097">brix_phase_timer_log()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00035">brix_phase_timer_start()</a>, <a class="el" href="uring__probe_8c_source.html#l00228">brix_uring_validate_conf()</a>, <a class="el" href="loader_8c_source.html#l00032">brix_voms_init()</a>, <a class="el" href="postconfiguration_8c_source.html#l00148">postconf_finalize_policies()</a>, <a class="el" href="postconfiguration_8c_source.html#l00339">postconf_impersonation()</a>, <a class="el" href="postconfiguration_8c_source.html#l00476">postconf_log_summaries()</a>, <a class="el" href="postconfiguration_8c_source.html#l00116">postconf_prepare_servers()</a>, <a class="el" href="postconfiguration_8c_source.html#l00379">postconf_proxy_protocol_host_acl()</a>, <a class="el" href="postconfiguration_8c_source.html#l00494">postconf_shared_registries()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00251">postconf_stage_waiter()</a>.</p>
+<p class="reference">References <a class="el" href="observability_2dashboard_2config_8c_source.html#l00024">brix_configure_dashboard()</a>, <a class="el" href="observability_2metrics_2config_8c_source.html#l00043">brix_configure_metrics()</a>, <a class="el" href="core_2aio_2config_8c_source.html#l00019">brix_configure_thread_pools()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00068">brix_phase_mark()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00097">brix_phase_timer_log()</a>, <a class="el" href="lifecycle__timing_8c_source.html#l00035">brix_phase_timer_start()</a>, <a class="el" href="uring__probe_8c_source.html#l00228">brix_uring_validate_conf()</a>, <a class="el" href="loader_8c_source.html#l00032">brix_voms_init()</a>, <a class="el" href="postconfiguration_8c_source.html#l00149">postconf_finalize_policies()</a>, <a class="el" href="postconfiguration_8c_source.html#l00340">postconf_impersonation()</a>, <a class="el" href="postconfiguration_8c_source.html#l00365">postconf_log_summaries()</a>, <a class="el" href="postconfiguration_8c_source.html#l00117">postconf_prepare_servers()</a>, <a class="el" href="postconfiguration__proxy__acl_8c_source.html#l00026">postconf_proxy_protocol_host_acl()</a>, <a class="el" href="postconfiguration_8c_source.html#l00383">postconf_shared_registries()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00252">postconf_stage_waiter()</a>.</p>
 
 </div>
 </div>
@@ -282,11 +281,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00148">148</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00149">149</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="core_2config_2policy_8c_source.html#l00122">brix_config_finalize_policy()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="core_2config_2policy_8c_source.html#l00122">brix_config_finalize_policy()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00520">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00409">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -330,11 +329,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00339">339</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00340">340</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00145">brix_imp_validate()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00145">brix_imp_validate()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00520">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00409">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -378,11 +377,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00476">476</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00365">365</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="postconfiguration_8c_source.html#l00032">brix_log_startup_summary()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="postconfiguration_8c_source.html#l00033">brix_log_startup_summary()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00520">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00409">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -426,53 +425,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00116">116</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00117">117</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="runtime__server_8c_source.html#l00591">brix_config_prepare_server()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00359">brix_configure_gsi()</a>, <a class="el" href="auth_2krb5_2config_8c_source.html#l00281">brix_configure_krb5_auth()</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00225">brix_configure_sss_auth()</a>, <a class="el" href="tls__config_8c_source.html#l00062">brix_configure_tls()</a>, <a class="el" href="auth_2token_2config_8c_source.html#l00192">brix_configure_token_auth()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="runtime__server_8c_source.html#l00434">brix_config_prepare_server()</a>, <a class="el" href="auth_2gsi_2config_8c_source.html#l00359">brix_configure_gsi()</a>, <a class="el" href="auth_2krb5_2config_8c_source.html#l00281">brix_configure_krb5_auth()</a>, <a class="el" href="auth_2sss_2config_8c_source.html#l00225">brix_configure_sss_auth()</a>, <a class="el" href="tls__config_8c_source.html#l00062">brix_configure_tls()</a>, <a class="el" href="auth_2token_2config_8c_source.html#l00192">brix_configure_token_auth()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00520">ngx_stream_brix_postconfiguration()</a>.</p>
-
-</div>
-</div>
-<a id="a813a40ffc898ea3854a7a4e69bc5b9cc" name="a813a40ffc898ea3854a7a4e69bc5b9cc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a813a40ffc898ea3854a7a4e69bc5b9cc">&#9670;&#160;</a></span>postconf_proxy_protocol_host_acl()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t postconf_proxy_protocol_host_acl </td>
-          <td>(</td>
-          <td class="paramtype">ngx_conf_t *&#160;</td>
-          <td class="paramname"><em>cf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_stream_core_main_conf_t *&#160;</td>
-          <td class="paramname"><em>cmcf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00379">379</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
-
-<p class="reference">References <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00520">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00409">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -516,11 +473,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00217">217</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00218">218</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="redir__cache_8c_source.html#l00125">brix_redir_cache_configure()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="redir__cache_8c_source.html#l00125">brix_redir_cache_configure()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00494">postconf_shared_registries()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00383">postconf_shared_registries()</a>.</p>
 
 </div>
 </div>
@@ -564,11 +521,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00196">196</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00197">197</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2manager_2registry_8c_source.html#l00113">brix_srv_configure_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="net_2manager_2registry_8c_source.html#l00113">brix_srv_configure_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00494">postconf_shared_registries()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00383">postconf_shared_registries()</a>.</p>
 
 </div>
 </div>
@@ -612,11 +569,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00172">172</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00173">173</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00074">brix_configure_session_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2root_2session_2registry_8c_source.html#l00074">brix_configure_session_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00494">postconf_shared_registries()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00383">postconf_shared_registries()</a>.</p>
 
 </div>
 </div>
@@ -660,11 +617,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00494">494</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00383">383</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="reqid__map_8c_source.html#l00066">brix_cms_reqid_map_configure()</a>, <a class="el" href="loc__cache_8c_source.html#l00067">brix_loc_cache_configure()</a>, <a class="el" href="pending_8c_source.html#l00077">brix_pending_configure()</a>, <a class="el" href="key__registry_8c_source.html#l00121">brix_tpc_key_configure_registry()</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00117">brix_tpc_registry_configure()</a>, <a class="el" href="postconfiguration_8c_source.html#l00217">postconf_redir_cache()</a>, <a class="el" href="postconfiguration_8c_source.html#l00196">postconf_server_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00172">postconf_session_registry()</a>.</p>
+<p class="reference">References <a class="el" href="reqid__map_8c_source.html#l00066">brix_cms_reqid_map_configure()</a>, <a class="el" href="loc__cache_8c_source.html#l00067">brix_loc_cache_configure()</a>, <a class="el" href="pending_8c_source.html#l00077">brix_pending_configure()</a>, <a class="el" href="key__registry_8c_source.html#l00121">brix_tpc_key_configure_registry()</a>, <a class="el" href="tpc_2common_2registry_8c_source.html#l00117">brix_tpc_registry_configure()</a>, <a class="el" href="postconfiguration_8c_source.html#l00218">postconf_redir_cache()</a>, <a class="el" href="postconfiguration_8c_source.html#l00197">postconf_server_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00173">postconf_session_registry()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00520">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00409">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>
@@ -702,11 +659,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00105">105</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00106">106</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
 <p class="reference">References <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00148">postconf_finalize_policies()</a>, <a class="el" href="postconfiguration_8c_source.html#l00339">postconf_impersonation()</a>, <a class="el" href="postconfiguration_8c_source.html#l00476">postconf_log_summaries()</a>, <a class="el" href="postconfiguration_8c_source.html#l00116">postconf_prepare_servers()</a>, <a class="el" href="postconfiguration_8c_source.html#l00217">postconf_redir_cache()</a>, <a class="el" href="postconfiguration_8c_source.html#l00196">postconf_server_registry()</a>, <a class="el" href="postconfiguration_8c_source.html#l00172">postconf_session_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00251">postconf_stage_waiter()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00149">postconf_finalize_policies()</a>, <a class="el" href="postconfiguration_8c_source.html#l00340">postconf_impersonation()</a>, <a class="el" href="postconfiguration_8c_source.html#l00365">postconf_log_summaries()</a>, <a class="el" href="postconfiguration_8c_source.html#l00117">postconf_prepare_servers()</a>, <a class="el" href="postconfiguration_8c_source.html#l00218">postconf_redir_cache()</a>, <a class="el" href="postconfiguration_8c_source.html#l00197">postconf_server_registry()</a>, <a class="el" href="postconfiguration_8c_source.html#l00173">postconf_session_registry()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00252">postconf_stage_waiter()</a>.</p>
 
 </div>
 </div>
@@ -750,11 +707,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00251">251</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="postconfiguration_8c_source.html#l00252">252</a> of file <a class="el" href="postconfiguration_8c_source.html">postconfiguration.c</a>.</p>
 
-<p class="reference">References <a class="el" href="negcache_8c_source.html#l00122">brix_negcache_configure()</a>, <a class="el" href="stage__waiter_8c_source.html#l00090">brix_stage_waiter_configure()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00105">postconf_srv_conf()</a>.</p>
+<p class="reference">References <a class="el" href="negcache_8c_source.html#l00122">brix_negcache_configure()</a>, <a class="el" href="stage__waiter_8c_source.html#l00090">brix_stage_waiter_configure()</a>, and <a class="el" href="postconfiguration_8c_source.html#l00106">postconf_srv_conf()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00520">ngx_stream_brix_postconfiguration()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="postconfiguration_8c_source.html#l00409">ngx_stream_brix_postconfiguration()</a>.</p>
 
 </div>
 </div>

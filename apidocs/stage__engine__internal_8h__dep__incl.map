@@ -1,11 +1,13 @@
 <map id="src/fs/xfer/stage_engine_internal.h" name="src/fs/xfer/stage_engine_internal.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="320,5,499,45"/>
-<area shape="rect" id="Node000002" href="$stage__engine_8c.html" title=" " alt="" coords="5,101,195,126"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="329,52,142,103,140,98,328,46"/>
-<area shape="rect" id="Node000003" href="$stage__engine__journal_8c.html" title=" " alt="" coords="219,93,397,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="378,56,332,95,329,91,375,52"/>
-<area shape="rect" id="Node000004" href="$stage__engine__reconcile_8c.html" title=" " alt="" coords="421,93,600,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="444,52,490,91,487,95,441,56"/>
-<area shape="rect" id="Node000005" href="$stage__engine__scheduler_8c.html" title=" " alt="" coords="624,93,803,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="490,47,647,91,646,96,489,52"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="389,5,567,45"/>
+<area shape="rect" id="Node000002" href="$backend__async__queue_8c.html" title=" " alt="" coords="5,93,151,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="376,51,164,96,152,99,151,93,163,91,375,46"/>
+<area shape="rect" id="Node000003" href="$stage__engine_8c.html" title=" " alt="" coords="175,101,365,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="421,53,299,103,297,98,419,48"/>
+<area shape="rect" id="Node000004" href="$stage__engine__journal_8c.html" title=" " alt="" coords="389,93,567,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="481,59,481,93,475,93,475,59"/>
+<area shape="rect" id="Node000005" href="$stage__engine__reconcile_8c.html" title=" " alt="" coords="591,93,770,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="536,48,637,91,635,96,534,53"/>
+<area shape="rect" id="Node000006" href="$stage__engine__scheduler_8c.html" title=" " alt="" coords="794,93,973,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="581,46,795,91,794,96,580,51"/>
 </map>

@@ -17,6 +17,7 @@ var s3_8h =
     [ "brix_unlink_confined_canon", "s3_8h.html#a6ff119aaf639c96ec2d6166e4221d84d", null ],
     [ "ngx_http_s3_handler", "s3_8h.html#ad64a819954f73b04cbed96b7dc8fd8cf", null ],
     [ "s3_apply_response_overrides", "s3_8h.html#a089fbbc3e68a5aa469a008d531af6973", null ],
+    [ "s3_delete_respond", "s3_8h.html#ad64522a5b32b8ffe9ce1ddb9393109a2", null ],
     [ "s3_fail", "s3_8h.html#a6823e953b9b5cffe754e4f93200c584c", null ],
     [ "s3_get_pre_header", "s3_8h.html#acee9999ff41b6dbf67f5666087313c8b", null ],
     [ "s3_handle_conditional", "s3_8h.html#a320ed5fa25ec195b1bf00edfa1a1c2a9", null ],

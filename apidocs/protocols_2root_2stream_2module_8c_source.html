@@ -432,58 +432,80 @@ $(document).ready(function(){initNavTree('protocols_2root_2stream_2module_8c_sou
 <div class="line"><a id="l00321" name="l00321"></a><span class="lineno">  321</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, session_slots),</div>
 <div class="line"><a id="l00322" name="l00322"></a><span class="lineno">  322</span>      NULL },</div>
 <div class="line"><a id="l00323" name="l00323"></a><span class="lineno">  323</span> </div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <span class="comment">/* ---- clustering/proxy/traffic directives (split into directives_net.inc) ---- */</span></div>
-<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span><span class="preprocessor">#include &quot;directives_net.inc&quot;</span></div>
-<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span> </div>
-<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    <span class="comment">/* ---- read-through cache directives (split into directives_cache.inc) ---- */</span></div>
-<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span><span class="preprocessor">#include &quot;directives_cache.inc&quot;</span></div>
-<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span> </div>
-<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>    <span class="comment">/* ---- write-through directives (split into directives_writethrough.inc) ---- */</span></div>
-<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span><span class="preprocessor">#include &quot;directives_writethrough.inc&quot;</span></div>
-<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>    <span class="comment">/* ---- CMS clustering directives (split into directives_cms.inc) ---- */</span></div>
-<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span><span class="preprocessor">#include &quot;directives_cms.inc&quot;</span></div>
-<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span> </div>
-<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>    <span class="comment">/* (legacy brix_proxy_path_rewrite removed — see the note above) */</span></div>
-<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span> </div>
-<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>    <span class="comment">/* OCSP certificate status checking and stapling. */</span></div>
-<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_enable&quot;</span>),</div>
-<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.enable),</div>
-<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>      NULL },</div>
-<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span> </div>
-<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_soft_fail&quot;</span>),</div>
-<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.soft_fail),</div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>      NULL },</div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span>    <span class="comment">/* ---- durable async backend-op queue (brix_backend_async{,_batch,_wait}) ----</span></div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span><span class="comment">     * Route backend mutations through the durable coalescing queue; park the client</span></div>
+<div class="line"><a id="l00326" name="l00326"></a><span class="lineno">  326</span><span class="comment">     * until the batch flushes in bulk to the backend. */</span></div>
+<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span>    { ngx_string(<span class="stringliteral">&quot;brix_backend_async&quot;</span>),</div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span>      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00329" name="l00329"></a><span class="lineno">  329</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00330" name="l00330"></a><span class="lineno">  330</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno">  331</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, backend_async),</div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span>      NULL },</div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span>    { ngx_string(<span class="stringliteral">&quot;brix_backend_async_batch&quot;</span>),</div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span>      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00335" name="l00335"></a><span class="lineno">  335</span>      ngx_conf_set_num_slot,</div>
+<div class="line"><a id="l00336" name="l00336"></a><span class="lineno">  336</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00337" name="l00337"></a><span class="lineno">  337</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, backend_async_batch),</div>
+<div class="line"><a id="l00338" name="l00338"></a><span class="lineno">  338</span>      NULL },</div>
+<div class="line"><a id="l00339" name="l00339"></a><span class="lineno">  339</span>    { ngx_string(<span class="stringliteral">&quot;brix_backend_async_wait&quot;</span>),</div>
+<div class="line"><a id="l00340" name="l00340"></a><span class="lineno">  340</span>      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span>      ngx_conf_set_msec_slot,</div>
+<div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, backend_async_wait),</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span>      NULL },</div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span> </div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>    <span class="comment">/* ---- clustering/proxy/traffic directives (split into directives_net.inc) ---- */</span></div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span><span class="preprocessor">#include &quot;directives_net.inc&quot;</span></div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span> </div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>    <span class="comment">/* ---- read-through cache directives (split into directives_cache.inc) ---- */</span></div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span><span class="preprocessor">#include &quot;directives_cache.inc&quot;</span></div>
 <div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span> </div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    <span class="comment">/* A-6 item 2: hard-fail a nonce-less OCSP response (replay guard); opt-in. */</span></div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_require_nonce&quot;</span>),</div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>      ngx_conf_set_flag_slot,</div>
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.require_nonce),</div>
-<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>      NULL },</div>
-<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span> </div>
-<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_stapling&quot;</span>),</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>    <span class="comment">/* ---- write-through directives (split into directives_writethrough.inc) ---- */</span></div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span><span class="preprocessor">#include &quot;directives_writethrough.inc&quot;</span></div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    <span class="comment">/* ---- CMS clustering directives (split into directives_cms.inc) ---- */</span></div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span><span class="preprocessor">#include &quot;directives_cms.inc&quot;</span></div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span> </div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>    <span class="comment">/* (legacy brix_proxy_path_rewrite removed — see the note above) */</span></div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span> </div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>    <span class="comment">/* OCSP certificate status checking and stapling. */</span></div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_enable&quot;</span>),</div>
 <div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
 <div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>      ngx_conf_set_flag_slot,</div>
 <div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.stapling),</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.enable),</div>
 <div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>      NULL },</div>
 <div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span> </div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    <span class="comment">/* ---- SHM zone directives (split into directives_zones.inc) ---- */</span></div>
-<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span><span class="preprocessor">#include &quot;directives_zones.inc&quot;</span></div>
-<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span> </div>
-<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>    <span class="comment">/* ---- SciTags pmark directives (split into directives_pmark.inc) ---- */</span></div>
-<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span><span class="preprocessor">#include &quot;directives_pmark.inc&quot;</span></div>
-<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span> </div>
-<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    <span class="comment">/* Required terminator so nginx knows where the directive table ends. */</span></div>
-<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    ngx_null_command</div>
-<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>};</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_soft_fail&quot;</span>),</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.soft_fail),</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>      NULL },</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span> </div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    <span class="comment">/* A-6 item 2: hard-fail a nonce-less OCSP response (replay guard); opt-in. */</span></div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_require_nonce&quot;</span>),</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.require_nonce),</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>      NULL },</div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span> </div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span>    { ngx_string(<span class="stringliteral">&quot;brix_ocsp_stapling&quot;</span>),</div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>      offsetof(<a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>, ocsp.stapling),</div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>      NULL },</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span> </div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    <span class="comment">/* ---- SHM zone directives (split into directives_zones.inc) ---- */</span></div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span><span class="preprocessor">#include &quot;directives_zones.inc&quot;</span></div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span> </div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    <span class="comment">/* ---- SciTags pmark directives (split into directives_pmark.inc) ---- */</span></div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span><span class="preprocessor">#include &quot;directives_pmark.inc&quot;</span></div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span> </div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    <span class="comment">/* Required terminator so nginx knows where the directive table ends. */</span></div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    ngx_null_command</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>};</div>
 </div>
 <div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00051">auth_sigv4_verify_crypto.c:51</a></div></div>
 <div class="ttc" id="acns_8h_html"><div class="ttname"><a href="cns_8h.html">cns.h</a></div></div>
@@ -514,7 +536,7 @@ $(document).ready(function(){initNavTree('protocols_2root_2stream_2module_8c_sou
 <div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7a782076ff194963e8fc712c90c8f81dcd">BRIX_CRED_PASSTHROUGH</a></div><div class="ttdeci">@ BRIX_CRED_PASSTHROUGH</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00198">sd.h:198</a></div></div>
 <div class="ttc" id="asd_8h_html_a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b"><div class="ttname"><a href="sd_8h.html#a14e5dbdc241bcb9af0bfe56db399dfb7aa57348fd8217f33af0e41aad864a075b">BRIX_CRED_AUTO</a></div><div class="ttdeci">@ BRIX_CRED_AUTO</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00203">sd.h:202</a></div></div>
 <div class="ttc" id="aseccomp_8h_html"><div class="ttname"><a href="seccomp_8h.html">seccomp.h</a></div></div>
-<div class="ttc" id="aserver__conf_8c_html_abdf99cf8aa0cc466ef4f953385d6a4e8"><div class="ttname"><a href="server__conf_8c.html#abdf99cf8aa0cc466ef4f953385d6a4e8">ngx_stream_brix_enable</a></div><div class="ttdeci">char * ngx_stream_brix_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="server__conf_8c_source.html#l00334">server_conf.c:334</a></div></div>
+<div class="ttc" id="aserver__conf_8c_html_abdf99cf8aa0cc466ef4f953385d6a4e8"><div class="ttname"><a href="server__conf_8c.html#abdf99cf8aa0cc466ef4f953385d6a4e8">ngx_stream_brix_enable</a></div><div class="ttdeci">char * ngx_stream_brix_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)</div><div class="ttdef"><b>Definition</b> <a href="server__conf_8c_source.html#l00337">server_conf.c:337</a></div></div>
 <div class="ttc" id="astream__mirror_8h_html"><div class="ttname"><a href="stream__mirror_8h.html">stream_mirror.h</a></div></div>
 <div class="ttc" id="astructcmd_html"><div class="ttname"><a href="structcmd.html">cmd</a></div><div class="ttdef"><b>Definition</b> <a href="aio__internal_8h_source.html#l00125">aio_internal.h:125</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00115">config.h:115</a></div></div>

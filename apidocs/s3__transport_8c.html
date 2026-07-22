@@ -91,13 +91,13 @@ $(document).ready(function(){initNavTree('s3__transport_8c.html',''); initResiza
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">s3_transport.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="s3__transport_8h_source.html">s3_transport.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="s3__transport__internal_8h_source.html">s3_transport_internal.h</a>&quot;</code><br />
 <code>#include &lt;ngx_config.h&gt;</code><br />
 <code>#include &lt;ngx_core.h&gt;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
@@ -119,63 +119,16 @@ $(document).ready(function(){initNavTree('s3__transport_8c.html',''); initResiza
 </div>
 <p><a href="s3__transport_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3o__resp__t.html">s3o_resp_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3o__trace__t.html">s3o_trace_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structs3o__request__t.html">s3o_request_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:aa3d4ceb52dcdccdf704ae91ee273a2fe" id="r_aa3d4ceb52dcdccdf704ae91ee273a2fe"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#aa3d4ceb52dcdccdf704ae91ee273a2fe">brix_origin_trace_set</a> (int info_on)</td></tr>
-<tr class="separator:aa3d4ceb52dcdccdf704ae91ee273a2fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a611a498c0c420e14573e05db12f6257a" id="r_a611a498c0c420e14573e05db12f6257a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a611a498c0c420e14573e05db12f6257a">brix_s3_origin_timeouts_set</a> (long connect_ms, long stall_secs, long stall_bytes_per_s, long attempt_ms)</td></tr>
-<tr class="separator:a611a498c0c420e14573e05db12f6257a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0749d5c1a0ff4231482a0f8a4dc28207" id="r_a0749d5c1a0ff4231482a0f8a4dc28207"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a0749d5c1a0ff4231482a0f8a4dc28207">brix_s3_origin_reuse_set</a> (int reuse_on)</td></tr>
-<tr class="separator:a0749d5c1a0ff4231482a0f8a4dc28207"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acd0002576d5ebe8b70a882d01167b049" id="r_acd0002576d5ebe8b70a882d01167b049"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#acd0002576d5ebe8b70a882d01167b049">brix_s3_origin_http_version_set</a> (int ver)</td></tr>
-<tr class="separator:acd0002576d5ebe8b70a882d01167b049"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a02155dab319d9bd9f940bb5478a99c64" id="r_a02155dab319d9bd9f940bb5478a99c64"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a02155dab319d9bd9f940bb5478a99c64">brix_s3_origin_http_version_supported</a> (int ver)</td></tr>
-<tr class="separator:a02155dab319d9bd9f940bb5478a99c64"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a848b37e3b3a97bad5311e407af368d06" id="r_a848b37e3b3a97bad5311e407af368d06"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a848b37e3b3a97bad5311e407af368d06">s3o_apply_http_version</a> (CURL *curl)</td></tr>
-<tr class="separator:a848b37e3b3a97bad5311e407af368d06"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a501a7069f405c923360a13944dad65e0" id="r_a501a7069f405c923360a13944dad65e0"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a501a7069f405c923360a13944dad65e0">s3o_negotiated_proto</a> (CURL *curl)</td></tr>
-<tr class="separator:a501a7069f405c923360a13944dad65e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac07a96411f6b2448b69d72ee49482467" id="r_ac07a96411f6b2448b69d72ee49482467"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#ac07a96411f6b2448b69d72ee49482467">s3o_ms_since</a> (const struct timespec *t0)</td></tr>
 <tr class="separator:ac07a96411f6b2448b69d72ee49482467"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad2ea32889dbbd7ffeb66039c7e4db25b" id="r_ad2ea32889dbbd7ffeb66039c7e4db25b"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#ad2ea32889dbbd7ffeb66039c7e4db25b">s3o_buf_append</a> (char **buf, size_t *len, size_t *cap, const char *src, size_t n)</td></tr>
 <tr class="separator:ad2ea32889dbbd7ffeb66039c7e4db25b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a36eb494cef41cdf8395b862b0f3f5285" id="r_a36eb494cef41cdf8395b862b0f3f5285"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a36eb494cef41cdf8395b862b0f3f5285">s3o_write_cb</a> (char *ptr, size_t size, size_t nmemb, void *userdata)</td></tr>
-<tr class="separator:a36eb494cef41cdf8395b862b0f3f5285"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a043e4ef055cb143083bd88aa53b29ba2" id="r_a043e4ef055cb143083bd88aa53b29ba2"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a043e4ef055cb143083bd88aa53b29ba2">s3o_header_cb</a> (char *ptr, size_t size, size_t nmemb, void *userdata)</td></tr>
-<tr class="separator:a043e4ef055cb143083bd88aa53b29ba2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aef61c318f9807895dda499739cbbe22e" id="r_aef61c318f9807895dda499739cbbe22e"><td class="memItemLeft" align="right" valign="top">static struct curl_slist *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#aef61c318f9807895dda499739cbbe22e">s3o_build_slist</a> (const char *headers)</td></tr>
-<tr class="separator:aef61c318f9807895dda499739cbbe22e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1439df4cdea52f11693787c443e0fa26" id="r_a1439df4cdea52f11693787c443e0fa26"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a1439df4cdea52f11693787c443e0fa26">s3o_trace</a> (const <a class="el" href="structs3o__trace__t.html">s3o_trace_t</a> *t)</td></tr>
-<tr class="separator:a1439df4cdea52f11693787c443e0fa26"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa252289423241952c970d93793065cf6" id="r_aa252289423241952c970d93793065cf6"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#aa252289423241952c970d93793065cf6">s3o_curl_thread_free</a> (void *handle)</td></tr>
-<tr class="separator:aa252289423241952c970d93793065cf6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aed39a93ea9ca6ab3fbcec36a49800ca3" id="r_aed39a93ea9ca6ab3fbcec36a49800ca3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#aed39a93ea9ca6ab3fbcec36a49800ca3">s3o_curl_key_init</a> (void)</td></tr>
-<tr class="separator:aed39a93ea9ca6ab3fbcec36a49800ca3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a48005e4322d4354fbfc9320abc63e0f9" id="r_a48005e4322d4354fbfc9320abc63e0f9"><td class="memItemLeft" align="right" valign="top">static CURL *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a48005e4322d4354fbfc9320abc63e0f9">s3o_curl_acquire</a> (void)</td></tr>
-<tr class="separator:a48005e4322d4354fbfc9320abc63e0f9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a89a69347f3ebf7ee4fe644339b8e0901" id="r_a89a69347f3ebf7ee4fe644339b8e0901"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a89a69347f3ebf7ee4fe644339b8e0901">s3o_apply_ca</a> (CURL *curl, const char *ca_path)</td></tr>
-<tr class="separator:a89a69347f3ebf7ee4fe644339b8e0901"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2035722784e6932134924fc8c3b8ffdf" id="r_a2035722784e6932134924fc8c3b8ffdf"><td class="memItemLeft" align="right" valign="top">static struct curl_slist *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a2035722784e6932134924fc8c3b8ffdf">s3o_build_headers</a> (const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *req)</td></tr>
-<tr class="separator:a2035722784e6932134924fc8c3b8ffdf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2f13e2e8cfefdd3a9e89b423f20ea206" id="r_a2f13e2e8cfefdd3a9e89b423f20ea206"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a2f13e2e8cfefdd3a9e89b423f20ea206">s3o_apply_timeouts</a> (CURL *curl, int timeout_ms)</td></tr>
-<tr class="separator:a2f13e2e8cfefdd3a9e89b423f20ea206"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae5e1e285eec9cd3507169c94e7e52313" id="r_ae5e1e285eec9cd3507169c94e7e52313"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#ae5e1e285eec9cd3507169c94e7e52313">s3o_apply_reuse</a> (CURL *curl)</td></tr>
-<tr class="separator:ae5e1e285eec9cd3507169c94e7e52313"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1664d2e8b3132fd5ede4899649f9621c" id="r_a1664d2e8b3132fd5ede4899649f9621c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a1664d2e8b3132fd5ede4899649f9621c">s3o_apply_method</a> (CURL *curl, const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *req)</td></tr>
-<tr class="separator:a1664d2e8b3132fd5ede4899649f9621c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acce7651f061f1577236d6cb1f53222f3" id="r_acce7651f061f1577236d6cb1f53222f3"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#acce7651f061f1577236d6cb1f53222f3">s3o_apply_tls</a> (CURL *curl, const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *req)</td></tr>
-<tr class="separator:acce7651f061f1577236d6cb1f53222f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a320b4078259e830083915d5a03947e34" id="r_a320b4078259e830083915d5a03947e34"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a320b4078259e830083915d5a03947e34">s3o_configure</a> (CURL *curl, const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *req, <a class="el" href="structs3o__resp__t.html">s3o_resp_t</a> *r, struct curl_slist *slist)</td></tr>
-<tr class="separator:a320b4078259e830083915d5a03947e34"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a840bf153b84d857213d8d1c0ea8fa7e8" id="r_a840bf153b84d857213d8d1c0ea8fa7e8"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a840bf153b84d857213d8d1c0ea8fa7e8">s3o_write_cb</a> (char *ptr, size_t size, size_t nmemb, void *userdata)</td></tr>
+<tr class="separator:a840bf153b84d857213d8d1c0ea8fa7e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef479e3b0614fa8a04ba64ee6ddafc1a" id="r_aef479e3b0614fa8a04ba64ee6ddafc1a"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#aef479e3b0614fa8a04ba64ee6ddafc1a">s3o_header_cb</a> (char *ptr, size_t size, size_t nmemb, void *userdata)</td></tr>
+<tr class="separator:aef479e3b0614fa8a04ba64ee6ddafc1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a02d43eff48f390122e195bb89832966c" id="r_a02d43eff48f390122e195bb89832966c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a02d43eff48f390122e195bb89832966c">s3o_request_impl</a> (const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *req, <a class="el" href="structbrix__s3__resp__t.html">brix_s3_resp_t</a> *resp, char *errbuf, size_t errcap)</td></tr>
 <tr class="separator:a02d43eff48f390122e195bb89832966c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a97468ebc8c7618406605587c5e089ba6" id="r_a97468ebc8c7618406605587c5e089ba6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a97468ebc8c7618406605587c5e089ba6">s3o_request</a> (void *tctx, const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, int <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, int <a class="el" href="tier__config_8c.html#a39888985bf98dd26251c28fbf14cb82f">tls</a>, const char *method, const char *path_and_query, const char *headers, const void *body, size_t body_len, int timeout_ms, <a class="el" href="structbrix__s3__resp__t.html">brix_s3_resp_t</a> *resp, char *errbuf, size_t errcap)</td></tr>
@@ -193,400 +146,10 @@ Functions</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:ab91b7f3d88b70ca5abee9e22d6f8fbf6" id="r_ab91b7f3d88b70ca5abee9e22d6f8fbf6"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#ab91b7f3d88b70ca5abee9e22d6f8fbf6">g_origin_trace_info</a></td></tr>
-<tr class="separator:ab91b7f3d88b70ca5abee9e22d6f8fbf6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a934228616043d7811a1aa7a0d9791974" id="r_a934228616043d7811a1aa7a0d9791974"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a934228616043d7811a1aa7a0d9791974">g_origin_connect_ms</a></td></tr>
-<tr class="separator:a934228616043d7811a1aa7a0d9791974"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab8cfe73e0e39de9630a9f16a06fc98e3" id="r_ab8cfe73e0e39de9630a9f16a06fc98e3"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#ab8cfe73e0e39de9630a9f16a06fc98e3">g_origin_stall_secs</a></td></tr>
-<tr class="separator:ab8cfe73e0e39de9630a9f16a06fc98e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3e17086e523fb191baf725924ae47977" id="r_a3e17086e523fb191baf725924ae47977"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a3e17086e523fb191baf725924ae47977">g_origin_stall_bytes</a></td></tr>
-<tr class="separator:a3e17086e523fb191baf725924ae47977"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af89bf03833078135b143d5756cf68f61" id="r_af89bf03833078135b143d5756cf68f61"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#af89bf03833078135b143d5756cf68f61">g_origin_attempt_ms</a></td></tr>
-<tr class="separator:af89bf03833078135b143d5756cf68f61"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a734ef2f93f0fd30f2a14882ea9ffdbc9" id="r_a734ef2f93f0fd30f2a14882ea9ffdbc9"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a734ef2f93f0fd30f2a14882ea9ffdbc9">g_origin_no_reuse</a></td></tr>
-<tr class="separator:a734ef2f93f0fd30f2a14882ea9ffdbc9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af32b3e422900d2c7efcb57db9f534d75" id="r_af32b3e422900d2c7efcb57db9f534d75"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#af32b3e422900d2c7efcb57db9f534d75">g_origin_http_version</a></td></tr>
-<tr class="separator:af32b3e422900d2c7efcb57db9f534d75"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6ad11233bd38c8129f89e3325db8ccf1" id="r_a6ad11233bd38c8129f89e3325db8ccf1"><td class="memItemLeft" align="right" valign="top">static pthread_key_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a6ad11233bd38c8129f89e3325db8ccf1">g_curl_key</a></td></tr>
-<tr class="separator:a6ad11233bd38c8129f89e3325db8ccf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adbdc8069cb4f2f004e101bb28289134e" id="r_adbdc8069cb4f2f004e101bb28289134e"><td class="memItemLeft" align="right" valign="top">static pthread_once_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#adbdc8069cb4f2f004e101bb28289134e">g_curl_key_once</a> = PTHREAD_ONCE_INIT</td></tr>
-<tr class="separator:adbdc8069cb4f2f004e101bb28289134e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a465fe87b07ce246a3e53a3446cb1cd35" id="r_a465fe87b07ce246a3e53a3446cb1cd35"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__s3__transport__t.html">brix_s3_transport_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="s3__transport_8c.html#a465fe87b07ce246a3e53a3446cb1cd35">brix_s3_origin_curl_transport</a></td></tr>
 <tr class="separator:a465fe87b07ce246a3e53a3446cb1cd35"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="aa3d4ceb52dcdccdf704ae91ee273a2fe" name="aa3d4ceb52dcdccdf704ae91ee273a2fe"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa3d4ceb52dcdccdf704ae91ee273a2fe">&#9670;&#160;</a></span>brix_origin_trace_set()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_origin_trace_set </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>info_on</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00033">33</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00030">g_origin_trace_info</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cvmfs__module__merge_8c_source.html#l00134">cvmfs_merge_upstreams()</a>.</p>
-
-</div>
-</div>
-<a id="acd0002576d5ebe8b70a882d01167b049" name="acd0002576d5ebe8b70a882d01167b049"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acd0002576d5ebe8b70a882d01167b049">&#9670;&#160;</a></span>brix_s3_origin_http_version_set()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_s3_origin_http_version_set </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ver</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00088">88</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00085">g_origin_http_version</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cvmfs__module__merge_8c_source.html#l00192">cvmfs_merge_resilience()</a>.</p>
-
-</div>
-</div>
-<a id="a02155dab319d9bd9f940bb5478a99c64" name="a02155dab319d9bd9f940bb5478a99c64"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a02155dab319d9bd9f940bb5478a99c64">&#9670;&#160;</a></span>brix_s3_origin_http_version_supported()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_s3_origin_http_version_supported </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ver</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00094">94</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cvmfs__module__merge_8c_source.html#l00192">cvmfs_merge_resilience()</a>.</p>
-
-</div>
-</div>
-<a id="a0749d5c1a0ff4231482a0f8a4dc28207" name="a0749d5c1a0ff4231482a0f8a4dc28207"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0749d5c1a0ff4231482a0f8a4dc28207">&#9670;&#160;</a></span>brix_s3_origin_reuse_set()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_s3_origin_reuse_set </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>reuse_on</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00075">75</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00072">g_origin_no_reuse</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cvmfs__module__merge_8c_source.html#l00192">cvmfs_merge_resilience()</a>.</p>
-
-</div>
-</div>
-<a id="a611a498c0c420e14573e05db12f6257a" name="a611a498c0c420e14573e05db12f6257a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a611a498c0c420e14573e05db12f6257a">&#9670;&#160;</a></span>brix_s3_origin_timeouts_set()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_s3_origin_timeouts_set </td>
-          <td>(</td>
-          <td class="paramtype">long&#160;</td>
-          <td class="paramname"><em>connect_ms</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">long&#160;</td>
-          <td class="paramname"><em>stall_secs</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">long&#160;</td>
-          <td class="paramname"><em>stall_bytes_per_s</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">long&#160;</td>
-          <td class="paramname"><em>attempt_ms</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00056">56</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00053">g_origin_attempt_ms</a>, <a class="el" href="s3__transport_8c_source.html#l00050">g_origin_connect_ms</a>, <a class="el" href="s3__transport_8c_source.html#l00052">g_origin_stall_bytes</a>, and <a class="el" href="s3__transport_8c_source.html#l00051">g_origin_stall_secs</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cvmfs__module__merge_8c_source.html#l00192">cvmfs_merge_resilience()</a>.</p>
-
-</div>
-</div>
-<a id="a89a69347f3ebf7ee4fe644339b8e0901" name="a89a69347f3ebf7ee4fe644339b8e0901"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a89a69347f3ebf7ee4fe644339b8e0901">&#9670;&#160;</a></span>s3o_apply_ca()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_apply_ca </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>ca_path</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00395">395</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00563">s3o_apply_tls()</a>.</p>
-
-</div>
-</div>
-<a id="a848b37e3b3a97bad5311e407af368d06" name="a848b37e3b3a97bad5311e407af368d06"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a848b37e3b3a97bad5311e407af368d06">&#9670;&#160;</a></span>s3o_apply_http_version()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_apply_http_version </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00120">120</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00085">g_origin_http_version</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>.</p>
-
-</div>
-</div>
-<a id="a1664d2e8b3132fd5ede4899649f9621c" name="a1664d2e8b3132fd5ede4899649f9621c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1664d2e8b3132fd5ede4899649f9621c">&#9670;&#160;</a></span>s3o_apply_method()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_apply_method </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *&#160;</td>
-          <td class="paramname"><em>req</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00529">529</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00433">s3o_request_t::body</a>, <a class="el" href="s3__transport_8c_source.html#l00434">s3o_request_t::body_len</a>, and <a class="el" href="s3__transport_8c_source.html#l00430">s3o_request_t::method</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>.</p>
-
-</div>
-</div>
-<a id="ae5e1e285eec9cd3507169c94e7e52313" name="ae5e1e285eec9cd3507169c94e7e52313"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae5e1e285eec9cd3507169c94e7e52313">&#9670;&#160;</a></span>s3o_apply_reuse()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_apply_reuse </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00504">504</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00072">g_origin_no_reuse</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>.</p>
-
-</div>
-</div>
-<a id="a2f13e2e8cfefdd3a9e89b423f20ea206" name="a2f13e2e8cfefdd3a9e89b423f20ea206"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2f13e2e8cfefdd3a9e89b423f20ea206">&#9670;&#160;</a></span>s3o_apply_timeouts()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_apply_timeouts </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>timeout_ms</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00475">475</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00053">g_origin_attempt_ms</a>, <a class="el" href="s3__transport_8c_source.html#l00050">g_origin_connect_ms</a>, <a class="el" href="s3__transport_8c_source.html#l00052">g_origin_stall_bytes</a>, and <a class="el" href="s3__transport_8c_source.html#l00051">g_origin_stall_secs</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>.</p>
-
-</div>
-</div>
-<a id="acce7651f061f1577236d6cb1f53222f3" name="acce7651f061f1577236d6cb1f53222f3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acce7651f061f1577236d6cb1f53222f3">&#9670;&#160;</a></span>s3o_apply_tls()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_apply_tls </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *&#160;</td>
-          <td class="paramname"><em>req</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00563">563</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00436">s3o_request_t::client_cert_pem</a>, <a class="el" href="s3__transport_8c_source.html#l00395">s3o_apply_ca()</a>, <a class="el" href="s3__transport_8c_source.html#l00426">s3o_request_t::tctx</a>, and <a class="el" href="s3__transport_8c_source.html#l00429">s3o_request_t::tls</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>.</p>
-
-</div>
-</div>
 <a id="ad2ea32889dbbd7ffeb66039c7e4db25b" name="ad2ea32889dbbd7ffeb66039c7e4db25b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad2ea32889dbbd7ffeb66039c7e4db25b">&#9670;&#160;</a></span>s3o_buf_append()</h2>
 
@@ -639,233 +202,20 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00198">198</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00044">44</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00233">s3o_header_cb()</a>, and <a class="el" href="s3__transport_8c_source.html#l00221">s3o_write_cb()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00079">s3o_header_cb()</a>, and <a class="el" href="s3__transport_8c_source.html#l00067">s3o_write_cb()</a>.</p>
 
 </div>
 </div>
-<a id="a2035722784e6932134924fc8c3b8ffdf" name="a2035722784e6932134924fc8c3b8ffdf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2035722784e6932134924fc8c3b8ffdf">&#9670;&#160;</a></span>s3o_build_headers()</h2>
+<a id="aef479e3b0614fa8a04ba64ee6ddafc1a" name="aef479e3b0614fa8a04ba64ee6ddafc1a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef479e3b0614fa8a04ba64ee6ddafc1a">&#9670;&#160;</a></span>s3o_header_cb()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static struct curl_slist * s3o_build_headers </td>
-          <td>(</td>
-          <td class="paramtype">const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *&#160;</td>
-          <td class="paramname"><em>req</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00451">451</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00432">s3o_request_t::headers</a>, <a class="el" href="s3__transport_8c_source.html#l00427">s3o_request_t::host</a>, <a class="el" href="s3__transport_8c_source.html#l00428">s3o_request_t::port</a>, and <a class="el" href="s3__transport_8c_source.html#l00247">s3o_build_slist()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>.</p>
-
-</div>
-</div>
-<a id="aef61c318f9807895dda499739cbbe22e" name="aef61c318f9807895dda499739cbbe22e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aef61c318f9807895dda499739cbbe22e">&#9670;&#160;</a></span>s3o_build_slist()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static struct curl_slist * s3o_build_slist </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>headers</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00247">247</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00451">s3o_build_headers()</a>.</p>
-
-</div>
-</div>
-<a id="a320b4078259e830083915d5a03947e34" name="a320b4078259e830083915d5a03947e34"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a320b4078259e830083915d5a03947e34">&#9670;&#160;</a></span>s3o_configure()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_configure </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structs3o__request__t.html">s3o_request_t</a> *&#160;</td>
-          <td class="paramname"><em>req</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structs3o__resp__t.html">s3o_resp_t</a> *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">struct curl_slist *&#160;</td>
-          <td class="paramname"><em>slist</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00589">589</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00427">s3o_request_t::host</a>, <a class="el" href="s3__transport_8c_source.html#l00431">s3o_request_t::path_and_query</a>, <a class="el" href="s3__transport_8c_source.html#l00428">s3o_request_t::port</a>, <a class="el" href="s3__transport_8c_source.html#l00120">s3o_apply_http_version()</a>, <a class="el" href="s3__transport_8c_source.html#l00529">s3o_apply_method()</a>, <a class="el" href="s3__transport_8c_source.html#l00504">s3o_apply_reuse()</a>, <a class="el" href="s3__transport_8c_source.html#l00475">s3o_apply_timeouts()</a>, <a class="el" href="s3__transport_8c_source.html#l00563">s3o_apply_tls()</a>, <a class="el" href="s3__transport_8c_source.html#l00233">s3o_header_cb()</a>, <a class="el" href="s3__transport_8c_source.html#l00221">s3o_write_cb()</a>, <a class="el" href="s3__transport_8c_source.html#l00435">s3o_request_t::timeout_ms</a>, and <a class="el" href="s3__transport_8c_source.html#l00429">s3o_request_t::tls</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>.</p>
-
-</div>
-</div>
-<a id="a48005e4322d4354fbfc9320abc63e0f9" name="a48005e4322d4354fbfc9320abc63e0f9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a48005e4322d4354fbfc9320abc63e0f9">&#9670;&#160;</a></span>s3o_curl_acquire()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static CURL * s3o_curl_acquire </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00361">361</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00341">g_curl_key</a>, <a class="el" href="s3__transport_8c_source.html#l00342">g_curl_key_once</a>, and <a class="el" href="s3__transport_8c_source.html#l00353">s3o_curl_key_init()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>.</p>
-
-</div>
-</div>
-<a id="aed39a93ea9ca6ab3fbcec36a49800ca3" name="aed39a93ea9ca6ab3fbcec36a49800ca3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aed39a93ea9ca6ab3fbcec36a49800ca3">&#9670;&#160;</a></span>s3o_curl_key_init()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_curl_key_init </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00353">353</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00341">g_curl_key</a>, and <a class="el" href="s3__transport_8c_source.html#l00345">s3o_curl_thread_free()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00361">s3o_curl_acquire()</a>.</p>
-
-</div>
-</div>
-<a id="aa252289423241952c970d93793065cf6" name="aa252289423241952c970d93793065cf6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa252289423241952c970d93793065cf6">&#9670;&#160;</a></span>s3o_curl_thread_free()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void s3o_curl_thread_free </td>
-          <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>handle</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00345">345</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00353">s3o_curl_key_init()</a>.</p>
-
-</div>
-</div>
-<a id="a043e4ef055cb143083bd88aa53b29ba2" name="a043e4ef055cb143083bd88aa53b29ba2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a043e4ef055cb143083bd88aa53b29ba2">&#9670;&#160;</a></span>s3o_header_cb()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static size_t s3o_header_cb </td>
+          <td class="memname">size_t s3o_header_cb </td>
           <td>(</td>
           <td class="paramtype">char *&#160;</td>
           <td class="paramname"><em>ptr</em>, </td>
@@ -894,18 +244,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00233">233</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00079">79</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00191">s3o_resp_t::hdrs</a>, <a class="el" href="s3__transport_8c_source.html#l00193">s3o_resp_t::hdrs_cap</a>, <a class="el" href="s3__transport_8c_source.html#l00192">s3o_resp_t::hdrs_len</a>, and <a class="el" href="s3__transport_8c_source.html#l00198">s3o_buf_append()</a>.</p>
+<p class="reference">References <a class="el" href="s3__transport__internal_8h_source.html#l00023">s3o_resp_t::hdrs</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00025">s3o_resp_t::hdrs_cap</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00024">s3o_resp_t::hdrs_len</a>, and <a class="el" href="s3__transport_8c_source.html#l00044">s3o_buf_append()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="s3__transport__setup_8c_source.html#l00464">s3o_configure()</a>.</p>
 
 </div>
 </div>
@@ -933,39 +278,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00173">173</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00029">29</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>.</p>
-
-</div>
-</div>
-<a id="a501a7069f405c923360a13944dad65e0" name="a501a7069f405c923360a13944dad65e0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a501a7069f405c923360a13944dad65e0">&#9670;&#160;</a></span>s3o_negotiated_proto()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static const char * s3o_negotiated_proto </td>
-          <td>(</td>
-          <td class="paramtype">CURL *&#160;</td>
-          <td class="paramname"><em>curl</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00154">154</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00105">s3o_request_impl()</a>.</p>
 
 </div>
 </div>
@@ -1069,9 +384,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00692">692</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00170">170</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>, <a class="el" href="s3__transport_8c_source.html#l00426">s3o_request_t::tctx</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="s3__transport_8c_source.html#l00105">s3o_request_impl()</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00045">s3o_request_t::tctx</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
 
 </div>
 </div>
@@ -1181,9 +496,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00717">717</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00195">195</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>, <a class="el" href="s3__transport_8c_source.html#l00426">s3o_request_t::tctx</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
+<p class="reference">References <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="s3__transport_8c_source.html#l00105">s3o_request_impl()</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00045">s3o_request_t::tctx</a>, and <a class="el" href="tier__config_8c_source.html#l00028">tls</a>.</p>
 
 </div>
 </div>
@@ -1233,11 +548,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00627">627</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00105">105</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00188">s3o_resp_t::body</a>, <a class="el" href="s3__transport_8c_source.html#l00189">s3o_resp_t::body_len</a>, <a class="el" href="s3__transport_8c_source.html#l00191">s3o_resp_t::hdrs</a>, <a class="el" href="s3__transport_8c_source.html#l00427">s3o_request_t::host</a>, <a class="el" href="s3__transport_8c_source.html#l00430">s3o_request_t::method</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>, <a class="el" href="s3__transport_8c_source.html#l00431">s3o_request_t::path_and_query</a>, <a class="el" href="s3__transport_8c_source.html#l00428">s3o_request_t::port</a>, <a class="el" href="s3__transport_8c_source.html#l00451">s3o_build_headers()</a>, <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>, <a class="el" href="s3__transport_8c_source.html#l00361">s3o_curl_acquire()</a>, <a class="el" href="s3__transport_8c_source.html#l00173">s3o_ms_since()</a>, <a class="el" href="s3__transport_8c_source.html#l00154">s3o_negotiated_proto()</a>, <a class="el" href="s3__transport_8c_source.html#l00301">s3o_trace()</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>.</p>
+<p class="reference">References <a class="el" href="s3__transport__internal_8h_source.html#l00020">s3o_resp_t::body</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00021">s3o_resp_t::body_len</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00023">s3o_resp_t::hdrs</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00046">s3o_request_t::host</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00049">s3o_request_t::method</a>, <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00050">s3o_request_t::path_and_query</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00047">s3o_request_t::port</a>, <a class="el" href="s3__transport__setup_8c_source.html#l00326">s3o_build_headers()</a>, <a class="el" href="s3__transport__setup_8c_source.html#l00464">s3o_configure()</a>, <a class="el" href="s3__transport__setup_8c_source.html#l00266">s3o_curl_acquire()</a>, <a class="el" href="s3__transport_8c_source.html#l00029">s3o_ms_since()</a>, <a class="el" href="s3__transport__setup_8c_source.html#l00155">s3o_negotiated_proto()</a>, <a class="el" href="s3__transport__setup_8c_source.html#l00206">s3o_trace()</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00028">brix_s3_resp_t::status</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00692">s3o_request()</a>, and <a class="el" href="s3__transport_8c_source.html#l00717">s3o_request_cred()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00170">s3o_request()</a>, and <a class="el" href="s3__transport_8c_source.html#l00195">s3o_request_cred()</a>.</p>
 
 </div>
 </div>
@@ -1275,9 +590,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00784">784</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00262">262</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00188">s3o_resp_t::body</a>, <a class="el" href="s3__transport_8c_source.html#l00189">s3o_resp_t::body_len</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="s3__transport__internal_8h_source.html#l00020">s3o_resp_t::body</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00021">s3o_resp_t::body_len</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
 
 </div>
 </div>
@@ -1305,9 +620,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00797">797</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00275">275</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00188">s3o_resp_t::body</a>, <a class="el" href="s3__transport_8c_source.html#l00191">s3o_resp_t::hdrs</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="s3__transport__internal_8h_source.html#l00020">s3o_resp_t::body</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00023">s3o_resp_t::hdrs</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
 
 </div>
 </div>
@@ -1357,9 +672,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00741">741</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00219">219</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00191">s3o_resp_t::hdrs</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="s3__transport__internal_8h_source.html#l00023">s3o_resp_t::hdrs</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
 
 </div>
 </div>
@@ -1387,55 +702,20 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00776">776</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00254">254</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00191">s3o_resp_t::hdrs</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
+<p class="reference">References <a class="el" href="s3__transport__internal_8h_source.html#l00023">s3o_resp_t::hdrs</a>, and <a class="el" href="sd__s3__transport_8h_source.html#l00029">brix_s3_resp_t::opaque</a>.</p>
 
 </div>
 </div>
-<a id="a1439df4cdea52f11693787c443e0fa26" name="a1439df4cdea52f11693787c443e0fa26"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1439df4cdea52f11693787c443e0fa26">&#9670;&#160;</a></span>s3o_trace()</h2>
+<a id="a840bf153b84d857213d8d1c0ea8fa7e8" name="a840bf153b84d857213d8d1c0ea8fa7e8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a840bf153b84d857213d8d1c0ea8fa7e8">&#9670;&#160;</a></span>s3o_write_cb()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void s3o_trace </td>
-          <td>(</td>
-          <td class="paramtype">const <a class="el" href="structs3o__trace__t.html">s3o_trace_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00301">301</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="s3__transport_8c_source.html#l00292">s3o_trace_t::bytes</a>, <a class="el" href="s3__transport_8c_source.html#l00293">s3o_trace_t::dur_ms</a>, <a class="el" href="s3__transport_8c_source.html#l00294">s3o_trace_t::err</a>, <a class="el" href="s3__transport_8c_source.html#l00030">g_origin_trace_info</a>, <a class="el" href="s3__transport_8c_source.html#l00288">s3o_trace_t::host</a>, <a class="el" href="s3__transport_8c_source.html#l00287">s3o_trace_t::method</a>, <a class="el" href="s3__transport_8c_source.html#l00290">s3o_trace_t::path</a>, <a class="el" href="s3__transport_8c_source.html#l00289">s3o_trace_t::port</a>, <a class="el" href="s3__transport_8c_source.html#l00295">s3o_trace_t::proto</a>, and <a class="el" href="s3__transport_8c_source.html#l00291">s3o_trace_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00627">s3o_request_impl()</a>.</p>
-
-</div>
-</div>
-<a id="a36eb494cef41cdf8395b862b0f3f5285" name="a36eb494cef41cdf8395b862b0f3f5285"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a36eb494cef41cdf8395b862b0f3f5285">&#9670;&#160;</a></span>s3o_write_cb()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static size_t s3o_write_cb </td>
+          <td class="memname">size_t s3o_write_cb </td>
           <td>(</td>
           <td class="paramtype">char *&#160;</td>
           <td class="paramname"><em>ptr</em>, </td>
@@ -1464,18 +744,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00221">221</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00067">67</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__transport_8c_source.html#l00188">s3o_resp_t::body</a>, <a class="el" href="s3__transport_8c_source.html#l00190">s3o_resp_t::body_cap</a>, <a class="el" href="s3__transport_8c_source.html#l00189">s3o_resp_t::body_len</a>, and <a class="el" href="s3__transport_8c_source.html#l00198">s3o_buf_append()</a>.</p>
+<p class="reference">References <a class="el" href="s3__transport__internal_8h_source.html#l00020">s3o_resp_t::body</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00022">s3o_resp_t::body_cap</a>, <a class="el" href="s3__transport__internal_8h_source.html#l00021">s3o_resp_t::body_len</a>, and <a class="el" href="s3__transport_8c_source.html#l00044">s3o_buf_append()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00589">s3o_configure()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="s3__transport__setup_8c_source.html#l00464">s3o_configure()</a>.</p>
 
 </div>
 </div>
@@ -1499,250 +774,16 @@ Variables</h2></td></tr>
 <div class="line">    .resp_body   = <a class="code hl_function" href="s3__transport_8c.html#a4cc3db72092f27261479c110170f7187">s3o_resp_body</a>,</div>
 <div class="line">    .resp_free   = <a class="code hl_function" href="s3__transport_8c.html#aa4f10acf1d93bac01374b13dd66c55e7">s3o_resp_free</a>,</div>
 <div class="line">}</div>
-<div class="ttc" id="as3__transport_8c_html_a0afd3caef6b987c1079f5e23dba6f6e1"><div class="ttname"><a href="s3__transport_8c.html#a0afd3caef6b987c1079f5e23dba6f6e1">s3o_resp_headers_raw</a></div><div class="ttdeci">static const char * s3o_resp_headers_raw(const brix_s3_resp_t *resp)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00776">s3_transport.c:776</a></div></div>
-<div class="ttc" id="as3__transport_8c_html_a3b9336d82d3f851f0d67285c3abc1c59"><div class="ttname"><a href="s3__transport_8c.html#a3b9336d82d3f851f0d67285c3abc1c59">s3o_request_cred</a></div><div class="ttdeci">static int s3o_request_cred(void *tctx, const char *host, int port, int tls, const char *method, const char *path_and_query, const char *headers, const void *body, size_t body_len, int timeout_ms, const char *client_cert_pem, brix_s3_resp_t *resp, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00717">s3_transport.c:717</a></div></div>
-<div class="ttc" id="as3__transport_8c_html_a4cc3db72092f27261479c110170f7187"><div class="ttname"><a href="s3__transport_8c.html#a4cc3db72092f27261479c110170f7187">s3o_resp_body</a></div><div class="ttdeci">static const void * s3o_resp_body(const brix_s3_resp_t *resp, size_t *len)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00784">s3_transport.c:784</a></div></div>
-<div class="ttc" id="as3__transport_8c_html_a97468ebc8c7618406605587c5e089ba6"><div class="ttname"><a href="s3__transport_8c.html#a97468ebc8c7618406605587c5e089ba6">s3o_request</a></div><div class="ttdeci">static int s3o_request(void *tctx, const char *host, int port, int tls, const char *method, const char *path_and_query, const char *headers, const void *body, size_t body_len, int timeout_ms, brix_s3_resp_t *resp, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00692">s3_transport.c:692</a></div></div>
-<div class="ttc" id="as3__transport_8c_html_aa4f10acf1d93bac01374b13dd66c55e7"><div class="ttname"><a href="s3__transport_8c.html#aa4f10acf1d93bac01374b13dd66c55e7">s3o_resp_free</a></div><div class="ttdeci">static void s3o_resp_free(brix_s3_resp_t *resp)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00797">s3_transport.c:797</a></div></div>
-<div class="ttc" id="as3__transport_8c_html_af263184f7d91aa2da85a43e7827db72c"><div class="ttname"><a href="s3__transport_8c.html#af263184f7d91aa2da85a43e7827db72c">s3o_resp_header</a></div><div class="ttdeci">static int s3o_resp_header(const brix_s3_resp_t *resp, const char *name, char *out, size_t outcap)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00741">s3_transport.c:741</a></div></div>
+<div class="ttc" id="as3__transport_8c_html_a0afd3caef6b987c1079f5e23dba6f6e1"><div class="ttname"><a href="s3__transport_8c.html#a0afd3caef6b987c1079f5e23dba6f6e1">s3o_resp_headers_raw</a></div><div class="ttdeci">static const char * s3o_resp_headers_raw(const brix_s3_resp_t *resp)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00254">s3_transport.c:254</a></div></div>
+<div class="ttc" id="as3__transport_8c_html_a3b9336d82d3f851f0d67285c3abc1c59"><div class="ttname"><a href="s3__transport_8c.html#a3b9336d82d3f851f0d67285c3abc1c59">s3o_request_cred</a></div><div class="ttdeci">static int s3o_request_cred(void *tctx, const char *host, int port, int tls, const char *method, const char *path_and_query, const char *headers, const void *body, size_t body_len, int timeout_ms, const char *client_cert_pem, brix_s3_resp_t *resp, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00195">s3_transport.c:195</a></div></div>
+<div class="ttc" id="as3__transport_8c_html_a4cc3db72092f27261479c110170f7187"><div class="ttname"><a href="s3__transport_8c.html#a4cc3db72092f27261479c110170f7187">s3o_resp_body</a></div><div class="ttdeci">static const void * s3o_resp_body(const brix_s3_resp_t *resp, size_t *len)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00262">s3_transport.c:262</a></div></div>
+<div class="ttc" id="as3__transport_8c_html_a97468ebc8c7618406605587c5e089ba6"><div class="ttname"><a href="s3__transport_8c.html#a97468ebc8c7618406605587c5e089ba6">s3o_request</a></div><div class="ttdeci">static int s3o_request(void *tctx, const char *host, int port, int tls, const char *method, const char *path_and_query, const char *headers, const void *body, size_t body_len, int timeout_ms, brix_s3_resp_t *resp, char *errbuf, size_t errcap)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00170">s3_transport.c:170</a></div></div>
+<div class="ttc" id="as3__transport_8c_html_aa4f10acf1d93bac01374b13dd66c55e7"><div class="ttname"><a href="s3__transport_8c.html#aa4f10acf1d93bac01374b13dd66c55e7">s3o_resp_free</a></div><div class="ttdeci">static void s3o_resp_free(brix_s3_resp_t *resp)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00275">s3_transport.c:275</a></div></div>
+<div class="ttc" id="as3__transport_8c_html_af263184f7d91aa2da85a43e7827db72c"><div class="ttname"><a href="s3__transport_8c.html#af263184f7d91aa2da85a43e7827db72c">s3o_resp_header</a></div><div class="ttdeci">static int s3o_resp_header(const brix_s3_resp_t *resp, const char *name, char *out, size_t outcap)</div><div class="ttdef"><b>Definition</b> <a href="s3__transport_8c_source.html#l00219">s3_transport.c:219</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00811">811</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00289">289</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__backend__registry__source_8c_source.html#l00214">brix_vbr_build_http()</a>, <a class="el" href="vfs__backend__registry__source_8c_source.html#l00265">brix_vbr_build_s3()</a>, <a class="el" href="geo_8c_source.html#l00038">cvmfs_pt_thread()</a>, <a class="el" href="tier__build_8c_source.html#l00217">tier_build_http()</a>, and <a class="el" href="tier__build_8c_source.html#l00246">tier_build_s3()</a>.</p>
-
-</div>
-</div>
-<a id="a6ad11233bd38c8129f89e3325db8ccf1" name="a6ad11233bd38c8129f89e3325db8ccf1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6ad11233bd38c8129f89e3325db8ccf1">&#9670;&#160;</a></span>g_curl_key</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">pthread_key_t g_curl_key</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00341">341</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00361">s3o_curl_acquire()</a>, and <a class="el" href="s3__transport_8c_source.html#l00353">s3o_curl_key_init()</a>.</p>
-
-</div>
-</div>
-<a id="adbdc8069cb4f2f004e101bb28289134e" name="adbdc8069cb4f2f004e101bb28289134e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adbdc8069cb4f2f004e101bb28289134e">&#9670;&#160;</a></span>g_curl_key_once</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">pthread_once_t g_curl_key_once = PTHREAD_ONCE_INIT</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00342">342</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00361">s3o_curl_acquire()</a>.</p>
-
-</div>
-</div>
-<a id="af89bf03833078135b143d5756cf68f61" name="af89bf03833078135b143d5756cf68f61"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af89bf03833078135b143d5756cf68f61">&#9670;&#160;</a></span>g_origin_attempt_ms</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">long g_origin_attempt_ms</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00053">53</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00056">brix_s3_origin_timeouts_set()</a>, and <a class="el" href="s3__transport_8c_source.html#l00475">s3o_apply_timeouts()</a>.</p>
-
-</div>
-</div>
-<a id="a934228616043d7811a1aa7a0d9791974" name="a934228616043d7811a1aa7a0d9791974"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a934228616043d7811a1aa7a0d9791974">&#9670;&#160;</a></span>g_origin_connect_ms</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">long g_origin_connect_ms</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00050">50</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00056">brix_s3_origin_timeouts_set()</a>, and <a class="el" href="s3__transport_8c_source.html#l00475">s3o_apply_timeouts()</a>.</p>
-
-</div>
-</div>
-<a id="af32b3e422900d2c7efcb57db9f534d75" name="af32b3e422900d2c7efcb57db9f534d75"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af32b3e422900d2c7efcb57db9f534d75">&#9670;&#160;</a></span>g_origin_http_version</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int g_origin_http_version</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00085">85</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00088">brix_s3_origin_http_version_set()</a>, and <a class="el" href="s3__transport_8c_source.html#l00120">s3o_apply_http_version()</a>.</p>
-
-</div>
-</div>
-<a id="a734ef2f93f0fd30f2a14882ea9ffdbc9" name="a734ef2f93f0fd30f2a14882ea9ffdbc9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a734ef2f93f0fd30f2a14882ea9ffdbc9">&#9670;&#160;</a></span>g_origin_no_reuse</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int g_origin_no_reuse</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00072">72</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00075">brix_s3_origin_reuse_set()</a>, and <a class="el" href="s3__transport_8c_source.html#l00504">s3o_apply_reuse()</a>.</p>
-
-</div>
-</div>
-<a id="a3e17086e523fb191baf725924ae47977" name="a3e17086e523fb191baf725924ae47977"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3e17086e523fb191baf725924ae47977">&#9670;&#160;</a></span>g_origin_stall_bytes</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">long g_origin_stall_bytes</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00052">52</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00056">brix_s3_origin_timeouts_set()</a>, and <a class="el" href="s3__transport_8c_source.html#l00475">s3o_apply_timeouts()</a>.</p>
-
-</div>
-</div>
-<a id="ab8cfe73e0e39de9630a9f16a06fc98e3" name="ab8cfe73e0e39de9630a9f16a06fc98e3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab8cfe73e0e39de9630a9f16a06fc98e3">&#9670;&#160;</a></span>g_origin_stall_secs</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">long g_origin_stall_secs</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00051">51</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00056">brix_s3_origin_timeouts_set()</a>, and <a class="el" href="s3__transport_8c_source.html#l00475">s3o_apply_timeouts()</a>.</p>
-
-</div>
-</div>
-<a id="ab91b7f3d88b70ca5abee9e22d6f8fbf6" name="ab91b7f3d88b70ca5abee9e22d6f8fbf6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab91b7f3d88b70ca5abee9e22d6f8fbf6">&#9670;&#160;</a></span>g_origin_trace_info</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int g_origin_trace_info</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="s3__transport_8c_source.html#l00030">30</a> of file <a class="el" href="s3__transport_8c_source.html">s3_transport.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="s3__transport_8c_source.html#l00033">brix_origin_trace_set()</a>, and <a class="el" href="s3__transport_8c_source.html#l00301">s3o_trace()</a>.</p>
 
 </div>
 </div>

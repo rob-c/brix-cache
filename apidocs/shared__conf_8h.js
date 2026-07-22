@@ -1,6 +1,5 @@
 var shared__conf_8h =
 [
-    [ "ngx_http_brix_shared_conf_t", "structngx__http__brix__shared__conf__t.html", "structngx__http__brix__shared__conf__t" ],
     [ "BRIX_CREDENTIAL_DIR_DEFAULT", "shared__conf_8h.html#aa33fc3c0845eefa5b7cb850e154a3dcf", null ],
     [ "brix_conf_set_store_slot", "shared__conf_8h.html#ad415f9b97dbcfc773e7d2c05005652c7", null ],
     [ "brix_http_shared_access_log_fd", "shared__conf_8h.html#a46be0a3cc99e11aa00caaaaeac0d2553", null ],

@@ -5,7 +5,6 @@ var stat_8c =
     [ "brix_handle_stat", "stat_8c.html#a6d3e4438700b95b99d3b1e000424df5c", null ],
     [ "brix_make_vfs_body", "stat_8c.html#ab0634283e42929e9763bf79ade7d9472", null ],
     [ "brix_vfs_to_struct_stat", "stat_8c.html#ae1127d07dadf9accc517dfdbe74b1506", null ],
-    [ "stat_manager_route", "stat_8c.html#a8bef3fa91486b57d71d1727bb7ae8d9a", null ],
     [ "stat_query_handle", "stat_8c.html#a2cef9dc5e4693329a16b85a9bcd5d6a5", null ],
     [ "stat_query_path", "stat_8c.html#a512f91217d131cceb636dee5fa88f4dc", null ],
     [ "stat_residency_flags", "stat_8c.html#a2d5a02328cd51c273ab7cf1513b274f0", null ],

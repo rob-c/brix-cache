@@ -12,6 +12,8 @@ var dir_20685cc71c68f4040201d94d3a392639 =
     [ "open_manager.c", "open__manager_8c.html", "open__manager_8c" ],
     [ "open_overview.c", "open__overview_8c.html", "open__overview_8c" ],
     [ "open_request.c", "open__request_8c.html", "open__request_8c" ],
+    [ "open_request_opaque.c", "open__request__opaque_8c.html", "open__request__opaque_8c" ],
+    [ "open_request_resolve.c", "open__request__resolve_8c.html", "open__request__resolve_8c" ],
     [ "open_resolved_file.c", "open__resolved__file_8c.html", "open__resolved__file_8c" ],
     [ "open_resolved_file_dispatch.c", "open__resolved__file__dispatch_8c.html", "open__resolved__file__dispatch_8c" ],
     [ "open_resolved_file_finalize.c", "open__resolved__file__finalize_8c.html", "open__resolved__file__finalize_8c" ],
@@ -20,6 +22,7 @@ var dir_20685cc71c68f4040201d94d3a392639 =
     [ "open_resolved_file_staging.c", "open__resolved__file__staging_8c.html", "open__resolved__file__staging_8c" ],
     [ "open_tpc.c", "open__tpc_8c.html", "open__tpc_8c" ],
     [ "pgread.c", "pgread_8c.html", "pgread_8c" ],
+    [ "pgread_encode.c", "pgread__encode_8c.html", "pgread__encode_8c" ],
     [ "prefetch.c", "prefetch_8c.html", "prefetch_8c" ],
     [ "prefetch.h", "prefetch_8h.html", "prefetch_8h" ],
     [ "read.c", "read_8c.html", "read_8c" ],
@@ -29,8 +32,11 @@ var dir_20685cc71c68f4040201d94d3a392639 =
     [ "read_internal.h", "read__internal_8h.html", "read__internal_8h" ],
     [ "read_sendfile.c", "read__sendfile_8c.html", "read__sendfile_8c" ],
     [ "readv.c", "protocols_2root_2read_2readv_8c.html", "protocols_2root_2read_2readv_8c" ],
+    [ "readv_engine.c", "readv__engine_8c.html", "readv__engine_8c" ],
     [ "stat.c", "stat_8c.html", "stat_8c" ],
     [ "stat.h", "stat_8h.html", "stat_8h" ],
+    [ "stat_internal.h", "stat__internal_8h.html", "stat__internal_8h" ],
+    [ "stat_manager.c", "stat__manager_8c.html", "stat__manager_8c" ],
     [ "statx.c", "statx_8c.html", "statx_8c" ],
     [ "statx.h", "statx_8h.html", "statx_8h" ]
 ];

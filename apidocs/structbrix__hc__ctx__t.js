@@ -14,7 +14,7 @@ var structbrix__hc__ctx__t =
     [ "resp_body_pos", "structbrix__hc__ctx__t.html#a7b053a6a60d890b1e049368224e0dd75", null ],
     [ "resp_dlen", "structbrix__hc__ctx__t.html#a601f04c0f223e9a022d3f116bc64553c", null ],
     [ "resp_status", "structbrix__hc__ctx__t.html#a29e06f9364c538e48cf3d67f72fb42e3", null ],
-    [ "rhdr", "structbrix__hc__ctx__t.html#ad4cbb9fa3aa8c0cfe0a11698d8424d35", null ],
+    [ "rhdr", "structbrix__hc__ctx__t.html#a605b783d2c0b950ec75c8977ed495c05", null ],
     [ "rhdr_pos", "structbrix__hc__ctx__t.html#a2fb5cdf417fbc6026cee1d3d28783d55", null ],
     [ "tev", "structbrix__hc__ctx__t.html#a82d9c081bcfbab7e445ad18e766ad067", null ],
     [ "threshold", "structbrix__hc__ctx__t.html#ae478bf2f251d1218dca3541815445dbb", null ],

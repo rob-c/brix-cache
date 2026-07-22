@@ -1,6 +1,7 @@
 var dir_326f453899b7b66e2cbbecff85ed4637 =
 [
     [ "auth.c", "src_2auth_2gsi_2auth_8c.html", "src_2auth_2gsi_2auth_8c" ],
+    [ "auth_cert.c", "auth_2gsi_2auth__cert_8c.html", "auth_2gsi_2auth__cert_8c" ],
     [ "buffer.c", "buffer_8c.html", "buffer_8c" ],
     [ "cert_response.c", "cert__response_8c.html", "cert__response_8c" ],
     [ "config.c", "auth_2gsi_2config_8c.html", "auth_2gsi_2config_8c" ],

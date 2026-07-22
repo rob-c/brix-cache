@@ -35,7 +35,16 @@ var dir_e114a867844d94d67e7f0f1e66a2f6b6 =
     [ "sd_pblock_ident.c", "sd__pblock__ident_8c.html", "sd__pblock__ident_8c" ],
     [ "sd_pblock_internal.h", "sd__pblock__internal_8h.html", "sd__pblock__internal_8h" ],
     [ "sd_pblock_io.c", "sd__pblock__io_8c.html", "sd__pblock__io_8c" ],
+    [ "sd_pblock_lifecycle.c", "sd__pblock__lifecycle_8c.html", "sd__pblock__lifecycle_8c" ],
     [ "sd_pblock_namespace.c", "sd__pblock__namespace_8c.html", "sd__pblock__namespace_8c" ],
+    [ "sd_pblock_namespace_copy.c", "sd__pblock__namespace__copy_8c.html", "sd__pblock__namespace__copy_8c" ],
+    [ "sd_pblock_open.c", "sd__pblock__open_8c.html", "sd__pblock__open_8c" ],
     [ "sd_pblock_staged.c", "sd__pblock__staged_8c.html", "sd__pblock__staged_8c" ],
-    [ "sd_pblock_unittest.c", "sd__pblock__unittest_8c.html", "sd__pblock__unittest_8c" ]
+    [ "sd_pblock_unittest.c", "sd__pblock__unittest_8c.html", "sd__pblock__unittest_8c" ],
+    [ "sd_pblock_unittest_block.c", "sd__pblock__unittest__block_8c.html", "sd__pblock__unittest__block_8c" ],
+    [ "sd_pblock_unittest_core.c", "sd__pblock__unittest__core_8c.html", "sd__pblock__unittest__core_8c" ],
+    [ "sd_pblock_unittest_dedup.c", "sd__pblock__unittest__dedup_8c.html", "sd__pblock__unittest__dedup_8c" ],
+    [ "sd_pblock_unittest_ident.c", "sd__pblock__unittest__ident_8c.html", "sd__pblock__unittest__ident_8c" ],
+    [ "sd_pblock_unittest_internal.h", "sd__pblock__unittest__internal_8h.html", "sd__pblock__unittest__internal_8h" ],
+    [ "sd_pblock_unittest_lab.c", "sd__pblock__unittest__lab_8c.html", "sd__pblock__unittest__lab_8c" ]
 ];

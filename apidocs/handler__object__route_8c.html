@@ -103,6 +103,7 @@ $(document).ready(function(){initNavTree('handler__object__route_8c.html',''); i
 <code>#include &quot;<a class="el" href="http__headers_8h_source.html">core/http/http_headers.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__query_8h_source.html">core/http/http_query.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="deleg__capture_8h_source.html">protocols/shared/deleg_capture.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="backend__async__http_8h_source.html">protocols/shared/backend_async_http.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="sd_8h_source.html">fs/backend/sd.h</a>&quot;</code><br />
 <code>#include &lt;limits.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
@@ -131,6 +132,8 @@ Functions</h2></td></tr>
 <tr class="separator:a4c017cccae9b0f6d3a4e7d95a8395d94"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad7f7a706d93210564ad428a3fd36f133" id="r_ad7f7a706d93210564ad428a3fd36f133"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handler__object__route_8c.html#ad7f7a706d93210564ad428a3fd36f133">s3_dispatch_object_put</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, <a class="el" href="structngx__http__s3__req__ctx__t.html">ngx_http_s3_req_ctx_t</a> *s3ctx, ngx_uint_t method_slot, char *fs_path)</td></tr>
 <tr class="separator:ad7f7a706d93210564ad428a3fd36f133"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afcab9e3500b0ecb707ce709fdf649c34" id="r_afcab9e3500b0ecb707ce709fdf649c34"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handler__object__route_8c.html#afcab9e3500b0ecb707ce709fdf649c34">s3_delete_async_render</a> (ngx_http_request_t *r, void *ctx, int op_errno)</td></tr>
+<tr class="separator:afcab9e3500b0ecb707ce709fdf649c34"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aff4b545a7bb90230da244eeb69e51576" id="r_aff4b545a7bb90230da244eeb69e51576"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handler__object__route_8c.html#aff4b545a7bb90230da244eeb69e51576">s3_dispatch_object_delete</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, ngx_uint_t method_slot, char *fs_path)</td></tr>
 <tr class="separator:aff4b545a7bb90230da244eeb69e51576"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a32b5f60db69b767dd75c4be5ccc1992c" id="r_a32b5f60db69b767dd75c4be5ccc1992c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="handler__object__route_8c.html#a32b5f60db69b767dd75c4be5ccc1992c">s3_dispatch_object_post</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf, ngx_uint_t method_slot, const u_char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, char *fs_path)</td></tr>
@@ -191,11 +194,59 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00124">124</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00125">125</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00133">ngx_http_s3_req_ctx_t::exclusive_create</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="conditional_8c_source.html#l00197">s3_put_is_exclusive_create()</a>, and <a class="el" href="conditional_8c_source.html#l00144">s3_put_precondition()</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3_8h_source.html#l00133">ngx_http_s3_req_ctx_t::exclusive_create</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="conditional_8c_source.html#l00197">s3_put_is_exclusive_create()</a>, and <a class="el" href="conditional_8c_source.html#l00144">s3_put_precondition()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00146">s3_dispatch_object_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00147">s3_dispatch_object_put()</a>.</p>
+
+</div>
+</div>
+<a id="afcab9e3500b0ecb707ce709fdf649c34" name="afcab9e3500b0ecb707ce709fdf649c34"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afcab9e3500b0ecb707ce709fdf649c34">&#9670;&#160;</a></span>s3_delete_async_render()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void s3_delete_async_render </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>op_errno</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00188">188</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+
+<p class="reference">References <a class="el" href="object__meta_8c_source.html#l00235">s3_delete_respond()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00197">s3_dispatch_object_delete()</a>.</p>
 
 </div>
 </div>
@@ -245,11 +296,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00182">182</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00197">197</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="object__meta_8c_source.html#l00229">s3_handle_delete()</a>, <a class="el" href="tagging_8c_source.html#l00233">s3_handle_delete_object_tagging()</a>, <a class="el" href="multipart__abort_8c_source.html#l00017">s3_handle_multipart_abort()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, and <a class="el" href="handler__dispatch_8c_source.html#l00190">s3_reject_write_disabled()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf__types_8h_source.html#l00202">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="shared__conf__types_8h_source.html#l00155">ngx_http_brix_shared_conf_t::backend_async</a>, <a class="el" href="backend__async__http_8c_source.html#l00030">brix_baq_http_try()</a>, <a class="el" href="backend__async__queue_8h_source.html#l00046">BRIX_BAQ_UNLINK</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="handler__object__route_8c_source.html#l00188">s3_delete_async_render()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="object__meta_8c_source.html#l00258">s3_handle_delete()</a>, <a class="el" href="tagging_8c_source.html#l00233">s3_handle_delete_object_tagging()</a>, <a class="el" href="multipart__abort_8c_source.html#l00017">s3_handle_multipart_abort()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, and <a class="el" href="handler__dispatch_8c_source.html#l00190">s3_reject_write_disabled()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00227">s3_dispatch_object_method()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00258">s3_dispatch_object_method()</a>.</p>
 
 </div>
 </div>
@@ -305,11 +356,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00058">58</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00059">59</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
 <p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="object_8c_source.html#l00492">s3_handle_get()</a>, <a class="el" href="tagging_8c_source.html#l00501">s3_handle_get_acl()</a>, <a class="el" href="tagging_8c_source.html#l00158">s3_handle_get_object_tagging()</a>, <a class="el" href="multipart__complete__list__parts_8c_source.html#l00314">s3_handle_list_parts()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00227">s3_dispatch_object_method()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00258">s3_dispatch_object_method()</a>.</p>
 
 </div>
 </div>
@@ -363,9 +414,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00227">227</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00258">258</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00059">BRIX_S3_EVENT_METHOD_NOT_ALLOWED</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="handler__object__route_8c_source.html#l00182">s3_dispatch_object_delete()</a>, <a class="el" href="handler__object__route_8c_source.html#l00058">s3_dispatch_object_get()</a>, <a class="el" href="handler__object__route_8c_source.html#l00203">s3_dispatch_object_post()</a>, <a class="el" href="handler__object__route_8c_source.html#l00146">s3_dispatch_object_put()</a>, <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__s3_8h_source.html#l00059">BRIX_S3_EVENT_METHOD_NOT_ALLOWED</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="handler__object__route_8c_source.html#l00197">s3_dispatch_object_delete()</a>, <a class="el" href="handler__object__route_8c_source.html#l00059">s3_dispatch_object_get()</a>, <a class="el" href="handler__object__route_8c_source.html#l00234">s3_dispatch_object_post()</a>, <a class="el" href="handler__object__route_8c_source.html#l00147">s3_dispatch_object_put()</a>, <a class="el" href="object__meta_8c_source.html#l00027">s3_handle_head()</a>, and <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="handler__dispatch_8c_source.html#l00311">s3_dispatch_after_auth()</a>.</p>
 
@@ -423,11 +474,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00203">203</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00234">234</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="metrics__s3_8h_source.html#l00059">BRIX_S3_EVENT_METHOD_NOT_ALLOWED</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="multipart__initiate_8c_source.html#l00038">s3_handle_multipart_initiate()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00200">s3_read_body_metric()</a>, and <a class="el" href="handler__dispatch_8c_source.html#l00190">s3_reject_write_disabled()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf__types_8h_source.html#l00202">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="metrics__s3_8h_source.html#l00059">BRIX_S3_EVENT_METHOD_NOT_ALLOWED</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="multipart__initiate_8c_source.html#l00038">s3_handle_multipart_initiate()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="multipart__complete__body_8c_source.html#l00056">s3_multipart_complete_body_handler()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00200">s3_read_body_metric()</a>, and <a class="el" href="handler__dispatch_8c_source.html#l00190">s3_reject_write_disabled()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00227">s3_dispatch_object_method()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00258">s3_dispatch_object_method()</a>.</p>
 
 </div>
 </div>
@@ -483,11 +534,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00146">146</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00147">147</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="handler__object__route_8c_source.html#l00124">s3_apply_put_precondition()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00086">s3_handle_copy_object()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="handler__object__route_8c_source.html#l00080">s3_prepare_upload_part()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="tagging_8c_source.html#l00424">s3_put_object_tagging_body_handler()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00200">s3_read_body_metric()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00190">s3_reject_write_disabled()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf__types_8h_source.html#l00202">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="handler__object__route_8c_source.html#l00125">s3_apply_put_precondition()</a>, <a class="el" href="src_2protocols_2s3_2copy_8c_source.html#l00086">s3_handle_copy_object()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="handler__object__route_8c_source.html#l00081">s3_prepare_upload_part()</a>, <a class="el" href="s3_2put_8c_source.html#l00178">s3_put_body_handler()</a>, <a class="el" href="tagging_8c_source.html#l00424">s3_put_object_tagging_body_handler()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00200">s3_read_body_metric()</a>, <a class="el" href="handler__dispatch_8c_source.html#l00190">s3_reject_write_disabled()</a>, and <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00227">s3_dispatch_object_method()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00258">s3_dispatch_object_method()</a>.</p>
 
 </div>
 </div>
@@ -543,11 +594,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00080">80</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00081">81</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="multipart__helpers_8c_source.html#l00087">s3_get_mpu_dir()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>, and <a class="el" href="handler__object__route_8c_source.html#l00045">s3_upload_id_is_hex()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="s3_8h_source.html#l00120">ngx_http_s3_req_ctx_t::fs_path</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="multipart__helpers_8c_source.html#l00087">s3_get_mpu_dir()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00066">s3_get_query_param()</a>, <a class="el" href="multipart__complete__upload__part__copy_8c_source.html#l00296">s3_handle_upload_part_copy()</a>, <a class="el" href="multipart__helpers_8c_source.html#l00056">s3_has_query_flag()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00313">s3_metrics_return_method()</a>, <a class="el" href="s3_2util_8c_source.html#l00172">s3_send_xml_error()</a>, and <a class="el" href="handler__object__route_8c_source.html#l00046">s3_upload_id_is_hex()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00146">s3_dispatch_object_put()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00147">s3_dispatch_object_put()</a>.</p>
 
 </div>
 </div>
@@ -575,11 +626,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00045">45</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="handler__object__route_8c_source.html#l00046">46</a> of file <a class="el" href="handler__object__route_8c_source.html">handler_object_route.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00080">s3_prepare_upload_part()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="handler__object__route_8c_source.html#l00081">s3_prepare_upload_part()</a>.</p>
 
 </div>
 </div>

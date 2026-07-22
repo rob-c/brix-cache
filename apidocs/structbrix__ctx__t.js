@@ -1,5 +1,6 @@
 var structbrix__ctx__t =
 [
+    [ "baq_park", "structbrix__ctx__t.html#a1ac51eaee952c2f85c6245300eacda24", null ],
     [ "bearer_token", "structbrix__ctx__t.html#a4beac85b2bb3e48bb00e880466a9a47b", null ],
     [ "bound_sessid", "structbrix__ctx__t.html#ae388a69ab667794a299f1fa93bcc2d02", null ],
     [ "budget_charged", "structbrix__ctx__t.html#a0416cc9754f64b2261f56cd148e25311", null ],

@@ -109,7 +109,7 @@ $(document).ready(function(){initNavTree('sd__pblock__internal_8h.html',''); ini
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="sd__pblock__internal_8h__incl.svg" width="100%" height="503"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="sd__pblock__internal_8h__incl.svg" width="100%" height="558"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="sd__pblock__internal_8h_source.html">Go to the source code of this file.</a></p>
@@ -128,6 +128,14 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ad2d5ae5fc7b215e1d971d566a2e96641" id="r_ad2d5ae5fc7b215e1d971d566a2e96641"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#ad2d5ae5fc7b215e1d971d566a2e96641">sd_pblock_init</a> (brix_sd_instance_t *inst, void *driver_conf)</td></tr>
+<tr class="separator:ad2d5ae5fc7b215e1d971d566a2e96641"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a68c68aac6a3594977515f9b7cb18c2d1" id="r_a68c68aac6a3594977515f9b7cb18c2d1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a68c68aac6a3594977515f9b7cb18c2d1">sd_pblock_cleanup</a> (brix_sd_instance_t *inst)</td></tr>
+<tr class="separator:a68c68aac6a3594977515f9b7cb18c2d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a903d3f95bfc4d2bd4c89d01ae69e76cb" id="r_a903d3f95bfc4d2bd4c89d01ae69e76cb"><td class="memItemLeft" align="right" valign="top">brix_sd_obj_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a903d3f95bfc4d2bd4c89d01ae69e76cb">sd_pblock_open</a> (brix_sd_instance_t *inst, const char *path, int sd_flags, mode_t mode, int *err_out)</td></tr>
+<tr class="separator:a903d3f95bfc4d2bd4c89d01ae69e76cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abe4960e5734027b1d93af86626a13d88" id="r_abe4960e5734027b1d93af86626a13d88"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#abe4960e5734027b1d93af86626a13d88">sd_pblock_close</a> (brix_sd_obj_t *obj)</td></tr>
+<tr class="separator:abe4960e5734027b1d93af86626a13d88"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a30ded86d7d62c5ee4662a2d747358464" id="r_a30ded86d7d62c5ee4662a2d747358464"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a30ded86d7d62c5ee4662a2d747358464">sd_pblock_pread</a> (brix_sd_obj_t *obj, void *buf, size_t len, off_t off)</td></tr>
 <tr class="separator:a30ded86d7d62c5ee4662a2d747358464"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7f7298253a73e8d3da6640e16f73c321" id="r_a7f7298253a73e8d3da6640e16f73c321"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__pblock__internal_8h.html#a7f7298253a73e8d3da6640e16f73c321">sd_pblock_pwrite</a> (brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)</td></tr>
@@ -240,7 +248,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__pblock__internal_8h_source.html#l00163">163</a> of file <a class="el" href="sd__pblock__internal_8h_source.html">sd_pblock_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__pblock__internal_8h_source.html#l00176">176</a> of file <a class="el" href="sd__pblock__internal_8h_source.html">sd_pblock_internal.h</a>.</p>
 
 </div>
 </div>
@@ -433,6 +441,42 @@ Functions</h2></td></tr>
           <td></td>
           <td>)</td>
           <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a68c68aac6a3594977515f9b7cb18c2d1" name="a68c68aac6a3594977515f9b7cb18c2d1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a68c68aac6a3594977515f9b7cb18c2d1">&#9670;&#160;</a></span>sd_pblock_cleanup()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void sd_pblock_cleanup </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="abe4960e5734027b1d93af86626a13d88" name="abe4960e5734027b1d93af86626a13d88"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abe4960e5734027b1d93af86626a13d88">&#9670;&#160;</a></span>sd_pblock_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_close </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_obj_t *&#160;</td>
+          <td class="paramname"><em>obj</em></td><td>)</td>
+          <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -709,6 +753,34 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ad2d5ae5fc7b215e1d971d566a2e96641" name="ad2d5ae5fc7b215e1d971d566a2e96641"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad2d5ae5fc7b215e1d971d566a2e96641">&#9670;&#160;</a></span>sd_pblock_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_pblock_init </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>driver_conf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <a id="a666bcaa206928358486783aee3b0392b" name="a666bcaa206928358486783aee3b0392b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a666bcaa206928358486783aee3b0392b">&#9670;&#160;</a></span>sd_pblock_listxattr()</h2>
 
@@ -904,6 +976,52 @@ Functions</h2></td></tr>
           <td></td>
           <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
           <td class="paramname"><em>cred</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a903d3f95bfc4d2bd4c89d01ae69e76cb" name="a903d3f95bfc4d2bd4c89d01ae69e76cb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a903d3f95bfc4d2bd4c89d01ae69e76cb">&#9670;&#160;</a></span>sd_pblock_open()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">brix_sd_obj_t * sd_pblock_open </td>
+          <td>(</td>
+          <td class="paramtype">brix_sd_instance_t *&#160;</td>
+          <td class="paramname"><em>inst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sd_flags</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
         </tr>
         <tr>
           <td></td>

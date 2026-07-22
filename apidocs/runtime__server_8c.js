@@ -7,7 +7,6 @@ var runtime__server_8c =
     [ "brix_server_set_wt_credential", "runtime__server_8c.html#a9a9cfae3bf81f411bb683c5375cd2362", null ],
     [ "brix_server_setup_export", "runtime__server_8c.html#acabce998eba7a99a1cb2deb88b2a34be", null ],
     [ "brix_server_setup_logging", "runtime__server_8c.html#a51c0e9f3c9ed44d94ec09b4c490e70df", null ],
-    [ "brix_server_setup_tls", "runtime__server_8c.html#ab387f675b77f6e8f285f9101bd47423d", null ],
     [ "brix_server_storage_backend_is_remote", "runtime__server_8c.html#ad2427dc69c33868ccf8728c284770f57", null ],
     [ "brix_server_validate_cache", "runtime__server_8c.html#a1223f68db7ac9eca2d3278ffb6e820c5", null ],
     [ "brix_server_validate_cache_stage_backend", "runtime__server_8c.html#abe40c3f4229015dcf6f474031eb23c5c", null ],

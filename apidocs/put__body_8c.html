@@ -92,9 +92,7 @@ $(document).ready(function(){initNavTree('put__body_8c.html',''); initResizable(
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
-<a href="#enum-members">Enumerations</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">put_body.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
@@ -132,30 +130,8 @@ Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structwebdav__put__body__ctx__t.html">webdav_put_body_ctx_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
-Enumerations</h2></td></tr>
-<tr class="memitem:af2b2d21f34b87660173aea91c04cd237" id="r_af2b2d21f34b87660173aea91c04cd237"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a> { <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237a398b4453f91bbb48e0c5a9048c76ef64">WEBDAV_DIGEST_NONE</a> = 0
-, <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237aeca5752c473d28802d2b04317434a368">WEBDAV_DIGEST_FOUND</a>
-, <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237ad06e8b0c049c46ce6d7649e838fc5f3b">WEBDAV_DIGEST_BAD</a>
- }</td></tr>
-<tr class="separator:af2b2d21f34b87660173aea91c04cd237"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ac9570882de6befd6093da6168cd5e823" id="r_ac9570882de6befd6093da6168cd5e823"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#ac9570882de6befd6093da6168cd5e823">webdav_hex_norm_equal</a> (const char *a, const char *b)</td></tr>
-<tr class="separator:ac9570882de6befd6093da6168cd5e823"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acd07e26d079f2eddceea5ecb209ae60e" id="r_acd07e26d079f2eddceea5ecb209ae60e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#acd07e26d079f2eddceea5ecb209ae60e">webdav_digest_value_hex</a> (ngx_http_request_t *r, const u_char *val, size_t vlen, int is_b64, char *out, size_t outsz)</td></tr>
-<tr class="separator:acd07e26d079f2eddceea5ecb209ae60e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aba610e7c820964b99764ae853f488905" id="r_aba610e7c820964b99764ae853f488905"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#aba610e7c820964b99764ae853f488905">webdav_tok_trim</a> (u_char **<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, size_t *len)</td></tr>
-<tr class="separator:aba610e7c820964b99764ae853f488905"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a60eca8f5df0a69b9cd56c890ff387e05" id="r_a60eca8f5df0a69b9cd56c890ff387e05"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#a60eca8f5df0a69b9cd56c890ff387e05">webdav_digest_match</a> (ngx_http_request_t *r, u_char *<a class="el" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>, size_t tlen, u_char *v, size_t vlen, const char **<a class="el" href="put__body_8c.html#ae48d2453ec0367fc860bebcac33fcb23">alg</a>, char *exp_hex, size_t exp_sz, <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a> *out)</td></tr>
-<tr class="separator:a60eca8f5df0a69b9cd56c890ff387e05"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a746e21dc84eee0726b4827c6ca0f6e41" id="r_a746e21dc84eee0726b4827c6ca0f6e41"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#a746e21dc84eee0726b4827c6ca0f6e41">webdav_digest_scan</a> (ngx_http_request_t *r, ngx_table_elt_t *h, const char **<a class="el" href="put__body_8c.html#ae48d2453ec0367fc860bebcac33fcb23">alg</a>, char *exp_hex, size_t exp_sz, <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a> *out)</td></tr>
-<tr class="separator:a746e21dc84eee0726b4827c6ca0f6e41"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a99c7a9cce16c5a3de8986aaf2c66b50c" id="r_a99c7a9cce16c5a3de8986aaf2c66b50c"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#a99c7a9cce16c5a3de8986aaf2c66b50c">webdav_digest_select</a> (ngx_http_request_t *r, const char **<a class="el" href="put__body_8c.html#ae48d2453ec0367fc860bebcac33fcb23">alg</a>, char *exp_hex, size_t exp_sz)</td></tr>
-<tr class="separator:a99c7a9cce16c5a3de8986aaf2c66b50c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2347aedf321aafea0af2fc11ffc6fa81" id="r_a2347aedf321aafea0af2fc11ffc6fa81"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#a2347aedf321aafea0af2fc11ffc6fa81">webdav_put_verify_ingest_digest</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, brix_vfs_writer_t *writer, const char *path)</td></tr>
-<tr class="separator:a2347aedf321aafea0af2fc11ffc6fa81"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad02005cc7df71b9ead988d83dd04a9eb" id="r_ad02005cc7df71b9ead988d83dd04a9eb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#ad02005cc7df71b9ead988d83dd04a9eb">webdav_put_persist_checksums</a> (ngx_http_request_t *r, const char *path)</td></tr>
 <tr class="separator:ad02005cc7df71b9ead988d83dd04a9eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7056b13b2655b2507d4fecd399d43ec0" id="r_a7056b13b2655b2507d4fecd399d43ec0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#a7056b13b2655b2507d4fecd399d43ec0">webdav_put_aio_thread</a> (void *data, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
@@ -170,355 +146,8 @@ Functions</h2></td></tr>
 <tr class="separator:ace82e59d5ee64f75d7bc924b457eedb4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad339eddfa81a5ad18625b1b163584bfe" id="r_ad339eddfa81a5ad18625b1b163584bfe"><td class="memItemLeft" align="right" valign="top"><a class="el" href="put__internal_8h.html#ad1c7d4204b193539aefccd8d1c892a09">webdav_put_step_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#ad339eddfa81a5ad18625b1b163584bfe">webdav_put_stream_body</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const char *path, brix_vfs_writer_t *writer, int created)</td></tr>
 <tr class="separator:ad339eddfa81a5ad18625b1b163584bfe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:a851b86ee7371c316d597ec3a72c92d34" id="r_a851b86ee7371c316d597ec3a72c92d34"><td class="memItemLeft" >struct {&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4cf8b08963c30fb67a1f5be76df83ce9" id="r_a4cf8b08963c30fb67a1f5be76df83ce9"><td class="memItemLeft" >&#160;&#160;&#160;const char *&#160;&#160;&#160;<a class="el" href="put__body_8c.html#a245cabc3bef72dcd807971c43731f28d">tok</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:a4cf8b08963c30fb67a1f5be76df83ce9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7a31137a06f6add34df2334128ecf4a6" id="r_a7a31137a06f6add34df2334128ecf4a6"><td class="memItemLeft" >&#160;&#160;&#160;size_t&#160;&#160;&#160;<a class="el" href="put__body_8c.html#a63a12cff3139c9f5914e3a48a8aebb7d">toklen</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:a7a31137a06f6add34df2334128ecf4a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abf1fc948e05d346d356f87b2934609b9" id="r_abf1fc948e05d346d356f87b2934609b9"><td class="memItemLeft" >&#160;&#160;&#160;const char *&#160;&#160;&#160;<a class="el" href="put__body_8c.html#ae48d2453ec0367fc860bebcac33fcb23">alg</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:abf1fc948e05d346d356f87b2934609b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a92b8176f79b0d679d17cca616e804400" id="r_a92b8176f79b0d679d17cca616e804400"><td class="memItemLeft" >&#160;&#160;&#160;int&#160;&#160;&#160;<a class="el" href="put__body_8c.html#a26fb6aba7e3d85fd207e00d8f548d529">b64</a>&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:a92b8176f79b0d679d17cca616e804400"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a851b86ee7371c316d597ec3a72c92d34" id="r_a851b86ee7371c316d597ec3a72c92d34"><td class="memItemLeft" valign="top">}&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="put__body_8c.html#a851b86ee7371c316d597ec3a72c92d34">webdav_digest_tokens</a> []&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:a851b86ee7371c316d597ec3a72c92d34"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="af2b2d21f34b87660173aea91c04cd237" name="af2b2d21f34b87660173aea91c04cd237"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af2b2d21f34b87660173aea91c04cd237">&#9670;&#160;</a></span>webdav_digest_kind_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="af2b2d21f34b87660173aea91c04cd237a398b4453f91bbb48e0c5a9048c76ef64" name="af2b2d21f34b87660173aea91c04cd237a398b4453f91bbb48e0c5a9048c76ef64"></a>WEBDAV_DIGEST_NONE&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="af2b2d21f34b87660173aea91c04cd237aeca5752c473d28802d2b04317434a368" name="af2b2d21f34b87660173aea91c04cd237aeca5752c473d28802d2b04317434a368"></a>WEBDAV_DIGEST_FOUND&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="af2b2d21f34b87660173aea91c04cd237ad06e8b0c049c46ce6d7649e838fc5f3b" name="af2b2d21f34b87660173aea91c04cd237ad06e8b0c049c46ce6d7649e838fc5f3b"></a>WEBDAV_DIGEST_BAD&#160;</td><td class="fielddoc"></td></tr>
-</table>
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00042">42</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a60eca8f5df0a69b9cd56c890ff387e05" name="a60eca8f5df0a69b9cd56c890ff387e05"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a60eca8f5df0a69b9cd56c890ff387e05">&#9670;&#160;</a></span>webdav_digest_match()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int webdav_digest_match </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>tok</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>tlen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>v</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>vlen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char **&#160;</td>
-          <td class="paramname"><em>alg</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>exp_hex</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>exp_sz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00137">137</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">alg</a>, <a class="el" href="put__body_8c_source.html#l00052">b64</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, <a class="el" href="put__body_8c_source.html#l00052">toklen</a>, <a class="el" href="put__body_8c_source.html#l00045">WEBDAV_DIGEST_BAD</a>, <a class="el" href="put__body_8c_source.html#l00044">WEBDAV_DIGEST_FOUND</a>, <a class="el" href="put__body_8c.html#a851b86ee7371c316d597ec3a72c92d34">webdav_digest_tokens</a>, and <a class="el" href="put__body_8c_source.html#l00080">webdav_digest_value_hex()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00168">webdav_digest_scan()</a>.</p>
-
-</div>
-</div>
-<a id="a746e21dc84eee0726b4827c6ca0f6e41" name="a746e21dc84eee0726b4827c6ca0f6e41"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a746e21dc84eee0726b4827c6ca0f6e41">&#9670;&#160;</a></span>webdav_digest_scan()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int webdav_digest_scan </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_table_elt_t *&#160;</td>
-          <td class="paramname"><em>h</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char **&#160;</td>
-          <td class="paramname"><em>alg</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>exp_hex</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>exp_sz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00168">168</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">alg</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, <a class="el" href="put__body_8c_source.html#l00137">webdav_digest_match()</a>, and <a class="el" href="put__body_8c_source.html#l00123">webdav_tok_trim()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00199">webdav_digest_select()</a>.</p>
-
-</div>
-</div>
-<a id="a99c7a9cce16c5a3de8986aaf2c66b50c" name="a99c7a9cce16c5a3de8986aaf2c66b50c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a99c7a9cce16c5a3de8986aaf2c66b50c">&#9670;&#160;</a></span>webdav_digest_select()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="put__body_8c.html#af2b2d21f34b87660173aea91c04cd237">webdav_digest_kind_t</a> webdav_digest_select </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char **&#160;</td>
-          <td class="paramname"><em>alg</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>exp_hex</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>exp_sz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00199">199</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">alg</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="put__body_8c_source.html#l00045">WEBDAV_DIGEST_BAD</a>, <a class="el" href="put__body_8c_source.html#l00044">WEBDAV_DIGEST_FOUND</a>, <a class="el" href="put__body_8c_source.html#l00043">WEBDAV_DIGEST_NONE</a>, <a class="el" href="put__body_8c_source.html#l00168">webdav_digest_scan()</a>, and <a class="el" href="put__body_8c_source.html#l00080">webdav_digest_value_hex()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00249">webdav_put_verify_ingest_digest()</a>.</p>
-
-</div>
-</div>
-<a id="acd07e26d079f2eddceea5ecb209ae60e" name="acd07e26d079f2eddceea5ecb209ae60e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acd07e26d079f2eddceea5ecb209ae60e">&#9670;&#160;</a></span>webdav_digest_value_hex()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t webdav_digest_value_hex </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>val</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>vlen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>is_b64</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>outsz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00080">80</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="put__body_8c_source.html#l00033">webdav_put_aio_t::len</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00137">webdav_digest_match()</a>, and <a class="el" href="put__body_8c_source.html#l00199">webdav_digest_select()</a>.</p>
-
-</div>
-</div>
-<a id="ac9570882de6befd6093da6168cd5e823" name="ac9570882de6befd6093da6168cd5e823"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac9570882de6befd6093da6168cd5e823">&#9670;&#160;</a></span>webdav_hex_norm_equal()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int webdav_hex_norm_equal </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>a</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>b</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00065">65</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00249">webdav_put_verify_ingest_digest()</a>.</p>
-
-</div>
-</div>
 <a id="a4421c87fcd1f75c4524e7602d89532fb" name="a4421c87fcd1f75c4524e7602d89532fb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a4421c87fcd1f75c4524e7602d89532fb">&#9670;&#160;</a></span>webdav_put_aio_done()</h2>
 
@@ -543,11 +172,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00398">398</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00117">117</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="vfs__writer_8c_source.html#l00358">brix_vfs_writer_commit()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, <a class="el" href="put__body_8c_source.html#l00036">webdav_put_aio_t::created</a>, <a class="el" href="put__body_8c_source.html#l00035">webdav_put_aio_t::io_errno</a>, <a class="el" href="put__body_8c_source.html#l00033">webdav_put_aio_t::len</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="put__body_8c_source.html#l00034">webdav_put_aio_t::nwritten</a>, <a class="el" href="put__body_8c_source.html#l00037">webdav_put_aio_t::path</a>, <a class="el" href="put__body_8c_source.html#l00031">webdav_put_aio_t::r</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__body_8c_source.html#l00332">webdav_put_persist_checksums()</a>, <a class="el" href="put__body_8c_source.html#l00249">webdav_put_verify_ingest_digest()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>, and <a class="el" href="put__body_8c_source.html#l00032">webdav_put_aio_t::writer</a>.</p>
+<p class="reference">References <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="vfs__writer_8c_source.html#l00358">brix_vfs_writer_commit()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, <a class="el" href="put__body_8c_source.html#l00036">webdav_put_aio_t::created</a>, <a class="el" href="put__body_8c_source.html#l00035">webdav_put_aio_t::io_errno</a>, <a class="el" href="put__body_8c_source.html#l00033">webdav_put_aio_t::len</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="put__body_8c_source.html#l00034">webdav_put_aio_t::nwritten</a>, <a class="el" href="put__body_8c_source.html#l00037">webdav_put_aio_t::path</a>, <a class="el" href="put__body_8c_source.html#l00031">webdav_put_aio_t::r</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__body_8c_source.html#l00051">webdav_put_persist_checksums()</a>, <a class="el" href="put__body__digest_8c_source.html#l00241">webdav_put_verify_ingest_digest()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>, and <a class="el" href="put__body_8c_source.html#l00032">webdav_put_aio_t::writer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00512">webdav_put_try_threaded()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00231">webdav_put_try_threaded()</a>.</p>
 
 </div>
 </div>
@@ -585,11 +214,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00369">369</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00088">88</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
 
 <p class="reference">References <a class="el" href="http__body_8c_source.html#l00352">brix_http_body_write_to_writer()</a>, <a class="el" href="put__body_8c_source.html#l00035">webdav_put_aio_t::io_errno</a>, <a class="el" href="put__body_8c_source.html#l00033">webdav_put_aio_t::len</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="put__body_8c_source.html#l00034">webdav_put_aio_t::nwritten</a>, <a class="el" href="put__body_8c_source.html#l00031">webdav_put_aio_t::r</a>, and <a class="el" href="put__body_8c_source.html#l00032">webdav_put_aio_t::writer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00512">webdav_put_try_threaded()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00231">webdav_put_try_threaded()</a>.</p>
 
 </div>
 </div>
@@ -619,11 +248,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00332">332</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00051">51</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="integrity__info_8h_source.html#l00034">brix_integrity_opts_t::allow_xattr_cache</a>, <a class="el" href="integrity__info_8c_source.html#l00359">brix_integrity_get_fd()</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="vfs__walk_8c_source.html#l00305">brix_vfs_open_fd()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00132">ngx_http_brix_webdav_loc_conf_t::checksum_on_write</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="integrity__info_8h_source.html#l00036">brix_integrity_opts_t::require_regular_file</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="put__body_8c_source.html#l00052">tok</a>, and <a class="el" href="integrity__info_8h_source.html#l00035">brix_integrity_opts_t::update_xattr_cache</a>.</p>
+<p class="reference">References <a class="el" href="integrity__info_8h_source.html#l00034">brix_integrity_opts_t::allow_xattr_cache</a>, <a class="el" href="integrity__info_8c_source.html#l00359">brix_integrity_get_fd()</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="vfs__walk_8c_source.html#l00303">brix_vfs_open_fd()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00132">ngx_http_brix_webdav_loc_conf_t::checksum_on_write</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="integrity__info_8h_source.html#l00036">brix_integrity_opts_t::require_regular_file</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="put__body__digest_8c_source.html#l00044">tok</a>, and <a class="el" href="integrity__info_8h_source.html#l00035">brix_integrity_opts_t::update_xattr_cache</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00398">webdav_put_aio_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00100">webdav_put_commit()</a>, and <a class="el" href="put__setup_8c_source.html#l00094">webdav_put_ranged_resume()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00117">webdav_put_aio_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00100">webdav_put_commit()</a>, and <a class="el" href="put__setup_8c_source.html#l00094">webdav_put_ranged_resume()</a>.</p>
 
 </div>
 </div>
@@ -661,11 +290,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00581">581</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00300">300</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="put__body_8c_source.html#l00483">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8c_source.html#l00145">brix_codec_by_http_token()</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>, <a class="el" href="codec__core_8h_source.html#l00122">brix_codec_desc_t::id</a>, <a class="el" href="put__body_8c_source.html#l00484">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, and <a class="el" href="put__body_8c_source.html#l00482">webdav_put_body_ctx_t::writer</a>.</p>
+<p class="reference">References <a class="el" href="codec__core_8h_source.html#l00125">brix_codec_desc_t::available</a>, <a class="el" href="put__body_8c_source.html#l00202">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8c_source.html#l00145">brix_codec_by_http_token()</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>, <a class="el" href="codec__core_8h_source.html#l00122">brix_codec_desc_t::id</a>, <a class="el" href="put__body_8c_source.html#l00203">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, and <a class="el" href="put__body_8c_source.html#l00201">webdav_put_body_ctx_t::writer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00727">webdav_put_stream_body()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00446">webdav_put_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -713,9 +342,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00727">727</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00446">446</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00483">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="metrics__macros_8h_source.html#l00080">BRIX_WEBDAV_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00047">BRIX_WEBDAV_PUT_EMPTY</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="put__body_8c_source.html#l00485">webdav_put_body_ctx_t::created</a>, <a class="el" href="put__body_8c_source.html#l00481">webdav_put_body_ctx_t::path</a>, <a class="el" href="put__body_8c_source.html#l00484">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, <a class="el" href="put__body_8c_source.html#l00581">webdav_put_select_codec()</a>, <a class="el" href="put__setup_8c_source.html#l00395">webdav_put_start_dashboard()</a>, <a class="el" href="put__body_8c_source.html#l00512">webdav_put_try_threaded()</a>, <a class="el" href="put__body_8c_source.html#l00648">webdav_put_write_sync()</a>, and <a class="el" href="put__body_8c_source.html#l00482">webdav_put_body_ctx_t::writer</a>.</p>
+<p class="reference">References <a class="el" href="put__body_8c_source.html#l00202">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__body_8c_source.html#l00075">brix_http_body_summary()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="metrics__macros_8h_source.html#l00080">BRIX_WEBDAV_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00047">BRIX_WEBDAV_PUT_EMPTY</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="put__body_8c_source.html#l00204">webdav_put_body_ctx_t::created</a>, <a class="el" href="put__body_8c_source.html#l00200">webdav_put_body_ctx_t::path</a>, <a class="el" href="put__body_8c_source.html#l00203">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, <a class="el" href="put__body_8c_source.html#l00300">webdav_put_select_codec()</a>, <a class="el" href="put__setup_8c_source.html#l00395">webdav_put_start_dashboard()</a>, <a class="el" href="put__body_8c_source.html#l00231">webdav_put_try_threaded()</a>, <a class="el" href="put__body_8c_source.html#l00367">webdav_put_write_sync()</a>, and <a class="el" href="put__body_8c_source.html#l00201">webdav_put_body_ctx_t::writer</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="webdav_2put_8c_source.html#l00158">webdav_put_body_inner()</a>.</p>
 
@@ -761,57 +390,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00512">512</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00231">231</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00483">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00050">BRIX_WEBDAV_PUT_THREADED</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="put__body_8c_source.html#l00036">webdav_put_aio_t::created</a>, <a class="el" href="put__body_8c_source.html#l00485">webdav_put_body_ctx_t::created</a>, <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>, <a class="el" href="put__body_8c_source.html#l00033">webdav_put_aio_t::len</a>, <a class="el" href="put__body_8c_source.html#l00037">webdav_put_aio_t::path</a>, <a class="el" href="put__body_8c_source.html#l00481">webdav_put_body_ctx_t::path</a>, <a class="el" href="put__body_8c_source.html#l00484">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="put__body_8c_source.html#l00031">webdav_put_aio_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00266">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__body_8c_source.html#l00398">webdav_put_aio_done()</a>, <a class="el" href="put__body_8c_source.html#l00369">webdav_put_aio_thread()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, <a class="el" href="put__body_8c_source.html#l00032">webdav_put_aio_t::writer</a>, and <a class="el" href="put__body_8c_source.html#l00482">webdav_put_body_ctx_t::writer</a>.</p>
+<p class="reference">References <a class="el" href="put__body_8c_source.html#l00202">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00050">BRIX_WEBDAV_PUT_THREADED</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="put__body_8c_source.html#l00036">webdav_put_aio_t::created</a>, <a class="el" href="put__body_8c_source.html#l00204">webdav_put_body_ctx_t::created</a>, <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>, <a class="el" href="put__body_8c_source.html#l00033">webdav_put_aio_t::len</a>, <a class="el" href="put__body_8c_source.html#l00037">webdav_put_aio_t::path</a>, <a class="el" href="put__body_8c_source.html#l00200">webdav_put_body_ctx_t::path</a>, <a class="el" href="put__body_8c_source.html#l00203">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="put__body_8c_source.html#l00031">webdav_put_aio_t::r</a>, <a class="el" href="shared__conf__types_8h_source.html#l00267">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__body_8c_source.html#l00117">webdav_put_aio_done()</a>, <a class="el" href="put__body_8c_source.html#l00088">webdav_put_aio_thread()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, <a class="el" href="put__body_8c_source.html#l00032">webdav_put_aio_t::writer</a>, and <a class="el" href="put__body_8c_source.html#l00201">webdav_put_body_ctx_t::writer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00727">webdav_put_stream_body()</a>.</p>
-
-</div>
-</div>
-<a id="a2347aedf321aafea0af2fc11ffc6fa81" name="a2347aedf321aafea0af2fc11ffc6fa81"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2347aedf321aafea0af2fc11ffc6fa81">&#9670;&#160;</a></span>webdav_put_verify_ingest_digest()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t webdav_put_verify_ingest_digest </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_vfs_writer_t *&#160;</td>
-          <td class="paramname"><em>writer</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00249">249</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">alg</a>, <a class="el" href="http__headers_8c_source.html#l00043">brix_http_find_header()</a>, <a class="el" href="integrity__info_8c_source.html#l00359">brix_integrity_get_fd()</a>, <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="vfs__writer_8c_source.html#l00374">brix_vfs_writer_fd()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="integrity__info_8h_source.html#l00019">brix_integrity_info_t::hex</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00222">ngx_http_brix_webdav_loc_conf_t::require_digest</a>, <a class="el" href="integrity__info_8h_source.html#l00036">brix_integrity_opts_t::require_regular_file</a>, <a class="el" href="put__body_8c_source.html#l00045">WEBDAV_DIGEST_BAD</a>, <a class="el" href="put__body_8c_source.html#l00043">WEBDAV_DIGEST_NONE</a>, <a class="el" href="put__body_8c_source.html#l00199">webdav_digest_select()</a>, and <a class="el" href="put__body_8c_source.html#l00065">webdav_hex_norm_equal()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00398">webdav_put_aio_done()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00100">webdav_put_commit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00446">webdav_put_stream_body()</a>.</p>
 
 </div>
 </div>
@@ -849,150 +432,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00648">648</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00367">367</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
 
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00483">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__body_8h_source.html#l00029">BRIX_DECODE_MAX_OUTPUT</a>, <a class="el" href="http__body__decode_8c_source.html#l00314">brix_http_body_decode_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00352">brix_http_body_write_to_writer()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="vfs__writer_8c_source.html#l00374">brix_vfs_writer_fd()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00047">BRIX_WEBDAV_PUT_EMPTY</a>, <a class="el" href="metrics__webdav_8h_source.html#l00048">BRIX_WEBDAV_PUT_MEMORY</a>, <a class="el" href="metrics__webdav_8h_source.html#l00049">BRIX_WEBDAV_PUT_SPOOLED</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="http__body_8h_source.html#l00040">brix_http_body_summary_t::has_memory</a>, <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>, <a class="el" href="put__body_8c_source.html#l00481">webdav_put_body_ctx_t::path</a>, <a class="el" href="put__body_8c_source.html#l00484">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, and <a class="el" href="put__body_8c_source.html#l00482">webdav_put_body_ctx_t::writer</a>.</p>
+<p class="reference">References <a class="el" href="put__body_8c_source.html#l00202">webdav_put_body_ctx_t::body_summary</a>, <a class="el" href="codec__core_8h_source.html#l00034">BRIX_CODEC_IDENTITY</a>, <a class="el" href="http__tracking_8c_source.html#l00244">brix_dashboard_http_add()</a>, <a class="el" href="http__tracking_8c_source.html#l00270">brix_dashboard_http_error()</a>, <a class="el" href="http__tracking_8c_source.html#l00473">brix_dashboard_http_finish()</a>, <a class="el" href="http__body_8h_source.html#l00029">BRIX_DECODE_MAX_OUTPUT</a>, <a class="el" href="http__body__decode_8c_source.html#l00314">brix_http_body_decode_to_fd()</a>, <a class="el" href="http__body_8c_source.html#l00352">brix_http_body_write_to_writer()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="vfs__writer_8c_source.html#l00374">brix_vfs_writer_fd()</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="metrics__webdav_8h_source.html#l00047">BRIX_WEBDAV_PUT_EMPTY</a>, <a class="el" href="metrics__webdav_8h_source.html#l00048">BRIX_WEBDAV_PUT_MEMORY</a>, <a class="el" href="metrics__webdav_8h_source.html#l00049">BRIX_WEBDAV_PUT_SPOOLED</a>, <a class="el" href="http__body_8h_source.html#l00039">brix_http_body_summary_t::bytes</a>, <a class="el" href="http__body_8h_source.html#l00040">brix_http_body_summary_t::has_memory</a>, <a class="el" href="http__body_8h_source.html#l00041">brix_http_body_summary_t::has_spooled</a>, <a class="el" href="put__body_8c_source.html#l00200">webdav_put_body_ctx_t::path</a>, <a class="el" href="put__body_8c_source.html#l00203">webdav_put_body_ctx_t::put_codec</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, <a class="el" href="put__internal_8h_source.html#l00025">WEBDAV_PUT_CONTINUE</a>, <a class="el" href="put__internal_8h_source.html#l00026">WEBDAV_PUT_DONE</a>, and <a class="el" href="put__body_8c_source.html#l00201">webdav_put_body_ctx_t::writer</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00727">webdav_put_stream_body()</a>.</p>
-
-</div>
-</div>
-<a id="aba610e7c820964b99764ae853f488905" name="aba610e7c820964b99764ae853f488905"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aba610e7c820964b99764ae853f488905">&#9670;&#160;</a></span>webdav_tok_trim()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void webdav_tok_trim </td>
-          <td>(</td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>s</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00123">123</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00168">webdav_digest_scan()</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="ae48d2453ec0367fc860bebcac33fcb23" name="ae48d2453ec0367fc860bebcac33fcb23"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae48d2453ec0367fc860bebcac33fcb23">&#9670;&#160;</a></span>alg</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* alg</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00052">52</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fetch_8c_source.html#l00047">brix_cache_commit_staged()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00293">brix_checksum_digest_fd()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00339">brix_checksum_hex_fd()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00460">brix_checksum_hex_name_fd()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00402">brix_checksum_hex_obj()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00094">brix_checksum_is_u32()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00078">brix_checksum_is_u64()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00147">brix_checksum_lookup_alg()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00042">brix_checksum_name()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00187">brix_checksum_parse()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00254">brix_checksum_u32_fd()</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00279">brix_checksum_u64_fd()</a>, <a class="el" href="checksum__ckscan__dispatch_8c_source.html#l00035">brix_ckscan_algorithm_supported()</a>, <a class="el" href="checksum__ckscan__dispatch_8c_source.html#l00068">brix_ckscan_select_payload()</a>, <a class="el" href="fs_2cache_2directives_8c_source.html#l00323">brix_conf_set_cache_verify_digest()</a>, <a class="el" href="dcksm_8c_source.html#l00024">brix_dirlist_parse_algorithm()</a>, <a class="el" href="root_2query_2util_8c_source.html#l00142">brix_query_digest_fd()</a>, <a class="el" href="root_2query_2util_8c_source.html#l00151">brix_query_digest_file()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00061">brix_query_parse_algorithm()</a>, <a class="el" href="scan__record_8c_source.html#l00066">brix_scan_record_file()</a>, <a class="el" href="sd__xroot_8c_source.html#l00239">brix_sd_xroot_query_checksum()</a>, <a class="el" href="xmeta_8c_source.html#l00129">brix_xmeta_digest_add()</a>, <a class="el" href="xmeta_8c_source.html#l00199">brix_xmeta_digest_get()</a>, <a class="el" href="xmeta_8c_source.html#l00155">brix_xmeta_digest_set()</a>, <a class="el" href="xmeta__unittest_8c_source.html#l00116">check_digests()</a>, <a class="el" href="cks__verify_8c_source.html#l00484">ckv_verify_one()</a>, <a class="el" href="xrdcinfo_8c_source.html#l00305">emit_ext_digest()</a>, <a class="el" href="integrity__info__record_8c_source.html#l00066">integrity_record_read()</a>, <a class="el" href="source__stream_8c_source.html#l00413">tpc_verify_source_checksum()</a>, <a class="el" href="put__body_8c_source.html#l00137">webdav_digest_match()</a>, <a class="el" href="put__body_8c_source.html#l00168">webdav_digest_scan()</a>, <a class="el" href="put__body_8c_source.html#l00199">webdav_digest_select()</a>, <a class="el" href="put__body_8c_source.html#l00249">webdav_put_verify_ingest_digest()</a>, and <a class="el" href="xrdhttp__tpc_8c_source.html#l00142">xrdhttp_add_checksum_header()</a>.</p>
-
-</div>
-</div>
-<a id="a26fb6aba7e3d85fd207e00d8f548d529" name="a26fb6aba7e3d85fd207e00d8f548d529"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a26fb6aba7e3d85fd207e00d8f548d529">&#9670;&#160;</a></span>b64</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int b64</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00052">52</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__reply_8c_source.html#l00060">brix_ftp_ev_b64_decode()</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00121">brix_ftp_ev_send_adat()</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00077">ev_reply_wrapped()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00459">s3_echo_object_checksums()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00266">s3_put_checksum_apply()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00409">s3_put_trailer_checksum_apply()</a>, <a class="el" href="auth__basic_8c_source.html#l00049">wb_parse_basic_userpass()</a>, and <a class="el" href="put__body_8c_source.html#l00137">webdav_digest_match()</a>.</p>
-
-</div>
-</div>
-<a id="a245cabc3bef72dcd807971c43731f28d" name="a245cabc3bef72dcd807971c43731f28d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a245cabc3bef72dcd807971c43731f28d">&#9670;&#160;</a></span>tok</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">const char* tok</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00052">52</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="entity_8c_source.html#l00064">acc_csv_push_field()</a>, <a class="el" href="authfile_8c_source.html#l00201">acc_tokenize_and_dispatch()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00871">add_target()</a>, <a class="el" href="brixautofs_8c_source.html#l00176">af_is_mounted()</a>, <a class="el" href="brixautofs_8c_source.html#l00400">af_repos_nth_token()</a>, <a class="el" href="copy__recursive_8c_source.html#l00860">auth_hdr_bearer()</a>, <a class="el" href="diag__doctor_8c_source.html#l00210">auth_suite_token_probes()</a>, <a class="el" href="cred__bearer_8c_source.html#l00173">bearer_acquire()</a>, <a class="el" href="codec__core_8c_source.html#l00145">brix_codec_by_http_token()</a>, <a class="el" href="credential__block_8c_source.html#l00080">brix_credential_mode_token()</a>, <a class="el" href="ftp__ev__sec_8c_source.html#l00101">brix_ftp_ev_cmd_adat()</a>, <a class="el" href="ftp__ev__sec_8c_source.html#l00141">brix_ftp_ev_cmd_protected()</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00121">brix_ftp_ev_send_adat()</a>, <a class="el" href="identity__attrs_8c_source.html#l00111">brix_identity_derive_attrs()</a>, <a class="el" href="identity__attrs_8c_source.html#l00066">brix_identity_parse_fqan()</a>, <a class="el" href="identity__attrs_8c_source.html#l00039">brix_identity_trim_ws()</a>, <a class="el" href="meta__advisory_8c_source.html#l00068">brix_meta_advisory_decode()</a>, <a class="el" href="oauth2_8c_source.html#l00032">brix_oauth2_parse_access_token()</a>, <a class="el" href="client_2lib_2fs_2path_8c_source.html#l00019">brix_path_resolve()</a>, <a class="el" href="protocols_2root_2query_2config_8c_source.html#l00040">brix_qconfig_next_token()</a>, <a class="el" href="relay__guard_8c_source.html#l00203">brix_relay_guard_handshake()</a>, <a class="el" href="runtime__server__backend_8c_source.html#l00509">brix_tier_register_cache_peers()</a>, <a class="el" href="issuer__registry_8c_source.html#l00045">brix_token_strategy_parse()</a>, <a class="el" href="exchange_8c_source.html#l00204">brix_tx_parse_response()</a>, <a class="el" href="brixautofs_8c_source.html#l00061">brixautofs_repo_listed()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00108">build_canonical_headers()</a>, <a class="el" href="diag__check_8c_source.html#l00349">chk_probe_cred_validity()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00202">cms_srv_login_append_path()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00165">cms_srv_login_next_path()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00134">cms_srv_login_seg_path()</a>, <a class="el" href="server__recv__parse_8c_source.html#l00223">cms_srv_parse_login()</a>, <a class="el" href="geo__answer_8c_source.html#l00237">cvmfs_geo_parse()</a>, <a class="el" href="geo__answer_8c_source.html#l00206">cvmfs_geo_parse_entry()</a>, <a class="el" href="geo__answer_8c_source.html#l00119">cvmfs_geo_scan_host()</a>, <a class="el" href="geo__answer_8c_source.html#l00162">cvmfs_geo_scan_port()</a>, <a class="el" href="credinfo_8c_source.html#l00353">diagnose_token()</a>, <a class="el" href="dig_8c_source.html#l00058">dig_authorize()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00606">dir_of()</a>, <a class="el" href="xrdfs_8c_source.html#l00157">dispatch()</a>, <a class="el" href="xrdfs_8c_source.html#l00127">dispatch_builtin()</a>, <a class="el" href="diag__check_8c_source.html#l00805">dx_authz_expired()</a>, <a class="el" href="diag__check_8c_source.html#l00835">dx_authz_scope()</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00077">ev_reply_wrapped()</a>, <a class="el" href="conn_8c_source.html#l00677">explain_env_credentials()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00090">inner_coding_is_passthrough()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00068">inner_coding_next_token()</a>, <a class="el" href="xrdmapc_8c_source.html#l00152">map_holder()</a>, <a class="el" href="xrdmapc_8c_source.html#l00186">map_holders()</a>, <a class="el" href="xrdmapc_8c_source.html#l00035">parse_holder()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00636">parse_list()</a>, <a class="el" href="mapping_8c_source.html#l00053">pmark_csv_has()</a>, <a class="el" href="credrefresh_8c_source.html#l00143">refresh_bearer_token()</a>, <a class="el" href="issuer__registry_8c_source.html#l00085">reg_add_aud()</a>, <a class="el" href="issuer__registry_8c_source.html#l00068">reg_add_list()</a>, <a class="el" href="diag__doctor_8c_source.html#l01145">remote_doctor_report_creds()</a>, <a class="el" href="xrdfs_8c_source.html#l00204">repl()</a>, <a class="el" href="aws__chunked__encoding_8c_source.html#l00107">s3_aws_chunked_has_inner_coding()</a>, <a class="el" href="src_2protocols_2s3_2checksum_8c_source.html#l00176">s3_cksum_by_token()</a>, <a class="el" href="sec__token_8c_source.html#l00133">token_first()</a>, <a class="el" href="credrefresh_8c_source.html#l00104">token_needs_refresh()</a>, <a class="el" href="token_8c_source.html#l00072">tokenauth_slice_token()</a>, <a class="el" href="xrdfs_8c_source.html#l00187">tokenize()</a>, <a class="el" href="diag__topology_8c_source.html#l00176">topo_emit_json()</a>, <a class="el" href="put__body_8c_source.html#l00137">webdav_digest_match()</a>, <a class="el" href="put__body_8c_source.html#l00168">webdav_digest_scan()</a>, <a class="el" href="put__body_8c_source.html#l00332">webdav_put_persist_checksums()</a>, <a class="el" href="xrd__battery_8c_source.html#l00653">xrd_run_battery()</a>, <a class="el" href="xrd__mount_8c_source.html#l00131">xrd_whoami()</a>, and <a class="el" href="b64url_8c_source.html#l00020">xrdjwt_split()</a>.</p>
-
-</div>
-</div>
-<a id="a63a12cff3139c9f5914e3a48a8aebb7d" name="a63a12cff3139c9f5914e3a48a8aebb7d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a63a12cff3139c9f5914e3a48a8aebb7d">&#9670;&#160;</a></span>toklen</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">size_t toklen</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="put__body_8c_source.html#l00052">52</a> of file <a class="el" href="put__body_8c_source.html">put_body.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="builder_8c_source.html#l00074">srr_vos_array()</a>, and <a class="el" href="put__body_8c_source.html#l00137">webdav_digest_match()</a>.</p>
-
-</div>
-</div>
-<a id="a851b86ee7371c316d597ec3a72c92d34" name="a851b86ee7371c316d597ec3a72c92d34"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a851b86ee7371c316d597ec3a72c92d34">&#9670;&#160;</a></span>[struct]</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">const struct  { ... }  webdav_digest_tokens[]</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
-<div class="line">    { <span class="stringliteral">&quot;md5&quot;</span>,     3, <span class="stringliteral">&quot;md5&quot;</span>,     1 },</div>
-<div class="line">    { <span class="stringliteral">&quot;sha-256&quot;</span>, 7, <span class="stringliteral">&quot;sha256&quot;</span>,  1 },</div>
-<div class="line">    { <span class="stringliteral">&quot;sha256&quot;</span>,  6, <span class="stringliteral">&quot;sha256&quot;</span>,  1 },</div>
-<div class="line">    { <span class="stringliteral">&quot;adler32&quot;</span>, 7, <span class="stringliteral">&quot;adler32&quot;</span>, 0 },</div>
-<div class="line">    { <span class="stringliteral">&quot;crc32c&quot;</span>,  6, <span class="stringliteral">&quot;crc32c&quot;</span>,  0 },</div>
-<div class="line">    { <span class="stringliteral">&quot;crc32&quot;</span>,   5, <span class="stringliteral">&quot;crc32&quot;</span>,   0 },</div>
-<div class="line">}</div>
-</div><!-- fragment -->
-<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00137">webdav_digest_match()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="put__body_8c_source.html#l00446">webdav_put_stream_body()</a>.</p>
 
 </div>
 </div>

@@ -211,7 +211,7 @@
 <!-- Node12 -->
 <g id="Node000012" class="node">
 <title>Node12</title>
-<g id="a_Node000012"><a xlink:href="copy__internal_8h.html" target="_top" xlink:title=" ">
+<g id="a_Node000012"><a xlink:href="client_2lib_2xfer_2copy__internal_8h.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="1325,-96 1218,-96 1218,-66 1325,-66 1325,-96"/>
 <text text-anchor="start" x="1226" y="-84" font-family="Helvetica,sans-Serif" font-size="10.00">client/lib/xfer/copy</text>
 <text text-anchor="middle" x="1271.5" y="-73" font-family="Helvetica,sans-Serif" font-size="10.00">_internal.h</text>

@@ -1,7 +1,9 @@
 <map id="src/protocols/root/query/prepare_internal.h" name="src/protocols/root/query/prepare_internal.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="67,5,254,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="158,5,345,45"/>
 <area shape="rect" id="Node000002" href="$prepare_8c.html" title=" " alt="" coords="5,93,140,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="133,57,94,95,90,91,129,53"/>
-<area shape="rect" id="Node000003" href="$prepare__qprep_8c.html" title=" " alt="" coords="164,93,336,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="192,53,232,91,228,95,189,57"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="201,54,113,96,111,91,199,49"/>
+<area shape="rect" id="Node000003" href="$prepare__check_8c.html" title=" " alt="" coords="165,93,338,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="254,59,254,93,249,93,249,59"/>
+<area shape="rect" id="Node000004" href="$prepare__qprep_8c.html" title=" " alt="" coords="363,93,535,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="308,48,407,91,404,96,306,53"/>
 </map>

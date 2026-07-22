@@ -33,7 +33,7 @@ var searchData=
   ['ftp_5feb_5feod_30',['FTP_EB_EOD',['../ftp__eblock_8h.html#a4abbbda2100336716a2bf270c40a4103',1,'ftp_eblock.h']]],
   ['ftp_5feb_5feof_31',['FTP_EB_EOF',['../ftp__eblock_8h.html#aacabf8db82148102339eb4f798ea7615',1,'ftp_eblock.h']]],
   ['ftp_5feb_5fhdr_32',['FTP_EB_HDR',['../ftp__eblock_8h.html#abd3b15787e743c9ab65f4d88036e7409',1,'ftp_eblock.h']]],
-  ['ftp_5fev_5feb_5fmarker_5fbytes_33',['FTP_EV_EB_MARKER_BYTES',['../ftp__ev__mode__e_8c.html#a50b55ec5d00975aec17b059238b61438',1,'ftp_ev_mode_e.c']]],
-  ['ftp_5fev_5feb_5fmarker_5fmax_5franges_34',['FTP_EV_EB_MARKER_MAX_RANGES',['../ftp__ev__mode__e_8c.html#ac8ccc6c7ba6df52fa66ce933a3e2dd81',1,'ftp_ev_mode_e.c']]],
+  ['ftp_5fev_5feb_5fmarker_5fbytes_33',['FTP_EV_EB_MARKER_BYTES',['../ftp__ev__mode__e__internal_8h.html#a50b55ec5d00975aec17b059238b61438',1,'ftp_ev_mode_e_internal.h']]],
+  ['ftp_5fev_5feb_5fmarker_5fmax_5franges_34',['FTP_EV_EB_MARKER_MAX_RANGES',['../ftp__ev__mode__e__recv_8c.html#ac8ccc6c7ba6df52fa66ce933a3e2dd81',1,'ftp_ev_mode_e_recv.c']]],
   ['fuse_5fuse_5fversion_35',['fuse_use_version',['../brixautofs_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixautofs.c'],['../brixcvmfs_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixcvmfs.c'],['../brixcvmfs__internal_8h.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;brixcvmfs_internal.h'],['../xrootdfs__internal_8h.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;xrootdfs_internal.h'],['../xrootdfs__legacy_8c.html#a0919197af2e154da2c05727b6d87cbda',1,'FUSE_USE_VERSION:&#160;xrootdfs_legacy.c']]]
 ];

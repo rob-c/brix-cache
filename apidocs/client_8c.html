@@ -98,6 +98,7 @@ $(document).ready(function(){initNavTree('client_8c.html',''); initResizable(); 
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="impersonate_8h_source.html">impersonate.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="impersonate__proto_8h_source.html">impersonate_proto.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="client__internal_8h_source.html">client_internal.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
@@ -108,7 +109,7 @@ $(document).ready(function(){initNavTree('client_8c.html',''); initResizable(); 
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="client_8c__incl.svg" width="100%" height="448"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="client_8c__incl.svg" width="100%" height="503"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="client_8c_source.html">Go to the source code of this file.</a></p>
@@ -137,54 +138,10 @@ Functions</h2></td></tr>
 <tr class="separator:a1702011d6d1ea1e4674558f9c51bfe9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9612215a90aeedaeb2323a62cca385d5" id="r_a9612215a90aeedaeb2323a62cca385d5"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a9612215a90aeedaeb2323a62cca385d5">imp_recv_reply</a> (int fd, <a class="el" href="structimp__rep__t.html">imp_rep_t</a> *rep, int *out_fd, char *data_buf, size_t data_bufsz)</td></tr>
 <tr class="separator:a9612215a90aeedaeb2323a62cca385d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a47f56d6367c4e2e1abdd0d0974df813c" id="r_a47f56d6367c4e2e1abdd0d0974df813c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a47f56d6367c4e2e1abdd0d0974df813c">imp_build_req</a> (<a class="el" href="structimp__req__t.html">imp_req_t</a> *req, uint32_t <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path, const char *path2, uint32_t flags, uint32_t mode, int64_t length)</td></tr>
-<tr class="separator:a47f56d6367c4e2e1abdd0d0974df813c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a238af7a1642fa33d65667094d503b663" id="r_a238af7a1642fa33d65667094d503b663"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a238af7a1642fa33d65667094d503b663">imp_status_errno</a> (int status)</td></tr>
-<tr class="separator:a238af7a1642fa33d65667094d503b663"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a13939da6cbec73b2aa5dac5b66078f7c" id="r_a13939da6cbec73b2aa5dac5b66078f7c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a13939da6cbec73b2aa5dac5b66078f7c">imp_exchange</a> (const <a class="el" href="structimp__req__t.html">imp_req_t</a> *req, <a class="el" href="structimp__rep__t.html">imp_rep_t</a> *rep, int *out_fd, char *data_buf, size_t data_bufsz, const void *data_in, size_t data_in_len)</td></tr>
-<tr class="separator:a13939da6cbec73b2aa5dac5b66078f7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1ba40281e9178366e411b62fcc7f8ca7" id="r_a1ba40281e9178366e411b62fcc7f8ca7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a1ba40281e9178366e411b62fcc7f8ca7">imp_call_status</a> (uint32_t <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path, const char *path2, uint32_t mode, int64_t length)</td></tr>
-<tr class="separator:a1ba40281e9178366e411b62fcc7f8ca7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1583ff660afb481526fa3fc5b8bcc5a1" id="r_a1583ff660afb481526fa3fc5b8bcc5a1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a1583ff660afb481526fa3fc5b8bcc5a1">brix_imp_open</a> (const char *reqpath, int flags, mode_t mode)</td></tr>
-<tr class="separator:a1583ff660afb481526fa3fc5b8bcc5a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aeb255fcb6239a1d01dcf48727af7fe92" id="r_aeb255fcb6239a1d01dcf48727af7fe92"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#aeb255fcb6239a1d01dcf48727af7fe92">imp_unpack_stat</a> (struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, const <a class="el" href="structimp__stat__t.html">imp_stat_t</a> *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</td></tr>
-<tr class="separator:aeb255fcb6239a1d01dcf48727af7fe92"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6f7372fe0fbc53bdb8cf23a5b976e345" id="r_a6f7372fe0fbc53bdb8cf23a5b976e345"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a6f7372fe0fbc53bdb8cf23a5b976e345">brix_imp_stat</a> (const char *reqpath, struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *st, int nofollow)</td></tr>
-<tr class="separator:a6f7372fe0fbc53bdb8cf23a5b976e345"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af8744082ff59c425053c7a8a99bc90f2" id="r_af8744082ff59c425053c7a8a99bc90f2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#af8744082ff59c425053c7a8a99bc90f2">brix_imp_mkdir</a> (const char *reqpath, mode_t mode)</td></tr>
-<tr class="separator:af8744082ff59c425053c7a8a99bc90f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4bd19fa51eb50688c38abccc8f883c21" id="r_a4bd19fa51eb50688c38abccc8f883c21"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a4bd19fa51eb50688c38abccc8f883c21">brix_imp_unlink</a> (const char *reqpath, int is_dir)</td></tr>
-<tr class="separator:a4bd19fa51eb50688c38abccc8f883c21"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6d01bebf66cbe69546795801e8cf3954" id="r_a6d01bebf66cbe69546795801e8cf3954"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a6d01bebf66cbe69546795801e8cf3954">brix_imp_rmdir</a> (const char *reqpath)</td></tr>
-<tr class="separator:a6d01bebf66cbe69546795801e8cf3954"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a77f191acb1e7bd857ebcb1bc8657a159" id="r_a77f191acb1e7bd857ebcb1bc8657a159"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a77f191acb1e7bd857ebcb1bc8657a159">brix_imp_rename</a> (const char *src, const char *dst)</td></tr>
-<tr class="separator:a77f191acb1e7bd857ebcb1bc8657a159"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0de4fd320b6e428ad9578b281c6c9434" id="r_a0de4fd320b6e428ad9578b281c6c9434"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a0de4fd320b6e428ad9578b281c6c9434">brix_imp_rename_noreplace</a> (const char *src, const char *dst)</td></tr>
-<tr class="separator:a0de4fd320b6e428ad9578b281c6c9434"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1779217b801031d51faed3f63a1bfa27" id="r_a1779217b801031d51faed3f63a1bfa27"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a1779217b801031d51faed3f63a1bfa27">brix_imp_link</a> (const char *src, const char *dst)</td></tr>
-<tr class="separator:a1779217b801031d51faed3f63a1bfa27"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6c0e91ff4f492bfd2e67e1ca92edf1c6" id="r_a6c0e91ff4f492bfd2e67e1ca92edf1c6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a6c0e91ff4f492bfd2e67e1ca92edf1c6">brix_imp_truncate</a> (const char *reqpath, off_t length)</td></tr>
-<tr class="separator:a6c0e91ff4f492bfd2e67e1ca92edf1c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acdcb9b263abbb339b6067a6d91eb2fa0" id="r_acdcb9b263abbb339b6067a6d91eb2fa0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#acdcb9b263abbb339b6067a6d91eb2fa0">brix_imp_chmod</a> (const char *reqpath, mode_t mode)</td></tr>
-<tr class="separator:acdcb9b263abbb339b6067a6d91eb2fa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aabf0085df2a8227298051b34a98b98d9" id="r_aabf0085df2a8227298051b34a98b98d9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#aabf0085df2a8227298051b34a98b98d9">brix_imp_chown_gid</a> (const char *reqpath, gid_t gid)</td></tr>
-<tr class="separator:aabf0085df2a8227298051b34a98b98d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a80e437cb5888a71551c8d09d9e0e305f" id="r_a80e437cb5888a71551c8d09d9e0e305f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a80e437cb5888a71551c8d09d9e0e305f">brix_imp_setattr</a> (const char *reqpath, int set_times, const struct timespec times[2], int set_owner, uid_t uid, gid_t gid)</td></tr>
-<tr class="separator:a80e437cb5888a71551c8d09d9e0e305f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5cc21f9ac7e10396fa02d1eaed089768" id="r_a5cc21f9ac7e10396fa02d1eaed089768"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a5cc21f9ac7e10396fa02d1eaed089768">brix_imp_symlink</a> (const char *target, const char *linkpath)</td></tr>
-<tr class="separator:a5cc21f9ac7e10396fa02d1eaed089768"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9624d445b892e26b407634c025804c19" id="r_a9624d445b892e26b407634c025804c19"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a9624d445b892e26b407634c025804c19">brix_imp_readlink</a> (const char *reqpath, char *buf, size_t bufsz)</td></tr>
-<tr class="separator:a9624d445b892e26b407634c025804c19"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac7dff9705e06d9178585ad0824bd8fd2" id="r_ac7dff9705e06d9178585ad0824bd8fd2"><td class="memItemLeft" align="right" valign="top">static ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#ac7dff9705e06d9178585ad0824bd8fd2">imp_get_or_list</a> (uint32_t <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *reqpath, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t bufsz)</td></tr>
-<tr class="separator:ac7dff9705e06d9178585ad0824bd8fd2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab32c77e545357dbf909204de5a37c50e" id="r_ab32c77e545357dbf909204de5a37c50e"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#ab32c77e545357dbf909204de5a37c50e">brix_imp_getxattr</a> (const char *reqpath, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t bufsz)</td></tr>
-<tr class="separator:ab32c77e545357dbf909204de5a37c50e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a118bd29c84d4e4eb348e8a5cf8f5c5e1" id="r_a118bd29c84d4e4eb348e8a5cf8f5c5e1"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a118bd29c84d4e4eb348e8a5cf8f5c5e1">brix_imp_listxattr</a> (const char *reqpath, void *buf, size_t bufsz)</td></tr>
-<tr class="separator:a118bd29c84d4e4eb348e8a5cf8f5c5e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a36d7a77348aa38223b13146791ca88e3" id="r_a36d7a77348aa38223b13146791ca88e3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a36d7a77348aa38223b13146791ca88e3">brix_imp_setxattr</a> (const char *reqpath, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, const void *value, size_t len, int flags)</td></tr>
-<tr class="separator:a36d7a77348aa38223b13146791ca88e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adc53b9099a7ee3425204139017bcb4b0" id="r_adc53b9099a7ee3425204139017bcb4b0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#adc53b9099a7ee3425204139017bcb4b0">brix_imp_removexattr</a> (const char *reqpath, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
-<tr class="separator:adc53b9099a7ee3425204139017bcb4b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6f277bb29ae765bbf0fcd94265d74b24" id="r_a6f277bb29ae765bbf0fcd94265d74b24"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#a6f277bb29ae765bbf0fcd94265d74b24">imp_build_req</a> (<a class="el" href="structimp__req__t.html">imp_req_t</a> *req, uint32_t <a class="el" href="broker__ops_8c.html#a0a0aa265e5eadd9a8815f58be2fa559c">op</a>, const char *path, const char *path2, uint32_t flags, uint32_t mode, int64_t length)</td></tr>
+<tr class="separator:a6f277bb29ae765bbf0fcd94265d74b24"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa13d55d9321063bc968a099dce556990" id="r_aa13d55d9321063bc968a099dce556990"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="client_8c.html#aa13d55d9321063bc968a099dce556990">imp_exchange</a> (const <a class="el" href="structimp__req__t.html">imp_req_t</a> *req, <a class="el" href="structimp__rep__t.html">imp_rep_t</a> *rep, int *out_fd, char *data_buf, size_t data_bufsz, const void *data_in, size_t data_in_len)</td></tr>
+<tr class="separator:aa13d55d9321063bc968a099dce556990"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -202,72 +159,6 @@ Variables</h2></td></tr>
 <tr class="separator:a99d8645e98b7383ecad4413d9af24087"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="acdcb9b263abbb339b6067a6d91eb2fa0" name="acdcb9b263abbb339b6067a6d91eb2fa0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acdcb9b263abbb339b6067a6d91eb2fa0">&#9670;&#160;</a></span>brix_imp_chmod()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_chmod </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00477">477</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00054">IMP_OP_CHMOD</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00444">brix_chmod_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="aabf0085df2a8227298051b34a98b98d9" name="aabf0085df2a8227298051b34a98b98d9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aabf0085df2a8227298051b34a98b98d9">&#9670;&#160;</a></span>brix_imp_chown_gid()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_chown_gid </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">gid_t&#160;</td>
-          <td class="paramname"><em>gid</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00483">483</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00055">IMP_OP_CHOWN</a>.</p>
-
-</div>
-</div>
 <a id="a2b43d404c71b1da7f3959a0de8438dcb" name="a2b43d404c71b1da7f3959a0de8438dcb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a2b43d404c71b1da7f3959a0de8438dcb">&#9670;&#160;</a></span>brix_imp_clear_principal()</h2>
 
@@ -284,9 +175,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00165">165</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00166">166</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00039">imp_principal</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00040">imp_principal</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00373">brix_imp_request_end()</a>.</p>
 
@@ -308,11 +199,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00119">119</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00120">120</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00035">imp_enabled</a>, <a class="el" href="client_8c_source.html#l00040">imp_in_request</a>, and <a class="el" href="client_8c_source.html#l00039">imp_principal</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00036">imp_enabled</a>, <a class="el" href="client_8c_source.html#l00041">imp_in_request</a>, and <a class="el" href="client_8c_source.html#l00040">imp_principal</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00444">brix_chmod_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00597">brix_getxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00363">brix_link_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00629">brix_listxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00712">brix_lstat_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00661">brix_opendir_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00528">brix_readlink_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00613">brix_removexattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00327">brix_rename_beneath_excl()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00395">brix_setattr_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00580">brix_setxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00489">brix_symlink_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="resolve__confined__ops__meta_8c_source.html#l00086">brix_chmod_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="resolve__confined__ops__xattr_8c_source.html#l00060">brix_getxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00363">brix_link_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>, <a class="el" href="resolve__confined__ops__xattr_8c_source.html#l00092">brix_listxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00455">brix_lstat_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00404">brix_opendir_confined_canon()</a>, <a class="el" href="resolve__confined__ops__meta_8c_source.html#l00170">brix_readlink_confined_canon()</a>, <a class="el" href="resolve__confined__ops__xattr_8c_source.html#l00076">brix_removexattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, <a class="el" href="beneath_8c_source.html#l00327">brix_rename_beneath_excl()</a>, <a class="el" href="resolve__confined__ops__meta_8c_source.html#l00037">brix_setattr_confined_canon()</a>, <a class="el" href="resolve__confined__ops__xattr_8c_source.html#l00043">brix_setxattr_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="resolve__confined__ops__meta_8c_source.html#l00131">brix_symlink_confined_canon()</a>, <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
 
 </div>
 </div>
@@ -342,9 +233,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00093">93</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00094">94</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00084">imp_drop_conn()</a>, <a class="el" href="client_8c_source.html#l00035">imp_enabled</a>, <a class="el" href="client_8c_source.html#l00073">imp_ensure_conn()</a>, <a class="el" href="client_8c_source.html#l00038">imp_log</a>, <a class="el" href="client_8c_source.html#l00037">imp_sock_path</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00085">imp_drop_conn()</a>, <a class="el" href="client_8c_source.html#l00036">imp_enabled</a>, <a class="el" href="client_8c_source.html#l00074">imp_ensure_conn()</a>, <a class="el" href="client_8c_source.html#l00039">imp_log</a>, <a class="el" href="client_8c_source.html#l00038">imp_sock_path</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00322">brix_imp_init_worker()</a>.</p>
 
@@ -366,131 +257,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00136">136</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00137">137</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00035">imp_enabled</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00036">imp_enabled</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00328">webdav_copy_collection_post_task()</a>, and <a class="el" href="move_8c_source.html#l00237">webdav_move_collection_post_task()</a>.</p>
-
-</div>
-</div>
-<a id="ab32c77e545357dbf909204de5a37c50e" name="ab32c77e545357dbf909204de5a37c50e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab32c77e545357dbf909204de5a37c50e">&#9670;&#160;</a></span>brix_imp_getxattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ssize_t brix_imp_getxattr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bufsz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00596">596</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00565">imp_get_or_list()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00060">IMP_OP_GETXATTR</a>, and <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00597">brix_getxattr_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a1779217b801031d51faed3f63a1bfa27" name="a1779217b801031d51faed3f63a1bfa27"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1779217b801031d51faed3f63a1bfa27">&#9670;&#160;</a></span>brix_imp_link()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_link </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00465">465</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00053">IMP_OP_LINK</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00363">brix_link_beneath()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00341">brix_link_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a118bd29c84d4e4eb348e8a5cf8f5c5e1" name="a118bd29c84d4e4eb348e8a5cf8f5c5e1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a118bd29c84d4e4eb348e8a5cf8f5c5e1">&#9670;&#160;</a></span>brix_imp_listxattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ssize_t brix_imp_listxattr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bufsz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00603">603</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00565">imp_get_or_list()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00063">IMP_OP_LISTXATTR</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00629">brix_listxattr_confined_canon()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="copy__collection_8c_source.html#l00268">webdav_copy_collection_post_task()</a>, and <a class="el" href="move_8c_source.html#l00239">webdav_move_collection_post_task()</a>.</p>
 
 </div>
 </div>
@@ -510,249 +281,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00142">142</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00143">143</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00040">imp_in_request</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00041">imp_in_request</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00360">brix_imp_request_begin()</a>, and <a class="el" href="lifecycle__worker_8c_source.html#l00373">brix_imp_request_end()</a>.</p>
-
-</div>
-</div>
-<a id="af8744082ff59c425053c7a8a99bc90f2" name="af8744082ff59c425053c7a8a99bc90f2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af8744082ff59c425053c7a8a99bc90f2">&#9670;&#160;</a></span>brix_imp_mkdir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_mkdir </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00434">434</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00049">IMP_OP_MKDIR</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00274">brix_mkdir_beneath()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00217">brix_mkdir_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a1583ff660afb481526fa3fc5b8bcc5a1" name="a1583ff660afb481526fa3fc5b8bcc5a1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1583ff660afb481526fa3fc5b8bcc5a1">&#9670;&#160;</a></span>brix_imp_open()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_open </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>flags</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">mode_t&#160;</td>
-          <td class="paramname"><em>mode</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00366">366</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00046">IMP_OP_OPEN</a>, <a class="el" href="impersonate__proto_8h_source.html#l00081">IMP_REP_HAS_FD</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00077">IMP_STATUS_INTERNAL</a>, <a class="el" href="impersonate__proto_8h_source.html#l00130">imp_rep_t::rep_flags</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00047">brix_dirlist_access_ok()</a>, <a class="el" href="beneath_8c_source.html#l00141">brix_open_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00095">brix_open_confined_canon()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00661">brix_opendir_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a9624d445b892e26b407634c025804c19" name="a9624d445b892e26b407634c025804c19"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9624d445b892e26b407634c025804c19">&#9670;&#160;</a></span>brix_imp_readlink()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ssize_t brix_imp_readlink </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bufsz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00529">529</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00132">imp_rep_t::data_len</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00059">IMP_OP_READLINK</a>, <a class="el" href="impersonate__proto_8h_source.html#l00032">IMP_PATH_MAX</a>, <a class="el" href="impersonate__proto_8h_source.html#l00083">IMP_REP_HAS_DATA</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00077">IMP_STATUS_INTERNAL</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="impersonate__proto_8h_source.html#l00130">imp_rep_t::rep_flags</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00528">brix_readlink_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="adc53b9099a7ee3425204139017bcb4b0" name="adc53b9099a7ee3425204139017bcb4b0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adc53b9099a7ee3425204139017bcb4b0">&#9670;&#160;</a></span>brix_imp_removexattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_removexattr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00635">635</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00062">IMP_OP_REMOVEXATTR</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00613">brix_removexattr_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a77f191acb1e7bd857ebcb1bc8657a159" name="a77f191acb1e7bd857ebcb1bc8657a159"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a77f191acb1e7bd857ebcb1bc8657a159">&#9670;&#160;</a></span>brix_imp_rename()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_rename </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00453">453</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00052">IMP_OP_RENAME</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00293">brix_rename_beneath()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
-
-</div>
-</div>
-<a id="a0de4fd320b6e428ad9578b281c6c9434" name="a0de4fd320b6e428ad9578b281c6c9434"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0de4fd320b6e428ad9578b281c6c9434">&#9670;&#160;</a></span>brix_imp_rename_noreplace()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_rename_noreplace </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>dst</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00459">459</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00064">IMP_OP_RENAME_NOREPLACE</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00327">brix_rename_beneath_excl()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00258">rename_confined_canon_impl()</a>.</p>
-
-</div>
-</div>
-<a id="a6d01bebf66cbe69546795801e8cf3954" name="a6d01bebf66cbe69546795801e8cf3954"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6d01bebf66cbe69546795801e8cf3954">&#9670;&#160;</a></span>brix_imp_rmdir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_rmdir </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00447">447</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00051">IMP_OP_RMDIR</a>.</p>
 
 </div>
 </div>
@@ -772,275 +305,22 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00148">148</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00149">149</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00039">imp_principal</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00040">imp_principal</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="lifecycle__worker_8c_source.html#l00360">brix_imp_request_begin()</a>.</p>
 
 </div>
 </div>
-<a id="a80e437cb5888a71551c8d09d9e0e305f" name="a80e437cb5888a71551c8d09d9e0e305f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a80e437cb5888a71551c8d09d9e0e305f">&#9670;&#160;</a></span>brix_imp_setattr()</h2>
+<a id="a6f277bb29ae765bbf0fcd94265d74b24" name="a6f277bb29ae765bbf0fcd94265d74b24"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6f277bb29ae765bbf0fcd94265d74b24">&#9670;&#160;</a></span>imp_build_req()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int brix_imp_setattr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>set_times</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const struct timespec&#160;</td>
-          <td class="paramname"><em>times</em>[2], </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>set_owner</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uid_t&#160;</td>
-          <td class="paramname"><em>uid</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">gid_t&#160;</td>
-          <td class="paramname"><em>gid</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00490">490</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="impersonate__proto_8h_source.html#l00110">imp_req_t::atime_nsec</a>, <a class="el" href="impersonate__proto_8h_source.html#l00109">imp_req_t::atime_sec</a>, <a class="el" href="impersonate__proto_8h_source.html#l00115">imp_req_t::attr_flags</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00070">IMP_ATTR_OWNER</a>, <a class="el" href="impersonate__proto_8h_source.html#l00069">IMP_ATTR_TIMES</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00057">IMP_OP_SETATTR</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00112">imp_req_t::mtime_nsec</a>, <a class="el" href="impersonate__proto_8h_source.html#l00111">imp_req_t::mtime_sec</a>, <a class="el" href="impersonate__proto_8h_source.html#l00114">imp_req_t::set_gid</a>, <a class="el" href="impersonate__proto_8h_source.html#l00113">imp_req_t::set_uid</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00395">brix_setattr_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a36d7a77348aa38223b13146791ca88e3" name="a36d7a77348aa38223b13146791ca88e3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a36d7a77348aa38223b13146791ca88e3">&#9670;&#160;</a></span>brix_imp_setxattr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_setxattr </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>value</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>flags</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00609">609</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00061">IMP_OP_SETXATTR</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00041">IMP_XATTR_MAX</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="impersonate__proto_8h_source.html#l00116">imp_req_t::req_data_len</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00580">brix_setxattr_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a6f7372fe0fbc53bdb8cf23a5b976e345" name="a6f7372fe0fbc53bdb8cf23a5b976e345"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6f7372fe0fbc53bdb8cf23a5b976e345">&#9670;&#160;</a></span>brix_imp_stat()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_stat </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>nofollow</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00409">409</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00048">IMP_OP_LSTAT</a>, <a class="el" href="impersonate__proto_8h_source.html#l00047">IMP_OP_STAT</a>, <a class="el" href="impersonate__proto_8h_source.html#l00082">IMP_REP_HAS_STAT</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00077">IMP_STATUS_INTERNAL</a>, <a class="el" href="client_8c_source.html#l00391">imp_unpack_stat()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00130">imp_rep_t::rep_flags</a>, <a class="el" href="impersonate__proto_8h_source.html#l00131">imp_rep_t::st</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00172">brix_lstat_beneath()</a>, <a class="el" href="resolve__confined__ops_8c_source.html#l00712">brix_lstat_confined_canon()</a>, and <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>.</p>
-
-</div>
-</div>
-<a id="a5cc21f9ac7e10396fa02d1eaed089768" name="a5cc21f9ac7e10396fa02d1eaed089768"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5cc21f9ac7e10396fa02d1eaed089768">&#9670;&#160;</a></span>brix_imp_symlink()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_symlink </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>target</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>linkpath</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00522">522</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00058">IMP_OP_SYMLINK</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="resolve__confined__ops_8c_source.html#l00489">brix_symlink_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a6c0e91ff4f492bfd2e67e1ca92edf1c6" name="a6c0e91ff4f492bfd2e67e1ca92edf1c6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6c0e91ff4f492bfd2e67e1ca92edf1c6">&#9670;&#160;</a></span>brix_imp_truncate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_truncate </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">off_t&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00471">471</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00056">IMP_OP_TRUNCATE</a>.</p>
-
-</div>
-</div>
-<a id="a4bd19fa51eb50688c38abccc8f883c21" name="a4bd19fa51eb50688c38abccc8f883c21"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4bd19fa51eb50688c38abccc8f883c21">&#9670;&#160;</a></span>brix_imp_unlink()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_imp_unlink </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>is_dir</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00440">440</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00051">IMP_OP_RMDIR</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00050">IMP_OP_UNLINK</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="beneath_8c_source.html#l00255">brix_unlink_beneath()</a>, and <a class="el" href="resolve__confined__ops_8c_source.html#l00185">brix_unlink_confined_canon()</a>.</p>
-
-</div>
-</div>
-<a id="a47f56d6367c4e2e1abdd0d0974df813c" name="a47f56d6367c4e2e1abdd0d0974df813c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a47f56d6367c4e2e1abdd0d0974df813c">&#9670;&#160;</a></span>imp_build_req()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void imp_build_req </td>
+          <td class="memname">void imp_build_req </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structimp__req__t.html">imp_req_t</a> *&#160;</td>
           <td class="paramname"><em>req</em>, </td>
@@ -1087,78 +367,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00261">261</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00262">262</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="impersonate__proto_8h_source.html#l00032">IMP_PATH_MAX</a>, <a class="el" href="impersonate__proto_8h_source.html#l00031">IMP_PRINC_MAX</a>, <a class="el" href="client_8c_source.html#l00039">imp_principal</a>, <a class="el" href="impersonate__proto_8h_source.html#l00028">IMP_PROTO_VERSION</a>, <a class="el" href="impersonate__proto_8h_source.html#l00107">imp_req_t::length</a>, <a class="el" href="impersonate__proto_8h_source.html#l00106">imp_req_t::mode</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="impersonate__proto_8h_source.html#l00104">imp_req_t::op</a>, <a class="el" href="impersonate__proto_8h_source.html#l00105">imp_req_t::open_flags</a>, <a class="el" href="impersonate__proto_8h_source.html#l00120">imp_req_t::path</a>, <a class="el" href="impersonate__proto_8h_source.html#l00122">imp_req_t::path2</a>, <a class="el" href="impersonate__proto_8h_source.html#l00119">imp_req_t::principal</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00103">imp_req_t::version</a>.</p>
+<p class="reference">References <a class="el" href="impersonate__proto_8h_source.html#l00032">IMP_PATH_MAX</a>, <a class="el" href="impersonate__proto_8h_source.html#l00031">IMP_PRINC_MAX</a>, <a class="el" href="client_8c_source.html#l00040">imp_principal</a>, <a class="el" href="impersonate__proto_8h_source.html#l00028">IMP_PROTO_VERSION</a>, <a class="el" href="impersonate__proto_8h_source.html#l00107">imp_req_t::length</a>, <a class="el" href="impersonate__proto_8h_source.html#l00106">imp_req_t::mode</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="impersonate__proto_8h_source.html#l00104">imp_req_t::op</a>, <a class="el" href="impersonate__proto_8h_source.html#l00105">imp_req_t::open_flags</a>, <a class="el" href="impersonate__proto_8h_source.html#l00120">imp_req_t::path</a>, <a class="el" href="impersonate__proto_8h_source.html#l00122">imp_req_t::path2</a>, <a class="el" href="impersonate__proto_8h_source.html#l00119">imp_req_t::principal</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00103">imp_req_t::version</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00366">brix_imp_open()</a>, <a class="el" href="client_8c_source.html#l00529">brix_imp_readlink()</a>, <a class="el" href="client_8c_source.html#l00635">brix_imp_removexattr()</a>, <a class="el" href="client_8c_source.html#l00490">brix_imp_setattr()</a>, <a class="el" href="client_8c_source.html#l00609">brix_imp_setxattr()</a>, <a class="el" href="client_8c_source.html#l00409">brix_imp_stat()</a>, <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="client_8c_source.html#l00565">imp_get_or_list()</a>.</p>
-
-</div>
-</div>
-<a id="a1ba40281e9178366e411b62fcc7f8ca7" name="a1ba40281e9178366e411b62fcc7f8ca7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1ba40281e9178366e411b62fcc7f8ca7">&#9670;&#160;</a></span>imp_call_status()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int imp_call_status </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>op</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path2</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>mode</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int64_t&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00343">343</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00477">brix_imp_chmod()</a>, <a class="el" href="client_8c_source.html#l00483">brix_imp_chown_gid()</a>, <a class="el" href="client_8c_source.html#l00465">brix_imp_link()</a>, <a class="el" href="client_8c_source.html#l00434">brix_imp_mkdir()</a>, <a class="el" href="client_8c_source.html#l00453">brix_imp_rename()</a>, <a class="el" href="client_8c_source.html#l00459">brix_imp_rename_noreplace()</a>, <a class="el" href="client_8c_source.html#l00447">brix_imp_rmdir()</a>, <a class="el" href="client_8c_source.html#l00522">brix_imp_symlink()</a>, <a class="el" href="client_8c_source.html#l00471">brix_imp_truncate()</a>, and <a class="el" href="client_8c_source.html#l00440">brix_imp_unlink()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client__ops_8c_source.html#l00073">brix_imp_open()</a>, <a class="el" href="client__ops_8c_source.html#l00236">brix_imp_readlink()</a>, <a class="el" href="client__ops_8c_source.html#l00342">brix_imp_removexattr()</a>, <a class="el" href="client__ops_8c_source.html#l00197">brix_imp_setattr()</a>, <a class="el" href="client__ops_8c_source.html#l00316">brix_imp_setxattr()</a>, <a class="el" href="client__ops_8c_source.html#l00116">brix_imp_stat()</a>, <a class="el" href="client__ops_8c_source.html#l00050">imp_call_status()</a>, and <a class="el" href="client__ops_8c_source.html#l00272">imp_get_or_list()</a>.</p>
 
 </div>
 </div>
@@ -1186,11 +401,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00045">45</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00046">46</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00037">imp_sock_path</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="client_8c_source.html#l00038">imp_sock_path</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00073">imp_ensure_conn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00074">imp_ensure_conn()</a>.</p>
 
 </div>
 </div>
@@ -1218,11 +433,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00084">84</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00085">85</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="client_8c_source.html#l00036">imp_conn_fd</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="client_8c_source.html#l00037">imp_conn_fd</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00093">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00094">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00295">imp_exchange()</a>.</p>
 
 </div>
 </div>
@@ -1250,25 +465,22 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00073">73</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00074">74</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00036">imp_conn_fd</a>, and <a class="el" href="client_8c_source.html#l00045">imp_dial()</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00037">imp_conn_fd</a>, and <a class="el" href="client_8c_source.html#l00046">imp_dial()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00093">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00094">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00295">imp_exchange()</a>.</p>
 
 </div>
 </div>
-<a id="a13939da6cbec73b2aa5dac5b66078f7c" name="a13939da6cbec73b2aa5dac5b66078f7c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a13939da6cbec73b2aa5dac5b66078f7c">&#9670;&#160;</a></span>imp_exchange()</h2>
+<a id="aa13d55d9321063bc968a099dce556990" name="aa13d55d9321063bc968a099dce556990"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa13d55d9321063bc968a099dce556990">&#9670;&#160;</a></span>imp_exchange()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int imp_exchange </td>
+          <td class="memname">int imp_exchange </td>
           <td>(</td>
           <td class="paramtype">const <a class="el" href="structimp__req__t.html">imp_req_t</a> *&#160;</td>
           <td class="paramname"><em>req</em>, </td>
@@ -1315,78 +527,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00307">307</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00295">295</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00084">imp_drop_conn()</a>, <a class="el" href="client_8c_source.html#l00073">imp_ensure_conn()</a>, <a class="el" href="client_8c_source.html#l00038">imp_log</a>, <a class="el" href="client_8c_source.html#l00195">imp_recv_reply()</a>, <a class="el" href="client_8c_source.html#l00173">imp_write_full()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00104">imp_req_t::op</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00085">imp_drop_conn()</a>, <a class="el" href="client_8c_source.html#l00074">imp_ensure_conn()</a>, <a class="el" href="client_8c_source.html#l00039">imp_log</a>, <a class="el" href="client_8c_source.html#l00196">imp_recv_reply()</a>, <a class="el" href="client_8c_source.html#l00174">imp_write_full()</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00104">imp_req_t::op</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00366">brix_imp_open()</a>, <a class="el" href="client_8c_source.html#l00529">brix_imp_readlink()</a>, <a class="el" href="client_8c_source.html#l00635">brix_imp_removexattr()</a>, <a class="el" href="client_8c_source.html#l00490">brix_imp_setattr()</a>, <a class="el" href="client_8c_source.html#l00609">brix_imp_setxattr()</a>, <a class="el" href="client_8c_source.html#l00409">brix_imp_stat()</a>, <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="client_8c_source.html#l00565">imp_get_or_list()</a>.</p>
-
-</div>
-</div>
-<a id="ac7dff9705e06d9178585ad0824bd8fd2" name="ac7dff9705e06d9178585ad0824bd8fd2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac7dff9705e06d9178585ad0824bd8fd2">&#9670;&#160;</a></span>imp_get_or_list()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ssize_t imp_get_or_list </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>op</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>reqpath</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>bufsz</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00565">565</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00132">imp_rep_t::data_len</a>, <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>, <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00083">IMP_REP_HAS_DATA</a>, <a class="el" href="client_8c_source.html#l00282">imp_status_errno()</a>, <a class="el" href="impersonate__proto_8h_source.html#l00041">IMP_XATTR_MAX</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="broker__ops_8c_source.html#l00392">op</a>, <a class="el" href="impersonate__proto_8h_source.html#l00130">imp_rep_t::rep_flags</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00129">imp_rep_t::status</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00596">brix_imp_getxattr()</a>, and <a class="el" href="client_8c_source.html#l00603">brix_imp_listxattr()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client__ops_8c_source.html#l00073">brix_imp_open()</a>, <a class="el" href="client__ops_8c_source.html#l00236">brix_imp_readlink()</a>, <a class="el" href="client__ops_8c_source.html#l00342">brix_imp_removexattr()</a>, <a class="el" href="client__ops_8c_source.html#l00197">brix_imp_setattr()</a>, <a class="el" href="client__ops_8c_source.html#l00316">brix_imp_setxattr()</a>, <a class="el" href="client__ops_8c_source.html#l00116">brix_imp_stat()</a>, <a class="el" href="client__ops_8c_source.html#l00050">imp_call_status()</a>, and <a class="el" href="client__ops_8c_source.html#l00272">imp_get_or_list()</a>.</p>
 
 </div>
 </div>
@@ -1442,85 +589,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00195">195</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00196">196</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="impersonate__proto_8h_source.html#l00132">imp_rep_t::data_len</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>.</p>
-
-</div>
-</div>
-<a id="a238af7a1642fa33d65667094d503b663" name="a238af7a1642fa33d65667094d503b663"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a238af7a1642fa33d65667094d503b663">&#9670;&#160;</a></span>imp_status_errno()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int imp_status_errno </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>status</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00282">282</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="impersonate__proto_8h_source.html#l00076">IMP_STATUS_BADREQ</a>, <a class="el" href="impersonate__proto_8h_source.html#l00075">IMP_STATUS_DENY</a>, <a class="el" href="impersonate__proto_8h_source.html#l00077">IMP_STATUS_INTERNAL</a>, and <a class="el" href="impersonate__proto_8h_source.html#l00078">IMP_STATUS_PRIV_REFUSED</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00366">brix_imp_open()</a>, <a class="el" href="client_8c_source.html#l00529">brix_imp_readlink()</a>, <a class="el" href="client_8c_source.html#l00635">brix_imp_removexattr()</a>, <a class="el" href="client_8c_source.html#l00490">brix_imp_setattr()</a>, <a class="el" href="client_8c_source.html#l00609">brix_imp_setxattr()</a>, <a class="el" href="client_8c_source.html#l00409">brix_imp_stat()</a>, <a class="el" href="client_8c_source.html#l00343">imp_call_status()</a>, and <a class="el" href="client_8c_source.html#l00565">imp_get_or_list()</a>.</p>
-
-</div>
-</div>
-<a id="aeb255fcb6239a1d01dcf48727af7fe92" name="aeb255fcb6239a1d01dcf48727af7fe92"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aeb255fcb6239a1d01dcf48727af7fe92">&#9670;&#160;</a></span>imp_unpack_stat()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void imp_unpack_stat </td>
-          <td>(</td>
-          <td class="paramtype">struct <a class="el" href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structimp__stat__t.html">imp_stat_t</a> *&#160;</td>
-          <td class="paramname"><em>s</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00391">391</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00409">brix_imp_stat()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00295">imp_exchange()</a>.</p>
 
 </div>
 </div>
@@ -1564,9 +637,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00173">173</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00174">174</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00295">imp_exchange()</a>.</p>
 
 </div>
 </div>
@@ -1591,9 +664,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00036">36</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00037">37</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00084">imp_drop_conn()</a>, and <a class="el" href="client_8c_source.html#l00073">imp_ensure_conn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00085">imp_drop_conn()</a>, and <a class="el" href="client_8c_source.html#l00074">imp_ensure_conn()</a>.</p>
 
 </div>
 </div>
@@ -1617,9 +690,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00035">35</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00036">36</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00119">brix_imp_client_active()</a>, <a class="el" href="client_8c_source.html#l00093">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00136">brix_imp_enabled()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00120">brix_imp_client_active()</a>, <a class="el" href="client_8c_source.html#l00094">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00137">brix_imp_enabled()</a>.</p>
 
 </div>
 </div>
@@ -1643,9 +716,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00040">40</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00041">41</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00119">brix_imp_client_active()</a>, and <a class="el" href="client_8c_source.html#l00142">brix_imp_mark_in_request()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00120">brix_imp_client_active()</a>, and <a class="el" href="client_8c_source.html#l00143">brix_imp_mark_in_request()</a>.</p>
 
 </div>
 </div>
@@ -1669,9 +742,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00038">38</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00039">39</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00093">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00307">imp_exchange()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00094">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00295">imp_exchange()</a>.</p>
 
 </div>
 </div>
@@ -1695,9 +768,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00039">39</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00040">40</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00165">brix_imp_clear_principal()</a>, <a class="el" href="client_8c_source.html#l00119">brix_imp_client_active()</a>, <a class="el" href="client_8c_source.html#l00148">brix_imp_set_principal()</a>, and <a class="el" href="client_8c_source.html#l00261">imp_build_req()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00166">brix_imp_clear_principal()</a>, <a class="el" href="client_8c_source.html#l00120">brix_imp_client_active()</a>, <a class="el" href="client_8c_source.html#l00149">brix_imp_set_principal()</a>, and <a class="el" href="client_8c_source.html#l00262">imp_build_req()</a>.</p>
 
 </div>
 </div>
@@ -1721,9 +794,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00037">37</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="client_8c_source.html#l00038">38</a> of file <a class="el" href="client_8c_source.html">client.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00093">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00045">imp_dial()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="client_8c_source.html#l00094">brix_imp_client_connect()</a>, and <a class="el" href="client_8c_source.html#l00046">imp_dial()</a>.</p>
 
 </div>
 </div>

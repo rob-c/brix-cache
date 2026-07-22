@@ -1,19 +1,29 @@
 <map id="src/fs/backend/pblock/sd_pblock_catalog.h" name="src/fs/backend/pblock/sd_pblock_catalog.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="497,5,660,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="988,5,1151,45"/>
 <area shape="rect" id="Node000002" href="$pblock__ctl_8h.html" title=" " alt="" coords="5,93,168,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="484,44,180,96,169,98,168,93,180,91,483,39"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="974,33,624,52,403,70,180,96,168,98,168,92,180,91,402,65,624,47,974,27"/>
 <area shape="rect" id="Node000003" href="$pblock__fault_8h.html" title=" " alt="" coords="192,93,355,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="499,52,341,96,339,91,498,46"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="975,35,701,57,534,74,367,96,355,98,354,93,366,91,533,69,701,52,974,30"/>
 <area shape="rect" id="Node000004" href="$pblock__store_8h.html" title=" " alt="" coords="379,93,541,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="543,56,488,95,485,91,540,51"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="975,40,783,64,560,96,542,99,541,94,560,91,783,59,974,35"/>
 <area shape="rect" id="Node000007" href="$sd__pblock__internal_8h.html" title=" " alt="" coords="531,181,693,221"/>
-<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="588,59,611,181,606,182,582,60"/>
+<area shape="poly" id="edge9_Node000001_Node000007" title=" " alt="" coords="974,29,872,33,762,43,711,51,666,63,631,77,607,95,598,115,596,137,606,181,601,182,591,138,592,113,603,92,628,73,665,58,710,46,761,38,872,27,974,24"/>
 <area shape="rect" id="Node000008" href="$sd__pblock__catalog__internal_8h.html" title=" " alt="" coords="617,93,831,133"/>
-<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="624,50,694,91,691,96,621,55"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="981,51,800,96,799,91,980,46"/>
 <area shape="rect" id="Node000009" href="$sd__pblock__catalog__unittest_8c.html" title=" " alt="" coords="855,93,1070,133"/>
-<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="674,45,879,91,878,96,673,50"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1037,56,988,95,985,91,1033,52"/>
 <area shape="rect" id="Node000010" href="$sd__pblock__unittest_8c.html" title=" " alt="" coords="1095,93,1257,133"/>
-<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="674,35,863,58,1083,91,1095,93,1094,98,1082,96,862,64,673,40"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="1105,52,1154,91,1151,95,1102,56"/>
+<area shape="rect" id="Node000011" href="$sd__pblock__unittest__block_8c.html" title=" " alt="" coords="1282,93,1483,133"/>
+<area shape="poly" id="edge11_Node000001_Node000011" title=" " alt="" coords="1152,46,1315,91,1313,96,1151,52"/>
+<area shape="rect" id="Node000012" href="$sd__pblock__unittest__core_8c.html" title=" " alt="" coords="1508,93,1703,133"/>
+<area shape="poly" id="edge12_Node000001_Node000012" title=" " alt="" coords="1165,38,1496,91,1508,93,1507,98,1496,96,1164,44"/>
+<area shape="rect" id="Node000013" href="$sd__pblock__unittest__dedup_8c.html" title=" " alt="" coords="1727,93,1934,133"/>
+<area shape="poly" id="edge13_Node000001_Node000013" title=" " alt="" coords="1165,32,1414,56,1715,91,1727,92,1727,98,1714,96,1413,61,1164,37"/>
+<area shape="rect" id="Node000014" href="$sd__pblock__unittest__ident_8c.html" title=" " alt="" coords="1958,93,2157,133"/>
+<area shape="poly" id="edge14_Node000001_Node000014" title=" " alt="" coords="1165,28,1510,50,1728,67,1947,91,1958,92,1958,97,1946,96,1727,73,1510,55,1165,34"/>
+<area shape="rect" id="Node000015" href="$sd__pblock__unittest__lab_8c.html" title=" " alt="" coords="2181,93,2368,133"/>
+<area shape="poly" id="edge15_Node000001_Node000015" title=" " alt="" coords="1165,26,1600,44,1883,63,2170,91,2181,92,2181,97,2169,96,1883,68,1600,49,1164,31"/>
 <area shape="rect" id="Node000005" href="$pblock__snap_8h.html" title=" " alt="" coords="157,181,320,221"/>
 <area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="400,141,288,184,286,179,398,136"/>
 <area shape="rect" id="Node000006" href="$pblock__store_8c.html" title=" " alt="" coords="344,181,507,221"/>

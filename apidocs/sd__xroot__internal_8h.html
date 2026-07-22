@@ -92,6 +92,7 @@ $(document).ready(function(){initNavTree('sd__xroot__internal_8h.html',''); init
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">sd_xroot_internal.h File Reference</div></div>
 </div><!--header-->
@@ -123,6 +124,13 @@ Data Structures</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__xroot__origin__open__req__t.html">sd_xroot_origin_open_req_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:a501e5d0ef7bf6aa07b5bc8f6e61beca9" id="r_a501e5d0ef7bf6aa07b5bc8f6e61beca9"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#a501e5d0ef7bf6aa07b5bc8f6e61beca9">SD_XROOT_FATTR_PFX</a>&#160;&#160;&#160;&quot;user.U.&quot;</td></tr>
+<tr class="separator:a501e5d0ef7bf6aa07b5bc8f6e61beca9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8bc476a3b0ca5121d2972b3bb90042c2" id="r_a8bc476a3b0ca5121d2972b3bb90042c2"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#a8bc476a3b0ca5121d2972b3bb90042c2">SD_XROOT_FATTR_PFX_LEN</a>&#160;&#160;&#160;7</td></tr>
+<tr class="separator:a8bc476a3b0ca5121d2972b3bb90042c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -164,6 +172,12 @@ Functions</h2></td></tr>
 <tr class="separator:a6ee7a4b0831fb28d8c6a50df223799d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac1e23072c03127c75ad8ffb5c66a9a86" id="r_ac1e23072c03127c75ad8ffb5c66a9a86"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#ac1e23072c03127c75ad8ffb5c66a9a86">sd_xroot_staged_abort</a> (brix_sd_staged_t *handle)</td></tr>
 <tr class="separator:ac1e23072c03127c75ad8ffb5c66a9a86"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae9d0148a86220b25efb902957ae24afc" id="r_ae9d0148a86220b25efb902957ae24afc"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#ae9d0148a86220b25efb902957ae24afc">sd_xroot_fattr_unmap</a> (const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
+<tr class="separator:ae9d0148a86220b25efb902957ae24afc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac525648b46404d2a6ce1a8b97518e623" id="r_ac525648b46404d2a6ce1a8b97518e623"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#ac525648b46404d2a6ce1a8b97518e623">sd_xroot_session</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, <a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> **t_out, int *err_out)</td></tr>
+<tr class="separator:ac525648b46404d2a6ce1a8b97518e623"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a92efa956fcb38395557fb1d8dd6f93cc" id="r_a92efa956fcb38395557fb1d8dd6f93cc"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#a92efa956fcb38395557fb1d8dd6f93cc">sd_xroot_copy_body</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const u_char *src_fh, const u_char *dst_fh, off_t *bytes_out)</td></tr>
+<tr class="separator:a92efa956fcb38395557fb1d8dd6f93cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0adacd9d820fd38d34df14ad26d39b99" id="r_a0adacd9d820fd38d34df14ad26d39b99"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#a0adacd9d820fd38d34df14ad26d39b99">sd_xroot_getxattr</a> (brix_sd_instance_t *inst, const char *path, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, void *buf, size_t cap)</td></tr>
 <tr class="separator:a0adacd9d820fd38d34df14ad26d39b99"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7d8989f6a98ef3e580752b8e176d075a" id="r_a7d8989f6a98ef3e580752b8e176d075a"><td class="memItemLeft" align="right" valign="top">ssize_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#a7d8989f6a98ef3e580752b8e176d075a">sd_xroot_listxattr</a> (brix_sd_instance_t *inst, const char *path, void *buf, size_t cap)</td></tr>
@@ -203,6 +217,39 @@ Functions</h2></td></tr>
 <tr class="memitem:a7f5d6c3f903ebd5a2807a7aa73ee5be5" id="r_a7f5d6c3f903ebd5a2807a7aa73ee5be5"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__xroot__internal_8h.html#a7f5d6c3f903ebd5a2807a7aa73ee5be5">sd_xroot_closedir</a> (brix_sd_dir_t *d)</td></tr>
 <tr class="separator:a7f5d6c3f903ebd5a2807a7aa73ee5be5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a501e5d0ef7bf6aa07b5bc8f6e61beca9" name="a501e5d0ef7bf6aa07b5bc8f6e61beca9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a501e5d0ef7bf6aa07b5bc8f6e61beca9">&#9670;&#160;</a></span>SD_XROOT_FATTR_PFX</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define SD_XROOT_FATTR_PFX&#160;&#160;&#160;&quot;user.U.&quot;</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__xroot__internal_8h_source.html#l00121">121</a> of file <a class="el" href="sd__xroot__internal_8h_source.html">sd_xroot_internal.h</a>.</p>
+
+</div>
+</div>
+<a id="a8bc476a3b0ca5121d2972b3bb90042c2" name="a8bc476a3b0ca5121d2972b3bb90042c2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8bc476a3b0ca5121d2972b3bb90042c2">&#9670;&#160;</a></span>SD_XROOT_FATTR_PFX_LEN</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define SD_XROOT_FATTR_PFX_LEN&#160;&#160;&#160;7</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__xroot__internal_8h_source.html#l00122">122</a> of file <a class="el" href="sd__xroot__internal_8h_source.html">sd_xroot_internal.h</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a9330206f8d75f88c7f5f664a98ea2eac" name="a9330206f8d75f88c7f5f664a98ea2eac"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9330206f8d75f88c7f5f664a98ea2eac">&#9670;&#160;</a></span>sd_xroot_close()</h2>
@@ -242,9 +289,61 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00714">714</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00153">153</a> of file <a class="el" href="sd__xroot__ns__dir_8c_source.html">sd_xroot_ns_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__ns_8c_source.html#l00398">brix_cache_dirlist_free()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00606">sd_xroot_dir_state::dl</a>.</p>
+<p class="reference">References <a class="el" href="origin__ns_8c_source.html#l00398">brix_cache_dirlist_free()</a>, and <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00045">sd_xroot_dir_state::dl</a>.</p>
+
+</div>
+</div>
+<a id="a92efa956fcb38395557fb1d8dd6f93cc" name="a92efa956fcb38395557fb1d8dd6f93cc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a92efa956fcb38395557fb1d8dd6f93cc">&#9670;&#160;</a></span>sd_xroot_copy_body()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t sd_xroot_copy_body </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
+          <td class="paramname"><em>t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
+          <td class="paramname"><em>oc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>src_fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>dst_fh</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t *&#160;</td>
+          <td class="paramname"><em>bytes_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00297">297</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="origin__protocol_8c_source.html#l00324">brix_cache_origin_read_chunk()</a>, <a class="el" href="origin__write_8c_source.html#l00259">brix_cache_origin_sync()</a>, <a class="el" href="origin__write_8c_source.html#l00210">brix_cache_origin_truncate()</a>, <a class="el" href="origin__write_8c_source.html#l00153">brix_cache_origin_write_chunk()</a>, <a class="el" href="cache__internal_8h_source.html#l00395">brix_cache_sink_t::fd</a>, <a class="el" href="cache__internal_8h_source.html#l00412">brix_cache_read_range_t::got</a>, <a class="el" href="cache__internal_8h_source.html#l00397">brix_cache_sink_t::mem</a>, <a class="el" href="cache__internal_8h_source.html#l00398">brix_cache_sink_t::mem_cap</a>, <a class="el" href="cache__internal_8h_source.html#l00409">brix_cache_read_range_t::read_off</a>, and <a class="el" href="cache__internal_8h_source.html#l00411">brix_cache_read_range_t::want</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00350">sd_xroot_server_copy()</a>, and <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00089">sd_xroot_server_copy_cred()</a>.</p>
 
 </div>
 </div>
@@ -276,7 +375,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__xroot_8c_source.html#l00056">56</a> of file <a class="el" href="sd__xroot_8c_source.html">sd_xroot.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd_8h_source.html#l00207">brix_sd_cred_t::bearer</a>, <a class="el" href="cache__internal_8h_source.html#l00126">brix_cache_fill_t::cred_bearer</a>, <a class="el" href="cache__internal_8h_source.html#l00125">brix_cache_fill_t::cred_principal</a>, <a class="el" href="cache__internal_8h_source.html#l00124">brix_cache_fill_t::cred_x509_proxy</a>, <a class="el" href="sd_8h_source.html#l00216">brix_sd_cred_t::principal</a>, and <a class="el" href="sd_8h_source.html#l00206">brix_sd_cred_t::x509_proxy</a>.</p>
+<p class="reference">References <a class="el" href="sd_8h_source.html#l00207">brix_sd_cred_t::bearer</a>, <a class="el" href="cache__internal_8h_source.html#l00133">brix_cache_fill_t::cred_bearer</a>, <a class="el" href="cache__internal_8h_source.html#l00132">brix_cache_fill_t::cred_principal</a>, <a class="el" href="cache__internal_8h_source.html#l00131">brix_cache_fill_t::cred_x509_proxy</a>, <a class="el" href="sd_8h_source.html#l00216">brix_sd_cred_t::principal</a>, and <a class="el" href="sd_8h_source.html#l00206">brix_sd_cred_t::x509_proxy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__xroot_8c_source.html#l00150">sd_xroot_origin_open()</a>, and <a class="el" href="sd__xroot__staged_8c_source.html#l00108">sd_xroot_staged_open_common()</a>.</p>
 
@@ -300,9 +399,33 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__xroot_8c_source.html#l00032">32</a> of file <a class="el" href="sd__xroot_8c_source.html">sd_xroot.c</a>.</p>
 
-<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00162">kXR_isDirectory</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, and <a class="el" href="cache__internal_8h_source.html#l00107">brix_cache_fill_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="opcodes_8h_source.html#l00162">kXR_isDirectory</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, and <a class="el" href="cache__internal_8h_source.html#l00114">brix_cache_fill_t::xrd_error</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00615">sd_xroot_opendir_common()</a>, <a class="el" href="sd__xroot_8c_source.html#l00103">sd_xroot_origin_do_open()</a>, <a class="el" href="sd__xroot_8c_source.html#l00150">sd_xroot_origin_open()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00346">sd_xroot_server_copy()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00444">sd_xroot_server_copy_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>, and <a class="el" href="sd__xroot__staged_8c_source.html#l00071">sd_xroot_staged_connect_open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00054">sd_xroot_opendir_common()</a>, <a class="el" href="sd__xroot_8c_source.html#l00103">sd_xroot_origin_do_open()</a>, <a class="el" href="sd__xroot_8c_source.html#l00150">sd_xroot_origin_open()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00350">sd_xroot_server_copy()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00089">sd_xroot_server_copy_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>, and <a class="el" href="sd__xroot__staged_8c_source.html#l00071">sd_xroot_staged_connect_open()</a>.</p>
+
+</div>
+</div>
+<a id="ae9d0148a86220b25efb902957ae24afc" name="ae9d0148a86220b25efb902957ae24afc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae9d0148a86220b25efb902957ae24afc">&#9670;&#160;</a></span>sd_xroot_fattr_unmap()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const char * sd_xroot_fattr_unmap </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>name</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00037">37</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00121">SD_XROOT_FATTR_PFX</a>, and <a class="el" href="sd__xroot__internal_8h_source.html#l00122">SD_XROOT_FATTR_PFX_LEN</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00145">sd_xroot_getxattr()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00124">sd_xroot_getxattr_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00232">sd_xroot_removexattr()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00212">sd_xroot_removexattr_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00212">sd_xroot_setxattr()</a>, and <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00190">sd_xroot_setxattr_cred()</a>.</p>
 
 </div>
 </div>
@@ -434,9 +557,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00143">143</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00145">145</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00231">brix_cache_origin_getfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00038">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00231">brix_cache_origin_getfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00037">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -490,9 +613,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00479">479</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00124">124</a> of file <a class="el" href="sd__xroot__ns__cred_8c_source.html">sd_xroot_ns_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00231">brix_cache_origin_getfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00038">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00231">brix_cache_origin_getfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00037">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -534,9 +657,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00163">163</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00165">165</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00286">brix_cache_origin_listfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00034">SD_XROOT_FATTR_PFX</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00035">SD_XROOT_FATTR_PFX_LEN</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00286">brix_cache_origin_listfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00121">SD_XROOT_FATTR_PFX</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00122">SD_XROOT_FATTR_PFX_LEN</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -584,9 +707,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00500">500</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00145">145</a> of file <a class="el" href="sd__xroot__ns__cred_8c_source.html">sd_xroot_ns_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00286">brix_cache_origin_listfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00034">SD_XROOT_FATTR_PFX</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00035">SD_XROOT_FATTR_PFX_LEN</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00286">brix_cache_origin_listfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00121">SD_XROOT_FATTR_PFX</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00122">SD_XROOT_FATTR_PFX_LEN</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -752,9 +875,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00668">668</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00107">107</a> of file <a class="el" href="sd__xroot__ns__dir_8c_source.html">sd_xroot_ns_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__xroot__ns_8c_source.html#l00615">sd_xroot_opendir_common()</a>.</p>
+<p class="reference">References <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00054">sd_xroot_opendir_common()</a>.</p>
 
 </div>
 </div>
@@ -796,9 +919,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00676">676</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00115">115</a> of file <a class="el" href="sd__xroot__ns__dir_8c_source.html">sd_xroot_ns_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__xroot__ns_8c_source.html#l00615">sd_xroot_opendir_common()</a>.</p>
+<p class="reference">References <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00054">sd_xroot_opendir_common()</a>.</p>
 
 </div>
 </div>
@@ -820,7 +943,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__xroot_8c_source.html#l00150">150</a> of file <a class="el" href="sd__xroot_8c_source.html">sd_xroot.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__protocol_8c_source.html#l00355">brix_cache_origin_bootstrap()</a>, <a class="el" href="origin__connection_8c_source.html#l00243">brix_cache_origin_connect()</a>, <a class="el" href="cache__internal_8h_source.html#l00095">brix_cache_fill_t::clean_path</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00059">sd_xroot_origin_open_req_t::conf</a>, <a class="el" href="cache__internal_8h_source.html#l00091">brix_cache_fill_t::conf</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00060">sd_xroot_origin_open_req_t::cred</a>, <a class="el" href="cache__internal_8h_source.html#l00109">brix_cache_fill_t::err_msg</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00065">sd_xroot_origin_open_req_t::err_out</a>, <a class="el" href="cache__internal_8h_source.html#l00065">brix_cache_origin_conn_t::fd</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00047">sd_xroot_obj_state::oc</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00061">sd_xroot_origin_open_req_t::path</a>, <a class="el" href="sd__xroot_8c_source.html#l00056">sd_xroot_copy_cred_into_task()</a>, <a class="el" href="sd__xroot_8c_source.html#l00032">sd_xroot_errno()</a>, <a class="el" href="sd__xroot_8c_source.html#l00078">sd_xroot_obj_teardown()</a>, <a class="el" href="sd__xroot_8c_source.html#l00103">sd_xroot_origin_do_open()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00049">sd_xroot_obj_state::t</a>, and <a class="el" href="cache__internal_8h_source.html#l00107">brix_cache_fill_t::xrd_error</a>.</p>
+<p class="reference">References <a class="el" href="origin__protocol__bootstrap_8c_source.html#l00355">brix_cache_origin_bootstrap()</a>, <a class="el" href="origin__connection_8c_source.html#l00243">brix_cache_origin_connect()</a>, <a class="el" href="cache__internal_8h_source.html#l00102">brix_cache_fill_t::clean_path</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00059">sd_xroot_origin_open_req_t::conf</a>, <a class="el" href="cache__internal_8h_source.html#l00098">brix_cache_fill_t::conf</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00060">sd_xroot_origin_open_req_t::cred</a>, <a class="el" href="cache__internal_8h_source.html#l00116">brix_cache_fill_t::err_msg</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00065">sd_xroot_origin_open_req_t::err_out</a>, <a class="el" href="cache__internal_8h_source.html#l00072">brix_cache_origin_conn_t::fd</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00047">sd_xroot_obj_state::oc</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00061">sd_xroot_origin_open_req_t::path</a>, <a class="el" href="sd__xroot_8c_source.html#l00056">sd_xroot_copy_cred_into_task()</a>, <a class="el" href="sd__xroot_8c_source.html#l00032">sd_xroot_errno()</a>, <a class="el" href="sd__xroot_8c_source.html#l00078">sd_xroot_obj_teardown()</a>, <a class="el" href="sd__xroot_8c_source.html#l00103">sd_xroot_origin_do_open()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00049">sd_xroot_obj_state::t</a>, and <a class="el" href="cache__internal_8h_source.html#l00114">brix_cache_fill_t::xrd_error</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__xroot__io_8c_source.html#l00045">sd_xroot_open_common()</a>, <a class="el" href="sd__xroot__io_8c_source.html#l00228">sd_xroot_stat()</a>, and <a class="el" href="sd__xroot__io_8c_source.html#l00267">sd_xroot_stat_cred()</a>.</p>
 
@@ -866,7 +989,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="sd__xroot__io_8c_source.html#l00134">134</a> of file <a class="el" href="sd__xroot__io_8c_source.html">sd_xroot_io.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__protocol_8c_source.html#l00692">brix_cache_origin_read_chunk()</a>, <a class="el" href="cache__internal_8h_source.html#l00383">brix_cache_sink_t::fd</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00048">sd_xroot_obj_state::fhandle</a>, <a class="el" href="cache__internal_8h_source.html#l00400">brix_cache_read_range_t::got</a>, <a class="el" href="cache__internal_8h_source.html#l00385">brix_cache_sink_t::mem</a>, <a class="el" href="cache__internal_8h_source.html#l00386">brix_cache_sink_t::mem_cap</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00047">sd_xroot_obj_state::oc</a>, <a class="el" href="cache__internal_8h_source.html#l00397">brix_cache_read_range_t::read_off</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00049">sd_xroot_obj_state::t</a>, and <a class="el" href="cache__internal_8h_source.html#l00399">brix_cache_read_range_t::want</a>.</p>
+<p class="reference">References <a class="el" href="origin__protocol_8c_source.html#l00324">brix_cache_origin_read_chunk()</a>, <a class="el" href="cache__internal_8h_source.html#l00395">brix_cache_sink_t::fd</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00048">sd_xroot_obj_state::fhandle</a>, <a class="el" href="cache__internal_8h_source.html#l00412">brix_cache_read_range_t::got</a>, <a class="el" href="cache__internal_8h_source.html#l00397">brix_cache_sink_t::mem</a>, <a class="el" href="cache__internal_8h_source.html#l00398">brix_cache_sink_t::mem_cap</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00047">sd_xroot_obj_state::oc</a>, <a class="el" href="cache__internal_8h_source.html#l00409">brix_cache_read_range_t::read_off</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00049">sd_xroot_obj_state::t</a>, and <a class="el" href="cache__internal_8h_source.html#l00411">brix_cache_read_range_t::want</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__xroot__io_8c_source.html#l00297">sd_xroot_preadv()</a>.</p>
 
@@ -986,9 +1109,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00688">688</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00127">127</a> of file <a class="el" href="sd__xroot__ns__dir_8c_source.html">sd_xroot_ns_dir.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cache__internal_8h_source.html#l00338">brix_cache_dirlist_t::count</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00606">sd_xroot_dir_state::dl</a>, <a class="el" href="sd_8h_source.html#l00284">brix_sd_dirent_t::name</a>, <a class="el" href="cache__internal_8h_source.html#l00337">brix_cache_dirlist_t::names</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00607">sd_xroot_dir_state::next</a>.</p>
+<p class="reference">References <a class="el" href="cache__internal_8h_source.html#l00350">brix_cache_dirlist_t::count</a>, <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00045">sd_xroot_dir_state::dl</a>, <a class="el" href="sd_8h_source.html#l00284">brix_sd_dirent_t::name</a>, <a class="el" href="cache__internal_8h_source.html#l00349">brix_cache_dirlist_t::names</a>, and <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00046">sd_xroot_dir_state::next</a>.</p>
 
 </div>
 </div>
@@ -1024,9 +1147,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00230">230</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00232">232</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00378">brix_cache_origin_delfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00038">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00378">brix_cache_origin_delfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00037">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -1068,9 +1191,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00567">567</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00212">212</a> of file <a class="el" href="sd__xroot__ns__cred_8c_source.html">sd_xroot_ns_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00378">brix_cache_origin_delfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00038">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00378">brix_cache_origin_delfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00037">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -1112,9 +1235,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00248">248</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00250">250</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00086">brix_cache_origin_rename()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00086">brix_cache_origin_rename()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -1162,9 +1285,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00422">422</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00067">67</a> of file <a class="el" href="sd__xroot__ns__cred_8c_source.html">sd_xroot_ns_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00086">brix_cache_origin_rename()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00086">brix_cache_origin_rename()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -1206,9 +1329,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00346">346</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00350">350</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__write_8c_source.html#l00123">brix_cache_origin_close_file()</a>, <a class="el" href="origin__protocol_8c_source.html#l00408">brix_cache_origin_open()</a>, <a class="el" href="origin__write_8c_source.html#l00028">brix_cache_origin_open_write()</a>, <a class="el" href="cache__internal_8h_source.html#l00095">brix_cache_fill_t::clean_path</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00293">sd_xroot_copy_body()</a>, <a class="el" href="sd__xroot_8c_source.html#l00032">sd_xroot_errno()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__write_8c_source.html#l00123">brix_cache_origin_close_file()</a>, <a class="el" href="origin__protocol_8c_source.html#l00040">brix_cache_origin_open()</a>, <a class="el" href="origin__write_8c_source.html#l00028">brix_cache_origin_open_write()</a>, <a class="el" href="cache__internal_8h_source.html#l00102">brix_cache_fill_t::clean_path</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00297">sd_xroot_copy_body()</a>, <a class="el" href="sd__xroot_8c_source.html#l00032">sd_xroot_errno()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
 
 </div>
 </div>
@@ -1256,9 +1379,61 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00444">444</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00089">89</a> of file <a class="el" href="sd__xroot__ns__cred_8c_source.html">sd_xroot_ns_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__write_8c_source.html#l00123">brix_cache_origin_close_file()</a>, <a class="el" href="origin__protocol_8c_source.html#l00408">brix_cache_origin_open()</a>, <a class="el" href="origin__write_8c_source.html#l00028">brix_cache_origin_open_write()</a>, <a class="el" href="cache__internal_8h_source.html#l00095">brix_cache_fill_t::clean_path</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00293">sd_xroot_copy_body()</a>, <a class="el" href="sd__xroot_8c_source.html#l00032">sd_xroot_errno()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__write_8c_source.html#l00123">brix_cache_origin_close_file()</a>, <a class="el" href="origin__protocol_8c_source.html#l00040">brix_cache_origin_open()</a>, <a class="el" href="origin__write_8c_source.html#l00028">brix_cache_origin_open_write()</a>, <a class="el" href="cache__internal_8h_source.html#l00102">brix_cache_fill_t::clean_path</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00297">sd_xroot_copy_body()</a>, <a class="el" href="sd__xroot_8c_source.html#l00032">sd_xroot_errno()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>, and <a class="el" href="opcodes_8h_source.html#l00029">XRD_FHANDLE_LEN</a>.</p>
+
+</div>
+</div>
+<a id="ac525648b46404d2a6ce1a8b97518e623" name="ac525648b46404d2a6ce1a8b97518e623"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac525648b46404d2a6ce1a8b97518e623">&#9670;&#160;</a></span>sd_xroot_session()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sd_xroot_session </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *&#160;</td>
+          <td class="paramname"><em>cred</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
+          <td class="paramname"><em>oc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> **&#160;</td>
+          <td class="paramname"><em>t_out</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>err_out</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00110">110</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+
+<p class="reference">References <a class="el" href="origin__protocol__bootstrap_8c_source.html#l00355">brix_cache_origin_bootstrap()</a>, <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__connection_8c_source.html#l00243">brix_cache_origin_connect()</a>, <a class="el" href="cache__internal_8h_source.html#l00098">brix_cache_fill_t::conf</a>, <a class="el" href="cache__internal_8h_source.html#l00072">brix_cache_origin_conn_t::fd</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00072">sd_xroot_cred_copy()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00056">sd_xroot_cred_must_deny()</a>, and <a class="el" href="sd__xroot_8c_source.html#l00032">sd_xroot_errno()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sd__xroot__ns_8c_source.html#l00145">sd_xroot_getxattr()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00124">sd_xroot_getxattr_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00165">sd_xroot_listxattr()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00145">sd_xroot_listxattr_cred()</a>, <a class="el" href="sd__xroot__ns__dir_8c_source.html#l00054">sd_xroot_opendir_common()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00232">sd_xroot_removexattr()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00212">sd_xroot_removexattr_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00250">sd_xroot_rename()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00067">sd_xroot_rename_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00350">sd_xroot_server_copy()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00089">sd_xroot_server_copy_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00212">sd_xroot_setxattr()</a>, <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00190">sd_xroot_setxattr_cred()</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00275">sd_xroot_unlink()</a>, and <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00045">sd_xroot_unlink_cred()</a>.</p>
 
 </div>
 </div>
@@ -1312,9 +1487,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00210">210</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00212">212</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00369">brix_cache_origin_setfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00038">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00369">brix_cache_origin_setfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00037">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -1374,9 +1549,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00545">545</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00190">190</a> of file <a class="el" href="sd__xroot__ns__cred_8c_source.html">sd_xroot_ns_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00369">brix_cache_origin_setfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00038">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00369">brix_cache_origin_setfattr()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="sd__xroot__ns_8c_source.html#l00037">sd_xroot_fattr_unmap()</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -1686,9 +1861,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00273">273</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00275">275</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00135">brix_cache_origin_rm()</a>, <a class="el" href="origin__ns_8c_source.html#l00171">brix_cache_origin_rmdir()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00135">brix_cache_origin_rm()</a>, <a class="el" href="origin__ns_8c_source.html#l00171">brix_cache_origin_rmdir()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>
@@ -1730,9 +1905,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__xroot__ns_8c_source.html#l00400">400</a> of file <a class="el" href="sd__xroot__ns_8c_source.html">sd_xroot_ns.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__xroot__ns__cred_8c_source.html#l00045">45</a> of file <a class="el" href="sd__xroot__ns__cred_8c_source.html">sd_xroot_ns_cred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00135">brix_cache_origin_rm()</a>, <a class="el" href="origin__ns_8c_source.html#l00171">brix_cache_origin_rmdir()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00108">sd_xroot_session()</a>.</p>
+<p class="reference">References <a class="el" href="origin__connection_8c_source.html#l00023">brix_cache_origin_close()</a>, <a class="el" href="origin__ns_8c_source.html#l00135">brix_cache_origin_rm()</a>, <a class="el" href="origin__ns_8c_source.html#l00171">brix_cache_origin_rmdir()</a>, <a class="el" href="sd__xroot__internal_8h_source.html#l00023">sd_xroot_inst_state::conf</a>, and <a class="el" href="sd__xroot__ns_8c_source.html#l00110">sd_xroot_session()</a>.</p>
 
 </div>
 </div>

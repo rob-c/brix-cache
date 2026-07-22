@@ -144,7 +144,7 @@ $(document).ready(function(){initNavTree('sd__registry_8c_source.html',''); init
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="comment">/* Census accessors: iterate every REGISTERED filesystem (tooling/health). */</span></div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>ngx_uint_t</div>
 <div class="foldopen" id="foldopen00044" data-start="{" data-end="}">
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno"><a class="line" href="sd_8h.html#a19073b9b7197e97b4492761b0f22fc03">   44</a></span><a class="code hl_function" href="sd__registry_8c.html#a19073b9b7197e97b4492761b0f22fc03">brix_sd_driver_count</a>(<span class="keywordtype">void</span>)</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno"><a class="line" href="sd__registry_8c.html#a19073b9b7197e97b4492761b0f22fc03">   44</a></span><a class="code hl_function" href="sd__registry_8c.html#a19073b9b7197e97b4492761b0f22fc03">brix_sd_driver_count</a>(<span class="keywordtype">void</span>)</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>{</div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    <span class="keywordflow">return</span> <span class="keyword">sizeof</span>(<a class="code hl_variable" href="sd__registry_8c.html#a720f66ca8d2381f4c9282d3807e93225">sd_drivers</a>) / <span class="keyword">sizeof</span>(<a class="code hl_variable" href="sd__registry_8c.html#a720f66ca8d2381f4c9282d3807e93225">sd_drivers</a>[0]);</div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>}</div>
@@ -152,7 +152,7 @@ $(document).ready(function(){initNavTree('sd__registry_8c_source.html',''); init
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="keyword">const</span> brix_sd_driver_t *</div>
 <div class="foldopen" id="foldopen00050" data-start="{" data-end="}">
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno"><a class="line" href="sd_8h.html#ad685eff00cf2812ac014f5e7d6a7b96c">   50</a></span><a class="code hl_function" href="sd__registry_8c.html#ad685eff00cf2812ac014f5e7d6a7b96c">brix_sd_driver_at</a>(ngx_uint_t i)</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno"><a class="line" href="sd__registry_8c.html#ad685eff00cf2812ac014f5e7d6a7b96c">   50</a></span><a class="code hl_function" href="sd__registry_8c.html#ad685eff00cf2812ac014f5e7d6a7b96c">brix_sd_driver_at</a>(ngx_uint_t i)</div>
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>{</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    <span class="keywordflow">return</span> (i &lt; <span class="keyword">sizeof</span>(<a class="code hl_variable" href="sd__registry_8c.html#a720f66ca8d2381f4c9282d3807e93225">sd_drivers</a>) / <span class="keyword">sizeof</span>(<a class="code hl_variable" href="sd__registry_8c.html#a720f66ca8d2381f4c9282d3807e93225">sd_drivers</a>[0]))</div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>         ? <a class="code hl_variable" href="sd__registry_8c.html#a720f66ca8d2381f4c9282d3807e93225">sd_drivers</a>[i] : NULL;</div>
@@ -164,7 +164,7 @@ $(document).ready(function(){initNavTree('sd__registry_8c_source.html',''); init
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment"> * resolve &quot;the default backend&quot; without hard-coding the POSIX symbol. */</span></div>
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="keyword">const</span> brix_sd_driver_t *</div>
 <div class="foldopen" id="foldopen00060" data-start="{" data-end="}">
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno"><a class="line" href="sd_8h.html#a2930ffbaed75ae0f6e3c9a024a08c54b">   60</a></span><a class="code hl_function" href="sd__registry_8c.html#a2930ffbaed75ae0f6e3c9a024a08c54b">brix_sd_default_driver</a>(<span class="keywordtype">void</span>)</div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno"><a class="line" href="sd__registry_8c.html#a2930ffbaed75ae0f6e3c9a024a08c54b">   60</a></span><a class="code hl_function" href="sd__registry_8c.html#a2930ffbaed75ae0f6e3c9a024a08c54b">brix_sd_default_driver</a>(<span class="keywordtype">void</span>)</div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>{</div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordflow">return</span> &amp;<a class="code hl_variable" href="sd__posix_8c.html#ad2bb0e46690e2559ff742ad5be09a178">brix_sd_posix_driver</a>;</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>}</div>
@@ -175,7 +175,7 @@ $(document).ready(function(){initNavTree('sd__registry_8c_source.html',''); init
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment"> * creation to map a string to a driver. */</span></div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="keyword">const</span> brix_sd_driver_t *</div>
 <div class="foldopen" id="foldopen00069" data-start="{" data-end="}">
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno"><a class="line" href="sd_8h.html#a31fc7eb614a7ac7ade25d847b0e8001e">   69</a></span><a class="code hl_function" href="sd__registry_8c.html#a31fc7eb614a7ac7ade25d847b0e8001e">brix_sd_driver_find</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno"><a class="line" href="sd__registry_8c.html#a31fc7eb614a7ac7ade25d847b0e8001e">   69</a></span><a class="code hl_function" href="sd__registry_8c.html#a31fc7eb614a7ac7ade25d847b0e8001e">brix_sd_driver_find</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</div>
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>{</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    ngx_uint_t i;</div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
@@ -223,7 +223,7 @@ $(document).ready(function(){initNavTree('sd__registry_8c_source.html',''); init
 <div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="comment"> * failure, set *err_out and return NULL. */</span></div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>brix_sd_instance_t *</div>
 <div class="foldopen" id="foldopen00113" data-start="{" data-end="}">
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno"><a class="line" href="sd_8h.html#a96f5e2d1c1b23d8db2f8ecfbdb78076b">  113</a></span><a class="code hl_function" href="sd__registry_8c.html#a96f5e2d1c1b23d8db2f8ecfbdb78076b">brix_sd_instance_create</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>,</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno"><a class="line" href="sd__registry_8c.html#a96f5e2d1c1b23d8db2f8ecfbdb78076b">  113</a></span><a class="code hl_function" href="sd__registry_8c.html#a96f5e2d1c1b23d8db2f8ecfbdb78076b">brix_sd_instance_create</a>(ngx_log_t *<a class="code hl_variable" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>,</div>
 <div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordtype">void</span> *driver_conf, <span class="keywordtype">int</span> *err_out)</div>
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>{</div>
 <div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>    <span class="keyword">const</span> brix_sd_driver_t *<a class="code hl_variable" href="tier__config_8c.html#a00b0aa4c95ef3b76f4bf977eb7a1a496">driver</a>;</div>
@@ -266,7 +266,7 @@ $(document).ready(function(){initNavTree('sd__registry_8c_source.html',''); init
 <div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span><span class="comment"> * struct); drivers may hold kernel/transport resources, e.g. the POSIX rootfd. */</span></div>
 <div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="keywordtype">void</span></div>
 <div class="foldopen" id="foldopen00154" data-start="{" data-end="}">
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno"><a class="line" href="sd_8h.html#aa2505c51ae311a1c3af3dd144feed399">  154</a></span><a class="code hl_function" href="sd__registry_8c.html#aa2505c51ae311a1c3af3dd144feed399">brix_sd_instance_destroy</a>(brix_sd_instance_t *inst)</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno"><a class="line" href="sd__registry_8c.html#aa2505c51ae311a1c3af3dd144feed399">  154</a></span><a class="code hl_function" href="sd__registry_8c.html#aa2505c51ae311a1c3af3dd144feed399">brix_sd_instance_destroy</a>(brix_sd_instance_t *inst)</div>
 <div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>{</div>
 <div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    <span class="keywordflow">if</span> (inst != NULL &amp;&amp; inst-&gt;driver != NULL &amp;&amp; inst-&gt;driver-&gt;cleanup != NULL) {</div>
 <div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>        inst-&gt;driver-&gt;cleanup(inst);</div>

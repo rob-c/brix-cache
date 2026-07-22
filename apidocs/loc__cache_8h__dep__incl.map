@@ -1,11 +1,13 @@
 <map id="src/net/manager/loc_cache.h" name="src/net/manager/loc_cache.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="355,5,505,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="453,5,604,45"/>
 <area shape="rect" id="Node000002" href="$postconfiguration_8c.html" title=" " alt="" coords="5,101,249,126"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="351,52,168,103,167,98,350,46"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="440,48,181,103,180,98,439,43"/>
 <area shape="rect" id="Node000003" href="$server__recv__frame_8c.html" title=" " alt="" coords="273,93,416,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="403,57,365,95,362,91,400,53"/>
-<area shape="rect" id="Node000004" href="$loc__cache_8c.html" title=" " alt="" coords="440,93,591,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="460,53,498,91,495,95,457,57"/>
-<area shape="rect" id="Node000005" href="$locate_8c.html" title=" " alt="" coords="615,93,749,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="499,47,628,91,626,96,497,52"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="477,54,386,96,384,91,475,49"/>
+<area shape="rect" id="Node000004" href="$server__recv__frame__handlers_8c.html" title=" " alt="" coords="440,93,617,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="531,59,531,93,526,93,526,59"/>
+<area shape="rect" id="Node000005" href="$loc__cache_8c.html" title=" " alt="" coords="641,93,792,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="583,49,677,91,674,96,581,53"/>
+<area shape="rect" id="Node000006" href="$locate_8c.html" title=" " alt="" coords="816,93,951,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="618,45,816,93,815,98,617,51"/>
 </map>

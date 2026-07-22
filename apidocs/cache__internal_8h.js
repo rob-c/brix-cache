@@ -59,5 +59,7 @@ var cache__internal_8h =
     [ "brix_cache_state_path", "cache__internal_8h.html#a563aec864b6b2ff4a3230867f0e33770", null ],
     [ "brix_cache_state_root", "cache__internal_8h.html#ac80e5e05b13a277d71f4de312501893e", null ],
     [ "brix_cache_wait_or_lock", "cache__internal_8h.html#a6a0cf0301e2ffab79cbd3ffbfdac1c5e", null ],
-    [ "brix_wt_stage_admit", "cache__internal_8h.html#a7f1a4b0f42cf54e5152f12e7f3d02375", null ]
+    [ "brix_conf_push_prefix", "cache__internal_8h.html#a0ebefe2471222bea0b8011b3093f2ab0", null ],
+    [ "brix_wt_stage_admit", "cache__internal_8h.html#a7f1a4b0f42cf54e5152f12e7f3d02375", null ],
+    [ "cache_origin_send_kxr_auth", "cache__internal_8h.html#a5ed2ffe761853bf54ff01b0212580768", null ]
 ];

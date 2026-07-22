@@ -91,13 +91,13 @@ $(document).ready(function(){initNavTree('cred__mint_8c.html',''); initResizable
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">cred_mint.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="cred__mint_8h_source.html">cred_mint.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="cred__mint__internal_8h_source.html">cred_mint_internal.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
@@ -115,26 +115,15 @@ $(document).ready(function(){initNavTree('cred__mint_8c.html',''); initResizable
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="cred__mint_8c__incl.svg" width="100%" height="448"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="cred__mint_8c__incl.svg" width="100%" height="503"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="cred__mint_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmint__cert__spec__t.html">mint_cert_spec_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmint__ca__t.html">mint_ca_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structmint__material__t.html">mint_material_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:adb1ffc67d7b51fc2ce3ad131a762df26" id="r_adb1ffc67d7b51fc2ce3ad131a762df26"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#adb1ffc67d7b51fc2ce3ad131a762df26">MINT_PATH_MAX</a>&#160;&#160;&#160;1024</td></tr>
 <tr class="separator:adb1ffc67d7b51fc2ce3ad131a762df26"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac30f4e554d5941862bd66516aa1ed04e" id="r_ac30f4e554d5941862bd66516aa1ed04e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#ac30f4e554d5941862bd66516aa1ed04e">MINT_LOG</a>(level,  <a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>,  err, ...)&#160;&#160;&#160;    do { if ((<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>) != NULL) { ngx_log_error(level, <a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, err, __VA_ARGS__); } } while (0)</td></tr>
-<tr class="separator:ac30f4e554d5941862bd66516aa1ed04e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -142,18 +131,6 @@ Functions</h2></td></tr>
 <tr class="separator:a2612a3f07f70a16b9bcf0d9faf8b3b33"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a65588670b510535981ae2dd8704c075a" id="r_a65588670b510535981ae2dd8704c075a"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#a65588670b510535981ae2dd8704c075a">mint_cached_pem_ok</a> (const char *path)</td></tr>
 <tr class="separator:a65588670b510535981ae2dd8704c075a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a31f6acd5096ffa5c86bfc305ef101144" id="r_a31f6acd5096ffa5c86bfc305ef101144"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#a31f6acd5096ffa5c86bfc305ef101144">mint_cn_char_ok</a> (unsigned char <a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
-<tr class="separator:a31f6acd5096ffa5c86bfc305ef101144"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae7b9b8702143d8ce45deeae14c624d07" id="r_ae7b9b8702143d8ce45deeae14c624d07"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#ae7b9b8702143d8ce45deeae14c624d07">mint_sanitize_cn</a> (const char *principal, char *out, size_t cap)</td></tr>
-<tr class="separator:ae7b9b8702143d8ce45deeae14c624d07"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab3c250cc26e959543835b93805f26eb3" id="r_ab3c250cc26e959543835b93805f26eb3"><td class="memItemLeft" align="right" valign="top">static X509_NAME *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#ab3c250cc26e959543835b93805f26eb3">mint_make_subject</a> (const char *cn, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:ab3c250cc26e959543835b93805f26eb3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aff2106d39934fa3da66e2ca0a704eb2c" id="r_aff2106d39934fa3da66e2ca0a704eb2c"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#aff2106d39934fa3da66e2ca0a704eb2c">mint_serial_from_rand</a> (const unsigned char rnd[8])</td></tr>
-<tr class="separator:aff2106d39934fa3da66e2ca0a704eb2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0c352e12d437364d7d1ed882e5595eb7" id="r_a0c352e12d437364d7d1ed882e5595eb7"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#a0c352e12d437364d7d1ed882e5595eb7">mint_populate_cert</a> (X509 *cert, const <a class="el" href="structmint__cert__spec__t.html">mint_cert_spec_t</a> *spec, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:a0c352e12d437364d7d1ed882e5595eb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a015bbc12c6b96ae8c3a4c26c1707024f" id="r_a015bbc12c6b96ae8c3a4c26c1707024f"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#a015bbc12c6b96ae8c3a4c26c1707024f">mint_build_cert</a> (const <a class="el" href="structmint__ca__t.html">mint_ca_t</a> *ca, const char *principal, int ttl_secs, <a class="el" href="structmint__material__t.html">mint_material_t</a> *out, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
-<tr class="separator:a015bbc12c6b96ae8c3a4c26c1707024f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aba65f4b7b909a9e7e61e79ac8b656fbd" id="r_aba65f4b7b909a9e7e61e79ac8b656fbd"><td class="memItemLeft" align="right" valign="top">static BIO *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#aba65f4b7b909a9e7e61e79ac8b656fbd">mint_serialize_pem</a> (X509 *cert, EVP_PKEY *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, X509 *ca_cert, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:aba65f4b7b909a9e7e61e79ac8b656fbd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac4d6cc5474b24ceb37992aafd826624c" id="r_ac4d6cc5474b24ceb37992aafd826624c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cred__mint_8c.html#ac4d6cc5474b24ceb37992aafd826624c">mint_write_tmp</a> (const char *tmp_path, const char *data, long len, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
@@ -170,48 +147,6 @@ Functions</h2></td></tr>
 <tr class="separator:a28f9ea2e53c4fcc00c776ebf33f0a609"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ac30f4e554d5941862bd66516aa1ed04e" name="ac30f4e554d5941862bd66516aa1ed04e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac30f4e554d5941862bd66516aa1ed04e">&#9670;&#160;</a></span>MINT_LOG</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define MINT_LOG</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">level, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname"><a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">err, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname"><em>...</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td>&#160;&#160;&#160;    do { if ((<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>) != NULL) { ngx_log_error(level, <a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, err, __VA_ARGS__); } } while (0)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00052">52</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
-
-</div>
-</div>
 <a id="adb1ffc67d7b51fc2ce3ad131a762df26" name="adb1ffc67d7b51fc2ce3ad131a762df26"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#adb1ffc67d7b51fc2ce3ad131a762df26">&#9670;&#160;</a></span>MINT_PATH_MAX</h2>
 
@@ -224,7 +159,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00042">42</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00043">43</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
 </div>
 </div>
@@ -285,9 +220,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00597">597</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00365">365</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00534">mint_args_valid()</a>, <a class="el" href="cred__mint_8c_source.html#l00111">mint_cached_pem_ok()</a>, <a class="el" href="cred__mint_8c_source.html#l00557">mint_generate()</a>, <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>, and <a class="el" href="cred__mint_8c_source.html#l00042">MINT_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00302">mint_args_valid()</a>, <a class="el" href="cred__mint_8c_source.html#l00105">mint_cached_pem_ok()</a>, <a class="el" href="cred__mint_8c_source.html#l00325">mint_generate()</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00037">MINT_LOG</a>, and <a class="el" href="cred__mint_8c_source.html#l00043">MINT_PATH_MAX</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__cred_8c_source.html#l00153">vfs_cred_maybe_mint()</a>.</p>
 
@@ -345,71 +280,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00534">534</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00302">302</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
 <p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00597">brix_cred_mint()</a>.</p>
-
-</div>
-</div>
-<a id="a015bbc12c6b96ae8c3a4c26c1707024f" name="a015bbc12c6b96ae8c3a4c26c1707024f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a015bbc12c6b96ae8c3a4c26c1707024f">&#9670;&#160;</a></span>mint_build_cert()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int mint_build_cert </td>
-          <td>(</td>
-          <td class="paramtype">const <a class="el" href="structmint__ca__t.html">mint_ca_t</a> *&#160;</td>
-          <td class="paramname"><em>ca</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>principal</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ttl_secs</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structmint__material__t.html">mint_material_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00302">302</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="cred__mint_8c_source.html#l00248">mint_ca_t::cert</a>, <a class="el" href="cred__mint_8c_source.html#l00253">mint_material_t::cert</a>, <a class="el" href="cred__mint_8c_source.html#l00249">mint_ca_t::key</a>, <a class="el" href="cred__mint_8c_source.html#l00254">mint_material_t::key</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>, <a class="el" href="cred__mint_8c_source.html#l00187">mint_make_subject()</a>, <a class="el" href="cred__mint_8c_source.html#l00269">mint_populate_cert()</a>, <a class="el" href="cred__mint_8c_source.html#l00164">mint_sanitize_cn()</a>, <a class="el" href="cred__mint_8c_source.html#l00211">mint_serial_from_rand()</a>, and <a class="el" href="cred__mint_8c_source.html#l00230">mint_cert_spec_t::subj</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00557">mint_generate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00365">brix_cred_mint()</a>.</p>
 
 </div>
 </div>
@@ -465,11 +340,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00451">451</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00219">219</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>, and <a class="el" href="cred__mint_8c_source.html#l00042">MINT_PATH_MAX</a>.</p>
+<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00037">MINT_LOG</a>, and <a class="el" href="cred__mint_8c_source.html#l00043">MINT_PATH_MAX</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00490">mint_write_pem()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00258">mint_write_pem()</a>.</p>
 
 </div>
 </div>
@@ -497,43 +372,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00111">111</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00105">105</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
 <p class="reference">References <a class="el" href="cred__mint_8h_source.html#l00051">BRIX_CRED_MINT_REFRESH_WINDOW</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00597">brix_cred_mint()</a>.</p>
-
-</div>
-</div>
-<a id="a31f6acd5096ffa5c86bfc305ef101144" name="a31f6acd5096ffa5c86bfc305ef101144"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a31f6acd5096ffa5c86bfc305ef101144">&#9670;&#160;</a></span>mint_cn_char_ok()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int mint_cn_char_ok </td>
-          <td>(</td>
-          <td class="paramtype">unsigned char&#160;</td>
-          <td class="paramname"><em>c</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00148">148</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00164">mint_sanitize_cn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00365">brix_cred_mint()</a>.</p>
 
 </div>
 </div>
@@ -601,11 +444,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00557">557</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00325">325</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred__mint_8c_source.html#l00255">mint_material_t::ca_cert</a>, <a class="el" href="cred__mint_8c_source.html#l00248">mint_ca_t::cert</a>, <a class="el" href="cred__mint_8c_source.html#l00253">mint_material_t::cert</a>, <a class="el" href="cred__mint_8c_source.html#l00249">mint_ca_t::key</a>, <a class="el" href="cred__mint_8c_source.html#l00254">mint_material_t::key</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00302">mint_build_cert()</a>, <a class="el" href="cred__mint_8c_source.html#l00062">mint_load_ca()</a>, <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>, and <a class="el" href="cred__mint_8c_source.html#l00490">mint_write_pem()</a>.</p>
+<p class="reference">References <a class="el" href="cred__mint__internal_8h_source.html#l00057">mint_material_t::ca_cert</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00050">mint_ca_t::cert</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00055">mint_material_t::cert</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00051">mint_ca_t::key</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00056">mint_material_t::key</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint__cert_8c_source.html#l00172">mint_build_cert()</a>, <a class="el" href="cred__mint_8c_source.html#l00056">mint_load_ca()</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00037">MINT_LOG</a>, and <a class="el" href="cred__mint_8c_source.html#l00258">mint_write_pem()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00597">brix_cred_mint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00365">brix_cred_mint()</a>.</p>
 
 </div>
 </div>
@@ -661,179 +504,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00062">62</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00056">56</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="cred__mint__internal_8h_source.html#l00037">MINT_LOG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00557">mint_generate()</a>.</p>
-
-</div>
-</div>
-<a id="ab3c250cc26e959543835b93805f26eb3" name="ab3c250cc26e959543835b93805f26eb3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab3c250cc26e959543835b93805f26eb3">&#9670;&#160;</a></span>mint_make_subject()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static X509_NAME * mint_make_subject </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>cn</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00187">187</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00302">mint_build_cert()</a>.</p>
-
-</div>
-</div>
-<a id="a0c352e12d437364d7d1ed882e5595eb7" name="a0c352e12d437364d7d1ed882e5595eb7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0c352e12d437364d7d1ed882e5595eb7">&#9670;&#160;</a></span>mint_populate_cert()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int mint_populate_cert </td>
-          <td>(</td>
-          <td class="paramtype">X509 *&#160;</td>
-          <td class="paramname"><em>cert</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structmint__cert__spec__t.html">mint_cert_spec_t</a> *&#160;</td>
-          <td class="paramname"><em>spec</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_log_t *&#160;</td>
-          <td class="paramname"><em>log</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00269">269</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="cred__mint_8c_source.html#l00231">mint_cert_spec_t::ca_cert</a>, <a class="el" href="cred__mint_8c_source.html#l00233">mint_cert_spec_t::ca_key</a>, <a class="el" href="cred__mint_8c_source.html#l00232">mint_cert_spec_t::key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>, <a class="el" href="cred__mint_8c_source.html#l00234">mint_cert_spec_t::serial</a>, <a class="el" href="cred__mint_8c_source.html#l00230">mint_cert_spec_t::subj</a>, and <a class="el" href="cred__mint_8c_source.html#l00235">mint_cert_spec_t::ttl_secs</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00302">mint_build_cert()</a>.</p>
-
-</div>
-</div>
-<a id="ae7b9b8702143d8ce45deeae14c624d07" name="ae7b9b8702143d8ce45deeae14c624d07"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae7b9b8702143d8ce45deeae14c624d07">&#9670;&#160;</a></span>mint_sanitize_cn()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void mint_sanitize_cn </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>principal</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>cap</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00164">164</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
-
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, and <a class="el" href="cred__mint_8c_source.html#l00148">mint_cn_char_ok()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00302">mint_build_cert()</a>.</p>
-
-</div>
-</div>
-<a id="aff2106d39934fa3da66e2ca0a704eb2c" name="aff2106d39934fa3da66e2ca0a704eb2c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aff2106d39934fa3da66e2ca0a704eb2c">&#9670;&#160;</a></span>mint_serial_from_rand()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static uint64_t mint_serial_from_rand </td>
-          <td>(</td>
-          <td class="paramtype">const unsigned char&#160;</td>
-          <td class="paramname"><em>rnd</em>[8]</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00211">211</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00302">mint_build_cert()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00325">mint_generate()</a>.</p>
 
 </div>
 </div>
@@ -883,11 +558,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00375">375</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00143">143</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="cred__mint__internal_8h_source.html#l00037">MINT_LOG</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00490">mint_write_pem()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00258">mint_write_pem()</a>.</p>
 
 </div>
 </div>
@@ -937,11 +612,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00490">490</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00258">258</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cred__mint_8c_source.html#l00255">mint_material_t::ca_cert</a>, <a class="el" href="cred__mint_8c_source.html#l00253">mint_material_t::cert</a>, <a class="el" href="cred__mint_8c_source.html#l00254">mint_material_t::key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00451">mint_build_paths()</a>, <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>, <a class="el" href="cred__mint_8c_source.html#l00042">MINT_PATH_MAX</a>, <a class="el" href="cred__mint_8c_source.html#l00375">mint_serialize_pem()</a>, and <a class="el" href="cred__mint_8c_source.html#l00410">mint_write_tmp()</a>.</p>
+<p class="reference">References <a class="el" href="cred__mint__internal_8h_source.html#l00057">mint_material_t::ca_cert</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00055">mint_material_t::cert</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00056">mint_material_t::key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00219">mint_build_paths()</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00037">MINT_LOG</a>, <a class="el" href="cred__mint_8c_source.html#l00043">MINT_PATH_MAX</a>, <a class="el" href="cred__mint_8c_source.html#l00143">mint_serialize_pem()</a>, and <a class="el" href="cred__mint_8c_source.html#l00178">mint_write_tmp()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00557">mint_generate()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00325">mint_generate()</a>.</p>
 
 </div>
 </div>
@@ -991,11 +666,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00410">410</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="cred__mint_8c_source.html#l00178">178</a> of file <a class="el" href="cred__mint_8c_source.html">cred_mint.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint_8c_source.html#l00052">MINT_LOG</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="cred__mint__internal_8h_source.html#l00037">MINT_LOG</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00490">mint_write_pem()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="cred__mint_8c_source.html#l00258">mint_write_pem()</a>.</p>
 
 </div>
 </div>

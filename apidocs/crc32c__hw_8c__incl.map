@@ -1,0 +1,15 @@
+<map id="src/core/compat/crc32c_hw.c" name="src/core/compat/crc32c_hw.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="97,5,305,31"/>
+<area shape="rect" id="Node000002" href="$crc32c_8h.html" title=" " alt="" coords="163,79,239,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,31,204,65,199,65,199,31"/>
+<area shape="rect" id="Node000005" href="$crc32c__internal_8h.html" title=" " alt="" coords="5,79,139,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="182,33,107,74,104,69,179,28"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="263,79,334,104"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="219,29,273,68,270,72,215,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="51,152,125,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="185,106,119,147,116,142,182,102"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="158,152,229,177"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="203,105,199,139,193,138,197,104"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="77,104,85,138,80,139,72,105"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="93,102,163,143,161,147,90,106"/>
+</map>

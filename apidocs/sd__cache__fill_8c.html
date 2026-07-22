@@ -91,8 +91,6 @@ $(document).ready(function(){initNavTree('sd__cache__fill_8c.html',''); initResi
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">sd_cache_fill.c File Reference</div></div>
 </div><!--header-->
@@ -100,6 +98,7 @@ $(document).ready(function(){initNavTree('sd__cache__fill_8c.html',''); initResi
 <div class="textblock"><code>#include &quot;<a class="el" href="sd__cache_8h_source.html">sd_cache.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="sd__cache__internal_8h_source.html">sd_cache_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="sd__cache__policy_8h_source.html">sd_cache_policy.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="sd__cache__fill__internal_8h_source.html">sd_cache_fill_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="classify_8h_source.html">protocols/cvmfs/classify.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="observability_2metrics_2metrics_8h_source.html">observability/metrics/metrics.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="metrics__macros_8h_source.html">observability/metrics/metrics_macros.h</a>&quot;</code><br />
@@ -127,32 +126,12 @@ $(document).ready(function(){initNavTree('sd__cache__fill_8c.html',''); initResi
 </div>
 <p><a href="sd__cache__fill_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:afcbbccd652c002806047a39a58fec08f" id="r_afcbbccd652c002806047a39a58fec08f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#afcbbccd652c002806047a39a58fec08f">SD_CACHE_CHUNK</a>&#160;&#160;&#160;(1u &lt;&lt; 20)</td></tr>
-<tr class="separator:afcbbccd652c002806047a39a58fec08f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:abea9a8e3e429279e6d22fe6f58a908c3" id="r_abea9a8e3e429279e6d22fe6f58a908c3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#abea9a8e3e429279e6d22fe6f58a908c3">cache_fill_acquire</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, <a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *fs)</td></tr>
 <tr class="separator:abea9a8e3e429279e6d22fe6f58a908c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4bf6e600154973c329dd1093b1317ab7" id="r_a4bf6e600154973c329dd1093b1317ab7"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#a4bf6e600154973c329dd1093b1317ab7">cache_fill_pump</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *fs)</td></tr>
 <tr class="separator:a4bf6e600154973c329dd1093b1317ab7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad361c4a8fc6e0bdffcec1cad39099863" id="r_ad361c4a8fc6e0bdffcec1cad39099863"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#ad361c4a8fc6e0bdffcec1cad39099863">sd_cache_guard_tamper</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, brix_sd_instance_t *actor, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
-<tr class="separator:ad361c4a8fc6e0bdffcec1cad39099863"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3cfcb6724d612fa05efee284af9f4ec1" id="r_a3cfcb6724d612fa05efee284af9f4ec1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#a3cfcb6724d612fa05efee284af9f4ec1">cache_fill_verify_reject</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *fs, const char *pp)</td></tr>
-<tr class="separator:a3cfcb6724d612fa05efee284af9f4ec1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a45f1ba6fd292e6a07c96c5a8698b431d" id="r_a45f1ba6fd292e6a07c96c5a8698b431d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#a45f1ba6fd292e6a07c96c5a8698b431d">sd_cache_hex_ieq</a> (const char *a, const char *b)</td></tr>
-<tr class="separator:a45f1ba6fd292e6a07c96c5a8698b431d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5c895e72725105798b39da2958e88da5" id="r_a5c895e72725105798b39da2958e88da5"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#a5c895e72725105798b39da2958e88da5">cache_fill_verify_origin</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *fs, const char *pp)</td></tr>
-<tr class="separator:a5c895e72725105798b39da2958e88da5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa2bd8480773ada4014a6c50ca1a8f268" id="r_aa2bd8480773ada4014a6c50ca1a8f268"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#aa2bd8480773ada4014a6c50ca1a8f268">cache_fill_verify</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *fs)</td></tr>
-<tr class="separator:aa2bd8480773ada4014a6c50ca1a8f268"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aecfbb5496b42a3825be157101efc2482" id="r_aecfbb5496b42a3825be157101efc2482"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#aecfbb5496b42a3825be157101efc2482">cache_fill_commit</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, <a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *fs)</td></tr>
 <tr class="separator:aecfbb5496b42a3825be157101efc2482"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abbd5e69ca5320c81f0a160265d764423" id="r_abbd5e69ca5320c81f0a160265d764423"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#abbd5e69ca5320c81f0a160265d764423">sd_cache_fill_attempt</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred, brix_sd_instance_t *src, int from_cold, int from_peer)</td></tr>
@@ -163,61 +142,8 @@ Functions</h2></td></tr>
 <tr class="separator:a483b2ba6ff908804cb3da578d37606c3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a95db7b863f50e5bbbd7a545f621ef342" id="r_a95db7b863f50e5bbbd7a545f621ef342"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#a95db7b863f50e5bbbd7a545f621ef342">sd_cache_fill</a> (<a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *st, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const <a class="el" href="structbrix__sd__cred__t.html">brix_sd_cred_t</a> *cred)</td></tr>
 <tr class="separator:a95db7b863f50e5bbbd7a545f621ef342"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0ea3ad4d111b3bddf1460b9dde0f98ed" id="r_a0ea3ad4d111b3bddf1460b9dde0f98ed"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sd__cache__fill_8c.html#a0ea3ad4d111b3bddf1460b9dde0f98ed">brix_sd_cache_demote</a> (brix_sd_instance_t *inst, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>)</td></tr>
-<tr class="separator:a0ea3ad4d111b3bddf1460b9dde0f98ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="afcbbccd652c002806047a39a58fec08f" name="afcbbccd652c002806047a39a58fec08f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afcbbccd652c002806047a39a58fec08f">&#9670;&#160;</a></span>SD_CACHE_CHUNK</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define SD_CACHE_CHUNK&#160;&#160;&#160;(1u &lt;&lt; 20)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00049">49</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a0ea3ad4d111b3bddf1460b9dde0f98ed" name="a0ea3ad4d111b3bddf1460b9dde0f98ed"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0ea3ad4d111b3bddf1460b9dde0f98ed">&#9670;&#160;</a></span>brix_sd_cache_demote()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t brix_sd_cache_demote </td>
-          <td>(</td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>inst</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00813">813</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sd__cache_8c_source.html#l00370">brix_sd_cache_instance_is()</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00555">brix_sd_obj_release()</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00022">sd_cache_inst_state::cold</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00034">sd_cache_inst_state::cstore</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00049">SD_CACHE_CHUNK</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00039">SD_CACHE_ST</a>, and <a class="el" href="cstore_8h_source.html#l00054">brix_cstore_t::store</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="evict__policy_8c_source.html#l00202">brix_cache_evict_one()</a>.</p>
-
-</div>
-</div>
 <a id="abea9a8e3e429279e6d22fe6f58a908c3" name="abea9a8e3e429279e6d22fe6f58a908c3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#abea9a8e3e429279e6d22fe6f58a908c3">&#9670;&#160;</a></span>cache_fill_acquire()</h2>
 
@@ -264,11 +190,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00102">102</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00072">72</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cstore_8c_source.html#l00165">brix_cstore_fill_abort()</a>, <a class="el" href="cstore_8c_source.html#l00126">brix_cstore_fill_open()</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00555">brix_sd_obj_release()</a>, <a class="el" href="sd_8h_source.html#l00599">brix_sd_open_maybe_cred()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00071">sd_cache_fill_state_t::buf</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00034">sd_cache_inst_state::cstore</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00062">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00064">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00049">SD_CACHE_CHUNK</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00174">sd_cache_stale_serve_ok()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00070">sd_cache_fill_state_t::snap</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00068">sd_cache_fill_state_t::so</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00058">sd_cache_fill_state_t::src</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00069">sd_cache_fill_state_t::staged</a>.</p>
+<p class="reference">References <a class="el" href="cstore_8c_source.html#l00165">brix_cstore_fill_abort()</a>, <a class="el" href="cstore_8c_source.html#l00126">brix_cstore_fill_open()</a>, <a class="el" href="sd_8h_source.html#l00130">BRIX_SD_O_READ</a>, <a class="el" href="sd_8h_source.html#l00555">brix_sd_obj_release()</a>, <a class="el" href="sd__cred__forward_8h_source.html#l00035">brix_sd_open_maybe_cred()</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00042">sd_cache_fill_state_t::buf</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00034">sd_cache_inst_state::cstore</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00033">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00035">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00048">sd_cache_admit()</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00022">SD_CACHE_CHUNK</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00174">sd_cache_stale_serve_ok()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00041">sd_cache_fill_state_t::snap</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00039">sd_cache_fill_state_t::so</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00029">sd_cache_fill_state_t::src</a>, and <a class="el" href="sd__cache__fill__internal_8h_source.html#l00040">sd_cache_fill_state_t::staged</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00658">sd_cache_fill_attempt()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00332">sd_cache_fill_attempt()</a>.</p>
 
 </div>
 </div>
@@ -312,11 +238,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00596">596</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00270">270</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">References <a class="el" href="cinfo_8h_source.html#l00069">brix_cache_cinfo_t::block_size</a>, <a class="el" href="cinfo_8h_source.html#l00043">BRIX_CACHE_CINFO_MAGIC</a>, <a class="el" href="cinfo_8c_source.html#l00029">brix_cache_cinfo_nblocks()</a>, <a class="el" href="cinfo_8c_source.html#l00569">brix_cache_cinfo_set_expires()</a>, <a class="el" href="cinfo_8h_source.html#l00044">BRIX_CACHE_CINFO_VERSION</a>, <a class="el" href="cinfo_8h_source.html#l00056">BRIX_CACHE_DIRTY_BLOCK</a>, <a class="el" href="cinfo_8h_source.html#l00047">BRIX_CINFO_F_COMPLETE</a>, <a class="el" href="cinfo_8h_source.html#l00049">BRIX_CINFO_F_VERIFIED</a>, <a class="el" href="cstore_8c_source.html#l00343">brix_cstore_cinfo_store()</a>, <a class="el" href="cstore_8c_source.html#l00155">brix_cstore_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00078">sd_cache_fill_state_t::cks_alg</a>, <a class="el" href="cinfo_8h_source.html#l00089">brix_cache_cinfo_t::cks_alg</a>, <a class="el" href="cinfo_8h_source.html#l00088">brix_cache_cinfo_t::cks_alg_len</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00081">sd_cache_fill_state_t::cks_hex</a>, <a class="el" href="cinfo_8h_source.html#l00091">brix_cache_cinfo_t::cks_hex</a>, <a class="el" href="cinfo_8h_source.html#l00090">brix_cache_cinfo_t::cks_len</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00034">sd_cache_inst_state::cstore</a>, <a class="el" href="tier_8h_source.html#l00083">brix_cache_policy_t::cvmfs_manifest_ttl</a>, <a class="el" href="cinfo_8h_source.html#l00096">brix_cache_cinfo_t::filled_at</a>, <a class="el" href="cinfo_8h_source.html#l00068">brix_cache_cinfo_t::flags</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00062">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00064">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="cinfo_8h_source.html#l00066">brix_cache_cinfo_t::magic</a>, <a class="el" href="sd_8h_source.html#l00273">brix_sd_stat_t::mode</a>, <a class="el" href="cinfo_8h_source.html#l00070">brix_cache_cinfo_t::mode</a>, <a class="el" href="sd_8h_source.html#l00271">brix_sd_stat_t::mtime</a>, <a class="el" href="cinfo_8h_source.html#l00074">brix_cache_cinfo_t::mtime</a>, <a class="el" href="cinfo_8h_source.html#l00075">brix_cache_cinfo_t::nblocks</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00072">sd_cache_fill_state_t::off</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00158">sd_cache_is_manifest_key()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00143">sd_cache_ms_since()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00096">sd_cache_note_origin_bytes()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00117">sd_cache_note_upstream()</a>, <a class="el" href="cinfo_8h_source.html#l00073">brix_cache_cinfo_t::size</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00070">sd_cache_fill_state_t::snap</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00069">sd_cache_fill_state_t::staged</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00082">sd_cache_fill_state_t::t0</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00073">sd_cache_fill_state_t::verified</a>, and <a class="el" href="cinfo_8h_source.html#l00067">brix_cache_cinfo_t::version</a>.</p>
+<p class="reference">References <a class="el" href="cinfo_8h_source.html#l00069">brix_cache_cinfo_t::block_size</a>, <a class="el" href="cinfo_8h_source.html#l00043">BRIX_CACHE_CINFO_MAGIC</a>, <a class="el" href="cinfo_8c_source.html#l00029">brix_cache_cinfo_nblocks()</a>, <a class="el" href="cinfo_8c_source.html#l00569">brix_cache_cinfo_set_expires()</a>, <a class="el" href="cinfo_8h_source.html#l00044">BRIX_CACHE_CINFO_VERSION</a>, <a class="el" href="cinfo_8h_source.html#l00056">BRIX_CACHE_DIRTY_BLOCK</a>, <a class="el" href="cinfo_8h_source.html#l00047">BRIX_CINFO_F_COMPLETE</a>, <a class="el" href="cinfo_8h_source.html#l00049">BRIX_CINFO_F_VERIFIED</a>, <a class="el" href="cstore_8c_source.html#l00343">brix_cstore_cinfo_store()</a>, <a class="el" href="cstore_8c_source.html#l00155">brix_cstore_fill_commit()</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00049">sd_cache_fill_state_t::cks_alg</a>, <a class="el" href="cinfo_8h_source.html#l00089">brix_cache_cinfo_t::cks_alg</a>, <a class="el" href="cinfo_8h_source.html#l00088">brix_cache_cinfo_t::cks_alg_len</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00052">sd_cache_fill_state_t::cks_hex</a>, <a class="el" href="cinfo_8h_source.html#l00091">brix_cache_cinfo_t::cks_hex</a>, <a class="el" href="cinfo_8h_source.html#l00090">brix_cache_cinfo_t::cks_len</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00034">sd_cache_inst_state::cstore</a>, <a class="el" href="tier_8h_source.html#l00083">brix_cache_policy_t::cvmfs_manifest_ttl</a>, <a class="el" href="cinfo_8h_source.html#l00096">brix_cache_cinfo_t::filled_at</a>, <a class="el" href="cinfo_8h_source.html#l00068">brix_cache_cinfo_t::flags</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00033">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00035">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="cinfo_8h_source.html#l00066">brix_cache_cinfo_t::magic</a>, <a class="el" href="sd_8h_source.html#l00273">brix_sd_stat_t::mode</a>, <a class="el" href="cinfo_8h_source.html#l00070">brix_cache_cinfo_t::mode</a>, <a class="el" href="sd_8h_source.html#l00271">brix_sd_stat_t::mtime</a>, <a class="el" href="cinfo_8h_source.html#l00074">brix_cache_cinfo_t::mtime</a>, <a class="el" href="cinfo_8h_source.html#l00075">brix_cache_cinfo_t::nblocks</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00043">sd_cache_fill_state_t::off</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00158">sd_cache_is_manifest_key()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00143">sd_cache_ms_since()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00096">sd_cache_note_origin_bytes()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00117">sd_cache_note_upstream()</a>, <a class="el" href="cinfo_8h_source.html#l00073">brix_cache_cinfo_t::size</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00041">sd_cache_fill_state_t::snap</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00040">sd_cache_fill_state_t::staged</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00053">sd_cache_fill_state_t::t0</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00044">sd_cache_fill_state_t::verified</a>, and <a class="el" href="cinfo_8h_source.html#l00067">brix_cache_cinfo_t::version</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00658">sd_cache_fill_attempt()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00332">sd_cache_fill_attempt()</a>.</p>
 
 </div>
 </div>
@@ -360,167 +286,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00193">193</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00163">163</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">References <a class="el" href="verify_8h_source.html#l00039">BRIX_CACHE_VERIFY_BESTEFFORT</a>, <a class="el" href="verify_8h_source.html#l00040">BRIX_CACHE_VERIFY_REQUIRE</a>, <a class="el" href="cstore_8c_source.html#l00165">brix_cstore_fill_abort()</a>, <a class="el" href="cstore_8c_source.html#l00144">brix_cstore_fill_write()</a>, <a class="el" href="sd__registry_8c_source.html#l00183">brix_sd_backend_name()</a>, <a class="el" href="sd_8h_source.html#l00555">brix_sd_obj_release()</a>, <a class="el" href="sd__xroot_8c_source.html#l00239">brix_sd_xroot_query_checksum()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00071">sd_cache_fill_state_t::buf</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00062">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00064">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00072">sd_cache_fill_state_t::off</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00074">sd_cache_fill_state_t::origin_alg</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00077">sd_cache_fill_state_t::origin_hex</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00049">SD_CACHE_CHUNK</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00174">sd_cache_stale_serve_ok()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00070">sd_cache_fill_state_t::snap</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00068">sd_cache_fill_state_t::so</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00058">sd_cache_fill_state_t::src</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00069">sd_cache_fill_state_t::staged</a>, and <a class="el" href="tier_8h_source.html#l00080">brix_cache_policy_t::verify</a>.</p>
+<p class="reference">References <a class="el" href="verify_8h_source.html#l00039">BRIX_CACHE_VERIFY_BESTEFFORT</a>, <a class="el" href="verify_8h_source.html#l00040">BRIX_CACHE_VERIFY_REQUIRE</a>, <a class="el" href="cstore_8c_source.html#l00165">brix_cstore_fill_abort()</a>, <a class="el" href="cstore_8c_source.html#l00144">brix_cstore_fill_write()</a>, <a class="el" href="sd__registry_8c_source.html#l00183">brix_sd_backend_name()</a>, <a class="el" href="sd_8h_source.html#l00555">brix_sd_obj_release()</a>, <a class="el" href="sd__xroot_8c_source.html#l00239">brix_sd_xroot_query_checksum()</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00042">sd_cache_fill_state_t::buf</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00033">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00035">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00043">sd_cache_fill_state_t::off</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00045">sd_cache_fill_state_t::origin_alg</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00048">sd_cache_fill_state_t::origin_hex</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00022">SD_CACHE_CHUNK</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00174">sd_cache_stale_serve_ok()</a>, <a class="el" href="sd_8h_source.html#l00270">brix_sd_stat_t::size</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00041">sd_cache_fill_state_t::snap</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00039">sd_cache_fill_state_t::so</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00029">sd_cache_fill_state_t::src</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00040">sd_cache_fill_state_t::staged</a>, and <a class="el" href="tier_8h_source.html#l00080">brix_cache_policy_t::verify</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00658">sd_cache_fill_attempt()</a>.</p>
-
-</div>
-</div>
-<a id="aa2bd8480773ada4014a6c50ca1a8f268" name="aa2bd8480773ada4014a6c50ca1a8f268"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa2bd8480773ada4014a6c50ca1a8f268">&#9670;&#160;</a></span>cache_fill_verify()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t cache_fill_verify </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *&#160;</td>
-          <td class="paramname"><em>fs</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00523">523</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
-
-<p class="reference">References <a class="el" href="verify_8h_source.html#l00039">BRIX_CACHE_VERIFY_BESTEFFORT</a>, <a class="el" href="verify_8c_source.html#l00230">brix_cache_verify_cvmfs_cas()</a>, <a class="el" href="verify_8h_source.html#l00041">BRIX_CACHE_VERIFY_CVMFS_CAS</a>, <a class="el" href="verify_8h_source.html#l00051">BRIX_CACHE_VERIFY_ERROR</a>, <a class="el" href="verify_8h_source.html#l00050">BRIX_CACHE_VERIFY_MISMATCH</a>, <a class="el" href="verify_8h_source.html#l00038">BRIX_CACHE_VERIFY_OFF</a>, <a class="el" href="verify_8h_source.html#l00040">BRIX_CACHE_VERIFY_REQUIRE</a>, <a class="el" href="verify_8h_source.html#l00048">BRIX_CACHE_VERIFY_VERIFIED</a>, <a class="el" href="cstore_8c_source.html#l00165">brix_cstore_fill_abort()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00424">cache_fill_verify_origin()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00346">cache_fill_verify_reject()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00078">sd_cache_fill_state_t::cks_alg</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00081">sd_cache_fill_state_t::cks_hex</a>, <a class="el" href="tier_8h_source.html#l00090">brix_cache_policy_t::cvmfs_master_pub</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__manifest_8c_source.html#l00282">sd_cache_verify_manifest()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00069">sd_cache_fill_state_t::staged</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00073">sd_cache_fill_state_t::verified</a>, and <a class="el" href="tier_8h_source.html#l00080">brix_cache_policy_t::verify</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00658">sd_cache_fill_attempt()</a>.</p>
-
-</div>
-</div>
-<a id="a5c895e72725105798b39da2958e88da5" name="a5c895e72725105798b39da2958e88da5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5c895e72725105798b39da2958e88da5">&#9670;&#160;</a></span>cache_fill_verify_origin()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t cache_fill_verify_origin </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *&#160;</td>
-          <td class="paramname"><em>fs</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>pp</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00424">424</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
-
-<p class="reference">References <a class="el" href="verify_8h_source.html#l00040">BRIX_CACHE_VERIFY_REQUIRE</a>, <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00460">brix_checksum_hex_name_fd()</a>, <a class="el" href="cstore_8c_source.html#l00165">brix_cstore_fill_abort()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00346">cache_fill_verify_reject()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00078">sd_cache_fill_state_t::cks_alg</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00081">sd_cache_fill_state_t::cks_hex</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00074">sd_cache_fill_state_t::origin_alg</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00077">sd_cache_fill_state_t::origin_hex</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00399">sd_cache_hex_ieq()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00069">sd_cache_fill_state_t::staged</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00073">sd_cache_fill_state_t::verified</a>, and <a class="el" href="tier_8h_source.html#l00080">brix_cache_policy_t::verify</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00523">cache_fill_verify()</a>.</p>
-
-</div>
-</div>
-<a id="a3cfcb6724d612fa05efee284af9f4ec1" name="a3cfcb6724d612fa05efee284af9f4ec1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3cfcb6724d612fa05efee284af9f4ec1">&#9670;&#160;</a></span>cache_fill_verify_reject()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t cache_fill_verify_reject </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structsd__cache__fill__state__t.html">sd_cache_fill_state_t</a> *&#160;</td>
-          <td class="paramname"><em>fs</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>pp</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00346">346</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
-
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00040">BRIX_ATOMIC_INC</a>, <a class="el" href="verify_8c_source.html#l00286">brix_cache_quarantine_part()</a>, <a class="el" href="cstore_8c_source.html#l00165">brix_cstore_fill_abort()</a>, <a class="el" href="metrics__macros_8h_source.html#l00096">BRIX_CVMFS_METRIC_INC</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00062">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00064">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00072">sd_cache_fill_state_t::off</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00035">sd_cache_inst_state::policy</a>, <a class="el" href="tier_8h_source.html#l00081">brix_cache_policy_t::quarantine_dir</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00296">sd_cache_guard_tamper()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00143">sd_cache_ms_since()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00096">sd_cache_note_origin_bytes()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00117">sd_cache_note_upstream()</a>, <a class="el" href="sd__cache__policy_8c_source.html#l00081">sd_cache_repo_metrics()</a>, <a class="el" href="sd__http__introspect_8c_source.html#l00048">sd_http_penalize_last_origin()</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00021">sd_cache_inst_state::source</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00058">sd_cache_fill_state_t::src</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00069">sd_cache_fill_state_t::staged</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00082">sd_cache_fill_state_t::t0</a>, and <a class="el" href="metrics__cvmfs_8h_source.html#l00058">ngx_brix_cvmfs_repo_metrics_t::verify_failures_total</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00523">cache_fill_verify()</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00424">cache_fill_verify_origin()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00332">sd_cache_fill_attempt()</a>.</p>
 
 </div>
 </div>
@@ -556,9 +326,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00758">758</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00432">432</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__cache__internal_8h_source.html#l00022">sd_cache_inst_state::cold</a>, <a class="el" href="sd__cache_8h_source.html#l00124">brix_sd_cache_peer_t::inst</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache_8h_source.html#l00125">brix_sd_cache_peer_t::label</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00032">sd_cache_inst_state::n_peers</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00033">sd_cache_inst_state::peer_self</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00031">sd_cache_inst_state::peers</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00658">sd_cache_fill_attempt()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00717">sd_cache_peer_owner()</a>, and <a class="el" href="sd__cache__internal_8h_source.html#l00021">sd_cache_inst_state::source</a>.</p>
+<p class="reference">References <a class="el" href="sd__cache__internal_8h_source.html#l00022">sd_cache_inst_state::cold</a>, <a class="el" href="sd__cache_8h_source.html#l00124">brix_sd_cache_peer_t::inst</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache_8h_source.html#l00125">brix_sd_cache_peer_t::label</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00032">sd_cache_inst_state::n_peers</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00033">sd_cache_inst_state::peer_self</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00031">sd_cache_inst_state::peers</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00332">sd_cache_fill_attempt()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00391">sd_cache_peer_owner()</a>, and <a class="el" href="sd__cache__internal_8h_source.html#l00021">sd_cache_inst_state::source</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="sd__cache_8c_source.html#l00445">brix_sd_cache_fill_key()</a>, and <a class="el" href="sd__cache_8c_source.html#l00138">cache_open_miss_serve()</a>.</p>
 
@@ -622,91 +392,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00658">658</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00332">332</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">References <a class="el" href="sd__cache__fill_8c_source.html#l00102">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00596">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00193">cache_fill_pump()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00523">cache_fill_verify()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00062">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00064">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00058">sd_cache_fill_state_t::src</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00082">sd_cache_fill_state_t::t0</a>.</p>
+<p class="reference">References <a class="el" href="sd__cache__fill_8c_source.html#l00072">cache_fill_acquire()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00270">cache_fill_commit()</a>, <a class="el" href="sd__cache__fill_8c_source.html#l00163">cache_fill_pump()</a>, <a class="el" href="sd__cache__fill__verify_8c_source.html#l00284">cache_fill_verify()</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00033">sd_cache_fill_state_t::from_cold</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00035">sd_cache_fill_state_t::from_peer</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__fill__internal_8h_source.html#l00029">sd_cache_fill_state_t::src</a>, and <a class="el" href="sd__cache__fill__internal_8h_source.html#l00053">sd_cache_fill_state_t::t0</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00758">sd_cache_fill()</a>.</p>
-
-</div>
-</div>
-<a id="ad361c4a8fc6e0bdffcec1cad39099863" name="ad361c4a8fc6e0bdffcec1cad39099863"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad361c4a8fc6e0bdffcec1cad39099863">&#9670;&#160;</a></span>sd_cache_guard_tamper()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void sd_cache_guard_tamper </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structsd__cache__inst__state.html">sd_cache_inst_state</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_sd_instance_t *&#160;</td>
-          <td class="paramname"><em>actor</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>key</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00296">296</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
-
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="guard_8h_source.html#l00062">guard_request_t::cred_present</a>, <a class="el" href="guard__audit_8c_source.html#l00105">guard_audit_format()</a>, <a class="el" href="guard_8h_source.html#l00021">GUARD_OP_READ</a>, <a class="el" href="guard_8h_source.html#l00038">GUARD_R_TAMPER</a>, <a class="el" href="guard_8h_source.html#l00057">guard_request_t::ip</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00036">sd_cache_inst_state::log</a>, <a class="el" href="guard_8h_source.html#l00059">guard_request_t::op</a>, <a class="el" href="guard_8h_source.html#l00063">guard_request_t::outcome</a>, <a class="el" href="guard_8h_source.html#l00027">OUTCOME_PENDING</a>, <a class="el" href="guard_8h_source.html#l00060">guard_request_t::path</a>, <a class="el" href="guard_8h_source.html#l00061">guard_request_t::path_len</a>, <a class="el" href="guard_8h_source.html#l00058">guard_request_t::proto</a>, <a class="el" href="sd__http__introspect_8c_source.html#l00093">sd_http_last_origin()</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00021">sd_cache_inst_state::source</a>, and <a class="el" href="guard_8h_source.html#l00064">guard_request_t::status_code</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00346">cache_fill_verify_reject()</a>.</p>
-
-</div>
-</div>
-<a id="a45f1ba6fd292e6a07c96c5a8698b431d" name="a45f1ba6fd292e6a07c96c5a8698b431d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a45f1ba6fd292e6a07c96c5a8698b431d">&#9670;&#160;</a></span>sd_cache_hex_ieq()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int sd_cache_hex_ieq </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>a</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>b</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00399">399</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00424">cache_fill_verify_origin()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00432">sd_cache_fill()</a>.</p>
 
 </div>
 </div>
@@ -744,11 +434,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00701">701</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00375">375</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
 <p class="reference">References <a class="el" href="fnv_8h_source.html#l00023">BRIX_FNV1A64_OFFSET_BASIS</a>, <a class="el" href="fnv_8h_source.html#l00024">BRIX_FNV1A64_PRIME</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00717">sd_cache_peer_owner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00391">sd_cache_peer_owner()</a>.</p>
 
 </div>
 </div>
@@ -786,11 +476,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00717">717</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sd__cache__fill_8c_source.html#l00391">391</a> of file <a class="el" href="sd__cache__fill_8c_source.html">sd_cache_fill.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache_8h_source.html#l00125">brix_sd_cache_peer_t::label</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00032">sd_cache_inst_state::n_peers</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00031">sd_cache_inst_state::peers</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00701">sd_cache_hrw_fnv1a64()</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="sd__cache_8h_source.html#l00125">brix_sd_cache_peer_t::label</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00032">sd_cache_inst_state::n_peers</a>, <a class="el" href="sd__cache__internal_8h_source.html#l00031">sd_cache_inst_state::peers</a>, and <a class="el" href="sd__cache__fill_8c_source.html#l00375">sd_cache_hrw_fnv1a64()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00758">sd_cache_fill()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="sd__cache__fill_8c_source.html#l00432">sd_cache_fill()</a>.</p>
 
 </div>
 </div>

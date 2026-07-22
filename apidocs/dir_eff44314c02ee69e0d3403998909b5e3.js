@@ -22,6 +22,8 @@ var dir_eff44314c02ee69e0d3403998909b5e3 =
     [ "crc32_ieee.h", "crc32__ieee_8h.html", "crc32__ieee_8h" ],
     [ "crc32c.c", "core_2compat_2crc32c_8c.html", "core_2compat_2crc32c_8c" ],
     [ "crc32c.h", "crc32c_8h.html", "crc32c_8h" ],
+    [ "crc32c_hw.c", "crc32c__hw_8c.html", null ],
+    [ "crc32c_internal.h", "crc32c__internal_8h.html", "crc32c__internal_8h" ],
     [ "crc64.c", "crc64_8c.html", "crc64_8c" ],
     [ "crc64.h", "crc64_8h.html", "crc64_8h" ],
     [ "cred_stage.c", "cred__stage_8c.html", "cred__stage_8c" ],

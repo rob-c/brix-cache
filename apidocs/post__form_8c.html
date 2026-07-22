@@ -91,7 +91,6 @@ $(document).ready(function(){initNavTree('post__form_8c.html',''); initResizable
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">post_form.c File Reference</div></div>
 </div><!--header-->
@@ -107,11 +106,6 @@ $(document).ready(function(){initNavTree('post__form_8c.html',''); initResizable
 </div>
 <p><a href="post__form_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structpf__part__headers__t.html">pf_part_headers_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a78e0db64c7cf6430491dc0f12d1e4189" id="r_a78e0db64c7cf6430491dc0f12d1e4189"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__form_8c.html#a78e0db64c7cf6430491dc0f12d1e4189">s3_post_field_value</a> (const <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, const char *<a class="el" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)</td></tr>
@@ -126,228 +120,8 @@ Functions</h2></td></tr>
 <tr class="separator:a30f88d0a014ac982fb8e6fc7b6c008fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9df701116ec78da835fb215c00207ecf" id="r_a9df701116ec78da835fb215c00207ecf"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__form_8c.html#a9df701116ec78da835fb215c00207ecf">s3_post_expand_filename</a> (ngx_http_request_t *r, <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form)</td></tr>
 <tr class="separator:a9df701116ec78da835fb215c00207ecf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae904304200cdf237b873dad37267fbb7" id="r_ae904304200cdf237b873dad37267fbb7"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__form_8c.html#ae904304200cdf237b873dad37267fbb7">pf_parse_header_line</a> (const char *line, <a class="el" href="structpf__part__headers__t.html">pf_part_headers_t</a> *hdr)</td></tr>
-<tr class="separator:ae904304200cdf237b873dad37267fbb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7501ac7537677e07d096b715bd5056c1" id="r_a7501ac7537677e07d096b715bd5056c1"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__form_8c.html#a7501ac7537677e07d096b715bd5056c1">pf_parse_part_headers</a> (u_char **pos, u_char *end, <a class="el" href="structpf__part__headers__t.html">pf_part_headers_t</a> *hdr)</td></tr>
-<tr class="separator:a7501ac7537677e07d096b715bd5056c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a599b21006f98aa766f8f86ffe5a4087b" id="r_a599b21006f98aa766f8f86ffe5a4087b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__form_8c.html#a599b21006f98aa766f8f86ffe5a4087b">pf_capture_file</a> (<a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form, u_char *content, size_t content_len, const char *filename, const char *content_type)</td></tr>
-<tr class="separator:a599b21006f98aa766f8f86ffe5a4087b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa3bbaa8814160a1bc31e2f20fc659403" id="r_aa3bbaa8814160a1bc31e2f20fc659403"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__form_8c.html#aa3bbaa8814160a1bc31e2f20fc659403">pf_parse_one_part</a> (u_char **pos, u_char *end, const char *delim, size_t delim_len, <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form)</td></tr>
-<tr class="separator:aa3bbaa8814160a1bc31e2f20fc659403"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6c10c9c251d102bf7c952f38f5bcd63f" id="r_a6c10c9c251d102bf7c952f38f5bcd63f"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="post__form_8c.html#a6c10c9c251d102bf7c952f38f5bcd63f">s3_post_parse_form</a> (ngx_http_request_t *r, u_char *body, size_t body_len, const char *boundary, <a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *form)</td></tr>
-<tr class="separator:a6c10c9c251d102bf7c952f38f5bcd63f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a599b21006f98aa766f8f86ffe5a4087b" name="a599b21006f98aa766f8f86ffe5a4087b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a599b21006f98aa766f8f86ffe5a4087b">&#9670;&#160;</a></span>pf_capture_file()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void pf_capture_file </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
-          <td class="paramname"><em>form</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>content</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>content_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>filename</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>content_type</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00482">482</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
-
-<p class="reference">References <a class="el" href="s3__post__internal_8h_source.html#l00041">s3_post_form_t::content_type</a>, <a class="el" href="s3__post__internal_8h_source.html#l00050">s3_post_form_t::file_data</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="s3__post__internal_8h_source.html#l00040">s3_post_form_t::filename</a>, and <a class="el" href="s3__post__internal_8h_source.html#l00052">s3_post_form_t::have_file</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00508">pf_parse_one_part()</a>.</p>
-
-</div>
-</div>
-<a id="ae904304200cdf237b873dad37267fbb7" name="ae904304200cdf237b873dad37267fbb7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae904304200cdf237b873dad37267fbb7">&#9670;&#160;</a></span>pf_parse_header_line()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t pf_parse_header_line </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>line</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structpf__part__headers__t.html">pf_part_headers_t</a> *&#160;</td>
-          <td class="paramname"><em>hdr</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00386">386</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
-
-<p class="reference">References <a class="el" href="post__form_8c_source.html#l00369">pf_part_headers_t::content_type</a>, <a class="el" href="post__form_8c_source.html#l00368">pf_part_headers_t::filename</a>, <a class="el" href="post__form_8c_source.html#l00367">pf_part_headers_t::name</a>, <a class="el" href="post__object_8c_source.html#l00085">s3_post_basename()</a>, and <a class="el" href="post__form_8c_source.html#l00234">s3_post_extract_param()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00436">pf_parse_part_headers()</a>.</p>
-
-</div>
-</div>
-<a id="aa3bbaa8814160a1bc31e2f20fc659403" name="aa3bbaa8814160a1bc31e2f20fc659403"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa3bbaa8814160a1bc31e2f20fc659403">&#9670;&#160;</a></span>pf_parse_one_part()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t pf_parse_one_part </td>
-          <td>(</td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>pos</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>end</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>delim</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>delim_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
-          <td class="paramname"><em>form</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00508">508</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
-
-<p class="reference">References <a class="el" href="post__form_8c_source.html#l00369">pf_part_headers_t::content_type</a>, <a class="el" href="post__form_8c_source.html#l00368">pf_part_headers_t::filename</a>, <a class="el" href="post__form_8c_source.html#l00367">pf_part_headers_t::name</a>, <a class="el" href="post__form_8c_source.html#l00482">pf_capture_file()</a>, <a class="el" href="post__form_8c_source.html#l00436">pf_parse_part_headers()</a>, <a class="el" href="post__object_8c_source.html#l00054">s3_memmem()</a>, and <a class="el" href="post__form_8c_source.html#l00056">s3_post_store_field()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00572">s3_post_parse_form()</a>.</p>
-
-</div>
-</div>
-<a id="a7501ac7537677e07d096b715bd5056c1" name="a7501ac7537677e07d096b715bd5056c1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7501ac7537677e07d096b715bd5056c1">&#9670;&#160;</a></span>pf_parse_part_headers()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t pf_parse_part_headers </td>
-          <td>(</td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>pos</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>end</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structpf__part__headers__t.html">pf_part_headers_t</a> *&#160;</td>
-          <td class="paramname"><em>hdr</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00436">436</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="post__form_8c_source.html#l00386">pf_parse_header_line()</a>, and <a class="el" href="post__object_8c_source.html#l00054">s3_memmem()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00508">pf_parse_one_part()</a>.</p>
-
-</div>
-</div>
 <a id="a1d6288259863c5878af1af3b3790c378" name="a1d6288259863c5878af1af3b3790c378"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a1d6288259863c5878af1af3b3790c378">&#9670;&#160;</a></span>pf_scan_boundary()</h2>
 
@@ -518,7 +292,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00386">pf_parse_header_line()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__form__multipart_8c_source.html#l00040">pf_parse_header_line()</a>.</p>
 
 </div>
 </div>
@@ -552,59 +326,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="s3__post__internal_8h_source.html#l00041">s3_post_form_t::content_type</a>, <a class="el" href="s3__post__internal_8h_source.html#l00036">s3_post_form_t::fields</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, <a class="el" href="s3__post__internal_8h_source.html#l00031">s3_post_field_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="s3__post__internal_8h_source.html#l00037">s3_post_form_t::nfields</a>, and <a class="el" href="s3__post__internal_8h_source.html#l00032">s3_post_field_t::value</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00096">s3_post_cond_object()</a>, and <a class="el" href="post__policy_8c_source.html#l00176">s3_post_cond_string_op()</a>.</p>
-
-</div>
-</div>
-<a id="a6c10c9c251d102bf7c952f38f5bcd63f" name="a6c10c9c251d102bf7c952f38f5bcd63f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6c10c9c251d102bf7c952f38f5bcd63f">&#9670;&#160;</a></span>s3_post_parse_form()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t s3_post_parse_form </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>body_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>boundary</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structs3__post__form__t.html">s3_post_form_t</a> *&#160;</td>
-          <td class="paramname"><em>form</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00572">572</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
-
-<p class="reference">References <a class="el" href="post__form_8c_source.html#l00508">pf_parse_one_part()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00229">s3_post_object_body_handler_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__policy__conditions_8c_source.html#l00097">s3_post_cond_object()</a>, and <a class="el" href="post__policy__conditions_8c_source.html#l00177">s3_post_cond_string_op()</a>.</p>
 
 </div>
 </div>
@@ -650,7 +372,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="s3__post__internal_8h_source.html#l00043">s3_post_form_t::algorithm</a>, <a class="el" href="s3__post__internal_8h_source.html#l00045">s3_post_form_t::amz_date</a>, <a class="el" href="s3__post__internal_8h_source.html#l00044">s3_post_form_t::credential</a>, <a class="el" href="s3__post__internal_8h_source.html#l00036">s3_post_form_t::fields</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, <a class="el" href="s3__post__internal_8h_source.html#l00031">s3_post_field_t::name</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="s3__post__internal_8h_source.html#l00037">s3_post_form_t::nfields</a>, <a class="el" href="s3__post__internal_8h_source.html#l00042">s3_post_form_t::policy</a>, <a class="el" href="post__object_8c_source.html#l00025">s3_post_copy_text()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00027">S3_POST_MAX_FIELD</a>, <a class="el" href="s3__post__internal_8h_source.html#l00028">S3_POST_MAX_FIELDS</a>, <a class="el" href="s3__post__internal_8h_source.html#l00046">s3_post_form_t::signature</a>, <a class="el" href="s3__post__internal_8h_source.html#l00048">s3_post_form_t::success_redirect</a>, <a class="el" href="s3__post__internal_8h_source.html#l00047">s3_post_form_t::success_status</a>, and <a class="el" href="s3__post__internal_8h_source.html#l00032">s3_post_field_t::value</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00508">pf_parse_one_part()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="post__form__multipart_8c_source.html#l00162">pf_parse_one_part()</a>.</p>
 
 </div>
 </div>

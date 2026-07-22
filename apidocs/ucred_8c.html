@@ -91,12 +91,12 @@ $(document).ready(function(){initNavTree('ucred_8c.html',''); initResizable(); }
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">ucred.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="ucred_8h_source.html">ucred.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="ucred__internal_8h_source.html">ucred_internal.h</a>&quot;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
@@ -110,38 +110,17 @@ $(document).ready(function(){initNavTree('ucred_8c.html',''); initResizable(); }
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="ucred_8c__incl.svg" width="100%" height="547"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="ucred_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="ucred_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structucred__keyring__line__t.html">ucred_keyring_line_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:aba17a17ffb67ce7c3e2206a2c7572b0d" id="r_aba17a17ffb67ce7c3e2206a2c7572b0d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#aba17a17ffb67ce7c3e2206a2c7572b0d">ucred_fs_safe_char</a> (char <a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:aba17a17ffb67ce7c3e2206a2c7572b0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0f24212c798d5fad30d4f54ef635486e" id="r_a0f24212c798d5fad30d4f54ef635486e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#a0f24212c798d5fad30d4f54ef635486e">ucred_principal_fs_safe</a> (const char *principal)</td></tr>
 <tr class="separator:a0f24212c798d5fad30d4f54ef635486e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adef19066198072b88c4af0d81d975689" id="r_adef19066198072b88c4af0d81d975689"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#adef19066198072b88c4af0d81d975689">ucred_check_pem</a> (const char *path, int *expired)</td></tr>
-<tr class="separator:adef19066198072b88c4af0d81d975689"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a82d719841b28f1b91187356ba1f36f89" id="r_a82d719841b28f1b91187356ba1f36f89"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#a82d719841b28f1b91187356ba1f36f89">ucred_read_token</a> (const char *path, char *out_bearer, size_t cap)</td></tr>
-<tr class="separator:a82d719841b28f1b91187356ba1f36f89"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad7a292894b7ed00154a9f11a49a0bd53" id="r_ad7a292894b7ed00154a9f11a49a0bd53"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#ad7a292894b7ed00154a9f11a49a0bd53">ucred_line_end</a> (const char *buf, size_t start, size_t end)</td></tr>
-<tr class="separator:ad7a292894b7ed00154a9f11a49a0bd53"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acd7263abd8ef73e9689dfe6e1a0a7d19" id="r_acd7263abd8ef73e9689dfe6e1a0a7d19"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#acd7263abd8ef73e9689dfe6e1a0a7d19">ucred_skip_eol</a> (const char *buf, size_t pos, size_t end)</td></tr>
-<tr class="separator:acd7263abd8ef73e9689dfe6e1a0a7d19"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a531429c0104201695e51139c6639d111" id="r_a531429c0104201695e51139c6639d111"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#a531429c0104201695e51139c6639d111">ucred_read_s3</a> (const char *path, char *out_ak, size_t ak_cap, char *out_sk, size_t sk_cap, char *out_region, size_t region_cap)</td></tr>
-<tr class="separator:a531429c0104201695e51139c6639d111"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad6a2d69af8a5d5e243dde281f5c5e938" id="r_ad6a2d69af8a5d5e243dde281f5c5e938"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#ad6a2d69af8a5d5e243dde281f5c5e938">ucred_keyring_next_line</a> (const char *buf, size_t i, size_t end)</td></tr>
-<tr class="separator:ad6a2d69af8a5d5e243dde281f5c5e938"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1bca9a4d8ed48a0f98ad143e7654e2d3" id="r_a1bca9a4d8ed48a0f98ad143e7654e2d3"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#a1bca9a4d8ed48a0f98ad143e7654e2d3">ucred_keyring_parse_line</a> (const char *buf, size_t line, size_t end, <a class="el" href="structucred__keyring__line__t.html">ucred_keyring_line_t</a> *out)</td></tr>
-<tr class="separator:a1bca9a4d8ed48a0f98ad143e7654e2d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7eaae53209eac532109108de6b52e0b4" id="r_a7eaae53209eac532109108de6b52e0b4"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#a7eaae53209eac532109108de6b52e0b4">ucred_read_keyring</a> (const char *path, char *out_path, size_t path_cap, char *out_user, size_t user_cap)</td></tr>
-<tr class="separator:a7eaae53209eac532109108de6b52e0b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad2505a06a712bfa5db77e77908d09824" id="r_ad2505a06a712bfa5db77e77908d09824"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#ad2505a06a712bfa5db77e77908d09824">brix_sd_ucred_principal</a> (const <a class="el" href="structbrix__identity__t.html">brix_identity_t</a> *id, char *buf, size_t cap)</td></tr>
 <tr class="separator:ad2505a06a712bfa5db77e77908d09824"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3dde26eee3ce03e5d5a3f6c2c7fb6728" id="r_a3dde26eee3ce03e5d5a3f6c2c7fb6728"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ucred_8c.html#a3dde26eee3ce03e5d5a3f6c2c7fb6728">brix_sd_ucred_key</a> (const char *principal, char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t cap)</td></tr>
@@ -186,11 +165,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00464">464</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00115">115</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="ucred_8c_source.html#l00055">ucred_principal_fs_safe()</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="ucred_8c_source.html#l00058">ucred_principal_fs_safe()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00129">brix_http_delegated_cred_variable()</a>, <a class="el" href="ucred_8c_source.html#l00616">brix_sd_ucred_select()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01272">delegation_put_store()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00129">brix_http_delegated_cred_variable()</a>, <a class="el" href="ucred_8c_source.html#l00267">brix_sd_ucred_select()</a>, <a class="el" href="delegation__gridsite__put_8c_source.html#l00324">delegation_put_store()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>.</p>
 
 </div>
 </div>
@@ -226,11 +205,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00432">432</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00083">83</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="identity_8h_source.html#l00028">brix_identity_t::dn</a>, <a class="el" href="identity_8h_source.html#l00059">brix_identity_t::is_authenticated</a>, and <a class="el" href="identity_8h_source.html#l00029">brix_identity_t::subject</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00616">brix_sd_ucred_select()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00302">vfs_backend_cred_decide()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00267">brix_sd_ucred_select()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00302">vfs_backend_cred_decide()</a>.</p>
 
 </div>
 </div>
@@ -266,11 +245,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00511">511</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00162">162</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ucred_8h_source.html#l00122">brix_sd_ucred_t::bearer</a>, <a class="el" href="ucred_8h_source.html#l00076">BRIX_UCRED_PATH_MAX</a>, <a class="el" href="ucred_8h_source.html#l00127">brix_sd_ucred_t::ceph_keyring</a>, <a class="el" href="ucred_8h_source.html#l00130">brix_sd_ucred_t::ceph_user</a>, <a class="el" href="ucred_8h_source.html#l00133">brix_sd_ucred_t::expired</a>, <a class="el" href="ucred_8h_source.html#l00135">brix_sd_ucred_t::is_bearer</a>, <a class="el" href="ucred_8h_source.html#l00137">brix_sd_ucred_t::is_ceph</a>, <a class="el" href="ucred_8h_source.html#l00136">brix_sd_ucred_t::is_s3</a>, <a class="el" href="ucred_8h_source.html#l00119">brix_sd_ucred_t::key</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="ucred_8h_source.html#l00120">brix_sd_ucred_t::path</a>, <a class="el" href="ucred_8h_source.html#l00123">brix_sd_ucred_t::s3_ak</a>, <a class="el" href="ucred_8h_source.html#l00126">brix_sd_ucred_t::s3_region</a>, <a class="el" href="ucred_8h_source.html#l00124">brix_sd_ucred_t::s3_sk</a>, <a class="el" href="ucred_8c_source.html#l00078">ucred_check_pem()</a>, <a class="el" href="ucred_8c_source.html#l00374">ucred_read_keyring()</a>, <a class="el" href="ucred_8c_source.html#l00217">ucred_read_s3()</a>, and <a class="el" href="ucred_8c_source.html#l00118">ucred_read_token()</a>.</p>
+<p class="reference">References <a class="el" href="ucred_8h_source.html#l00122">brix_sd_ucred_t::bearer</a>, <a class="el" href="ucred_8h_source.html#l00076">BRIX_UCRED_PATH_MAX</a>, <a class="el" href="ucred_8h_source.html#l00127">brix_sd_ucred_t::ceph_keyring</a>, <a class="el" href="ucred_8h_source.html#l00130">brix_sd_ucred_t::ceph_user</a>, <a class="el" href="ucred_8h_source.html#l00133">brix_sd_ucred_t::expired</a>, <a class="el" href="ucred_8h_source.html#l00135">brix_sd_ucred_t::is_bearer</a>, <a class="el" href="ucred_8h_source.html#l00137">brix_sd_ucred_t::is_ceph</a>, <a class="el" href="ucred_8h_source.html#l00136">brix_sd_ucred_t::is_s3</a>, <a class="el" href="ucred_8h_source.html#l00119">brix_sd_ucred_t::key</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="ucred_8h_source.html#l00120">brix_sd_ucred_t::path</a>, <a class="el" href="ucred_8h_source.html#l00123">brix_sd_ucred_t::s3_ak</a>, <a class="el" href="ucred_8h_source.html#l00126">brix_sd_ucred_t::s3_region</a>, <a class="el" href="ucred_8h_source.html#l00124">brix_sd_ucred_t::s3_sk</a>, <a class="el" href="ucred__parse_8c_source.html#l00039">ucred_check_pem()</a>, <a class="el" href="ucred__parse_8c_source.html#l00335">ucred_read_keyring()</a>, <a class="el" href="ucred__parse_8c_source.html#l00178">ucred_read_s3()</a>, and <a class="el" href="ucred__parse_8c_source.html#l00079">ucred_read_token()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00129">brix_http_delegated_cred_variable()</a>, <a class="el" href="ucred_8c_source.html#l00616">brix_sd_ucred_select()</a>, <a class="el" href="stage__engine_8c_source.html#l00292">stage_engine_run()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00153">vfs_cred_maybe_mint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00129">brix_http_delegated_cred_variable()</a>, <a class="el" href="ucred_8c_source.html#l00267">brix_sd_ucred_select()</a>, <a class="el" href="stage__engine_8c_source.html#l00292">stage_engine_run()</a>, and <a class="el" href="vfs__cred_8c_source.html#l00153">vfs_cred_maybe_mint()</a>.</p>
 
 </div>
 </div>
@@ -306,9 +285,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00616">616</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00267">267</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ucred_8c_source.html#l00464">brix_sd_ucred_key()</a>, <a class="el" href="ucred_8c_source.html#l00432">brix_sd_ucred_principal()</a>, <a class="el" href="ucred_8c_source.html#l00511">brix_sd_ucred_resolve()</a>, <a class="el" href="ucred_8h_source.html#l00073">BRIX_UCRED_KEY_MAX</a>, <a class="el" href="ucred_8h_source.html#l00079">BRIX_UCRED_PRINC_MAX</a>, <a class="el" href="ucred_8h_source.html#l00133">brix_sd_ucred_t::expired</a>, <a class="el" href="ucred_8h_source.html#l00119">brix_sd_ucred_t::key</a>, <a class="el" href="ucred_8h_source.html#l00118">brix_sd_ucred_t::principal</a>, and <a class="el" href="ucred_8c_source.html#l00055">ucred_principal_fs_safe()</a>.</p>
+<p class="reference">References <a class="el" href="ucred_8c_source.html#l00115">brix_sd_ucred_key()</a>, <a class="el" href="ucred_8c_source.html#l00083">brix_sd_ucred_principal()</a>, <a class="el" href="ucred_8c_source.html#l00162">brix_sd_ucred_resolve()</a>, <a class="el" href="ucred_8h_source.html#l00073">BRIX_UCRED_KEY_MAX</a>, <a class="el" href="ucred_8h_source.html#l00079">BRIX_UCRED_PRINC_MAX</a>, <a class="el" href="ucred_8h_source.html#l00133">brix_sd_ucred_t::expired</a>, <a class="el" href="ucred_8h_source.html#l00119">brix_sd_ucred_t::key</a>, <a class="el" href="ucred_8h_source.html#l00118">brix_sd_ucred_t::principal</a>, and <a class="el" href="ucred_8c_source.html#l00058">ucred_principal_fs_safe()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="vfs__cred_8c_source.html#l00302">vfs_backend_cred_decide()</a>, and <a class="el" href="tpc__user__proxy_8c_source.html#l00173">webdav_tpc_user_proxy_from_store()</a>.</p>
 
@@ -330,51 +309,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00682">682</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00333">333</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ucred_8h_source.html#l00122">brix_sd_ucred_t::bearer</a>, <a class="el" href="ucred_8h_source.html#l00127">brix_sd_ucred_t::ceph_keyring</a>, and <a class="el" href="ucred_8h_source.html#l00124">brix_sd_ucred_t::s3_sk</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00129">brix_http_delegated_cred_variable()</a>, <a class="el" href="open__request_8c_source.html#l00079">brix_open_read_probe()</a>, <a class="el" href="open__resolved__file__open_8c_source.html#l00116">brix_open_resolved_via_driver()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00123">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00058">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00111">brix_vfs_listxattr()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00265">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00219">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="stage__engine_8c_source.html#l00292">stage_engine_run()</a>, <a class="el" href="vfs__staged_8c_source.html#l00118">staged_open_driver()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>, and <a class="el" href="tpc__user__proxy_8c_source.html#l00173">webdav_tpc_user_proxy_from_store()</a>.</p>
-
-</div>
-</div>
-<a id="adef19066198072b88c4af0d81d975689" name="adef19066198072b88c4af0d81d975689"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adef19066198072b88c4af0d81d975689">&#9670;&#160;</a></span>ucred_check_pem()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t ucred_check_pem </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>expired</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00078">78</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00511">brix_sd_ucred_resolve()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="module__init_8c_source.html#l00129">brix_http_delegated_cred_variable()</a>, <a class="el" href="open__request__resolve_8c_source.html#l00046">brix_open_read_probe()</a>, <a class="el" href="open__resolved__file__open_8c_source.html#l00116">brix_open_resolved_via_driver()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00281">brix_vfs_chmod()</a>, <a class="el" href="vfs__copy_8c_source.html#l00063">brix_vfs_copy_driver()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00123">brix_vfs_delete_via_driver()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00058">brix_vfs_getxattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00111">brix_vfs_listxattr()</a>, <a class="el" href="vfs__open_8c_source.html#l00227">brix_vfs_open_via_driver()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00265">brix_vfs_removexattr()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00350">brix_vfs_setattr()</a>, <a class="el" href="vfs__xattr_8c_source.html#l00219">brix_vfs_setxattr()</a>, <a class="el" href="vfs__stat_8c_source.html#l00034">brix_vfs_stat_impl()</a>, <a class="el" href="stage__engine_8c_source.html#l00292">stage_engine_run()</a>, <a class="el" href="vfs__staged_8c_source.html#l00118">staged_open_driver()</a>, <a class="el" href="vfs__dir_8c_source.html#l00085">vfs_dir_open_driver()</a>, <a class="el" href="vfs__mkdir_8c_source.html#l00161">vfs_mkdir_backend()</a>, and <a class="el" href="tpc__user__proxy_8c_source.html#l00173">webdav_tpc_user_proxy_from_store()</a>.</p>
 
 </div>
 </div>
@@ -402,157 +341,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00047">47</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00050">50</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
 
 <p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00055">ucred_principal_fs_safe()</a>.</p>
-
-</div>
-</div>
-<a id="ad6a2d69af8a5d5e243dde281f5c5e938" name="ad6a2d69af8a5d5e243dde281f5c5e938"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad6a2d69af8a5d5e243dde281f5c5e938">&#9670;&#160;</a></span>ucred_keyring_next_line()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static size_t ucred_keyring_next_line </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>i</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>end</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00307">307</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00337">ucred_keyring_parse_line()</a>.</p>
-
-</div>
-</div>
-<a id="a1bca9a4d8ed48a0f98ad143e7654e2d3" name="a1bca9a4d8ed48a0f98ad143e7654e2d3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1bca9a4d8ed48a0f98ad143e7654e2d3">&#9670;&#160;</a></span>ucred_keyring_parse_line()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t ucred_keyring_parse_line </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>line</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>end</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structucred__keyring__line__t.html">ucred_keyring_line_t</a> *&#160;</td>
-          <td class="paramname"><em>out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00337">337</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ucred_8c_source.html#l00332">ucred_keyring_line_t::id_len</a>, <a class="el" href="ucred_8c_source.html#l00331">ucred_keyring_line_t::id_start</a>, <a class="el" href="ucred_8c_source.html#l00333">ucred_keyring_line_t::next</a>, and <a class="el" href="ucred_8c_source.html#l00307">ucred_keyring_next_line()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00374">ucred_read_keyring()</a>.</p>
-
-</div>
-</div>
-<a id="ad7a292894b7ed00154a9f11a49a0bd53" name="ad7a292894b7ed00154a9f11a49a0bd53"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad7a292894b7ed00154a9f11a49a0bd53">&#9670;&#160;</a></span>ucred_line_end()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static size_t ucred_line_end </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>start</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>end</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00162">162</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00217">ucred_read_s3()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00058">ucred_principal_fs_safe()</a>.</p>
 
 </div>
 </div>
@@ -580,237 +373,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00055">55</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00058">58</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ucred_8c_source.html#l00047">ucred_fs_safe_char()</a>.</p>
+<p class="reference">References <a class="el" href="ucred_8c_source.html#l00050">ucred_fs_safe_char()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00464">brix_sd_ucred_key()</a>, and <a class="el" href="ucred_8c_source.html#l00616">brix_sd_ucred_select()</a>.</p>
-
-</div>
-</div>
-<a id="a7eaae53209eac532109108de6b52e0b4" name="a7eaae53209eac532109108de6b52e0b4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7eaae53209eac532109108de6b52e0b4">&#9670;&#160;</a></span>ucred_read_keyring()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t ucred_read_keyring </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>path_cap</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out_user</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>user_cap</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00374">374</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ucred_8c_source.html#l00332">ucred_keyring_line_t::id_len</a>, <a class="el" href="ucred_8c_source.html#l00331">ucred_keyring_line_t::id_start</a>, <a class="el" href="ucred_8c_source.html#l00333">ucred_keyring_line_t::next</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, and <a class="el" href="ucred_8c_source.html#l00337">ucred_keyring_parse_line()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00511">brix_sd_ucred_resolve()</a>.</p>
-
-</div>
-</div>
-<a id="a531429c0104201695e51139c6639d111" name="a531429c0104201695e51139c6639d111"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a531429c0104201695e51139c6639d111">&#9670;&#160;</a></span>ucred_read_s3()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t ucred_read_s3 </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out_ak</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>ak_cap</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out_sk</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>sk_cap</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out_region</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>region_cap</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00217">217</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ucred_8h_source.html#l00088">BRIX_UCRED_S3_AK_MAX</a>, <a class="el" href="ucred_8h_source.html#l00090">BRIX_UCRED_S3_REGION_MAX</a>, <a class="el" href="ucred_8h_source.html#l00089">BRIX_UCRED_S3_SK_MAX</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>, <a class="el" href="ucred_8c_source.html#l00162">ucred_line_end()</a>, and <a class="el" href="ucred_8c_source.html#l00186">ucred_skip_eol()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00511">brix_sd_ucred_resolve()</a>.</p>
-
-</div>
-</div>
-<a id="a82d719841b28f1b91187356ba1f36f89" name="a82d719841b28f1b91187356ba1f36f89"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a82d719841b28f1b91187356ba1f36f89">&#9670;&#160;</a></span>ucred_read_token()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t ucred_read_token </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>out_bearer</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>cap</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00118">118</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ucred_8h_source.html#l00083">BRIX_UCRED_BEARER_MAX</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00299">read()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00511">brix_sd_ucred_resolve()</a>.</p>
-
-</div>
-</div>
-<a id="acd7263abd8ef73e9689dfe6e1a0a7d19" name="acd7263abd8ef73e9689dfe6e1a0a7d19"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acd7263abd8ef73e9689dfe6e1a0a7d19">&#9670;&#160;</a></span>ucred_skip_eol()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static size_t ucred_skip_eol </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>pos</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>end</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ucred_8c_source.html#l00186">186</a> of file <a class="el" href="ucred_8c_source.html">ucred.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00217">ucred_read_s3()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ucred_8c_source.html#l00115">brix_sd_ucred_key()</a>, and <a class="el" href="ucred_8c_source.html#l00267">brix_sd_ucred_select()</a>.</p>
 
 </div>
 </div>

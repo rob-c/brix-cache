@@ -92,8 +92,6 @@ $(document).ready(function(){initNavTree('health__check_8c.html',''); initResiza
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
-<a href="#define-members">Macros</a> &#124;
-<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">health_check.c File Reference</div></div>
 </div><!--header-->
@@ -102,6 +100,7 @@ $(document).ready(function(){initNavTree('health__check_8c.html',''); initResiza
 <code>#include &quot;<a class="el" href="net_2manager_2registry_8h_source.html">registry.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="metrics__macros_8h_source.html">observability/metrics/metrics_macros.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="log__diag_8h_source.html">core/compat/log_diag.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="health__check__internal_8h_source.html">health_check_internal.h</a>&quot;</code><br />
 <code>#include &lt;netdb.h&gt;</code><br />
 <code>#include &lt;sys/socket.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -116,49 +115,17 @@ $(document).ready(function(){initNavTree('health__check_8c.html',''); initResiza
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__hc__mgr__t.html">brix_hc_mgr_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:ac75c4a04546f0b32c740b2bd7b880153" id="r_ac75c4a04546f0b32c740b2bd7b880153"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#ac75c4a04546f0b32c740b2bd7b880153">BRIX_HC_METRIC_INC</a>(field)</td></tr>
-<tr class="separator:ac75c4a04546f0b32c740b2bd7b880153"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
-Enumerations</h2></td></tr>
-<tr class="memitem:a2bf47fe122c23a2c60350fa2b80e2893" id="r_a2bf47fe122c23a2c60350fa2b80e2893"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a2bf47fe122c23a2c60350fa2b80e2893">brix_hc_phase_t</a> { <a class="el" href="health__check_8c.html#a2bf47fe122c23a2c60350fa2b80e2893a3a790de8feb13f91036dc42c0fbe41dc">XRD_HC_HANDSHAKE</a> = 0
-, <a class="el" href="health__check_8c.html#a2bf47fe122c23a2c60350fa2b80e2893aa9f124a047504efe3e018a07bc92cb54">XRD_HC_PROTOCOL</a>
-, <a class="el" href="health__check_8c.html#a2bf47fe122c23a2c60350fa2b80e2893a7e06a656a12143c20c544410ef08f48e">XRD_HC_LOGIN</a>
-, <a class="el" href="health__check_8c.html#a2bf47fe122c23a2c60350fa2b80e2893a3afd34079d6e554ef6201a82ce5d0145">XRD_HC_PROBE</a>
- }</td></tr>
-<tr class="separator:a2bf47fe122c23a2c60350fa2b80e2893"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:a5a35f62fd990d8c2b76c0b30966affb6" id="r_a5a35f62fd990d8c2b76c0b30966affb6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a5a35f62fd990d8c2b76c0b30966affb6">brix_upstream_build_bootstrap_flags</a> (u_char *buf, uint8_t protocol_flags)</td></tr>
 <tr class="separator:a5a35f62fd990d8c2b76c0b30966affb6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1a37ecdc99deb7901368ebd66bb04c12" id="r_a1a37ecdc99deb7901368ebd66bb04c12"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a1a37ecdc99deb7901368ebd66bb04c12">brix_upstream_build_login</a> (<a class="el" href="structClientLoginRequest.html">ClientLoginRequest</a> *req)</td></tr>
-<tr class="separator:a1a37ecdc99deb7901368ebd66bb04c12"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a795e24c0ec02740b875f3520a5f68f5b" id="r_a795e24c0ec02740b875f3520a5f68f5b"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a795e24c0ec02740b875f3520a5f68f5b">brix_hc_write_handler</a> (ngx_event_t *wev)</td></tr>
-<tr class="separator:a795e24c0ec02740b875f3520a5f68f5b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af70a28b9d7a4da4aa3021486214f83aa" id="r_af70a28b9d7a4da4aa3021486214f83aa"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#af70a28b9d7a4da4aa3021486214f83aa">brix_hc_read_handler</a> (ngx_event_t *rev)</td></tr>
-<tr class="separator:af70a28b9d7a4da4aa3021486214f83aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af63fd5dc35949cc9c07915371478ab7a" id="r_af63fd5dc35949cc9c07915371478ab7a"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#af63fd5dc35949cc9c07915371478ab7a">brix_hc_timeout_handler</a> (ngx_event_t *ev)</td></tr>
 <tr class="separator:af63fd5dc35949cc9c07915371478ab7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a121e8d3a7626ec5a4e2b504735ce67a7" id="r_a121e8d3a7626ec5a4e2b504735ce67a7"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a121e8d3a7626ec5a4e2b504735ce67a7">brix_hc_finish</a> (<a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *hc, int passed)</td></tr>
-<tr class="separator:a121e8d3a7626ec5a4e2b504735ce67a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a285685d97974e71b9aa2cfa4ba01dc28" id="r_a285685d97974e71b9aa2cfa4ba01dc28"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a285685d97974e71b9aa2cfa4ba01dc28">brix_hc_flush</a> (<a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *hc)</td></tr>
-<tr class="separator:a285685d97974e71b9aa2cfa4ba01dc28"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a47b08d2e4bed0c0257822a25d2c6e9dc" id="r_a47b08d2e4bed0c0257822a25d2c6e9dc"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a47b08d2e4bed0c0257822a25d2c6e9dc">brix_hc_send_probe</a> (<a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *hc)</td></tr>
-<tr class="separator:a47b08d2e4bed0c0257822a25d2c6e9dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a94ed9c4c6d2e8895f70adcceeb7ac92c" id="r_a94ed9c4c6d2e8895f70adcceeb7ac92c"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a94ed9c4c6d2e8895f70adcceeb7ac92c">brix_hc_recv_frame</a> (<a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *hc)</td></tr>
-<tr class="separator:a94ed9c4c6d2e8895f70adcceeb7ac92c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abec1c48e0ccab227310148ae4a3c2b40" id="r_abec1c48e0ccab227310148ae4a3c2b40"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#abec1c48e0ccab227310148ae4a3c2b40">brix_hc_dispatch_protocol</a> (<a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *hc)</td></tr>
-<tr class="separator:abec1c48e0ccab227310148ae4a3c2b40"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3300849d5f7fab27db2fe32e506bade2" id="r_a3300849d5f7fab27db2fe32e506bade2"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a3300849d5f7fab27db2fe32e506bade2">brix_hc_dispatch</a> (<a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *hc)</td></tr>
-<tr class="separator:a3300849d5f7fab27db2fe32e506bade2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7402258192704ce8df3669168fa85fe2" id="r_a7402258192704ce8df3669168fa85fe2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a7402258192704ce8df3669168fa85fe2">brix_hc_finish</a> (<a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *hc, int passed)</td></tr>
+<tr class="separator:a7402258192704ce8df3669168fa85fe2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae9089c3d697041442d1883f4d7ce1572" id="r_ae9089c3d697041442d1883f4d7ce1572"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#ae9089c3d697041442d1883f4d7ce1572">brix_hc_pre_connect_fail</a> (struct addrinfo *res, const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint16_t <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, ngx_pool_t *pool)</td></tr>
 <tr class="separator:ae9089c3d697041442d1883f4d7ce1572"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1e52defeae9282b3eb2e58a83d5a5ffe" id="r_a1e52defeae9282b3eb2e58a83d5a5ffe"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#a1e52defeae9282b3eb2e58a83d5a5ffe">brix_hc_ctx_create</a> (ngx_cycle_t *cycle, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint16_t <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
@@ -178,56 +145,6 @@ Functions</h2></td></tr>
 <tr class="memitem:ac8323579069448eb1ac3a74dae96e3ba" id="r_ac8323579069448eb1ac3a74dae96e3ba"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="health__check_8c.html#ac8323579069448eb1ac3a74dae96e3ba">brix_hc_manager_start</a> (ngx_cycle_t *cycle, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
 <tr class="separator:ac8323579069448eb1ac3a74dae96e3ba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ac75c4a04546f0b32c740b2bd7b880153" name="ac75c4a04546f0b32c740b2bd7b880153"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac75c4a04546f0b32c740b2bd7b880153">&#9670;&#160;</a></span>BRIX_HC_METRIC_INC</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_HC_METRIC_INC</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">field</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">do</span> {                                                                     \</div>
-<div class="line">        <a class="code hl_struct" href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a> *_m = <a class="code hl_function" href="metrics__macros_8h.html#ae713ef37e9f6754bea510d352cfa5def">brix_metrics_shared</a>();                  \</div>
-<div class="line">        if (_m != NULL) { (void) ngx_atomic_fetch_add(&amp;_m-&gt;field, 1); }      \</div>
-<div class="line">    } <span class="keywordflow">while</span> (0)</div>
-<div class="ttc" id="ametrics__macros_8h_html_ae713ef37e9f6754bea510d352cfa5def"><div class="ttname"><a href="metrics__macros_8h.html#ae713ef37e9f6754bea510d352cfa5def">brix_metrics_shared</a></div><div class="ttdeci">static ngx_brix_metrics_t * brix_metrics_shared(void)</div><div class="ttdef"><b>Definition</b> <a href="metrics__macros_8h_source.html#l00028">metrics_macros.h:28</a></div></div>
-<div class="ttc" id="astructngx__brix__metrics__t_html"><div class="ttname"><a href="structngx__brix__metrics__t.html">ngx_brix_metrics_t</a></div><div class="ttdef"><b>Definition</b> <a href="observability_2metrics_2metrics_8h_source.html#l00382">metrics.h:382</a></div></div>
-</div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00108">108</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="a2bf47fe122c23a2c60350fa2b80e2893" name="a2bf47fe122c23a2c60350fa2b80e2893"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2bf47fe122c23a2c60350fa2b80e2893">&#9670;&#160;</a></span>brix_hc_phase_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="health__check_8c.html#a2bf47fe122c23a2c60350fa2b80e2893">brix_hc_phase_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a2bf47fe122c23a2c60350fa2b80e2893a3a790de8feb13f91036dc42c0fbe41dc" name="a2bf47fe122c23a2c60350fa2b80e2893a3a790de8feb13f91036dc42c0fbe41dc"></a>XRD_HC_HANDSHAKE&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a2bf47fe122c23a2c60350fa2b80e2893aa9f124a047504efe3e018a07bc92cb54" name="a2bf47fe122c23a2c60350fa2b80e2893aa9f124a047504efe3e018a07bc92cb54"></a>XRD_HC_PROTOCOL&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a2bf47fe122c23a2c60350fa2b80e2893a7e06a656a12143c20c544410ef08f48e" name="a2bf47fe122c23a2c60350fa2b80e2893a7e06a656a12143c20c544410ef08f48e"></a>XRD_HC_LOGIN&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="a2bf47fe122c23a2c60350fa2b80e2893a3afd34079d6e554ef6201a82ce5d0145" name="a2bf47fe122c23a2c60350fa2b80e2893a3afd34079d6e554ef6201a82ce5d0145"></a>XRD_HC_PROBE&#160;</td><td class="fielddoc"></td></tr>
-</table>
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00042">42</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a783747362079521dfb7f9497e313533e" name="a783747362079521dfb7f9497e313533e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a783747362079521dfb7f9497e313533e">&#9670;&#160;</a></span>brix_hc_begin_connect()</h2>
@@ -263,11 +180,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00767">767</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00277">277</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="health__check_8c_source.html#l00057">brix_hc_ctx_t::conn</a>, and <a class="el" href="health__check_8c_source.html#l00060">brix_hc_ctx_t::connecting</a>.</p>
+<p class="reference">References <a class="el" href="health__check_8c_source.html#l00067">brix_hc_finish()</a>, <a class="el" href="health__check__probe_8c_source.html#l00045">brix_hc_flush()</a>, <a class="el" href="health__check__internal_8h_source.html#l00054">brix_hc_ctx_t::conn</a>, and <a class="el" href="health__check__internal_8h_source.html#l00057">brix_hc_ctx_t::connecting</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -317,89 +234,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00620">620</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00130">130</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00090">brix_hc_ctx_t::blacklist_ms</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="health__check_8c_source.html#l00069">brix_hc_ctx_t::conf</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="health__check_8c_source.html#l00086">brix_hc_ctx_t::host</a>, <a class="el" href="health__check_8c_source.html#l00058">brix_hc_ctx_t::log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="health__check_8c_source.html#l00059">brix_hc_ctx_t::phase</a>, <a class="el" href="health__check_8c_source.html#l00056">brix_hc_ctx_t::pool</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="health__check_8c_source.html#l00087">brix_hc_ctx_t::port</a>, <a class="el" href="health__check_8c_source.html#l00091">brix_hc_ctx_t::probe_type</a>, <a class="el" href="health__check_8c_source.html#l00089">brix_hc_ctx_t::threshold</a>, and <a class="el" href="health__check_8c_source.html#l00043">XRD_HC_HANDSHAKE</a>.</p>
+<p class="reference">References <a class="el" href="health__check__internal_8h_source.html#l00087">brix_hc_ctx_t::blacklist_ms</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="health__check__internal_8h_source.html#l00066">brix_hc_ctx_t::conf</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="health__check__internal_8h_source.html#l00083">brix_hc_ctx_t::host</a>, <a class="el" href="health__check__internal_8h_source.html#l00055">brix_hc_ctx_t::log</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="health__check__internal_8h_source.html#l00056">brix_hc_ctx_t::phase</a>, <a class="el" href="health__check__internal_8h_source.html#l00053">brix_hc_ctx_t::pool</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="health__check__internal_8h_source.html#l00084">brix_hc_ctx_t::port</a>, <a class="el" href="health__check__internal_8h_source.html#l00088">brix_hc_ctx_t::probe_type</a>, <a class="el" href="health__check__internal_8h_source.html#l00086">brix_hc_ctx_t::threshold</a>, and <a class="el" href="health__check__internal_8h_source.html#l00040">XRD_HC_HANDSHAKE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>.</p>
 
 </div>
 </div>
-<a id="a3300849d5f7fab27db2fe32e506bade2" name="a3300849d5f7fab27db2fe32e506bade2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3300849d5f7fab27db2fe32e506bade2">&#9670;&#160;</a></span>brix_hc_dispatch()</h2>
+<a id="a7402258192704ce8df3669168fa85fe2" name="a7402258192704ce8df3669168fa85fe2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7402258192704ce8df3669168fa85fe2">&#9670;&#160;</a></span>brix_hc_finish()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void brix_hc_dispatch </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>hc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00450">450</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00375">brix_hc_dispatch_protocol()</a>, <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, <a class="el" href="health__check_8c_source.html#l00057">brix_hc_ctx_t::conn</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="health__check_8c_source.html#l00059">brix_hc_ctx_t::phase</a>, <a class="el" href="health__check_8c_source.html#l00076">brix_hc_ctx_t::resp_body</a>, <a class="el" href="health__check_8c_source.html#l00077">brix_hc_ctx_t::resp_body_pos</a>, <a class="el" href="health__check_8c_source.html#l00075">brix_hc_ctx_t::resp_dlen</a>, <a class="el" href="health__check_8c_source.html#l00074">brix_hc_ctx_t::resp_status</a>, <a class="el" href="health__check_8c_source.html#l00073">brix_hc_ctx_t::rhdr_pos</a>, <a class="el" href="health__check_8c_source.html#l00043">XRD_HC_HANDSHAKE</a>, <a class="el" href="health__check_8c_source.html#l00045">XRD_HC_LOGIN</a>, <a class="el" href="health__check_8c_source.html#l00046">XRD_HC_PROBE</a>, and <a class="el" href="health__check_8c_source.html#l00044">XRD_HC_PROTOCOL</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00501">brix_hc_read_handler()</a>.</p>
-
-</div>
-</div>
-<a id="abec1c48e0ccab227310148ae4a3c2b40" name="abec1c48e0ccab227310148ae4a3c2b40"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abec1c48e0ccab227310148ae4a3c2b40">&#9670;&#160;</a></span>brix_hc_dispatch_protocol()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_hc_dispatch_protocol </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>hc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00375">375</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00065">brix_upstream_build_login()</a>, <a class="el" href="health__check_8c_source.html#l00069">brix_hc_ctx_t::conf</a>, <a class="el" href="health__check_8c_source.html#l00057">brix_hc_ctx_t::conn</a>, <a class="el" href="health__check_8c_source.html#l00086">brix_hc_ctx_t::host</a>, <a class="el" href="flags_8h_source.html#l00097">kXR_gotoTLS</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="health__check_8c_source.html#l00058">brix_hc_ctx_t::log</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="health__check_8c_source.html#l00059">brix_hc_ctx_t::phase</a>, <a class="el" href="health__check_8c_source.html#l00056">brix_hc_ctx_t::pool</a>, <a class="el" href="health__check_8c_source.html#l00087">brix_hc_ctx_t::port</a>, <a class="el" href="health__check_8c_source.html#l00076">brix_hc_ctx_t::resp_body</a>, <a class="el" href="health__check_8c_source.html#l00077">brix_hc_ctx_t::resp_body_pos</a>, <a class="el" href="health__check_8c_source.html#l00075">brix_hc_ctx_t::resp_dlen</a>, <a class="el" href="health__check_8c_source.html#l00074">brix_hc_ctx_t::resp_status</a>, <a class="el" href="health__check_8c_source.html#l00073">brix_hc_ctx_t::rhdr_pos</a>, <a class="el" href="health__check_8c_source.html#l00062">brix_hc_ctx_t::tls_capable</a>, <a class="el" href="health__check_8c_source.html#l00080">brix_hc_ctx_t::wbuf</a>, <a class="el" href="health__check_8c_source.html#l00081">brix_hc_ctx_t::wbuf_len</a>, <a class="el" href="health__check_8c_source.html#l00082">brix_hc_ctx_t::wbuf_pos</a>, and <a class="el" href="health__check_8c_source.html#l00045">XRD_HC_LOGIN</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00450">brix_hc_dispatch()</a>.</p>
-
-</div>
-</div>
-<a id="a121e8d3a7626ec5a4e2b504735ce67a7" name="a121e8d3a7626ec5a4e2b504735ce67a7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a121e8d3a7626ec5a4e2b504735ce67a7">&#9670;&#160;</a></span>brix_hc_finish()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_hc_finish </td>
+          <td class="memname">void brix_hc_finish </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *&#160;</td>
           <td class="paramname"><em>hc</em>, </td>
@@ -416,50 +266,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00557">557</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00067">67</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00090">brix_hc_ctx_t::blacklist_ms</a>, <a class="el" href="health__check_8c_source.html#l00108">BRIX_HC_METRIC_INC</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="health__check_8c_source.html#l00057">brix_hc_ctx_t::conn</a>, <a class="el" href="health__check_8c_source.html#l00086">brix_hc_ctx_t::host</a>, <a class="el" href="health__check_8c_source.html#l00058">brix_hc_ctx_t::log</a>, <a class="el" href="health__check_8c_source.html#l00056">brix_hc_ctx_t::pool</a>, <a class="el" href="health__check_8c_source.html#l00087">brix_hc_ctx_t::port</a>, <a class="el" href="health__check_8c_source.html#l00084">brix_hc_ctx_t::tev</a>, and <a class="el" href="health__check_8c_source.html#l00089">brix_hc_ctx_t::threshold</a>.</p>
+<p class="reference">References <a class="el" href="health__check__internal_8h_source.html#l00087">brix_hc_ctx_t::blacklist_ms</a>, <a class="el" href="health__check__internal_8h_source.html#l00093">BRIX_HC_METRIC_INC</a>, <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="registry__health_8c_source.html#l00066">brix_srv_hc_pass()</a>, <a class="el" href="health__check__internal_8h_source.html#l00054">brix_hc_ctx_t::conn</a>, <a class="el" href="health__check__internal_8h_source.html#l00083">brix_hc_ctx_t::host</a>, <a class="el" href="health__check__internal_8h_source.html#l00055">brix_hc_ctx_t::log</a>, <a class="el" href="health__check__internal_8h_source.html#l00053">brix_hc_ctx_t::pool</a>, <a class="el" href="health__check__internal_8h_source.html#l00084">brix_hc_ctx_t::port</a>, <a class="el" href="health__check__internal_8h_source.html#l00081">brix_hc_ctx_t::tev</a>, and <a class="el" href="health__check__internal_8h_source.html#l00086">brix_hc_ctx_t::threshold</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00767">brix_hc_begin_connect()</a>, <a class="el" href="health__check_8c_source.html#l00450">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00375">brix_hc_dispatch_protocol()</a>, <a class="el" href="health__check_8c_source.html#l00501">brix_hc_read_handler()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00536">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check_8c_source.html#l00212">brix_hc_write_handler()</a>.</p>
-
-</div>
-</div>
-<a id="a285685d97974e71b9aa2cfa4ba01dc28" name="a285685d97974e71b9aa2cfa4ba01dc28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a285685d97974e71b9aa2cfa4ba01dc28">&#9670;&#160;</a></span>brix_hc_flush()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_hc_flush </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>hc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00131">131</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="health__check_8c_source.html#l00057">brix_hc_ctx_t::conn</a>, <a class="el" href="health__check_8c_source.html#l00080">brix_hc_ctx_t::wbuf</a>, <a class="el" href="health__check_8c_source.html#l00081">brix_hc_ctx_t::wbuf_len</a>, and <a class="el" href="health__check_8c_source.html#l00082">brix_hc_ctx_t::wbuf_pos</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00767">brix_hc_begin_connect()</a>, <a class="el" href="health__check_8c_source.html#l00375">brix_hc_dispatch_protocol()</a>, <a class="el" href="health__check_8c_source.html#l00164">brix_hc_send_probe()</a>, and <a class="el" href="health__check_8c_source.html#l00212">brix_hc_write_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00277">brix_hc_begin_connect()</a>, <a class="el" href="health__check__probe_8c_source.html#l00364">brix_hc_dispatch()</a>, <a class="el" href="health__check__probe_8c_source.html#l00289">brix_hc_dispatch_protocol()</a>, <a class="el" href="health__check__probe_8c_source.html#l00415">brix_hc_read_handler()</a>, <a class="el" href="health__check__probe_8c_source.html#l00078">brix_hc_send_probe()</a>, <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>, <a class="el" href="health__check_8c_source.html#l00046">brix_hc_timeout_handler()</a>, and <a class="el" href="health__check__probe_8c_source.html#l00126">brix_hc_write_handler()</a>.</p>
 
 </div>
 </div>
@@ -489,9 +302,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00900">900</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00410">410</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00859">brix_hc_timer_handler()</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00024">BRIX_SRV_REGISTRY_SLOTS</a>, <a class="el" href="health__check_8c_source.html#l00102">brix_hc_mgr_t::conf</a>, <a class="el" href="health__check_8c_source.html#l00101">brix_hc_mgr_t::cycle</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="health__check_8c_source.html#l00103">brix_hc_mgr_t::scan_interval_ms</a>, and <a class="el" href="health__check_8c_source.html#l00100">brix_hc_mgr_t::timer</a>.</p>
+<p class="reference">References <a class="el" href="health__check_8c_source.html#l00369">brix_hc_timer_handler()</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00024">BRIX_SRV_REGISTRY_SLOTS</a>, <a class="el" href="health__check_8c_source.html#l00037">brix_hc_mgr_t::conf</a>, <a class="el" href="health__check_8c_source.html#l00036">brix_hc_mgr_t::cycle</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="health__check_8c_source.html#l00038">brix_hc_mgr_t::scan_interval_ms</a>, and <a class="el" href="health__check_8c_source.html#l00035">brix_hc_mgr_t::timer</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="process__server__init_8c_source.html#l00351">brix_init_one_server()</a>.</p>
 
@@ -549,11 +362,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00685">685</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00195">195</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00602">brix_hc_pre_connect_fail()</a>, <a class="el" href="health__check_8c_source.html#l00501">brix_hc_read_handler()</a>, <a class="el" href="health__check_8c_source.html#l00212">brix_hc_write_handler()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="health__check_8c_source.html#l00069">brix_hc_ctx_t::conf</a>, <a class="el" href="health__check_8c_source.html#l00057">brix_hc_ctx_t::conn</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="health__check_8c_source.html#l00058">brix_hc_ctx_t::log</a>, <a class="el" href="health__check_8c_source.html#l00056">brix_hc_ctx_t::pool</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
+<p class="reference">References <a class="el" href="health__check_8c_source.html#l00112">brix_hc_pre_connect_fail()</a>, <a class="el" href="health__check__probe_8c_source.html#l00415">brix_hc_read_handler()</a>, <a class="el" href="health__check__probe_8c_source.html#l00126">brix_hc_write_handler()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="health__check__internal_8h_source.html#l00066">brix_hc_ctx_t::conf</a>, <a class="el" href="health__check__internal_8h_source.html#l00054">brix_hc_ctx_t::conn</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="health__check__internal_8h_source.html#l00055">brix_hc_ctx_t::log</a>, <a class="el" href="health__check__internal_8h_source.html#l00053">brix_hc_ctx_t::pool</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -609,11 +422,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00602">602</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00112">112</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
 <p class="reference">References <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00685">brix_hc_open_conn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00195">brix_hc_open_conn()</a>.</p>
 
 </div>
 </div>
@@ -641,75 +454,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00727">727</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00237">237</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00036">brix_upstream_build_bootstrap_flags()</a>, <a class="el" href="health__check_8c_source.html#l00069">brix_hc_ctx_t::conf</a>, <a class="el" href="flags_8h_source.html#l00067">kXR_ableTLS</a>, <a class="el" href="health__check_8c_source.html#l00056">brix_hc_ctx_t::pool</a>, <a class="el" href="health__check_8c_source.html#l00062">brix_hc_ctx_t::tls_capable</a>, <a class="el" href="health__check_8c_source.html#l00080">brix_hc_ctx_t::wbuf</a>, <a class="el" href="health__check_8c_source.html#l00081">brix_hc_ctx_t::wbuf_len</a>, <a class="el" href="health__check_8c_source.html#l00082">brix_hc_ctx_t::wbuf_pos</a>, and <a class="el" href="opcodes_8h_source.html#l00025">XRD_HANDSHAKE_LEN</a>.</p>
+<p class="reference">References <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00036">brix_upstream_build_bootstrap_flags()</a>, <a class="el" href="health__check__internal_8h_source.html#l00066">brix_hc_ctx_t::conf</a>, <a class="el" href="flags_8h_source.html#l00067">kXR_ableTLS</a>, <a class="el" href="health__check__internal_8h_source.html#l00053">brix_hc_ctx_t::pool</a>, <a class="el" href="health__check__internal_8h_source.html#l00059">brix_hc_ctx_t::tls_capable</a>, <a class="el" href="health__check__internal_8h_source.html#l00077">brix_hc_ctx_t::wbuf</a>, <a class="el" href="health__check__internal_8h_source.html#l00078">brix_hc_ctx_t::wbuf_len</a>, <a class="el" href="health__check__internal_8h_source.html#l00079">brix_hc_ctx_t::wbuf_pos</a>, and <a class="el" href="opcodes_8h_source.html#l00025">XRD_HANDSHAKE_LEN</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>.</p>
-
-</div>
-</div>
-<a id="af70a28b9d7a4da4aa3021486214f83aa" name="af70a28b9d7a4da4aa3021486214f83aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af70a28b9d7a4da4aa3021486214f83aa">&#9670;&#160;</a></span>brix_hc_read_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_hc_read_handler </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>rev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00501">501</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00450">brix_hc_dispatch()</a>, <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00256">brix_hc_recv_frame()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00685">brix_hc_open_conn()</a>.</p>
-
-</div>
-</div>
-<a id="a94ed9c4c6d2e8895f70adcceeb7ac92c" name="a94ed9c4c6d2e8895f70adcceeb7ac92c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a94ed9c4c6d2e8895f70adcceeb7ac92c">&#9670;&#160;</a></span>brix_hc_recv_frame()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_hc_recv_frame </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>hc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00256">256</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-<p class="reference">References <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="health__check_8c_source.html#l00057">brix_hc_ctx_t::conn</a>, <a class="el" href="wire__core__requests_8h_source.html#l00120">ServerResponseHdr::dlen</a>, <a class="el" href="health__check_8c_source.html#l00076">brix_hc_ctx_t::resp_body</a>, <a class="el" href="health__check_8c_source.html#l00077">brix_hc_ctx_t::resp_body_pos</a>, <a class="el" href="health__check_8c_source.html#l00075">brix_hc_ctx_t::resp_dlen</a>, <a class="el" href="health__check_8c_source.html#l00074">brix_hc_ctx_t::resp_status</a>, <a class="el" href="health__check_8c_source.html#l00072">brix_hc_ctx_t::rhdr</a>, <a class="el" href="health__check_8c_source.html#l00073">brix_hc_ctx_t::rhdr_pos</a>, <a class="el" href="wire__core__requests_8h_source.html#l00119">ServerResponseHdr::status</a>, and <a class="el" href="opcodes_8h_source.html#l00028">XRD_RESPONSE_HDR_LEN</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00501">brix_hc_read_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -753,43 +502,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00655">655</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00165">165</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="health__check_8c_source.html#l00069">brix_hc_ctx_t::conf</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="health__check_8c_source.html#l00058">brix_hc_ctx_t::log</a>, <a class="el" href="health__check_8c_source.html#l00056">brix_hc_ctx_t::pool</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
+<p class="reference">References <a class="el" href="registry__health_8c_source.html#l00102">brix_srv_hc_fail()</a>, <a class="el" href="health__check__internal_8h_source.html#l00066">brix_hc_ctx_t::conf</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="health__check__internal_8h_source.html#l00055">brix_hc_ctx_t::log</a>, <a class="el" href="health__check__internal_8h_source.html#l00053">brix_hc_ctx_t::pool</a>, and <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>.</p>
-
-</div>
-</div>
-<a id="a47b08d2e4bed0c0257822a25d2c6e9dc" name="a47b08d2e4bed0c0257822a25d2c6e9dc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a47b08d2e4bed0c0257822a25d2c6e9dc">&#9670;&#160;</a></span>brix_hc_send_probe()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_hc_send_probe </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__hc__ctx__t.html">brix_hc_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>hc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00164">164</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="health__check_8h_source.html#l00019">BRIX_HC_TYPE_STAT</a>, <a class="el" href="wire__core__requests_8h_source.html#l00414">ClientStatRequest::dlen</a>, <a class="el" href="wire__core__requests_8h_source.html#l00443">ClientPingRequest::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00056">kXR_ping</a>, <a class="el" href="opcodes_8h_source.html#l00062">kXR_stat</a>, <a class="el" href="health__check_8c_source.html#l00059">brix_hc_ctx_t::phase</a>, <a class="el" href="health__check_8c_source.html#l00056">brix_hc_ctx_t::pool</a>, <a class="el" href="health__check_8c_source.html#l00091">brix_hc_ctx_t::probe_type</a>, <a class="el" href="wire__core__requests_8h_source.html#l00409">ClientStatRequest::requestid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00441">ClientPingRequest::requestid</a>, <a class="el" href="health__check_8c_source.html#l00076">brix_hc_ctx_t::resp_body</a>, <a class="el" href="health__check_8c_source.html#l00077">brix_hc_ctx_t::resp_body_pos</a>, <a class="el" href="health__check_8c_source.html#l00075">brix_hc_ctx_t::resp_dlen</a>, <a class="el" href="health__check_8c_source.html#l00073">brix_hc_ctx_t::rhdr_pos</a>, <a class="el" href="wire__core__requests_8h_source.html#l00408">ClientStatRequest::streamid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00440">ClientPingRequest::streamid</a>, <a class="el" href="health__check_8c_source.html#l00080">brix_hc_ctx_t::wbuf</a>, <a class="el" href="health__check_8c_source.html#l00081">brix_hc_ctx_t::wbuf_len</a>, <a class="el" href="health__check_8c_source.html#l00082">brix_hc_ctx_t::wbuf_pos</a>, and <a class="el" href="health__check_8c_source.html#l00046">XRD_HC_PROBE</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00450">brix_hc_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -839,11 +556,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00814">814</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00324">324</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00767">brix_hc_begin_connect()</a>, <a class="el" href="health__check_8c_source.html#l00620">brix_hc_ctx_create()</a>, <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00108">BRIX_HC_METRIC_INC</a>, <a class="el" href="health__check_8c_source.html#l00685">brix_hc_open_conn()</a>, <a class="el" href="health__check_8c_source.html#l00727">brix_hc_queue_bootstrap()</a>, <a class="el" href="health__check_8c_source.html#l00655">brix_hc_resolve()</a>, <a class="el" href="health__check_8c_source.html#l00536">brix_hc_timeout_handler()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, and <a class="el" href="health__check_8c_source.html#l00084">brix_hc_ctx_t::tev</a>.</p>
+<p class="reference">References <a class="el" href="health__check_8c_source.html#l00277">brix_hc_begin_connect()</a>, <a class="el" href="health__check_8c_source.html#l00130">brix_hc_ctx_create()</a>, <a class="el" href="health__check_8c_source.html#l00067">brix_hc_finish()</a>, <a class="el" href="health__check__internal_8h_source.html#l00093">BRIX_HC_METRIC_INC</a>, <a class="el" href="health__check_8c_source.html#l00195">brix_hc_open_conn()</a>, <a class="el" href="health__check_8c_source.html#l00237">brix_hc_queue_bootstrap()</a>, <a class="el" href="health__check_8c_source.html#l00165">brix_hc_resolve()</a>, <a class="el" href="health__check_8c_source.html#l00046">brix_hc_timeout_handler()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, and <a class="el" href="health__check__internal_8h_source.html#l00081">brix_hc_ctx_t::tev</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00859">brix_hc_timer_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00369">brix_hc_timer_handler()</a>.</p>
 
 </div>
 </div>
@@ -871,11 +588,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00536">536</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00046">46</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00086">brix_hc_ctx_t::host</a>, <a class="el" href="health__check_8c_source.html#l00058">brix_hc_ctx_t::log</a>, and <a class="el" href="health__check_8c_source.html#l00087">brix_hc_ctx_t::port</a>.</p>
+<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="health__check_8c_source.html#l00067">brix_hc_finish()</a>, <a class="el" href="health__check__internal_8h_source.html#l00083">brix_hc_ctx_t::host</a>, <a class="el" href="health__check__internal_8h_source.html#l00055">brix_hc_ctx_t::log</a>, and <a class="el" href="health__check__internal_8h_source.html#l00084">brix_hc_ctx_t::port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>.</p>
 
 </div>
 </div>
@@ -903,43 +620,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00859">859</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00369">369</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
 
-<p class="reference">References <a class="el" href="health__check_8c_source.html#l00814">brix_hc_start()</a>, <a class="el" href="registry__health_8c_source.html#l00010">brix_srv_hc_claim()</a>, <a class="el" href="health__check_8c_source.html#l00102">brix_hc_mgr_t::conf</a>, <a class="el" href="health__check_8c_source.html#l00101">brix_hc_mgr_t::cycle</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, and <a class="el" href="health__check_8c_source.html#l00103">brix_hc_mgr_t::scan_interval_ms</a>.</p>
+<p class="reference">References <a class="el" href="health__check_8c_source.html#l00324">brix_hc_start()</a>, <a class="el" href="registry__health_8c_source.html#l00010">brix_srv_hc_claim()</a>, <a class="el" href="health__check_8c_source.html#l00037">brix_hc_mgr_t::conf</a>, <a class="el" href="health__check_8c_source.html#l00036">brix_hc_mgr_t::cycle</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, and <a class="el" href="health__check_8c_source.html#l00038">brix_hc_mgr_t::scan_interval_ms</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00900">brix_hc_manager_start()</a>.</p>
-
-</div>
-</div>
-<a id="a795e24c0ec02740b875f3520a5f68f5b" name="a795e24c0ec02740b875f3520a5f68f5b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a795e24c0ec02740b875f3520a5f68f5b">&#9670;&#160;</a></span>brix_hc_write_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_hc_write_handler </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>wev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="health__check_8c_source.html#l00212">212</a> of file <a class="el" href="health__check_8c_source.html">health_check.c</a>.</p>
-
-<p class="reference">References <a class="el" href="log__diag_8h_source.html#l00073">BRIX_DIAG_WARN</a>, <a class="el" href="health__check_8c_source.html#l00557">brix_hc_finish()</a>, <a class="el" href="health__check_8c_source.html#l00131">brix_hc_flush()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="health__check_8c_source.html#l00060">brix_hc_ctx_t::connecting</a>, <a class="el" href="health__check_8c_source.html#l00086">brix_hc_ctx_t::host</a>, <a class="el" href="health__check_8c_source.html#l00058">brix_hc_ctx_t::log</a>, and <a class="el" href="health__check_8c_source.html#l00087">brix_hc_ctx_t::port</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00685">brix_hc_open_conn()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00410">brix_hc_manager_start()</a>.</p>
 
 </div>
 </div>
@@ -981,39 +666,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00033">brix_upstream_streamid</a>, <a class="el" href="flags_8h_source.html#l00117">kXR_ver005</a>, <a class="el" href="bootstrap__pack_8h_source.html#l00045">xrd_pack_handshake()</a>, <a class="el" href="bootstrap__pack_8h_source.html#l00084">xrd_pack_login_request()</a>, and <a class="el" href="bootstrap__pack_8h_source.html#l00061">xrd_pack_protocol_request()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00727">brix_hc_queue_bootstrap()</a>.</p>
-
-</div>
-</div>
-<a id="a1a37ecdc99deb7901368ebd66bb04c12" name="a1a37ecdc99deb7901368ebd66bb04c12"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1a37ecdc99deb7901368ebd66bb04c12">&#9670;&#160;</a></span>brix_upstream_build_login()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_upstream_build_login </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structClientLoginRequest.html">ClientLoginRequest</a> *&#160;</td>
-          <td class="paramname"><em>req</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">extern</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00065">65</a> of file <a class="el" href="net_2upstream_2bootstrap_8c_source.html">bootstrap.c</a>.</p>
-
-<p class="reference">References <a class="el" href="net_2upstream_2bootstrap_8c_source.html#l00033">brix_upstream_streamid</a>, <a class="el" href="flags_8h_source.html#l00117">kXR_ver005</a>, and <a class="el" href="bootstrap__pack_8h_source.html#l00084">xrd_pack_login_request()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00375">brix_hc_dispatch_protocol()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="health__check_8c_source.html#l00237">brix_hc_queue_bootstrap()</a>.</p>
 
 </div>
 </div>

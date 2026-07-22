@@ -1,13 +1,15 @@
 <map id="src/net/manager/redir_cache.h" name="src/net/manager/redir_cache.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="447,5,610,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="534,5,697,45"/>
 <area shape="rect" id="Node000002" href="$postconfiguration_8c.html" title=" " alt="" coords="5,101,249,126"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="434,49,181,103,180,98,433,44"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="521,46,193,103,192,98,520,41"/>
 <area shape="rect" id="Node000003" href="$redir__cache_8c.html" title=" " alt="" coords="274,93,437,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="480,54,394,96,392,91,477,49"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="546,52,413,96,411,91,544,47"/>
 <area shape="rect" id="Node000004" href="$locate_8c.html" title=" " alt="" coords="461,93,596,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="531,59,531,93,526,93,526,59"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="588,57,550,95,546,91,585,53"/>
 <area shape="rect" id="Node000005" href="$open__manager_8c.html" title=" " alt="" coords="620,93,787,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="580,49,666,91,664,96,578,54"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="647,53,686,91,682,95,643,57"/>
 <area shape="rect" id="Node000006" href="$open__request_8c.html" title=" " alt="" coords="811,93,969,133"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="622,46,812,91,810,96,620,51"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="690,47,831,91,829,96,688,52"/>
+<area shape="rect" id="Node000007" href="$open__request__resolve_8c.html" title=" " alt="" coords="994,93,1207,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="711,41,995,91,994,96,710,46"/>
 </map>

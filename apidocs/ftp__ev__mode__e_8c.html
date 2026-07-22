@@ -91,14 +91,12 @@ $(document).ready(function(){initNavTree('ftp__ev__mode__e_8c.html',''); initRes
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
-<a href="#define-members">Macros</a> &#124;
-<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">ftp_ev_mode_e.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="ftp__ev_8h_source.html">ftp_ev.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="ftp__ev__mode__e__internal_8h_source.html">ftp_ev_mode_e_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="src_2fs_2vfs_2vfs_8h_source.html">fs/vfs/vfs.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="vfs__ops_8h_source.html">fs/vfs/vfs_ops.h</a>&quot;</code><br />
 <code>#include &lt;stdint.h&gt;</code><br />
@@ -112,171 +110,18 @@ $(document).ready(function(){initNavTree('ftp__ev__mode__e_8c.html',''); initRes
 </div>
 <p><a href="ftp__ev__mode__e_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:a50b55ec5d00975aec17b059238b61438" id="r_a50b55ec5d00975aec17b059238b61438"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a50b55ec5d00975aec17b059238b61438">FTP_EV_EB_MARKER_BYTES</a>&#160;&#160;&#160;(1 &lt;&lt; 20)  /* <a class="el" href="cta__exec_8c.html#aebffe6b07e74f3788b376213d5fcafc0">emit</a> 111/112 each ~1 MiB moved */</td></tr>
-<tr class="separator:a50b55ec5d00975aec17b059238b61438"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac8ccc6c7ba6df52fa66ce933a3e2dd81" id="r_ac8ccc6c7ba6df52fa66ce933a3e2dd81"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#ac8ccc6c7ba6df52fa66ce933a3e2dd81">FTP_EV_EB_MARKER_MAX_RANGES</a>&#160;&#160;&#160;32         /* cap the 111 range-list length  */</td></tr>
-<tr class="separator:ac8ccc6c7ba6df52fa66ce933a3e2dd81"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
-Enumerations</h2></td></tr>
-<tr class="memitem:ae177eeec9aabaf26eea2ee2cf0a57c72" id="r_ae177eeec9aabaf26eea2ee2cf0a57c72"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a> { <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72a3338fa5ae13e6aa9f4ae1d128c49295e">EV_EB_STEP_RET</a> = 0
-, <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72a050326ebbff36575cb8e3e599cc7c6bc">EV_EB_STEP_MORE</a>
-, <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72a0990d1a86ba3fee251e44ed9e7607e9d">EV_EB_STEP_OK</a>
- }</td></tr>
-<tr class="separator:ae177eeec9aabaf26eea2ee2cf0a57c72"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a5588b652531020643a098fb0efb12bfa" id="r_a5588b652531020643a098fb0efb12bfa"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a5588b652531020643a098fb0efb12bfa">ev_eb_marker_perf</a> (<a class="el" href="structftp__ev__t.html">ftp_ev_t</a> *fc, off_t bytes)</td></tr>
-<tr class="separator:a5588b652531020643a098fb0efb12bfa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af27151e486f28098edefcfd08cb96d53" id="r_af27151e486f28098edefcfd08cb96d53"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#af27151e486f28098edefcfd08cb96d53">ev_eb_range_cmp</a> (const void *a, const void *b)</td></tr>
-<tr class="separator:af27151e486f28098edefcfd08cb96d53"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a251660b5dfb25e107bbd51eb1fd81806" id="r_a251660b5dfb25e107bbd51eb1fd81806"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a251660b5dfb25e107bbd51eb1fd81806">ev_eb_marker_range</a> (ftp_ev_dc_t *dc)</td></tr>
-<tr class="separator:a251660b5dfb25e107bbd51eb1fd81806"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a274284388da55890396e7beca371c361" id="r_a274284388da55890396e7beca371c361"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a274284388da55890396e7beca371c361">ev_eb_marker_perf</a> (<a class="el" href="structftp__ev__t.html">ftp_ev_t</a> *fc, off_t bytes)</td></tr>
+<tr class="separator:a274284388da55890396e7beca371c361"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3f6056243035f96a465d783e48714fe1" id="r_a3f6056243035f96a465d783e48714fe1"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a3f6056243035f96a465d783e48714fe1">ev_eb_send_idle</a> (ngx_event_t *ev)</td></tr>
 <tr class="separator:a3f6056243035f96a465d783e48714fe1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5007d71c0447f84ec27f9af8b23a0e31" id="r_a5007d71c0447f84ec27f9af8b23a0e31"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a5007d71c0447f84ec27f9af8b23a0e31">ev_retr_mode_e_write</a> (ngx_event_t *wev)</td></tr>
 <tr class="separator:a5007d71c0447f84ec27f9af8b23a0e31"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad04260392acfe550ac595e8a5516a5d3" id="r_ad04260392acfe550ac595e8a5516a5d3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#ad04260392acfe550ac595e8a5516a5d3">brix_ftp_ev_retr_mode_e_start</a> (ftp_ev_dc_t *dc)</td></tr>
 <tr class="separator:ad04260392acfe550ac595e8a5516a5d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3fac003e08bbae8162abbdf7ada6c0c2" id="r_a3fac003e08bbae8162abbdf7ada6c0c2"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a3fac003e08bbae8162abbdf7ada6c0c2">ev_eb_child_close</a> (<a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *ch)</td></tr>
-<tr class="separator:a3fac003e08bbae8162abbdf7ada6c0c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a93d766a09ef599652adfc30bf31f6c67" id="r_a93d766a09ef599652adfc30bf31f6c67"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a93d766a09ef599652adfc30bf31f6c67">brix_ftp_ev_eb_teardown</a> (ftp_ev_dc_t *dc)</td></tr>
-<tr class="separator:a93d766a09ef599652adfc30bf31f6c67"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a058dfb755e3af4d1dd621f4ebba418fc" id="r_a058dfb755e3af4d1dd621f4ebba418fc"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a058dfb755e3af4d1dd621f4ebba418fc">ev_eb_ranges_contiguous</a> (ftp_ev_dc_t *dc)</td></tr>
-<tr class="separator:a058dfb755e3af4d1dd621f4ebba418fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a426b7fc7cd6ba31ba84371f2178a753d" id="r_a426b7fc7cd6ba31ba84371f2178a753d"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a426b7fc7cd6ba31ba84371f2178a753d">ev_eb_child_done</a> (<a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *ch)</td></tr>
-<tr class="separator:a426b7fc7cd6ba31ba84371f2178a753d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac0fcd561af29b55a54612e41cce5e4bc" id="r_ac0fcd561af29b55a54612e41cce5e4bc"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#ac0fcd561af29b55a54612e41cce5e4bc">ev_eb_arm_read</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
-<tr class="separator:ac0fcd561af29b55a54612e41cce5e4bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a236401823761220a8c20863b35c4f2fd" id="r_a236401823761220a8c20863b35c4f2fd"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a236401823761220a8c20863b35c4f2fd">ev_eb_reserve_range</a> (<a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *ch, ftp_ev_dc_t *dc, uint64_t count, uint64_t offset)</td></tr>
-<tr class="separator:a236401823761220a8c20863b35c4f2fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aac0c3e6db285916a3cc1ff84b3bddb72" id="r_aac0c3e6db285916a3cc1ff84b3bddb72"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#aac0c3e6db285916a3cc1ff84b3bddb72">ev_eb_recv_header</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *ch, ftp_ev_dc_t *dc)</td></tr>
-<tr class="separator:aac0c3e6db285916a3cc1ff84b3bddb72"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a53b0f0fb0d9dff79b128c839d784650c" id="r_a53b0f0fb0d9dff79b128c839d784650c"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a53b0f0fb0d9dff79b128c839d784650c">ev_eb_drain_payload</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *ch, ftp_ev_dc_t *dc)</td></tr>
-<tr class="separator:a53b0f0fb0d9dff79b128c839d784650c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aae6d1c24ec25cb6ee5a26590d7df0bb8" id="r_aae6d1c24ec25cb6ee5a26590d7df0bb8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#aae6d1c24ec25cb6ee5a26590d7df0bb8">ev_eb_child_read</a> (ngx_event_t *rev)</td></tr>
-<tr class="separator:aae6d1c24ec25cb6ee5a26590d7df0bb8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afdfccfb42560ba7ab5656766e29ea854" id="r_afdfccfb42560ba7ab5656766e29ea854"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#afdfccfb42560ba7ab5656766e29ea854">ev_eb_child_tls_done</a> (ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
-<tr class="separator:afdfccfb42560ba7ab5656766e29ea854"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa894670981e889bd4bf6002582709dca" id="r_aa894670981e889bd4bf6002582709dca"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#aa894670981e889bd4bf6002582709dca">ev_eb_slot</a> (ftp_ev_dc_t *dc)</td></tr>
-<tr class="separator:aa894670981e889bd4bf6002582709dca"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab0d97c2d4012593bd6b1dc9a749c52bf" id="r_ab0d97c2d4012593bd6b1dc9a749c52bf"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#ab0d97c2d4012593bd6b1dc9a749c52bf">ev_eb_receiver_open</a> (ftp_ev_dc_t *dc)</td></tr>
-<tr class="separator:ab0d97c2d4012593bd6b1dc9a749c52bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5b0bbdf3fc965ea9ee7661607011ffca" id="r_a5b0bbdf3fc965ea9ee7661607011ffca"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ftp__ev__mode__e_8c.html#a5b0bbdf3fc965ea9ee7661607011ffca">brix_ftp_ev_eb_accept</a> (ngx_event_t *rev)</td></tr>
-<tr class="separator:a5b0bbdf3fc965ea9ee7661607011ffca"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a50b55ec5d00975aec17b059238b61438" name="a50b55ec5d00975aec17b059238b61438"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a50b55ec5d00975aec17b059238b61438">&#9670;&#160;</a></span>FTP_EV_EB_MARKER_BYTES</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define FTP_EV_EB_MARKER_BYTES&#160;&#160;&#160;(1 &lt;&lt; 20)  /* <a class="el" href="cta__exec_8c.html#aebffe6b07e74f3788b376213d5fcafc0">emit</a> 111/112 each ~1 MiB moved */</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00038">38</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-</div>
-</div>
-<a id="ac8ccc6c7ba6df52fa66ce933a3e2dd81" name="ac8ccc6c7ba6df52fa66ce933a3e2dd81"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac8ccc6c7ba6df52fa66ce933a3e2dd81">&#9670;&#160;</a></span>FTP_EV_EB_MARKER_MAX_RANGES</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define FTP_EV_EB_MARKER_MAX_RANGES&#160;&#160;&#160;32         /* cap the 111 range-list length  */</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00039">39</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="ae177eeec9aabaf26eea2ee2cf0a57c72" name="ae177eeec9aabaf26eea2ee2cf0a57c72"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae177eeec9aabaf26eea2ee2cf0a57c72">&#9670;&#160;</a></span>ev_eb_step_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ae177eeec9aabaf26eea2ee2cf0a57c72a3338fa5ae13e6aa9f4ae1d128c49295e" name="ae177eeec9aabaf26eea2ee2cf0a57c72a3338fa5ae13e6aa9f4ae1d128c49295e"></a>EV_EB_STEP_RET&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="ae177eeec9aabaf26eea2ee2cf0a57c72a050326ebbff36575cb8e3e599cc7c6bc" name="ae177eeec9aabaf26eea2ee2cf0a57c72a050326ebbff36575cb8e3e599cc7c6bc"></a>EV_EB_STEP_MORE&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="ae177eeec9aabaf26eea2ee2cf0a57c72a0990d1a86ba3fee251e44ed9e7607e9d" name="ae177eeec9aabaf26eea2ee2cf0a57c72a0990d1a86ba3fee251e44ed9e7607e9d"></a>EV_EB_STEP_OK&#160;</td><td class="fielddoc"></td></tr>
-</table>
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00358">358</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a5b0bbdf3fc965ea9ee7661607011ffca" name="a5b0bbdf3fc965ea9ee7661607011ffca"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5b0bbdf3fc965ea9ee7661607011ffca">&#9670;&#160;</a></span>brix_ftp_ev_eb_accept()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_ftp_ev_eb_accept </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>rev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00596">596</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev_8h_source.html#l00047">BRIX_FTP_EV_EB_MAX_CONNS</a>, <a class="el" href="ftp__ev_8h_source.html#l00044">BRIX_FTP_EV_IO_TIMEO</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00069">brix_ftp_ev_tls_begin()</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00265">brix_ftp_ev_wrap_conn()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00048">ftp_ev_eb_conn_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00047">ftp_ev_eb_conn_t::dc</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00345">ev_eb_arm_read()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">ev_eb_child_read()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00533">ev_eb_child_tls_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00569">ev_eb_receiver_open()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00553">ev_eb_slot()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00050">ftp_ev_eb_conn_t::in_use</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00049">ftp_ev_eb_conn_t::pool</a>, and <a class="el" href="ftp__ev_8h_source.html#l00109">ftp_ev_t::prot</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00382">brix_ftp_ev_data_open()</a>.</p>
-
-</div>
-</div>
-<a id="a93d766a09ef599652adfc30bf31f6c67" name="a93d766a09ef599652adfc30bf31f6c67"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a93d766a09ef599652adfc30bf31f6c67">&#9670;&#160;</a></span>brix_ftp_ev_eb_teardown()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_ftp_ev_eb_teardown </td>
-          <td>(</td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00254">254</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00047">BRIX_FTP_EV_EB_MAX_CONNS</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00148">conns</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00233">ev_eb_child_close()</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00017">in_use</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>.</p>
-
-</div>
-</div>
 <a id="ad04260392acfe550ac595e8a5516a5d3" name="ad04260392acfe550ac595e8a5516a5d3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad04260392acfe550ac595e8a5516a5d3">&#9670;&#160;</a></span>brix_ftp_ev_retr_mode_e_start()</h2>
 
@@ -293,233 +138,22 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00219">219</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00134">134</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00137">ev_eb_send_idle()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00144">ev_retr_mode_e_write()</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00052">ev_eb_send_idle()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00059">ev_retr_mode_e_write()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="ftp__ev__xfer_8c_source.html#l00268">brix_ftp_ev_data_ready()</a>.</p>
 
 </div>
 </div>
-<a id="ac0fcd561af29b55a54612e41cce5e4bc" name="ac0fcd561af29b55a54612e41cce5e4bc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac0fcd561af29b55a54612e41cce5e4bc">&#9670;&#160;</a></span>ev_eb_arm_read()</h2>
+<a id="a274284388da55890396e7beca371c361" name="a274284388da55890396e7beca371c361"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a274284388da55890396e7beca371c361">&#9670;&#160;</a></span>ev_eb_marker_perf()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t ev_eb_arm_read </td>
-          <td>(</td>
-          <td class="paramtype">ngx_connection_t *&#160;</td>
-          <td class="paramname"><em>c</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00345">345</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00044">BRIX_FTP_EV_IO_TIMEO</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00596">brix_ftp_ev_eb_accept()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00533">ev_eb_child_tls_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00448">ev_eb_drain_payload()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00401">ev_eb_recv_header()</a>.</p>
-
-</div>
-</div>
-<a id="a3fac003e08bbae8162abbdf7ada6c0c2" name="a3fac003e08bbae8162abbdf7ada6c0c2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3fac003e08bbae8162abbdf7ada6c0c2">&#9670;&#160;</a></span>ev_eb_child_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void ev_eb_child_close </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>ch</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00233">233</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00048">ftp_ev_eb_conn_t::c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00047">ftp_ev_eb_conn_t::dc</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00050">ftp_ev_eb_conn_t::in_use</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00049">ftp_ev_eb_conn_t::pool</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00254">brix_ftp_ev_eb_teardown()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">ev_eb_child_done()</a>.</p>
-
-</div>
-</div>
-<a id="a426b7fc7cd6ba31ba84371f2178a753d" name="a426b7fc7cd6ba31ba84371f2178a753d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a426b7fc7cd6ba31ba84371f2178a753d">&#9670;&#160;</a></span>ev_eb_child_done()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void ev_eb_child_done </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>ch</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">311</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00298">brix_ftp_ev_vfs_ctx()</a>, <a class="el" href="vfs__unlink_8c_source.html#l00291">brix_vfs_unlink()</a>, <a class="el" href="vfs__writer_8c_source.html#l00364">brix_vfs_writer_abort()</a>, <a class="el" href="vfs__writer_8c_source.html#l00358">brix_vfs_writer_commit()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00047">ftp_ev_eb_conn_t::dc</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00233">ev_eb_child_close()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00280">ev_eb_ranges_contiguous()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">ev_eb_child_read()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00401">ev_eb_recv_header()</a>.</p>
-
-</div>
-</div>
-<a id="aae6d1c24ec25cb6ee5a26590d7df0bb8" name="aae6d1c24ec25cb6ee5a26590d7df0bb8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aae6d1c24ec25cb6ee5a26590d7df0bb8">&#9670;&#160;</a></span>ev_eb_child_read()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void ev_eb_child_read </td>
-          <td>(</td>
-          <td class="paramtype">ngx_event_t *&#160;</td>
-          <td class="paramname"><em>rev</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">482</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00047">ftp_ev_eb_conn_t::dc</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00055">ftp_ev_eb_conn_t::desc</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">ev_eb_child_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00448">ev_eb_drain_payload()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00065">ev_eb_marker_perf()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00093">ev_eb_marker_range()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00401">ev_eb_recv_header()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00360">EV_EB_STEP_MORE</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00359">EV_EB_STEP_RET</a>, <a class="el" href="ftp__eblock_8h_source.html#l00038">FTP_EB_EOD</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00038">FTP_EV_EB_MARKER_BYTES</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00054">ftp_ev_eb_conn_t::have_hdr</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00596">brix_ftp_ev_eb_accept()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00533">ev_eb_child_tls_done()</a>.</p>
-
-</div>
-</div>
-<a id="afdfccfb42560ba7ab5656766e29ea854" name="afdfccfb42560ba7ab5656766e29ea854"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afdfccfb42560ba7ab5656766e29ea854">&#9670;&#160;</a></span>ev_eb_child_tls_done()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void ev_eb_child_tls_done </td>
-          <td>(</td>
-          <td class="paramtype">ngx_connection_t *&#160;</td>
-          <td class="paramname"><em>c</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00533">533</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev__tls_8c_source.html#l00049">brix_ftp_ev_tls_verify()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00047">ftp_ev_eb_conn_t::dc</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00345">ev_eb_arm_read()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">ev_eb_child_read()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00596">brix_ftp_ev_eb_accept()</a>.</p>
-
-</div>
-</div>
-<a id="a53b0f0fb0d9dff79b128c839d784650c" name="a53b0f0fb0d9dff79b128c839d784650c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a53b0f0fb0d9dff79b128c839d784650c">&#9670;&#160;</a></span>ev_eb_drain_payload()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a> ev_eb_drain_payload </td>
-          <td>(</td>
-          <td class="paramtype">ngx_connection_t *&#160;</td>
-          <td class="paramname"><em>c</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>ch</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00448">448</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00057">ftp_ev_eb_conn_t::at</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev_8h_source.html#l00045">BRIX_FTP_EV_XFER_BUF</a>, <a class="el" href="vfs__writer_8c_source.html#l00185">brix_vfs_writer_write()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00056">ftp_ev_eb_conn_t::count</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00345">ev_eb_arm_read()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00361">EV_EB_STEP_OK</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00359">EV_EB_STEP_RET</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">ev_eb_child_read()</a>.</p>
-
-</div>
-</div>
-<a id="a5588b652531020643a098fb0efb12bfa" name="a5588b652531020643a098fb0efb12bfa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5588b652531020643a098fb0efb12bfa">&#9670;&#160;</a></span>ev_eb_marker_perf()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void ev_eb_marker_perf </td>
+          <td class="memname">void ev_eb_marker_perf </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structftp__ev__t.html">ftp_ev_t</a> *&#160;</td>
           <td class="paramname"><em>fc</em>, </td>
@@ -536,258 +170,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00065">65</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00033">33</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ftp__ev__io_8c_source.html#l00072">brix_ftp_ev_flush()</a>, and <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">ev_eb_child_read()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00144">ev_retr_mode_e_write()</a>.</p>
-
-</div>
-</div>
-<a id="a251660b5dfb25e107bbd51eb1fd81806" name="a251660b5dfb25e107bbd51eb1fd81806"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a251660b5dfb25e107bbd51eb1fd81806">&#9670;&#160;</a></span>ev_eb_marker_range()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void ev_eb_marker_range </td>
-          <td>(</td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00093">93</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__io_8c_source.html#l00072">brix_ftp_ev_flush()</a>, <a class="el" href="ftp__ev__reply_8c_source.html#l00100">brix_ftp_ev_reply()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00080">ev_eb_range_cmp()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00039">FTP_EV_EB_MARKER_MAX_RANGES</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">ev_eb_child_read()</a>.</p>
-
-</div>
-</div>
-<a id="af27151e486f28098edefcfd08cb96d53" name="af27151e486f28098edefcfd08cb96d53"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af27151e486f28098edefcfd08cb96d53">&#9670;&#160;</a></span>ev_eb_range_cmp()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int ev_eb_range_cmp </td>
-          <td>(</td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>a</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>b</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00080">80</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__eblock_8h_source.html#l00067">ftp_eb_range_t::lo</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00093">ev_eb_marker_range()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00280">ev_eb_ranges_contiguous()</a>.</p>
-
-</div>
-</div>
-<a id="a058dfb755e3af4d1dd621f4ebba418fc" name="a058dfb755e3af4d1dd621f4ebba418fc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a058dfb755e3af4d1dd621f4ebba418fc">&#9670;&#160;</a></span>ev_eb_ranges_contiguous()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int ev_eb_ranges_contiguous </td>
-          <td>(</td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00280">280</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00080">ev_eb_range_cmp()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">ev_eb_child_done()</a>.</p>
-
-</div>
-</div>
-<a id="ab0d97c2d4012593bd6b1dc9a749c52bf" name="ab0d97c2d4012593bd6b1dc9a749c52bf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab0d97c2d4012593bd6b1dc9a749c52bf">&#9670;&#160;</a></span>ev_eb_receiver_open()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t ev_eb_receiver_open </td>
-          <td>(</td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00569">569</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00047">BRIX_FTP_EV_EB_MAX_CONNS</a>, <a class="el" href="ftp__ev_8h_source.html#l00048">BRIX_FTP_EV_EB_MAX_RANGES</a>, <a class="el" href="ftp__ev__path_8c_source.html#l00298">brix_ftp_ev_vfs_ctx()</a>, <a class="el" href="vfs__writer_8c_source.html#l00075">brix_vfs_writer_open()</a>, <a class="el" href="ftp__ev_8h_source.html#l00077">ftp_ev_t::c</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00596">brix_ftp_ev_eb_accept()</a>.</p>
-
-</div>
-</div>
-<a id="aac0c3e6db285916a3cc1ff84b3bddb72" name="aac0c3e6db285916a3cc1ff84b3bddb72"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aac0c3e6db285916a3cc1ff84b3bddb72">&#9670;&#160;</a></span>ev_eb_recv_header()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a> ev_eb_recv_header </td>
-          <td>(</td>
-          <td class="paramtype">ngx_connection_t *&#160;</td>
-          <td class="paramname"><em>c</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>ch</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00401">401</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00056">ftp_ev_eb_conn_t::count</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00055">ftp_ev_eb_conn_t::desc</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00345">ev_eb_arm_read()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00311">ev_eb_child_done()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00369">ev_eb_reserve_range()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00360">EV_EB_STEP_MORE</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00361">EV_EB_STEP_OK</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00359">EV_EB_STEP_RET</a>, <a class="el" href="ftp__eblock_8h_source.html#l00037">FTP_EB_EOF</a>, <a class="el" href="ftp__eblock_8h_source.html#l00036">FTP_EB_HDR</a>, <a class="el" href="ftp__eblock_8h_source.html#l00052">ftp_eb_unpack()</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00054">ftp_ev_eb_conn_t::have_hdr</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00052">ftp_ev_eb_conn_t::hdr</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00053">ftp_ev_eb_conn_t::hdr_got</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00482">ev_eb_child_read()</a>.</p>
-
-</div>
-</div>
-<a id="a236401823761220a8c20863b35c4f2fd" name="a236401823761220a8c20863b35c4f2fd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a236401823761220a8c20863b35c4f2fd">&#9670;&#160;</a></span>ev_eb_reserve_range()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="ftp__ev__mode__e_8c.html#ae177eeec9aabaf26eea2ee2cf0a57c72">ev_eb_step_t</a> ev_eb_reserve_range </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>ch</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>count</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint64_t&#160;</td>
-          <td class="paramname"><em>offset</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00369">369</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev__mode__e_8c_source.html#l00057">ftp_ev_eb_conn_t::at</a>, <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev_8h_source.html#l00048">BRIX_FTP_EV_EB_MAX_RANGES</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00056">ftp_ev_eb_conn_t::count</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00361">EV_EB_STEP_OK</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00359">EV_EB_STEP_RET</a>, and <a class="el" href="ftp__eblock_8h_source.html#l00070">ftp_eb_range_overlaps()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00401">ev_eb_recv_header()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e__recv_8c_source.html#l00356">ev_eb_child_read()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00059">ev_retr_mode_e_write()</a>.</p>
 
 </div>
 </div>
@@ -815,41 +204,9 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00137">137</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00052">52</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00219">brix_ftp_ev_retr_mode_e_start()</a>.</p>
-
-</div>
-</div>
-<a id="aa894670981e889bd4bf6002582709dca" name="aa894670981e889bd4bf6002582709dca"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa894670981e889bd4bf6002582709dca">&#9670;&#160;</a></span>ev_eb_slot()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="structftp__ev__eb__conn__t.html">ftp_ev_eb_conn_t</a> * ev_eb_slot </td>
-          <td>(</td>
-          <td class="paramtype">ftp_ev_dc_t *&#160;</td>
-          <td class="paramname"><em>dc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00553">553</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ftp__ev_8h_source.html#l00047">BRIX_FTP_EV_EB_MAX_CONNS</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00148">conns</a>, and <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00017">in_use</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00596">brix_ftp_ev_eb_accept()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00134">brix_ftp_ev_retr_mode_e_start()</a>.</p>
 
 </div>
 </div>
@@ -877,11 +234,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00144">144</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ftp__ev__mode__e_8c_source.html#l00059">59</a> of file <a class="el" href="ftp__ev__mode__e_8c_source.html">ftp_ev_mode_e.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev_8h_source.html#l00044">BRIX_FTP_EV_IO_TIMEO</a>, <a class="el" href="ftp__ev_8h_source.html#l00045">BRIX_FTP_EV_XFER_BUF</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00080">brix_vfs_file_pread()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00065">ev_eb_marker_perf()</a>, <a class="el" href="ftp__eblock_8h_source.html#l00038">FTP_EB_EOD</a>, <a class="el" href="ftp__eblock_8h_source.html#l00037">FTP_EB_EOF</a>, <a class="el" href="ftp__eblock_8h_source.html#l00036">FTP_EB_HDR</a>, <a class="el" href="ftp__eblock_8h_source.html#l00042">ftp_eb_pack()</a>, and <a class="el" href="ftp__ev__mode__e_8c_source.html#l00038">FTP_EV_EB_MARKER_BYTES</a>.</p>
+<p class="reference">References <a class="el" href="ftp__ev__data_8c_source.html#l00478">brix_ftp_ev_data_finish()</a>, <a class="el" href="ftp__ev_8h_source.html#l00044">BRIX_FTP_EV_IO_TIMEO</a>, <a class="el" href="ftp__ev_8h_source.html#l00045">BRIX_FTP_EV_XFER_BUF</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00080">brix_vfs_file_pread()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ftp__ev__mode__e_8c_source.html#l00033">ev_eb_marker_perf()</a>, <a class="el" href="ftp__eblock_8h_source.html#l00038">FTP_EB_EOD</a>, <a class="el" href="ftp__eblock_8h_source.html#l00037">FTP_EB_EOF</a>, <a class="el" href="ftp__eblock_8h_source.html#l00036">FTP_EB_HDR</a>, <a class="el" href="ftp__eblock_8h_source.html#l00042">ftp_eb_pack()</a>, and <a class="el" href="ftp__ev__mode__e__internal_8h_source.html#l00012">FTP_EV_EB_MARKER_BYTES</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00219">brix_ftp_ev_retr_mode_e_start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ftp__ev__mode__e_8c_source.html#l00134">brix_ftp_ev_retr_mode_e_start()</a>.</p>
 
 </div>
 </div>

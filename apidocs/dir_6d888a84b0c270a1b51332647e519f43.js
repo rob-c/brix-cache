@@ -39,6 +39,7 @@ var dir_6d888a84b0c270a1b51332647e519f43 =
     [ "server_module.c", "server__module_8c.html", "server__module_8c" ],
     [ "server_recv.c", "server__recv_8c.html", "server__recv_8c" ],
     [ "server_recv_frame.c", "server__recv__frame_8c.html", "server__recv__frame_8c" ],
+    [ "server_recv_frame_handlers.c", "server__recv__frame__handlers_8c.html", "server__recv__frame__handlers_8c" ],
     [ "server_recv_internal.h", "server__recv__internal_8h.html", "server__recv__internal_8h" ],
     [ "server_recv_lifecycle.c", "server__recv__lifecycle_8c.html", "server__recv__lifecycle_8c" ],
     [ "server_recv_parse.c", "server__recv__parse_8c.html", "server__recv__parse_8c" ],

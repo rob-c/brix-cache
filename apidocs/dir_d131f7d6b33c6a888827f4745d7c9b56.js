@@ -7,6 +7,8 @@ var dir_d131f7d6b33c6a888827f4745d7c9b56 =
     [ "broker_ops_internal.h", "broker__ops__internal_8h.html", "broker__ops__internal_8h" ],
     [ "broker_ops_ns.c", "broker__ops__ns_8c.html", "broker__ops__ns_8c" ],
     [ "client.c", "client_8c.html", "client_8c" ],
+    [ "client_internal.h", "client__internal_8h.html", "client__internal_8h" ],
+    [ "client_ops.c", "client__ops_8c.html", "client__ops_8c" ],
     [ "idmap.c", "idmap_8c.html", "idmap_8c" ],
     [ "idmap_denylist.c", "idmap__denylist_8c.html", "idmap__denylist_8c" ],
     [ "idmap_gridmap.c", "idmap__gridmap_8c.html", "idmap__gridmap_8c" ],

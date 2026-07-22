@@ -13,6 +13,7 @@ var dir_e42f4099179f50badb686bf153451983 =
     [ "sd_ceph_internal.h", "sd__ceph__internal_8h.html", null ],
     [ "sd_ceph_io.c", "sd__ceph__io_8c.html", null ],
     [ "sd_ceph_object.c", "sd__ceph__object_8c.html", null ],
+    [ "sd_ceph_object_rename.c", "sd__ceph__object__rename_8c.html", null ],
     [ "sd_ceph_striper.c", "sd__ceph__striper_8c.html", null ],
     [ "sd_ceph_striper.h", "sd__ceph__striper_8h.html", null ],
     [ "sd_ceph_unittest.c", "sd__ceph__unittest_8c.html", "sd__ceph__unittest_8c" ],

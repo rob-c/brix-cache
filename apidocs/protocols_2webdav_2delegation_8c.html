@@ -91,222 +91,67 @@ $(document).ready(function(){initNavTree('protocols_2webdav_2delegation_8c.html'
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
-<a href="#enum-members">Enumerations</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">delegation.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="webdav_8h_source.html">webdav.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="protocols_2webdav_2delegation_8h_source.html">delegation.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="delegation__internal_8h_source.html">delegation_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="ucred_8h_source.html">fs/backend/ucred.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="store__policy_8h_source.html">auth/crypto/store_policy.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="proxy__req_8h_source.html">auth/gsi/proxy_req.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="gsi__verify_8h_source.html">auth/crypto/gsi_verify.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="log__diag_8h_source.html">core/compat/log_diag.h</a>&quot;</code><br />
-<code>#include &quot;<a class="el" href="hex_8h_source.html">core/compat/hex.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__body_8h_source.html">core/http/http_body.h</a>&quot;</code><br />
 <code>#include &lt;openssl/bio.h&gt;</code><br />
 <code>#include &lt;openssl/pem.h&gt;</code><br />
-<code>#include &lt;openssl/rand.h&gt;</code><br />
-<code>#include &lt;openssl/ssl.h&gt;</code><br />
 <code>#include &lt;openssl/x509.h&gt;</code><br />
 <code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;fcntl.h&gt;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
-<code>#include &lt;<a class="el" href="time_8h_source.html">time.h</a>&gt;</code><br />
+<code>#include &lt;sys/stat.h&gt;</code><br />
 <code>#include &lt;unistd.h&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for delegation.c:</div>
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="protocols_2webdav_2delegation_8c__incl.svg" width="100%" height="569"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="protocols_2webdav_2delegation_8c__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="protocols_2webdav_2delegation_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__deleg__entry__t.html">brix_deleg_entry_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:a095233176a4a7348b3c866356d1b5efb" id="r_a095233176a4a7348b3c866356d1b5efb"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a095233176a4a7348b3c866356d1b5efb">BRIX_DELEGATION_BODY_MAX</a>&#160;&#160;&#160;(64 * 1024)</td></tr>
-<tr class="separator:a095233176a4a7348b3c866356d1b5efb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4563bc23badca38a933a888fe57785cb" id="r_a4563bc23badca38a933a888fe57785cb"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a4563bc23badca38a933a888fe57785cb">BRIX_DELEGATION_CSR_MAX</a>&#160;&#160;&#160;(16 * 1024)</td></tr>
 <tr class="separator:a4563bc23badca38a933a888fe57785cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5835b081abee3fe7f389671acd8fc507" id="r_a5835b081abee3fe7f389671acd8fc507"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a5835b081abee3fe7f389671acd8fc507">BRIX_DELEG_ID_BYTES</a>&#160;&#160;&#160;16</td></tr>
-<tr class="separator:a5835b081abee3fe7f389671acd8fc507"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa720c088b3151f1583b05ad96d55ef85" id="r_aa720c088b3151f1583b05ad96d55ef85"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#aa720c088b3151f1583b05ad96d55ef85">BRIX_DELEG_ID_HEXLEN</a>&#160;&#160;&#160;(<a class="el" href="protocols_2webdav_2delegation_8c.html#a5835b081abee3fe7f389671acd8fc507">BRIX_DELEG_ID_BYTES</a> * 2)</td></tr>
-<tr class="separator:aa720c088b3151f1583b05ad96d55ef85"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a21e9c42decaebe915c8dd3639319e20d" id="r_a21e9c42decaebe915c8dd3639319e20d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a21e9c42decaebe915c8dd3639319e20d">BRIX_DELEG_STORE_CAP</a>&#160;&#160;&#160;256</td></tr>
-<tr class="separator:a21e9c42decaebe915c8dd3639319e20d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a675047ec4e0d645d8178624fbe61cd4b" id="r_a675047ec4e0d645d8178624fbe61cd4b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a675047ec4e0d645d8178624fbe61cd4b">BRIX_DELEG_TTL_SEC</a>&#160;&#160;&#160;600</td></tr>
-<tr class="separator:a675047ec4e0d645d8178624fbe61cd4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
-Enumerations</h2></td></tr>
-<tr class="memitem:aad71cd6c4207fe5a45fcfa177747948e" id="r_aad71cd6c4207fe5a45fcfa177747948e"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948e">brix_deleg_take_t</a> { <a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948ea09c30a235e07dfdc3752b692fec91694">BRIX_DELEG_TAKE_NOT_FOUND</a> = 0
-, <a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948ea5e14adbacafb257f59a690ebeb23402e">BRIX_DELEG_TAKE_EXPIRED</a>
-, <a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948eae87f4ed252dd48199132616782d6c04d">BRIX_DELEG_TAKE_DN_MISMATCH</a>
-, <a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948ea830ac78f9493f6f2b556d89e8c527004">BRIX_DELEG_TAKE_OK</a>
- }</td></tr>
-<tr class="separator:aad71cd6c4207fe5a45fcfa177747948e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ace638194cc49f48f1b72f5ac0f3bb5f4" id="r_ace638194cc49f48f1b72f5ac0f3bb5f4"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#ace638194cc49f48f1b72f5ac0f3bb5f4">delegation_client_authenticated</a> (const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx)</td></tr>
-<tr class="separator:ace638194cc49f48f1b72f5ac0f3bb5f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9c6a2a035a28d58f6fc0e9b27e3dceb2" id="r_a9c6a2a035a28d58f6fc0e9b27e3dceb2"><td class="memItemLeft" align="right" valign="top">static X509 *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a9c6a2a035a28d58f6fc0e9b27e3dceb2">delegation_find_eec</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
-<tr class="separator:a9c6a2a035a28d58f6fc0e9b27e3dceb2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a42856d46ab73f3511a5353d4e30af6d4" id="r_a42856d46ab73f3511a5353d4e30af6d4"><td class="memItemLeft" align="right" valign="top">static&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a42856d46ab73f3511a5353d4e30af6d4">STACK_OF</a> (X509)</td></tr>
-<tr class="separator:a42856d46ab73f3511a5353d4e30af6d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa78bba7680dc85ab3b38a3de5d35dcfd" id="r_aa78bba7680dc85ab3b38a3de5d35dcfd"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#aa78bba7680dc85ab3b38a3de5d35dcfd">delegation_chain_expired</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
-<tr class="separator:aa78bba7680dc85ab3b38a3de5d35dcfd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a011899975a3c59bdf4b71bcf79cf7127" id="r_a011899975a3c59bdf4b71bcf79cf7127"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a011899975a3c59bdf4b71bcf79cf7127">delegation_eec_dn_matches</a> (X509 *eec, const char *want_dn)</td></tr>
-<tr class="separator:a011899975a3c59bdf4b71bcf79cf7127"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a17d0135d4e2d5f7a32f37b6524beb390" id="r_a17d0135d4e2d5f7a32f37b6524beb390"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a17d0135d4e2d5f7a32f37b6524beb390">delegation_chain_trusted</a> (ngx_http_request_t *r, const <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
-<tr class="separator:a17d0135d4e2d5f7a32f37b6524beb390"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae182fb081139b9eac780960beb706083" id="r_ae182fb081139b9eac780960beb706083"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#ae182fb081139b9eac780960beb706083">delegation_store_pem</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const ngx_str_t *dir, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const u_char *pem, size_t pem_len)</td></tr>
-<tr class="separator:ae182fb081139b9eac780960beb706083"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a977a0ab86dce343586b15e92099668e8" id="r_a977a0ab86dce343586b15e92099668e8"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a977a0ab86dce343586b15e92099668e8">delegation_reject</a> (ngx_http_request_t *r, ngx_uint_t status, const char *msg)</td></tr>
-<tr class="separator:a977a0ab86dce343586b15e92099668e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aac30164c3a1e14996820563f304bf85c" id="r_aac30164c3a1e14996820563f304bf85c"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#aac30164c3a1e14996820563f304bf85c">brix_deleg_store</a> (void)</td></tr>
-<tr class="separator:aac30164c3a1e14996820563f304bf85c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a61b9439b7af1ba8ed0298e7ec89b9613" id="r_a61b9439b7af1ba8ed0298e7ec89b9613"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a61b9439b7af1ba8ed0298e7ec89b9613">brix_deleg_entry_free</a> (<a class="el" href="structbrix__deleg__entry__t.html">brix_deleg_entry_t</a> *e)</td></tr>
-<tr class="separator:a61b9439b7af1ba8ed0298e7ec89b9613"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2ffd0ac05f4f68c78ca952628a358b82" id="r_a2ffd0ac05f4f68c78ca952628a358b82"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a2ffd0ac05f4f68c78ca952628a358b82">brix_deleg_store_sweep</a> (<a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *st, time_t now)</td></tr>
-<tr class="separator:a2ffd0ac05f4f68c78ca952628a358b82"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1af14f1c7d00c0596225c1b7d91902da" id="r_a1af14f1c7d00c0596225c1b7d91902da"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a1af14f1c7d00c0596225c1b7d91902da">brix_deleg_store_put</a> (<a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *st, EVP_PKEY *fresh_key, const char *client_dn, char *id_out, size_t id_out_cap)</td></tr>
-<tr class="separator:a1af14f1c7d00c0596225c1b7d91902da"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3c08eb90033e7678f3d2b1e4cb199c4e" id="r_a3c08eb90033e7678f3d2b1e4cb199c4e"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948e">brix_deleg_take_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a3c08eb90033e7678f3d2b1e4cb199c4e">brix_deleg_store_take</a> (<a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *st, const char *id, const char *want_dn, EVP_PKEY **key_out)</td></tr>
-<tr class="separator:a3c08eb90033e7678f3d2b1e4cb199c4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8335dc6d93ddbce023d0ab3010b29c98" id="r_a8335dc6d93ddbce023d0ab3010b29c98"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a8335dc6d93ddbce023d0ab3010b29c98">delegation_get_peer_pem</a> (ngx_http_request_t *r, u_char **pem, size_t *pem_len)</td></tr>
-<tr class="separator:a8335dc6d93ddbce023d0ab3010b29c98"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a904cad683f122a94d82db07a48ba4ec9" id="r_a904cad683f122a94d82db07a48ba4ec9"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a904cad683f122a94d82db07a48ba4ec9">delegation_req_der_to_pem</a> (const uint8_t *der, size_t der_len, size_t *pem_len)</td></tr>
-<tr class="separator:a904cad683f122a94d82db07a48ba4ec9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3a79e8707c16a3f35c22cd89b747bf9d" id="r_a3a79e8707c16a3f35c22cd89b747bf9d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a3a79e8707c16a3f35c22cd89b747bf9d">delegation_send_csr</a> (ngx_http_request_t *r, const char *id, const u_char *pem, size_t pem_len)</td></tr>
-<tr class="separator:a3a79e8707c16a3f35c22cd89b747bf9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a20600c4c524590d262d969d63f858c0e" id="r_a20600c4c524590d262d969d63f858c0e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a20600c4c524590d262d969d63f858c0e">delegation_request_reject</a> (ngx_http_request_t *r, ngx_uint_t status, const char *msg)</td></tr>
-<tr class="separator:a20600c4c524590d262d969d63f858c0e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a733d9ca4b405004bc388cdc9050a589c" id="r_a733d9ca4b405004bc388cdc9050a589c"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a733d9ca4b405004bc388cdc9050a589c">webdav_delegation_request_handle</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a733d9ca4b405004bc388cdc9050a589c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae4d1c83293b3e88e1f6b3f83a9358abd" id="r_ae4d1c83293b3e88e1f6b3f83a9358abd"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#ae4d1c83293b3e88e1f6b3f83a9358abd">gsi_pem_export_one</a> (X509 *cert, size_t *len)</td></tr>
-<tr class="separator:ae4d1c83293b3e88e1f6b3f83a9358abd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a03f2b7daec0b1c9a5c6b1934d0973767" id="r_a03f2b7daec0b1c9a5c6b1934d0973767"><td class="memItemLeft" align="right" valign="top">static u_char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a03f2b7daec0b1c9a5c6b1934d0973767">gsi_pem_export_chain</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain, size_t *len)</td></tr>
-<tr class="separator:a03f2b7daec0b1c9a5c6b1934d0973767"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8eb768c68b089f5122c4c67498b73827" id="r_a8eb768c68b089f5122c4c67498b73827"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a8eb768c68b089f5122c4c67498b73827">delegation_split_first_pem_block</a> (const u_char *body, size_t body_len, u_char **proxy_pem, size_t *proxy_pem_len, u_char **chain_pem, size_t *chain_pem_len)</td></tr>
-<tr class="separator:a8eb768c68b089f5122c4c67498b73827"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8d0e1d5a0f5d8110e87511776dcc5216" id="r_a8d0e1d5a0f5d8110e87511776dcc5216"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a8d0e1d5a0f5d8110e87511776dcc5216">delegation_extract_id</a> (ngx_http_request_t *r, const u_char **id, size_t *id_len)</td></tr>
-<tr class="separator:a8d0e1d5a0f5d8110e87511776dcc5216"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a880155668ffa48c3cc6e28c5c470b37d" id="r_a880155668ffa48c3cc6e28c5c470b37d"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a880155668ffa48c3cc6e28c5c470b37d">delegation_put_take_key</a> (ngx_http_request_t *r, const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx, const char *id, EVP_PKEY **reqkey)</td></tr>
-<tr class="separator:a880155668ffa48c3cc6e28c5c470b37d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a108115ea58a124f7debe5a748c25ea88" id="r_a108115ea58a124f7debe5a748c25ea88"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a108115ea58a124f7debe5a748c25ea88">delegation_put_assemble</a> (ngx_http_request_t *r, const char *id, EVP_PKEY *reqkey, const u_char *body, size_t body_len, uint8_t **out_pem, size_t *out_len)</td></tr>
-<tr class="separator:a108115ea58a124f7debe5a748c25ea88"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa5cc8d81efb20def7e4f18e4d2ea6059" id="r_aa5cc8d81efb20def7e4f18e4d2ea6059"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#aa5cc8d81efb20def7e4f18e4d2ea6059">delegation_put_validate_chain</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx, const char *id, const uint8_t *out_pem, size_t out_len)</td></tr>
-<tr class="separator:aa5cc8d81efb20def7e4f18e4d2ea6059"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a877a1f6d0aeaaa9c448352f88f7a742f" id="r_a877a1f6d0aeaaa9c448352f88f7a742f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a877a1f6d0aeaaa9c448352f88f7a742f">delegation_put_store</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx, const uint8_t *out_pem, size_t out_len, char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, size_t key_len)</td></tr>
-<tr class="separator:a877a1f6d0aeaaa9c448352f88f7a742f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a50765429dbed88668d3bc6245334f73b" id="r_a50765429dbed88668d3bc6245334f73b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a50765429dbed88668d3bc6245334f73b">webdav_delegation_put_handle</a> (ngx_http_request_t *r)</td></tr>
-<tr class="separator:a50765429dbed88668d3bc6245334f73b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac5b2c6f36d1608ccf34e5f3284c4c0ee" id="r_ac5b2c6f36d1608ccf34e5f3284c4c0ee"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#ac5b2c6f36d1608ccf34e5f3284c4c0ee">delegation_client_authenticated</a> (const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:ac5b2c6f36d1608ccf34e5f3284c4c0ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0857b00b23d2287ea3b6c994183fb3bc" id="r_a0857b00b23d2287ea3b6c994183fb3bc"><td class="memItemLeft" align="right" valign="top">X509 *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a0857b00b23d2287ea3b6c994183fb3bc">delegation_find_eec</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
+<tr class="separator:a0857b00b23d2287ea3b6c994183fb3bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a00cf9f18b18b26449b4cde33c2f1d5ff" id="r_a00cf9f18b18b26449b4cde33c2f1d5ff"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a00cf9f18b18b26449b4cde33c2f1d5ff">STACK_OF</a> (X509)</td></tr>
+<tr class="separator:a00cf9f18b18b26449b4cde33c2f1d5ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a297dac6789c6fc1fc31bd1772bc1ff3d" id="r_a297dac6789c6fc1fc31bd1772bc1ff3d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a297dac6789c6fc1fc31bd1772bc1ff3d">delegation_chain_expired</a> (<a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
+<tr class="separator:a297dac6789c6fc1fc31bd1772bc1ff3d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa77bf10aad0fb3d818e32df3fb883e72" id="r_aa77bf10aad0fb3d818e32df3fb883e72"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#aa77bf10aad0fb3d818e32df3fb883e72">delegation_eec_dn_matches</a> (X509 *eec, const char *want_dn)</td></tr>
+<tr class="separator:aa77bf10aad0fb3d818e32df3fb883e72"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac2dd1be55396083ba54c62db72fb0f54" id="r_ac2dd1be55396083ba54c62db72fb0f54"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#ac2dd1be55396083ba54c62db72fb0f54">delegation_chain_trusted</a> (ngx_http_request_t *r, const <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *chain)</td></tr>
+<tr class="separator:ac2dd1be55396083ba54c62db72fb0f54"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff5201de880148ad48a44246cee97c17" id="r_aff5201de880148ad48a44246cee97c17"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#aff5201de880148ad48a44246cee97c17">delegation_store_pem</a> (ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>, const ngx_str_t *dir, const char *<a class="el" href="auth__sigv4__verify__crypto_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>, const u_char *pem, size_t <a class="el" href="delegation__internal_8h.html#a883245015c915ddb54b031da1474bf4d">pem_len</a>)</td></tr>
+<tr class="separator:aff5201de880148ad48a44246cee97c17"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ace8d683ec3794126f57a811eaf0eb7c1" id="r_ace8d683ec3794126f57a811eaf0eb7c1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#ace8d683ec3794126f57a811eaf0eb7c1">delegation_reject</a> (ngx_http_request_t *r, ngx_uint_t status, const char *msg)</td></tr>
+<tr class="separator:ace8d683ec3794126f57a811eaf0eb7c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a46a0d624d26f46bf192c98b4404351fc" id="r_a46a0d624d26f46bf192c98b4404351fc"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a46a0d624d26f46bf192c98b4404351fc">delegation_validate_and_store</a> (ngx_http_request_t *r, <a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *conf, const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx, const u_char *body, size_t body_len)</td></tr>
 <tr class="separator:a46a0d624d26f46bf192c98b4404351fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6618602516a3e674f628ad2aeaee599b" id="r_a6618602516a3e674f628ad2aeaee599b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a6618602516a3e674f628ad2aeaee599b">webdav_delegation_handle</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a6618602516a3e674f628ad2aeaee599b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:a2d5afdcd126d7ecd528063f19e67bf59" id="r_a2d5afdcd126d7ecd528063f19e67bf59"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2delegation_8c.html#a2d5afdcd126d7ecd528063f19e67bf59">brix_deleg_store_singleton</a> = NULL</td></tr>
-<tr class="separator:a2d5afdcd126d7ecd528063f19e67bf59"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a5835b081abee3fe7f389671acd8fc507" name="a5835b081abee3fe7f389671acd8fc507"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5835b081abee3fe7f389671acd8fc507">&#9670;&#160;</a></span>BRIX_DELEG_ID_BYTES</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_DELEG_ID_BYTES&#160;&#160;&#160;16</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00487">487</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-</div>
-</div>
-<a id="aa720c088b3151f1583b05ad96d55ef85" name="aa720c088b3151f1583b05ad96d55ef85"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa720c088b3151f1583b05ad96d55ef85">&#9670;&#160;</a></span>BRIX_DELEG_ID_HEXLEN</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_DELEG_ID_HEXLEN&#160;&#160;&#160;(<a class="el" href="protocols_2webdav_2delegation_8c.html#a5835b081abee3fe7f389671acd8fc507">BRIX_DELEG_ID_BYTES</a> * 2)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00488">488</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-</div>
-</div>
-<a id="a21e9c42decaebe915c8dd3639319e20d" name="a21e9c42decaebe915c8dd3639319e20d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a21e9c42decaebe915c8dd3639319e20d">&#9670;&#160;</a></span>BRIX_DELEG_STORE_CAP</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_DELEG_STORE_CAP&#160;&#160;&#160;256</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00493">493</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-</div>
-</div>
-<a id="a675047ec4e0d645d8178624fbe61cd4b" name="a675047ec4e0d645d8178624fbe61cd4b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a675047ec4e0d645d8178624fbe61cd4b">&#9670;&#160;</a></span>BRIX_DELEG_TTL_SEC</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_DELEG_TTL_SEC&#160;&#160;&#160;600</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00498">498</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-</div>
-</div>
-<a id="a095233176a4a7348b3c866356d1b5efb" name="a095233176a4a7348b3c866356d1b5efb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a095233176a4a7348b3c866356d1b5efb">&#9670;&#160;</a></span>BRIX_DELEGATION_BODY_MAX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_DELEGATION_BODY_MAX&#160;&#160;&#160;(64 * 1024)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00157">157</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-</div>
-</div>
 <a id="a4563bc23badca38a933a888fe57785cb" name="a4563bc23badca38a933a888fe57785cb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a4563bc23badca38a933a888fe57785cb">&#9670;&#160;</a></span>BRIX_DELEGATION_CSR_MAX</h2>
 
@@ -319,295 +164,41 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00160">160</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="aad71cd6c4207fe5a45fcfa177747948e" name="aad71cd6c4207fe5a45fcfa177747948e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aad71cd6c4207fe5a45fcfa177747948e">&#9670;&#160;</a></span>brix_deleg_take_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948e">brix_deleg_take_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aad71cd6c4207fe5a45fcfa177747948ea09c30a235e07dfdc3752b692fec91694" name="aad71cd6c4207fe5a45fcfa177747948ea09c30a235e07dfdc3752b692fec91694"></a>BRIX_DELEG_TAKE_NOT_FOUND&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aad71cd6c4207fe5a45fcfa177747948ea5e14adbacafb257f59a690ebeb23402e" name="aad71cd6c4207fe5a45fcfa177747948ea5e14adbacafb257f59a690ebeb23402e"></a>BRIX_DELEG_TAKE_EXPIRED&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aad71cd6c4207fe5a45fcfa177747948eae87f4ed252dd48199132616782d6c04d" name="aad71cd6c4207fe5a45fcfa177747948eae87f4ed252dd48199132616782d6c04d"></a>BRIX_DELEG_TAKE_DN_MISMATCH&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aad71cd6c4207fe5a45fcfa177747948ea830ac78f9493f6f2b556d89e8c527004" name="aad71cd6c4207fe5a45fcfa177747948ea830ac78f9493f6f2b556d89e8c527004"></a>BRIX_DELEG_TAKE_OK&#160;</td><td class="fielddoc"></td></tr>
-</table>
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00624">624</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00074">74</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a61b9439b7af1ba8ed0298e7ec89b9613" name="a61b9439b7af1ba8ed0298e7ec89b9613"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a61b9439b7af1ba8ed0298e7ec89b9613">&#9670;&#160;</a></span>brix_deleg_entry_free()</h2>
+<a id="a297dac6789c6fc1fc31bd1772bc1ff3d" name="a297dac6789c6fc1fc31bd1772bc1ff3d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a297dac6789c6fc1fc31bd1772bc1ff3d">&#9670;&#160;</a></span>delegation_chain_expired()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void brix_deleg_entry_free </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__deleg__entry__t.html">brix_deleg_entry_t</a> *&#160;</td>
-          <td class="paramname"><em>e</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00534">534</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00503">brix_deleg_entry_t::client_dn</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00504">brix_deleg_entry_t::created_at</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00505">brix_deleg_entry_t::expires_at</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00502">brix_deleg_entry_t::fresh_key</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00501">brix_deleg_entry_t::id</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00553">brix_deleg_store_sweep()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00667">brix_deleg_store_take()</a>.</p>
-
-</div>
-</div>
-<a id="aac30164c3a1e14996820563f304bf85c" name="aac30164c3a1e14996820563f304bf85c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aac30164c3a1e14996820563f304bf85c">&#9670;&#160;</a></span>brix_deleg_store()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> * brix_deleg_store </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00518">518</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00515">brix_deleg_store_singleton</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01144">delegation_put_take_key()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">webdav_delegation_request_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a1af14f1c7d00c0596225c1b7d91902da" name="a1af14f1c7d00c0596225c1b7d91902da"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1af14f1c7d00c0596225c1b7d91902da">&#9670;&#160;</a></span>brix_deleg_store_put()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_deleg_store_put </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">EVP_PKEY *&#160;</td>
-          <td class="paramname"><em>fresh_key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>client_dn</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>id_out</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>id_out_cap</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00586">586</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00487">BRIX_DELEG_ID_BYTES</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00488">BRIX_DELEG_ID_HEXLEN</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00493">BRIX_DELEG_STORE_CAP</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00553">brix_deleg_store_sweep()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00498">BRIX_DELEG_TTL_SEC</a>, <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00503">brix_deleg_entry_t::client_dn</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00504">brix_deleg_entry_t::created_at</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00505">brix_deleg_entry_t::expires_at</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00502">brix_deleg_entry_t::fresh_key</a>, <a class="el" href="ssi__rrinfo__unittest_8c_source.html#l00024">hex()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00501">brix_deleg_entry_t::id</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00509">brix_deleg_store_t::slots</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">webdav_delegation_request_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a2ffd0ac05f4f68c78ca952628a358b82" name="a2ffd0ac05f4f68c78ca952628a358b82"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2ffd0ac05f4f68c78ca952628a358b82">&#9670;&#160;</a></span>brix_deleg_store_sweep()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_deleg_store_sweep </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">time_t&#160;</td>
-          <td class="paramname"><em>now</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00553">553</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00534">brix_deleg_entry_free()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00493">BRIX_DELEG_STORE_CAP</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00505">brix_deleg_entry_t::expires_at</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00501">brix_deleg_entry_t::id</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00509">brix_deleg_store_t::slots</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00586">brix_deleg_store_put()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00667">brix_deleg_store_take()</a>.</p>
-
-</div>
-</div>
-<a id="a3c08eb90033e7678f3d2b1e4cb199c4e" name="a3c08eb90033e7678f3d2b1e4cb199c4e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3c08eb90033e7678f3d2b1e4cb199c4e">&#9670;&#160;</a></span>brix_deleg_store_take()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static <a class="el" href="protocols_2webdav_2delegation_8c.html#aad71cd6c4207fe5a45fcfa177747948e">brix_deleg_take_t</a> brix_deleg_store_take </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a> *&#160;</td>
-          <td class="paramname"><em>st</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>id</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>want_dn</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">EVP_PKEY **&#160;</td>
-          <td class="paramname"><em>key_out</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00667">667</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00534">brix_deleg_entry_free()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00493">BRIX_DELEG_STORE_CAP</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00553">brix_deleg_store_sweep()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00627">BRIX_DELEG_TAKE_DN_MISMATCH</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00626">BRIX_DELEG_TAKE_EXPIRED</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00625">BRIX_DELEG_TAKE_NOT_FOUND</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00628">BRIX_DELEG_TAKE_OK</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00503">brix_deleg_entry_t::client_dn</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00505">brix_deleg_entry_t::expires_at</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00502">brix_deleg_entry_t::fresh_key</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00501">brix_deleg_entry_t::id</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00509">brix_deleg_store_t::slots</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01144">delegation_put_take_key()</a>.</p>
-
-</div>
-</div>
-<a id="aa78bba7680dc85ab3b38a3de5d35dcfd" name="aa78bba7680dc85ab3b38a3de5d35dcfd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa78bba7680dc85ab3b38a3de5d35dcfd">&#9670;&#160;</a></span>delegation_chain_expired()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int delegation_chain_expired </td>
+          <td class="memname">int delegation_chain_expired </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
           <td class="paramname"><em>chain</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00244">244</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00158">158</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01222">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delegation__gridsite__put_8c_source.html#l00274">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>.</p>
 
 </div>
 </div>
-<a id="a17d0135d4e2d5f7a32f37b6524beb390" name="a17d0135d4e2d5f7a32f37b6524beb390"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a17d0135d4e2d5f7a32f37b6524beb390">&#9670;&#160;</a></span>delegation_chain_trusted()</h2>
+<a id="ac2dd1be55396083ba54c62db72fb0f54" name="ac2dd1be55396083ba54c62db72fb0f54"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac2dd1be55396083ba54c62db72fb0f54">&#9670;&#160;</a></span>delegation_chain_trusted()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t delegation_chain_trusted </td>
+          <td class="memname">ngx_int_t delegation_chain_trusted </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -630,64 +221,48 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00301">301</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00215">215</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
 <p class="reference">References <a class="el" href="gsi__verify_8c_source.html#l00163">brix_gsi_verify_chain()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00053">ngx_http_brix_webdav_loc_conf_t::ca_store</a>, and <a class="el" href="webdav__loc__conf_8h_source.html#l00032">ngx_http_brix_webdav_loc_conf_t::verify_depth</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01222">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delegation__gridsite__put_8c_source.html#l00274">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>.</p>
 
 </div>
 </div>
-<a id="ace638194cc49f48f1b72f5ac0f3bb5f4" name="ace638194cc49f48f1b72f5ac0f3bb5f4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ace638194cc49f48f1b72f5ac0f3bb5f4">&#9670;&#160;</a></span>delegation_client_authenticated()</h2>
+<a id="ac5b2c6f36d1608ccf34e5f3284c4c0ee" name="ac5b2c6f36d1608ccf34e5f3284c4c0ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac5b2c6f36d1608ccf34e5f3284c4c0ee">&#9670;&#160;</a></span>delegation_client_authenticated()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int delegation_client_authenticated </td>
+          <td class="memname">int delegation_client_authenticated </td>
           <td>(</td>
           <td class="paramtype">const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
           <td class="paramname"><em>ctx</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00168">168</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00082">82</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
 <p class="reference">References <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_req_ctx_t::dn</a>, <a class="el" href="webdav_8h_source.html#l00151">ngx_http_brix_webdav_req_ctx_t::token_auth</a>, and <a class="el" href="webdav_8h_source.html#l00145">ngx_http_brix_webdav_req_ctx_t::verified</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01457">webdav_delegation_handle()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">webdav_delegation_put_handle()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">webdav_delegation_request_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00453">webdav_delegation_handle()</a>, <a class="el" href="delegation__gridsite__put_8c_source.html#l00346">webdav_delegation_put_handle()</a>, and <a class="el" href="delegation__gridsite__req_8c_source.html#l00317">webdav_delegation_request_handle()</a>.</p>
 
 </div>
 </div>
-<a id="a011899975a3c59bdf4b71bcf79cf7127" name="a011899975a3c59bdf4b71bcf79cf7127"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a011899975a3c59bdf4b71bcf79cf7127">&#9670;&#160;</a></span>delegation_eec_dn_matches()</h2>
+<a id="aa77bf10aad0fb3d818e32df3fb883e72" name="aa77bf10aad0fb3d818e32df3fb883e72"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa77bf10aad0fb3d818e32df3fb883e72">&#9670;&#160;</a></span>delegation_eec_dn_matches()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int delegation_eec_dn_matches </td>
+          <td class="memname">int delegation_eec_dn_matches </td>
           <td>(</td>
           <td class="paramtype">X509 *&#160;</td>
           <td class="paramname"><em>eec</em>, </td>
@@ -704,422 +279,48 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00264">264</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00178">178</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
 <p class="reference">References <a class="el" href="store__policy_8c_source.html#l00044">brix_x509_oneline()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01222">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delegation__gridsite__put_8c_source.html#l00274">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>.</p>
 
 </div>
 </div>
-<a id="a8d0e1d5a0f5d8110e87511776dcc5216" name="a8d0e1d5a0f5d8110e87511776dcc5216"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8d0e1d5a0f5d8110e87511776dcc5216">&#9670;&#160;</a></span>delegation_extract_id()</h2>
+<a id="a0857b00b23d2287ea3b6c994183fb3bc" name="a0857b00b23d2287ea3b6c994183fb3bc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0857b00b23d2287ea3b6c994183fb3bc">&#9670;&#160;</a></span>delegation_find_eec()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t delegation_extract_id </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char **&#160;</td>
-          <td class="paramname"><em>id</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>id_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01111">1111</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00488">BRIX_DELEG_ID_HEXLEN</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">webdav_delegation_put_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a9c6a2a035a28d58f6fc0e9b27e3dceb2" name="a9c6a2a035a28d58f6fc0e9b27e3dceb2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9c6a2a035a28d58f6fc0e9b27e3dceb2">&#9670;&#160;</a></span>delegation_find_eec()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static X509 * delegation_find_eec </td>
+          <td class="memname">X509 * delegation_find_eec </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
           <td class="paramname"><em>chain</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00184">184</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00098">98</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
 <p class="reference">References <a class="el" href="store__policy__conformance_8c_source.html#l00031">brix_px_classify()</a>, and <a class="el" href="store__policy_8h_source.html#l00104">BRIX_PX_NONE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01222">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delegation__gridsite__put_8c_source.html#l00274">delegation_put_validate_chain()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>.</p>
 
 </div>
 </div>
-<a id="a8335dc6d93ddbce023d0ab3010b29c98" name="a8335dc6d93ddbce023d0ab3010b29c98"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8335dc6d93ddbce023d0ab3010b29c98">&#9670;&#160;</a></span>delegation_get_peer_pem()</h2>
+<a id="ace8d683ec3794126f57a811eaf0eb7c1" name="ace8d683ec3794126f57a811eaf0eb7c1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ace8d683ec3794126f57a811eaf0eb7c1">&#9670;&#160;</a></span>delegation_reject()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t delegation_get_peer_pem </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>pem_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00711">711</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">webdav_delegation_request_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a108115ea58a124f7debe5a748c25ea88" name="a108115ea58a124f7debe5a748c25ea88"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a108115ea58a124f7debe5a748c25ea88">&#9670;&#160;</a></span>delegation_put_assemble()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_put_assemble </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>id</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">EVP_PKEY *&#160;</td>
-          <td class="paramname"><em>reqkey</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>body_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t **&#160;</td>
-          <td class="paramname"><em>out_pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>out_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01178">1178</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="proxy__req__assemble_8c_source.html#l00152">brix_gsi_assemble_proxy()</a>, <a class="el" href="proxy__req_8h_source.html#l00027">brix_gsi_buf_t::data</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">delegation_reject()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01051">delegation_split_first_pem_block()</a>, and <a class="el" href="proxy__req_8h_source.html#l00028">brix_gsi_buf_t::len</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">webdav_delegation_put_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a877a1f6d0aeaaa9c448352f88f7a742f" name="a877a1f6d0aeaaa9c448352f88f7a742f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a877a1f6d0aeaaa9c448352f88f7a742f">&#9670;&#160;</a></span>delegation_put_store()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_put_store </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>ctx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const uint8_t *&#160;</td>
-          <td class="paramname"><em>out_pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>out_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>key</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>key_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01272">1272</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ucred_8c_source.html#l00464">brix_sd_ucred_key()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">delegation_reject()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00343">delegation_store_pem()</a>, <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_req_ctx_t::dn</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, and <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">webdav_delegation_put_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a880155668ffa48c3cc6e28c5c470b37d" name="a880155668ffa48c3cc6e28c5c470b37d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a880155668ffa48c3cc6e28c5c470b37d">&#9670;&#160;</a></span>delegation_put_take_key()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_put_take_key </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>ctx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>id</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">EVP_PKEY **&#160;</td>
-          <td class="paramname"><em>reqkey</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01144">1144</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00518">brix_deleg_store()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00667">brix_deleg_store_take()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00626">BRIX_DELEG_TAKE_EXPIRED</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00625">BRIX_DELEG_TAKE_NOT_FOUND</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00628">BRIX_DELEG_TAKE_OK</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">delegation_reject()</a>, and <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_req_ctx_t::dn</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">webdav_delegation_put_handle()</a>.</p>
-
-</div>
-</div>
-<a id="aa5cc8d81efb20def7e4f18e4d2ea6059" name="aa5cc8d81efb20def7e4f18e4d2ea6059"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa5cc8d81efb20def7e4f18e4d2ea6059">&#9670;&#160;</a></span>delegation_put_validate_chain()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_put_validate_chain </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>ctx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>id</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const uint8_t *&#160;</td>
-          <td class="paramname"><em>out_pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>out_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01222">1222</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00244">delegation_chain_expired()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00301">delegation_chain_trusted()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00264">delegation_eec_dn_matches()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00184">delegation_find_eec()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">delegation_reject()</a>, <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_req_ctx_t::dn</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">webdav_delegation_put_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a977a0ab86dce343586b15e92099668e8" name="a977a0ab86dce343586b15e92099668e8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a977a0ab86dce343586b15e92099668e8">&#9670;&#160;</a></span>delegation_reject()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void delegation_reject </td>
+          <td class="memname">void delegation_reject </td>
           <td>(</td>
           <td class="paramtype">ngx_http_request_t *&#160;</td>
           <td class="paramname"><em>r</em>, </td>
@@ -1142,246 +343,24 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">413</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00327">327</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
 <p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01178">delegation_put_assemble()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01272">delegation_put_store()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01144">delegation_put_take_key()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01222">delegation_put_validate_chain()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01457">webdav_delegation_handle()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">webdav_delegation_put_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delegation__gridsite__put_8c_source.html#l00230">delegation_put_assemble()</a>, <a class="el" href="delegation__gridsite__put_8c_source.html#l00324">delegation_put_store()</a>, <a class="el" href="delegation__gridsite__put_8c_source.html#l00196">delegation_put_take_key()</a>, <a class="el" href="delegation__gridsite__put_8c_source.html#l00274">delegation_put_validate_chain()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00453">webdav_delegation_handle()</a>, and <a class="el" href="delegation__gridsite__put_8c_source.html#l00346">webdav_delegation_put_handle()</a>.</p>
 
 </div>
 </div>
-<a id="a904cad683f122a94d82db07a48ba4ec9" name="a904cad683f122a94d82db07a48ba4ec9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a904cad683f122a94d82db07a48ba4ec9">&#9670;&#160;</a></span>delegation_req_der_to_pem()</h2>
+<a id="aff5201de880148ad48a44246cee97c17" name="aff5201de880148ad48a44246cee97c17"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff5201de880148ad48a44246cee97c17">&#9670;&#160;</a></span>delegation_store_pem()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static u_char * delegation_req_der_to_pem </td>
-          <td>(</td>
-          <td class="paramtype">const uint8_t *&#160;</td>
-          <td class="paramname"><em>der</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>der_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>pem_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00759">759</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">webdav_delegation_request_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a20600c4c524590d262d969d63f858c0e" name="a20600c4c524590d262d969d63f858c0e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a20600c4c524590d262d969d63f858c0e">&#9670;&#160;</a></span>delegation_request_reject()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_request_reject </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_uint_t&#160;</td>
-          <td class="paramname"><em>status</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>msg</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00866">866</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">webdav_delegation_request_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a3a79e8707c16a3f35c22cd89b747bf9d" name="a3a79e8707c16a3f35c22cd89b747bf9d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3a79e8707c16a3f35c22cd89b747bf9d">&#9670;&#160;</a></span>delegation_send_csr()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_send_csr </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>id</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>pem_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00804">804</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">webdav_delegation_request_handle()</a>.</p>
-
-</div>
-</div>
-<a id="a8eb768c68b089f5122c4c67498b73827" name="a8eb768c68b089f5122c4c67498b73827"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8eb768c68b089f5122c4c67498b73827">&#9670;&#160;</a></span>delegation_split_first_pem_block()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_split_first_pem_block </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>body_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>proxy_pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>proxy_pem_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>chain_pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>chain_pem_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01051">1051</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01005">gsi_pem_export_chain()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00984">gsi_pem_export_one()</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01178">delegation_put_assemble()</a>.</p>
-
-</div>
-</div>
-<a id="ae182fb081139b9eac780960beb706083" name="ae182fb081139b9eac780960beb706083"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae182fb081139b9eac780960beb706083">&#9670;&#160;</a></span>delegation_store_pem()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t delegation_store_pem </td>
+          <td class="memname">ngx_int_t delegation_store_pem </td>
           <td>(</td>
           <td class="paramtype">ngx_log_t *&#160;</td>
           <td class="paramname"><em>log</em>, </td>
@@ -1416,18 +395,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00343">343</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00257">257</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
+<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, and <a class="el" href="delegation__internal_8h_source.html#l00039">pem_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01272">delegation_put_store()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="delegation__gridsite__put_8c_source.html#l00324">delegation_put_store()</a>, and <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>.</p>
 
 </div>
 </div>
@@ -1483,121 +457,33 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">1376</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">372</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
-<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="ucred_8c_source.html#l00464">brix_sd_ucred_key()</a>, <a class="el" href="ucred_8h_source.html#l00073">BRIX_UCRED_KEY_MAX</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00244">delegation_chain_expired()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00301">delegation_chain_trusted()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00264">delegation_eec_dn_matches()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00184">delegation_find_eec()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">delegation_reject()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00343">delegation_store_pem()</a>, <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_req_ctx_t::dn</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>, and <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>.</p>
+<p class="reference">References <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="ucred_8c_source.html#l00115">brix_sd_ucred_key()</a>, <a class="el" href="ucred_8h_source.html#l00073">BRIX_UCRED_KEY_MAX</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00158">delegation_chain_expired()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00215">delegation_chain_trusted()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00178">delegation_eec_dn_matches()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00098">delegation_find_eec()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00327">delegation_reject()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00257">delegation_store_pem()</a>, <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_req_ctx_t::dn</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>, and <a class="el" href="shared__conf__types_8h_source.html#l00059">ngx_http_brix_shared_conf_t::storage_credential_dir</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01457">webdav_delegation_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00453">webdav_delegation_handle()</a>.</p>
 
 </div>
 </div>
-<a id="a03f2b7daec0b1c9a5c6b1934d0973767" name="a03f2b7daec0b1c9a5c6b1934d0973767"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a03f2b7daec0b1c9a5c6b1934d0973767">&#9670;&#160;</a></span>gsi_pem_export_chain()</h2>
+<a id="a00cf9f18b18b26449b4cde33c2f1d5ff" name="a00cf9f18b18b26449b4cde33c2f1d5ff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a00cf9f18b18b26449b4cde33c2f1d5ff">&#9670;&#160;</a></span>STACK_OF()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static u_char * gsi_pem_export_chain </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF</a>(X509) *&#160;</td>
-          <td class="paramname"><em>chain</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01005">1005</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01051">delegation_split_first_pem_block()</a>.</p>
-
-</div>
-</div>
-<a id="ae4d1c83293b3e88e1f6b3f83a9358abd" name="ae4d1c83293b3e88e1f6b3f83a9358abd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae4d1c83293b3e88e1f6b3f83a9358abd">&#9670;&#160;</a></span>gsi_pem_export_one()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static u_char * gsi_pem_export_one </td>
-          <td>(</td>
-          <td class="paramtype">X509 *&#160;</td>
-          <td class="paramname"><em>cert</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00984">984</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01051">delegation_split_first_pem_block()</a>.</p>
-
-</div>
-</div>
-<a id="a42856d46ab73f3511a5353d4e30af6d4" name="a42856d46ab73f3511a5353d4e30af6d4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a42856d46ab73f3511a5353d4e30af6d4">&#9670;&#160;</a></span>STACK_OF()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static STACK_OF </td>
+          <td class="memname">STACK_OF </td>
           <td>(</td>
           <td class="paramtype">X509&#160;</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00206">206</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00120">120</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
-<p class="reference">References <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
+<p class="reference">References <a class="el" href="delegation__internal_8h_source.html#l00039">pem_len</a>, and <a class="el" href="pki__check_8h.html#ab2b30ef18f08bfac0dea477c9ce1ea7e">STACK_OF()</a>.</p>
 
 </div>
 </div>
@@ -1617,86 +503,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01457">1457</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00453">453</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00157">BRIX_DELEGATION_BODY_MAX</a>, <a class="el" href="http__body_8c_source.html#l00417">brix_http_body_read_all()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00168">delegation_client_authenticated()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">delegation_reject()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01376">delegation_validate_and_store()</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
+<p class="reference">References <a class="el" href="delegation__internal_8h_source.html#l00026">BRIX_DELEGATION_BODY_MAX</a>, <a class="el" href="http__body_8c_source.html#l00417">brix_http_body_read_all()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00082">delegation_client_authenticated()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00327">delegation_reject()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00372">delegation_validate_and_store()</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00122">webdav_dispatch_delegation_upload()</a>.</p>
-
-</div>
-</div>
-<a id="a50765429dbed88668d3bc6245334f73b" name="a50765429dbed88668d3bc6245334f73b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a50765429dbed88668d3bc6245334f73b">&#9670;&#160;</a></span>webdav_delegation_put_handle()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void webdav_delegation_put_handle </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01294">1294</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00488">BRIX_DELEG_ID_HEXLEN</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00157">BRIX_DELEGATION_BODY_MAX</a>, <a class="el" href="http__body_8c_source.html#l00417">brix_http_body_read_all()</a>, <a class="el" href="ucred_8h_source.html#l00073">BRIX_UCRED_KEY_MAX</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00168">delegation_client_authenticated()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01111">delegation_extract_id()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01178">delegation_put_assemble()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01272">delegation_put_store()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01144">delegation_put_take_key()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l01222">delegation_put_validate_chain()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00413">delegation_reject()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00143">webdav_dispatch_delegation_gridsite()</a>.</p>
-
-</div>
-</div>
-<a id="a733d9ca4b405004bc388cdc9050a589c" name="a733d9ca4b405004bc388cdc9050a589c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a733d9ca4b405004bc388cdc9050a589c">&#9670;&#160;</a></span>webdav_delegation_request_handle()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_int_t webdav_delegation_request_handle </td>
-          <td>(</td>
-          <td class="paramtype">ngx_http_request_t *&#160;</td>
-          <td class="paramname"><em>r</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00903">903</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">References <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00488">BRIX_DELEG_ID_HEXLEN</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00518">brix_deleg_store()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00586">brix_deleg_store_put()</a>, <a class="el" href="proxy__req_8c_source.html#l00356">brix_gsi_build_pxyreq()</a>, <a class="el" href="proxy__req_8h_source.html#l00027">brix_gsi_buf_t::data</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00168">delegation_client_authenticated()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00711">delegation_get_peer_pem()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00759">delegation_req_der_to_pem()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00866">delegation_request_reject()</a>, <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00804">delegation_send_csr()</a>, <a class="el" href="webdav_8h_source.html#l00147">ngx_http_brix_webdav_req_ctx_t::dn</a>, <a class="el" href="proxy__req_8h_source.html#l00028">brix_gsi_buf_t::len</a>, and <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00143">webdav_dispatch_delegation_gridsite()</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="a2d5afdcd126d7ecd528063f19e67bf59" name="a2d5afdcd126d7ecd528063f19e67bf59"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2d5afdcd126d7ecd528063f19e67bf59">&#9670;&#160;</a></span>brix_deleg_store_singleton</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="structbrix__deleg__store__t.html">brix_deleg_store_t</a>* brix_deleg_store_singleton = NULL</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00515">515</a> of file <a class="el" href="protocols_2webdav_2delegation_8c_source.html">delegation.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2delegation_8c_source.html#l00518">brix_deleg_store()</a>.</p>
 
 </div>
 </div>

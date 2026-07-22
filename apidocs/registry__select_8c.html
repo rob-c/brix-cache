@@ -151,14 +151,6 @@ Functions</h2></td></tr>
 <tr class="separator:adde892d67f034583e7cd05951046f700"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a03ffa07e037c74dc37b8bba720ae2df8" id="r_a03ffa07e037c74dc37b8bba720ae2df8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__select_8c.html#a03ffa07e037c74dc37b8bba720ae2df8">brix_manager_tried_exhausted</a> (const u_char *payload, size_t payload_len, const char *clean_path)</td></tr>
 <tr class="separator:a03ffa07e037c74dc37b8bba720ae2df8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a344c117dd9940e47dec2d71242ae9116" id="r_a344c117dd9940e47dec2d71242ae9116"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__select_8c.html#a344c117dd9940e47dec2d71242ae9116">brix_srv_blacklist</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint16_t <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>, ngx_msec_t duration_ms)</td></tr>
-<tr class="separator:a344c117dd9940e47dec2d71242ae9116"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7236d13a3f672ec443df07b5d46736df" id="r_a7236d13a3f672ec443df07b5d46736df"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__select_8c.html#a7236d13a3f672ec443df07b5d46736df">brix_srv_undrain</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint16_t <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
-<tr class="separator:a7236d13a3f672ec443df07b5d46736df"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abbab6193b5b0506115fae6d171ca4331" id="r_abbab6193b5b0506115fae6d171ca4331"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__select_8c.html#abbab6193b5b0506115fae6d171ca4331">brix_srv_paths_cover</a> (const char *paths, const char *path)</td></tr>
-<tr class="separator:abbab6193b5b0506115fae6d171ca4331"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac515e5c6b1db5ecc07abc8f34af66c9c" id="r_ac515e5c6b1db5ecc07abc8f34af66c9c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="registry__select_8c.html#ac515e5c6b1db5ecc07abc8f34af66c9c">brix_srv_is_blacklisted</a> (const char *<a class="el" href="brix__fault__proxy_8c.html#a41c3a180b50c6b2ddcc1b6843a48f205">host</a>, uint16_t <a class="el" href="brix__fault__proxy_8c.html#a63c89c04d1feae07ca35558055155ffb">port</a>)</td></tr>
-<tr class="separator:ac515e5c6b1db5ecc07abc8f34af66c9c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a8eedc5cf7c53baf278a2505761dfc618" name="a8eedc5cf7c53baf278a2505761dfc618"></a>
@@ -214,47 +206,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="registry__select_8c_source.html#l00381">brix_srv_count_matching()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00051">brix_open_manager_redirect()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00266">brix_qcksum_manager_bounce()</a>, and <a class="el" href="stat_8c_source.html#l00187">stat_manager_route()</a>.</p>
-
-</div>
-</div>
-<a id="a344c117dd9940e47dec2d71242ae9116" name="a344c117dd9940e47dec2d71242ae9116"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a344c117dd9940e47dec2d71242ae9116">&#9670;&#160;</a></span>brix_srv_blacklist()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void brix_srv_blacklist </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>host</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>port</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_msec_t&#160;</td>
-          <td class="paramname"><em>duration_ms</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00492">492</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
-
-<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00035">brix_srv_entry_t::blacklisted_until</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00008">brix_srv_mutex</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00054">brix_srv_table_t::capacity</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00036">brix_srv_entry_t::error_count</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00028">brix_srv_entry_t::host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00034">brix_srv_entry_t::in_use</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00029">brix_srv_entry_t::port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00055">brix_srv_table_t::slots</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00041">srv_table()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="api__admin__cluster_8c_source.html#l00209">admin_cluster_drain()</a>, <a class="el" href="blacklist__file_8c_source.html#l00272">brix_cms_blfile_poll()</a>, <a class="el" href="server__recv__lifecycle_8c_source.html#l00116">brix_cms_srv_close()</a>, and <a class="el" href="server__recv__frame_8c_source.html#l00351">cms_srv_frame_status()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00051">brix_open_manager_redirect()</a>, <a class="el" href="checksum__qcksum__path_8c_source.html#l00186">brix_qcksum_manager_bounce()</a>, and <a class="el" href="stat__manager_8c_source.html#l00036">stat_manager_route()</a>.</p>
 
 </div>
 </div>
@@ -278,75 +230,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="net_2manager_2registry_8c_source.html#l00008">brix_srv_mutex</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00054">brix_srv_table_t::capacity</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00034">brix_srv_entry_t::in_use</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00030">brix_srv_entry_t::paths</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00055">brix_srv_table_t::slots</a>, <a class="el" href="registry__select_8c_source.html#l00011">srv_path_matches()</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00041">srv_table()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="fanout_8c_source.html#l00245">brix_cms_fanout_mutation()</a>, <a class="el" href="registry__select_8c_source.html#l00425">brix_manager_tried_exhausted()</a>, and <a class="el" href="server__recv__frame_8c_source.html#l00309">cms_srv_frame_statfs()</a>.</p>
-
-</div>
-</div>
-<a id="ac515e5c6b1db5ecc07abc8f34af66c9c" name="ac515e5c6b1db5ecc07abc8f34af66c9c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac515e5c6b1db5ecc07abc8f34af66c9c">&#9670;&#160;</a></span>brix_srv_is_blacklisted()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_srv_is_blacklisted </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>host</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>port</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00574">574</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
-
-<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00035">brix_srv_entry_t::blacklisted_until</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00008">brix_srv_mutex</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00054">brix_srv_table_t::capacity</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00028">brix_srv_entry_t::host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00034">brix_srv_entry_t::in_use</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00029">brix_srv_entry_t::port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00055">brix_srv_table_t::slots</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00041">srv_table()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fanout_8c_source.html#l00185">brix_cms_fanout_collect_eligible()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00484">cms_srv_frame_have()</a>, and <a class="el" href="locate_8c_source.html#l00193">locate_try_dynamic()</a>.</p>
-
-</div>
-</div>
-<a id="abbab6193b5b0506115fae6d171ca4331" name="abbab6193b5b0506115fae6d171ca4331"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abbab6193b5b0506115fae6d171ca4331">&#9670;&#160;</a></span>brix_srv_paths_cover()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_srv_paths_cover </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>paths</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00563">563</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
-
-<p class="reference">References <a class="el" href="registry__select_8c_source.html#l00011">srv_path_matches()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="fanout_8c_source.html#l00185">brix_cms_fanout_collect_eligible()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00484">cms_srv_frame_have()</a>, and <a class="el" href="locate_8c_source.html#l00193">locate_try_dynamic()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="fanout_8c_source.html#l00245">brix_cms_fanout_mutation()</a>, <a class="el" href="registry__select_8c_source.html#l00425">brix_manager_tried_exhausted()</a>, and <a class="el" href="server__recv__frame__handlers_8c_source.html#l00204">cms_srv_frame_statfs()</a>.</p>
 
 </div>
 </div>
@@ -398,7 +282,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00162">brix_dirlist_check_redirect()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00266">brix_qcksum_manager_bounce()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00276">cms_frame_state()</a>, <a class="el" href="locate_8c_source.html#l00274">locate_try_manager()</a>, and <a class="el" href="open__tpc_8c_source.html#l00031">tpc_handle_dest()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00103">brix_dirlist_check_redirect()</a>, <a class="el" href="checksum__qcksum__path_8c_source.html#l00186">brix_qcksum_manager_bounce()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00276">cms_frame_state()</a>, <a class="el" href="locate_8c_source.html#l00274">locate_try_manager()</a>, and <a class="el" href="open__tpc_8c_source.html#l00031">tpc_handle_dest()</a>.</p>
 
 </div>
 </div>
@@ -450,41 +334,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00051">brix_open_manager_redirect()</a>, <a class="el" href="dispatch__write_8c_source.html#l00031">manager_redirect_mutation()</a>, and <a class="el" href="stat_8c_source.html#l00187">stat_manager_route()</a>.</p>
-
-</div>
-</div>
-<a id="a7236d13a3f672ec443df07b5d46736df" name="a7236d13a3f672ec443df07b5d46736df"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7236d13a3f672ec443df07b5d46736df">&#9670;&#160;</a></span>brix_srv_undrain()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_srv_undrain </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>host</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>port</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00528">528</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
-
-<p class="reference">References <a class="el" href="net_2manager_2registry_8h_source.html#l00035">brix_srv_entry_t::blacklisted_until</a>, <a class="el" href="net_2manager_2registry_8c_source.html#l00008">brix_srv_mutex</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00054">brix_srv_table_t::capacity</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00036">brix_srv_entry_t::error_count</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00048">brix_srv_entry_t::hc_fail_count</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00028">brix_srv_entry_t::host</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00034">brix_srv_entry_t::in_use</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00029">brix_srv_entry_t::port</a>, <a class="el" href="net_2manager_2registry_8h_source.html#l00055">brix_srv_table_t::slots</a>, and <a class="el" href="net_2manager_2registry_8c_source.html#l00041">srv_table()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="api__admin__cluster_8c_source.html#l00257">admin_cluster_undrain()</a>, and <a class="el" href="server__recv__frame_8c_source.html#l00351">cms_srv_frame_status()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="open__manager_8c_source.html#l00051">brix_open_manager_redirect()</a>, <a class="el" href="dispatch__write_8c_source.html#l00031">manager_redirect_mutation()</a>, and <a class="el" href="stat__manager_8c_source.html#l00036">stat_manager_route()</a>.</p>
 
 </div>
 </div>
@@ -516,7 +366,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="registry__select_8c_source.html#l00011">11</a> of file <a class="el" href="registry__select_8c_source.html">registry_select.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="registry__select_8c_source.html#l00381">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, <a class="el" href="registry__select_8c_source.html#l00563">brix_srv_paths_cover()</a>, and <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="registry__select_8c_source.html#l00381">brix_srv_count_matching()</a>, <a class="el" href="registry__health_8c_source.html#l00160">brix_srv_locate_all()</a>, <a class="el" href="registry__select__blacklist_8c_source.html#l00099">brix_srv_paths_cover()</a>, and <a class="el" href="registry__select_8c_source.html#l00281">srv_select_core()</a>.</p>
 
 </div>
 </div>

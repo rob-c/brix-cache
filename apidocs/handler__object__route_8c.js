@@ -1,6 +1,7 @@
 var handler__object__route_8c =
 [
     [ "s3_apply_put_precondition", "handler__object__route_8c.html#a4c017cccae9b0f6d3a4e7d95a8395d94", null ],
+    [ "s3_delete_async_render", "handler__object__route_8c.html#afcab9e3500b0ecb707ce709fdf649c34", null ],
     [ "s3_dispatch_object_delete", "handler__object__route_8c.html#aff4b545a7bb90230da244eeb69e51576", null ],
     [ "s3_dispatch_object_get", "handler__object__route_8c.html#ab313924ec7dbea311faff6970c0dfc03", null ],
     [ "s3_dispatch_object_method", "handler__object__route_8c.html#a4c65d669a7a4d2b42d06532ec81884f2", null ],

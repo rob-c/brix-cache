@@ -91,7 +91,6 @@ $(document).ready(function(){initNavTree('origin__auth_8c.html',''); initResizab
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">origin_auth.c File Reference</div></div>
@@ -128,11 +127,6 @@ $(document).ready(function(){initNavTree('origin__auth_8c.html',''); initResizab
 </div>
 <p><a href="origin__auth_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structoriginauth__gsi__cred__t.html">originauth_gsi_cred_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:ae60eb4f3f48b3b91d7b2680abd5b5a4b" id="r_ae60eb4f3f48b3b91d7b2680abd5b5a4b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#ae60eb4f3f48b3b91d7b2680abd5b5a4b">BRIX_ZTN_VERSION</a>&#160;&#160;&#160;0</td></tr>
@@ -144,32 +138,12 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a7db8eb809b49e07d1b3127fb3f658de0" id="r_a7db8eb809b49e07d1b3127fb3f658de0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a7db8eb809b49e07d1b3127fb3f658de0">cache_origin_send_kxr_auth</a> (<a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const char credtype[4], const u_char *payload, uint32_t plen)</td></tr>
-<tr class="separator:a7db8eb809b49e07d1b3127fb3f658de0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5ed2ffe761853bf54ff01b0212580768" id="r_a5ed2ffe761853bf54ff01b0212580768"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a5ed2ffe761853bf54ff01b0212580768">cache_origin_send_kxr_auth</a> (<a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const char credtype[4], const u_char *payload, uint32_t plen)</td></tr>
+<tr class="separator:a5ed2ffe761853bf54ff01b0212580768"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a81fd4be2febbba85d47e79f1f8f1935c" id="r_a81fd4be2febbba85d47e79f1f8f1935c"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a81fd4be2febbba85d47e79f1f8f1935c">cache_origin_build_ztn_credential</a> (const ngx_str_t *token, u_char **out, size_t *outlen)</td></tr>
 <tr class="separator:a81fd4be2febbba85d47e79f1f8f1935c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a03a94b534348585d014db702408dbcfb" id="r_a03a94b534348585d014db702408dbcfb"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a03a94b534348585d014db702408dbcfb">brix_cache_origin_auth_ztn</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const ngx_str_t *token)</td></tr>
 <tr class="separator:a03a94b534348585d014db702408dbcfb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aaf4fc657c32449f2d2cb75278ad49acd" id="r_aaf4fc657c32449f2d2cb75278ad49acd"><td class="memItemLeft" align="right" valign="top">static uint8_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#aaf4fc657c32449f2d2cb75278ad49acd">cache_origin_load_proxy_pem</a> (const char *path, size_t *outlen)</td></tr>
-<tr class="separator:aaf4fc657c32449f2d2cb75278ad49acd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac41ed8afd54f94837d93afb7ca8bcdbd" id="r_ac41ed8afd54f94837d93afb7ca8bcdbd"><td class="memItemLeft" align="right" valign="top">static EVP_PKEY *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#ac41ed8afd54f94837d93afb7ca8bcdbd">cache_origin_load_proxy_key</a> (const char *path)</td></tr>
-<tr class="separator:ac41ed8afd54f94837d93afb7ca8bcdbd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acbe80d04fd7ac6eaf3a105ddbd5fead8" id="r_acbe80d04fd7ac6eaf3a105ddbd5fead8"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#acbe80d04fd7ac6eaf3a105ddbd5fead8">originauth_gsi_certreq</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const char *gsi_parms)</td></tr>
-<tr class="separator:acbe80d04fd7ac6eaf3a105ddbd5fead8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae2169c2960ddead9e4e478bc514dba91" id="r_ae2169c2960ddead9e4e478bc514dba91"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#ae2169c2960ddead9e4e478bc514dba91">originauth_gsi_read_cert</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, u_char **body, uint32_t *dlen)</td></tr>
-<tr class="separator:ae2169c2960ddead9e4e478bc514dba91"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac60580fca2dd70bfa979e95e0afcd620" id="r_ac60580fca2dd70bfa979e95e0afcd620"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#ac60580fca2dd70bfa979e95e0afcd620">originauth_gsi_verify_srv_cert</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, const u_char *body, uint32_t dlen)</td></tr>
-<tr class="separator:ac60580fca2dd70bfa979e95e0afcd620"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acb144017c995b9760347f5ac2d678564" id="r_acb144017c995b9760347f5ac2d678564"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#acb144017c995b9760347f5ac2d678564">originauth_gsi_load_credential</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, const char *<a class="el" href="sec__gsi_8c.html#a64923bfcafc30c480bc04b0c7565c2ea">proxy_path</a>, <a class="el" href="structoriginauth__gsi__cred__t.html">originauth_gsi_cred_t</a> *cred)</td></tr>
-<tr class="separator:acb144017c995b9760347f5ac2d678564"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4fc79c7ea33a2b6df61e034c36ad5a48" id="r_a4fc79c7ea33a2b6df61e034c36ad5a48"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a4fc79c7ea33a2b6df61e034c36ad5a48">originauth_gsi_warn_bare_cert</a> (const uint8_t *proxy_pem, size_t proxy_pem_len, const char *<a class="el" href="sec__gsi_8c.html#a64923bfcafc30c480bc04b0c7565c2ea">proxy_path</a>)</td></tr>
-<tr class="separator:a4fc79c7ea33a2b6df61e034c36ad5a48"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7e504be5755000455cc33ad214f3af9e" id="r_a7e504be5755000455cc33ad214f3af9e"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a7e504be5755000455cc33ad214f3af9e">originauth_gsi_send_response</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, u_char *body, uint32_t dlen, <a class="el" href="structoriginauth__gsi__cred__t.html">originauth_gsi_cred_t</a> *cred)</td></tr>
-<tr class="separator:a7e504be5755000455cc33ad214f3af9e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac23707ce21b107df66cb5b09a729978d" id="r_ac23707ce21b107df66cb5b09a729978d"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#ac23707ce21b107df66cb5b09a729978d">originauth_gsi_read_final</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc)</td></tr>
-<tr class="separator:ac23707ce21b107df66cb5b09a729978d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9352925135c7bdd0667e743480486fbe" id="r_a9352925135c7bdd0667e743480486fbe"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a9352925135c7bdd0667e743480486fbe">brix_cache_origin_auth_gsi</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const char *gsi_parms, const char *<a class="el" href="sec__gsi_8c.html#a64923bfcafc30c480bc04b0c7565c2ea">proxy_path</a>)</td></tr>
-<tr class="separator:a9352925135c7bdd0667e743480486fbe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:acb1e1d99c43d47a97957f393839aa1e0" id="r_acb1e1d99c43d47a97957f393839aa1e0"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#acb1e1d99c43d47a97957f393839aa1e0">cache_origin_load_sss_key</a> (const char *path, <a class="el" href="structbrix__sss__key__t.html">brix_sss_key_t</a> *out)</td></tr>
 <tr class="separator:acb1e1d99c43d47a97957f393839aa1e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a41794b993cae52d95e1646bff280885f" id="r_a41794b993cae52d95e1646bff280885f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="origin__auth_8c.html#a41794b993cae52d95e1646bff280885f">brix_cache_origin_auth_sss</a> (<a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *t, <a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *oc, const char *keytab_path)</td></tr>
@@ -188,7 +162,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00077">77</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00078">78</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
 </div>
 </div>
@@ -204,7 +178,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00078">78</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00079">79</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
 </div>
 </div>
@@ -220,57 +194,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00076">76</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00077">77</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a9352925135c7bdd0667e743480486fbe" name="a9352925135c7bdd0667e743480486fbe"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9352925135c7bdd0667e743480486fbe">&#9670;&#160;</a></span>brix_cache_origin_auth_gsi()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int brix_cache_origin_auth_gsi </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>oc</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>gsi_parms</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>proxy_path</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00545">545</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="origin__auth_8c_source.html#l00257">originauth_gsi_certreq()</a>, <a class="el" href="origin__auth_8c_source.html#l00404">originauth_gsi_load_credential()</a>, <a class="el" href="origin__auth_8c_source.html#l00305">originauth_gsi_read_cert()</a>, <a class="el" href="origin__auth_8c_source.html#l00509">originauth_gsi_read_final()</a>, <a class="el" href="origin__auth_8c_source.html#l00470">originauth_gsi_send_response()</a>, <a class="el" href="origin__auth_8c_source.html#l00341">originauth_gsi_verify_srv_cert()</a>, <a class="el" href="origin__auth_8c_source.html#l00434">originauth_gsi_warn_bare_cert()</a>, <a class="el" href="origin__auth_8c_source.html#l00389">originauth_gsi_cred_t::pem</a>, <a class="el" href="origin__auth_8c_source.html#l00390">originauth_gsi_cred_t::pem_len</a>, and <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__protocol_8c_source.html#l00274">origin_bs_auth_dispatch()</a>.</p>
-
-</div>
-</div>
 <a id="a41794b993cae52d95e1646bff280885f" name="a41794b993cae52d95e1646bff280885f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a41794b993cae52d95e1646bff280885f">&#9670;&#160;</a></span>brix_cache_origin_auth_sss()</h2>
 
@@ -303,11 +231,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00641">641</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00235">235</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__response_8c_source.html#l00031">brix_cache_read_response()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="origin__response_8c_source.html#l00079">brix_cache_set_origin_error()</a>, <a class="el" href="auth__proxy__credential_8c_source.html#l00029">brix_sss_build_proxy_credential()</a>, <a class="el" href="origin__auth_8c_source.html#l00590">cache_origin_load_sss_key()</a>, <a class="el" href="origin__auth_8c_source.html#l00040">cache_origin_send_kxr_auth()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, and <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>.</p>
+<p class="reference">References <a class="el" href="origin__response_8c_source.html#l00031">brix_cache_read_response()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="origin__response_8c_source.html#l00079">brix_cache_set_origin_error()</a>, <a class="el" href="auth__proxy__credential_8c_source.html#l00029">brix_sss_build_proxy_credential()</a>, <a class="el" href="origin__auth_8c_source.html#l00184">cache_origin_load_sss_key()</a>, <a class="el" href="origin__auth_8c_source.html#l00041">cache_origin_send_kxr_auth()</a>, <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, and <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="origin__protocol_8c_source.html#l00274">origin_bs_auth_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="origin__protocol__bootstrap_8c_source.html#l00274">origin_bs_auth_dispatch()</a>.</p>
 
 </div>
 </div>
@@ -343,11 +271,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00132">132</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00133">133</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__response_8c_source.html#l00031">brix_cache_read_response()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="origin__response_8c_source.html#l00079">brix_cache_set_origin_error()</a>, <a class="el" href="origin__auth_8c_source.html#l00094">cache_origin_build_ztn_credential()</a>, <a class="el" href="origin__auth_8c_source.html#l00040">cache_origin_send_kxr_auth()</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, and <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>.</p>
+<p class="reference">References <a class="el" href="origin__response_8c_source.html#l00031">brix_cache_read_response()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="origin__response_8c_source.html#l00079">brix_cache_set_origin_error()</a>, <a class="el" href="origin__auth_8c_source.html#l00095">cache_origin_build_ztn_credential()</a>, <a class="el" href="origin__auth_8c_source.html#l00041">cache_origin_send_kxr_auth()</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, and <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="origin__protocol_8c_source.html#l00274">origin_bs_auth_dispatch()</a>, and <a class="el" href="origin__protocol_8c_source.html#l00320">origin_bs_authmore_fallback()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="origin__protocol__bootstrap_8c_source.html#l00274">origin_bs_auth_dispatch()</a>, and <a class="el" href="origin__protocol__bootstrap_8c_source.html#l00320">origin_bs_authmore_fallback()</a>.</p>
 
 </div>
 </div>
@@ -391,85 +319,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00094">94</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00095">95</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
-<p class="reference">References <a class="el" href="origin__auth_8c_source.html#l00077">BRIX_ZTN_OPR_ISTKN</a>, <a class="el" href="origin__auth_8c_source.html#l00078">BRIX_ZTN_PREFIX_LEN</a>, <a class="el" href="origin__auth_8c_source.html#l00076">BRIX_ZTN_VERSION</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
+<p class="reference">References <a class="el" href="origin__auth_8c_source.html#l00078">BRIX_ZTN_OPR_ISTKN</a>, <a class="el" href="origin__auth_8c_source.html#l00079">BRIX_ZTN_PREFIX_LEN</a>, <a class="el" href="origin__auth_8c_source.html#l00077">BRIX_ZTN_VERSION</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00132">brix_cache_origin_auth_ztn()</a>.</p>
-
-</div>
-</div>
-<a id="ac41ed8afd54f94837d93afb7ca8bcdbd" name="ac41ed8afd54f94837d93afb7ca8bcdbd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac41ed8afd54f94837d93afb7ca8bcdbd">&#9670;&#160;</a></span>cache_origin_load_proxy_key()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static EVP_PKEY * cache_origin_load_proxy_key </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00226">226</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00404">originauth_gsi_load_credential()</a>.</p>
-
-</div>
-</div>
-<a id="aaf4fc657c32449f2d2cb75278ad49acd" name="aaf4fc657c32449f2d2cb75278ad49acd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aaf4fc657c32449f2d2cb75278ad49acd">&#9670;&#160;</a></span>cache_origin_load_proxy_pem()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static uint8_t * cache_origin_load_proxy_pem </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>outlen</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00181">181</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00404">originauth_gsi_load_credential()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00133">brix_cache_origin_auth_ztn()</a>.</p>
 
 </div>
 </div>
@@ -507,25 +361,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00590">590</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00184">184</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
 <p class="reference">References <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00044">sss_keytab_entry_t::exp</a>, <a class="el" href="types_2config_8h_source.html#l00038">brix_sss_key_t::exp</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00048">sss_keytab_entry_t::group</a>, <a class="el" href="types_2config_8h_source.html#l00044">brix_sss_key_t::group</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00043">sss_keytab_entry_t::id</a>, <a class="el" href="types_2config_8h_source.html#l00037">brix_sss_key_t::id</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00046">sss_keytab_entry_t::key</a>, <a class="el" href="types_2config_8h_source.html#l00041">brix_sss_key_t::key</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00045">sss_keytab_entry_t::key_len</a>, <a class="el" href="types_2config_8h_source.html#l00040">brix_sss_key_t::key_len</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00049">sss_keytab_entry_t::name</a>, <a class="el" href="types_2config_8h_source.html#l00042">brix_sss_key_t::name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="brixposix__preload_8c_source.html#l00252">open()</a>, <a class="el" href="sss__keytab__kernel_8c_source.html#l00163">sss_keytab_parse_line()</a>, <a class="el" href="sss__keytab__kernel_8h_source.html#l00047">sss_keytab_entry_t::user</a>, and <a class="el" href="types_2config_8h_source.html#l00043">brix_sss_key_t::user</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00641">brix_cache_origin_auth_sss()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00235">brix_cache_origin_auth_sss()</a>.</p>
 
 </div>
 </div>
-<a id="a7db8eb809b49e07d1b3127fb3f658de0" name="a7db8eb809b49e07d1b3127fb3f658de0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7db8eb809b49e07d1b3127fb3f658de0">&#9670;&#160;</a></span>cache_origin_send_kxr_auth()</h2>
+<a id="a5ed2ffe761853bf54ff01b0212580768" name="a5ed2ffe761853bf54ff01b0212580768"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5ed2ffe761853bf54ff01b0212580768">&#9670;&#160;</a></span>cache_origin_send_kxr_auth()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static int cache_origin_send_kxr_auth </td>
+          <td class="memname">int cache_origin_send_kxr_auth </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
           <td class="paramname"><em>oc</em>, </td>
@@ -554,366 +405,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00040">40</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00041">41</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
 
 <p class="reference">References <a class="el" href="fs_2cache_2io_8c_source.html#l00015">brix_cache_io_send()</a>, <a class="el" href="wire__core__requests_8h_source.html#l00314">ClientAuthRequest::credtype</a>, <a class="el" href="wire__core__requests_8h_source.html#l00315">ClientAuthRequest::dlen</a>, <a class="el" href="opcodes_8h_source.html#l00045">kXR_auth</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__core__requests_8h_source.html#l00312">ClientAuthRequest::requestid</a>, and <a class="el" href="wire__core__requests_8h_source.html#l00311">ClientAuthRequest::streamid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00641">brix_cache_origin_auth_sss()</a>, <a class="el" href="origin__auth_8c_source.html#l00132">brix_cache_origin_auth_ztn()</a>, <a class="el" href="origin__auth_8c_source.html#l00257">originauth_gsi_certreq()</a>, and <a class="el" href="origin__auth_8c_source.html#l00470">originauth_gsi_send_response()</a>.</p>
-
-</div>
-</div>
-<a id="acbe80d04fd7ac6eaf3a105ddbd5fead8" name="acbe80d04fd7ac6eaf3a105ddbd5fead8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acbe80d04fd7ac6eaf3a105ddbd5fead8">&#9670;&#160;</a></span>originauth_gsi_certreq()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int originauth_gsi_certreq </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>oc</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>gsi_parms</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00257">257</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="gsi__core_8c_source.html#l00120">brix_gsi_build_certreq()</a>, <a class="el" href="gsi__core_8c_source.html#l00085">brix_gsi_parse_parms()</a>, <a class="el" href="gsi__rsa_8c_source.html#l00010">brix_gsi_rand()</a>, <a class="el" href="origin__auth_8c_source.html#l00040">cache_origin_send_kxr_auth()</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00545">brix_cache_origin_auth_gsi()</a>.</p>
-
-</div>
-</div>
-<a id="acb144017c995b9760347f5ac2d678564" name="acb144017c995b9760347f5ac2d678564"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acb144017c995b9760347f5ac2d678564">&#9670;&#160;</a></span>originauth_gsi_load_credential()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int originauth_gsi_load_credential </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>proxy_path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structoriginauth__gsi__cred__t.html">originauth_gsi_cred_t</a> *&#160;</td>
-          <td class="paramname"><em>cred</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00404">404</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="origin__auth_8c_source.html#l00226">cache_origin_load_proxy_key()</a>, <a class="el" href="origin__auth_8c_source.html#l00181">cache_origin_load_proxy_pem()</a>, <a class="el" href="cache__internal_8h_source.html#l00091">brix_cache_fill_t::conf</a>, <a class="el" href="origin__auth_8c_source.html#l00391">originauth_gsi_cred_t::key</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="origin__auth_8c_source.html#l00389">originauth_gsi_cred_t::pem</a>, <a class="el" href="origin__auth_8c_source.html#l00390">originauth_gsi_cred_t::pem_len</a>, and <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00545">brix_cache_origin_auth_gsi()</a>.</p>
-
-</div>
-</div>
-<a id="ae2169c2960ddead9e4e478bc514dba91" name="ae2169c2960ddead9e4e478bc514dba91"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae2169c2960ddead9e4e478bc514dba91">&#9670;&#160;</a></span>originauth_gsi_read_cert()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int originauth_gsi_read_cert </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>oc</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char **&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t *&#160;</td>
-          <td class="paramname"><em>dlen</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00305">305</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="origin__response_8c_source.html#l00031">brix_cache_read_response()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="origin__response_8c_source.html#l00079">brix_cache_set_origin_error()</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00110">kXR_authmore</a>, and <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00545">brix_cache_origin_auth_gsi()</a>.</p>
-
-</div>
-</div>
-<a id="ac23707ce21b107df66cb5b09a729978d" name="ac23707ce21b107df66cb5b09a729978d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac23707ce21b107df66cb5b09a729978d">&#9670;&#160;</a></span>originauth_gsi_read_final()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int originauth_gsi_read_final </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>oc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00509">509</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="origin__response_8c_source.html#l00031">brix_cache_read_response()</a>, <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="origin__response_8c_source.html#l00079">brix_cache_set_origin_error()</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00111">kXR_error</a>, and <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00545">brix_cache_origin_auth_gsi()</a>.</p>
-
-</div>
-</div>
-<a id="a7e504be5755000455cc33ad214f3af9e" name="a7e504be5755000455cc33ad214f3af9e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7e504be5755000455cc33ad214f3af9e">&#9670;&#160;</a></span>originauth_gsi_send_response()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int originauth_gsi_send_response </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__origin__conn__t.html">brix_cache_origin_conn_t</a> *&#160;</td>
-          <td class="paramname"><em>oc</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>dlen</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structoriginauth__gsi__cred__t.html">originauth_gsi_cred_t</a> *&#160;</td>
-          <td class="paramname"><em>cred</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00470">470</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="gsi__core__cresp_8c_source.html#l00493">brix_gsi_build_cert_response()</a>, <a class="el" href="origin__auth_8c_source.html#l00040">cache_origin_send_kxr_auth()</a>, <a class="el" href="origin__auth_8c_source.html#l00391">originauth_gsi_cred_t::key</a>, <a class="el" href="opcodes_8h_source.html#l00172">kXR_AuthFailed</a>, <a class="el" href="opcodes_8h_source.html#l00158">kXR_ServerError</a>, <a class="el" href="origin__auth_8c_source.html#l00389">originauth_gsi_cred_t::pem</a>, and <a class="el" href="origin__auth_8c_source.html#l00390">originauth_gsi_cred_t::pem_len</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00545">brix_cache_origin_auth_gsi()</a>.</p>
-
-</div>
-</div>
-<a id="ac60580fca2dd70bfa979e95e0afcd620" name="ac60580fca2dd70bfa979e95e0afcd620"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac60580fca2dd70bfa979e95e0afcd620">&#9670;&#160;</a></span>originauth_gsi_verify_srv_cert()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static int originauth_gsi_verify_srv_cert </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a> *&#160;</td>
-          <td class="paramname"><em>t</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>body</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>dlen</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00341">341</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="errors_8c_source.html#l00012">brix_cache_set_error()</a>, <a class="el" href="gsi__buf_8c_source.html#l00008">brix_gsi_find_bucket()</a>, <a class="el" href="cache__internal_8h_source.html#l00091">brix_cache_fill_t::conf</a>, <a class="el" href="opcodes_8h_source.html#l00156">kXR_NotAuthorized</a>, and <a class="el" href="gsi_8h_source.html#l00049">kXRS_x509</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00545">brix_cache_origin_auth_gsi()</a>.</p>
-
-</div>
-</div>
-<a id="a4fc79c7ea33a2b6df61e034c36ad5a48" name="a4fc79c7ea33a2b6df61e034c36ad5a48"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4fc79c7ea33a2b6df61e034c36ad5a48">&#9670;&#160;</a></span>originauth_gsi_warn_bare_cert()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void originauth_gsi_warn_bare_cert </td>
-          <td>(</td>
-          <td class="paramtype">const uint8_t *&#160;</td>
-          <td class="paramname"><em>proxy_pem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>proxy_pem_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>proxy_path</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="origin__auth_8c_source.html#l00434">434</a> of file <a class="el" href="origin__auth_8c_source.html">origin_auth.c</a>.</p>
-
-<p class="reference">References <a class="el" href="sec__gsi_8c_source.html#l00039">proxy_path()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00545">brix_cache_origin_auth_gsi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="origin__auth_8c_source.html#l00235">brix_cache_origin_auth_sss()</a>, <a class="el" href="origin__auth_8c_source.html#l00133">brix_cache_origin_auth_ztn()</a>, <a class="el" href="origin__auth__gsi_8c_source.html#l00120">originauth_gsi_certreq()</a>, and <a class="el" href="origin__auth__gsi_8c_source.html#l00333">originauth_gsi_send_response()</a>.</p>
 
 </div>
 </div>

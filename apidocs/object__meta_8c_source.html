@@ -331,53 +331,67 @@ $(document).ready(function(){initNavTree('object__meta_8c_source.html',''); init
 <div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span><span class="comment"> * DELETE /bucket/key</span></div>
 <div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span><span class="comment"> * */</span></div>
 <div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span> </div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00229" data-start="{" data-end="}">
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno"><a class="line" href="object__meta_8c.html#aadfdfbed7774c1257961d4288ba3a0b8">  229</a></span><a class="code hl_function" href="object__meta_8c.html#aadfdfbed7774c1257961d4288ba3a0b8">s3_handle_delete</a>(ngx_http_request_t *r,</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>                 <span class="keyword">const</span> <span class="keywordtype">char</span> *fs_path,</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>                 <a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>{</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    <a class="code hl_struct" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> vctx;</div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    ngx_int_t        rc;</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span> </div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>    <span class="comment">/* Route DELETE through the metered VFS unlink. brix_vfs_unlink unlinks a</span></div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span><span class="comment">     * file and rmdirs an (empty) directory — a non-empty dir surfaces as</span></div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span><span class="comment">     * ENOTEMPTY (S3 BucketNotEmpty), exactly as the old require_empty_dir path.</span></div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span><span class="comment">     * S3 DELETE is idempotent: a missing key (ENOENT) is still 204, and counts</span></div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span><span class="comment">     * as DELETE_MISSING. errno is read only on the NGX_ERROR branch. */</span></div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    <a class="code hl_function" href="object_8c.html#acf38a840346283033bdfaf131e8fe8cd">s3_vfs_ctx</a>(r, fs_path, cf, &amp;vctx);</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>    rc = <a class="code hl_function" href="src_2fs_2vfs_2vfs_8h.html#ac54fe3322ccd39f3b688b7180d3058f1">brix_vfs_unlink</a>(&amp;vctx);</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span> </div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>    <span class="keywordflow">if</span> (rc == NGX_OK || errno == ENOENT) {</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>        <span class="keywordflow">if</span> (rc != NGX_OK) {   <span class="comment">/* ENOENT: the object did not exist */</span></div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>            <a class="code hl_define" href="metrics__macros_8h.html#a1186e5901fe7ae694c30f85f99403c21">BRIX_S3_METRIC_INC</a>(events_total[<a class="code hl_define" href="metrics__s3_8h.html#a364a63e59bd671497c029942d32f5ac2">BRIX_S3_EVENT_DELETE_MISSING</a>]);</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>        }</div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>        r-&gt;headers_out.status           = NGX_HTTP_NO_CONTENT;</div>
-<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>        r-&gt;headers_out.content_length_n = 0;</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>        ngx_http_send_header(r);</div>
-<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>        <span class="keywordflow">return</span> ngx_http_send_special(r, NGX_HTTP_LAST);</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>    }</div>
-<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span> </div>
-<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    <span class="keywordflow">if</span> (errno == ENOTEMPTY) {</div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="s3_8h.html#a3368c90fa0a471d25ffcd5b9a7b4e123">s3_send_xml_error</a>(r, NGX_HTTP_CONFLICT,</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>                                 <span class="stringliteral">&quot;BucketNotEmpty&quot;</span>,</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>                                 <span class="stringliteral">&quot;The directory is not empty.&quot;</span>);</div>
-<div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    }</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span> </div>
-<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>    <a class="code hl_define" href="metrics__macros_8h.html#a1186e5901fe7ae694c30f85f99403c21">BRIX_S3_METRIC_INC</a>(events_total[<a class="code hl_define" href="metrics__s3_8h.html#a962bd664cad89bee0bbb8227d7077032">BRIX_S3_EVENT_INTERNAL_ERROR</a>]);</div>
-<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>}</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span><span class="comment"> * Emit the S3 DELETE response for a completed unlink whose result is `op_errno`</span></div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span><span class="comment"> * (0 = removed). Shared by the synchronous path and the async-queue wake so both</span></div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span><span class="comment"> * map errnos to status identically: 0/ENOENT → 204 (idempotent, ENOENT also</span></div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span><span class="comment"> * counts DELETE_MISSING); ENOTEMPTY → 409 BucketNotEmpty; else 500.</span></div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00235" data-start="{" data-end="}">
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno"><a class="line" href="object__meta_8c.html#ad64522a5b32b8ffe9ce1ddb9393109a2">  235</a></span><a class="code hl_function" href="object__meta_8c.html#ad64522a5b32b8ffe9ce1ddb9393109a2">s3_delete_respond</a>(ngx_http_request_t *r, <span class="keywordtype">int</span> op_errno)</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>{</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>    <span class="keywordflow">if</span> (op_errno == 0 || op_errno == ENOENT) {</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>        <span class="keywordflow">if</span> (op_errno == ENOENT) {   <span class="comment">/* the object did not exist */</span></div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>            <a class="code hl_define" href="metrics__macros_8h.html#a1186e5901fe7ae694c30f85f99403c21">BRIX_S3_METRIC_INC</a>(events_total[<a class="code hl_define" href="metrics__s3_8h.html#a364a63e59bd671497c029942d32f5ac2">BRIX_S3_EVENT_DELETE_MISSING</a>]);</div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        }</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>        r-&gt;headers_out.status           = NGX_HTTP_NO_CONTENT;</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        r-&gt;headers_out.content_length_n = 0;</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>        ngx_http_send_header(r);</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>        <span class="keywordflow">return</span> ngx_http_send_special(r, NGX_HTTP_LAST);</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>    }</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span> </div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    <span class="keywordflow">if</span> (op_errno == ENOTEMPTY) {</div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>        <span class="keywordflow">return</span> <a class="code hl_function" href="s3_8h.html#a3368c90fa0a471d25ffcd5b9a7b4e123">s3_send_xml_error</a>(r, NGX_HTTP_CONFLICT,</div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>                                 <span class="stringliteral">&quot;BucketNotEmpty&quot;</span>,</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>                                 <span class="stringliteral">&quot;The directory is not empty.&quot;</span>);</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>    }</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>    <a class="code hl_define" href="metrics__macros_8h.html#a1186e5901fe7ae694c30f85f99403c21">BRIX_S3_METRIC_INC</a>(events_total[<a class="code hl_define" href="metrics__s3_8h.html#a962bd664cad89bee0bbb8227d7077032">BRIX_S3_EVENT_INTERNAL_ERROR</a>]);</div>
+<div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span>    <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>}</div>
 </div>
-<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span><span class="comment"> * WHY: S3 DELETE is idempotent — deleting a non-existent key returns 204 No Content (not 404), matching AWS behavior. This allows clients to safely retry delete operations without checking existence first.</span></div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span><span class="comment"> *</span></div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment"> * HOW: Routes the delete through the metered VFS surface (brix_vfs_unlink, which</span></div>
-<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment"> * unlinks a file and rmdirs an empty directory under root confinement). On success</span></div>
-<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span><span class="comment"> * sends a 204 No Content header-only response via ngx_http_send_special(); a missing</span></div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span><span class="comment"> * key (ENOENT) is still 204 (AWS-style idempotency) and increments DELETE_MISSING; a</span></div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span><span class="comment"> * non-empty directory (ENOTEMPTY) → 409 BucketNotEmpty; any other errno → internal_error</span></div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span><span class="comment"> * metric + 500.</span></div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span> </div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00258" data-start="{" data-end="}">
+<div class="line"><a id="l00258" name="l00258"></a><span class="lineno"><a class="line" href="object__meta_8c.html#aadfdfbed7774c1257961d4288ba3a0b8">  258</a></span><a class="code hl_function" href="object__meta_8c.html#aadfdfbed7774c1257961d4288ba3a0b8">s3_handle_delete</a>(ngx_http_request_t *r,</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>                 <span class="keyword">const</span> <span class="keywordtype">char</span> *fs_path,</div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>                 <a class="code hl_struct" href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a> *cf)</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>{</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    <a class="code hl_struct" href="structbrix__vfs__ctx__t.html">brix_vfs_ctx_t</a> vctx;</div>
+<div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>    ngx_int_t        rc;</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span> </div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>    <span class="comment">/* Route DELETE through the metered VFS unlink. brix_vfs_unlink unlinks a</span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span><span class="comment">     * file and rmdirs an (empty) directory — a non-empty dir surfaces as</span></div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span><span class="comment">     * ENOTEMPTY (S3 BucketNotEmpty), exactly as the old require_empty_dir path.</span></div>
+<div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span><span class="comment">     * S3 DELETE is idempotent: a missing key (ENOENT) is still 204, and counts</span></div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span><span class="comment">     * as DELETE_MISSING. errno is read only on the NGX_ERROR branch. */</span></div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>    <a class="code hl_function" href="object_8c.html#acf38a840346283033bdfaf131e8fe8cd">s3_vfs_ctx</a>(r, fs_path, cf, &amp;vctx);</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    rc = <a class="code hl_function" href="src_2fs_2vfs_2vfs_8h.html#ac54fe3322ccd39f3b688b7180d3058f1">brix_vfs_unlink</a>(&amp;vctx);</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span> </div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="object__meta_8c.html#ad64522a5b32b8ffe9ce1ddb9393109a2">s3_delete_respond</a>(r, (rc == NGX_OK) ? 0 : errno);</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>}</div>
+</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span><span class="comment"> * WHY: S3 DELETE is idempotent — deleting a non-existent key returns 204 No Content (not 404), matching AWS behavior. This allows clients to safely retry delete operations without checking existence first.</span></div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span><span class="comment"> * HOW: Routes the delete through the metered VFS surface (brix_vfs_unlink, which</span></div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span><span class="comment"> * unlinks a file and rmdirs an empty directory under root confinement). On success</span></div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span><span class="comment"> * sends a 204 No Content header-only response via ngx_http_send_special(); a missing</span></div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span><span class="comment"> * key (ENOENT) is still 204 (AWS-style idempotency) and increments DELETE_MISSING; a</span></div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span><span class="comment"> * non-empty directory (ENOTEMPTY) → 409 BucketNotEmpty; any other errno → internal_error</span></div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span><span class="comment"> * metric + 500.</span></div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span><span class="comment"> */</span></div>
 <div class="ttc" id="aauth__sigv4__verify__crypto_8c_html_a1bb0f741a7abb9d58b43b4ca6ed05425"><div class="ttname"><a href="auth__sigv4__verify__crypto_8c.html#a1bb0f741a7abb9d58b43b4ca6ed05425">region</a></div><div class="ttdeci">char region[65]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify__crypto_8c_source.html#l00050">auth_sigv4_verify_crypto.c:50</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_a1aa3037b164c5b99bcc46cd326202d7a"><div class="ttname"><a href="brixposix__preload_8c.html#a1aa3037b164c5b99bcc46cd326202d7a">stat</a></div><div class="ttdeci">int stat(const char *path, struct stat *stbuf)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00421">brixposix_preload.c:421</a></div></div>
 <div class="ttc" id="aconditional_8c_html_a320ed5fa25ec195b1bf00edfa1a1c2a9"><div class="ttname"><a href="conditional_8c.html#a320ed5fa25ec195b1bf00edfa1a1c2a9">s3_handle_conditional</a></div><div class="ttdeci">ngx_int_t s3_handle_conditional(ngx_http_request_t *r, time_t mtime, off_t size)</div><div class="ttdef"><b>Definition</b> <a href="conditional_8c_source.html#l00086">conditional.c:86</a></div></div>
@@ -403,8 +417,9 @@ $(document).ready(function(){initNavTree('object__meta_8c_source.html',''); init
 <div class="ttc" id="aobject__internal_8h_html"><div class="ttname"><a href="object__internal_8h.html">object_internal.h</a></div></div>
 <div class="ttc" id="aobject__meta_8c_html_a62a3d69f235342ce426e4a0b3873c719"><div class="ttname"><a href="object__meta_8c.html#a62a3d69f235342ce426e4a0b3873c719">s3_handle_head_bucket</a></div><div class="ttdeci">ngx_int_t s3_handle_head_bucket(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="object__meta_8c_source.html#l00133">object_meta.c:133</a></div></div>
 <div class="ttc" id="aobject__meta_8c_html_aa9b00615fdb01994e4b3778411e0e3ac"><div class="ttname"><a href="object__meta_8c.html#aa9b00615fdb01994e4b3778411e0e3ac">s3_handle_head</a></div><div class="ttdeci">ngx_int_t s3_handle_head(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="object__meta_8c_source.html#l00027">object_meta.c:27</a></div></div>
-<div class="ttc" id="aobject__meta_8c_html_aadfdfbed7774c1257961d4288ba3a0b8"><div class="ttname"><a href="object__meta_8c.html#aadfdfbed7774c1257961d4288ba3a0b8">s3_handle_delete</a></div><div class="ttdeci">ngx_int_t s3_handle_delete(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="object__meta_8c_source.html#l00229">object_meta.c:229</a></div></div>
+<div class="ttc" id="aobject__meta_8c_html_aadfdfbed7774c1257961d4288ba3a0b8"><div class="ttname"><a href="object__meta_8c.html#aadfdfbed7774c1257961d4288ba3a0b8">s3_handle_delete</a></div><div class="ttdeci">ngx_int_t s3_handle_delete(ngx_http_request_t *r, const char *fs_path, ngx_http_s3_loc_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="object__meta_8c_source.html#l00258">object_meta.c:258</a></div></div>
 <div class="ttc" id="aobject__meta_8c_html_ac448e0b997d47c517b257a303924be15"><div class="ttname"><a href="object__meta_8c.html#ac448e0b997d47c517b257a303924be15">s3_handle_get_bucket_location</a></div><div class="ttdeci">ngx_int_t s3_handle_get_bucket_location(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="object__meta_8c_source.html#l00180">object_meta.c:180</a></div></div>
+<div class="ttc" id="aobject__meta_8c_html_ad64522a5b32b8ffe9ce1ddb9393109a2"><div class="ttname"><a href="object__meta_8c.html#ad64522a5b32b8ffe9ce1ddb9393109a2">s3_delete_respond</a></div><div class="ttdeci">ngx_int_t s3_delete_respond(ngx_http_request_t *r, int op_errno)</div><div class="ttdef"><b>Definition</b> <a href="object__meta_8c_source.html#l00235">object_meta.c:235</a></div></div>
 <div class="ttc" id="as3_8h_html"><div class="ttname"><a href="s3_8h.html">s3.h</a></div></div>
 <div class="ttc" id="as3_8h_html_a3368c90fa0a471d25ffcd5b9a7b4e123"><div class="ttname"><a href="s3_8h.html#a3368c90fa0a471d25ffcd5b9a7b4e123">s3_send_xml_error</a></div><div class="ttdeci">ngx_int_t s3_send_xml_error(ngx_http_request_t *r, ngx_uint_t status, const char *code, const char *message)</div><div class="ttdef"><b>Definition</b> <a href="s3_2util_8c_source.html#l00172">util.c:172</a></div></div>
 <div class="ttc" id="as3_8h_html_a413977d789cba0c471ab23de8713f28a"><div class="ttname"><a href="s3_8h.html#a413977d789cba0c471ab23de8713f28a">s3_set_header</a></div><div class="ttdeci">ngx_int_t s3_set_header(ngx_http_request_t *r, const char *key, const char *val)</div><div class="ttdef"><b>Definition</b> <a href="s3_2util_8c_source.html#l00099">util.c:99</a></div></div>
@@ -427,7 +442,7 @@ $(document).ready(function(){initNavTree('object__meta_8c_source.html',''); init
 <div class="ttc" id="astructbrix__vfs__stat__t_html_a76597c6ab358290ab062817c5ea65494"><div class="ttname"><a href="structbrix__vfs__stat__t.html#a76597c6ab358290ab062817c5ea65494">brix_vfs_stat_t::mtime</a></div><div class="ttdeci">time_t mtime</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00077">vfs.h:77</a></div></div>
 <div class="ttc" id="astructbrix__vfs__stat__t_html_adba7009cfc8468e685a7d684ddd51f0c"><div class="ttname"><a href="structbrix__vfs__stat__t.html#adba7009cfc8468e685a7d684ddd51f0c">brix_vfs_stat_t::is_directory</a></div><div class="ttdeci">unsigned is_directory</div><div class="ttdef"><b>Definition</b> <a href="src_2fs_2vfs_2vfs_8h_source.html#l00086">vfs.h:86</a></div></div>
 <div class="ttc" id="astructbrix__vfs__stat_html"><div class="ttname"><a href="structbrix__vfs__stat.html">brix_vfs_stat</a></div><div class="ttdef"><b>Definition</b> <a href="client_2lib_2fs_2vfs_8h_source.html#l00049">vfs.h:49</a></div></div>
-<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a16bdf484c0d11f79befd2ad1316c5725"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a16bdf484c0d11f79befd2ad1316c5725">ngx_http_brix_shared_conf_t::root_canon</a></div><div class="ttdeci">char root_canon[PATH_MAX]</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00049">shared_conf.h:49</a></div></div>
+<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a16bdf484c0d11f79befd2ad1316c5725"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a16bdf484c0d11f79befd2ad1316c5725">ngx_http_brix_shared_conf_t::root_canon</a></div><div class="ttdeci">char root_canon[PATH_MAX]</div><div class="ttdef"><b>Definition</b> <a href="shared__conf__types_8h_source.html#l00044">shared_conf_types.h:44</a></div></div>
 <div class="ttc" id="astructngx__http__s3__loc__conf__t_html"><div class="ttname"><a href="structngx__http__s3__loc__conf__t.html">ngx_http_s3_loc_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="s3_8h_source.html#l00069">s3.h:69</a></div></div>
 <div class="ttc" id="astructngx__http__s3__loc__conf__t_html_abae5b8721da1cd9bf144304d76b39cb8"><div class="ttname"><a href="structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8">ngx_http_s3_loc_conf_t::common</a></div><div class="ttdeci">ngx_http_brix_shared_conf_t common</div><div class="ttdef"><b>Definition</b> <a href="s3_8h_source.html#l00070">s3.h:70</a></div></div>
 <div class="ttc" id="astructngx__http__s3__loc__conf__t_html_ae8c4908808645fb87c58cb931b117112"><div class="ttname"><a href="structngx__http__s3__loc__conf__t.html#ae8c4908808645fb87c58cb931b117112">ngx_http_s3_loc_conf_t::region</a></div><div class="ttdeci">ngx_str_t region</div><div class="ttdef"><b>Definition</b> <a href="s3_8h_source.html#l00077">s3.h:77</a></div></div>

@@ -34,7 +34,7 @@ var searchData=
   ['xrd_5fcode_31',['xrd_code',['../structxrdhttp__status__map__row__t.html#ac4f81ca1c9d0d81ee32f2b33dfd27bb7',1,'xrdhttp_status_map_row_t']]],
   ['xrd_5fdispatch_32',['XRD_DISPATCH',['../xrd_8c.html#a4e8fcbcfc9feb915382ac1fc4d8d6365',1,'xrd.c']]],
   ['xrd_5ferror_33',['xrd_error',['../structbrix__wt__flush__t.html#a063d9153a7ece029aaa386b335c058ae',1,'brix_wt_flush_t::xrd_error'],['../structbrix__write__aio__logrec__t.html#a2536cbbe90cbf64ba685436ba90727f2',1,'brix_write_aio_logrec_t::xrd_error'],['../structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671',1,'brix_tpc_pull_t::xrd_error'],['../structbrix__cache__fill__t.html#a9a7354881521bc606cb9240f61c173bc',1,'brix_cache_fill_t::xrd_error']]],
-  ['xrd_5fok_34',['xrd_ok',['../structbrix__alog__record__t.html#ad22b41abbbc518f46129f1cae9dd3bc5',1,'brix_alog_record_t::xrd_ok'],['../structbrix__access__event__t.html#abdb52ef88b6abe1f9488d36bdec0a504',1,'brix_access_event_t::xrd_ok']]],
+  ['xrd_5fok_34',['xrd_ok',['../structbrix__access__event__t.html#abdb52ef88b6abe1f9488d36bdec0a504',1,'brix_access_event_t::xrd_ok'],['../structbrix__alog__record__t.html#ad22b41abbbc518f46129f1cae9dd3bc5',1,'brix_alog_record_t::xrd_ok']]],
   ['xrdhttp_35',['xrdhttp',['../structngx__http__brix__webdav__req__ctx__t.html#ab9a8c0331e39066c095444f78c2302b2',1,'ngx_http_brix_webdav_req_ctx_t']]],
   ['xrdhttp_5fstatus_5fmap_36',['xrdhttp_status_map',['../xrdhttp__response_8c.html#afb8abd4684e3f596902d94c8f999024b',1,'xrdhttp_response.c']]],
   ['xrdprep_5fflags_37',['xrdprep_flags',['../xrdprep_8c.html#a4d3afa0f3bb9836ed8826c7ce6537189',1,'xrdprep.c']]]

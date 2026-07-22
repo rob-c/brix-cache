@@ -30,6 +30,7 @@ var proxy__internal_8h =
     ] ],
     [ "brix_proxy_abort", "proxy__internal_8h.html#aa6c6810e19e52120839bb8f6490efc47", null ],
     [ "brix_proxy_alloc_local_fh", "proxy__internal_8h.html#ac0a19db0f3948012ffa1a43e812f712f", null ],
+    [ "brix_proxy_build_bootstrap", "proxy__internal_8h.html#a67bcc10799e52204a925e9432507f115", null ],
     [ "brix_proxy_connect", "proxy__internal_8h.html#ae7dca262f54e49401609ee0c4927c08e", null ],
     [ "brix_proxy_dispatch_pending", "proxy__internal_8h.html#acbe907a5337850d93eeacff7e50b8483", null ],
     [ "brix_proxy_fh_translate_single", "proxy__internal_8h.html#a9d21b8759b8df8df1b58e26cbaabf020", null ],

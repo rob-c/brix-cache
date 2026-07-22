@@ -108,7 +108,7 @@ $(document).ready(function(){initNavTree('prepare__internal_8h.html',''); initRe
 <div id="dynsection-1-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-1-content" class="dyncontent" style="display:none;">
-<div class="center"><iframe scrolling="no" frameborder="0" src="prepare__internal_8h__dep__incl.svg" width="342" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<div class="center"><iframe scrolling="no" frameborder="0" src="prepare__internal_8h__dep__incl.svg" width="540" height="139"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="prepare__internal_8h_source.html">Go to the source code of this file.</a></p>
@@ -117,8 +117,80 @@ $(document).ready(function(){initNavTree('prepare__internal_8h.html',''); initRe
 Functions</h2></td></tr>
 <tr class="memitem:adb6d9b5c785ee03821400b1cf5c2c044" id="r_adb6d9b5c785ee03821400b1cf5c2c044"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prepare__internal_8h.html#adb6d9b5c785ee03821400b1cf5c2c044">brix_prepare_send_fail</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *path, uint16_t errcode, const char *errmsg)</td></tr>
 <tr class="separator:adb6d9b5c785ee03821400b1cf5c2c044"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab12ddacc8e1a538e87f112bc8128c32b" id="r_ab12ddacc8e1a538e87f112bc8128c32b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="prepare__internal_8h.html#ab12ddacc8e1a538e87f112bc8128c32b">brix_prepare_check_path</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const u_char *line, size_t line_len, ngx_flag_t noerrs, ngx_uint_t *missing, char *out_resolved)</td></tr>
+<tr class="separator:ab12ddacc8e1a538e87f112bc8128c32b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ab12ddacc8e1a538e87f112bc8128c32b" name="ab12ddacc8e1a538e87f112bc8128c32b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab12ddacc8e1a538e87f112bc8128c32b">&#9670;&#160;</a></span>brix_prepare_check_path()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">ngx_int_t brix_prepare_check_path </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_connection_t *&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const u_char *&#160;</td>
+          <td class="paramname"><em>line</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>line_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_flag_t&#160;</td>
+          <td class="paramname"><em>noerrs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t *&#160;</td>
+          <td class="paramname"><em>missing</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>out_resolved</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="prepare__check_8c_source.html#l00118">118</a> of file <a class="el" href="prepare__check_8c_source.html">prepare_check.c</a>.</p>
+
+<p class="reference">References <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="protocols_2root_2path_2extract_8c_source.html#l00012">brix_extract_path()</a>, <a class="el" href="tunables_8h_source.html#l00187">BRIX_MAX_PATH</a>, <a class="el" href="prepare__check_8c_source.html#l00053">brix_prepare_check_fail()</a>, <a class="el" href="prepare__check_8c_source.html#l00022">brix_prepare_has_forbidden_component()</a>, <a class="el" href="beneath_8c_source.html#l00150">brix_stat_beneath()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="opcodes_8h_source.html#l00148">kXR_ArgTooLong</a>, <a class="el" href="opcodes_8h_source.html#l00162">kXR_isDirectory</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="prepare__check_8c_source.html#l00076">prepare_path_authz()</a>, <a class="el" href="prepare__check_8c_source.html#l00102">prepare_stat_error()</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="prepare_8c_source.html#l00238">prepare_scan_paths()</a>.</p>
+
+</div>
+</div>
 <a id="adb6d9b5c785ee03821400b1cf5c2c044" name="adb6d9b5c785ee03821400b1cf5c2c044"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#adb6d9b5c785ee03821400b1cf5c2c044">&#9670;&#160;</a></span>brix_prepare_send_fail()</h2>
 
@@ -163,11 +235,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="prepare_8c_source.html#l00109">109</a> of file <a class="el" href="prepare_8c_source.html">prepare.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="prepare_8c_source.html#l00078">78</a> of file <a class="el" href="prepare_8c_source.html">prepare.c</a>.</p>
 
-<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00318">brix_log_access()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="prepare_8c_source.html#l00638">brix_handle_prepare()</a>, <a class="el" href="prepare_8c_source.html#l00121">brix_prepare_check_fail()</a>, <a class="el" href="prepare_8c_source.html#l00285">brix_prepare_handle_cancel()</a>, <a class="el" href="prepare_8c_source.html#l00598">prepare_dispatch_special()</a>, and <a class="el" href="prepare__qprep_8c_source.html#l00134">qprep_resolve_src()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="prepare_8c_source.html#l00446">brix_handle_prepare()</a>, <a class="el" href="prepare__check_8c_source.html#l00053">brix_prepare_check_fail()</a>, <a class="el" href="prepare_8c_source.html#l00093">brix_prepare_handle_cancel()</a>, <a class="el" href="prepare_8c_source.html#l00406">prepare_dispatch_special()</a>, and <a class="el" href="prepare__qprep_8c_source.html#l00134">qprep_resolve_src()</a>.</p>
 
 </div>
 </div>

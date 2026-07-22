@@ -91,13 +91,12 @@ $(document).ready(function(){initNavTree('checksum__qcksum_8c.html',''); initRes
 
 <div class="header">
   <div class="summary">
-<a href="#nested-classes">Data Structures</a> &#124;
-<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">checksum_qcksum.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="query__internal_8h_source.html">query_internal.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="checksum__qcksum__internal_8h_source.html">checksum_qcksum_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="checksum_8h_source.html">core/compat/checksum.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="integrity__info_8h_source.html">core/compat/integrity_info.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="response_8h_source.html">protocols/root/response/response.h</a>&quot;</code><br />
@@ -120,48 +119,18 @@ $(document).ready(function(){initNavTree('checksum__qcksum_8c.html',''); initRes
 </div>
 <p><a href="checksum__qcksum_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:ab78764cb20e0c6920d08072c7de928dd" id="r_ab78764cb20e0c6920d08072c7de928dd"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#ab78764cb20e0c6920d08072c7de928dd">BRIX_QCKSUM_DEFAULT_ALGO</a>&#160;&#160;&#160;&quot;adler32&quot;</td></tr>
-<tr class="separator:ab78764cb20e0c6920d08072c7de928dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad2b0ef77dad1e55027de77b0845072b0" id="r_ad2b0ef77dad1e55027de77b0845072b0"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#ad2b0ef77dad1e55027de77b0845072b0">BRIX_QCKSUM_ALGO_SZ</a>&#160;&#160;&#160;32</td></tr>
-<tr class="separator:ad2b0ef77dad1e55027de77b0845072b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ac8679ec61785877467ef7f63a00944ce" id="r_ac8679ec61785877467ef7f63a00944ce"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#ac8679ec61785877467ef7f63a00944ce">brix_cksum_aio_thread</a> (void *data, ngx_log_t *<a class="el" href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a>)</td></tr>
 <tr class="separator:ac8679ec61785877467ef7f63a00944ce"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6a1f0aaf0cd257dfcab028a50cbb769c" id="r_a6a1f0aaf0cd257dfcab028a50cbb769c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a6a1f0aaf0cd257dfcab028a50cbb769c">brix_cksum_aio_done</a> (ngx_event_t *ev)</td></tr>
 <tr class="separator:a6a1f0aaf0cd257dfcab028a50cbb769c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa199d3f482d19cabf2db8897e4fe7c75" id="r_aa199d3f482d19cabf2db8897e4fe7c75"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#aa199d3f482d19cabf2db8897e4fe7c75">brix_query_parse_algorithm</a> (const u_char *src, size_t len, char *algo, size_t algo_sz)</td></tr>
-<tr class="separator:aa199d3f482d19cabf2db8897e4fe7c75"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afa501554065fc1f92e9f3230f525f113" id="r_afa501554065fc1f92e9f3230f525f113"><td class="memItemLeft" align="right" valign="top">ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#afa501554065fc1f92e9f3230f525f113">brix_query_parse_algorithm</a> (const u_char *src, size_t len, char *algo, size_t algo_sz)</td></tr>
+<tr class="separator:afa501554065fc1f92e9f3230f525f113"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa7bf287c00448efd194db5696dee0f8e" id="r_aa7bf287c00448efd194db5696dee0f8e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#aa7bf287c00448efd194db5696dee0f8e">brix_query_cksum_send_error</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, uint16_t errcode, const char *errmsg)</td></tr>
 <tr class="separator:aa7bf287c00448efd194db5696dee0f8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5b4d54bc5279b46f3dec86c88dd1b96f" id="r_a5b4d54bc5279b46f3dec86c88dd1b96f"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a5b4d54bc5279b46f3dec86c88dd1b96f">brix_query_build_checksum</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, int fd, brix_sd_obj_t *obj, const char *resolved, const char *algo, char *resp, size_t resp_sz)</td></tr>
-<tr class="separator:a5b4d54bc5279b46f3dec86c88dd1b96f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a48664d2d3c73c488b47954beb01f3d6d" id="r_a48664d2d3c73c488b47954beb01f3d6d"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a48664d2d3c73c488b47954beb01f3d6d">brix_qcksum_find_algo_sep</a> (const u_char *payload, size_t payload_len, size_t *sep_off, size_t *alg_len)</td></tr>
-<tr class="separator:a48664d2d3c73c488b47954beb01f3d6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a915d26d6e270b07c5796908625d0ca31" id="r_a915d26d6e270b07c5796908625d0ca31"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a915d26d6e270b07c5796908625d0ca31">brix_qcksum_apply_cks_type_cgi</a> (const u_char *path_payload, size_t path_payload_len, char *algo, size_t algo_sz, ngx_flag_t *bad_algo)</td></tr>
-<tr class="separator:a915d26d6e270b07c5796908625d0ca31"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a2736e2c8f854fc00a32525f5e58fb605" id="r_a2736e2c8f854fc00a32525f5e58fb605"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a2736e2c8f854fc00a32525f5e58fb605">brix_qcksum_select_algo</a> (<a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *rq, const u_char **path_payload, size_t *path_payload_len, ngx_int_t *out_rc)</td></tr>
-<tr class="separator:a2736e2c8f854fc00a32525f5e58fb605"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acc661af73668255d07c6e1d20ee9aade" id="r_acc661af73668255d07c6e1d20ee9aade"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#acc661af73668255d07c6e1d20ee9aade">brix_qcksum_manager_bounce</a> (<a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *rq, ngx_int_t *out_rc)</td></tr>
-<tr class="separator:acc661af73668255d07c6e1d20ee9aade"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4e1ae064a68c7a4c4af831471215121b" id="r_a4e1ae064a68c7a4c4af831471215121b"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a4e1ae064a68c7a4c4af831471215121b">brix_qcksum_resolve</a> (<a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *rq, ngx_int_t *out_rc)</td></tr>
-<tr class="separator:a4e1ae064a68c7a4c4af831471215121b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7967e08e2eee906c812268a62deafdbf" id="r_a7967e08e2eee906c812268a62deafdbf"><td class="memItemLeft" align="right" valign="top">static brix_vfs_file_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a7967e08e2eee906c812268a62deafdbf">brix_qcksum_open</a> (<a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *rq, ngx_int_t *out_rc)</td></tr>
-<tr class="separator:a7967e08e2eee906c812268a62deafdbf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a22ee218ea2b9414174ec7aa379bf661e" id="r_a22ee218ea2b9414174ec7aa379bf661e"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a22ee218ea2b9414174ec7aa379bf661e">brix_qcksum_try_async</a> (<a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *rq, brix_vfs_file_t *fh, int fd, ngx_flag_t *handled)</td></tr>
-<tr class="separator:a22ee218ea2b9414174ec7aa379bf661e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a305daceab4d3087e74b31ed82f6c4677" id="r_a305daceab4d3087e74b31ed82f6c4677"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a305daceab4d3087e74b31ed82f6c4677">brix_qcksum_compute_sync</a> (<a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *rq, brix_vfs_file_t *fh, int fd)</td></tr>
-<tr class="separator:a305daceab4d3087e74b31ed82f6c4677"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7b166f78292d9563c6a4ceba42ba73e0" id="r_a7b166f78292d9563c6a4ceba42ba73e0"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a7b166f78292d9563c6a4ceba42ba73e0">brix_query_cksum_path</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf)</td></tr>
-<tr class="separator:a7b166f78292d9563c6a4ceba42ba73e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a894cbb65958b79ac9e2a7e313fdd0771" id="r_a894cbb65958b79ac9e2a7e313fdd0771"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a894cbb65958b79ac9e2a7e313fdd0771">brix_query_build_checksum</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, int fd, brix_sd_obj_t *obj, const char *resolved, const char *algo, char *resp, size_t resp_sz)</td></tr>
+<tr class="separator:a894cbb65958b79ac9e2a7e313fdd0771"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a42a54c8247e014dd98914872333afdba" id="r_a42a54c8247e014dd98914872333afdba"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a42a54c8247e014dd98914872333afdba">brix_qcksum_handle_extract_algo</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, char *algo, size_t algo_sz)</td></tr>
 <tr class="separator:a42a54c8247e014dd98914872333afdba"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a34194cb4d73ef3585d1c67c17a155ff8" id="r_a34194cb4d73ef3585d1c67c17a155ff8"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#a34194cb4d73ef3585d1c67c17a155ff8">brix_qcksum_handle_try_async</a> (<a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *rq, int idx, const char *resolved, ngx_flag_t *handled)</td></tr>
@@ -171,39 +140,6 @@ Functions</h2></td></tr>
 <tr class="memitem:adeea94d55b5f6d68b950e99c8815a2cc" id="r_adeea94d55b5f6d68b950e99c8815a2cc"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="checksum__qcksum_8c.html#adeea94d55b5f6d68b950e99c8815a2cc">brix_query_cksum</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="parse__x509__internal_8h.html#a6273d27020935469383109889e654dfc">c</a>, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const <a class="el" href="structxrdw__query__req__t.html">xrdw_query_req_t</a> *req)</td></tr>
 <tr class="separator:adeea94d55b5f6d68b950e99c8815a2cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ad2b0ef77dad1e55027de77b0845072b0" name="ad2b0ef77dad1e55027de77b0845072b0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad2b0ef77dad1e55027de77b0845072b0">&#9670;&#160;</a></span>BRIX_QCKSUM_ALGO_SZ</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_QCKSUM_ALGO_SZ&#160;&#160;&#160;32</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00038">38</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-</div>
-</div>
-<a id="ab78764cb20e0c6920d08072c7de928dd" name="ab78764cb20e0c6920d08072c7de928dd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab78764cb20e0c6920d08072c7de928dd">&#9670;&#160;</a></span>BRIX_QCKSUM_DEFAULT_ALGO</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define BRIX_QCKSUM_DEFAULT_ALGO&#160;&#160;&#160;&quot;adler32&quot;</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00037">37</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a6a1f0aaf0cd257dfcab028a50cbb769c" name="a6a1f0aaf0cd257dfcab028a50cbb769c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a6a1f0aaf0cd257dfcab028a50cbb769c">&#9670;&#160;</a></span>brix_cksum_aio_done()</h2>
@@ -231,9 +167,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">69</a> of file <a class="el" href="checksum__qcksum__async_8c_source.html">checksum_qcksum_async.c</a>.</p>
 
-<p class="reference">References <a class="el" href="resume_8c_source.html#l00048">brix_aio_restore_request()</a>, <a class="el" href="resume_8c_source.html#l00141">brix_aio_resume()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="query__internal_8h_source.html#l00053">brix_cksum_aio_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="query__internal_8h_source.html#l00057">brix_cksum_aio_t::close_fd</a>, <a class="el" href="query__internal_8h_source.html#l00052">brix_cksum_aio_t::ctx</a>, <a class="el" href="query__internal_8h_source.html#l00064">brix_cksum_aio_t::error_code</a>, <a class="el" href="query__internal_8h_source.html#l00065">brix_cksum_aio_t::error_msg</a>, <a class="el" href="query__internal_8h_source.html#l00056">brix_cksum_aio_t::fd</a>, <a class="el" href="query__internal_8h_source.html#l00058">brix_cksum_aio_t::fh</a>, <a class="el" href="vfs__internal_8h_source.html#l00092">brix_vfs_file_t::log</a>, <a class="el" href="query__internal_8h_source.html#l00062">brix_cksum_aio_t::resolved</a>, <a class="el" href="query__internal_8h_source.html#l00063">brix_cksum_aio_t::resp</a>, and <a class="el" href="query__internal_8h_source.html#l00055">brix_cksum_aio_t::streamid</a>.</p>
+<p class="reference">References <a class="el" href="resume_8c_source.html#l00048">brix_aio_restore_request()</a>, <a class="el" href="resume_8c_source.html#l00141">brix_aio_resume()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00318">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="query__internal_8h_source.html#l00053">brix_cksum_aio_t::c</a>, <a class="el" href="brixposix__preload_8c_source.html#l00374">close()</a>, <a class="el" href="query__internal_8h_source.html#l00057">brix_cksum_aio_t::close_fd</a>, <a class="el" href="query__internal_8h_source.html#l00052">brix_cksum_aio_t::ctx</a>, <a class="el" href="query__internal_8h_source.html#l00064">brix_cksum_aio_t::error_code</a>, <a class="el" href="query__internal_8h_source.html#l00065">brix_cksum_aio_t::error_msg</a>, <a class="el" href="query__internal_8h_source.html#l00056">brix_cksum_aio_t::fd</a>, <a class="el" href="query__internal_8h_source.html#l00058">brix_cksum_aio_t::fh</a>, <a class="el" href="vfs__internal_8h_source.html#l00092">brix_vfs_file_t::log</a>, <a class="el" href="query__internal_8h_source.html#l00062">brix_cksum_aio_t::resolved</a>, <a class="el" href="query__internal_8h_source.html#l00063">brix_cksum_aio_t::resp</a>, and <a class="el" href="query__internal_8h_source.html#l00055">brix_cksum_aio_t::streamid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00656">brix_qcksum_handle_try_async()</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00482">brix_qcksum_try_async()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00141">brix_qcksum_handle_try_async()</a>.</p>
 
 </div>
 </div>
@@ -275,167 +211,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="integrity__info_8h_source.html#l00018">brix_integrity_info_t::alg_name</a>, <a class="el" href="query__internal_8h_source.html#l00061">brix_cksum_aio_t::algo</a>, <a class="el" href="integrity__info_8h_source.html#l00034">brix_integrity_opts_t::allow_xattr_cache</a>, <a class="el" href="integrity__info_8c_source.html#l00359">brix_integrity_get_fd()</a>, <a class="el" href="query__internal_8h_source.html#l00064">brix_cksum_aio_t::error_code</a>, <a class="el" href="query__internal_8h_source.html#l00065">brix_cksum_aio_t::error_msg</a>, <a class="el" href="query__internal_8h_source.html#l00056">brix_cksum_aio_t::fd</a>, <a class="el" href="integrity__info_8h_source.html#l00019">brix_integrity_info_t::hex</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="query__internal_8h_source.html#l00059">brix_cksum_aio_t::obj</a>, <a class="el" href="query__internal_8h_source.html#l00062">brix_cksum_aio_t::resolved</a>, <a class="el" href="query__internal_8h_source.html#l00063">brix_cksum_aio_t::resp</a>, and <a class="el" href="integrity__info_8h_source.html#l00035">brix_integrity_opts_t::update_xattr_cache</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00656">brix_qcksum_handle_try_async()</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00482">brix_qcksum_try_async()</a>.</p>
-
-</div>
-</div>
-<a id="a915d26d6e270b07c5796908625d0ca31" name="a915d26d6e270b07c5796908625d0ca31"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a915d26d6e270b07c5796908625d0ca31">&#9670;&#160;</a></span>brix_qcksum_apply_cks_type_cgi()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static void brix_qcksum_apply_cks_type_cgi </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>path_payload</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>path_payload_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>algo</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>algo_sz</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t *&#160;</td>
-          <td class="paramname"><em>bad_algo</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00162">162</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00061">brix_query_parse_algorithm()</a>, and <a class="el" href="auth__sigv4__verify__crypto_8c_source.html#l00051">key</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00217">brix_qcksum_select_algo()</a>.</p>
-
-</div>
-</div>
-<a id="a305daceab4d3087e74b31ed82f6c4677" name="a305daceab4d3087e74b31ed82f6c4677"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a305daceab4d3087e74b31ed82f6c4677">&#9670;&#160;</a></span>brix_qcksum_compute_sync()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_qcksum_compute_sync </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *&#160;</td>
-          <td class="paramname"><em>rq</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_vfs_file_t *&#160;</td>
-          <td class="paramname"><em>fh</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fd</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00549">549</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00055">brix_qcksum_req_t::algo</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00094">brix_query_build_checksum()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00070">brix_vfs_file_sd_obj()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00056">brix_qcksum_req_t::full_path</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00581">brix_query_cksum_path()</a>.</p>
-
-</div>
-</div>
-<a id="a48664d2d3c73c488b47954beb01f3d6d" name="a48664d2d3c73c488b47954beb01f3d6d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a48664d2d3c73c488b47954beb01f3d6d">&#9670;&#160;</a></span>brix_qcksum_find_algo_sep()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_flag_t brix_qcksum_find_algo_sep </td>
-          <td>(</td>
-          <td class="paramtype">const u_char *&#160;</td>
-          <td class="paramname"><em>payload</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>payload_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>sep_off</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>alg_len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00131">131</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00217">brix_qcksum_select_algo()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00141">brix_qcksum_handle_try_async()</a>.</p>
 
 </div>
 </div>
@@ -479,11 +255,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00626">626</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00111">111</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00061">brix_query_parse_algorithm()</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
+<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00041">brix_query_parse_algorithm()</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00717">brix_query_cksum_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00202">brix_query_cksum_handle()</a>.</p>
 
 </div>
 </div>
@@ -533,259 +309,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00656">656</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00141">141</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00055">brix_qcksum_req_t::algo</a>, <a class="el" href="query__internal_8h_source.html#l00061">brix_cksum_aio_t::algo</a>, <a class="el" href="resume_8c_source.html#l00074">brix_aio_post_task()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">brix_cksum_aio_done()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00033">brix_cksum_aio_thread()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="query__internal_8h_source.html#l00053">brix_cksum_aio_t::c</a>, <a class="el" href="query__internal_8h_source.html#l00057">brix_cksum_aio_t::close_fd</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00054">brix_qcksum_req_t::conf</a>, <a class="el" href="query__internal_8h_source.html#l00054">brix_cksum_aio_t::conf</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, <a class="el" href="query__internal_8h_source.html#l00052">brix_cksum_aio_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="query__internal_8h_source.html#l00064">brix_cksum_aio_t::error_code</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::fd</a>, <a class="el" href="query__internal_8h_source.html#l00056">brix_cksum_aio_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="query__internal_8h_source.html#l00059">brix_cksum_aio_t::obj</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="query__internal_8h_source.html#l00062">brix_cksum_aio_t::resolved</a>, <a class="el" href="core_2types_2file_8h_source.html#l00273">brix_file_t::sd_obj</a>, and <a class="el" href="query__internal_8h_source.html#l00055">brix_cksum_aio_t::streamid</a>.</p>
+<p class="reference">References <a class="el" href="checksum__qcksum__internal_8h_source.html#l00040">brix_qcksum_req_t::algo</a>, <a class="el" href="query__internal_8h_source.html#l00061">brix_cksum_aio_t::algo</a>, <a class="el" href="resume_8c_source.html#l00074">brix_aio_post_task()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">brix_cksum_aio_done()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00033">brix_cksum_aio_thread()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum__internal_8h_source.html#l00038">brix_qcksum_req_t::c</a>, <a class="el" href="query__internal_8h_source.html#l00053">brix_cksum_aio_t::c</a>, <a class="el" href="query__internal_8h_source.html#l00057">brix_cksum_aio_t::close_fd</a>, <a class="el" href="checksum__qcksum__internal_8h_source.html#l00039">brix_qcksum_req_t::conf</a>, <a class="el" href="query__internal_8h_source.html#l00054">brix_cksum_aio_t::conf</a>, <a class="el" href="checksum__qcksum__internal_8h_source.html#l00037">brix_qcksum_req_t::ctx</a>, <a class="el" href="query__internal_8h_source.html#l00052">brix_cksum_aio_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="query__internal_8h_source.html#l00064">brix_cksum_aio_t::error_code</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::fd</a>, <a class="el" href="query__internal_8h_source.html#l00056">brix_cksum_aio_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="query__internal_8h_source.html#l00059">brix_cksum_aio_t::obj</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="query__internal_8h_source.html#l00062">brix_cksum_aio_t::resolved</a>, <a class="el" href="core_2types_2file_8h_source.html#l00273">brix_file_t::sd_obj</a>, and <a class="el" href="query__internal_8h_source.html#l00055">brix_cksum_aio_t::streamid</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00717">brix_query_cksum_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00202">brix_query_cksum_handle()</a>.</p>
 
 </div>
 </div>
-<a id="acc661af73668255d07c6e1d20ee9aade" name="acc661af73668255d07c6e1d20ee9aade"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acc661af73668255d07c6e1d20ee9aade">&#9670;&#160;</a></span>brix_qcksum_manager_bounce()</h2>
+<a id="a894cbb65958b79ac9e2a7e313fdd0771" name="a894cbb65958b79ac9e2a7e313fdd0771"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a894cbb65958b79ac9e2a7e313fdd0771">&#9670;&#160;</a></span>brix_query_build_checksum()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_int_t brix_qcksum_manager_bounce </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *&#160;</td>
-          <td class="paramname"><em>rq</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_int_t *&#160;</td>
-          <td class="paramname"><em>out_rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00266">266</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="registry__select_8c_source.html#l00425">brix_manager_tried_exhausted()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="pending_8c_source.html#l00098">brix_pending_insert()</a>, <a class="el" href="pending_8c_source.html#l00221">brix_pending_remove()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="registry__select_8c_source.html#l00347">brix_srv_select()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="context_8h_source.html#l00290">brix_ctx_t::cms_wait_streamid</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00054">brix_qcksum_req_t::conf</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="opcodes_8h_source.html#l00157">kXR_NotFound</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00355">ngx_brix_cms_next_streamid()</a>, <a class="el" href="net_2cms_2send_8c_source.html#l00375">ngx_brix_cms_send_locate()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00057">brix_qcksum_req_t::pathbuf</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00093">brix_ctx_t::state</a>, <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>, and <a class="el" href="state_8h_source.html#l00033">XRD_ST_WAITING_CMS</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00344">brix_qcksum_resolve()</a>.</p>
-
-</div>
-</div>
-<a id="a7967e08e2eee906c812268a62deafdbf" name="a7967e08e2eee906c812268a62deafdbf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7967e08e2eee906c812268a62deafdbf">&#9670;&#160;</a></span>brix_qcksum_open()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static brix_vfs_file_t * brix_qcksum_open </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *&#160;</td>
-          <td class="paramname"><em>rq</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_int_t *&#160;</td>
-          <td class="paramname"><em>out_rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00401">401</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="error__mapping_8c_source.html#l00035">brix_kxr_from_errno()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_ROOT</a>, <a class="el" href="op__path_8c_source.html#l00412">brix_root_vfs_bind_deleg()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="control_8c_source.html#l00010">brix_send_redirect()</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__cred_8c_source.html#l00090">brix_vfs_ctx_bind_backend_mint()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00038">BRIX_VFS_O_READ</a>, <a class="el" href="vfs__open_8c_source.html#l00387">brix_vfs_open()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00387">code</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00054">brix_qcksum_req_t::conf</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00056">brix_qcksum_req_t::full_path</a>, <a class="el" href="context_8h_source.html#l00104">brix_ctx_t::identity</a>, <a class="el" href="opcodes_8h_source.html#l00107">kXR_ok</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00057">brix_qcksum_req_t::pathbuf</a>, and <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00581">brix_query_cksum_path()</a>.</p>
-
-</div>
-</div>
-<a id="a4e1ae064a68c7a4c4af831471215121b" name="a4e1ae064a68c7a4c4af831471215121b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4e1ae064a68c7a4c4af831471215121b">&#9670;&#160;</a></span>brix_qcksum_resolve()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_qcksum_resolve </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *&#160;</td>
-          <td class="paramname"><em>rq</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_int_t *&#160;</td>
-          <td class="paramname"><em>out_rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00344">344</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="auth__gate_8c_source.html#l00482">brix_auth_gate()</a>, <a class="el" href="types_2config_8h_source.html#l00055">BRIX_AUTH_READ</a>, <a class="el" href="beneath_8h_source.html#l00114">brix_beneath_full_path()</a>, <a class="el" href="protocols_2root_2path_2extract_8c_source.html#l00012">brix_extract_path()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00266">brix_qcksum_manager_bounce()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00217">brix_qcksum_select_algo()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00054">brix_qcksum_req_t::conf</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00056">brix_qcksum_req_t::full_path</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00057">brix_qcksum_req_t::pathbuf</a>, and <a class="el" href="context_8h_source.html#l00304">brix_ctx_t::write_rc</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00581">brix_query_cksum_path()</a>.</p>
-
-</div>
-</div>
-<a id="a2736e2c8f854fc00a32525f5e58fb605" name="a2736e2c8f854fc00a32525f5e58fb605"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2736e2c8f854fc00a32525f5e58fb605">&#9670;&#160;</a></span>brix_qcksum_select_algo()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_qcksum_select_algo </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *&#160;</td>
-          <td class="paramname"><em>rq</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const u_char **&#160;</td>
-          <td class="paramname"><em>path_payload</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t *&#160;</td>
-          <td class="paramname"><em>path_payload_len</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_int_t *&#160;</td>
-          <td class="paramname"><em>out_rc</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00217">217</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00055">brix_qcksum_req_t::algo</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00162">brix_qcksum_apply_cks_type_cgi()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00131">brix_qcksum_find_algo_sep()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00061">brix_query_parse_algorithm()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="opcodes_8h_source.html#l00146">kXR_ArgInvalid</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00344">brix_qcksum_resolve()</a>.</p>
-
-</div>
-</div>
-<a id="a22ee218ea2b9414174ec7aa379bf661e" name="a22ee218ea2b9414174ec7aa379bf661e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a22ee218ea2b9414174ec7aa379bf661e">&#9670;&#160;</a></span>brix_qcksum_try_async()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_qcksum_try_async </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__qcksum__req__t.html">brix_qcksum_req_t</a> *&#160;</td>
-          <td class="paramname"><em>rq</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">brix_vfs_file_t *&#160;</td>
-          <td class="paramname"><em>fh</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fd</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_flag_t *&#160;</td>
-          <td class="paramname"><em>handled</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00482">482</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00055">brix_qcksum_req_t::algo</a>, <a class="el" href="query__internal_8h_source.html#l00061">brix_cksum_aio_t::algo</a>, <a class="el" href="resume_8c_source.html#l00074">brix_aio_post_task()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">brix_cksum_aio_done()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00033">brix_cksum_aio_thread()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00029">brix_vfs_close()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00070">brix_vfs_file_sd_obj()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="query__internal_8h_source.html#l00053">brix_cksum_aio_t::c</a>, <a class="el" href="query__internal_8h_source.html#l00057">brix_cksum_aio_t::close_fd</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00054">brix_qcksum_req_t::conf</a>, <a class="el" href="query__internal_8h_source.html#l00054">brix_cksum_aio_t::conf</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, <a class="el" href="query__internal_8h_source.html#l00052">brix_cksum_aio_t::ctx</a>, <a class="el" href="ctx__structs_8h_source.html#l00181">brix_ctx_recv_t::cur_streamid</a>, <a class="el" href="query__internal_8h_source.html#l00064">brix_cksum_aio_t::error_code</a>, <a class="el" href="query__internal_8h_source.html#l00056">brix_cksum_aio_t::fd</a>, <a class="el" href="query__internal_8h_source.html#l00058">brix_cksum_aio_t::fh</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00056">brix_qcksum_req_t::full_path</a>, <a class="el" href="opcodes_8h_source.html#l00154">kXR_NoMemory</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="query__internal_8h_source.html#l00059">brix_cksum_aio_t::obj</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="query__internal_8h_source.html#l00062">brix_cksum_aio_t::resolved</a>, and <a class="el" href="query__internal_8h_source.html#l00055">brix_cksum_aio_t::streamid</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00581">brix_query_cksum_path()</a>.</p>
-
-</div>
-</div>
-<a id="a5b4d54bc5279b46f3dec86c88dd1b96f" name="a5b4d54bc5279b46f3dec86c88dd1b96f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5b4d54bc5279b46f3dec86c88dd1b96f">&#9670;&#160;</a></span>brix_query_build_checksum()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_query_build_checksum </td>
+          <td class="memname">ngx_int_t brix_query_build_checksum </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
           <td class="paramname"><em>ctx</em>, </td>
@@ -838,18 +377,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00094">94</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00074">74</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="integrity__info_8h_source.html#l00018">brix_integrity_info_t::alg_name</a>, <a class="el" href="integrity__info_8h_source.html#l00034">brix_integrity_opts_t::allow_xattr_cache</a>, <a class="el" href="integrity__info_8c_source.html#l00359">brix_integrity_get_fd()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00078">brix_query_cksum_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="integrity__info_8h_source.html#l00019">brix_integrity_info_t::hex</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, and <a class="el" href="integrity__info_8h_source.html#l00035">brix_integrity_opts_t::update_xattr_cache</a>.</p>
+<p class="reference">References <a class="el" href="integrity__info_8h_source.html#l00018">brix_integrity_info_t::alg_name</a>, <a class="el" href="integrity__info_8h_source.html#l00034">brix_integrity_opts_t::allow_xattr_cache</a>, <a class="el" href="integrity__info_8c_source.html#l00359">brix_integrity_get_fd()</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00058">brix_query_cksum_send_error()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="integrity__info_8h_source.html#l00019">brix_integrity_info_t::hex</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, and <a class="el" href="integrity__info_8h_source.html#l00035">brix_integrity_opts_t::update_xattr_cache</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00549">brix_qcksum_compute_sync()</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00717">brix_query_cksum_handle()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum__path_8c_source.html#l00469">brix_qcksum_compute_sync()</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00202">brix_query_cksum_handle()</a>.</p>
 
 </div>
 </div>
@@ -891,9 +425,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00770">770</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00255">255</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00717">brix_query_cksum_handle()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00581">brix_query_cksum_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
+<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00202">brix_query_cksum_handle()</a>, <a class="el" href="checksum__qcksum__path_8c_source.html#l00501">brix_query_cksum_path()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00184">brix_ctx_recv_t::cur_dlen</a>, <a class="el" href="ctx__structs_8h_source.html#l00187">brix_ctx_recv_t::payload</a>, and <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="cli__cksum_8c_source.html#l00030">brix_cli_cksum_main()</a>, <a class="el" href="root_2query_2dispatch_8c_source.html#l00036">brix_query_route_common()</a>, <a class="el" href="diag__check_8c_source.html#l00177">chk_probe_checksum()</a>, <a class="el" href="xrdcktree_8c_source.html#l00742">ckcheck_digest_remote()</a>, <a class="el" href="copy__remote_8c_source.html#l00201">cksum_verify_source()</a>, <a class="el" href="xrdstorascan_8c_source.html#l00270">cmd_verify()</a>, <a class="el" href="xrdfs__meta_8c_source.html#l00754">do_cksum()</a>, <a class="el" href="xrdfs__data_8c_source.html#l00707">do_cmp()</a>, <a class="el" href="diag__check_8c_source.html#l00569">dx_probe_checksum()</a>, <a class="el" href="xrdcp__transfer_8c_source.html#l00139">entry_cksum()</a>, <a class="el" href="xrootdfs__xattr_8c_source.html#l00024">op_cks()</a>, <a class="el" href="xrdcktree_8c_source.html#l00276">remote_tree_visitor()</a>, <a class="el" href="copy__recursive_8c_source.html#l00092">sync_cksum_match()</a>, <a class="el" href="xrd__battery_8c_source.html#l00164">write_checksum()</a>, and <a class="el" href="xrootdfs__legacy_8c_source.html#l00544">xfs_getxattr()</a>.</p>
 
@@ -945,59 +479,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00717">717</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00202">202</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00055">brix_qcksum_req_t::algo</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00586">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00184">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00037">BRIX_QCKSUM_DEFAULT_ALGO</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00626">brix_qcksum_handle_extract_algo()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00656">brix_qcksum_handle_try_async()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00094">brix_query_build_checksum()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00054">brix_qcksum_req_t::conf</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::fd</a>, <a class="el" href="wire__codec_8h_source.html#l00125">xrdw_query_req_t::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="opcodes_8h_source.html#l00150">kXR_FileNotOpen</a>, <a class="el" href="core_2types_2file_8h_source.html#l00074">brix_file_t::path</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00273">brix_file_t::sd_obj</a>.</p>
+<p class="reference">References <a class="el" href="checksum__qcksum__internal_8h_source.html#l00040">brix_qcksum_req_t::algo</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00318">brix_log_access()</a>, <a class="el" href="tunables_8h_source.html#l00184">BRIX_MAX_FILES</a>, <a class="el" href="tunables_8h_source.html#l00291">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00286">BRIX_OP_OK</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00048">BRIX_OP_QUERY_CKSUM</a>, <a class="el" href="checksum__qcksum__internal_8h_source.html#l00022">BRIX_QCKSUM_DEFAULT_ALGO</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00111">brix_qcksum_handle_extract_algo()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00141">brix_qcksum_handle_try_async()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00074">brix_query_build_checksum()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum__internal_8h_source.html#l00038">brix_qcksum_req_t::c</a>, <a class="el" href="checksum__qcksum__internal_8h_source.html#l00039">brix_qcksum_req_t::conf</a>, <a class="el" href="checksum__qcksum__internal_8h_source.html#l00037">brix_qcksum_req_t::ctx</a>, <a class="el" href="core_2types_2file_8h_source.html#l00073">brix_file_t::fd</a>, <a class="el" href="wire__codec_8h_source.html#l00125">xrdw_query_req_t::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="opcodes_8h_source.html#l00150">kXR_FileNotOpen</a>, <a class="el" href="core_2types_2file_8h_source.html#l00074">brix_file_t::path</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00273">brix_file_t::sd_obj</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00770">brix_query_cksum()</a>.</p>
-
-</div>
-</div>
-<a id="a7b166f78292d9563c6a4ceba42ba73e0" name="a7b166f78292d9563c6a4ceba42ba73e0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7b166f78292d9563c6a4ceba42ba73e0">&#9670;&#160;</a></span>brix_query_cksum_path()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static ngx_int_t brix_query_cksum_path </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
-          <td class="paramname"><em>ctx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">ngx_connection_t *&#160;</td>
-          <td class="paramname"><em>c</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
-          <td class="paramname"><em>conf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00581">581</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
-
-<p class="reference">References <a class="el" href="checksum__qcksum_8c_source.html#l00055">brix_qcksum_req_t::algo</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00549">brix_qcksum_compute_sync()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00037">BRIX_QCKSUM_DEFAULT_ALGO</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00401">brix_qcksum_open()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00344">brix_qcksum_resolve()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00482">brix_qcksum_try_async()</a>, <a class="el" href="vfs__open__handle_8c_source.html#l00064">brix_vfs_file_fd()</a>, <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00053">brix_qcksum_req_t::c</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00054">brix_qcksum_req_t::conf</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00052">brix_qcksum_req_t::ctx</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00770">brix_query_cksum()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00255">brix_query_cksum()</a>.</p>
 
 </div>
 </div>
@@ -1047,25 +533,22 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00078">78</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00058">58</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
 
 <p class="reference">References <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, and <a class="el" href="parse__x509__internal_8h_source.html#l00035">c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00094">brix_query_build_checksum()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00074">brix_query_build_checksum()</a>.</p>
 
 </div>
 </div>
-<a id="aa199d3f482d19cabf2db8897e4fe7c75" name="aa199d3f482d19cabf2db8897e4fe7c75"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa199d3f482d19cabf2db8897e4fe7c75">&#9670;&#160;</a></span>brix_query_parse_algorithm()</h2>
+<a id="afa501554065fc1f92e9f3230f525f113" name="afa501554065fc1f92e9f3230f525f113"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afa501554065fc1f92e9f3230f525f113">&#9670;&#160;</a></span>brix_query_parse_algorithm()</h2>
 
 <div class="memitem">
 <div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static ngx_flag_t brix_query_parse_algorithm </td>
+          <td class="memname">ngx_flag_t brix_query_parse_algorithm </td>
           <td>(</td>
           <td class="paramtype">const u_char *&#160;</td>
           <td class="paramname"><em>src</em>, </td>
@@ -1094,18 +577,13 @@ Functions</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00061">61</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="checksum__qcksum_8c_source.html#l00041">41</a> of file <a class="el" href="checksum__qcksum_8c_source.html">checksum_qcksum.c</a>.</p>
 
-<p class="reference">References <a class="el" href="put__body_8c_source.html#l00052">alg</a>, and <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00187">brix_checksum_parse()</a>.</p>
+<p class="reference">References <a class="el" href="put__body__digest_8c_source.html#l00044">alg</a>, and <a class="el" href="src_2core_2compat_2checksum_8c_source.html#l00187">brix_checksum_parse()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="checksum__qcksum_8c_source.html#l00162">brix_qcksum_apply_cks_type_cgi()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00626">brix_qcksum_handle_extract_algo()</a>, and <a class="el" href="checksum__qcksum_8c_source.html#l00217">brix_qcksum_select_algo()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="checksum__qcksum__path_8c_source.html#l00082">brix_qcksum_apply_cks_type_cgi()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00111">brix_qcksum_handle_extract_algo()</a>, and <a class="el" href="checksum__qcksum__path_8c_source.html#l00137">brix_qcksum_select_algo()</a>.</p>
 
 </div>
 </div>

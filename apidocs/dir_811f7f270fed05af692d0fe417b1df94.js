@@ -6,6 +6,7 @@ var dir_811f7f270fed05af692d0fe417b1df94 =
     [ "api_admin_cluster.c", "api__admin__cluster_8c.html", "api__admin__cluster_8c" ],
     [ "api_admin_config.c", "api__admin__config_8c.html", "api__admin__config_8c" ],
     [ "api_admin_proxy.c", "api__admin__proxy_8c.html", "api__admin__proxy_8c" ],
+    [ "api_admin_routing.c", "api__admin__routing_8c.html", "api__admin__routing_8c" ],
     [ "api_cvmfs.c", "api__cvmfs_8c.html", "api__cvmfs_8c" ],
     [ "api_ratelimit.c", "api__ratelimit_8c.html", "api__ratelimit_8c" ],
     [ "api_snapshot.c", "api__snapshot_8c.html", "api__snapshot_8c" ],

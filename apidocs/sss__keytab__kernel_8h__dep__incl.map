@@ -1,13 +1,17 @@
 <map id="src/auth/sss/sss_keytab_kernel.h" name="src/auth/sss/sss_keytab_kernel.h">
-<area shape="rect" id="Node000001" title=" " alt="" coords="343,5,518,45"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="525,5,699,45"/>
 <area shape="rect" id="Node000002" href="$sss__keytab_8c.html" title=" " alt="" coords="5,93,141,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="340,51,142,98,141,93,338,46"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="512,41,344,64,154,96,142,98,141,93,153,91,343,59,511,36"/>
 <area shape="rect" id="Node000003" href="$auth_2sss_2config_8c.html" title=" " alt="" coords="166,101,319,126"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="378,53,269,103,267,98,376,49"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="518,51,292,103,291,98,517,46"/>
 <area shape="rect" id="Node000004" href="$sss__keytab__kernel_8c.html" title=" " alt="" coords="343,93,518,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="433,59,433,93,428,93,428,59"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="561,54,472,96,469,91,559,49"/>
 <area shape="rect" id="Node000005" href="$origin__auth_8c.html" title=" " alt="" coords="542,93,682,133"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="484,49,573,91,571,96,482,54"/>
-<area shape="rect" id="Node000006" href="$origin__protocol_8c.html" title=" " alt="" coords="706,93,846,133"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="520,46,706,92,705,97,519,51"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="615,59,615,93,609,93,609,59"/>
+<area shape="rect" id="Node000006" href="$origin__auth__gsi_8c.html" title=" " alt="" coords="706,93,846,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="661,49,741,91,739,96,659,54"/>
+<area shape="rect" id="Node000007" href="$origin__protocol_8c.html" title=" " alt="" coords="870,93,1010,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="698,46,871,91,869,96,696,51"/>
+<area shape="rect" id="Node000008" href="$origin__protocol__bootstrap_8c.html" title=" " alt="" coords="1035,93,1197,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="713,39,1023,91,1035,93,1034,98,1022,96,713,45"/>
 </map>

@@ -1,9 +1,9 @@
 var searchData=
 [
   ['q_0',['q',['../structbrix__prefetch__t.html#afc3bd8689c5ecbbd561bdf6c76769c12',1,'brix_prefetch_t::q'],['../structwebdav__search__walk__ctx__t.html#a7e8ce977eaadc8d82dfe7cc783e82a77',1,'webdav_search_walk_ctx_t::q']]],
-  ['q_5fblob_5fid_1',['q_blob_id',['../sd__pblock__unittest_8c.html#a8393ce33483112849f0909902ca1a4e8',1,'sd_pblock_unittest.c']]],
-  ['q_5fcount_2',['q_count',['../sd__pblock__unittest_8c.html#ad1e51dcbf1dba1eaeb641c9005eacea0',1,'sd_pblock_unittest.c']]],
-  ['q_5frefcount_3',['q_refcount',['../sd__pblock__unittest_8c.html#a296f9fdf062a7b3b276d626b00dd4f0d',1,'sd_pblock_unittest.c']]],
+  ['q_5fblob_5fid_1',['q_blob_id',['../sd__pblock__unittest__dedup_8c.html#a8393ce33483112849f0909902ca1a4e8',1,'sd_pblock_unittest_dedup.c']]],
+  ['q_5fcount_2',['q_count',['../sd__pblock__unittest__dedup_8c.html#ad1e51dcbf1dba1eaeb641c9005eacea0',1,'sd_pblock_unittest_dedup.c']]],
+  ['q_5frefcount_3',['q_refcount',['../sd__pblock__unittest__dedup_8c.html#a296f9fdf062a7b3b276d626b00dd4f0d',1,'sd_pblock_unittest_dedup.c']]],
   ['qh_4',['qh',['../structbrix__prefetch__t.html#a03f6649c1a9ae5239da9cd7bef8518a9',1,'brix_prefetch_t']]],
   ['qn_5',['qn',['../structbrix__prefetch__t.html#a4ecc880b2976febdd5483e99e58335b4',1,'brix_prefetch_t']]],
   ['qos_6',['qos',['../structngx__http__brix__cvmfs__loc__conf__t.html#a96ad70bdc71745cf9da0b539b42640e1',1,'ngx_http_brix_cvmfs_loc_conf_t']]],

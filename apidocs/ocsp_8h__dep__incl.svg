@@ -46,7 +46,7 @@
   </g>
 </defs>
 <script type="application/ecmascript">
-var viewWidth = 508;
+var viewWidth = 656;
 var viewHeight = 159;
 var sectionId = 'dynsection-1';
 </script>
@@ -58,8 +58,8 @@ var sectionId = 'dynsection-1';
 <g id="Node000001" class="node">
 <title>Node1</title>
 <g id="a_Node000001"><a xlink:title=" ">
-<polygon fill="#999999" stroke="#666666" points="311.5,-151 187.5,-151 187.5,-132 311.5,-132 311.5,-151"/>
-<text text-anchor="middle" x="249.5" y="-139" font-family="Helvetica,sans-Serif" font-size="10.00">src/auth/crypto/ocsp.h</text>
+<polygon fill="#999999" stroke="#666666" points="376.5,-151 252.5,-151 252.5,-132 376.5,-132 376.5,-151"/>
+<text text-anchor="middle" x="314.5" y="-139" font-family="Helvetica,sans-Serif" font-size="10.00">src/auth/crypto/ocsp.h</text>
 </a>
 </g>
 </g>
@@ -76,8 +76,8 @@ var sectionId = 'dynsection-1';
 <g id="edge1_Node000001_Node000002" class="edge">
 <title>Node1&#45;&gt;Node2</title>
 <g id="a_edge1_Node000001_Node000002"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M192.31,-129.35C167.89,-122.59 140.1,-112.07 118.5,-96 92.23,-76.46 73.3,-41.23 65.48,-24.84"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="191.63,-132.79 202.19,-131.94 193.4,-126.02 191.63,-132.79"/>
+<path fill="none" stroke="#63b8ff" d="M242.11,-136.53C202.82,-131.45 154.97,-120.29 118.5,-96 90.96,-77.66 72.43,-41.18 65.07,-24.58"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="241.82,-140.02 252.16,-137.72 242.64,-133.07 241.82,-140.02"/>
 </a>
 </g>
 </g>
@@ -95,8 +95,8 @@ var sectionId = 'dynsection-1';
 <g id="edge2_Node000001_Node000003" class="edge">
 <title>Node1&#45;&gt;Node3</title>
 <g id="a_edge2_Node000001_Node000003"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M232.51,-124.97C222.7,-116.01 210.47,-104.82 200.94,-96.11"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="230.31,-127.7 240.06,-131.87 235.04,-122.54 230.31,-127.7"/>
+<path fill="none" stroke="#63b8ff" d="M286.59,-127.84C266.03,-118.52 238.07,-105.84 216.76,-96.18"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="285.19,-131.05 295.74,-131.99 288.08,-124.68 285.19,-131.05"/>
 </a>
 </g>
 </g>
@@ -113,18 +113,17 @@ var sectionId = 'dynsection-1';
 <g id="edge6_Node000001_Node000006" class="edge">
 <title>Node1&#45;&gt;Node6</title>
 <g id="a_edge6_Node000001_Node000006"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M266.82,-124.91C279.01,-113.94 294.87,-99.67 304.87,-90.67"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="264.18,-122.58 259.09,-131.87 268.87,-127.78 264.18,-122.58"/>
+<path fill="none" stroke="#63b8ff" d="M314.5,-121.66C314.5,-111.24 314.5,-98.8 314.5,-90.67"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="311,-121.87 314.5,-131.87 318,-121.87 311,-121.87"/>
 </a>
 </g>
 </g>
 <!-- Node7 -->
 <g id="Node000007" class="node">
 <title>Node7</title>
-<g id="a_Node000007"><a xlink:href="tls__config_8c.html" target="_top" xlink:title=" ">
-<polygon fill="white" stroke="#666666" points="499.5,-96 385.5,-96 385.5,-66 499.5,-66 499.5,-96"/>
-<text text-anchor="start" x="393.5" y="-84" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/root</text>
-<text text-anchor="middle" x="442.5" y="-73" font-family="Helvetica,sans-Serif" font-size="10.00">/session/tls_config.c</text>
+<g id="a_Node000007"><a xlink:href="auth_2gsi_2auth__cert_8c.html" target="_top" xlink:title=" ">
+<polygon fill="white" stroke="#666666" points="515.5,-90.5 385.5,-90.5 385.5,-71.5 515.5,-71.5 515.5,-90.5"/>
+<text text-anchor="middle" x="450.5" y="-78.5" font-family="Helvetica,sans-Serif" font-size="10.00">src/auth/gsi/auth_cert.c</text>
 </a>
 </g>
 </g>
@@ -132,8 +131,27 @@ var sectionId = 'dynsection-1';
 <g id="edge7_Node000001_Node000007" class="edge">
 <title>Node1&#45;&gt;Node7</title>
 <g id="a_edge7_Node000001_Node000007"><a xlink:title=" ">
-<path fill="none" stroke="#63b8ff" d="M287.19,-129.08C318.35,-119.63 362.75,-106.17 396.1,-96.06"/>
-<polygon fill="#63b8ff" stroke="#63b8ff" points="286.12,-125.74 277.56,-131.99 288.15,-132.44 286.12,-125.74"/>
+<path fill="none" stroke="#63b8ff" d="M343.72,-127.93C369.98,-116.64 407.83,-100.36 430.7,-90.52"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="342.08,-124.83 334.28,-131.99 344.84,-131.26 342.08,-124.83"/>
+</a>
+</g>
+</g>
+<!-- Node8 -->
+<g id="Node000008" class="node">
+<title>Node8</title>
+<g id="a_Node000008"><a xlink:href="tls__config_8c.html" target="_top" xlink:title=" ">
+<polygon fill="white" stroke="#666666" points="647.5,-96 533.5,-96 533.5,-66 647.5,-66 647.5,-96"/>
+<text text-anchor="start" x="541.5" y="-84" font-family="Helvetica,sans-Serif" font-size="10.00">src/protocols/root</text>
+<text text-anchor="middle" x="590.5" y="-73" font-family="Helvetica,sans-Serif" font-size="10.00">/session/tls_config.c</text>
+</a>
+</g>
+</g>
+<!-- Node1&#45;&gt;Node8 -->
+<g id="edge8_Node000001_Node000008" class="edge">
+<title>Node1&#45;&gt;Node8</title>
+<g id="a_edge8_Node000001_Node000008"><a xlink:title=" ">
+<path fill="none" stroke="#63b8ff" d="M364.59,-129.89C407.13,-120.88 469.82,-107.59 524.5,-96 527.36,-95.39 530.3,-94.77 533.26,-94.14"/>
+<polygon fill="#63b8ff" stroke="#63b8ff" points="363.82,-126.47 354.76,-131.97 365.27,-133.32 363.82,-126.47"/>
 </a>
 </g>
 </g>

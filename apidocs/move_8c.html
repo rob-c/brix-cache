@@ -101,6 +101,8 @@ $(document).ready(function(){initNavTree('move_8c.html',''); initResizable(); })
 <code>#include &quot;<a class="el" href="http__conditionals_8h_source.html">core/http/http_conditionals.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="impersonate_8h_source.html">auth/impersonate/impersonate.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="fs_2path_2path_8h_source.html">fs/path/path.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="backend__async__http_8h_source.html">protocols/shared/backend_async_http.h</a>&quot;</code><br />
+<code>#include &lt;errno.h&gt;</code><br />
 <code>#include &lt;limits.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;sys/stat.h&gt;</code><br />
@@ -140,6 +142,8 @@ Functions</h2></td></tr>
 <tr class="separator:a0c8f254af43a5a78d45b81a9d43e7592"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a01c0ac1009fa773bcfc064a35025a4cc" id="r_a01c0ac1009fa773bcfc064a35025a4cc"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="move_8c.html#a01c0ac1009fa773bcfc064a35025a4cc">webdav_move_dispatch</a> (const <a class="el" href="structwebdav__move__req__t.html">webdav_move_req_t</a> *req, int is_dir)</td></tr>
 <tr class="separator:a01c0ac1009fa773bcfc064a35025a4cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeb45b842e4c229564576b6220b6562d6" id="r_aeb45b842e4c229564576b6220b6562d6"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="move_8c.html#aeb45b842e4c229564576b6220b6562d6">webdav_move_async_render</a> (ngx_http_request_t *r, void *ctx, int op_errno)</td></tr>
+<tr class="separator:aeb45b842e4c229564576b6220b6562d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8ad1b026c2fcbb78c66d9fa2dae7bb7b" id="r_a8ad1b026c2fcbb78c66d9fa2dae7bb7b"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="move_8c.html#a8ad1b026c2fcbb78c66d9fa2dae7bb7b">webdav_handle_move</a> (ngx_http_request_t *r)</td></tr>
 <tr class="separator:a8ad1b026c2fcbb78c66d9fa2dae7bb7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -160,11 +164,59 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00461">461</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00496">496</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__conditionals_8c_source.html#l00418">brix_http_overwrite_forbidden()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00106">brix_webdav_backend_instance()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="move_8c_source.html#l00047">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::dst_path</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00059">ngx_http_brix_webdav_resolve_path()</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00046">webdav_move_req_t::r</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::src_path</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="lock__check_8c_source.html#l00267">webdav_check_locks_tree()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="move_8c_source.html#l00422">webdav_move_dispatch()</a>, <a class="el" href="move_8c_source.html#l00062">webdav_move_probe()</a>, and <a class="el" href="move_8c_source.html#l00321">webdav_move_resolve_dest()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf__types_8h_source.html#l00155">ngx_http_brix_shared_conf_t::backend_async</a>, <a class="el" href="backend__async__http_8c_source.html#l00030">brix_baq_http_try()</a>, <a class="el" href="backend__async__queue_8h_source.html#l00048">BRIX_BAQ_RENAME</a>, <a class="el" href="http__conditionals_8c_source.html#l00418">brix_http_overwrite_forbidden()</a>, <a class="el" href="protocols_2webdav_2config_8c_source.html#l00106">brix_webdav_backend_instance()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00054">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_path</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00059">ngx_http_brix_webdav_resolve_path()</a>, <a class="el" href="move_8c_source.html#l00053">webdav_move_req_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::r</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::src_path</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="lock__check_8c_source.html#l00267">webdav_check_locks_tree()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="move_8c_source.html#l00454">webdav_move_async_render()</a>, <a class="el" href="move_8c_source.html#l00424">webdav_move_dispatch()</a>, <a class="el" href="move_8c_source.html#l00064">webdav_move_probe()</a>, and <a class="el" href="move_8c_source.html#l00323">webdav_move_resolve_dest()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00251">webdav_dispatch_move()</a>.</p>
+
+</div>
+</div>
+<a id="aeb45b842e4c229564576b6220b6562d6" name="aeb45b842e4c229564576b6220b6562d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeb45b842e4c229564576b6220b6562d6">&#9670;&#160;</a></span>webdav_move_async_render()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void webdav_move_async_render </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>op_errno</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00454">454</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="webdav_8h_source.html#l00342">webdav_send_no_body()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00496">webdav_handle_move()</a>.</p>
 
 </div>
 </div>
@@ -192,11 +244,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00210">210</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00212">212</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="move_8c_source.html#l00025">webdav_move_collection_task_t::http_status</a>, <a class="el" href="move_8c_source.html#l00017">webdav_move_collection_task_t::r</a>, <a class="el" href="move_8c_source.html#l00021">webdav_move_collection_task_t::src_path</a>, <a class="el" href="move_8c_source.html#l00026">webdav_move_collection_task_t::sys_errno</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>.</p>
+<p class="reference">References <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="move_8c_source.html#l00027">webdav_move_collection_task_t::http_status</a>, <a class="el" href="move_8c_source.html#l00019">webdav_move_collection_task_t::r</a>, <a class="el" href="move_8c_source.html#l00023">webdav_move_collection_task_t::src_path</a>, <a class="el" href="move_8c_source.html#l00028">webdav_move_collection_task_t::sys_errno</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00237">webdav_move_collection_post_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00239">webdav_move_collection_post_task()</a>.</p>
 
 </div>
 </div>
@@ -224,11 +276,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00237">237</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00239">239</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="client_8c_source.html#l00136">brix_imp_enabled()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="move_8c_source.html#l00047">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00023">webdav_move_collection_task_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00022">webdav_move_collection_task_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00025">webdav_move_collection_task_t::http_status</a>, <a class="el" href="move_8c_source.html#l00018">webdav_move_collection_task_t::log</a>, <a class="el" href="move_8c_source.html#l00024">webdav_move_collection_task_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00017">webdav_move_collection_task_t::r</a>, <a class="el" href="move_8c_source.html#l00046">webdav_move_req_t::r</a>, <a class="el" href="move_8c_source.html#l00020">webdav_move_collection_task_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="move_8c_source.html#l00019">webdav_move_collection_task_t::sd</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00021">webdav_move_collection_task_t::src_path</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::src_path</a>, <a class="el" href="move_8c_source.html#l00026">webdav_move_collection_task_t::sys_errno</a>, <a class="el" href="shared__conf_8h_source.html#l00266">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf_8h_source.html#l00265">ngx_http_brix_shared_conf_t::thread_pool_name</a>, <a class="el" href="move_8c_source.html#l00210">webdav_move_collection_done()</a>, and <a class="el" href="move_8c_source.html#l00184">webdav_move_collection_thread()</a>.</p>
+<p class="reference">References <a class="el" href="client_8c_source.html#l00137">brix_imp_enabled()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00025">webdav_move_collection_task_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00054">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00024">webdav_move_collection_task_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00027">webdav_move_collection_task_t::http_status</a>, <a class="el" href="move_8c_source.html#l00020">webdav_move_collection_task_t::log</a>, <a class="el" href="move_8c_source.html#l00026">webdav_move_collection_task_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00053">webdav_move_req_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00019">webdav_move_collection_task_t::r</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::r</a>, <a class="el" href="move_8c_source.html#l00022">webdav_move_collection_task_t::root_canon</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="move_8c_source.html#l00021">webdav_move_collection_task_t::sd</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00023">webdav_move_collection_task_t::src_path</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::src_path</a>, <a class="el" href="move_8c_source.html#l00028">webdav_move_collection_task_t::sys_errno</a>, <a class="el" href="shared__conf__types_8h_source.html#l00267">ngx_http_brix_shared_conf_t::thread_pool</a>, <a class="el" href="shared__conf__types_8h_source.html#l00266">ngx_http_brix_shared_conf_t::thread_pool_name</a>, <a class="el" href="move_8c_source.html#l00212">webdav_move_collection_done()</a>, and <a class="el" href="move_8c_source.html#l00186">webdav_move_collection_thread()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00422">webdav_move_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00424">webdav_move_dispatch()</a>.</p>
 
 </div>
 </div>
@@ -266,11 +318,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00184">184</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00186">186</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="move_8c_source.html#l00047">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00023">webdav_move_collection_task_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00022">webdav_move_collection_task_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00025">webdav_move_collection_task_t::http_status</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="move_8c_source.html#l00024">webdav_move_collection_task_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00017">webdav_move_collection_task_t::r</a>, <a class="el" href="move_8c_source.html#l00046">webdav_move_req_t::r</a>, <a class="el" href="move_8c_source.html#l00019">webdav_move_collection_task_t::sd</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00021">webdav_move_collection_task_t::src_path</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::src_path</a>, <a class="el" href="move_8c_source.html#l00026">webdav_move_collection_task_t::sys_errno</a>, and <a class="el" href="move_8c_source.html#l00130">webdav_move_execute_cred()</a>.</p>
+<p class="reference">References <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00025">webdav_move_collection_task_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00054">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00024">webdav_move_collection_task_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_path</a>, <a class="el" href="move_8c_source.html#l00027">webdav_move_collection_task_t::http_status</a>, <a class="el" href="pki__check_8h_source.html#l00035">log</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="move_8c_source.html#l00026">webdav_move_collection_task_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00053">webdav_move_req_t::overwrite</a>, <a class="el" href="move_8c_source.html#l00019">webdav_move_collection_task_t::r</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::r</a>, <a class="el" href="move_8c_source.html#l00021">webdav_move_collection_task_t::sd</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00023">webdav_move_collection_task_t::src_path</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::src_path</a>, <a class="el" href="move_8c_source.html#l00028">webdav_move_collection_task_t::sys_errno</a>, and <a class="el" href="move_8c_source.html#l00132">webdav_move_execute_cred()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00237">webdav_move_collection_post_task()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00239">webdav_move_collection_post_task()</a>.</p>
 
 </div>
 </div>
@@ -308,11 +360,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00422">422</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00424">424</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="move_8c_source.html#l00237">webdav_move_collection_post_task()</a>, and <a class="el" href="move_8c_source.html#l00376">webdav_move_run_sync()</a>.</p>
+<p class="reference">References <a class="el" href="move_8c_source.html#l00239">webdav_move_collection_post_task()</a>, and <a class="el" href="move_8c_source.html#l00378">webdav_move_run_sync()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00461">webdav_handle_move()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00496">webdav_handle_move()</a>.</p>
 
 </div>
 </div>
@@ -350,11 +402,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00130">130</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00132">132</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="move_8c_source.html#l00047">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::dst_path</a>, <a class="el" href="webdav_8h_source.html#l00146">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00031">brix_path_result_t::is_confined</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::overwrite</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="move_8c_source.html#l00046">webdav_move_req_t::r</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00028">brix_path_result_t::resolved</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::src_path</a>, <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00073">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00669">webdav_vfs_bind_deleg()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf__types_8h_source.html#l00202">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__rename_8c_source.html#l00069">brix_vfs_rename()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::conf</a>, <a class="el" href="move_8c_source.html#l00054">webdav_move_req_t::dst_existed</a>, <a class="el" href="move_8c_source.html#l00052">webdav_move_req_t::dst_path</a>, <a class="el" href="webdav_8h_source.html#l00146">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00031">brix_path_result_t::is_confined</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="move_8c_source.html#l00053">webdav_move_req_t::overwrite</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::r</a>, <a class="el" href="fs_2path_2unified_8h_source.html#l00028">brix_path_result_t::resolved</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00109">brix_vfs_ctx_t::sd</a>, <a class="el" href="move_8c_source.html#l00050">webdav_move_req_t::sd</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::src_path</a>, <a class="el" href="shared__conf__types_8h_source.html#l00059">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf__types_8h_source.html#l00068">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00502">webdav_vfs_bind_deleg()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00184">webdav_move_collection_thread()</a>, and <a class="el" href="move_8c_source.html#l00376">webdav_move_run_sync()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00186">webdav_move_collection_thread()</a>, and <a class="el" href="move_8c_source.html#l00378">webdav_move_run_sync()</a>.</p>
 
 </div>
 </div>
@@ -398,11 +450,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00062">62</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00064">64</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00201">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::dev</a>, <a class="el" href="webdav_8h_source.html#l00146">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00080">brix_vfs_stat_t::mode</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="shared__conf_8h_source.html#l00064">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf_8h_source.html#l00073">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00669">webdav_vfs_bind_deleg()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf__types_8h_source.html#l00202">ngx_http_brix_shared_conf_t::allow_write</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00034">BRIX_PROTO_WEBDAV</a>, <a class="el" href="vfs__cred_8c_source.html#l00062">brix_vfs_ctx_bind_backend_cred()</a>, <a class="el" href="vfs__open__adopt_8c_source.html#l00037">brix_vfs_ctx_init()</a>, <a class="el" href="vfs__stat_8c_source.html#l00225">brix_vfs_probe()</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00020">ngx_http_brix_webdav_loc_conf_t::cache_root_canon</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00082">brix_vfs_stat_t::dev</a>, <a class="el" href="webdav_8h_source.html#l00146">ngx_http_brix_webdav_req_ctx_t::identity</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00081">brix_vfs_stat_t::ino</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00080">brix_vfs_stat_t::mode</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00010">ngx_http_brix_webdav_module</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00099">brix_vfs_ctx_t::pool</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="shared__conf__types_8h_source.html#l00059">ngx_http_brix_shared_conf_t::storage_credential_dir</a>, <a class="el" href="shared__conf__types_8h_source.html#l00068">ngx_http_brix_shared_conf_t::storage_credential_fallback</a>, and <a class="el" href="protocols_2webdav_2access_8c_source.html#l00502">webdav_vfs_bind_deleg()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00461">webdav_handle_move()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00496">webdav_handle_move()</a>.</p>
 
 </div>
 </div>
@@ -452,11 +504,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00321">321</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00323">323</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="shared__conf_8h_source.html#l00252">ngx_http_brix_shared_conf_t::cache_store_endpoint</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="shared__conf_8h_source.html#l00049">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00057">webdav_destination_extract_path()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00028">webdav_resolve_destination_path()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00070">webdav_tpc_find_header</a>, and <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00044">webdav_urldecode()</a>.</p>
+<p class="reference">References <a class="el" href="shared__conf__types_8h_source.html#l00253">ngx_http_brix_shared_conf_t::cache_store_endpoint</a>, <a class="el" href="webdav__loc__conf_8h_source.html#l00015">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="shared__conf__types_8h_source.html#l00044">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00057">webdav_destination_extract_path()</a>, <a class="el" href="webdav_8h_source.html#l00079">WEBDAV_MAX_PATH</a>, <a class="el" href="src_2protocols_2webdav_2path_8c_source.html#l00028">webdav_resolve_destination_path()</a>, <a class="el" href="webdav__tpc_8h_source.html#l00070">webdav_tpc_find_header</a>, and <a class="el" href="protocols_2webdav_2util_2uri_8c_source.html#l00044">webdav_urldecode()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00461">webdav_handle_move()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00496">webdav_handle_move()</a>.</p>
 
 </div>
 </div>
@@ -484,11 +536,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00376">376</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="move_8c_source.html#l00378">378</a> of file <a class="el" href="move_8c_source.html">move.c</a>.</p>
 
-<p class="reference">References <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="move_8c_source.html#l00046">webdav_move_req_t::r</a>, <a class="el" href="move_8c_source.html#l00049">webdav_move_req_t::src_path</a>, <a class="el" href="move_8c_source.html#l00130">webdav_move_execute_cred()</a>, and <a class="el" href="webdav_8h_source.html#l00342">webdav_send_no_body()</a>.</p>
+<p class="reference">References <a class="el" href="log_8c_source.html#l00011">brix_log_safe_path()</a>, <a class="el" href="move_8c_source.html#l00048">webdav_move_req_t::r</a>, <a class="el" href="move_8c_source.html#l00051">webdav_move_req_t::src_path</a>, <a class="el" href="move_8c_source.html#l00132">webdav_move_execute_cred()</a>, and <a class="el" href="webdav_8h_source.html#l00342">webdav_send_no_body()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00422">webdav_move_dispatch()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="move_8c_source.html#l00424">webdav_move_dispatch()</a>.</p>
 
 </div>
 </div>

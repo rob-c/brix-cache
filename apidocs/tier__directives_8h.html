@@ -102,7 +102,7 @@ $(document).ready(function(){initNavTree('tier__directives_8h.html',''); initRes
 <div id="dynsection-0-summary" class="dynsummary" style="display:block;">
 </div>
 <div id="dynsection-0-content" class="dyncontent" style="display:none;">
-<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="tier__directives_8h__incl.svg" width="100%" height="525"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="tier__directives_8h__incl.svg" width="100%" height="580"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div><div class="textblock"><div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-1-trigger" src="closed.png" alt="+"/> This graph shows which files directly or indirectly include this file:</div>
@@ -118,6 +118,8 @@ $(document).ready(function(){initNavTree('tier__directives_8h.html',''); initRes
 Macros</h2></td></tr>
 <tr class="memitem:a7cb9bbb567d1c3df0335db9ec4d989e3" id="r_a7cb9bbb567d1c3df0335db9ec4d989e3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tier__directives_8h.html#a7cb9bbb567d1c3df0335db9ec4d989e3">BRIX_TIER_DIRECTIVES</a>(pfx,  conf_t,  ctx,  conf_off)</td></tr>
 <tr class="separator:a7cb9bbb567d1c3df0335db9ec4d989e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a33385c1b8c79356c8fea06e4afd53e1a" id="r_a33385c1b8c79356c8fea06e4afd53e1a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="tier__directives_8h.html#a33385c1b8c79356c8fea06e4afd53e1a">BRIX_BACKEND_ASYNC_DIRECTIVES</a>(pfx,  conf_t,  ctx,  conf_off)</td></tr>
+<tr class="separator:a33385c1b8c79356c8fea06e4afd53e1a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -127,6 +129,66 @@ Variables</h2></td></tr>
 <tr class="separator:abfbfadc2e19a64d03f3f510dfa5c8ab5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a33385c1b8c79356c8fea06e4afd53e1a" name="a33385c1b8c79356c8fea06e4afd53e1a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a33385c1b8c79356c8fea06e4afd53e1a">&#9670;&#160;</a></span>BRIX_BACKEND_ASYNC_DIRECTIVES</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define BRIX_BACKEND_ASYNC_DIRECTIVES</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">pfx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">conf_t, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">ctx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">conf_off&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    { ngx_string(pfx <span class="stringliteral">&quot;backend_async&quot;</span>),   <span class="comment">/* on|off: queue namespace mutations */</span> \</div>
+<div class="line">      (ctx) | NGX_CONF_FLAG,                                                  \</div>
+<div class="line">      ngx_conf_set_flag_slot,                                                 \</div>
+<div class="line">      conf_off,                                                               \</div>
+<div class="line">      offsetof(conf_t, common.backend_async),                                 \</div>
+<div class="line">      NULL },                                                                 \</div>
+<div class="line">    { ngx_string(pfx <span class="stringliteral">&quot;backend_async_batch&quot;</span>), <span class="comment">/* N: flush once this many queued */</span> \</div>
+<div class="line">      (ctx) | NGX_CONF_TAKE1,                                                 \</div>
+<div class="line">      ngx_conf_set_num_slot,                                                  \</div>
+<div class="line">      conf_off,                                                               \</div>
+<div class="line">      offsetof(conf_t, common.backend_async_batch),                           \</div>
+<div class="line">      NULL },                                                                 \</div>
+<div class="line">    { ngx_string(pfx <span class="stringliteral">&quot;backend_async_wait&quot;</span>),  <span class="comment">/* time backstop (e.g. 200ms) */</span> \</div>
+<div class="line">      (ctx) | NGX_CONF_TAKE1,                                                 \</div>
+<div class="line">      ngx_conf_set_msec_slot,                                                 \</div>
+<div class="line">      conf_off,                                                               \</div>
+<div class="line">      offsetof(conf_t, common.backend_async_wait),                            \</div>
+<div class="line">      NULL }</div>
+</div><!-- fragment -->
+<p class="definition">Definition at line <a class="el" href="tier__directives_8h_source.html#l00118">118</a> of file <a class="el" href="tier__directives_8h_source.html">tier_directives.h</a>.</p>
+
+</div>
+</div>
 <a id="a7cb9bbb567d1c3df0335db9ec4d989e3" name="a7cb9bbb567d1c3df0335db9ec4d989e3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a7cb9bbb567d1c3df0335db9ec4d989e3">&#9670;&#160;</a></span>BRIX_TIER_DIRECTIVES</h2>
 

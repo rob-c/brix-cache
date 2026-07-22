@@ -26,6 +26,7 @@ var vfs__ops_8h =
     [ "brix_vfs_pread_full", "vfs__ops_8h.html#ab26c0fa6906b9935264036afad808a1c", null ],
     [ "brix_vfs_pwrite_full", "vfs__ops_8h.html#a7a2cf95903f946ccf99e36b079dd9518", null ],
     [ "brix_vfs_removexattr", "vfs__ops_8h.html#a91a429402abdc25ea6b35b7329603ecf", null ],
+    [ "brix_vfs_rmdir_path", "vfs__ops_8h.html#aa05405757c97e252c3adc9a5cb134ae9", null ],
     [ "brix_vfs_setxattr", "vfs__ops_8h.html#a200b7bdb746adc6a1c1c64581301afe5", null ],
     [ "brix_vfs_staged_abort", "vfs__ops_8h.html#a098dae1de15edba4c4c392f89cfa5483", null ],
     [ "brix_vfs_staged_commit", "vfs__ops_8h.html#a9d4efadcfb4057125a9ac2ef86e07228", null ],

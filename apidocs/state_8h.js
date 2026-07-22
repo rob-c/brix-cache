@@ -10,6 +10,7 @@ var state_8h =
       [ "XRD_ST_UPSTREAM", "state_8h.html#a99dd53c16fcead63c871cc12c95544f5aa94072ffd3cb69179fd200de63be752f", null ],
       [ "XRD_ST_PROXY", "state_8h.html#a99dd53c16fcead63c871cc12c95544f5a631e2b369298ebb8950eaca62f410add", null ],
       [ "XRD_ST_WAITING_CMS", "state_8h.html#a99dd53c16fcead63c871cc12c95544f5a07df8340011ccad4f2c06d2f4df8f822", null ],
-      [ "XRD_ST_WAITING_FRM", "state_8h.html#a99dd53c16fcead63c871cc12c95544f5aef509a76156537bdfcb8a703c0642ba8", null ]
+      [ "XRD_ST_WAITING_FRM", "state_8h.html#a99dd53c16fcead63c871cc12c95544f5aef509a76156537bdfcb8a703c0642ba8", null ],
+      [ "XRD_ST_WAITING_BAQ", "state_8h.html#a99dd53c16fcead63c871cc12c95544f5a63a32cfc8913bf44028df882ae9e8f0b", null ]
     ] ]
 ];

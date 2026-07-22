@@ -13,6 +13,8 @@ var dir_ce3aa255f0d0e2a628573fc3b1b82afb =
     [ "xroot", "dir_a7d0cfbe76eb97e8935d939f20b6a0aa.html", "dir_a7d0cfbe76eb97e8935d939f20b6a0aa" ],
     [ "cred_mint.c", "cred__mint_8c.html", "cred__mint_8c" ],
     [ "cred_mint.h", "cred__mint_8h.html", "cred__mint_8h" ],
+    [ "cred_mint_cert.c", "cred__mint__cert_8c.html", "cred__mint__cert_8c" ],
+    [ "cred_mint_internal.h", "cred__mint__internal_8h.html", "cred__mint__internal_8h" ],
     [ "csi_tagstore.c", "csi__tagstore_8c.html", "csi__tagstore_8c" ],
     [ "csi_tagstore.h", "csi__tagstore_8h.html", "csi__tagstore_8h" ],
     [ "csi_unittest.c", "csi__unittest_8c.html", "csi__unittest_8c" ],
@@ -20,10 +22,14 @@ var dir_ce3aa255f0d0e2a628573fc3b1b82afb =
     [ "meta_advisory.c", "meta__advisory_8c.html", "meta__advisory_8c" ],
     [ "meta_advisory.h", "meta__advisory_8h.html", "meta__advisory_8h" ],
     [ "sd.h", "sd_8h.html", "sd_8h" ],
+    [ "sd_cred_forward.h", "sd__cred__forward_8h.html", "sd__cred__forward_8h" ],
     [ "sd_fs_id.c", "sd__fs__id_8c.html", "sd__fs__id_8c" ],
     [ "sd_registry.c", "sd__registry_8c.html", "sd__registry_8c" ],
+    [ "sd_registry.h", "sd__registry_8h.html", "sd__registry_8h" ],
     [ "site_n2n.c", "site__n2n_8c.html", "site__n2n_8c" ],
     [ "site_n2n.h", "site__n2n_8h.html", "site__n2n_8h" ],
     [ "ucred.c", "ucred_8c.html", "ucred_8c" ],
-    [ "ucred.h", "ucred_8h.html", "ucred_8h" ]
+    [ "ucred.h", "ucred_8h.html", "ucred_8h" ],
+    [ "ucred_internal.h", "ucred__internal_8h.html", "ucred__internal_8h" ],
+    [ "ucred_parse.c", "ucred__parse_8c.html", "ucred__parse_8c" ]
 ];

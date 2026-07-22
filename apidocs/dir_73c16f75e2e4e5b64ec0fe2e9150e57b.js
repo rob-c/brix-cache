@@ -2,6 +2,8 @@ var dir_73c16f75e2e4e5b64ec0fe2e9150e57b =
 [
     [ "health_check.c", "health__check_8c.html", "health__check_8c" ],
     [ "health_check.h", "health__check_8h.html", "health__check_8h" ],
+    [ "health_check_internal.h", "health__check__internal_8h.html", "health__check__internal_8h" ],
+    [ "health_check_probe.c", "health__check__probe_8c.html", "health__check__probe_8c" ],
     [ "loc_cache.c", "loc__cache_8c.html", "loc__cache_8c" ],
     [ "loc_cache.h", "loc__cache_8h.html", "loc__cache_8h" ],
     [ "pending.c", "pending_8c.html", "pending_8c" ],
@@ -12,5 +14,6 @@ var dir_73c16f75e2e4e5b64ec0fe2e9150e57b =
     [ "registry.h", "net_2manager_2registry_8h.html", "net_2manager_2registry_8h" ],
     [ "registry_health.c", "registry__health_8c.html", "registry__health_8c" ],
     [ "registry_internal.h", "registry__internal_8h.html", "registry__internal_8h" ],
-    [ "registry_select.c", "registry__select_8c.html", "registry__select_8c" ]
+    [ "registry_select.c", "registry__select_8c.html", "registry__select_8c" ],
+    [ "registry_select_blacklist.c", "registry__select__blacklist_8c.html", "registry__select__blacklist_8c" ]
 ];

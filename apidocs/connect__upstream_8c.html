@@ -118,8 +118,6 @@ Data Structures</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:af331c302f5f3abf8e704db9ca4f15dab" id="r_af331c302f5f3abf8e704db9ca4f15dab"><td class="memItemLeft" align="right" valign="top">static size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="connect__upstream_8c.html#af331c302f5f3abf8e704db9ca4f15dab">brix_proxy_build_bootstrap</a> (u_char *buf, const char *username)</td></tr>
-<tr class="separator:af331c302f5f3abf8e704db9ca4f15dab"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac0cad0be438040678bd12187e4bab605" id="r_ac0cad0be438040678bd12187e4bab605"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="connect__upstream_8c.html#ac0cad0be438040678bd12187e4bab605">pc_pick_healthy_upstream</a> (<a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, ngx_uint_t *idx_out)</td></tr>
 <tr class="separator:ac0cad0be438040678bd12187e4bab605"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a30d34b117c19843efcd59a295d588d80" id="r_a30d34b117c19843efcd59a295d588d80"><td class="memItemLeft" align="right" valign="top">static ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="connect__upstream_8c.html#a30d34b117c19843efcd59a295d588d80">pc_select_endpoint</a> (brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, <a class="el" href="structpc__target__t.html">pc_target_t</a> *tgt)</td></tr>
@@ -137,54 +135,10 @@ Functions</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:a25b191a9349fd038fbe06efc11b5f593" id="r_a25b191a9349fd038fbe06efc11b5f593"><td class="memItemLeft" align="right" valign="top">static ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="connect__upstream_8c.html#a25b191a9349fd038fbe06efc11b5f593">proxy_upstream_seq</a></td></tr>
-<tr class="separator:a25b191a9349fd038fbe06efc11b5f593"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a659e20368f6849317f3e9b34fe30614d" id="r_a659e20368f6849317f3e9b34fe30614d"><td class="memItemLeft" align="right" valign="top">static ngx_atomic_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="connect__upstream_8c.html#a659e20368f6849317f3e9b34fe30614d">proxy_upstream_rr</a></td></tr>
 <tr class="separator:a659e20368f6849317f3e9b34fe30614d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="af331c302f5f3abf8e704db9ca4f15dab" name="af331c302f5f3abf8e704db9ca4f15dab"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af331c302f5f3abf8e704db9ca4f15dab">&#9670;&#160;</a></span>brix_proxy_build_bootstrap()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">static size_t brix_proxy_build_bootstrap </td>
-          <td>(</td>
-          <td class="paramtype">u_char *&#160;</td>
-          <td class="paramname"><em>buf</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>username</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00049">49</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
-
-<p class="reference">References <a class="el" href="wire__codec_8h_source.html#l00323">xrdw_login_req_t::capver</a>, <a class="el" href="wire__codec_8h_source.html#l00339">xrdw_protocol_req_t::clientpv</a>, <a class="el" href="opcodes_8h_source.html#l00052">kXR_login</a>, <a class="el" href="opcodes_8h_source.html#l00051">kXR_protocol</a>, <a class="el" href="opcodes_8h_source.html#l00009">kXR_PROTOCOLVERSION</a>, <a class="el" href="flags_8h_source.html#l00117">kXR_ver005</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="wire__codec_8h_source.html#l00319">xrdw_login_req_t::pid</a>, <a class="el" href="connect__upstream_8c_source.html#l00034">proxy_upstream_seq</a>, <a class="el" href="wire__core__requests_8h_source.html#l00250">ClientProtocolRequest::requestid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00286">ClientLoginRequest::requestid</a>, <a class="el" href="opcodes_8h_source.html#l00015">ROOTD_PQ</a>, <a class="el" href="wire__core__requests_8h_source.html#l00249">ClientProtocolRequest::streamid</a>, <a class="el" href="wire__core__requests_8h_source.html#l00285">ClientLoginRequest::streamid</a>, <a class="el" href="wire__codec_8h_source.html#l00320">xrdw_login_req_t::username</a>, <a class="el" href="wire__codec__session_8c_source.html#l00015">xrdw_login_req_pack()</a>, and <a class="el" href="wire__codec__session_8c_source.html#l00069">xrdw_protocol_req_pack()</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00430">pc_open_socket()</a>.</p>
-
-</div>
-</div>
 <a id="ae7dca262f54e49401609ee0c4927c08e" name="ae7dca262f54e49401609ee0c4927c08e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ae7dca262f54e49401609ee0c4927c08e">&#9670;&#160;</a></span>brix_proxy_connect()</h2>
 
@@ -217,9 +171,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00605">605</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00446">446</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00170">BRIX_PROXY_AUTH_GSI</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, <a class="el" href="connect__upstream_8c_source.html#l00208">pc_target_t::fd</a>, <a class="el" href="connect__upstream_8c_source.html#l00204">pc_target_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00544">pc_arm_events()</a>, <a class="el" href="connect__upstream_8c_source.html#l00430">pc_open_socket()</a>, <a class="el" href="connect__upstream_8c_source.html#l00352">pc_resolve_target()</a>, <a class="el" href="connect__upstream_8c_source.html#l00278">pc_select_endpoint()</a>, and <a class="el" href="connect__upstream_8c_source.html#l00205">pc_target_t::port</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00170">BRIX_PROXY_AUTH_GSI</a>, <a class="el" href="gsi__upstream__login_8c_source.html#l00182">brix_proxy_gsi_connect_async()</a>, <a class="el" href="connect__upstream_8c_source.html#l00049">pc_target_t::fd</a>, <a class="el" href="connect__upstream_8c_source.html#l00045">pc_target_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00385">pc_arm_events()</a>, <a class="el" href="connect__upstream_8c_source.html#l00271">pc_open_socket()</a>, <a class="el" href="connect__upstream_8c_source.html#l00193">pc_resolve_target()</a>, <a class="el" href="connect__upstream_8c_source.html#l00119">pc_select_endpoint()</a>, and <a class="el" href="connect__upstream_8c_source.html#l00046">pc_target_t::port</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="connect__lifecycle_8c_source.html#l00046">brix_proxy_abort()</a>, <a class="el" href="forward__relay__dispatch_8c_source.html#l00199">brix_proxy_dispatch()</a>, and <a class="el" href="forward__relay__response_8c_source.html#l00039">brix_proxy_relay_try_redirect()</a>.</p>
 
@@ -277,11 +231,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00544">544</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00385">385</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="connect__upstream_8c_source.html#l00206">pc_target_t::addr</a>, <a class="el" href="connect__upstream_8c_source.html#l00207">pc_target_t::addrlen</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00332">brix_proxy_cleanup()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="connect__upstream_8c_source.html#l00208">pc_target_t::fd</a>, <a class="el" href="connect__upstream_8c_source.html#l00204">pc_target_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00205">pc_target_t::port</a>, <a class="el" href="proxy__internal_8h_source.html#l00075">XRD_PX_BOOTSTRAP</a>, and <a class="el" href="proxy__internal_8h_source.html#l00081">XRD_PX_BS_HANDSHAKE</a>.</p>
+<p class="reference">References <a class="el" href="connect__upstream_8c_source.html#l00047">pc_target_t::addr</a>, <a class="el" href="connect__upstream_8c_source.html#l00048">pc_target_t::addrlen</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00332">brix_proxy_cleanup()</a>, <a class="el" href="connect__lifecycle_8c_source.html#l00020">brix_proxy_flush()</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="connect__upstream_8c_source.html#l00049">pc_target_t::fd</a>, <a class="el" href="connect__upstream_8c_source.html#l00045">pc_target_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00046">pc_target_t::port</a>, <a class="el" href="proxy__internal_8h_source.html#l00075">XRD_PX_BOOTSTRAP</a>, and <a class="el" href="proxy__internal_8h_source.html#l00081">XRD_PX_BS_HANDSHAKE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00605">brix_proxy_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00446">brix_proxy_connect()</a>.</p>
 
 </div>
 </div>
@@ -331,11 +285,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00430">430</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00271">271</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="connect__upstream_8c_source.html#l00049">brix_proxy_build_bootstrap()</a>, <a class="el" href="events__read_8c_source.html#l00423">brix_proxy_read_handler()</a>, <a class="el" href="events__write_8c_source.html#l00244">brix_proxy_write_handler()</a>, <a class="el" href="connect__upstream_8c_source.html#l00392">pc_resolve_login_user()</a>, <a class="el" href="opcodes_8h_source.html#l00025">XRD_HANDSHAKE_LEN</a>, and <a class="el" href="proxy__internal_8h_source.html#l00073">XRD_PX_CONNECTING</a>.</p>
+<p class="reference">References <a class="el" href="connect__upstream__bootstrap_8c_source.html#l00034">brix_proxy_build_bootstrap()</a>, <a class="el" href="events__read_8c_source.html#l00423">brix_proxy_read_handler()</a>, <a class="el" href="events__write_8c_source.html#l00244">brix_proxy_write_handler()</a>, <a class="el" href="connect__upstream_8c_source.html#l00233">pc_resolve_login_user()</a>, <a class="el" href="opcodes_8h_source.html#l00025">XRD_HANDSHAKE_LEN</a>, and <a class="el" href="proxy__internal_8h_source.html#l00073">XRD_PX_CONNECTING</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00605">brix_proxy_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00446">brix_proxy_connect()</a>.</p>
 
 </div>
 </div>
@@ -373,11 +327,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00225">225</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00066">66</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="proxy__internal_8h_source.html#l00050">BRIX_PROXY_FAIL_TIMEOUT</a>, <a class="el" href="proxy__internal_8h_source.html#l00105">brix_proxy_up_status_t::checked</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00033">proxy_up_status</a>, and <a class="el" href="connect__upstream_8c_source.html#l00037">proxy_upstream_rr</a>.</p>
+<p class="reference">References <a class="el" href="proxy__internal_8h_source.html#l00050">BRIX_PROXY_FAIL_TIMEOUT</a>, <a class="el" href="proxy__internal_8h_source.html#l00105">brix_proxy_up_status_t::checked</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00033">proxy_up_status</a>, and <a class="el" href="connect__upstream_8c_source.html#l00033">proxy_upstream_rr</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00278">pc_select_endpoint()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00119">pc_select_endpoint()</a>.</p>
 
 </div>
 </div>
@@ -421,11 +375,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00392">392</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00233">233</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
 <p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00173">BRIX_PROXY_LOGIN_FIXED</a>, and <a class="el" href="conf__structs_8h_source.html#l00172">BRIX_PROXY_LOGIN_PASSTHROUGH</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00430">pc_open_socket()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00271">pc_open_socket()</a>.</p>
 
 </div>
 </div>
@@ -469,11 +423,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00352">352</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00193">193</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="connect__upstream_8c_source.html#l00206">pc_target_t::addr</a>, <a class="el" href="connect__upstream_8c_source.html#l00207">pc_target_t::addrlen</a>, <a class="el" href="af__policy_8h_source.html#l00022">BRIX_AF_AUTO</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="netconnect_8h_source.html#l00067">brix_resolve_connect_socket()</a>, <a class="el" href="netconnect_8h_source.html#l00047">BRIX_RESOLVE_ERR_DNS</a>, <a class="el" href="netconnect_8h_source.html#l00046">BRIX_RESOLVE_OK</a>, <a class="el" href="connect__upstream_8c_source.html#l00208">pc_target_t::fd</a>, <a class="el" href="connect__upstream_8c_source.html#l00204">pc_target_t::host</a>, and <a class="el" href="connect__upstream_8c_source.html#l00205">pc_target_t::port</a>.</p>
+<p class="reference">References <a class="el" href="connect__upstream_8c_source.html#l00047">pc_target_t::addr</a>, <a class="el" href="connect__upstream_8c_source.html#l00048">pc_target_t::addrlen</a>, <a class="el" href="af__policy_8h_source.html#l00022">BRIX_AF_AUTO</a>, <a class="el" href="metrics__macros_8h_source.html#l00170">BRIX_PROXY_METRIC_INC</a>, <a class="el" href="metrics__macros_8h_source.html#l00189">BRIX_PROXY_UP_INC</a>, <a class="el" href="netconnect_8h_source.html#l00067">brix_resolve_connect_socket()</a>, <a class="el" href="netconnect_8h_source.html#l00047">BRIX_RESOLVE_ERR_DNS</a>, <a class="el" href="netconnect_8h_source.html#l00046">BRIX_RESOLVE_OK</a>, <a class="el" href="connect__upstream_8c_source.html#l00049">pc_target_t::fd</a>, <a class="el" href="connect__upstream_8c_source.html#l00045">pc_target_t::host</a>, and <a class="el" href="connect__upstream_8c_source.html#l00046">pc_target_t::port</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00605">brix_proxy_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00446">brix_proxy_connect()</a>.</p>
 
 </div>
 </div>
@@ -523,11 +477,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00278">278</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00119">119</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
-<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00170">BRIX_PROXY_AUTH_GSI</a>, <a class="el" href="forward__relay__dispatch_8c_source.html#l00150">brix_proxy_dispatch_pending()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00270">brix_proxy_pool_get()</a>, <a class="el" href="event__sched_8c_source.html#l00006">brix_schedule_read_resume()</a>, <a class="el" href="types_2config_8h_source.html#l00092">brix_proxy_upstream_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00204">pc_target_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00225">pc_pick_healthy_upstream()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="connect__upstream_8c_source.html#l00205">pc_target_t::port</a>, <a class="el" href="proxy__internal_8h_source.html#l00076">XRD_PX_IDLE</a>, and <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>.</p>
+<p class="reference">References <a class="el" href="conf__structs_8h_source.html#l00170">BRIX_PROXY_AUTH_GSI</a>, <a class="el" href="forward__relay__dispatch_8c_source.html#l00150">brix_proxy_dispatch_pending()</a>, <a class="el" href="src_2net_2proxy_2pool_8c_source.html#l00270">brix_proxy_pool_get()</a>, <a class="el" href="event__sched_8c_source.html#l00006">brix_schedule_read_resume()</a>, <a class="el" href="types_2config_8h_source.html#l00092">brix_proxy_upstream_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00045">pc_target_t::host</a>, <a class="el" href="connect__upstream_8c_source.html#l00066">pc_pick_healthy_upstream()</a>, <a class="el" href="brix__fault__proxy_8c_source.html#l00131">port</a>, <a class="el" href="connect__upstream_8c_source.html#l00046">pc_target_t::port</a>, <a class="el" href="proxy__internal_8h_source.html#l00076">XRD_PX_IDLE</a>, and <a class="el" href="state_8h_source.html#l00026">XRD_ST_REQ_HEADER</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00605">brix_proxy_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00446">brix_proxy_connect()</a>.</p>
 
 </div>
 </div>
@@ -552,35 +506,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00037">37</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00033">33</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00225">pc_pick_healthy_upstream()</a>.</p>
-
-</div>
-</div>
-<a id="a25b191a9349fd038fbe06efc11b5f593" name="a25b191a9349fd038fbe06efc11b5f593"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a25b191a9349fd038fbe06efc11b5f593">&#9670;&#160;</a></span>proxy_upstream_seq</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">ngx_atomic_t proxy_upstream_seq</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="connect__upstream_8c_source.html#l00034">34</a> of file <a class="el" href="connect__upstream_8c_source.html">connect_upstream.c</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00049">brix_proxy_build_bootstrap()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="connect__upstream_8c_source.html#l00066">pc_pick_healthy_upstream()</a>.</p>
 
 </div>
 </div>
