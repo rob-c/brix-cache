@@ -8,7 +8,7 @@ import Cta from '../../components/Cta.astro';
 
 <Layout
   title="For physicists"
-  description="Your tools already work with BriX-Cache — xrdcp, xrdfs, rucio, aws-cli, or a browser. The same file is reachable three ways, and transfers finish byte-exact even on a bad network."
+  description="Your tools already work with BriX-Cache — xrdcp, xrdfs, rucio, aws-cli, or a browser. The same file is reachable three ways, with byte-exact recovery across network interruptions."
   accent="dav"
 >
   <Band first={true}>
@@ -46,15 +46,15 @@ import Cta from '../../components/Cta.astro';
           with <span class="mono">aws s3</span>, get the same bytes.
         </p>
       </Benefit>
-      <Benefit marker="resilient" title="Transfers finish on a bad network">
+      <Benefit marker="resilient" title="Transfers recover from network interruptions">
         <p>
-          Flaky WiFi or a lossy transatlantic link doesn't mean a failed copy. The native client
+          Unreliable Wi-Fi or a lossy transatlantic link does not have to mean a failed copy. The native client
           rides out packet loss — reconnect, re-auth, reopen, and <em>resume at the byte offset</em>
           — over <span class="mono">root://</span> and over HTTP via <span class="mono">Range</span>
           requests.
         </p>
       </Benefit>
-      <Benefit marker="honest" title="Never fast at the cost of correct">
+      <Benefit marker="honest" title="Correctness stays the priority">
         <p>
           A transfer that completes is always byte-exact. Under heavy loss it slows down — it does
           not corrupt or silently truncate. Integrity is never traded for speed.

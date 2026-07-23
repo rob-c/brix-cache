@@ -34,7 +34,7 @@ const tiers = [
   },
   {
     tag: 'DISCOVERY', accent: 'dav', run: 'nginx', title: 'CMS Redirector',
-    body: 'The cluster manager, deliberately started late. When it finally appears, the data server registers retroactively over the cmsd protocol and the redirector begins locate-redirecting clients to it.',
+    body: 'The cluster manager starts after the data server. As soon as it is available, the data server registers over the cmsd protocol and the redirector begins routing clients to it.',
     port: ':11166 · nginx_cluster_redir.conf',
   },
   {
@@ -67,10 +67,10 @@ const stresses = [
   <!-- HERO -->
   <Band first={true}>
     <span class="eyebrow">Interoperability</span>
-    <h1 class="display io-head">Three protocols. One file. Proven under chaos.</h1>
+    <h1 class="display io-head">Three protocols. One file. Proven together.</h1>
     <p class="lede io-lede">
       BriX-Cache speaks native XRootD, WebDAV, and S3 against the same bytes — and the test suite
-      has a scenario built to prove those planes actually cooperate under stress. It is called the
+      includes a scenario that proves those planes cooperate under stress. It is called the
       <strong>Chaos Mesh</strong>: five nodes, three wire protocols, and one transfer that is made to
       cross every seam at once. Pick a stress below and watch it route through the mesh.
     </p>
@@ -79,7 +79,7 @@ const stresses = [
   <!-- THE GRAPH -->
   <Band variant="sunken" id="mesh">
     <span class="eyebrow">The Chaos Mesh · live topology</span>
-    <h2 class="display band-head">The interoperability torture test, drawn to scale.</h2>
+    <h2 class="display band-head">The complete interoperability test, drawn to scale.</h2>
     <p class="lede muted io-intro">
       This is the exact fleet <span class="mono">tests/test_chaos_mesh.py</span> brings up — storage
       behind cache behind gateway, a reference XRootD origin alongside, and a CMS discovery pair that
@@ -119,7 +119,7 @@ const stresses = [
   <!-- THE STRESSES -->
   <Band variant="ink" id="stresses">
     <span class="eyebrow">The five stresses</span>
-    <h2 class="display band-head">What the mesh is trying to break.</h2>
+    <h2 class="display band-head">What the mesh verifies.</h2>
     <p class="lede muted io-intro">
       Each stress is a single end-to-end flow chosen to drive a different family of subsystems —
       and each is pinned by its own test, run against BriX-Cache and cross-checked against stock
@@ -141,8 +141,8 @@ const stresses = [
 
   <!-- FAULT INJECTION → its own page -->
   <Band variant="sunken" id="faults">
-    <span class="eyebrow">The chaos is real</span>
-    <h2 class="display band-head io-fault-head">And the wire itself is made hostile.</h2>
+    <span class="eyebrow">Network fault injection</span>
+    <h2 class="display band-head io-fault-head">The wire is tested too.</h2>
     <p class="lede muted io-intro">
       The mesh does not just reload servers — it degrades the network between them.
       <span class="mono">brix-fault-proxy</span> splices a root-free relay into the wire and injects
@@ -151,7 +151,7 @@ const stresses = [
       transfer fails loudly.
     </p>
     <p class="io-doclink mono">
-      <a href={url('/network-testing')}>Network testing — treat every network as adversarial →</a>
+      <a href={url('/network-testing')}>Network testing — reproduce difficult conditions on demand →</a>
     </p>
   </Band>
 
@@ -160,7 +160,7 @@ const stresses = [
       Read the topology in the tree: <a href={TEST_URL}>tests/test_chaos_mesh.py ↗</a>
     </p>
     <Cta
-      title="Interoperability you can watch fail — and recover."
+      title="Interoperability you can inspect and reproduce."
       note="The mesh and every stress above are in the repository. Bring your own reference XRootD and cross-check it yourself."
     />
   </Band>

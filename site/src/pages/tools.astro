@@ -73,7 +73,7 @@ const families = [
   <!-- WHY THESE TOOLS -->
   <Band variant="sunken" id="why">
     <span class="eyebrow">Why these tools</span>
-    <h2 class="display band-head">Four reasons to stop installing the big stack.</h2>
+    <h2 class="display band-head">Four reasons to choose the BriX suite.</h2>
     <div class="grid grid-2">
       <Benefit marker="drop-in" title="The names you already type">
         <p>
@@ -104,20 +104,20 @@ const families = [
           One tool, one syntax, the whole storage estate.
         </p>
       </Benefit>
-      <Benefit marker="resilient" title="Hardened for bad networks">
+      <Benefit marker="resilient" title="Resilient across changing networks">
         <p>
           Every tool rides the same machinery as <a href={url('/brixmount')}>brixMount</a>:
           reconnect, full re-authentication, handle reopen, and offset resume inside one
-          <span class="mono">--max-stall</span> patience budget. A flaky link costs you time,
-          not a transfer.
+          <span class="mono">--max-stall</span> patience budget. Interrupted links can recover
+          without restarting the transfer.
         </p>
       </Benefit>
     </div>
   </Band>
 
-  <!-- THE HONEST COMPARISON -->
+  <!-- THE COMPARISON -->
   <Band id="compare">
-    <span class="eyebrow">The honest comparison</span>
+    <span class="eyebrow">Compare the options</span>
     <h2 class="display band-head">Same job, side by side.</h2>
     <div class="cmp-wrap">
       <table class="cmp">
@@ -140,17 +140,17 @@ const families = [
             <td><span class="mono">root://</span>, <span class="mono">roots://</span>, <span class="mono">davs://</span>, <span class="mono">http(s)://</span>, <span class="mono">s3://</span> in the same tools — no plugins</td>
           </tr>
           <tr>
-            <th scope="row">Tool sprawl</th>
+            <th scope="row">Tool layout</th>
             <td>One binary per micro-tool</td>
             <td>Multi-call personalities: five checksum tools and three monitors are symlinks onto two binaries</td>
           </tr>
           <tr>
-            <th scope="row">When it breaks</th>
+            <th scope="row">Diagnostics</th>
             <td>kXR error strings</td>
             <td><span class="mono">xrddiag</span> check / doctor turn failures into causes and fixes</td>
           </tr>
           <tr>
-            <th scope="row">Bad networks</th>
+            <th scope="row">Interrupted networks</th>
             <td>Client-level retries</td>
             <td>Reconnect, re-auth, handle reopen, offset resume — one <span class="mono">--max-stall</span> budget, in every tool</td>
           </tr>
@@ -189,7 +189,7 @@ const families = [
         <p class="mono tl-fam-tools">cvmfs · cvmfs-rw · eos · root · roots</p>
         <p class="muted">
           The umbrella FUSE front-end: any CVMFS repository or XRootD/EOS endpoint as a local
-          directory, torture-tested for bad networks.
+          directory, tested for reliable recovery across network faults.
           <a href={url('/brixmount')}>Read the brixMount page →</a>
         </p>
       </article>
@@ -220,7 +220,7 @@ const families = [
     <h2 class="display band-head">Three moments where it pays off.</h2>
     <div class="grid grid-3">
       <article class="panel vg">
-        <h3 class="vg-t">The transfer that died at 90%</h3>
+        <h3 class="vg-t">The transfer that resumes at 90%</h3>
         <p class="muted">A 60 GB pull over a link that drops every few minutes.</p>
         <div class="term" aria-label="Resumed transfer example">
           <div><span class="p">$</span> xrdcp root://dc//run7/big.root .</div>
@@ -228,7 +228,7 @@ const families = [
           <div><span class="c"># reconnect → re-auth → reopen → resume at 54.1 GB</span></div>
           <div>[60.0/60.0 GB] <span class="k">done</span> — checksum ok</div>
         </div>
-        <p class="vg-take">A flaky link costs you time, not the transfer.</p>
+        <p class="vg-take">Reconnect and continue from the last confirmed offset.</p>
       </article>
       <article class="panel vg">
         <h3 class="vg-t">The error that explains itself</h3>
@@ -243,13 +243,13 @@ const families = [
       </article>
       <article class="panel vg">
         <h3 class="vg-t">Prove the bytes, end to end</h3>
-        <p class="muted">After a migration, “it copied” is not the same as “it’s intact”.</p>
+        <p class="muted">After a migration, confirm that the copied data matches the source.</p>
         <div class="term" aria-label="End-to-end verify example">
           <div><span class="p">$</span> xrdstorascan verify root://dc//run7/big.root</div>
           <div>local  crc32c <span class="k">8f3d21aa</span></div>
           <div>server crc32c <span class="k">8f3d21aa</span>  MATCH</div>
         </div>
-        <p class="vg-take">Trust is a command, not a hope.</p>
+        <p class="vg-take">One command confirms the bytes, end to end.</p>
       </article>
     </div>
   </Band>
@@ -282,7 +282,7 @@ const families = [
       <article class="panel tl-fam">
         <span class="chip chip--ftp mono">gsiftp://</span>
         <p class="mono tl-fam-tools">globus-url-copy · gfal2 · fts</p>
-        <p class="muted">A GridFTP door with GSI auth, MODE E parallel streams, and third-party copy — for ARC-CE fronts and legacy fabric that can't migrate yet.</p>
+        <p class="muted">A GridFTP door with GSI auth, MODE E parallel streams, and third-party copy for ARC-CE fronts and sites moving on their own schedule.</p>
       </article>
     </div>
   </Band>

@@ -4,10 +4,7 @@ import Band from '../components/Band.astro';
 import Cta from '../components/Cta.astro';
 import { REPO_URL, url } from '../lib/site';
 
-// The counter-FUD page. Format: the objection as a skeptic actually says it,
-// then the answer, then the receipt. Same rule as /evidence — every answer
-// cites a file, document, or test in the repository. Where the honest answer
-// is "not yet" or "never, by design", we say so; that section is the point.
+// Common evaluation questions, each answered with supporting evidence.
 
 interface Faq {
   q: string;
@@ -17,7 +14,7 @@ interface Faq {
 
 const architecture: Faq[] = [
   {
-    q: '“root:// is a single long-lived TCP connection multiplexing many requests. nginx serves short web requests. This can’t work.”',
+    q: 'How does nginx handle long-lived, multiplexed root:// connections?',
     a: `Two different nginx engines. BriX-Cache's native <span class="mono">root://</span> does not
         live in the HTTP engine at all — it lives in the <span class="mono">stream&nbsp;{}</span> engine,
         the part of nginx built to own raw, long-lived TCP and TLS connections. The module owns the
@@ -30,7 +27,7 @@ const architecture: Faq[] = [
     cite: 'src/protocols/root/ · docs/05-operations/operation-status.md',
   },
   {
-    q: '“An event loop stalls the moment it touches a disk. Storage servers need threads.”',
+    q: 'How does the event loop work with blocking disk I/O?',
     a: `They need threads for <em>I/O</em>, not for <em>connections</em> — and nginx has them. Every
         data-plane disk syscall (read, pgread, readv, write, pgwrite, WebDAV PUT) is dispatched to an
         nginx thread pool while the worker keeps framing protocol and servicing other sockets; one
@@ -41,7 +38,7 @@ const architecture: Faq[] = [
     cite: 'thread_pool brix_pool threads=8 · docs/03-configuration/rpm-package-build.md',
   },
   {
-    q: '“It won’t do the hard parts of the protocol — pgread/pgwrite, request signing, TLS upgrade.”',
+    q: 'Which advanced XRootD protocol features are implemented?',
     a: `<span class="mono">kXR_pgread</span> / <span class="mono">kXR_pgwrite</span> carry a CRC32c per
         4K page, aligned to absolute file offset, so corruption is caught per page — including the
         pgwrite checksum-error accept-then-correct retransmit exchange. <span class="mono">kXR_sigver</span>
@@ -51,7 +48,7 @@ const architecture: Faq[] = [
     cite: 'src/protocols/root/read/pgread.c · src/fs/backend/csi_verify.c',
   },
   {
-    q: '“nginx workers are separate processes. Grid storage needs shared state — you can’t coordinate open files, caches, and TPC across workers.”',
+    q: 'How is shared storage state coordinated across nginx workers?',
     a: `Shared memory, done carefully. Cross-worker state — open-file registries, cache locks, the
         native-TPC rendezvous, rate limiters — lives in SHM tables created through one audited
         allocation helper. That helper exists because we hit and <em>published</em> the failure modes:
@@ -61,7 +58,7 @@ const architecture: Faq[] = [
     cite: 'docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md · tests/test_shm_mutex_recovery.py',
   },
   {
-    q: '“A plugin bolted onto a web server will sprawl. Storage code will leak into every corner.”',
+    q: 'How does the architecture keep storage code modular?',
     a: `The opposite is mechanically enforced. All bytes, namespace, and metadata funnel through one
         VFS; raw data-plane syscalls are permitted in exactly one directory,
         <span class="mono">src/fs/backend/</span>, behind a capability-typed driver vtable. A CI guard
@@ -72,7 +69,7 @@ const architecture: Faq[] = [
     cite: 'tools/ci/check_vfs_seam.py · docs/11-architecture/overview.md',
   },
   {
-    q: '“So it’s really just XRootD-flavoured HTTP underneath.”',
+    q: 'Is root:// translated into HTTP?',
     a: `No — it is one binary with two native fronts. The <span class="mono">stream&nbsp;{}</span>
         block speaks the binary <span class="mono">kXR</span> protocol; the
         <span class="mono">http&nbsp;{}</span> block speaks WebDAV, S3, and metrics. Both converge on
@@ -83,7 +80,7 @@ const architecture: Faq[] = [
     cite: 'src/protocols/{root,webdav,s3}/ · docs/11-architecture/overview.md',
   },
   {
-    q: '“You can’t upgrade a live connection to TLS mid-stream inside nginx. The 5.x in-protocol TLS handshake is impossible here.”',
+    q: 'How does in-protocol TLS upgrade work?',
     a: `It's implemented, and it's load-bearing. The client negotiates TLS in-protocol exactly as the
         5.x spec describes — <span class="mono">roots://</span> from byte one, or cleartext handshake
         with an in-protocol upgrade — and the codebase holds a strict invariant on the other side of
@@ -93,9 +90,9 @@ const architecture: Faq[] = [
     cite: 'src/protocols/root/handshake/ · src/net/upstream/tls.c',
   },
   {
-    q: '“Config reloads on a web server mean dropped transfers. Storage can’t tolerate that.”',
-    a: `Reloads are nginx's party trick, not its weakness: <span class="mono">nginx -t</span> refuses a
-        broken config before a single byte is accepted (missing certs, JWKS, CRLs all fail closed), and
+    q: 'What happens to active transfers during a configuration reload?',
+    a: `Reloads use nginx's established graceful-worker model: <span class="mono">nginx -t</span>
+        catches an invalid config before traffic is accepted (missing certs, JWKS, and CRLs all fail closed), and
         a reload starts new workers while old workers drain — in-flight transfers finish on the old
         generation. One honest caveat, tracked in the gap register: the WebDAV lock table does not yet
         persist across a reload. A fast-teardown-during-reload bug that could lose one in-flight
@@ -103,7 +100,7 @@ const architecture: Faq[] = [
     cite: 'docs/09-developer-guide/reload-semantics.md · docs/10-reference/feature-gap-analysis.md',
   },
   {
-    q: '“sendfile is an HTTP trick. You can’t zero-copy a framed binary protocol.”',
+    q: 'When can root:// reads use sendfile?',
     a: `You can when the framing allows it, and only then. Cleartext <span class="mono">root://</span>
         reads take a file-backed <span class="mono">sendfile</span> fast path when the handle is a plain
         file; driver-backed and multi-block handles take the buffered positional-read path. We know the
@@ -113,7 +110,7 @@ const architecture: Faq[] = [
     cite: 'docs/09-developer-guide/history-storage-and-caching.md §sendfile',
   },
   {
-    q: '“A standalone server is a toy. Real deployments are federated — redirectors, clusters, upstream proxies.”',
+    q: 'How does BriX-Cache fit into federated deployments?',
     a: `The scale-out plumbing is its own subsystem: <span class="mono">src/net/</span> carries the
         cluster/redirect integration, upstream and proxy connectors, and rate limiting. And because
         redirect topologies are an attack surface, they were threat-modeled early: redirect poisoning
@@ -123,7 +120,7 @@ const architecture: Faq[] = [
     cite: 'src/net/ · docs/07-security/threat-model.md',
   },
   {
-    q: '“Proxied writes are where data quietly dies. A buffering middlebox will ack bytes it never stored.”',
+    q: 'How are proxied writes verified before success is returned?',
     a: `Every backend write path converges on one verified-writer object — open, write, commit, abort —
         for POSIX, block-store, and S3 alike. Commit folds two checks: a self-computed rolling checksum
         accumulated as bytes arrive (order-independent, so out-of-order parallel streams converge;
@@ -136,7 +133,7 @@ const architecture: Faq[] = [
 
 const performance: Faq[] = [
   {
-    q: '“A reimplementation is always slower than the original.”',
+    q: 'How does performance compare with the reference implementation?',
     a: `Measured, not assumed — and measured <em>fairly</em>. With both servers configured identically
         (TLS off on both data paths, same sink), a single-stream 1&nbsp;GiB <span class="mono">root://</span>
         read runs at ~297&nbsp;MiB/s through BriX-Cache vs ~242&nbsp;MiB/s through the reference daemon
@@ -146,7 +143,7 @@ const performance: Faq[] = [
     cite: 'docs/05-operations/performance-benchmarks.md · README.md',
   },
   {
-    q: '“One thread per connection has served XRootD for 20 years. Why would an event loop matter?”',
+    q: 'What does the event-driven model add at higher concurrency?',
     a: `Because concurrency is where thread-per-connection bends. Aggregate throughput of a
         thread-per-connection design degrades as connection counts climb; an event-driven worker model
         holds its throughput as connections scale, which is the entire reason nginx displaced
@@ -157,7 +154,7 @@ const performance: Faq[] = [
     cite: 'docs/05-operations/performance-benchmarks.md · TESTING.md §xrd.sched',
   },
   {
-    q: '“Fine on a LAN. Real WANs lose packets, and then it will fall apart.”',
+    q: 'How do transfers behave on lossy WAN links?',
     a: `This is where the gap is widest — in the other direction. Under 1% packet loss, BriX-Cache
         <span class="mono">root://</span> transfers stay byte-exact at ~107&nbsp;MB/s (~660 tuned);
         the reference client-server pair drops to ~2.2&nbsp;MB/s with 15–45&nbsp;second stalls on the
@@ -168,7 +165,7 @@ const performance: Faq[] = [
     cite: 'README.md §Performance & resilience · tests/c/fault_proxy.c',
   },
   {
-    q: '“Vendor benchmarks are marketing. Why should anyone trust these?”',
+    q: 'Can I review and reproduce the benchmark results?',
     a: `Because the methodology corrections are published alongside the numbers. The harness originally
         compared nginx-with-TLS against xrootd-with-cleartext — flattering to nobody — and the fix,
         the fair re-run, and the conclusion are written down, including the part that <em>doesn't</em>
@@ -179,18 +176,18 @@ const performance: Faq[] = [
     cite: 'docs/09-developer-guide/history-testing-and-incidents.md §fair-comparison',
   },
   {
-    q: '“For caching, squid and varnish are solved problems. Why reinvent them?”',
-    a: `We didn't argue with them — we benchmarked against them. The in-tree cache matrix runs the same
+    q: 'How does the built-in cache compare with Squid and Varnish?',
+    a: `The in-tree cache matrix provides a direct comparison. It runs the same
         workload across module-reverse, module-proxy, stock nginx, squid, and varnish, and the
         baselines are checked into the repo (squid cold TTFB p50 7.09&nbsp;ms, varnish 4.35&nbsp;ms;
         zero errors, zero corrupt objects, zero stampedes for all). What the built-in cache adds is
-        what a generic HTTP cache cannot: it sits behind the same grid auth, coalesces a client storm
+        storage-specific capabilities: it sits behind the same grid auth, coalesces a client storm
         into a single upstream fill, serves stale-if-error when every origin is down, and verifies
         content hashes on arrival.`,
     cite: 'baseline_squid.json · baseline_varnish.json · tests/cmdscripts/cvmfs_matrix.py',
   },
   {
-    q: '“XCache already exists for this.”',
+    q: 'How does the built-in cache differ from XCache?',
     a: `XCache is a separate deployment wearing the thread-per-connection architecture; here the cache
         is a backend inside the same event-driven server, behind the same auth and the same VFS seam.
         Its failure modes have been hunted the hard way: a stuck origin is detected in seconds
@@ -201,7 +198,7 @@ const performance: Faq[] = [
     cite: 'src/fs/backend/cache/ · tests/test_cache_lock_reclaim.py',
   },
   {
-    q: '“What about metadata-heavy workloads? Small-file physics analysis is all stat and open.”',
+    q: 'What should I expect from metadata-heavy workloads?',
     a: `Two honest numbers. On the POSIX backend, metadata operations are native syscalls behind the
         confined resolver — nginx adds no daemon round-trip. The block-store backend pays a measured
         ~2.5–2.8× metadata penalty against POSIX (a documented write-ahead-log commit floor, ~54% of
@@ -211,7 +208,7 @@ const performance: Faq[] = [
     cite: 'docs/09-developer-guide/history-storage-and-caching.md · client/lib/observability/metabench/',
   },
   {
-    q: '“POSIX access through FUSE is always slow and fragile.”',
+    q: 'How is POSIX access through FUSE tested for resilience?',
     a: `Fragile is testable, so we test it: the <span class="mono">xrootdfs</span> FUSE resilience
         suites assert byte-exact reads with <em>zero</em> EIO surfaced to applications while a fault
         proxy resets and stalls the underlying link mid-transfer. For workloads that can't take FUSE at
@@ -224,7 +221,7 @@ const performance: Faq[] = [
 
 const security: Faq[] = [
   {
-    q: '“A web server can’t do grid security. GSI, VOMS, proxy certificates — that’s decades of specialist code.”',
+    q: 'Which grid security mechanisms are supported?',
     a: `All implemented, natively: GSI/X.509 with RFC&nbsp;3820 proxy-chain validation and VOMS
         attribute extraction, <span class="mono">kXR_sigver</span> signing, WLCG JWT bearer tokens
         (JWKS, <span class="mono">storage.read/write/create/modify</span> scope enforcement), sss
@@ -235,7 +232,7 @@ const security: Faq[] = [
     cite: 'src/auth/ · docs/05-operations/operation-status.md',
   },
   {
-    q: '“A reimplementation will quietly accept things the battle-tested original rejects.”',
+    q: 'How does authentication behavior compare with the reference server?',
     a: `We tested exactly that, differentially, against XRootD v6.1.0 — and found the arrow points the
         other way. Stock XRootD does not enforce Globus signing-policy files, does not enforce
         RFC&nbsp;3820 limited-proxy monotonicity, only warns on expired CRLs, and XrdHttp's TLS layer
@@ -246,7 +243,7 @@ const security: Faq[] = [
     cite: 'docs/09-developer-guide/history-testing-and-incidents.md §WLCG-x509 differential',
   },
   {
-    q: '“One crafted path and it serves /etc/passwd.”',
+    q: 'How are paths confined to the configured export?',
     a: `Path confinement is a kernel-enforced invariant, not a habit. Every wire path goes through one
         canonical resolver before any open, and confined opens use
         <span class="mono">openat2(RESOLVE_BENEATH&nbsp;|&nbsp;RESOLVE_NO_MAGICLINKS)</span> — a hostile
@@ -257,7 +254,7 @@ const security: Faq[] = [
     cite: 'src/fs/path/beneath.c · tools/ci/check_vfs_seam.py',
   },
   {
-    q: '“Multi-user means it runs as root, and an nginx module running as root is a nightmare.”',
+    q: 'How does per-user access work without privileged workers?',
     a: `Workers are standard unprivileged nginx workers. Per-request UNIX identity is applied through a
         small privileged broker process holding only <span class="mono">CAP_SETUID/SETGID</span>,
         double-forked away from worker memory — and that boundary has been through nine adversarial
@@ -268,19 +265,19 @@ const security: Faq[] = [
     cite: 'docs/09-developer-guide/multi-user-backend-credentials-through-the-vfs.md',
   },
   {
-    q: '“New codebase, new CVEs. It just hasn’t been attacked yet.”',
-    a: `It is attacked continuously — by its own repo. The suite carries hostile-actor lanes
+    q: 'How is the security boundary tested?',
+    a: `The repository continuously exercises its security boundaries. The suite carries hostile-actor lanes
         (evil_actor v1–v3, hostile token forge, evil paths, oversized frames, fd-exhaustion), a
         fault-injection proxy, and a multi-user authorization conformance matrix whose invariant —
         cached verdict must equal cold verdict — caught six rounds of real cross-user leaks before any
         release. Vulnerabilities found are fixed <em>and published</em>: an auth fail-open on the proxy
-        branch, an sss deny-path flaw, missing macaroon expiry, a non-CSPRNG session id. A project that
-        documents its own holes is a safer bet than one that hasn't looked.`,
+        branch, an sss deny-path flaw, missing macaroon expiry, and a non-CSPRNG session id. The
+        published record makes those findings and their fixes available for review.`,
     cite: 'docs/09-developer-guide/history-security-and-credentials.md · tests/tokenforge.py',
   },
   {
-    q: '“Everyone claims WLCG token support. It’s always half-baked.”',
-    a: `Ours came with an adversary attached. Token conformance is 103 wire and unit tests plus a
+    q: 'How complete is WLCG token support?',
+    a: `Token conformance includes 103 wire and unit tests plus a
         hostile token forge that manufactures malformed, expired, mis-scoped, and mis-signed tokens
         against every endpoint. The forge earned its keep: it found that WebDAV GET, HEAD, and PROPFIND
         skipped scope checking — a token with no read scope could read — and that hole was closed
@@ -290,7 +287,7 @@ const security: Faq[] = [
     cite: 'tests/tokenforge.py · docs/09-developer-guide/history-security-and-credentials.md',
   },
   {
-    q: '“Third-party copy is where credential handling goes to die.”',
+    q: 'How are credentials protected during third-party copy?',
     a: `It's where ours is most explicit. HTTP-TPC supports OIDC with RFC&nbsp;8693 token-exchange
         delegation; GSI delegation uses the standard GridSite two-step capture; and a delegated proxy
         is accepted only after full cryptographic chain verification against the CA — never by matching
@@ -299,18 +296,18 @@ const security: Faq[] = [
     cite: 'src/protocols/webdav/tpc_cred.c · docs/09-developer-guide/history-security-and-credentials.md',
   },
   {
-    q: '“One hostile user and the whole box is unusable. Web servers don’t understand grid DoS.”',
+    q: 'How does the service contain abusive or runaway clients?',
     a: `This one understands identities, not just IPs. Rate limiting keys on the authenticated
         principal — stock XrdThrottle keys on username only — with per-principal concurrency caps from
         the threat-model work. Below that: oversized frames are refused at the framing layer, fd
         exhaustion is tested (hundreds of data-channel opens without a leak), and the tree ships
-        fail2ban filters and jails for the ban-hammer layer. And when the suite found the rate limiter
+        fail2ban filters and jails for automatic blocking. When the suite found the rate limiter
         itself misbehaving — a drain bug serving ~7&nbsp;req/s where 30 were configured — that became a
         documented fix, not a footnote.`,
     cite: 'src/net/ratelimit/ · deploy/fail2ban/',
   },
   {
-    q: '“Attackers will poison your logs and blow up your metrics cardinality mid-incident.”',
+    q: 'How are logs and metrics kept safe under untrusted input?',
     a: `Both are closed by construction. Every string that arrives over the wire is sanitized before it
         reaches a log line, so terminal-escape and log-injection games die at the boundary. Metric
         labels are fixed and low-cardinality — no per-path, per-user, or per-token label explosion —
@@ -319,7 +316,7 @@ const security: Faq[] = [
     cite: 'src/observability/accesslog/access_log.c · brix_sanitize_log_string',
   },
   {
-    q: '“A directory full of delegated user credentials is a honeypot.”',
+    q: 'How is the delegated credential store protected?',
     a: `It's treated as one. The per-identity credential store is reached through a single checkpoint
         function; mapping keys are strictly validated (a crafted identity of
         <span class="mono">..</span> attempting path traversal is rejected — found by audit, fixed,
@@ -373,13 +370,13 @@ const scoreboard = [
   {
     t: 'A GridFTP door, in 2026',
     brix: 'A maintained gsiftp gateway — GSI control and data channels, MODE E parallel streams, TPC — for sites still bridging ARC-CE and legacy fabric.',
-    stock: 'The Globus toolkit is end-of-life; the ecosystem answer is “migrate.” Sites that can\'t yet are on their own.',
+    stock: 'The Globus toolkit is end-of-life, so sites that still need GridFTP must maintain a transition path.',
   },
 ];
 
 const honesty: Faq[] = [
   {
-    q: '“Is this a drop-in replacement for an XRootD deployment?”',
+    q: 'Is this a drop-in replacement for every XRootD deployment?',
     a: `No, and the docs say so in bold: this is <em>“a high-quality reimplementation of XRootD
         protocols, not a drop-in replacement for the XRootD platform.”</em> The deliberate
         non-goal is the tape/MSS ecosystem: migrate/purge orchestration is delegated to the systems
@@ -388,19 +385,19 @@ const honesty: Faq[] = [
     cite: 'docs/09-developer-guide/history-protocols-and-feature-phases.md §13 · feature-gap-analysis.md',
   },
   {
-    q: '“What is currently broken or missing? Be specific.”',
+    q: 'Which capabilities are still in progress?',
     a: `The open list is public. Native <span class="mono">root://</span> TPC against a stock
         push-model (<span class="mono">ofs.tpc</span>) source does not work — nginx↔nginx and
         pull-capable sources (EOS, dCache) do. A hybrid mesh relaying a stock XrdHttp backend has an
         un-root-caused intermittent crash under load. The <span class="mono">root://</span> write path
         to an S3 backend is still being wired. The gap register lists tape dispatch, outbound
         TLS-upgrade auth, multi-hop GSI delegation, lock persistence across reload, and third-party
-        macaroon interop as known gaps with priorities. Skeptics are invited to check the register
-        against our claims — that's what it's for.`,
+        macaroon interop as known gaps with priorities. You can use the register to match your
+        requirements against the current implementation.`,
     cite: 'docs/10-reference/feature-gap-analysis.md · docs/09-developer-guide/history-*.md',
   },
   {
-    q: '“Those benchmark numbers will not reproduce on my hardware.”',
+    q: 'How should I interpret the published benchmark numbers?',
     a: `Correct — and we say so. Published figures are same-host, loopback, tmpfs-backed relative
         comparisons; their value is the <em>ratio</em> between the two servers under identical
         conditions, not the absolute MB/s. The benchmark harness and its configurations ship in the
@@ -409,7 +406,7 @@ const honesty: Faq[] = [
     cite: 'docs/05-operations/performance-benchmarks.md',
   },
   {
-    q: '“Where does it deliberately diverge from stock behavior?”',
+    q: 'Where does behavior intentionally differ from the reference server?',
     a: `Two known divergences, both documented as decisions. On a <span class="mono">kXR_pgwrite</span>
         checksum error, stock retransmits the corrupt page; BriX-Cache hard-fails the request — a
         stricter posture, a behavior divergence, and not a data-loss risk either way. And parallel
@@ -420,7 +417,7 @@ const honesty: Faq[] = [
     cite: 'tests/clauses/_decisions.py · docs/10-reference/feature-gap-analysis.md',
   },
   {
-    q: '“I heard there’s an unsolved crash. Doesn’t that sink the stability story?”',
+    q: 'What is the status of the open hybrid-mesh crash?',
     a: `There is one, it's public, and it's bounded: a hybrid two-tier mesh in which BriX-Cache proxies
         a <em>stock XrdHttp</em> backend intermittently heap-corrupts under load (~8/100 requests
         surface as 502) and is not yet root-caused. Standalone operation, nginx↔nginx meshes, and every
@@ -432,7 +429,7 @@ const honesty: Faq[] = [
 
 const viability: Faq[] = [
   {
-    q: '“Nobody tests a young storage server properly.”',
+    q: 'What test coverage supports the implementation?',
     a: `The suite collects 9,764 tests, ~1,770 of which exist specifically to hurt the software —
         fault injection, chaos, resilience, hostile actors. Conformance is differential: whole test
         modules run unchanged against BriX-Cache <em>and</em> the reference daemon, over native
@@ -443,7 +440,7 @@ const viability: Faq[] = [
     cite: 'TESTING.md · tests/official_interop_lib.py',
   },
   {
-    q: '“A big C codebase in someone else’s server will rot.”',
+    q: 'How is the C codebase kept maintainable?',
     a: `The architecture is guarded, not aspirational: seven concept buckets, one storage seam, five
         standing CI guards (VFS seam, config coverage, helper reimplementation, file-size ratchet,
         storage-driver conformance), and a tree that compiles <span class="mono">-Werror</span> with
@@ -452,7 +449,7 @@ const viability: Faq[] = [
     cite: 'tools/ci/check_*.sh · docs/09-developer-guide/coding-standards.md',
   },
   {
-    q: '“Can I actually deploy it, or is this a laptop project?”',
+    q: 'Which deployment and packaging options are available?',
     a: `RPMs build in containers for AlmaLinux 8, 9, 10, and 11, producing module, client, tools, and
         test packages with an optional SELinux subpackage; runtime dependencies resolve from the
         standard WLCG repos. systemd units ship in the tree, config reloads drain gracefully, and a
@@ -461,7 +458,7 @@ const viability: Faq[] = [
     cite: 'packaging/rpm/ · k8s-tests/',
   },
   {
-    q: '“Why not just contribute all this to XRootD?”',
+    q: 'Why is this an independent implementation?',
     a: `Because the premise is architectural, not a patch. Event-driven workers, one mechanically
         enforced storage seam, and protocol front-ends as peers over a shared VFS are not features you
         can merge into a thread-per-connection framework — they are the frame. The two implementations
@@ -471,7 +468,7 @@ const viability: Faq[] = [
     cite: 'docs/11-architecture/overview.md',
   },
   {
-    q: '“FTS, Rucio, and gfal were built against the reference stack. They’ll break against this.”',
+    q: 'How are FTS, Rucio, gfal, and other existing clients tested?',
     a: `That contract is tested with the real libraries, not simulated: a dedicated conformance batch
         (~1,160 tests) drives genuine libXrdCl and gfal bindings out-of-process against both servers
         and diffs every response. It surfaced nine wire-level divergences — down to the stat
@@ -482,7 +479,7 @@ const viability: Faq[] = [
     cite: 'tests/_xrdcl_proxy.py · tests/official_interop_lib.py',
   },
   {
-    q: '“AGPL is toxic. Our lab can’t touch it.”',
+    q: 'What does the AGPL license mean for a lab deployment?',
     a: `Running BriX-Cache — at any scale, for any site — carries no obligation at all. The AGPL
         clause people fear applies only if you <em>modify</em> the software and serve users with the
         modified version: then you share the modifications. For publicly funded scientific
@@ -492,7 +489,7 @@ const viability: Faq[] = [
     cite: 'LICENSE · AGPL-3.0-only',
   },
   {
-    q: '“Bus factor of one. When the author gets bored, you’re stranded.”',
+    q: 'How can a new maintainer take over the project?',
     a: `The mitigation is that nothing load-bearing lives in anyone's head. The invariants are enforced
         by CI guards, not by memory; the development history, every postmortem, the coding standard,
         and an operation-to-file map for the entire protocol surface are in the tree; and the
@@ -502,7 +499,7 @@ const viability: Faq[] = [
     cite: 'docs/09-developer-guide/development-history.md · docs/09-developer-guide/coding-standards.md',
   },
   {
-    q: '“Enterprise EL deployments will fight it — SELinux, package deps, VOMS library soup.”',
+    q: 'How does installation work on Enterprise Linux?',
     a: `That fight happened in packaging, so it doesn't happen on your node. RPMs build reproducibly in
         containers for AlmaLinux 8 through 11; an optional SELinux subpackage labels
         <span class="mono">/etc/grid-security</span> correctly instead of telling you to
@@ -515,34 +512,33 @@ const viability: Faq[] = [
 ];
 
 const sections = [
-  { id: 'architecture', eyebrow: 'Objection class 1', title: '“nginx is a web server.”', items: architecture, variant: 'plain' },
-  { id: 'performance', eyebrow: 'Objection class 2', title: '“It will be slow.”', items: performance, variant: 'sunken' },
-  { id: 'security', eyebrow: 'Objection class 3', title: '“It can’t be trusted.”', items: security, variant: 'plain' },
+  { id: 'architecture', eyebrow: 'Architecture', title: 'How the server works.', items: architecture, variant: 'plain' },
+  { id: 'performance', eyebrow: 'Performance', title: 'What the measurements show.', items: performance, variant: 'sunken' },
+  { id: 'security', eyebrow: 'Security', title: 'How trust is established.', items: security, variant: 'plain' },
 ] as const;
 
 const tail = [
-  { id: 'honesty', eyebrow: 'The honest column', title: 'What it doesn’t do.', items: honesty, variant: 'sunken' },
-  { id: 'viability', eyebrow: 'Objection class 4', title: '“It won’t survive.”', items: viability, variant: 'plain' },
+  { id: 'honesty', eyebrow: 'Current scope', title: 'What is still in progress.', items: honesty, variant: 'sunken' },
+  { id: 'viability', eyebrow: 'Operations and maintenance', title: 'How it is built to last.', items: viability, variant: 'plain' },
 ] as const;
 ---
 
 <Layout
   title="FAQ"
-  description="Hard questions about BriX-Cache, answered with receipts: how an nginx module speaks the native root:// protocol, how it performs, how its security model compares to stock XRootD, and — honestly — what it does not do."
+  description="Clear answers about BriX-Cache architecture, performance, security, compatibility, current scope, and deployment, with a repository citation for every answer."
   accent="root"
 >
   <!-- HERO -->
   <Band first={true}>
     <div class="faq-hero">
       <div class="stack">
-        <span class="eyebrow">Frequently asserted doubts</span>
-        <h1 class="display">Good questions.<br />Here are the receipts.</h1>
+        <span class="eyebrow">Frequently asked questions</span>
+        <h1 class="display">Good questions.<br />Clear, sourced answers.</h1>
         <p class="lede">
-          Every new implementation of a 20-year-old protocol earns skepticism, and it should. This
-          page collects the hardest objections we hear — architectural, performance, security, and
-          "this will never last" — and answers each one with a citation into the repository. The
-          rule is the same as everywhere else on this site: nothing aspirational, and the
-          <a href="#honesty">what-it-doesn't-do section</a> is load-bearing.
+          Evaluating a new implementation of a long-established protocol calls for specific answers.
+          This page covers architecture, performance, security, compatibility, and maintenance, with
+          a repository citation for every response. The
+          <a href="#honesty">current-scope section</a> also lists the work that is still in progress.
         </p>
       </div>
       <div class="term" aria-label="Headline numbers">
@@ -578,7 +574,7 @@ const tail = [
   <!-- SCOREBOARD -->
   <Band variant="ink" id="scoreboard">
     <span class="eyebrow">The scoreboard</span>
-    <h2 class="display band-head">Shipping here. Absent, late, or declined there.</h2>
+    <h2 class="display band-head">A practical feature comparison.</h2>
     <p class="lede muted ev-intro">
       "Where does this actually go beyond stock XRootD?" These rows. Each states what BriX-Cache
       ships today and what the reference platform does today — sourced from its own code and docs,
@@ -619,7 +615,7 @@ const tail = [
       Still skeptical? Good. Start here: <a href={`${REPO_URL}/blob/main/docs/index.md`}>docs/index.md ↗</a>
     </p>
     <Cta
-      title="Don’t take our word for it."
+      title="Explore the evidence for yourself."
       note="Every citation on this page resolves in the repository. Clone it, run the differential suites against your own XRootD, and file the FUD as issues — we answer those too."
     />
   </Band>

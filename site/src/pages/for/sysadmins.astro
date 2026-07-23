@@ -14,7 +14,7 @@ import Cta from '../../components/Cta.astro';
   <Band first={true}>
     <AudienceHero
       group="grid sysadmins"
-      title="Add TLS, auth, and metrics. Change nothing downstream."
+      title="Add TLS, auth, and metrics while keeping your backend."
       lede="BriX-Cache is an nginx module — so your storage endpoint inherits nginx's worker model, graceful reloads, and operational muscle memory. Deploy it standalone, or slide it in front of what you already run."
     >
       <div class="term" aria-label="Transparent proxy config">
@@ -30,7 +30,7 @@ import Cta from '../../components/Cta.astro';
 
   <Band variant="sunken">
     <span class="eyebrow">What you get on day one</span>
-    <h2 class="display sect-head">Operationally boring, on purpose.</h2>
+    <h2 class="display sect-head">Familiar operations from day one.</h2>
     <div class="grid grid-2">
       <Benefit marker="drop-in" title="Front any XRootD service">
         <p>
@@ -47,7 +47,7 @@ import Cta from '../../components/Cta.astro';
           owns WebDAV / S3 / metrics. Mix them freely.
         </p>
       </Benefit>
-      <Benefit marker="fail-early" title="Bad config fails at nginx -t">
+      <Benefit marker="fail-early" title="Validate configuration before traffic">
         <p>
           Missing certificates, JWKS files, CRLs, or required directories make
           <span class="mono">nginx -t</span> fail with an explicit <span class="mono">emerg</span>

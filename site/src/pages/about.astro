@@ -46,7 +46,7 @@ const recent = [
     cite: 'src/net/cms/ · tests/test_cms_*.py',
   },
   {
-    t: 'Write paths that fail closed',
+    t: 'Write paths with verified completion',
     tint: 'var(--s3)',
     status: 'Landed',
     d: 'Every write path — WebDAV PUT, S3 PutObject, GridFTP STOR, native kXR_write / pgwrite, and TPC commit legs — gained fail-closed truncation guards plus opt-in end-to-end digest verification, each found and pinned with a userland TCP fault injector that corrupts and truncates the wire on purpose.',
@@ -122,7 +122,7 @@ const backends = [
     <p class="lede muted intro recent-intro">
       The project moves in phases, and 2026 has been a heavy one — a fourth protocol, identity that
       survives the proxy hop, real cluster-management parity, and a write path hardened against a
-      hostile wire. Each card carries an honest status.
+      fault-injected network. Each card shows its current validation status.
     </p>
     <div class="grid grid-3 rgrid">
       {recent.map((r) => (
@@ -142,7 +142,7 @@ const backends = [
   <!-- THE DIAGRAM -->
   <Band variant="sunken" id="diagram">
     <span class="eyebrow">The architecture</span>
-    <h2 class="display sect-head">The whole system, one picture.</h2>
+    <h2 class="display sect-head">The whole system in one picture.</h2>
 
     <div class="diagram" role="img"
       aria-label="Architecture: clients speaking root, WebDAV, S3 and gsiftp enter nginx; stream and http blocks front-end each protocol; all converge on a shared core, then a VFS, then storage backends.">
@@ -245,7 +245,7 @@ const backends = [
 
   <Band>
     <Cta
-      title="Read the source, not just the diagram."
+      title="Explore the source behind the diagram."
       note="AGPL-3.0-only. The developer guide carries the operation-to-file map and the full architecture deep-dive."
     />
   </Band>

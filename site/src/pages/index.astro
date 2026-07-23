@@ -6,10 +6,10 @@ import Cta from '../components/Cta.astro';
 import { url, REPO_URL, DOCS_URL, PROTOCOLS, AUDIENCES } from '../lib/site';
 
 const audienceBlurb: Record<string, string> = {
-  Sysadmins: 'Drop it in front of an existing xrootd server. Gain TLS, auth, and metrics without touching client or backend config.',
-  Physicists: 'Your tools already work with it — xrdcp, rucio, aws-cli, a browser. Nothing new to learn or install.',
+  Sysadmins: 'Place it in front of an existing xrootd server to add TLS, auth, and metrics while keeping client and backend configuration unchanged.',
+  Physicists: 'Keep using xrdcp, rucio, aws-cli, or a browser. Your familiar tools and workflows continue to work.',
   Engineers: 'One nginx binary speaks four wire protocols over a shared core. Seven concept buckets, pluggable storage backends.',
-  Stakeholders: 'WLCG-native security and protocols, built on battle-tested nginx, tested for conformance against reference XRootD.',
+  Stakeholders: 'WLCG-native security and protocols, built on proven nginx foundations and tested for conformance against reference XRootD.',
 };
 
 // How a request flows through the server — a real pipeline, so the arrows carry meaning.
@@ -33,10 +33,10 @@ const flow = [
         <span class="eyebrow">Modular WLCG storage interface</span>
         <h1 class="display">The whole HEP data<br />stack in one binary.</h1>
         <p class="lede">
-          BriX-Cache teaches nginx protocols it never spoke — <span class="mono">root://</span>
+          BriX-Cache adds <span class="mono">root://</span>
           (XRootD), WebDAV, and an S3 endpoint — and terminates a <span class="mono">gsiftp://</span>
-          GridFTP server besides. Snap-together parts you assemble to fit your site, instead of a
-          monolith you bend to fit.
+          GridFTP server in the same binary. Combine the parts that fit your site and keep one shared
+          path for authentication, storage, caching, and metrics.
         </p>
         <div class="hero-actions">
           <a class="btn btn--accent" href={DOCS_URL}>Get started →</a>
@@ -78,7 +78,7 @@ const flow = [
     <article class="panel gftp" data-accent="ftp">
       <div class="gftp-head">
         <span class="chip chip--ftp">gsiftp://</span>
-        <h3 class="gftp-name">…and a fourth door: GridFTP.</h3>
+        <h3 class="gftp-name">A fourth interface for GridFTP.</h3>
       </div>
       <p class="gftp-blurb muted">
         A full <span class="mono">gsiftp://</span> server terminates in the same binary — GSI / x509
@@ -156,13 +156,13 @@ const flow = [
   <!-- WHO IT'S FOR -->
   <Band variant="ink" id="who">
     <span class="eyebrow">Why BriX-Cache for you</span>
-    <h2 class="display band-head">Pick your seat.</h2>
+    <h2 class="display band-head">See what matters to your role.</h2>
     <div class="grid grid-4 whogrid">
       {AUDIENCES.map((a, i) => (
         <a class="panel panel--hover who" href={url(a.href)} data-accent={(['root','dav','s3','root'] as const)[i]}>
           <span class="who-name">{a.label}</span>
           <p class="who-blurb">{audienceBlurb[a.label]}</p>
-          <span class="who-go mono">Why →</span>
+          <span class="who-go mono">Explore →</span>
         </a>
       ))}
     </div>

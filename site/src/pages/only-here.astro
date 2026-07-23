@@ -30,12 +30,12 @@ interface Theme {
 const themes: Theme[] = [
   {
     id: 'identity',
-    eyebrow: 'Exclusive · identity',
+    eyebrow: 'Distinctive capability · identity',
     title: 'Requests keep their owner, end to end.',
     variant: 'plain',
     intro:
-      'The defining exclusive: identity survives the proxy hop. Stock XRootD collapses every ' +
-      'proxied request onto one service credential; here, who you are travels with your bytes.',
+      'Identity stays with the request across the proxy hop. Each backend operation can use the ' +
+      'requesting user’s credential instead of a shared service identity.',
     features: [
       {
         t: 'Per-user backend credential forwarding',
@@ -90,13 +90,13 @@ const themes: Theme[] = [
   },
   {
     id: 'surface',
-    eyebrow: 'Exclusive · protocol surface',
-    title: 'Doors stock never built.',
+    eyebrow: 'Distinctive capability · protocols',
+    title: 'More ways to reach the same data.',
     accent: 's3',
     variant: 'sunken',
     intro:
-      'One namespace, more ways in. These endpoints simply do not exist in a stock deployment — ' +
-      'no plugin, no config flag, no roadmap item you can enable.',
+      'One namespace, with native S3, WebDAV class 2, GridFTP, and reporting interfaces available ' +
+      'alongside root://.',
     features: [
       {
         t: 'A real S3 server endpoint',
@@ -126,7 +126,7 @@ const themes: Theme[] = [
         d: `A gsiftp gateway with GSI control and data channels, MODE E parallel streams with restart
             markers, active and passive modes, and gsiftp↔gsiftp third-party copy — for ARC-CE fronts
             and legacy fabric that cannot migrate on someone else's schedule.`,
-        stock: 'The Globus toolkit is EOL; the ecosystem answer is “migrate”.',
+        stock: 'The Globus toolkit is EOL, so sites that still need GridFTP must provide their own transition path.',
         cite: 'src/protocols/gridftp/ · docs/05-operations/gridftp.md',
       },
       {
@@ -149,8 +149,8 @@ const themes: Theme[] = [
   },
   {
     id: 'integrity',
-    eyebrow: 'Exclusive · integrity',
-    title: 'Trust, but verify. Then verify again.',
+    eyebrow: 'Distinctive capability · integrity',
+    title: 'Verify data at every stage.',
     variant: 'plain',
     intro:
       'Checksums everywhere stock has them — and in the places stock leaves blank.',
@@ -190,8 +190,8 @@ const themes: Theme[] = [
   },
   {
     id: 'client',
-    eyebrow: 'Exclusive · client side',
-    title: 'A clean-room client suite in the same box.',
+    eyebrow: 'Distinctive capability · client side',
+    title: 'A complete client suite in the same package.',
     accent: 'dav',
     variant: 'ink',
     intro:
@@ -235,11 +235,11 @@ const themes: Theme[] = [
   },
   {
     id: 'operations',
-    eyebrow: 'Exclusive · operations',
-    title: 'Legible on the day it breaks.',
+    eyebrow: 'Distinctive capability · operations',
+    title: 'Clear information when you need it.',
     variant: 'sunken',
     intro:
-      'Observability and failure handling designed for the operator at 3 a.m., not the framework.',
+      'Observability and recovery behavior designed to help operators understand and resolve issues quickly.',
     features: [
       {
         t: 'Prometheus-native, dashboard included',
@@ -258,8 +258,8 @@ const themes: Theme[] = [
       },
       {
         t: 'fail2ban, out of the box',
-        d: `Shipped filter and jail definitions turn the sanitized access log into an automatic
-            ban-hammer for scanners and brute-force noise — deploy-ready, not an exercise.`,
+        d: `Shipped filter and jail definitions use the sanitized access log to block scanners and
+            repeated authentication attempts automatically, ready for deployment.`,
         stock: 'No shipped fail2ban integration.',
         cite: 'deploy/fail2ban/',
       },
@@ -285,22 +285,21 @@ const themes: Theme[] = [
 ---
 
 <Layout
-  title="Only here"
-  description="Capabilities you get from BriX-Cache and cannot get from a stock XRootD deployment today: per-user credential forwarding, a real S3 server endpoint, WebDAV class 2, self-verifying writes, CRC64, a clean-room client suite, and more — each card states what stock does today."
+  title="Distinctive capabilities"
+  description="Explore BriX-Cache capabilities that complement a stock XRootD deployment: per-user credential forwarding, an S3 server endpoint, WebDAV class 2, self-verifying writes, CRC64, a complete client suite, and more."
   accent="dav"
 >
   <!-- HERO -->
   <Band first={true}>
     <div class="oh-hero">
       <div class="stack">
-        <span class="eyebrow">The exclusives</span>
-        <h1 class="display">If you need these,<br />there is one place.</h1>
+        <span class="eyebrow">Distinctive capabilities</span>
+        <h1 class="display">More options for your storage service.</h1>
         <p class="lede">
-          This page has a strict admission rule: a feature appears here only if a stock XRootD
-          deployment <em>cannot do it today</em> — better isn't enough, it has to be absent. Each
-          card states what stock does instead, sourced from its own code and docs, and cites where
-          ours lives in the tree. Comparisons where both sides play are on the
-          <a href={url('/faq#scoreboard')}>FAQ scoreboard</a>; this page is the other list.
+          This page highlights capabilities that BriX-Cache adds beyond a stock XRootD deployment.
+          Each card explains the capability, describes the reference behavior, and links it to the
+          implementation. For features shared by both projects, see the
+          <a href={url('/faq#scoreboard')}>FAQ comparison</a>.
         </p>
       </div>
       <div class="term" aria-label="The one-line version">
@@ -325,7 +324,7 @@ const themes: Theme[] = [
           <article class="panel oh-card">
             <h3 class="oh-t">{f.t}</h3>
             <p class="muted" set:html={f.d} />
-            <p class="oh-stock"><span class="oh-stock-label">stock today</span> {f.stock}</p>
+            <p class="oh-stock"><span class="oh-stock-label">reference today</span> {f.stock}</p>
             <p class="mono oh-cite">{f.cite}</p>
           </article>
         ))}
@@ -335,8 +334,8 @@ const themes: Theme[] = [
 
   <Band>
     <Cta
-      title="Absent there. Running here."
-      note="Every card cites the tree. If you can show a stock deployment doing one of these today, file an issue — we'll move it to the scoreboard and thank you in the commit."
+      title="See how each capability is built."
+      note="Every card cites the source tree. The feature comparison is open to corrections as the reference platform evolves."
     />
   </Band>
 </Layout>
