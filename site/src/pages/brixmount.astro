@@ -19,7 +19,7 @@ const threats = [
 
 <Layout
   title="brixMount"
-  description="brixMount turns any CVMFS repository or XRootD/EOS endpoint into a local directory with one command — a hardened FUSE client engineered and torture-tested for bad networks."
+  description="brixMount turns any CVMFS repository or XRootD/EOS endpoint into a local directory with one command — a resilient FUSE client tested across resets, stalls, outages, and corruption."
   accent="root"
 >
   <!-- HERO -->
@@ -27,11 +27,11 @@ const threats = [
     <div class="bm-hero">
       <div class="stack">
         <span class="eyebrow">brixMount — hardened FUSE client</span>
-        <h1 class="display">Built for networks<br />that want you to fail.</h1>
+        <h1 class="display">Keep working through network interruptions.</h1>
         <p class="lede">
           brixMount turns any CVMFS repository or XRootD/EOS endpoint into a local directory
-          with one command — engineered on the assumption that the network between you and
-          your data is hostile.
+          with one command. Built-in reconnect, resume, verification, and offline behavior keep
+          your data available across unreliable links.
         </p>
         <div class="bm-actions">
           <a class="btn btn--accent" href={DOCS_URL}>Get started →</a>
@@ -39,7 +39,7 @@ const threats = [
         </div>
       </div>
       <div class="term" aria-label="brixMount surviving a mid-read fault">
-        <div class="term-title">one command, hostile network</div>
+        <div class="term-title">one command, interrupted network</div>
         <div><span class="p">$</span> brixMount cvmfs atlas.cern.ch ~/atlas</div>
         <div><span class="p">$</span> sha1sum ~/atlas/sw/setup.sh</div>
         <div class="mt"><span class="c"># link reset mid-read → reconnect, re-auth, resume at offset</span></div>
@@ -51,12 +51,11 @@ const threats = [
 
   <!-- THREAT MODEL -->
   <Band variant="ink" id="threats">
-    <span class="eyebrow">The threat model</span>
-    <h2 class="display band-head">What a bad network actually does.</h2>
+    <span class="eyebrow">Network conditions</span>
+    <h2 class="display band-head">What can interrupt a remote mount.</h2>
     <p class="lede muted bm-intro">
-      Hotel wifi, an overloaded site uplink, a misbehaving inline firewall, a mirror
-      mid-meltdown — from a mount's point of view they are all the same adversary.
-      brixMount assumes all of it, all the time.
+      Hotel Wi-Fi, an overloaded site uplink, an inline firewall, or an unavailable mirror can all
+      interrupt a read. brixMount is designed and tested for each of these conditions.
     </p>
     <div class="grid grid-3">
       {threats.map((th, i) => (
@@ -72,7 +71,7 @@ const threats = [
   <!-- DEFENSES -->
   <Band variant="sunken" id="defenses">
     <span class="eyebrow">The defenses</span>
-    <h2 class="display band-head">One answer per threat. All of them landed code.</h2>
+    <h2 class="display band-head">A built-in response for every interruption.</h2>
     <div class="grid grid-2">
       <Benefit marker="01 · resets" title="Reads that outlive the connection">
         <p>
@@ -127,7 +126,7 @@ const threats = [
     <div class="grid grid-2 bm-proof">
       <div class="stack">
         <span class="eyebrow">The proof</span>
-        <h2 class="display band-head">Torture-tested, not hoped-for.</h2>
+        <h2 class="display band-head">Recovery behavior, verified by tests.</h2>
         <p class="muted">
           Every claim above is enforced by tests, not marketing. The FUSE suites run through a
           TCP fault-injection proxy (<span class="mono">fault_proxy.c</span>) that resets
@@ -199,7 +198,7 @@ const threats = [
 
   <Band variant="sunken">
     <Cta
-      title="Mount it once. Stop thinking about the network."
+      title="Mount your data and keep working."
       note="brixMount ships with BriX-Cache — the resilience suites above run on every release."
     />
   </Band>

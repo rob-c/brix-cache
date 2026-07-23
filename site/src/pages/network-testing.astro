@@ -56,19 +56,17 @@ const catches = [
 
 <Layout
   title="Network testing"
-  description="Treat every network as adversarial. brix-fault-proxy is a root-free TCP relay you splice in front of any endpoint to prove a client survives a degraded — or actively hostile — wire: latency, jitter, partial writes, resets, bit-flip corruption, truncation, and black-holes, per-direction, live over a control port. The invariant never changes: the bytes that arrive are the bytes that were published, or the transfer fails loudly."
+  description="Test network resilience with brix-fault-proxy, a root-free TCP relay that adds latency, jitter, partial writes, resets, bit-flip corruption, truncation, and black holes per direction through a live control port."
   accent="danger"
 >
   <!-- HERO -->
   <Band first={true}>
     <span class="eyebrow">Network testing</span>
-    <h1 class="display nt-head">The network is not your friend.</h1>
+    <h1 class="display nt-head">Test every network condition before users meet it.</h1>
     <p class="lede nt-lede">
-      No matter how good your fabric is — dedicated fibre, a private LHCONE circuit, a switch you
-      trust — you should never treat it as anything other than <strong>adversarial</strong>. A
-      middlebox can cut a connection early, hold it open forever, or flip a byte, and it will do so in
-      the way that keeps every length field, checksum-of-the-wrong-thing, and signature looking valid.
-      BriX-Cache assumes exactly that, and ships the tool that proves it.
+      Even well-managed infrastructure can see early disconnects, long stalls, or changed bytes.
+      BriX-Cache ships a fault-injection tool so you can reproduce those conditions on demand and
+      confirm that each transfer either completes with the right data or reports a clear error.
     </p>
   </Band>
 
@@ -77,24 +75,24 @@ const catches = [
     <span class="eyebrow">The threat model</span>
     <h2 class="display band-head">Two questions every transfer must answer.</h2>
     <p class="lede muted nt-intro">
-      A transfer that ends is not a transfer that finished. Length framing answers <em>how many
-      bytes</em>, never <em>which bytes</em>. So every write path is held to two questions — and a
-      path can be provably safe against one while wide open to the other.
+      A closed connection does not by itself prove a successful transfer. Length framing answers
+      <em>how many bytes</em>, not <em>which bytes</em>. Every write path therefore answers two
+      separate questions about completion and integrity.
     </p>
     <div class="grid grid-2 nt-thesis">
       <article class="panel nt-q">
         <span class="nt-q-n mono">Q1</span>
-        <h3 class="nt-q-t">What signals COMPLETE — not merely STOPPED?</h3>
+        <h3 class="nt-q-t">What confirms the transfer finished completely?</h3>
         <p class="muted">
           An idle timer is not a deadline. A slow-drip adversary that sends one byte per
-          <span class="mono">timeout − ε</span> keeps a connection hostage forever. A logical
+          <span class="mono">timeout − ε</span> can keep a connection open indefinitely. A logical
           operation needs an absolute deadline across the whole operation, and a positive signal that
           the last byte is really the last byte.
         </p>
       </article>
       <article class="panel nt-q">
         <span class="nt-q-n mono">Q2</span>
-        <h3 class="nt-q-t">What proves the bytes are the peer&rsquo;s?</h3>
+        <h3 class="nt-q-t">What confirms the bytes match the source?</h3>
         <p class="muted">
           Integrity has a direction. &ldquo;Verify on ingest&rdquo; plus &ldquo;verify on read&rdquo;
           still leaves the outbound commit leg — the gateway writing to its own origin — completely
@@ -114,19 +112,19 @@ const catches = [
     <div class="grid grid-2 nt-tool">
       <div class="stack">
         <span class="eyebrow">The instrument</span>
-        <h2 class="display band-head nt-tool-head">A hostile wire, on demand.</h2>
+        <h2 class="display band-head nt-tool-head">Network faults, on demand.</h2>
         <p class="muted">
-          <span class="mono">brix-fault-proxy</span> is a root-free, userspace TCP relay — a
-          &ldquo;toxiproxy-lite&rdquo; — you splice in front of any brix, stock-XRootD, or HTTP
+          <span class="mono">brix-fault-proxy</span> is a root-free, userspace TCP relay that you
+          place in front of any BriX-Cache, stock XRootD, or HTTP
           endpoint. It needs no <span class="mono">CAP_NET_ADMIN</span>, no <span class="mono">tc</span>,
           no <span class="mono">netem</span>: just <span class="mono">--listen</span>,
           <span class="mono">--target</span>, and a loopback <span class="mono">--control</span> port
           you drive live.
         </p>
         <p class="muted">
-          Under all of it the assertion never changes: the bytes that arrive are the bytes that were
-          published, or the transfer fails loudly. Never a silent corruption, never a short read
-          dressed up as a complete one.
+          The expected result stays simple: the bytes that arrive match the published data, or the
+          transfer returns a clear error. Corrupt data and incomplete reads are never reported as
+          successful.
         </p>
         <p class="mono nt-src">
           <a href={MAN_URL}>man brix-fault-proxy ↗</a> ·
@@ -168,7 +166,7 @@ const catches = [
       ))}
     </div>
     <p class="muted nt-honest">
-      <strong>Honest about the model.</strong> Packet loss is modelled as a connection sever, not a
+      <strong>How the model works.</strong> Packet loss is modelled as a connection sever, not a
       byte drop — dropping bytes from an already-ACKed TCP stream corrupts it rather than emulating
       loss. True out-of-order <em>packet</em> delivery can&rsquo;t be faked either, since TCP
       reassembles in order, so <span class="mono">jitter</span> and <span class="mono">reorder</span>
@@ -181,11 +179,10 @@ const catches = [
   <!-- WHAT IT CAUGHT -->
   <Band id="caught">
     <span class="eyebrow">What it caught</span>
-    <h2 class="display band-head">Real bugs, found by a hostile wire.</h2>
+    <h2 class="display band-head">Real bugs found and fixed through fault injection.</h2>
     <p class="lede muted nt-intro">
-      These are not hypotheticals. Each was a live &ldquo;COMPLETE vs STOPPED&rdquo; poisoning found
-      by the write-path integrity sweep and now fixed to fail closed — every one pinned by its own
-      gate test.
+      Each issue below came from a real completion or integrity gap found during the write-path
+      review. Every fix now has a dedicated regression test.
     </p>
     <div class="grid grid-2 nt-catch-grid">
       {catches.map((c) => (
@@ -207,7 +204,7 @@ const catches = [
   <!-- THE SUITES -->
   <Band variant="ink" id="suites">
     <span class="eyebrow">The suites</span>
-    <h2 class="display band-head">Byte-exact under fault, or fail loudly.</h2>
+    <h2 class="display band-head">Byte-exact results under every tested fault.</h2>
     <p class="lede muted nt-intro">
       The proxy is wrapped by a <span class="mono">FaultProxy</span> harness in
       <span class="mono">tests/resilience/</span> and driven across the storage estate. The invariant
@@ -233,8 +230,8 @@ const catches = [
       <a href={LESSONS_URL}>docs/07-security/hostile-network-lessons.md ↗</a>
     </p>
     <Cta
-      title="Assume the wire is lying. Then prove it can't."
-      note="The fault proxy, the harness, and every gate test above are in the repository. Splice it in front of your own reference XRootD and try to make it lie."
+      title="Test your transfer path with confidence."
+      note="The fault proxy, harness, and regression tests are in the repository. Place it in front of your own reference XRootD and exercise the conditions that matter to your site."
     />
   </Band>
 </Layout>

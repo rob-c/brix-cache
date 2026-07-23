@@ -53,7 +53,7 @@ const scenarios = [
   {
     id: 'discovery', label: 'Delayed discovery', tone: 'dav',
     nodes: ['client', 'redir', 'ds'], edges: ['e-client-redir', 'e-redir-ds'],
-    desc: 'The data server boots before its CMS redirector. It retries, and when the manager finally appears it registers retroactively via kYR_login — the redirector then locate-redirects clients to it. Startup order is never a correctness dependency.',
+    desc: 'The data server boots before its CMS redirector. It retries, and when the manager becomes available it registers via kYR_login — the redirector then routes clients to it. Either startup order works.',
     code: ['src/net/cms/', 'TestChaosMeshDiscovery'],
   },
   {
@@ -71,7 +71,7 @@ const scenarios = [
   {
     id: 'sighup', label: 'SIGHUP chaos', tone: 'root', reload: 't2',
     nodes: ['client', 't1', 't2', 't3'], edges: ['e-client-t1', 'e-t1-t2', 'e-t2-t3'],
-    desc: 'Mid-transfer, Tier 2 is sent SIGHUP. The graceful reload drains onto fresh workers while the in-flight proxy handles survive — the client transfer finishes byte-for-byte with zero kXR_IOError. Chaos in the control plane, calm in the data plane.',
+    desc: 'Mid-transfer, Tier 2 receives SIGHUP. The graceful reload moves new work to fresh workers while in-flight proxy handles continue — the client transfer finishes byte-for-byte with zero kXR_IOError.',
     code: ['src/fs/cache/', 'brix-fault-proxy', 'TestChaosMeshStep5SIGHUPDuringTPC'],
   },
 ];

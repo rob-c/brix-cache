@@ -9,7 +9,7 @@ const DOC_URL = `${REPO_URL}/blob/main/docs/07-security/hardening-evidence.md`;
 // Evidence class 1: designed-in defenses. Every cite is a real repo path.
 const defenses = [
   {
-    t: 'Bad config never takes traffic',
+    t: 'Configuration is validated before traffic',
     d: 'Missing certificates, JWKS files, CRLs, or required directories fail nginx -t with an explicit emerg line before a single byte is accepted. Reloads drain gracefully — in-flight transfers finish on old workers.',
     cite: 'nginx -t · docs/09-developer-guide/reload-semantics.md',
   },
@@ -55,12 +55,11 @@ const integrity = [
     <div class="ev-hero">
       <div class="stack">
         <span class="eyebrow">The evidence</span>
-        <h1 class="display">Hardening is the design brief,<br />not a feature.</h1>
+        <h1 class="display">Resilience is part of the design.</h1>
         <p class="lede">
-          The claim: BriX-Cache is engineered so that failures — bad networks, bad configs, bad
-          actors, crashed workers — cost users as little as possible. The rule for this page:
-          every item cites a file, document, or test in the repository. Nothing here is
-          aspirational.
+          BriX-Cache is engineered to keep service dependable through network faults, configuration
+          errors, untrusted input, and worker restarts. Every item on this page cites the file,
+          document, or test that supports it.
         </p>
       </div>
       <div class="term" aria-label="The receipts in the source tree">
@@ -80,8 +79,8 @@ const integrity = [
     <span class="eyebrow">Evidence class 1</span>
     <h2 class="display band-head">Designed-in defenses.</h2>
     <p class="lede muted ev-intro">
-      What the user feels: the service refuses to start broken, cannot be walked out of its
-      export, and does not grow new bypasses as the code evolves.
+      For users, this means configuration errors are caught before startup, paths stay inside the
+      export, and new code continues to follow the same security checks.
     </p>
     <div class="grid grid-2">
       {defenses.map((x) => (
@@ -97,10 +96,10 @@ const integrity = [
   <!-- CLASS 2: FAILURE-MODE ENGINEERING -->
   <Band variant="ink" id="postmortems">
     <span class="eyebrow">Evidence class 2</span>
-    <h2 class="display band-head">Failure-mode engineering, in public.</h2>
+    <h2 class="display band-head">Lessons turned into lasting fixes.</h2>
     <p class="lede muted ev-intro">
-      The strongest evidence is what happened when something broke: hunt the failure mode, fix
-      it, write it down, and pin it with a regression test.
+      When a failure appears, the team traces it, fixes it, documents it, and adds a regression test
+      so the same issue stays resolved.
     </p>
     <div class="grid grid-3">
       <article class="panel ev-item">
@@ -137,15 +136,15 @@ const integrity = [
     </div>
   </Band>
 
-  <!-- CLASS 3: PROOF BY TORTURE -->
+  <!-- CLASS 3: RESILIENCE TESTING -->
   <Band id="torture">
     <span class="eyebrow">Evidence class 3</span>
-    <h2 class="display band-head">Proof by torture.</h2>
+    <h2 class="display band-head">Resilience tested under real faults.</h2>
     <div class="grid grid-2 ev-proof">
       <div class="stack">
         <p class="muted">
-          The suite is ~8,700 tests, and its slow lane — ~1,770 tests — exists specifically to
-          hurt the software: resilience, chaos, and fault injection. A TCP fault proxy resets
+          The suite is ~8,700 tests, including ~1,770 focused on resilience, chaos, and fault
+          injection. A TCP fault proxy resets
           connections mid-read and injects stalls and latency while the tests assert byte-exact
           results and zero errors surfaced to applications; a <span class="mono">netem</span>
           lab degrades whole links.
@@ -157,7 +156,7 @@ const integrity = [
           keep the architectural rules from eroding between releases.
         </p>
       </div>
-      <div class="term" aria-label="Torture-lane summary">
+      <div class="term" aria-label="Resilience test summary">
         <div class="term-title">the numbers</div>
         <div>tests, full suite            <span class="k">~8,700</span></div>
         <div>fault / chaos / resilience   <span class="k">~1,770</span></div>
