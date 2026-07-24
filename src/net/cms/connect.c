@@ -1,4 +1,5 @@
 #include "cms_internal.h"
+#include "action_log.h"                          /* cmsd-action NOTICE lines */
 #include "protocols/root/connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 #include "core/compat/log_diag.h"
 #include "core/compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
@@ -332,6 +333,12 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: CMS login sent to %V",
                       &ctx->conf->cms.manager);
+        brix_cms_log_action(ev->log, "login",
+                            (const char *) ctx->conf->cms.manager.data,
+                            "out", NULL, 1,
+                            ctx->conf->manager_mode
+                                ? "sub-manager registering up (Manager bit)"
+                                : "leaf/client registering up");
 
         /* First successful login of this boot: leave fast-retry mode (any future
          * reconnect is a real outage → backoff) and report the settle time. */
@@ -375,6 +382,9 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS write handler: send_load failed");
+        brix_cms_log_action(ev->log, "load",
+                            (const char *) ctx->conf->cms.manager.data,
+                            "out", NULL, 0, "send_load failed");
         ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
@@ -496,11 +506,20 @@ ngx_brix_cms_timer(ngx_event_t *ev)
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS load heartbeat failed");
+        brix_cms_log_action(ev->log, "load",
+                            (const char *) ctx->conf->cms.manager.data,
+                            "out", NULL, 0, "heartbeat send failed");
         ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
     }
+
+    brix_cms_log_action(ev->log, "load",
+                        (const char *) ctx->conf->cms.manager.data,
+                        "out", NULL, 1,
+                        ctx->conf->manager_mode ? "aggregate space heartbeat"
+                                                : "free-space heartbeat");
 
     ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * 1000);
 }
@@ -579,4 +598,112 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: CMS heartbeat starting for manager %V",
                   &conf->cms.manager);
+}
+
+/*
+ * CMS auto-role derivation.
+ *
+ * The role a node plays in the cmsd cluster is derived — not hand-configured —
+ * from two facts already present on the merged server conf:
+ *
+ *   manager_capable  = manager_mode  (set by `brix_manager_mode on`, or
+ *                      auto-derived from `brix_cms_server on`; see
+ *                      server_module.c: a block that accepts downstream nodes
+ *                      IS a manager).
+ *   has_upstream     = a `brix_cms_manager host:port` resolved into cms.addr,
+ *                      i.e. this node registers UP to a parent manager.
+ *
+ *   manager_capable & !has_upstream -> MANAGER      (top of the tree)
+ *   manager_capable &  has_upstream -> SUB-MANAGER  (accepts downstream AND
+ *                                                    registers up + aggregates)
+ *  !manager_capable &  has_upstream -> CLIENT       (leaf data server / relay)
+ *  !manager_capable & !has_upstream -> NONE         (not a cmsd node)
+ */
+typedef enum {
+    BRIX_CMS_ROLE_NONE = 0,
+    BRIX_CMS_ROLE_CLIENT,
+    BRIX_CMS_ROLE_MANAGER,
+    BRIX_CMS_ROLE_SUBMANAGER
+} brix_cms_role_t;
+
+static brix_cms_role_t
+brix_cms_role_derive(ngx_flag_t manager_capable, ngx_flag_t has_upstream)
+{
+    if (manager_capable) {
+        return has_upstream ? BRIX_CMS_ROLE_SUBMANAGER : BRIX_CMS_ROLE_MANAGER;
+    }
+    return has_upstream ? BRIX_CMS_ROLE_CLIENT : BRIX_CMS_ROLE_NONE;
+}
+
+static const char *
+brix_cms_role_name(brix_cms_role_t role)
+{
+    switch (role) {
+    case BRIX_CMS_ROLE_MANAGER:    return "manager";
+    case BRIX_CMS_ROLE_SUBMANAGER: return "sub-manager";
+    case BRIX_CMS_ROLE_CLIENT:     return "client";
+    default:                       return "none";
+    }
+}
+
+/*
+ * brix_cms_role_worker_init — per-worker CMS bring-up + role proof for ONE
+ * server block.  Called for every stream server (process.c), including a
+ * dedicated cms-only manager/sub-manager block whose main-module data path is
+ * disabled (common.enable off) — that block still owns a cmsd role and, when it
+ * has an upstream, an outbound client to start.
+ *
+ * Two jobs:
+ *   1. PROOF-IN-LOGS: emit exactly one NOTICE naming this node's derived role
+ *      (manager / sub-manager / client) and how it was derived.  Worker 0 only,
+ *      because every worker shares this config and N identical lines help no one.
+ *   2. SINGLE UPSTREAM CONNECTION: start the outbound CMS client on WORKER 0
+ *      ONLY.  A stock cmsd admits one connection per node identity (SID =
+ *      host:listen_port, identical across workers), so N per-worker connections
+ *      collide as "already logged in" and get 30s-blacklisted.  Gating the
+ *      client to a single worker makes brix register cleanly with a STOCK
+ *      upstream cmsd and removes the self-collision entirely.  (Tradeoff: the
+ *      §7.1 pending-locate bridge, which needs the client on the worker holding
+ *      the suspended session, is unavailable in this single-connection mode —
+ *      aggregation, which is what a sub-manager needs, works over one link.)
+ */
+void
+brix_cms_role_worker_init(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
+{
+    brix_cms_role_t  role;
+    ngx_flag_t       has_upstream;
+    ngx_flag_t       manager_capable;
+
+    has_upstream = (xcf->cms.addr != NULL);
+    manager_capable = (xcf->manager_mode == 1);
+    role = brix_cms_role_derive(manager_capable, has_upstream);
+
+    if (role == BRIX_CMS_ROLE_NONE) {
+        return;
+    }
+
+    if (ngx_worker == 0) {
+        if (has_upstream) {
+            ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+                          "brix: cmsd role: this node is a %s "
+                          "(listen :%d, upstream_manager=%V, "
+                          "accepts_downstream=%s, aggregates_up=%s)",
+                          brix_cms_role_name(role), (int) xcf->listen_port,
+                          &xcf->cms.manager,
+                          manager_capable ? "yes" : "no",
+                          role == BRIX_CMS_ROLE_SUBMANAGER ? "yes" : "no");
+        } else {
+            ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+                          "brix: cmsd role: this node is a %s "
+                          "(listen :%d, upstream_manager=none, "
+                          "accepts_downstream=%s, aggregates_up=no)",
+                          brix_cms_role_name(role), (int) xcf->listen_port,
+                          manager_capable ? "yes" : "no");
+        }
+    }
+
+    /* Single outbound connection: worker 0 only (see the note above). */
+    if (has_upstream && ngx_worker == 0) {
+        ngx_brix_cms_start(cycle, xcf);
+    }
 }

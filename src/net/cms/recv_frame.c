@@ -24,6 +24,7 @@
  */
 
 #include "cms_internal.h"
+#include "action_log.h"             /* cmsd-action NOTICE lines */
 #include "recv_internal.h"
 #include "node_ops.h"               /* Plane B forwarded-op planner */
 #include "router.h"                 /* node-role opcode routing */
@@ -184,10 +185,16 @@ cms_frame_status(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
         ctx->conf->cms.suspended = 1;
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "brix: CMS suspend received — new logins paused");
+        brix_cms_log_action(ctx->cycle->log, "status",
+                            (const char *) ctx->conf->cms.manager.data,
+                            "in", NULL, 1, "manager suspended this node");
     } else if (mod & CMS_ST_RESUME) {
         ctx->conf->cms.suspended = 0;
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "brix: CMS resume received — accepting logins");
+        brix_cms_log_action(ctx->cycle->log, "status",
+                            (const char *) ctx->conf->cms.manager.data,
+                            "in", NULL, 1, "manager resumed this node");
     } else {
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                        "brix: CMS status modifier=0x%02xi (no action)",
@@ -224,6 +231,20 @@ cms_frame_redirect(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     }
 
     port = ngx_brix_cms_get16(payload + host_len + 1);
+
+    {
+        u_char  detail[320];
+        u_char *dp = ngx_snprintf(detail, sizeof(detail) - 1,
+                                  "%s selected -> redirect waiting client to "
+                                  "%s:%d",
+                                  code == CMS_RR_TRY ? "kYR_try" : "kYR_select",
+                                  host, (int) port);
+        *dp = '\0';
+        brix_cms_log_action(ctx->cycle->log, "redirect",
+                            (const char *) ctx->conf->cms.manager.data,
+                            "in", NULL, 1, (const char *) detail);
+    }
+
     return brix_cms_wake_pending_session(ctx->cycle->log, streamid, host, port);
 }
 
@@ -294,6 +315,11 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS state(mgr): registry serves "
                            "\"%*s\", replying kYR_have", pl, payload);
+            brix_cms_log_action(ctx->cycle->log, "state-probe",
+                                (const char *) ctx->conf->cms.manager.data,
+                                "in", pathz, 1,
+                                "sub-manager: a downstream node holds it "
+                                "-> kYR_have");
             return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
         }
         return NGX_OK;
@@ -319,6 +345,9 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
         ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                        "brix: CMS state: have \"%*s\", "
                        "replying kYR_have", pl, payload);
+        brix_cms_log_action(ctx->cycle->log, "state-probe",
+                            (const char *) ctx->conf->cms.manager.data,
+                            "in", pathz, 1, "file present on export -> kYR_have");
         return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
     }
 
@@ -334,9 +363,19 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 static ngx_int_t
 cms_frame_forward(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 {
-    const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
-    size_t         plen    = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
-    return cms_node_exec_forward(ctx, code, streamid, payload, plen);
+    const u_char           *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
+    size_t                   plen    = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
+    const brix_cms_route_t *r;
+    ngx_int_t                rc;
+
+    rc = cms_node_exec_forward(ctx, code, streamid, payload, plen);
+
+    r = brix_cms_route_lookup(XRDCMS_ROLE_NODE, code);
+    brix_cms_log_action(ctx->cycle->log, r != NULL ? r->name : "forward-op",
+                        (const char *) ctx->conf->cms.manager.data,
+                        "in", NULL, rc == NGX_OK,
+                        "manager-forwarded namespace op executed on this node");
+    return rc;
 }
 
 /* cms_frame_prepare — kYR_prepadd/kYR_prepdel (Plane B staging): a manager-
@@ -367,6 +406,9 @@ cms_frame_disc(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 {
     ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                   "brix: CMS node: manager requested disconnect");
+    brix_cms_log_action(ctx->cycle->log, "disconnect",
+                        (const char *) ctx->conf->cms.manager.data,
+                        "in", NULL, 1, "manager asked this node to disconnect");
     ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_SERVER);
     ngx_brix_cms_disconnect(ctx);
     ngx_brix_cms_schedule_retry(ctx);

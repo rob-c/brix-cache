@@ -30,6 +30,7 @@
 #include "recv_internal.h"                 /* W3: pending-locate client wake */
 #include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "fanout.h"                       /* W8: fold forwarded-op kYR_error */
+#include "action_log.h"                   /* cmsd-action NOTICE lines */
 
 /* Ping timer */
 
@@ -124,11 +125,22 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
     /* ctx->c is non-NULL for a frame being processed (a close nulls it and
      * returns), but match the ctx->c guards above for consistency. */
     if (ctx->c != NULL) {
+        u_char  detail[160];
+        u_char *dp;
+
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: registered %s:%d paths=[%s] "
                       "free_mb=%uD util_pct=%uD",
                       ctx->host, (int) ctx->port, ctx->paths,
                       ctx->free_mb, ctx->util_pct);
+
+        dp = ngx_snprintf(detail, sizeof(detail) - 1,
+                          "paths=[%s] free_mb=%uD util_pct=%uD",
+                          ctx->paths, ctx->free_mb, ctx->util_pct);
+        *dp = '\0';
+        brix_cms_log_action_hp(ctx->c->log, "register", ctx->host,
+                               (int) ctx->port, "in", ctx->paths, 1,
+                               (const char *) detail);
     }
 }
 

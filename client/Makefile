@@ -510,9 +510,17 @@ aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
 # rather than riding the BIN_EXES pattern. Compiled with the house hardening
 # flags; pulls only lib/core/version.h for --version. Bare name `make
 # brix-fault-proxy` builds the artifact via the phony alias above.
+FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
+	apps/diag/brix_fault_ext.c apps/diag/brix_fault_tls.c \
+	apps/diag/brix_fault_http.c apps/diag/brix_fault_replay.c \
+	apps/diag/brix_fault_oracle.c
+FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_ext.h \
+	apps/diag/brix_fault_buf.h apps/diag/brix_fault_tls.h \
+	apps/diag/brix_fault_http.h apps/diag/brix_fault_replay.h \
+	apps/diag/brix_fault_oracle.h
 brix-fault-proxy: $(BINDIR)/brix-fault-proxy
-$(BINDIR)/brix-fault-proxy: apps/diag/brix_fault_proxy.c lib/core/version.h | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/diag/brix_fault_proxy.c -o $@
+$(BINDIR)/brix-fault-proxy: $(FAULT_PROXY_SRCS) $(FAULT_PROXY_HDRS) lib/core/version.h | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) -Iapps/diag $(FAULT_PROXY_SRCS) -o $@
 	@echo " + built $@ (standalone; no libbrix)"
 
 # IPv6→IPv4 auto-downgrade test (netpref.c) + its getaddrinfo LD_PRELOAD shim.

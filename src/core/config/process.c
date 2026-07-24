@@ -235,6 +235,20 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
         xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
                                                    ngx_stream_brix_module);
 
+        /*
+         * CMS role proof + outbound-client bring-up runs for EVERY server
+         * block, BEFORE the common.enable gate.  A dedicated cms-only
+         * manager/sub-manager block (brix_cms_server on its own listen port)
+         * has the main data path disabled (common.enable off) yet still owns a
+         * cmsd role and an upstream client to start.  Worker-0-gated internally
+         * (single connection per node identity).
+         */
+        brix_cms_role_worker_init(cycle, xcf);
+
+        if (xcf->manager_mode) {
+            manager_seen = 1;   /* A4: arm the pending-locate reaper below */
+        }
+
         if (!xcf->common.enable) {
             continue;
         }
@@ -245,10 +259,6 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
             /* Phase 33: warm the GSI DH key pool below — keypool sizing +
              * thread pool come from the first GSI block. */
             gsi_xcf = xcf;
-        }
-
-        if (xcf->manager_mode) {
-            manager_seen = 1;   /* A4: arm the pending-locate reaper below */
         }
 
         if (brix_init_one_server(cycle, xcf) != NGX_OK) {
