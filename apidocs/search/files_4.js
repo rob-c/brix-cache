@@ -11,7 +11,7 @@ var searchData=
   ['etag_2eh_8',['etag.h',['../etag_8h.html',1,'']]],
   ['event_5fsched_2ec_9',['event_sched.c',['../event__sched_8c.html',1,'']]],
   ['event_5fsched_2eh_10',['event_sched.h',['../event__sched_8h.html',1,'']]],
-  ['events_2ec_11',['events.c',['../net_2upstream_2events_8c.html',1,'(Global Namespace)'],['../observability_2dashboard_2events_8c.html',1,'(Global Namespace)']]],
+  ['events_2ec_11',['events.c',['../observability_2dashboard_2events_8c.html',1,'(Global Namespace)'],['../net_2upstream_2events_8c.html',1,'(Global Namespace)']]],
   ['events_5fbootstrap_2ec_12',['events_bootstrap.c',['../events__bootstrap_8c.html',1,'']]],
   ['events_5fbootstrap_5fauth_2ec_13',['events_bootstrap_auth.c',['../events__bootstrap__auth_8c.html',1,'']]],
   ['events_5fbootstrap_5finternal_2eh_14',['events_bootstrap_internal.h',['../events__bootstrap__internal_8h.html',1,'']]],
@@ -27,5 +27,5 @@ var searchData=
   ['export_5fguard_2eh_24',['export_guard.h',['../export__guard_8h.html',1,'']]],
   ['ext_5fops_2ec_25',['ext_ops.c',['../ext__ops_8c.html',1,'']]],
   ['ext_5fops_2eh_26',['ext_ops.h',['../ext__ops_8h.html',1,'']]],
-  ['extract_2ec_27',['extract.c',['../protocols_2root_2path_2extract_8c.html',1,'(Global Namespace)'],['../auth_2voms_2extract_8c.html',1,'(Global Namespace)']]]
+  ['extract_2ec_27',['extract.c',['../auth_2voms_2extract_8c.html',1,'(Global Namespace)'],['../protocols_2root_2path_2extract_8c.html',1,'(Global Namespace)']]]
 ];

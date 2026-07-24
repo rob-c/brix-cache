@@ -73,6 +73,10 @@ var NAVTREEINDEX0 =
 "accesslog_2access__log_8h.html#a45feb45adf3eae6b16ad5334b6df53e6":[95,0,2,4,0,1,1],
 "accesslog_2access__log_8h.html#a9b49d42e7785d004db3f804157c6d8fb":[95,0,2,4,0,1,0],
 "accesslog_2access__log_8h_source.html":[95,0,2,4,0,1],
+"action__log_8h.html":[95,0,2,3,0,0],
+"action__log_8h.html#a16d11dda9c9d397ce9c47b995b079f6e":[95,0,2,3,0,0,0],
+"action__log_8h.html#ae701dc22fd6cdc52acb20ea9ff5c4366":[95,0,2,3,0,0,1],
+"action__log_8h_source.html":[95,0,2,3,0,0],
 "af__policy_8h.html":[95,0,2,1,1,0],
 "af__policy_8h.html#aaf173079f9656bd7f1b5f747910a1414":[95,0,2,1,1,0,0],
 "af__policy_8h.html#aaf173079f9656bd7f1b5f747910a1414a2ea6fa7ce1b524cc57da09636b7a7807":[95,0,2,1,1,0,0,0],
@@ -245,9 +249,5 @@ var NAVTREEINDEX0 =
 "aio__mgr_8c_source.html":[95,0,0,2,2,0,7],
 "alloc__guard_8h.html":[95,0,2,1,1,1],
 "alloc__guard_8h.html#a3d87614c6444b57961be7c8a60391912":[95,0,2,1,1,1,0],
-"alloc__guard_8h.html#a9d003b37ed0b61997b2c41660800a1c6":[95,0,2,1,1,1,2],
-"alloc__guard_8h.html#aa37b1d99f961047ee2754193a1cfaf7c":[95,0,2,1,1,1,1],
-"alloc__guard_8h_source.html":[95,0,2,1,1,1],
-"annotated.html":[94,0],
-"api_8c.html":[95,0,2,4,1,0]
+"alloc__guard_8h.html#a9d003b37ed0b61997b2c41660800a1c6":[95,0,2,1,1,1,2]
 };

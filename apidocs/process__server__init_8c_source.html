@@ -453,87 +453,93 @@ $(document).ready(function(){initNavTree('process__server__init_8c_source.html',
 <div class="line"><a id="l00341" name="l00341"></a><span class="lineno">  341</span><span class="comment"> *   4. Open the confined export rootfd (fatal on failure).</span></div>
 <div class="line"><a id="l00342" name="l00342"></a><span class="lineno">  342</span><span class="comment"> *   5. Recover interrupted checkpoints, build cache SD storage instances,</span></div>
 <div class="line"><a id="l00343" name="l00343"></a><span class="lineno">  343</span><span class="comment"> *      build XrdAcc tables — each fatal on failure.</span></div>
-<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span><span class="comment"> *   6. Start CMS handlers (when cms_addr set), health-check timer, Pelican</span></div>
-<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span><span class="comment"> *      cache advertisement — all internal no-ops when unconfigured.</span></div>
-<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span><span class="comment"> *   7. Arm the stale-dirty and watermark cache reaper timers (fatal on</span></div>
-<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span><span class="comment"> *      allocation failure).</span></div>
-<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span><span class="comment"> *   8. Arm the CRL reload timer / schedule JWKS refresh.</span></div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>ngx_int_t</div>
-<div class="foldopen" id="foldopen00351" data-start="{" data-end="}">
-<div class="line"><a id="l00351" name="l00351"></a><span class="lineno"><a class="line" href="process__internal_8h.html#ac59610dbd0be7fe9571ab27059b064ae">  351</a></span><a class="code hl_function" href="process__server__init_8c.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a>(ngx_cycle_t *cycle, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
-<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>{</div>
-<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>    <a class="code hl_function" href="process__server__init_8c.html#a994eb9ec136a9daed07d23d6ed7556a7">brix_init_server_backend_credential</a>(cycle, xcf);</div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span> </div>
-<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>    <span class="comment">/*</span></div>
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span><span class="comment">     * Capture the nginx-managed log fds the master opened during</span></div>
-<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span><span class="comment">     * ngx_init_cycle.  We read file-&gt;fd here (not at config time, where it</span></div>
-<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span><span class="comment">     * is still NGX_INVALID_FILE) so the hot access-/audit-log write paths</span></div>
-<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span><span class="comment">     * keep using a plain int fd.  nginx dup2()s a reopened log onto the same</span></div>
-<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span><span class="comment">     * fd number on USR1, so this captured value stays valid for the worker&#39;s</span></div>
-<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span><span class="comment">     * lifetime.  A NULL handle means logging is disabled for this server.</span></div>
-<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span><span class="comment">     */</span></div>
-<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    xcf-&gt;access_log_fd = xcf-&gt;access_log_file != NULL</div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>                         ? xcf-&gt;access_log_file-&gt;fd : NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    xcf-&gt;proxy.audit_log_fd = xcf-&gt;proxy.audit_log_file != NULL</div>
-<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>                         ? xcf-&gt;proxy.audit_log_file-&gt;fd : NGX_INVALID_FILE;</div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span> </div>
-<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>    <a class="code hl_function" href="process__server__init_8c.html#a56b57e88fe9c8ffff5d5b652b341b903">brix_init_server_stage_registry</a>(cycle, xcf);</div>
-<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span> </div>
-<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="process__server__init_8c.html#a68150fe9ea33a1e57d58e223bbcba904">brix_init_server_rootfd</a>(cycle, xcf) != NGX_OK) {</div>
-<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>    }</div>
-<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span> </div>
-<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="chkpoint_8h.html#aa6141aff809beb21e63679b1ccbd472e">brix_chkpoint_recover_root</a>(cycle-&gt;log, xcf-&gt;common.root_canon)</div>
-<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>        != NGX_OK)</div>
-<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>    {</div>
-<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>    }</div>
-<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span> </div>
-<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span>    <span class="comment">/* The per-export storage backend (e.g. pblock) is registered at config</span></div>
-<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span><span class="comment">     * time and built per worker lazily by the VFS backend registry on first</span></div>
-<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span><span class="comment">     * use (brix_vfs_ctx_init → brix_vfs_backend_resolve); no per-server</span></div>
-<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span><span class="comment">     * init_process creation is needed here. */</span></div>
-<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span> </div>
-<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    <span class="comment">/* The cache performs all disk I/O through SD storage instances (POSIX</span></div>
-<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span><span class="comment">     * driver on a per-worker rootfd by default, or a configured backend) —</span></div>
-<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span><span class="comment">     * build them now. No-op unless a cache is configured. */</span></div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__storage_8c.html#aa9dcea3200b8451209f4ef15d243a01c">brix_cache_storage_init</a>(xcf, cycle) != NGX_OK) {</div>
-<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>    }</div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span> </div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    <span class="comment">/* Build the per-worker XrdAcc tables + hot-reload timer (no-op unless</span></div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span><span class="comment">     * this server uses `brix_authdb_format xrdacc`). */</span></div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="auth_2authz_2acc_2config_8c.html#aa6951fcc391c99b567386709ce45cc48">brix_acc_init_server</a>(xcf, cycle) != NGX_OK) {</div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    }</div>
-<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span> </div>
-<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    <span class="keywordflow">if</span> (xcf-&gt;cms.addr != NULL) {</div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>        <a class="code hl_function" href="ngx__brix__module_8h.html#a1cd25f085418ca2e4ee62d60a18c2463">ngx_brix_cms_start</a>(cycle, xcf);</div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>    }</div>
-<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span> </div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    <span class="comment">/* Phase 22: start the active health-check timer (no-op if disabled). */</span></div>
-<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>    <a class="code hl_function" href="health__check_8c.html#ac8323579069448eb1ac3a74dae96e3ba">brix_hc_manager_start</a>(cycle, xcf);</div>
-<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span> </div>
-<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>    <span class="comment">/* Pelican: start the cache advertisement timer (no-op unless</span></div>
-<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span><span class="comment">     * brix_cache_advertise is on with a key + data-url configured). */</span></div>
-<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>    <a class="code hl_function" href="pelican__register_8c.html#acf629425fc6561ccdbbe0dbb445b0943">brix_cache_pelican_schedule_advertise</a>(cycle, xcf);</div>
-<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span> </div>
-<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    <span class="comment">/* Unified cache-state engine: arm the per-worker stale-dirty reaper when</span></div>
-<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span><span class="comment">     * a state root resolves and a max age is set. Independent of occupancy. */</span></div>
-<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="process__server__init_8c.html#a034546f9d1b64b307f22a57db889feaa">brix_init_server_cache_reap_timer</a>(cycle, xcf) != NGX_OK) {</div>
-<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>    }</div>
+<div class="line"><a id="l00344" name="l00344"></a><span class="lineno">  344</span><span class="comment"> *   6. Start the health-check timer + Pelican cache advertisement — internal</span></div>
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno">  345</span><span class="comment"> *      no-ops when unconfigured. (The outbound CMS client is started earlier,</span></div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span><span class="comment"> *      per-block and worker-0-gated, in brix_cms_role_worker_init.)</span></div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span><span class="comment"> *   7. Arm the stale-dirty and watermark cache reaper timers (fatal on</span></div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span><span class="comment"> *      allocation failure).</span></div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span><span class="comment"> *   8. Arm the CRL reload timer / schedule JWKS refresh.</span></div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>ngx_int_t</div>
+<div class="foldopen" id="foldopen00352" data-start="{" data-end="}">
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno"><a class="line" href="process__internal_8h.html#ac59610dbd0be7fe9571ab27059b064ae">  352</a></span><a class="code hl_function" href="process__server__init_8c.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a>(ngx_cycle_t *cycle, <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *xcf)</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>{</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    <a class="code hl_function" href="process__server__init_8c.html#a994eb9ec136a9daed07d23d6ed7556a7">brix_init_server_backend_credential</a>(cycle, xcf);</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span> </div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span><span class="comment">     * Capture the nginx-managed log fds the master opened during</span></div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span><span class="comment">     * ngx_init_cycle.  We read file-&gt;fd here (not at config time, where it</span></div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span><span class="comment">     * is still NGX_INVALID_FILE) so the hot access-/audit-log write paths</span></div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span><span class="comment">     * keep using a plain int fd.  nginx dup2()s a reopened log onto the same</span></div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span><span class="comment">     * fd number on USR1, so this captured value stays valid for the worker&#39;s</span></div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span><span class="comment">     * lifetime.  A NULL handle means logging is disabled for this server.</span></div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    xcf-&gt;access_log_fd = xcf-&gt;access_log_file != NULL</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>                         ? xcf-&gt;access_log_file-&gt;fd : NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>    xcf-&gt;proxy.audit_log_fd = xcf-&gt;proxy.audit_log_file != NULL</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>                         ? xcf-&gt;proxy.audit_log_file-&gt;fd : NGX_INVALID_FILE;</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span> </div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>    <a class="code hl_function" href="process__server__init_8c.html#a56b57e88fe9c8ffff5d5b652b341b903">brix_init_server_stage_registry</a>(cycle, xcf);</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span> </div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="process__server__init_8c.html#a68150fe9ea33a1e57d58e223bbcba904">brix_init_server_rootfd</a>(cycle, xcf) != NGX_OK) {</div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    }</div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span> </div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="chkpoint_8h.html#aa6141aff809beb21e63679b1ccbd472e">brix_chkpoint_recover_root</a>(cycle-&gt;log, xcf-&gt;common.root_canon)</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span>        != NGX_OK)</div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span>    {</div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00379" name="l00379"></a><span class="lineno">  379</span>    }</div>
+<div class="line"><a id="l00380" name="l00380"></a><span class="lineno">  380</span> </div>
+<div class="line"><a id="l00381" name="l00381"></a><span class="lineno">  381</span>    <span class="comment">/* The per-export storage backend (e.g. pblock) is registered at config</span></div>
+<div class="line"><a id="l00382" name="l00382"></a><span class="lineno">  382</span><span class="comment">     * time and built per worker lazily by the VFS backend registry on first</span></div>
+<div class="line"><a id="l00383" name="l00383"></a><span class="lineno">  383</span><span class="comment">     * use (brix_vfs_ctx_init → brix_vfs_backend_resolve); no per-server</span></div>
+<div class="line"><a id="l00384" name="l00384"></a><span class="lineno">  384</span><span class="comment">     * init_process creation is needed here. */</span></div>
+<div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span> </div>
+<div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    <span class="comment">/* The cache performs all disk I/O through SD storage instances (POSIX</span></div>
+<div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span><span class="comment">     * driver on a per-worker rootfd by default, or a configured backend) —</span></div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span><span class="comment">     * build them now. No-op unless a cache is configured. */</span></div>
+<div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="cache__storage_8c.html#aa9dcea3200b8451209f4ef15d243a01c">brix_cache_storage_init</a>(xcf, cycle) != NGX_OK) {</div>
+<div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>    }</div>
+<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span> </div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    <span class="comment">/* Build the per-worker XrdAcc tables + hot-reload timer (no-op unless</span></div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span><span class="comment">     * this server uses `brix_authdb_format xrdacc`). */</span></div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="auth_2authz_2acc_2config_8c.html#aa6951fcc391c99b567386709ce45cc48">brix_acc_init_server</a>(xcf, cycle) != NGX_OK) {</div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>    }</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span> </div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span><span class="comment">     * The outbound CMS client is started in brix_cms_role_worker_init</span></div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span><span class="comment">     * (process.c), which runs for every server block (including cms-only</span></div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span><span class="comment">     * manager blocks with the data path disabled) and gates the client to</span></div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span><span class="comment">     * worker 0 so a stock upstream cmsd admits a single connection per node.</span></div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span><span class="comment">     * It must NOT be started here as well: this ladder runs on every worker,</span></div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span><span class="comment">     * which would resurrect the per-worker connection collision.</span></div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span> </div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>    <span class="comment">/* Phase 22: start the active health-check timer (no-op if disabled). */</span></div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    <a class="code hl_function" href="health__check_8c.html#ac8323579069448eb1ac3a74dae96e3ba">brix_hc_manager_start</a>(cycle, xcf);</div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span> </div>
+<div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span>    <span class="comment">/* Pelican: start the cache advertisement timer (no-op unless</span></div>
+<div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span><span class="comment">     * brix_cache_advertise is on with a key + data-url configured). */</span></div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>    <a class="code hl_function" href="pelican__register_8c.html#acf629425fc6561ccdbbe0dbb445b0943">brix_cache_pelican_schedule_advertise</a>(cycle, xcf);</div>
 <div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span> </div>
-<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>    <span class="comment">/* Watermark-driven LRU reaper: arm the proactive per-worker timer when a</span></div>
-<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span><span class="comment">     * cache is configured with a valid HIGH watermark. A small per-worker</span></div>
-<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span><span class="comment">     * jitter on the first tick keeps the workers from all firing together. */</span></div>
-<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="process__server__init_8c.html#abb3607758dfbca3fbea953525672d59a">brix_init_server_watermark_timer</a>(cycle, xcf) != NGX_OK) {</div>
-<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
-<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span>    }</div>
-<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span> </div>
-<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="process__server__init_8c.html#a5441b904e6ba81cf08ad87d4f46e5efd">brix_init_server_crl_jwks</a>(cycle, xcf);</div>
-<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span>}</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>    <span class="comment">/* Unified cache-state engine: arm the per-worker stale-dirty reaper when</span></div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span><span class="comment">     * a state root resolves and a max age is set. Independent of occupancy. */</span></div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="process__server__init_8c.html#a034546f9d1b64b307f22a57db889feaa">brix_init_server_cache_reap_timer</a>(cycle, xcf) != NGX_OK) {</div>
+<div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>    }</div>
+<div class="line"><a id="l00420" name="l00420"></a><span class="lineno">  420</span> </div>
+<div class="line"><a id="l00421" name="l00421"></a><span class="lineno">  421</span>    <span class="comment">/* Watermark-driven LRU reaper: arm the proactive per-worker timer when a</span></div>
+<div class="line"><a id="l00422" name="l00422"></a><span class="lineno">  422</span><span class="comment">     * cache is configured with a valid HIGH watermark. A small per-worker</span></div>
+<div class="line"><a id="l00423" name="l00423"></a><span class="lineno">  423</span><span class="comment">     * jitter on the first tick keeps the workers from all firing together. */</span></div>
+<div class="line"><a id="l00424" name="l00424"></a><span class="lineno">  424</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="process__server__init_8c.html#abb3607758dfbca3fbea953525672d59a">brix_init_server_watermark_timer</a>(cycle, xcf) != NGX_OK) {</div>
+<div class="line"><a id="l00425" name="l00425"></a><span class="lineno">  425</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
+<div class="line"><a id="l00426" name="l00426"></a><span class="lineno">  426</span>    }</div>
+<div class="line"><a id="l00427" name="l00427"></a><span class="lineno">  427</span> </div>
+<div class="line"><a id="l00428" name="l00428"></a><span class="lineno">  428</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="process__server__init_8c.html#a5441b904e6ba81cf08ad87d4f46e5efd">brix_init_server_crl_jwks</a>(cycle, xcf);</div>
+<div class="line"><a id="l00429" name="l00429"></a><span class="lineno">  429</span>}</div>
 </div>
 <div class="ttc" id="aauth_2authz_2acc_2config_8c_html_aa6951fcc391c99b567386709ce45cc48"><div class="ttname"><a href="auth_2authz_2acc_2config_8c.html#aa6951fcc391c99b567386709ce45cc48">brix_acc_init_server</a></div><div class="ttdeci">ngx_int_t brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf, ngx_cycle_t *cycle)</div><div class="ttdef"><b>Definition</b> <a href="auth_2authz_2acc_2config_8c_source.html#l00239">config.c:239</a></div></div>
 <div class="ttc" id="abrixposix__preload_8c_html_ad586f56cb2d7d849a4cb20dbd792b543"><div class="ttname"><a href="brixposix__preload_8c.html#ad586f56cb2d7d849a4cb20dbd792b543">open</a></div><div class="ttdeci">int open(const char *path, int flags,...)</div><div class="ttdef"><b>Definition</b> <a href="brixposix__preload_8c_source.html#l00252">brixposix_preload.c:252</a></div></div>
@@ -549,7 +555,6 @@ $(document).ready(function(){initNavTree('process__server__init_8c_source.html',
 <div class="ttc" id="acstr_8h_html_a9bb0256bbf38e5c7dfe426ed3a218409"><div class="ttname"><a href="cstr_8h.html#a9bb0256bbf38e5c7dfe426ed3a218409">brix_str_cbuf</a></div><div class="ttdeci">static const char * brix_str_cbuf(char *buf, size_t bufsize, const ngx_str_t *s)</div><div class="ttdef"><b>Definition</b> <a href="cstr_8h_source.html#l00043">cstr.h:43</a></div></div>
 <div class="ttc" id="ahealth__check_8c_html_ac8323579069448eb1ac3a74dae96e3ba"><div class="ttname"><a href="health__check_8c.html#ac8323579069448eb1ac3a74dae96e3ba">brix_hc_manager_start</a></div><div class="ttdeci">void brix_hc_manager_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="health__check_8c_source.html#l00410">health_check.c:410</a></div></div>
 <div class="ttc" id="ahealth__check_8h_html"><div class="ttname"><a href="health__check_8h.html">health_check.h</a></div></div>
-<div class="ttc" id="angx__brix__module_8h_html_a1cd25f085418ca2e4ee62d60a18c2463"><div class="ttname"><a href="ngx__brix__module_8h.html#a1cd25f085418ca2e4ee62d60a18c2463">ngx_brix_cms_start</a></div><div class="ttdeci">void ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00514">connect.c:514</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
 <div class="ttc" id="apelican__register_8c_html_acf629425fc6561ccdbbe0dbb445b0943"><div class="ttname"><a href="pelican__register_8c.html#acf629425fc6561ccdbbe0dbb445b0943">brix_cache_pelican_schedule_advertise</a></div><div class="ttdeci">void brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="pelican__register_8c_source.html#l00464">pelican_register.c:464</a></div></div>
 <div class="ttc" id="apelican__register_8h_html"><div class="ttname"><a href="pelican__register_8h.html">pelican_register.h</a></div></div>
@@ -563,7 +568,7 @@ $(document).ready(function(){initNavTree('process__server__init_8c_source.html',
 <div class="ttc" id="aprocess__server__init_8c_html_a68150fe9ea33a1e57d58e223bbcba904"><div class="ttname"><a href="process__server__init_8c.html#a68150fe9ea33a1e57d58e223bbcba904">brix_init_server_rootfd</a></div><div class="ttdeci">static ngx_int_t brix_init_server_rootfd(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="process__server__init_8c_source.html#l00164">process_server_init.c:164</a></div></div>
 <div class="ttc" id="aprocess__server__init_8c_html_a994eb9ec136a9daed07d23d6ed7556a7"><div class="ttname"><a href="process__server__init_8c.html#a994eb9ec136a9daed07d23d6ed7556a7">brix_init_server_backend_credential</a></div><div class="ttdeci">static void brix_init_server_backend_credential(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="process__server__init_8c_source.html#l00067">process_server_init.c:67</a></div></div>
 <div class="ttc" id="aprocess__server__init_8c_html_abb3607758dfbca3fbea953525672d59a"><div class="ttname"><a href="process__server__init_8c.html#abb3607758dfbca3fbea953525672d59a">brix_init_server_watermark_timer</a></div><div class="ttdeci">static ngx_int_t brix_init_server_watermark_timer(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="process__server__init_8c_source.html#l00243">process_server_init.c:243</a></div></div>
-<div class="ttc" id="aprocess__server__init_8c_html_ac59610dbd0be7fe9571ab27059b064ae"><div class="ttname"><a href="process__server__init_8c.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a></div><div class="ttdeci">ngx_int_t brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="process__server__init_8c_source.html#l00351">process_server_init.c:351</a></div></div>
+<div class="ttc" id="aprocess__server__init_8c_html_ac59610dbd0be7fe9571ab27059b064ae"><div class="ttname"><a href="process__server__init_8c.html#ac59610dbd0be7fe9571ab27059b064ae">brix_init_one_server</a></div><div class="ttdeci">ngx_int_t brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)</div><div class="ttdef"><b>Definition</b> <a href="process__server__init_8c_source.html#l00352">process_server_init.c:352</a></div></div>
 <div class="ttc" id="areap__watermark_8c_html_a899f3f5b479389b35d09da134b981a09"><div class="ttname"><a href="reap__watermark_8c.html#a899f3f5b479389b35d09da134b981a09">brix_cache_watermark_timer_handler</a></div><div class="ttdeci">void brix_cache_watermark_timer_handler(ngx_event_t *ev)</div><div class="ttdef"><b>Definition</b> <a href="reap__watermark_8c_source.html#l00079">reap_watermark.c:79</a></div></div>
 <div class="ttc" id="areap__watermark_8h_html"><div class="ttname"><a href="reap__watermark_8h.html">reap_watermark.h</a></div></div>
 <div class="ttc" id="arefresh_8c_html_a5fb3b244d3965a2035e9d72e5ec7761e"><div class="ttname"><a href="refresh_8c.html#a5fb3b244d3965a2035e9d72e5ec7761e">brix_token_jwks_schedule_refresh</a></div><div class="ttdeci">void brix_token_jwks_schedule_refresh(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)</div><div class="ttdef"><b>Definition</b> <a href="refresh_8c_source.html#l00110">refresh.c:110</a></div></div>

@@ -1,0 +1,19 @@
+<map id="client/apps/diag/brix_fault_ext.c" name="client/apps/diag/brix_fault_ext.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="322,5,477,45"/>
+<area shape="rect" id="Node000002" href="$brix__fault__ext_8h.html" title=" " alt="" coords="5,93,129,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="323,47,130,93,129,88,321,42"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="153,93,245,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="352,48,242,91,240,86,350,43"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="269,93,340,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="378,48,331,86,328,82,375,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="364,93,435,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="402,46,402,79,397,79,397,46"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="459,93,526,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="424,44,470,82,466,86,420,48"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="551,93,621,119"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="445,43,547,85,545,90,443,48"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="645,93,716,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="467,43,632,89,631,94,466,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="30,167,105,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="70,119,70,153,65,153,65,119"/>
+</map>

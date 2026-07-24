@@ -8,7 +8,7 @@ var structbrix__diag =
     [ "n", "structbrix__diag.html#a50aa148a945050045ace4e0618b4f3d0", null ],
     [ "phase_ns", "structbrix__diag.html#ae292e95ca61b0644ff5f918d7cbde8e0", null ],
     [ "redir_trace", "structbrix__diag.html#ad3bd6ff5095e0ea37023305291396887", null ],
-    [ "rtt", "structbrix__diag.html#a8c769570d2cd0fc9edd7f95267d9089b", null ],
+    [ "rtt", "structbrix__diag.html#ac19babd3153e224f4b0d8893f740d526", null ],
     [ "t_send_ns", "structbrix__diag.html#a8f8f44d6cba514d070396d30406a0f5e", null ],
     [ "timing", "structbrix__diag.html#aaafea7328f7614bc4c111fafa3a0a87e", null ],
     [ "tot_ns", "structbrix__diag.html#a964f4dfa9ee5f2d468cee36166318277", null ],

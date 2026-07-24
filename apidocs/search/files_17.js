@@ -21,7 +21,7 @@ var searchData=
   ['xmeta_5fpath_2ec_18',['xmeta_path.c',['../xmeta__path_8c.html',1,'']]],
   ['xmeta_5fpath_2eh_19',['xmeta_path.h',['../xmeta__path_8h.html',1,'']]],
   ['xmeta_5funittest_2ec_20',['xmeta_unittest.c',['../xmeta__unittest_8c.html',1,'']]],
-  ['xml_2ec_21',['xml.c',['../protocols_2webdav_2util_2xml_8c.html',1,'(Global Namespace)'],['../core_2compat_2xml_8c.html',1,'(Global Namespace)']]],
+  ['xml_2ec_21',['xml.c',['../core_2compat_2xml_8c.html',1,'(Global Namespace)'],['../protocols_2webdav_2util_2xml_8c.html',1,'(Global Namespace)']]],
   ['xml_2eh_22',['xml.h',['../core_2compat_2xml_8h.html',1,'(Global Namespace)'],['../protocols_2webdav_2util_2xml_8h.html',1,'(Global Namespace)']]],
   ['xrd_2ec_23',['xrd.c',['../xrd_8c.html',1,'']]],
   ['xrd_5fbattery_2ec_24',['xrd_battery.c',['../xrd__battery_8c.html',1,'']]],

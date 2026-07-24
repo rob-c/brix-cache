@@ -1,5 +1,14 @@
 var net_2cms_2connect_8c =
 [
+    [ "brix_cms_role_t", "net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fd", [
+      [ "BRIX_CMS_ROLE_NONE", "net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fdadf15f34bc7c217e70122c7bd60630cf5", null ],
+      [ "BRIX_CMS_ROLE_CLIENT", "net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fda292460a32c285c73ba5f73af14d23d96", null ],
+      [ "BRIX_CMS_ROLE_MANAGER", "net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fda65ceb3d2961b7b63159a8b84c8708769", null ],
+      [ "BRIX_CMS_ROLE_SUBMANAGER", "net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fda6fc43500dd5e2b23256d9918dd92841c", null ]
+    ] ],
+    [ "brix_cms_role_derive", "net_2cms_2connect_8c.html#ad97a2081407562788f60abab4592ad88", null ],
+    [ "brix_cms_role_name", "net_2cms_2connect_8c.html#aa792135e847ff51665995c1ea19bda36", null ],
+    [ "brix_cms_role_worker_init", "net_2cms_2connect_8c.html#a69cdc7b2d0a1bac4fd2c0a5afad63ba0", null ],
     [ "cms_addr_is_loopback", "net_2cms_2connect_8c.html#af4bbbc18510c9c50915448fea1a503a4", null ],
     [ "ngx_brix_cms_arm_read_deadline", "net_2cms_2connect_8c.html#a873f3f4f20b953dc154b465ad18fa10b", null ],
     [ "ngx_brix_cms_connect", "net_2cms_2connect_8c.html#af6e437c339ffa4d5f65946bde6801119", null ],

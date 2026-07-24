@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['handler_2ec_0',['handler.c',['../protocols_2s3_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2dirlist_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2connection_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2srr_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2cvmfs_2handler_8c.html',1,'(Global Namespace)'],['../observability_2metrics_2handler_8c.html',1,'(Global Namespace)']]],
+  ['handler_2ec_0',['handler.c',['../protocols_2cvmfs_2handler_8c.html',1,'(Global Namespace)'],['../observability_2metrics_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2connection_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2root_2dirlist_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2s3_2handler_8c.html',1,'(Global Namespace)'],['../protocols_2srr_2handler_8c.html',1,'(Global Namespace)']]],
   ['handler_2eh_1',['handler.h',['../handler_8h.html',1,'']]],
   ['handler_5fdispatch_2ec_2',['handler_dispatch.c',['../handler__dispatch_8c.html',1,'']]],
   ['handler_5fobject_5froute_2ec_3',['handler_object_route.c',['../handler__object__route_8c.html',1,'']]],
@@ -14,7 +14,7 @@ var searchData=
   ['health_5fcheck_2eh_11',['health_check.h',['../health__check_8h.html',1,'']]],
   ['health_5fcheck_5finternal_2eh_12',['health_check_internal.h',['../health__check__internal_8h.html',1,'']]],
   ['health_5fcheck_5fprobe_2ec_13',['health_check_probe.c',['../health__check__probe_8c.html',1,'']]],
-  ['helpers_2ec_14',['helpers.c',['../protocols_2root_2fattr_2helpers_8c.html',1,'(Global Namespace)'],['../core_2config_2helpers_8c.html',1,'(Global Namespace)'],['../fs_2path_2helpers_8c.html',1,'(Global Namespace)']]],
+  ['helpers_2ec_14',['helpers.c',['../core_2config_2helpers_8c.html',1,'(Global Namespace)'],['../fs_2path_2helpers_8c.html',1,'(Global Namespace)'],['../protocols_2root_2fattr_2helpers_8c.html',1,'(Global Namespace)']]],
   ['hex_2ec_15',['hex.c',['../hex_8c.html',1,'']]],
   ['hex_2eh_16',['hex.h',['../hex_8h.html',1,'']]],
   ['history_2ec_17',['history.c',['../history_8c.html',1,'']]],
@@ -33,7 +33,7 @@ var searchData=
   ['http_5fcache_5ffill_5fregistry_2ec_30',['http_cache_fill_registry.c',['../http__cache__fill__registry_8c.html',1,'']]],
   ['http_5fcache_5ffill_5fworker_2ec_31',['http_cache_fill_worker.c',['../http__cache__fill__worker_8c.html',1,'']]],
   ['http_5fcommon_2ec_32',['http_common.c',['../http__common_8c.html',1,'']]],
-  ['http_5fcommon_2eh_33',['http_common.h',['../observability_2metrics_2http__common_8h.html',1,'(Global Namespace)'],['../core_2config_2http__common_8h.html',1,'(Global Namespace)']]],
+  ['http_5fcommon_2eh_33',['http_common.h',['../core_2config_2http__common_8h.html',1,'(Global Namespace)'],['../observability_2metrics_2http__common_8h.html',1,'(Global Namespace)']]],
   ['http_5fcompress_2ec_34',['http_compress.c',['../http__compress_8c.html',1,'']]],
   ['http_5fcompress_2eh_35',['http_compress.h',['../http__compress_8h.html',1,'']]],
   ['http_5fconditionals_2ec_36',['http_conditionals.c',['../http__conditionals_8c.html',1,'']]],

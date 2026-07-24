@@ -16,7 +16,7 @@ var searchData=
   ['brix_5fckv_5fresult_13',['brix_ckv_result',['../brix__ops_8h.html#ad4ac6b425e74e79a0ad3b9cd961a4208',1,'brix_ops.h']]],
   ['brix_5fcms_5fauth_5fstate_5ft_14',['brix_cms_auth_state_t',['../server_8h.html#aa088a4989e046ecb939aa98569d982aa',1,'server.h']]],
   ['brix_5fcms_5fnode_5faction_5ft_15',['brix_cms_node_action_t',['../node__ops_8h.html#aac5b828a1171150b2c14ac459c58b9df',1,'node_ops.h']]],
-  ['brix_5fcms_5frole_5ft_16',['brix_cms_role_t',['../router_8h.html#ae4df819dd6622e99f514575386de77fd',1,'router.h']]],
+  ['brix_5fcms_5frole_5ft_16',['brix_cms_role_t',['../net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fd',1,'brix_cms_role_t:&#160;connect.c'],['../router_8h.html#ae4df819dd6622e99f514575386de77fd',1,'brix_cms_role_t:&#160;router.h']]],
   ['brix_5fcodec_5fdir_5ft_17',['brix_codec_dir_t',['../codec__core_8h.html#a1afab23ebf0d3903dd18146429b40ead',1,'codec_core.h']]],
   ['brix_5fcodec_5fid_5ft_18',['brix_codec_id_t',['../codec__core_8h.html#a03591542b2bcc7791920c2cdc0246793',1,'codec_core.h']]],
   ['brix_5fcodec_5frc_5ft_19',['brix_codec_rc_t',['../codec__core_8h.html#a986b94afeb61444958abfd071cb9d59d',1,'codec_core.h']]],

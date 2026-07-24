@@ -135,7 +135,7 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:aad987463b076920acad7883c0c307f85" id="r_aad987463b076920acad7883c0c307f85"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__cms__route__t.html">brix_cms_route_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#aad987463b076920acad7883c0c307f85">brix_cms_route_lookup</a> (<a class="el" href="router_8h.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a> role, unsigned char <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>)</td></tr>
+<tr class="memitem:aad987463b076920acad7883c0c307f85" id="r_aad987463b076920acad7883c0c307f85"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structbrix__cms__route__t.html">brix_cms_route_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="router_8h.html#aad987463b076920acad7883c0c307f85">brix_cms_route_lookup</a> (<a class="el" href="net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a> role, unsigned char <a class="el" href="net_2cms_2recv__frame_8c.html#a9184f4b820c1cab8c02a7416c15d4bc6">code</a>)</td></tr>
 <tr class="separator:aad987463b076920acad7883c0c307f85"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -227,7 +227,7 @@ Functions</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">enum <a class="el" href="router_8h.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a></td>
+          <td class="memname">enum <a class="el" href="net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -250,7 +250,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="memname">const <a class="el" href="structbrix__cms__route__t.html">brix_cms_route_t</a> * brix_cms_route_lookup </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="router_8h.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="net_2cms_2connect_8c.html#ae4df819dd6622e99f514575386de77fd">brix_cms_role_t</a>&#160;</td>
           <td class="paramname"><em>role</em>, </td>
         </tr>
         <tr>
@@ -269,9 +269,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="router_8c_source.html#l00116">116</a> of file <a class="el" href="router_8c_source.html">router.c</a>.</p>
 
-<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00387">code</a>, <a class="el" href="router_8c_source.html#l00049">manager_routes</a>, <a class="el" href="router_8c_source.html#l00083">node_routes</a>, <a class="el" href="router_8c_source.html#l00104">route_scan()</a>, and <a class="el" href="router_8h_source.html#l00027">XRDCMS_ROLE_NODE</a>.</p>
+<p class="reference">References <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00429">code</a>, <a class="el" href="router_8c_source.html#l00049">manager_routes</a>, <a class="el" href="router_8c_source.html#l00083">node_routes</a>, <a class="el" href="router_8c_source.html#l00104">route_scan()</a>, and <a class="el" href="router_8h_source.html#l00027">XRDCMS_ROLE_NODE</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="server__recv__frame_8c_source.html#l00150">cms_srv_frame_unknown()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00416">ngx_brix_cms_process_frame()</a>, <a class="el" href="router__unittest_8c_source.html#l00030">test_manager_forwardable_mkdir()</a>, <a class="el" href="router__unittest_8c_source.html#l00044">test_manager_locate_not_forwarded()</a>, <a class="el" href="router__unittest_8c_source.html#l00057">test_manager_ping_sync_noargs()</a>, <a class="el" href="router__unittest_8c_source.html#l00071">test_node_executes_forwarded_mkdir_without_reforward()</a>, <a class="el" href="router__unittest_8c_source.html#l00083">test_node_rejects_node_status_opcode()</a>, <a class="el" href="router__unittest_8c_source.html#l00099">test_unknown_opcode_rejected()</a>, and <a class="el" href="router__unittest_8c_source.html#l00092">test_update_routed_both_roles()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00364">cms_frame_forward()</a>, <a class="el" href="server__recv__frame_8c_source.html#l00162">cms_srv_frame_unknown()</a>, <a class="el" href="net_2cms_2recv__frame_8c_source.html#l00458">ngx_brix_cms_process_frame()</a>, <a class="el" href="router__unittest_8c_source.html#l00030">test_manager_forwardable_mkdir()</a>, <a class="el" href="router__unittest_8c_source.html#l00044">test_manager_locate_not_forwarded()</a>, <a class="el" href="router__unittest_8c_source.html#l00057">test_manager_ping_sync_noargs()</a>, <a class="el" href="router__unittest_8c_source.html#l00071">test_node_executes_forwarded_mkdir_without_reforward()</a>, <a class="el" href="router__unittest_8c_source.html#l00083">test_node_rejects_node_status_opcode()</a>, <a class="el" href="router__unittest_8c_source.html#l00099">test_unknown_opcode_rejected()</a>, and <a class="el" href="router__unittest_8c_source.html#l00092">test_update_routed_both_roles()</a>.</p>
 
 </div>
 </div>

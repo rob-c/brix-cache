@@ -200,232 +200,255 @@ $(document).ready(function(){initNavTree('server__module_8c_source.html',''); in
 <div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>{</div>
 <div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>    ngx_stream_brix_cms_srv_conf_t  *conf = conf_ptr;</div>
 <div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>    ngx_stream_core_srv_conf_t        *cscf;</div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    <span class="keywordtype">char</span>                              *rv;</div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span> </div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    rv = ngx_conf_set_flag_slot(cf, <a class="code hl_struct" href="structcmd.html">cmd</a>, conf_ptr);</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <span class="keywordflow">if</span> (rv != NGX_CONF_OK) {</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>        <span class="keywordflow">return</span> rv;</div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    }</div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    <span class="keywordflow">if</span> (!conf-&gt;enable) {</div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>        <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    }</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    cscf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_core_module);</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    cscf-&gt;handler = <a class="code hl_function" href="server_8h.html#a68276b65f6ad5d03b5f1d739aff1327a">brix_cms_srv_handler</a>;</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span> </div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>}</div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    <a class="code hl_struct" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a>        *bcf;</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>    <span class="keywordtype">char</span>                              *rv;</div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span> </div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    rv = ngx_conf_set_flag_slot(cf, <a class="code hl_struct" href="structcmd.html">cmd</a>, conf_ptr);</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    <span class="keywordflow">if</span> (rv != NGX_CONF_OK) {</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        <span class="keywordflow">return</span> rv;</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    }</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span> </div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    <span class="keywordflow">if</span> (!conf-&gt;enable) {</div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>        <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    }</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span> </div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    cscf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_core_module);</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    cscf-&gt;handler = <a class="code hl_function" href="server_8h.html#a68276b65f6ad5d03b5f1d739aff1327a">brix_cms_srv_handler</a>;</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <span class="comment">/*</span></div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="comment">     * Auto-role derivation: a block that runs `brix_cms_server on` accepts</span></div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="comment">     * downstream cmsd nodes, i.e. it IS a manager.  Turn on the main module&#39;s</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment">     * manager_mode for this same server block so the upstream CMS client</span></div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment">     * (send.c) advertises the kYR_Manager bit and aggregates downstream space</span></div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment">     * upward — that is precisely what makes it a MANAGER (no upstream) or, when</span></div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment">     * `brix_cms_manager` is also set here, a SUB-MANAGER (registers UP).  Role</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment">     * is then read purely off the main conf at worker init (connect.c</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment">     * brix_cms_role_worker_init).  An explicit `brix_manager_mode off` in the</span></div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="comment">     * same block still wins: only flip the flag while it is UNSET so the</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="comment">     * operator can always override the auto-derivation.</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="comment">     */</span></div>
+<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    bcf = ngx_stream_conf_get_module_srv_conf(cf, <a class="code hl_variable" href="negcache_8c.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a>);</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    <span class="keywordflow">if</span> (bcf != NULL &amp;&amp; bcf-&gt;manager_mode == NGX_CONF_UNSET) {</div>
+<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        bcf-&gt;manager_mode = 1;</div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>                           <span class="stringliteral">&quot;brix: brix_cms_server on -&gt; auto-enabling manager &quot;</span></div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>                           <span class="stringliteral">&quot;mode for this block (cmsd manager/sub-manager)&quot;</span>);</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    }</div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span> </div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>}</div>
 </div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span> </div>
-<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span> </div>
-<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="comment">/* brix_cms_srv_set_allow — parse a CIDR allowlist of permitted</span></div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="comment"> * data-node IPs.  Mirrors brix_admin_set_allow (dashboard/api_admin.c):</span></div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="comment"> * accumulate ngx_cidr_t entries that the accept-time gate matches the peer</span></div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="comment"> * address against.  Compatible with vanilla nodes — a node from a trusted</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment"> * subnet connects unchanged. */</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00122" data-start="{" data-end="}">
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno"><a class="line" href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">  122</a></span><a class="code hl_function" href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">brix_cms_srv_set_allow</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>, <span class="keywordtype">void</span> *conf_ptr)</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>{</div>
-<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    ngx_stream_brix_cms_srv_conf_t *conf = conf_ptr;</div>
-<div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    ngx_str_t  *value = cf-&gt;args-&gt;elts;</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    ngx_uint_t  i;</div>
-<div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span> </div>
-<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
-<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span> </div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    <span class="keywordflow">if</span> (conf-&gt;allow == NULL) {</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>        conf-&gt;allow = ngx_array_create(cf-&gt;pool, cf-&gt;args-&gt;nelts - 1,</div>
-<div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>                                       <span class="keyword">sizeof</span>(ngx_cidr_t));</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <span class="keywordflow">if</span> (conf-&gt;allow == NULL) {</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        }</div>
-<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
-<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
-<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    <span class="keywordflow">for</span> (i = 1; i &lt; cf-&gt;args-&gt;nelts; i++) {</div>
-<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        ngx_cidr_t *cidr = ngx_array_push(conf-&gt;allow);</div>
-<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>        ngx_int_t   rc;</div>
-<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        <span class="keywordflow">if</span> (cidr == NULL) {</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        }</div>
-<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>        rc = ngx_ptocidr(&amp;value[i], cidr);</div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>        <span class="keywordflow">if</span> (rc == NGX_ERROR) {</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>                <span class="stringliteral">&quot;invalid CIDR \&quot;%V\&quot; in brix_cms_server_allow&quot;</span>, &amp;value[i]);</div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>        }</div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>        <span class="keywordflow">if</span> (rc == NGX_DONE) {</div>
-<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,</div>
-<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>                <span class="stringliteral">&quot;low address bits of \&quot;%V\&quot; in brix_cms_server_allow &quot;</span></div>
-<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>                <span class="stringliteral">&quot;were ignored&quot;</span>, &amp;value[i]);</div>
-<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        }</div>
-<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>    }</div>
-<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>}</div>
-</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span> </div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span> </div>
+<div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="comment">/* brix_cms_srv_set_allow — parse a CIDR allowlist of permitted</span></div>
+<div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span><span class="comment"> * data-node IPs.  Mirrors brix_admin_set_allow (dashboard/api_admin.c):</span></div>
+<div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="comment"> * accumulate ngx_cidr_t entries that the accept-time gate matches the peer</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span><span class="comment"> * address against.  Compatible with vanilla nodes — a node from a trusted</span></div>
+<div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span><span class="comment"> * subnet connects unchanged. */</span></div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00143" data-start="{" data-end="}">
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno"><a class="line" href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">  143</a></span><a class="code hl_function" href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">brix_cms_srv_set_allow</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>, <span class="keywordtype">void</span> *conf_ptr)</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>{</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>    ngx_stream_brix_cms_srv_conf_t *conf = conf_ptr;</div>
+<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span>    ngx_str_t  *value = cf-&gt;args-&gt;elts;</div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span>    ngx_uint_t  i;</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span> </div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span> </div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span>    <span class="keywordflow">if</span> (conf-&gt;allow == NULL) {</div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span>        conf-&gt;allow = ngx_array_create(cf-&gt;pool, cf-&gt;args-&gt;nelts - 1,</div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span>                                       <span class="keyword">sizeof</span>(ngx_cidr_t));</div>
+<div class="line"><a id="l00154" name="l00154"></a><span class="lineno">  154</span>        <span class="keywordflow">if</span> (conf-&gt;allow == NULL) {</div>
+<div class="line"><a id="l00155" name="l00155"></a><span class="lineno">  155</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>        }</div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>    }</div>
 <div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span> </div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span> </div>
-<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span><span class="comment">/* brix_cms_srv_set_sss_keytab — load the cluster sss keytab at config</span></div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span><span class="comment"> * time using the shared loader (enforces 0600/0640 private permissions).</span></div>
-<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span><span class="comment"> * When set, a data node must complete the kYR_xauth sss handshake before it</span></div>
-<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="comment"> * is admitted to the registry (fail-closed).  Reuses the same keytab format</span></div>
-<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span><span class="comment"> * and parser as the main module&#39;s brix_sss_keytab. */</span></div>
-<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
-<div class="foldopen" id="foldopen00166" data-start="{" data-end="}">
-<div class="line"><a id="l00166" name="l00166"></a><span class="lineno"><a class="line" href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">  166</a></span><a class="code hl_function" href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">brix_cms_srv_set_sss_keytab</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>,</div>
-<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <span class="keywordtype">void</span> *conf_ptr)</div>
-<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>{</div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    ngx_stream_brix_cms_srv_conf_t *conf = conf_ptr;</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    ngx_str_t  *value = cf-&gt;args-&gt;elts;</div>
-<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    ngx_str_t   path  = value[1];</div>
-<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span> </div>
-<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
-<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span> </div>
-<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>    <span class="keywordflow">if</span> (conf-&gt;sss_keys != NULL) {</div>
-<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>        <span class="keywordflow">return</span> <span class="stringliteral">&quot;is duplicate&quot;</span>;</div>
-<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    }</div>
-<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>    <span class="keywordflow">if</span> (ngx_conf_full_name(cf-&gt;cycle, &amp;path, 1) != NGX_OK) {</div>
-<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>    }</div>
-<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span>    conf-&gt;sss_keytab = path;</div>
-<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span> </div>
-<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="auth_2sss_2config_8c.html#a7714df4679a2c6784fc5eb1e3e2a7a0b">brix_sss_load_keytab</a>(cf, &amp;conf-&gt;sss_keytab, &amp;conf-&gt;sss_keys)</div>
-<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span>        != NGX_OK)</div>
-<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span>    {</div>
-<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
-<div class="line"><a id="l00187" name="l00187"></a><span class="lineno">  187</span>    }</div>
-<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span> </div>
-<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
-<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>                       <span class="stringliteral">&quot;brix: CMS server sss auth configured - keytab=%V &quot;</span></div>
-<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>                       <span class="stringliteral">&quot;keys=%ui&quot;</span>, &amp;conf-&gt;sss_keytab, conf-&gt;sss_keys-&gt;nelts);</div>
-<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
-<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span>}</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    <span class="keywordflow">for</span> (i = 1; i &lt; cf-&gt;args-&gt;nelts; i++) {</div>
+<div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>        ngx_cidr_t *cidr = ngx_array_push(conf-&gt;allow);</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        ngx_int_t   rc;</div>
+<div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>        <span class="keywordflow">if</span> (cidr == NULL) {</div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>        }</div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span>        rc = ngx_ptocidr(&amp;value[i], cidr);</div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>        <span class="keywordflow">if</span> (rc == NGX_ERROR) {</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,</div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span>                <span class="stringliteral">&quot;invalid CIDR \&quot;%V\&quot; in brix_cms_server_allow&quot;</span>, &amp;value[i]);</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>            <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>        }</div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>        <span class="keywordflow">if</span> (rc == NGX_DONE) {</div>
+<div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,</div>
+<div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>                <span class="stringliteral">&quot;low address bits of \&quot;%V\&quot; in brix_cms_server_allow &quot;</span></div>
+<div class="line"><a id="l00174" name="l00174"></a><span class="lineno">  174</span>                <span class="stringliteral">&quot;were ignored&quot;</span>, &amp;value[i]);</div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno">  175</span>        }</div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno">  176</span>    }</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00178" name="l00178"></a><span class="lineno">  178</span>}</div>
 </div>
-<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span> </div>
+<div class="line"><a id="l00179" name="l00179"></a><span class="lineno">  179</span> </div>
+<div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span> </div>
+<div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="comment">/* brix_cms_srv_set_sss_keytab — load the cluster sss keytab at config</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno">  182</span><span class="comment"> * time using the shared loader (enforces 0600/0640 private permissions).</span></div>
+<div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span><span class="comment"> * When set, a data node must complete the kYR_xauth sss handshake before it</span></div>
+<div class="line"><a id="l00184" name="l00184"></a><span class="lineno">  184</span><span class="comment"> * is admitted to the registry (fail-closed).  Reuses the same keytab format</span></div>
+<div class="line"><a id="l00185" name="l00185"></a><span class="lineno">  185</span><span class="comment"> * and parser as the main module&#39;s brix_sss_keytab. */</span></div>
+<div class="line"><a id="l00186" name="l00186"></a><span class="lineno">  186</span><span class="keyword">static</span> <span class="keywordtype">char</span> *</div>
+<div class="foldopen" id="foldopen00187" data-start="{" data-end="}">
+<div class="line"><a id="l00187" name="l00187"></a><span class="lineno"><a class="line" href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">  187</a></span><a class="code hl_function" href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">brix_cms_srv_set_sss_keytab</a>(ngx_conf_t *cf, ngx_command_t *<a class="code hl_struct" href="structcmd.html">cmd</a>,</div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno">  188</span>    <span class="keywordtype">void</span> *conf_ptr)</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span>{</div>
+<div class="line"><a id="l00190" name="l00190"></a><span class="lineno">  190</span>    ngx_stream_brix_cms_srv_conf_t *conf = conf_ptr;</div>
+<div class="line"><a id="l00191" name="l00191"></a><span class="lineno">  191</span>    ngx_str_t  *value = cf-&gt;args-&gt;elts;</div>
+<div class="line"><a id="l00192" name="l00192"></a><span class="lineno">  192</span>    ngx_str_t   path  = value[1];</div>
+<div class="line"><a id="l00193" name="l00193"></a><span class="lineno">  193</span> </div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno">  194</span>    (void) <a class="code hl_struct" href="structcmd.html">cmd</a>;</div>
 <div class="line"><a id="l00195" name="l00195"></a><span class="lineno">  195</span> </div>
-<div class="foldopen" id="foldopen00196" data-start="{" data-end="};">
-<div class="line"><a id="l00196" name="l00196"></a><span class="lineno"><a class="line" href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">  196</a></span><span class="keyword">static</span> ngx_command_t  <a class="code hl_variable" href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">brix_cms_srv_commands</a>[] = {</div>
-<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span> </div>
-<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server&quot;</span>),</div>
-<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>      <a class="code hl_function" href="server__module_8c.html#a99fb175e5779f966407fd9be2cf978c5">brix_cms_srv_set_enable</a>,</div>
-<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, enable),</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>      NULL },</div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span> </div>
-<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_interval&quot;</span>),</div>
-<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>      ngx_conf_set_sec_slot,</div>
-<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, interval),</div>
-<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>      NULL },</div>
-<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span> </div>
-<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_allow&quot;</span>),</div>
-<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,</div>
-<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>      <a class="code hl_function" href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">brix_cms_srv_set_allow</a>,</div>
-<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>      0,</div>
-<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>      NULL },</div>
+<div class="line"><a id="l00196" name="l00196"></a><span class="lineno">  196</span>    <span class="keywordflow">if</span> (conf-&gt;sss_keys != NULL) {</div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno">  197</span>        <span class="keywordflow">return</span> <span class="stringliteral">&quot;is duplicate&quot;</span>;</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span>    }</div>
+<div class="line"><a id="l00199" name="l00199"></a><span class="lineno">  199</span>    <span class="keywordflow">if</span> (ngx_conf_full_name(cf-&gt;cycle, &amp;path, 1) != NGX_OK) {</div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    }</div>
+<div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    conf-&gt;sss_keytab = path;</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span> </div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="auth_2sss_2config_8c.html#a7714df4679a2c6784fc5eb1e3e2a7a0b">brix_sss_load_keytab</a>(cf, &amp;conf-&gt;sss_keytab, &amp;conf-&gt;sss_keys)</div>
+<div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>        != NGX_OK)</div>
+<div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    {</div>
+<div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno">  208</span>    }</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span> </div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,</div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>                       <span class="stringliteral">&quot;brix: CMS server sss auth configured - keytab=%V &quot;</span></div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span>                       <span class="stringliteral">&quot;keys=%ui&quot;</span>, &amp;conf-&gt;sss_keytab, conf-&gt;sss_keys-&gt;nelts);</div>
+<div class="line"><a id="l00213" name="l00213"></a><span class="lineno">  213</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno">  214</span>}</div>
+</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span> </div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span> </div>
+<div class="foldopen" id="foldopen00217" data-start="{" data-end="};">
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno"><a class="line" href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">  217</a></span><span class="keyword">static</span> ngx_command_t  <a class="code hl_variable" href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">brix_cms_srv_commands</a>[] = {</div>
 <div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span> </div>
-<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_sss_keytab&quot;</span>),</div>
-<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>      <a class="code hl_function" href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">brix_cms_srv_set_sss_keytab</a>,</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server&quot;</span>),</div>
+<div class="line"><a id="l00220" name="l00220"></a><span class="lineno">  220</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>      <a class="code hl_function" href="server__module_8c.html#a99fb175e5779f966407fd9be2cf978c5">brix_cms_srv_set_enable</a>,</div>
 <div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>      0,</div>
+<div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, enable),</div>
 <div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>      NULL },</div>
 <div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span> </div>
-<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    <span class="comment">/* Phase 50: accept-side resilience deadlines + connection cap. */</span></div>
-<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_login_timeout&quot;</span>),</div>
-<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>      ngx_conf_set_msec_slot,</div>
-<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, login_timeout),</div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>      NULL },</div>
-<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span> </div>
-<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_idle_timeout&quot;</span>),</div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>      ngx_conf_set_msec_slot,</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, idle_timeout),</div>
-<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>      NULL },</div>
-<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span> </div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_max_connections&quot;</span>),</div>
-<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>      ngx_conf_set_num_slot,</div>
-<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, max_connections),</div>
-<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span>      NULL },</div>
-<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span> </div>
-<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_max_connections_per_ip&quot;</span>),</div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_interval&quot;</span>),</div>
+<div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno">  228</span>      ngx_conf_set_sec_slot,</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, interval),</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>      NULL },</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span> </div>
+<div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_allow&quot;</span>),</div>
+<div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,</div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>      <a class="code hl_function" href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">brix_cms_srv_set_allow</a>,</div>
+<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>      0,</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>      NULL },</div>
+<div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span> </div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_sss_keytab&quot;</span>),</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>      <a class="code hl_function" href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">brix_cms_srv_set_sss_keytab</a>,</div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>      0,</div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno">  245</span>      NULL },</div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno">  246</span> </div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span>    <span class="comment">/* Phase 50: accept-side resilience deadlines + connection cap. */</span></div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_login_timeout&quot;</span>),</div>
 <div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>      ngx_conf_set_num_slot,</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>      ngx_conf_set_msec_slot,</div>
 <div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, max_connections_per_ip),</div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, login_timeout),</div>
 <div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>      NULL },</div>
 <div class="line"><a id="l00254" name="l00254"></a><span class="lineno">  254</span> </div>
-<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_tcp_keepalive&quot;</span>),</div>
-<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
-<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00255" name="l00255"></a><span class="lineno">  255</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_idle_timeout&quot;</span>),</div>
+<div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span>      ngx_conf_set_msec_slot,</div>
 <div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, tcp_keepalive),</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, idle_timeout),</div>
 <div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span>      NULL },</div>
 <div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span> </div>
-<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_tcp_user_timeout&quot;</span>),</div>
+<div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_max_connections&quot;</span>),</div>
 <div class="line"><a id="l00263" name="l00263"></a><span class="lineno">  263</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>      ngx_conf_set_msec_slot,</div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno">  264</span>      ngx_conf_set_num_slot,</div>
 <div class="line"><a id="l00265" name="l00265"></a><span class="lineno">  265</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, tcp_user_timeout),</div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, max_connections),</div>
 <div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span>      NULL },</div>
 <div class="line"><a id="l00268" name="l00268"></a><span class="lineno">  268</span> </div>
-<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    <span class="comment">/* Phase-89 W6′: operator blacklist file (host / host:port / IPv4 CIDR</span></div>
-<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span><span class="comment">     * per line; mtime-polled, re-asserted — the file wins over undrain). */</span></div>
-<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_blacklist_file&quot;</span>),</div>
-<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>      ngx_conf_set_str_slot,</div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
-<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, blacklist_file),</div>
-<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>      NULL },</div>
-<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span> </div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    ngx_null_command</div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>};</div>
+<div class="line"><a id="l00269" name="l00269"></a><span class="lineno">  269</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_max_connections_per_ip&quot;</span>),</div>
+<div class="line"><a id="l00270" name="l00270"></a><span class="lineno">  270</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00271" name="l00271"></a><span class="lineno">  271</span>      ngx_conf_set_num_slot,</div>
+<div class="line"><a id="l00272" name="l00272"></a><span class="lineno">  272</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00273" name="l00273"></a><span class="lineno">  273</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, max_connections_per_ip),</div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span>      NULL },</div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span> </div>
+<div class="line"><a id="l00276" name="l00276"></a><span class="lineno">  276</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_tcp_keepalive&quot;</span>),</div>
+<div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,</div>
+<div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>      ngx_conf_set_flag_slot,</div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, tcp_keepalive),</div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span>      NULL },</div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span> </div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_server_tcp_user_timeout&quot;</span>),</div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>      ngx_conf_set_msec_slot,</div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, tcp_user_timeout),</div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>      NULL },</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span> </div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>    <span class="comment">/* Phase-89 W6′: operator blacklist file (host / host:port / IPv4 CIDR</span></div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span><span class="comment">     * per line; mtime-polled, re-asserted — the file wins over undrain). */</span></div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    { ngx_string(<span class="stringliteral">&quot;brix_cms_blacklist_file&quot;</span>),</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,</div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>      ngx_conf_set_str_slot,</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>      NGX_STREAM_SRV_CONF_OFFSET,</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>      offsetof(ngx_stream_brix_cms_srv_conf_t, blacklist_file),</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>      NULL },</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span> </div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>    ngx_null_command</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>};</div>
 </div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span> </div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span> </div>
-<div class="foldopen" id="foldopen00282" data-start="{" data-end="};">
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno"><a class="line" href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">  282</a></span><span class="keyword">static</span> ngx_stream_module_t  <a class="code hl_variable" href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">brix_cms_srv_module_ctx</a> = {</div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span>    NULL,                        <span class="comment">/* preconfiguration  */</span></div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    NULL,                        <span class="comment">/* postconfiguration */</span></div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>    NULL,                        <span class="comment">/* create main conf  */</span></div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>    NULL,                        <span class="comment">/* init main conf    */</span></div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>    <a class="code hl_function" href="server__module_8c.html#a79782d515e024b3d5f598f020115b2d6">brix_cms_srv_create_conf</a>,  <span class="comment">/* create srv conf   */</span></div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    <a class="code hl_function" href="server__module_8c.html#ab9cd02c55c24710965b90bbc2531768b">brix_cms_srv_merge_conf</a>,   <span class="comment">/* merge srv conf    */</span></div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>};</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span> </div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span> </div>
+<div class="foldopen" id="foldopen00303" data-start="{" data-end="};">
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno"><a class="line" href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">  303</a></span><span class="keyword">static</span> ngx_stream_module_t  <a class="code hl_variable" href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">brix_cms_srv_module_ctx</a> = {</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>    NULL,                        <span class="comment">/* preconfiguration  */</span></div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>    NULL,                        <span class="comment">/* postconfiguration */</span></div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>    NULL,                        <span class="comment">/* create main conf  */</span></div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>    NULL,                        <span class="comment">/* init main conf    */</span></div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>    <a class="code hl_function" href="server__module_8c.html#a79782d515e024b3d5f598f020115b2d6">brix_cms_srv_create_conf</a>,  <span class="comment">/* create srv conf   */</span></div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>    <a class="code hl_function" href="server__module_8c.html#ab9cd02c55c24710965b90bbc2531768b">brix_cms_srv_merge_conf</a>,   <span class="comment">/* merge srv conf    */</span></div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>};</div>
 </div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span> </div>
-<div class="foldopen" id="foldopen00291" data-start="{" data-end="};">
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno"><a class="line" href="server_8h.html#ad25c0cdc98bd3193c6b2990e97f92d3c">  291</a></span>ngx_module_t  <a class="code hl_variable" href="server__module_8c.html#ad25c0cdc98bd3193c6b2990e97f92d3c">ngx_stream_brix_cms_srv_module</a> = {</div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>    NGX_MODULE_V1,</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>    &amp;<a class="code hl_variable" href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">brix_cms_srv_module_ctx</a>,</div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>    <a class="code hl_variable" href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">brix_cms_srv_commands</a>,</div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>    NGX_STREAM_MODULE,</div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>    NULL, NULL, NULL, NULL, NULL, NULL, NULL,</div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>    NGX_MODULE_V1_PADDING</div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>};</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span> </div>
+<div class="foldopen" id="foldopen00312" data-start="{" data-end="};">
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno"><a class="line" href="server_8h.html#ad25c0cdc98bd3193c6b2990e97f92d3c">  312</a></span>ngx_module_t  <a class="code hl_variable" href="server__module_8c.html#ad25c0cdc98bd3193c6b2990e97f92d3c">ngx_stream_brix_cms_srv_module</a> = {</div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>    NGX_MODULE_V1,</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>    &amp;<a class="code hl_variable" href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">brix_cms_srv_module_ctx</a>,</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span>    <a class="code hl_variable" href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">brix_cms_srv_commands</a>,</div>
+<div class="line"><a id="l00316" name="l00316"></a><span class="lineno">  316</span>    NGX_STREAM_MODULE,</div>
+<div class="line"><a id="l00317" name="l00317"></a><span class="lineno">  317</span>    NULL, NULL, NULL, NULL, NULL, NULL, NULL,</div>
+<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span>    NGX_MODULE_V1_PADDING</div>
+<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span>};</div>
 </div>
 <div class="ttc" id="aauth_2sss_2config_8c_html_a7714df4679a2c6784fc5eb1e3e2a7a0b"><div class="ttname"><a href="auth_2sss_2config_8c.html#a7714df4679a2c6784fc5eb1e3e2a7a0b">brix_sss_load_keytab</a></div><div class="ttdeci">ngx_int_t brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)</div><div class="ttdef"><b>Definition</b> <a href="auth_2sss_2config_8c_source.html#l00092">config.c:92</a></div></div>
 <div class="ttc" id="aconfig_2config_8h_html"><div class="ttname"><a href="config_2config_8h.html">config.h</a></div></div>
+<div class="ttc" id="anegcache_8c_html_a05c4e5ac379ae60715b73cca5b1ebe88"><div class="ttname"><a href="negcache_8c.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_module</div><div class="ttdef"><b>Definition</b> <a href="module__definition_8c_source.html#l00029">module_definition.c:29</a></div></div>
 <div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
 <div class="ttc" id="aserver_8h_html"><div class="ttname"><a href="server_8h.html">server.h</a></div></div>
 <div class="ttc" id="aserver_8h_html_a68276b65f6ad5d03b5f1d739aff1327a"><div class="ttname"><a href="server_8h.html#a68276b65f6ad5d03b5f1d739aff1327a">brix_cms_srv_handler</a></div><div class="ttdeci">void brix_cms_srv_handler(ngx_stream_session_t *s)</div><div class="ttdef"><b>Definition</b> <a href="server__handler_8c_source.html#l00201">server_handler.c:201</a></div></div>
-<div class="ttc" id="aserver__module_8c_html_a09a29203d26560769bc34385a6cb0d23"><div class="ttname"><a href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">brix_cms_srv_module_ctx</a></div><div class="ttdeci">static ngx_stream_module_t brix_cms_srv_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00282">server_module.c:282</a></div></div>
-<div class="ttc" id="aserver__module_8c_html_a2915be9364dd97045a0185f12a6755c5"><div class="ttname"><a href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">brix_cms_srv_commands</a></div><div class="ttdeci">static ngx_command_t brix_cms_srv_commands[]</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00196">server_module.c:196</a></div></div>
-<div class="ttc" id="aserver__module_8c_html_a692bf3812d774207ee5ab3d5f727b5be"><div class="ttname"><a href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">brix_cms_srv_set_allow</a></div><div class="ttdeci">static char * brix_cms_srv_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00122">server_module.c:122</a></div></div>
+<div class="ttc" id="aserver__module_8c_html_a09a29203d26560769bc34385a6cb0d23"><div class="ttname"><a href="server__module_8c.html#a09a29203d26560769bc34385a6cb0d23">brix_cms_srv_module_ctx</a></div><div class="ttdeci">static ngx_stream_module_t brix_cms_srv_module_ctx</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00303">server_module.c:303</a></div></div>
+<div class="ttc" id="aserver__module_8c_html_a2915be9364dd97045a0185f12a6755c5"><div class="ttname"><a href="server__module_8c.html#a2915be9364dd97045a0185f12a6755c5">brix_cms_srv_commands</a></div><div class="ttdeci">static ngx_command_t brix_cms_srv_commands[]</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00217">server_module.c:217</a></div></div>
+<div class="ttc" id="aserver__module_8c_html_a692bf3812d774207ee5ab3d5f727b5be"><div class="ttname"><a href="server__module_8c.html#a692bf3812d774207ee5ab3d5f727b5be">brix_cms_srv_set_allow</a></div><div class="ttdeci">static char * brix_cms_srv_set_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00143">server_module.c:143</a></div></div>
 <div class="ttc" id="aserver__module_8c_html_a79782d515e024b3d5f598f020115b2d6"><div class="ttname"><a href="server__module_8c.html#a79782d515e024b3d5f598f020115b2d6">brix_cms_srv_create_conf</a></div><div class="ttdeci">static void * brix_cms_srv_create_conf(ngx_conf_t *cf)</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00010">server_module.c:10</a></div></div>
 <div class="ttc" id="aserver__module_8c_html_a99fb175e5779f966407fd9be2cf978c5"><div class="ttname"><a href="server__module_8c.html#a99fb175e5779f966407fd9be2cf978c5">brix_cms_srv_set_enable</a></div><div class="ttdeci">static char * brix_cms_srv_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00094">server_module.c:94</a></div></div>
 <div class="ttc" id="aserver__module_8c_html_ab9cd02c55c24710965b90bbc2531768b"><div class="ttname"><a href="server__module_8c.html#ab9cd02c55c24710965b90bbc2531768b">brix_cms_srv_merge_conf</a></div><div class="ttdeci">static char * brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00037">server_module.c:37</a></div></div>
-<div class="ttc" id="aserver__module_8c_html_ad25c0cdc98bd3193c6b2990e97f92d3c"><div class="ttname"><a href="server__module_8c.html#ad25c0cdc98bd3193c6b2990e97f92d3c">ngx_stream_brix_cms_srv_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_cms_srv_module</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00291">server_module.c:291</a></div></div>
-<div class="ttc" id="aserver__module_8c_html_adfa1e3e72567e2a5fb0ca6065f28aed5"><div class="ttname"><a href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">brix_cms_srv_set_sss_keytab</a></div><div class="ttdeci">static char * brix_cms_srv_set_sss_keytab(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00166">server_module.c:166</a></div></div>
+<div class="ttc" id="aserver__module_8c_html_ad25c0cdc98bd3193c6b2990e97f92d3c"><div class="ttname"><a href="server__module_8c.html#ad25c0cdc98bd3193c6b2990e97f92d3c">ngx_stream_brix_cms_srv_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_cms_srv_module</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00312">server_module.c:312</a></div></div>
+<div class="ttc" id="aserver__module_8c_html_adfa1e3e72567e2a5fb0ca6065f28aed5"><div class="ttname"><a href="server__module_8c.html#adfa1e3e72567e2a5fb0ca6065f28aed5">brix_cms_srv_set_sss_keytab</a></div><div class="ttdeci">static char * brix_cms_srv_set_sss_keytab(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)</div><div class="ttdef"><b>Definition</b> <a href="server__module_8c_source.html#l00187">server_module.c:187</a></div></div>
 <div class="ttc" id="astructcmd_html"><div class="ttname"><a href="structcmd.html">cmd</a></div><div class="ttdef"><b>Definition</b> <a href="aio__internal_8h_source.html#l00125">aio_internal.h:125</a></div></div>
+<div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00115">config.h:115</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

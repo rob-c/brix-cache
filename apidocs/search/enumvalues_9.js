@@ -1,11 +1,11 @@
 var searchData=
 [
-  ['opt_5fi32_0',['OPT_I32',['../xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da7500f36595a4d5cb1f84b1d9abb4e0f2',1,'xrdsssadmin.c']]],
-  ['opt_5fi64_1',['OPT_I64',['../xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da6d21206e512febf3c8bde183039306e0',1,'xrdsssadmin.c']]],
-  ['opt_5fstr_2',['OPT_STR',['../xrdsssadmin_8c.html#a057d88a98fa90c8b6b61dcc70e72a45da91e7b05156fd80c0d07df2eb55b98e3d',1,'xrdsssadmin.c']]],
-  ['outcome_5fauthfail_3',['OUTCOME_AUTHFAIL',['../guard_8h.html#a984af347685fbe23d386014847eaea69a89cdf875f6a985e00e9e019a0b0046a1',1,'guard.h']]],
-  ['outcome_5ferror_4',['OUTCOME_ERROR',['../guard_8h.html#a984af347685fbe23d386014847eaea69af2687155513cdf8404ba678e5fc82926',1,'guard.h']]],
-  ['outcome_5fnotfound_5',['OUTCOME_NOTFOUND',['../guard_8h.html#a984af347685fbe23d386014847eaea69a9c7b7a3ec518f0a60eafb72e6be58409',1,'guard.h']]],
-  ['outcome_5fok_6',['OUTCOME_OK',['../guard_8h.html#a984af347685fbe23d386014847eaea69adf79accdd9f24be760c248ac9640cd47',1,'guard.h']]],
-  ['outcome_5fpending_7',['OUTCOME_PENDING',['../guard_8h.html#a984af347685fbe23d386014847eaea69aa77295b99daa58458f99a4f00f63184d',1,'guard.h']]]
+  ['ne_5fcorrupt_0',['NE_CORRUPT',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8a114dae060bc97b958195ed92e66ec860',1,'brix_fault_priv.c']]],
+  ['ne_5fdelay_1',['NE_DELAY',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8a6d0b0c0a3da80fcd6294104add21441b',1,'brix_fault_priv.c']]],
+  ['ne_5fdup_2',['NE_DUP',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8aaf3104065af5e5537cf6985cf44247de',1,'brix_fault_priv.c']]],
+  ['ne_5flimit_3',['NE_LIMIT',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8ac427e149eea63465f7b58350918d1977',1,'brix_fault_priv.c']]],
+  ['ne_5floss_4',['NE_LOSS',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8a70a5ccf2bb48be31163056b5e41fd893',1,'brix_fault_priv.c']]],
+  ['ne_5fn_5',['NE_N',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8a82a87ffb2045ab14ea8ce700fe3e3d4b',1,'brix_fault_priv.c']]],
+  ['ne_5frate_6',['NE_RATE',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8ada793806fd0df0665f634022247a35e5',1,'brix_fault_priv.c']]],
+  ['ne_5freorder_7',['NE_REORDER',['../brix__fault__priv_8c.html#aabfcbcb5ac86a1edac4035264bc7d2b8ac3efe757b15443adb54a408254dc91cb',1,'brix_fault_priv.c']]]
 ];

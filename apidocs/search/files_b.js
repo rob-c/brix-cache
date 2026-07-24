@@ -2,7 +2,7 @@ var searchData=
 [
   ['launch_2ec_0',['launch.c',['../launch_8c.html',1,'']]],
   ['launch_5fprepare_2ec_1',['launch_prepare.c',['../launch__prepare_8c.html',1,'']]],
-  ['lifecycle_2ec_2',['lifecycle.c',['../net_2upstream_2lifecycle_8c.html',1,'(Global Namespace)'],['../auth_2impersonate_2lifecycle_8c.html',1,'(Global Namespace)'],['../protocols_2root_2session_2lifecycle_8c.html',1,'(Global Namespace)']]],
+  ['lifecycle_2ec_2',['lifecycle.c',['../net_2upstream_2lifecycle_8c.html',1,'(Global Namespace)'],['../protocols_2root_2session_2lifecycle_8c.html',1,'(Global Namespace)'],['../auth_2impersonate_2lifecycle_8c.html',1,'(Global Namespace)']]],
   ['lifecycle_2eh_3',['lifecycle.h',['../lifecycle_8h.html',1,'']]],
   ['lifecycle_5fbroker_2ec_4',['lifecycle_broker.c',['../lifecycle__broker_8c.html',1,'']]],
   ['lifecycle_5finternal_2eh_5',['lifecycle_internal.h',['../lifecycle__internal_8h.html',1,'']]],
@@ -21,7 +21,7 @@ var searchData=
   ['loc_5fcache_2eh_18',['loc_cache.h',['../loc__cache_8h.html',1,'']]],
   ['locate_2ec_19',['locate.c',['../locate_8c.html',1,'']]],
   ['locate_2eh_20',['locate.h',['../locate_8h.html',1,'']]],
-  ['lock_2ec_21',['lock.c',['../protocols_2webdav_2lock_8c.html',1,'(Global Namespace)'],['../fs_2cache_2lock_8c.html',1,'(Global Namespace)']]],
+  ['lock_2ec_21',['lock.c',['../fs_2cache_2lock_8c.html',1,'(Global Namespace)'],['../protocols_2webdav_2lock_8c.html',1,'(Global Namespace)']]],
   ['lock_5fcheck_2ec_22',['lock_check.c',['../lock__check_8c.html',1,'']]],
   ['lock_5fdiscovery_2ec_23',['lock_discovery.c',['../lock__discovery_8c.html',1,'']]],
   ['lock_5finternal_2eh_24',['lock_internal.h',['../lock__internal_8h.html',1,'']]],

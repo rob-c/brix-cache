@@ -4,6 +4,7 @@ var ngx__brix__module_8h =
     [ "brix_cache_open_or_fill", "ngx__brix__module_8h.html#afdb75e9f5fd54e3c3f7706b26dacdda6", null ],
     [ "brix_check_pki_consistency_stream", "ngx__brix__module_8h.html#a11a4c38b56c70092ee2ee5cb06504876", null ],
     [ "brix_check_token_scope", "ngx__brix__module_8h.html#a59f594459de0e212cad877f80faba314", null ],
+    [ "brix_cms_role_worker_init", "ngx__brix__module_8h.html#a69cdc7b2d0a1bac4fd2c0a5afad63ba0", null ],
     [ "brix_conf_set_authdb", "ngx__brix__module_8h.html#a9547868c71aaa9352e902345bc889cf2", null ],
     [ "brix_conf_set_cache_advertise_ns", "ngx__brix__module_8h.html#a231fe8a7c3923674434a7c16185be9ee", null ],
     [ "brix_conf_set_cache_allow_prefix", "ngx__brix__module_8h.html#a487b2efd174dcc57728534702b95c616", null ],
