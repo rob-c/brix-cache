@@ -139,6 +139,35 @@ open until it gives up.
 Start blocked: refuse connections (an outage) until an
 .B unblock
 control command.
+.SS Protocol surgery and oracle
+Startup forms of the levers documented under
+.B PROTOCOL SURGERY
+and
+.BR "ORACLE\-DRIVEN LEVERS" ;
+each argument is the same string the matching control command takes.
+.TP
+.BI \-\-tls " 'SUB ...'"
+Arm a TLS record\-surgery transform at startup (e.g.
+.BR "\-\-tls 'fragment 2 up'" ).
+.TP
+.BI \-\-http " 'SUB ...'"
+Arm an HTTP smuggling transform at startup (e.g.
+.BR "\-\-http cl\-te" ).
+.TP
+.BI \-\-record " PATH"
+Begin capturing the session to \fIPATH\fR immediately.
+.TP
+.BI \-\-replay " PATH"
+Start in replay mode, answering clients from the capture at \fIPATH\fR with no
+upstream.
+.TP
+.B \-\-enable\-exec
+Arm the process\-spawning oracle used by
+.B bisect
+and
+.BR recovery .
+Off by default; without it those verbs refuse.  The control port is
+unauthenticated, so enable this only for a trusted operator.
 .SS Information
 .TP
 .BR \-\-help ", " \-h
@@ -255,6 +284,377 @@ By contrast
 a real in\-band byte mutation \(em what an active on\-path attacker (or a flaky
 NIC past the TCP checksum) does, and precisely what an application\-layer
 checksum exists to catch.
+.SH EXTENDED MITM AND DOS LEVERS
+Beyond the transport\-shaping levers above, and still without root, the proxy can
+act as an active on\-path attacker \(em rewriting, splicing, deleting and
+duplicating bytes, forging identity, and squeezing the transport \(em to harden a
+service exposed to the open internet.
+All are settable at startup (matching \fB\-\-flag\fR) and live over the control
+port, and all are reset by
+.B clear
+and reported by
+.BR status .
+.TP
+.B replace \fIFIND\fR \fIREPL\fR [up|down]
+Rewrite every non\-overlapping occurrence of \fIFIND\fR to \fIREPL\fR on the wire
+(lengths may differ) \(em mangle a Content\-Length, flip a status line, poison a
+checksum, or inject a header.  \fIFIND\fR/\fIREPL\fR are byte payloads:
+.BR hex: \fIdeadbeef\fR " or " str: \fItext\fR
+with \fB\\r \\n \\t \\0 \\xNN \\\\\fR escapes.
+Matching is within a single relayed buffer (up to 64 KiB).
+.TP
+.B inject \fIPAYLOAD\fR [up|down]
+Splice \fIPAYLOAD\fR (same \fBhex:\fR/\fBstr:\fR form) in front of the next
+forwarded chunk \(em a one\-shot request/response smuggling primitive.
+.TP
+.B drop-bytes \fIPCT\fR [up|down]
+Silently delete \fIPCT\fR%% of forwarded bytes \(em a framing desync / length
+mismatch (distinct from
+.BR corrupt ,
+which preserves length).
+.TP
+.B repeat-bytes \fIPCT\fR [up|down]
+Duplicate \fIPCT\fR%% of forwarded bytes (length inflation).
+.TP
+.B delay-first \fIMS\fR [up|down]
+Delay only the opening chunk of each direction (slow first byte / slow header).
+.TP
+.B mss \fIBYTES\fR
+Clamp the TCP maximum segment size on both legs so the peer must cope with many
+tiny segments.
+.TP
+.B rcvbuf \fIBYTES\fR " | " sndbuf \fIBYTES\fR
+Squeeze SO_RCVBUF / SO_SNDBUF to force a tiny receive window (silly\-window /
+flow\-control stress) or a small send buffer.
+.TP
+.B stall \fR[up|down] | \fBunstall \fR[up|down]
+Stop (or resume) reading a direction so the peer's send buffer fills \(em real TCP
+backpressure, applied without ever severing the connection.
+.TP
+.B max-lifetime \fIMS\fR
+Guillotine every connection once it has lived \fIMS\fR milliseconds, regardless of
+progress (a recurring, time\-based cut).
+.TP
+.B proxy-header \fIv1\fR|\fIv2\fR \fISRC\fR [\fIDST\fR]
+Prepend a forged PROXY\-protocol (v1 text or v2 binary) header to the upstream
+stream, spoofing the client source \fISRC\fR ("ip:port"; \fIDST\fR defaults to the
+proxy's own listen address) \(em tests whether a service wrongly trusts the
+PROXY protocol from an untrusted peer.
+.B off
+disables it.
+.TP
+.B chaos \fIMS\fR | off
+Autonomous chaos monkey: every \fIMS\fR milliseconds apply a random lever within
+safe bounds, for long soak / fuzz runs.  Deterministic under
+.BR \-\-seed .
+.SH ATTACK-MOCKING LEVERS
+These levers compose the primitives above into behaviours that mock a hostile
+client or network deliberately trying to topple the service behind the proxy.
+They remain root\-free and are driven over the same control port.
+.TP
+.B trigger[\-once] \fIDIR PATTERN COMMAND\fR | off
+Content trigger / response oracle.  When
+.I PATTERN
+(a
+.BR hex: / str:
+payload, as for
+.BR inject )
+is observed crossing the wire in direction
+.I DIR
+.RB ( up ,
+.BR down ,
+or
+.BR both ),
+the control
+.I COMMAND
+is executed through the same parser as the live control port.
+.B \-once
+fires a single time then disarms.  Use it to react to a protocol handshake,
+banner, or record boundary \(em e.g. sever, corrupt, or block the moment a login
+succeeds.  The command is a control verb, never a shell line.
+.TP
+.B mangle\-len \fIDIR OFFSET\fR \fBset\fR|\fBadd\fR|\fBsub\fR \fIVAL\fR | off
+Forge a big\-endian 32\-bit length field at byte
+.I OFFSET
+of each buffer in direction
+.IR DIR :
+.B set
+it to
+.IR VAL ,
+or
+.BR add / sub
+.I VAL
+from the on\-wire value \(em desynchronising a length\-prefixed framing so the
+peer under\-reads, over\-reads, or waits forever for bytes that never come.
+.TP
+.B accept\-pause \fIMS\fR
+Delay every
+.BR accept (2)
+by
+.I MS
+milliseconds, letting the kernel accept queue fill and exercising the client's
+connect\-timeout and the server's backlog handling.
+.TP
+.B fanout \fIN\fR
+For each accepted client connection, open
+.I N
+additional upstream connections and hold them, amplifying connection\-pool and
+file\-descriptor pressure on the target (mocks a connection\-exhaustion attack).
+Capped at 16.
+.TP
+.B global\-rate \fIKBPS\fR
+A single shared token bucket capping aggregate throughput across
+.I all
+connections at
+.I KBPS
+kilobits/s \(em unlike the per\-direction
+.B rate
+lever, this models a congested uplink every client must share.
+.TP
+.B flap \fIUP_MS DOWN_MS\fR | off
+Cycle the listener in and out of service like a flapping load\-balancer member:
+serve for
+.I UP_MS
+then block (severing connections) for
+.IR DOWN_MS ,
+repeating until disarmed.
+.B clear
+and
+.B off
+stop the background thread and restore service.
+.TP
+.B ramp \fILEVER START END MS\fR
+Sweep a numeric
+.I LEVER
+(e.g.
+.BR latency ,
+.BR rate ,
+.BR lossy )
+linearly from
+.I START
+to
+.I END
+over
+.I MS
+milliseconds in 20 steps \(em a gradually degrading link or a server warming up
+under load, rather than a step change.
+.TP
+.B preset \fINAME\fR | list
+Apply a named profile expanding to several levers at once.
+.B list
+enumerates them.  Realism profiles:
+.BR satellite ,
+.BR hotel\-wifi ,
+.BR 3g\-lossy ,
+.BR transoceanic ,
+.BR congested ,
+.BR bufferbloat .
+Attack profiles designed to topple a target:
+.BR slowloris ,
+.BR slowread ,
+.BR rst\-flood ,
+.BR truncate\-bomb ,
+.BR corrupt\-storm ,
+.BR pool\-exhaust ,
+.BR smuggle ,
+.BR black\-hole ,
+.BR lb\-flap .
+.TP
+.B status json
+Emit a compact single\-line JSON snapshot of the key counters and active levers,
+for test harnesses and dashboards.
+.SH PROTOCOL SURGERY
+These levers rewrite the two protocols an internet\-facing cache actually speaks
+\(em they operate on structure, not just opaque bytes, so they can forge the exact
+malformations a hostile peer would send.  Each takes an optional trailing
+.BR up / down / both
+direction (default
+.BR both ).
+.TP
+.B tls \fBset\-type\fR \fITYPE\fR | \fBfragment\fR \fILEN\fR | \fBset\-version\fR \fIMAJ MIN\fR | \fBinflate\fR \fIDELTA\fR | \fBdrop\-type\fR \fITYPE\fR | \fBflip\fR | \fBalert\fR \fILEVEL DESC\fR | off
+TLS record\-layer surgery on the 5\-byte record header
+.RB ( type ,
+version, length) and its payload, walked record by record:
+.B set\-type
+relabels the content\-type byte (e.g. application\-data 23 \(->\ alert 21);
+.B fragment
+re\-emits each payload as multiple \fILEN\fR\-byte records (splitting a handshake
+message across records to slip past naive inspection);
+.B set\-version
+downgrades the advertised version;
+.B inflate
+adds \fIDELTA\fR to the on\-wire length so the peer waits for bytes that never come;
+.B drop\-type
+deletes every record of a content type;
+.B flip
+corrupts one payload byte per record (breaking the record MAC);
+.B alert
+injects a one\-shot forged alert record.
+.TP
+.B http \fBcl\-te\fR | \fBte\-cl\fR | \fBdup\-cl\fR \fIVAL\fR | \fBobfuscate\-te\fR \fB1\fR|\fB2\fR|\fB3\fR | \fBnaked\-lf\fR | \fBinject\-header\fR \fINAME VAL\fR | \fBappend\fR \fIBYTES\fR | off
+HTTP/1.1 request\-smuggling engine, operating on the header block up to the
+.B CRLFCRLF
+terminator:
+.B cl\-te
+and
+.B te\-cl
+stamp a conflicting
+.B Content\-Length
+plus chunked
+.B Transfer\-Encoding
+so a front and back end disagree on where the request ends;
+.B dup\-cl
+adds a second, differing Content\-Length;
+.B obfuscate\-te
+mangles a present Transfer\-Encoding header name (1 = space before colon, 2 =
+leading tab, 3 = underscore) to smuggle it past strict parsers;
+.B naked\-lf
+re\-terminates lines with a bare LF;
+.B inject\-header
+and
+.B append
+add a header or trailing bytes.  A buffer with no header terminator passes
+through untouched.
+.SH SESSION RECORD AND REPLAY
+.TP
+.B record \fIPATH\fR | off
+Capture the exact post\-transform byte timeline of every relayed connection to
+.I PATH
+(framed
+.BR BFPR\ v1 :
+per record a direction, a millisecond timestamp, and the bytes), then
+.BR off .
+.TP
+.B replay \fIPATH\fR | \fBdir\fR \fBup\fR|\fBdown\fR | off
+Load a capture and act as a synthetic peer: each new client is answered from the
+recorded byte timeline
+.RB ( dir
+selects which direction's bytes to emit) with
+.I no
+live upstream at all \(em deterministic reproduction of a past session, including
+one that a now\-dead server produced.
+.SH ORACLE\-DRIVEN LEVERS
+.B bisect
+and
+.B recovery
+ask a yes/no question of the system under test by running an operator probe and
+reading its exit code (0 = pass).  Because that spawns a process from the
+unauthenticated control port, both are
+.B double\-gated
+on
+.BR \-\-enable\-exec :
+without the flag they refuse.  The probe runs via
+.B /bin/sh \-c
+in its own process group (killed as a group on timeout) with the proxy's
+descriptors closed, so it never pins the very sockets it is testing.
+.TP
+.B bisect \fILEVER LO HI TIMEOUT_MS ORACLE\-CMD\fR
+Binary\-search the smallest integer value of fault lever
+.I LEVER
+in
+.RI [ LO , HI ]
+at which
+.I ORACLE\-CMD
+reproduces the bug (exits non\-zero), assuming severity is monotonic.  Poll
+.B bisect\-result
+for progress and the minimal reproducing value.
+.TP
+.B recovery \fIFAULT\-CMD\fR | \fIHOLD_MS\fR | \fIPROBE\-CMD\fR | \fITIMEOUT_MS\fR
+Apply
+.IR FAULT\-CMD ,
+hold it for
+.I HOLD_MS
+milliseconds, clear it, then poll
+.I PROBE\-CMD
+until it passes \(em asserting the service recovers \(em or report
+.B STUCK
+after
+.IR TIMEOUT_MS .
+Poll
+.BR recovery\-result .
+.SH PRIVILEGED (ROOT) LEVERS
+The base proxy is deliberately root\-free, but the faults above that genuinely
+live \fIbelow\fR TCP \(em real IP packet loss, reordering, duplication and
+single\-bit corruption; an on\-path RST or ICMP unreachable; a next\-hop MTU
+black hole \(em cannot be emulated honestly in userland.
+An opt\-in, root\-gated subsystem adds them.
+It is armed only when \fBboth\fR euid 0 \fBand\fR
+.B \-\-privileged
+are given (root alone does not arm it); optionally
+.B \-\-priv\-iface \fIIFACE\fR
+names the NIC that the netem/mtu levers act on.
+Every external command is run via
+.BR execvp (3)
+with an explicit argument vector \(em never a shell \(em and interface names and
+numeric operands are validated before use.
+All host state it installs (a
+.B tc netem
+qdisc, an
+.B nft
+table named \fBbrix_fault_proxy\fR, and any shrunk NIC MTU) is
+.B automatically removed
+on every exit path, including SIGINT and SIGTERM.
+.PP
+Privileged control commands (prefix every one with \fBpriv\fR):
+.TP
+.B priv netem delay \fIMS\fR [\fIJIT\fR] [\fICORR%\fR] [normal|pareto]
+Real link delay/jitter with an optional correlation and delay distribution.
+.TP
+.B priv netem loss \fIPCT\fR [\fICORR%\fR]
+Real random IP packet loss (forces genuine TCP retransmits, not a sever).
+.TP
+.B priv netem loss\-gemodel \fIP\fR [\fIR\fR] [\fI1\-H\fR] [\fI1\-K\fR]
+Bursty Gilbert\-Elliott loss \(em the correlated drops of a real bad\-wifi tail.
+.TP
+.B priv netem corrupt \fIPCT\fR
+Real single\-bit \fIpacket\fR corruption (the kernel damages the frame; the TCP
+checksum drops it, forcing a retransmit) \(em distinct from the userland
+.B corrupt
+lever, which tampers \fIpast\fR the checksum like an on\-path attacker.
+.TP
+.B priv netem duplicate \fIPCT\fR
+Real packet duplication.
+.TP
+.B priv netem reorder \fIPCT\fR [\fICORR%\fR]
+Genuine out\-of\-order \fIpacket\fR delivery (needs a
+.B delay
+to take effect) \(em the thing byte\-reordering provably cannot fake.
+.TP
+.B priv netem rate \fIRATE\fR | limit \fIPKTS\fR | clear | show
+Token\-bucket rate ceiling, queue limit, remove all netem, or print the current
+netem fragment string.
+.TP
+.B priv cut \fIMODE\fR [up|down]
+Install an
+.B nft
+rule scoped to this proxy's own ports that hands the kernel a verdict for the
+chosen direction.
+.I MODE
+is
+.BR rst " (a correctly\-sequenced RST \(em an on\-path reset attack), "
+.BR drop " (a true silent black hole: the peer retransmits into the void, unlike"
+.BR hang ", which still completes the handshake), or "
+.BR icmp\-admin / icmp\-host / icmp\-net / icmp\-port
+(a forged ICMP unreachable).
+.TP
+.B priv uncut
+Remove the cut rules.
+.TP
+.B priv mtu \fIBYTES\fR | restore
+Shrink the NIC MTU (a PMTU black hole / forced\-fragmentation stressor no relay
+can fake), or restore the saved MTU.
+.TP
+.B priv clear | status
+Remove every privileged fault at once, or report the subsystem state.
+.PP
+.B WARNING:
+these levers mutate host\-global network state on the named interface. Point
+.B \-\-priv\-iface
+at a test NIC (or run the proxy inside a network namespace) so a mistake cannot
+degrade production traffic. The netem levers require the kernel
+.B sch_netem
+module; the cut levers require
+.BR nft (8).
 .SH EXAMPLES
 .nf
 # Relay to an upstream cache, control on 11941

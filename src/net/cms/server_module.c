@@ -95,6 +95,7 @@ brix_cms_srv_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 {
     ngx_stream_brix_cms_srv_conf_t  *conf = conf_ptr;
     ngx_stream_core_srv_conf_t        *cscf;
+    ngx_stream_brix_srv_conf_t        *bcf;
     char                              *rv;
 
     rv = ngx_conf_set_flag_slot(cf, cmd, conf_ptr);
@@ -108,6 +109,26 @@ brix_cms_srv_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 
     cscf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_core_module);
     cscf->handler = brix_cms_srv_handler;
+
+    /*
+     * Auto-role derivation: a block that runs `brix_cms_server on` accepts
+     * downstream cmsd nodes, i.e. it IS a manager.  Turn on the main module's
+     * manager_mode for this same server block so the upstream CMS client
+     * (send.c) advertises the kYR_Manager bit and aggregates downstream space
+     * upward — that is precisely what makes it a MANAGER (no upstream) or, when
+     * `brix_cms_manager` is also set here, a SUB-MANAGER (registers UP).  Role
+     * is then read purely off the main conf at worker init (connect.c
+     * brix_cms_role_worker_init).  An explicit `brix_manager_mode off` in the
+     * same block still wins: only flip the flag while it is UNSET so the
+     * operator can always override the auto-derivation.
+     */
+    bcf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_module);
+    if (bcf != NULL && bcf->manager_mode == NGX_CONF_UNSET) {
+        bcf->manager_mode = 1;
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+                           "brix: brix_cms_server on -> auto-enabling manager "
+                           "mode for this block (cmsd manager/sub-manager)");
+    }
 
     return NGX_CONF_OK;
 }

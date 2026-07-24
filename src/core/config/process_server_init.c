@@ -341,8 +341,9 @@ brix_init_server_crl_jwks(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
  *   4. Open the confined export rootfd (fatal on failure).
  *   5. Recover interrupted checkpoints, build cache SD storage instances,
  *      build XrdAcc tables — each fatal on failure.
- *   6. Start CMS handlers (when cms_addr set), health-check timer, Pelican
- *      cache advertisement — all internal no-ops when unconfigured.
+ *   6. Start the health-check timer + Pelican cache advertisement — internal
+ *      no-ops when unconfigured. (The outbound CMS client is started earlier,
+ *      per-block and worker-0-gated, in brix_cms_role_worker_init.)
  *   7. Arm the stale-dirty and watermark cache reaper timers (fatal on
  *      allocation failure).
  *   8. Arm the CRL reload timer / schedule JWKS refresh.
@@ -395,9 +396,14 @@ brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
-    if (xcf->cms.addr != NULL) {
-        ngx_brix_cms_start(cycle, xcf);
-    }
+    /*
+     * The outbound CMS client is started in brix_cms_role_worker_init
+     * (process.c), which runs for every server block (including cms-only
+     * manager blocks with the data path disabled) and gates the client to
+     * worker 0 so a stock upstream cmsd admits a single connection per node.
+     * It must NOT be started here as well: this ladder runs on every worker,
+     * which would resurrect the per-worker connection collision.
+     */
 
     /* Phase 22: start the active health-check timer (no-op if disabled). */
     brix_hc_manager_start(cycle, xcf);
