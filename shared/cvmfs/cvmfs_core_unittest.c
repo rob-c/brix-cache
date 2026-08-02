@@ -56,6 +56,15 @@ static void test_classify(void) {
     const char bad[] = "/etc/passwd";
     cvmfs_classify_url(bad, strlen(bad), &u);
     CHECK(u.cls == CVMFS_URL_REJECT, "escape rejected");   /* security-negative */
+
+    const char bun[] = "/cvmfs/atlas.cern.ch/.cvmfs-bundle";
+    cvmfs_classify_url(bun, strlen(bun), &u);
+    CHECK(u.cls == CVMFS_URL_BUNDLE && u.repo_len == 13,
+          "bundle endpoint classified");                   /* phase-87 G2 */
+
+    const char bunx[] = "/cvmfs/atlas.cern.ch/.cvmfs-bundlex";
+    cvmfs_classify_url(bunx, strlen(bunx), &u);
+    CHECK(u.cls == CVMFS_URL_REJECT, "bundle near-miss rejected");
 }
 
 /* ------------------------------------------------------------------ A2 */

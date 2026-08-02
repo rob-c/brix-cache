@@ -221,6 +221,45 @@ brix_init_server_cache_reap_timer(ngx_cycle_t *cycle,
     return NGX_OK;
 }
 
+/* ---- Arm the per-server at-rest CSI scrub timer (phase-59 W2b) ----
+ *
+ * WHAT: Allocates and arms the background CSI scrub timer for a server that set
+ * brix_csi_scrub_interval and exports a local POSIX root. Returns NGX_OK
+ * (including the not-configured no-op) or NGX_ERROR on allocation failure.
+ *
+ * WHY: CSI's hot read path only verifies the blocks a read fully spans, so a
+ * corrupt block in cold data is never noticed until an unlucky client reads it.
+ * A periodic sweep surfaces at-rest rot proactively (metrics + error.log DIAG).
+ *
+ * HOW:
+ *   1. Skip unless scrub_interval > 0 and a canonical export root is set (the
+ *      engine walks a real directory tree — proxy/redirector servers have none).
+ *   2. pcalloc the timer event from the cycle pool (NGX_ERROR on failure).
+ *   3. Point it at brix_csi_scrub_handler with the srv conf as ev->data, mark
+ *      cancelable, arm at the fixed startup offset (steady state re-arms at the
+ *      operator's interval).
+ */
+static ngx_int_t
+brix_init_server_csi_scrub_timer(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (xcf->csi.scrub_interval <= 0 || xcf->common.root_canon[0] == '\0') {
+        return NGX_OK;
+    }
+
+    xcf->csi_scrub_timer = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
+    if (xcf->csi_scrub_timer == NULL) {
+        return NGX_ERROR;
+    }
+    xcf->csi_scrub_timer->handler = brix_csi_scrub_handler;
+    xcf->csi_scrub_timer->data    = xcf;
+    xcf->csi_scrub_timer->log     = cycle->log;
+    xcf->csi_scrub_timer->cancelable = 1;  /* don't delay graceful shutdown */
+    ngx_add_timer(xcf->csi_scrub_timer, BRIX_CSI_SCRUB_FIRST_MS);
+
+    return NGX_OK;
+}
+
 /* ---- Arm the per-server watermark-driven LRU reaper timer ----
  *
  * WHAT: Allocates and arms the proactive watermark LRU reaper timer for a
@@ -416,6 +455,13 @@ brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
      * cache is configured with a valid HIGH watermark. A small per-worker
      * jitter on the first tick keeps the workers from all firing together. */
     if (brix_init_server_watermark_timer(cycle, xcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    /* Phase-59 W2b: arm the at-rest CSI scrub when brix_csi_scrub_interval is
+     * set and a local export root resolves. Surfaces cold-data rot the hot read
+     * path cannot see. */
+    if (brix_init_server_csi_scrub_timer(cycle, xcf) != NGX_OK) {
         return NGX_ERROR;
     }
 

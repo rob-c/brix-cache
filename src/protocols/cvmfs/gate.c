@@ -2,9 +2,9 @@
  *
  * WHAT: first step of the dedicated cvmfs:// content handler: restricts
  *       methods to GET/HEAD, classifies the URI, rejects non-CVMFS shapes,
- *       routes the geo API (and, until T12 lands manifest TTLs, the signed
- *       metadata) to the uncached passthrough, and lets CAS objects fall
- *       through (NGX_DECLINED) to the cache-tier serve path.
+ *       routes the geo API to the uncached passthrough (or answers it
+ *       locally), and lets CAS objects and TTL-stamped signed metadata (T12)
+ *       fall through (NGX_DECLINED) to the cache-tier serve path.
  * WHY:  a CVMFS cache must not be an open proxy or a generic HTTP endpoint;
  *       class routing here keeps every downstream layer (tier, admission,
  *       verify) free of CVMFS-specific branching.
@@ -260,11 +260,158 @@ cvmfs_gate_cas(ngx_http_request_t *r,
     return NGX_DECLINED;             /* tier serve path (handler.c) */
 }
 
+/* Pre-classification metadata-plane endpoints.
+ *
+ * Phase-87 G12: the swarm roster endpoint is membership-plane metadata, not
+ * CVMFS traffic — intercept BEFORE classification (classify would 403 it as
+ * "not a CVMFS traffic shape").  Phase-87 G15: the attestation record
+ * endpoint is likewise metadata-plane (".cvmfs-attest" is not a CVMFS
+ * traffic shape); a non-endpoint request has its X-Brix-Attest session
+ * label captured here.  NGX_DECLINED = proceed with normal gating. */
+static ngx_int_t
+cvmfs_gate_meta(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
+{
+    if (lcf->cvmfs.swarm == 1) {
+        ngx_int_t src = brix_cvmfs_swarm_roster_serve(r, lcf);
+        if (src != NGX_DECLINED) {
+            return src;
+        }
+    }
+
+    if (lcf->attest_pkey != NULL) {
+        ngx_int_t arc = brix_cvmfs_attest_gate(r, lcf);
+        if (arc != NGX_DECLINED) {
+            return arc;
+        }
+    }
+
+    return NGX_DECLINED;
+}
+
+/* GET/HEAD only, with the ONE non-GET carve-out: the phase-87 G2 batch
+ * fetch is a POST (it carries a want-list body). Gated on the flag so an
+ * off location keeps the exact pre-phase-87 405 behavior. */
+static ngx_int_t
+cvmfs_gate_method(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf,
+    ngx_http_brix_cvmfs_ctx_t *ctx)
+{
+    if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
+        if (!(lcf->cvmfs.bundle
+              && r->method == NGX_HTTP_POST
+              && ctx->url.cls == CVMFS_URL_BUNDLE))
+        {
+            return cvmfs_reject(r, NGX_HTTP_NOT_ALLOWED, "method not allowed");
+        }
+    }
+    return NGX_DECLINED;
+}
+
+/* Token-gated repos (phase-85 F3) — evaluated BEFORE class routing so a
+ * gated repo's CAS, metadata, and geo traffic are all behind the gate.
+ * NGX_DECLINED = pass (also when no authz is configured). */
+static ngx_int_t
+cvmfs_gate_authz(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
+{
+    ngx_int_t arc;
+
+    if (lcf->repo_authz == NULL) {
+        return NGX_DECLINED;
+    }
+
+    arc = brix_cvmfs_repo_authz_eval(r, lcf);
+    if (arc == NGX_HTTP_UNAUTHORIZED) {
+        /* the guard-core authfail signal ([xrootd-guard-authfail] jail):
+         * unauthenticated probing of a private repo is the same actor
+         * shape as a credential brute-force elsewhere. */
+        cvmfs_guard_emit(r, GUARD_R_AUTHFAIL, NGX_HTTP_UNAUTHORIZED,
+                         (const char *) r->uri.data, r->uri.len,
+                         r->headers_in.authorization != NULL);
+        return cvmfs_reject(r, NGX_HTTP_UNAUTHORIZED,
+                            "repo requires a valid read-scope bearer token");
+    }
+    if (arc == NGX_HTTP_BAD_REQUEST) {
+        return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST,
+                            "token-gated repo requires TLS");
+    }
+    return arc;                             /* 414/500 plumbing failures */
+}
+
+/* Per-class accounting (global counter + bounded per-repo slot). */
+static void
+cvmfs_gate_count(ngx_http_brix_cvmfs_ctx_t *ctx, ngx_uint_t cls)
+{
+    BRIX_CVMFS_METRIC_INC(requests_total[cls]);
+    if (ctx->repo != NULL) {
+        BRIX_ATOMIC_INC(&ctx->repo->requests_total[cls]);
+    }
+}
+
+/* Class routing — the accounted per-class dispatch tail of the gate. */
+static ngx_int_t
+cvmfs_gate_route(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf,
+    ngx_http_brix_cvmfs_ctx_t *ctx)
+{
+    switch (ctx->url.cls) {
+    case CVMFS_URL_CAS:
+        return cvmfs_gate_cas(r, lcf, ctx);
+    case CVMFS_URL_MANIFEST:
+        cvmfs_gate_count(ctx, BRIX_CVMFS_CLASS_MANIFEST);
+        /* T12: signed metadata caches WITH a TTL — the fill stamps
+         * expires_at (= now + brix_cvmfs_manifest_ttl) in the cinfo, an
+         * expired entry refills, and a failed refill serves the stale copy
+         * within the bounded 10x-TTL stale-if-error window. */
+        return NGX_DECLINED;
+    case CVMFS_URL_GEO:
+        cvmfs_gate_count(ctx, BRIX_CVMFS_CLASS_GEO);
+        /* Answer locally (RTT-ranked from this proxy's vantage) when enabled,
+         * bypassing a mis-ordering upstream GeoAPI; else relay verbatim. */
+        if (lcf->cvmfs.geo_answer == BRIX_CVMFS_GEO_RTT) {
+            return brix_cvmfs_geo_answer(r, lcf);
+        }
+        return brix_cvmfs_geo_passthrough(r, lcf);
+    case CVMFS_URL_BUNDLE:
+        cvmfs_gate_count(ctx, BRIX_CVMFS_CLASS_BUNDLE);
+        /* Batch fetch (phase-87 G2) is strictly opt-in and POST-only; a
+         * GET/HEAD on the endpoint name is not CVMFS client traffic. */
+        if (!lcf->cvmfs.bundle) {
+            return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
+                                "bundle endpoint disabled "
+                                "(brix_cvmfs_bundle off)");
+        }
+        if (r->method != NGX_HTTP_POST) {
+            return cvmfs_reject(r, NGX_HTTP_NOT_ALLOWED,
+                                "bundle endpoint is POST-only");
+        }
+        return brix_cvmfs_bundle_handle(r, lcf);
+    case CVMFS_URL_DICT:
+        cvmfs_gate_count(ctx, BRIX_CVMFS_CLASS_DICT);
+        /* Shared-dictionary endpoint (phase-87 G3) is strictly opt-in; off
+         * keeps the exact pre-phase-87 reject (403) for this path shape.
+         * GET/HEAD-only is already enforced by the early method check. */
+        if (!lcf->cvmfs.dict) {
+            return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
+                                "dict endpoint disabled "
+                                "(brix_cvmfs_dict off)");
+        }
+        return brix_cvmfs_dict_handle(r, lcf);
+    case CVMFS_URL_REJECT:
+    default:
+        return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
+                            "path is not a CVMFS traffic shape");
+    }
+}
+
 ngx_int_t
 brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
+    ngx_int_t rc;
     ngx_http_brix_cvmfs_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
+
+    rc = cvmfs_gate_meta(r, lcf);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
 
     /* Classify FIRST (a pure parse of the query-stripped path): every later
      * reject — wrong method, malformed proxy target, authority not
@@ -278,8 +425,22 @@ brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
                             "path is not a CVMFS traffic shape");
     }
 
-    if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
-        return cvmfs_reject(r, NGX_HTTP_NOT_ALLOWED, "method not allowed");
+    /* Virtual / composed repos (phase-87 G16): a request naming a virtual
+     * fqrn is rewritten in place to its first member (declaration-order
+     * precedence; the handler advances to the next member on 404 only).
+     * Rewriting HERE — before per-repo accounting, F3 repo authz, and class
+     * routing — means each member attempt is policed exactly as a direct
+     * request for that member would be: composition never elevates. */
+    if (lcf->virtual_repos != NULL) {
+        ngx_int_t vrc = brix_cvmfs_virtual_enter(r, lcf);
+        if (vrc != NGX_DECLINED) {
+            return vrc;
+        }
+    }
+
+    rc = cvmfs_gate_method(r, lcf, ctx);
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     /* proxy mode (T14): an absolute-form request line names its upstream —
@@ -295,58 +456,10 @@ brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     /* per-repository accounting (bounded slot table — metrics.h) */
     ctx->repo = brix_cvmfs_repo_slot(ctx->url.repo, ctx->url.repo_len);
 
-    /* Token-gated repos (phase-85 F3) — evaluated BEFORE class routing so a
-     * gated repo's CAS, metadata, and geo traffic are all behind the gate. */
-    if (lcf->repo_authz != NULL) {
-        ngx_int_t arc = brix_cvmfs_repo_authz_eval(r, lcf);
-
-        if (arc == NGX_HTTP_UNAUTHORIZED) {
-            /* the guard-core authfail signal ([xrootd-guard-authfail] jail):
-             * unauthenticated probing of a private repo is the same actor
-             * shape as a credential brute-force elsewhere. */
-            cvmfs_guard_emit(r, GUARD_R_AUTHFAIL, NGX_HTTP_UNAUTHORIZED,
-                             (const char *) r->uri.data, r->uri.len,
-                             r->headers_in.authorization != NULL);
-            return cvmfs_reject(r, NGX_HTTP_UNAUTHORIZED,
-                                "repo requires a valid read-scope bearer token");
-        }
-        if (arc == NGX_HTTP_BAD_REQUEST) {
-            return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST,
-                                "token-gated repo requires TLS");
-        }
-        if (arc != NGX_DECLINED) {
-            return arc;                     /* 414/500 plumbing failures */
-        }
+    rc = cvmfs_gate_authz(r, lcf);
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
-    switch (ctx->url.cls) {
-    case CVMFS_URL_CAS:
-        return cvmfs_gate_cas(r, lcf, ctx);
-    case CVMFS_URL_MANIFEST:
-        BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_MANIFEST]);
-        if (ctx->repo != NULL) {
-            BRIX_ATOMIC_INC(
-                &ctx->repo->requests_total[BRIX_CVMFS_CLASS_MANIFEST]);
-        }
-        /* T12: signed metadata caches WITH a TTL — the fill stamps
-         * expires_at (= now + brix_cvmfs_manifest_ttl) in the cinfo, an
-         * expired entry refills, and a failed refill serves the stale copy
-         * within the bounded 10x-TTL stale-if-error window. */
-        return NGX_DECLINED;
-    case CVMFS_URL_GEO:
-        BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_GEO]);
-        if (ctx->repo != NULL) {
-            BRIX_ATOMIC_INC(&ctx->repo->requests_total[BRIX_CVMFS_CLASS_GEO]);
-        }
-        /* Answer locally (RTT-ranked from this proxy's vantage) when enabled,
-         * bypassing a mis-ordering upstream GeoAPI; else relay verbatim. */
-        if (lcf->cvmfs.geo_answer == BRIX_CVMFS_GEO_RTT) {
-            return brix_cvmfs_geo_answer(r, lcf);
-        }
-        return brix_cvmfs_geo_passthrough(r, lcf);
-    case CVMFS_URL_REJECT:
-    default:
-        return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
-                            "path is not a CVMFS traffic shape");
-    }
+    return cvmfs_gate_route(r, lcf, ctx);
 }

@@ -28,6 +28,7 @@
 #include "recv_internal.h"                 /* W3: pending-locate client wake */
 #include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "fanout.h"                       /* W8: fold forwarded-op kYR_error */
+#include "state_relay.h"                  /* Phase-61 W7: kYR_state recursion */
 
 /* Per-opcode frame handlers.  All share one signature so the dispatcher in
  * server_recv_frame.c can be a data-driven route table (mirrors recv.c's
@@ -303,36 +304,38 @@ cms_srv_frame_usage(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
 }
 
 /*
- * cms_srv_frame_stats — statistics query (do_Stats), size form: answer
- * kYR_data with a raw 4-byte big-endian length = the buffer a full stats
- * reply would need.  Stock cmsd's kYR_size modifier asks exactly this so the
- * caller can allocate before requesting the text form; we answer the size
- * form for every modifier until a text renderer exists (the dispatch table
- * does not forward the modifier byte), which callers handle as "allocate,
- * then re-ask" — the honest subset of do_Stats.
+ * cms_srv_frame_stats — statistics query (do_Stats), byte-exact with stock
+ * v5.9.6: both forms reply kYR_data with a leading 4-byte big-endian statsz
+ * (the buffer a full reply needs, CMS_STATS_BUFSZ).  The kYR_size modifier
+ * stops there (the caller allocates, then re-asks); otherwise the
+ * Cluster.Stats document follows (snprintf length, no NUL), with this
+ * manager's role type in the role slot.
  */
 void
 cms_srv_frame_stats(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const u_char *payload, size_t payload_len)
 {
-    u_char    out[4];
-    uint32_t  need;
+    u_char  out[4 + CMS_STATS_BUFSZ];
+    u_char  mod = ctx->inbuf[5];
+    int     len;
 
     if (!ctx->logged_in) {
         return;                          /* pre-auth: ignore */
     }
 
-    /* An allocation advertisement, not a promise of exact length: a flat
-     * upper bound covering the stock statistics document shape (<statistics>
-     * shell + per-node <subscriber> rows) at the registry's configured slot
-     * ceiling, so a future text form always fits the advertised buffer. */
-    need = 4096;
+    ngx_brix_cms_put32(out, CMS_STATS_BUFSZ);
+    if (mod & CMS_STATS_SIZE) {
+        (void) brix_cms_srv_send_data(ctx, streamid, out, 4);
+        return;
+    }
 
-    out[0] = (u_char) (need >> 24);
-    out[1] = (u_char) (need >> 16);
-    out[2] = (u_char) (need >> 8);
-    out[3] = (u_char) need;
-    (void) brix_cms_srv_send_data(ctx, streamid, out, sizeof(out));
+    len = ngx_brix_cms_stats_doc(out + 4, sizeof(out) - 4,
+                                 ctx->role_type != NULL ? ctx->role_type
+                                                        : "M");
+    if (len < 0) {
+        return;
+    }
+    (void) brix_cms_srv_send_data(ctx, streamid, out, 4 + (size_t) len);
 }
 
 /*
@@ -399,18 +402,40 @@ cms_srv_frame_have(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
         return;
     }
 
+    if (brix_srv_is_blacklisted(ctx->host, ctx->port)) {
+        ngx_log_error(NGX_LOG_INFO, ctx->c->log, 0,
+                      "brix: CMS server: ignoring have for \"%s\" from "
+                      "drained node %s:%d", path, ctx->host, (int) ctx->port);
+        return;
+    }
+
+    /*
+     * Phase-61 W7: a HAVE answering a relayed parent kYR_state (echoed
+     * downward streamid + the EXACT probed path key a parked relay entry) is
+     * legitimised by the probe itself, not by the declared exports: a relayed
+     * path is by construction outside every child's exports (covered paths
+     * are answered from the registry without a relay), so the paths-cover
+     * gate below would unconditionally kill the echo.  take() consumes the
+     * entry only on an exact path match — a node can assert only paths this
+     * manager actively probed, once, within the TTL window.  First child
+     * answer wins; later ones fall through to the normal gate.
+     */
+    {
+        ngx_brix_cms_ctx_t *up;
+        uint32_t              up_sid;
+
+        if (brix_cms_state_relay_take(streamid, path, &up, &up_sid)) {
+            brix_loc_cache_insert(path, ctx->host, ctx->port);
+            (void) ngx_brix_cms_send_have(up, up_sid, path, plen);
+            return;
+        }
+    }
+
     if (!brix_srv_paths_cover(ctx->paths, path)) {
         ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
                       "brix: CMS server: %s:%d asserted have for \"%s\" "
                       "outside its exported paths [%s] — dropped",
                       ctx->host, (int) ctx->port, path, ctx->paths);
-        return;
-    }
-
-    if (brix_srv_is_blacklisted(ctx->host, ctx->port)) {
-        ngx_log_error(NGX_LOG_INFO, ctx->c->log, 0,
-                      "brix: CMS server: ignoring have for \"%s\" from "
-                      "drained node %s:%d", path, ctx->host, (int) ctx->port);
         return;
     }
 

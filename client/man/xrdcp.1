@@ -120,6 +120,15 @@ Local-disk overlap ring: \fBon\fR | \fBoff\fR | \fBauto\fR (default \fBauto\fR).
 Overrides \fBXRDC_IO_URING\fR.  Also accepted as \fB\-\-io\-uring=\fImode\fR.
 Any value other than \fBon\fR, \fBoff\fR, or \fBauto\fR is a usage error (exit 50).
 .TP
+.B \-\-io\-uring\-direct
+Engage the O_DIRECT tier on the local-disk ring: the file descriptor is opened
+with page-cache bypass and the ring's buffers are block-aligned, so full-block
+transfers move straight between disk and the ring.  The final short write of a
+download is transparently re-issued as a buffered write.  Overrides
+\fBXRDC_IO_URING_DIRECT\fR.  When the target filesystem rejects O_DIRECT an
+\fBauto\fR ring falls back to the buffered tier and an \fBon\fR ring reports a
+clean error.
+.TP
 .BI \-\-cksum " TYPE[:source|:print|:VALUE]"
 Verify a checksum after transfer.
 \fITYPE\fR is \fBadler32\fR, \fBcrc32c\fR, or \fBmd5\fR.
@@ -212,6 +221,10 @@ Reconnect/resume patience window (same as \fB\-\-max\-stall\fR).
 .TP
 .B XRDC_IO_URING
 Default io_uring mode for local-disk I/O: \fBon\fR | \fBoff\fR | \fBauto\fR (default \fBauto\fR).
+.TP
+.B XRDC_IO_URING_DIRECT
+Default O_DIRECT tier for the local-disk ring: \fBon\fR/\fB1\fR enables page-cache
+bypass, anything else leaves it off (default off).  Overridden by \fB\-\-io\-uring\-direct\fR.
 .TP
 .B XRDRC
 Path to the configuration file (default \fI~/.xrdrc\fR).

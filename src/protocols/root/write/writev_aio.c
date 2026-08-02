@@ -121,6 +121,7 @@ writev_try_aio(const writev_run_t *run, int do_sync, ngx_flag_t *posted)
 	t->io_error    = 0;
 	t->streamid[0] = ctx->recv.cur_streamid[0];
 	t->streamid[1] = ctx->recv.cur_streamid[1];
+	t->start_ns    = brix_phase_now_ns();  /* phase-56 D-2 */
 
 	brix_task_bind(task, brix_writev_write_aio_thread, brix_writev_write_aio_done);
 

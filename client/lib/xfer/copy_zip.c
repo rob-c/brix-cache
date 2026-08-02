@@ -297,9 +297,13 @@ zip_member_basename(const char *p)
 }
 
 
-/* Read the existing archive's EOCD + raw central directory for append. Refuses a
- * ZIP64 archive (append-in-place would need 64-bit CD rewrite). Returns 0 with a
- * malloc'd *seed_cd (caller frees), or -1 on error. */
+/* Read the existing archive's EOCD + raw central directory for append. ZIP64
+ * seeds are supported: brix_zip_read_eocd returns the real 64-bit CD
+ * offset/size/count (promoted from the ZIP64 EOCD record), the CD bytes are
+ * copied verbatim so existing entries keep their offsets and ZIP64 extra fields,
+ * and brix_zip_writer_finish re-emits a ZIP64 EOCD when the combined totals still
+ * require it. No 64-bit CD rewrite is needed because append never relocates an
+ * existing member. Returns 0 with a malloc'd *seed_cd (caller frees), or -1. */
 int
 zip_read_seed(brix_zip_pread_fn pr, void *ctx, uint64_t size, uint64_t *base,
               uint8_t **seed_cd, size_t *seed_len, size_t *seed_n, brix_status *st)
@@ -315,11 +319,7 @@ zip_read_seed(brix_zip_pread_fn pr, void *ctx, uint64_t size, uint64_t *base,
                         "--zip-append: destination is not a valid ZIP archive");
         return -1;
     }
-    if (z64) {
-        brix_status_set(st, XRDC_EUSAGE, 0,
-                        "--zip-append: ZIP64 archives are not supported for append");
-        return -1;
-    }
+    (void) z64;   /* ZIP64 vs classic seed: both handled identically below. */
     buf = malloc(cd_size ? (size_t) cd_size : 1);
     if (buf == NULL) {
         brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
@@ -460,7 +460,8 @@ copy_zip_store_remote(const char *member, int srcfd, const brix_url *du,
 
 
 /* xrdcp --zip / --zip-append: store the local source as a STORE member of the
- * destination ZIP archive (create, or append to an existing non-ZIP64 archive). */
+ * destination ZIP archive (create, or append to an existing archive — classic or
+ * ZIP64). */
 int
 copy_zip_store(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
                const brix_opts *co, brix_status *st)

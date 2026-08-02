@@ -2,6 +2,7 @@
 #include "aio.h"
 #include "uring.h"
 #include "core/compat/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
+#include "protocols/root/read/read.h"   /* brix_pgread_layout_iov (P44-B) */
 
 
 /* File: src/aio/uring_submit.c — io_uring SQE submission (Phase 44)
@@ -127,6 +128,40 @@ brix_uring_readv_is_posix(void *ctx)
     return 1;
 }
 
+/*
+ * brix_pgread_page_count — pages an rlen-byte pgread spans, honouring the
+ * file-offset page alignment (short first page when offset is unaligned,
+ * Invariant #1).  Caller guarantees rlen > 0.
+ */
+static ngx_uint_t
+brix_pgread_page_count(off_t offset, size_t rlen)
+{
+    size_t  head = (size_t) kXR_pgPageSZ
+                   - ((size_t) offset & (kXR_pgPageSZ - 1));
+
+    if (rlen <= head) {
+        return 1;
+    }
+    return 1 + (ngx_uint_t) ((rlen - head + kXR_pgPageSZ - 1) / kXR_pgPageSZ);
+}
+
+/*
+ * brix_uring_pgread_is_uringable — the hybrid pgread tier (P44-B) takes only
+ * plain-POSIX handles whose whole read fits one scatter layout batch
+ * (<= BRIX_URING_IOV_MAX pages ~ 256KiB).  Larger reads go to the thread pool,
+ * whose preadv coalescer batches at the same width anyway.
+ */
+static ngx_flag_t
+brix_uring_pgread_is_uringable(void *ctx)
+{
+    brix_pgread_aio_t *t = ctx;
+
+    if (t->obj.driver != NULL || t->rlen == 0) {
+        return 0;
+    }
+    return brix_pgread_page_count(t->offset, t->rlen) <= BRIX_URING_IOV_MAX;
+}
+
 static ngx_flag_t
 brix_uring_writev_is_posix(void *ctx)
 {
@@ -144,8 +179,9 @@ brix_uring_writev_is_posix(void *ctx)
 /*
  * brix_uring_op_for — see uring.h.  The worker-fn the task was bound to via
  * brix_task_bind() is the op identity.  readv/writev map to io_uring only for
- * a single contiguous group; multi-fd/multi-group fall to the pool, as do
- * pgread (per-page CRC interleave) and dirlist (opendir/readdir).  Any
+ * a single contiguous group; multi-fd/multi-group fall to the pool, as does
+ * dirlist (opendir/readdir).  pgread rides the hybrid tier (P44-B): the ring
+ * scatters the read, a pool hop then fills the CRC gaps (R-07).  Any
  * driver-backed handle (non-POSIX backend) also falls to the pool — io_uring
  * can only touch a real local fd (see the predicates above).
  */
@@ -171,6 +207,10 @@ brix_uring_op_for(ngx_thread_task_t *task)
         return (brix_writev_is_single_contig_fd(task->ctx)
                 && brix_uring_writev_is_posix(task->ctx))
                ? XRD_URING_OP_WRITEV : XRD_URING_OP_NONE;
+    }
+    if (fn == brix_pgread_aio_thread) {
+        return brix_uring_pgread_is_uringable(task->ctx)
+               ? XRD_URING_OP_PGREAD : XRD_URING_OP_NONE;
     }
 
     return XRD_URING_OP_NONE;
@@ -259,6 +299,28 @@ brix_uring_prep_primary(struct io_uring_sqe *sqe, brix_uring_op_e op,
         return NGX_OK;
     }
 
+    case XRD_URING_OP_PGREAD: {
+        brix_pgread_aio_t *t = task->ctx;
+        struct iovec        *iov;
+        ngx_uint_t           npages;
+        ngx_int_t            k;
+
+        npages = brix_pgread_page_count(t->offset, t->rlen);
+        iov = brix_palloc_array(t->c->pool, npages, sizeof(struct iovec));
+        if (iov == NULL) {
+            return NGX_ERROR;
+        }
+        k = brix_pgread_layout_iov(t->offset, t->rlen, t->scratch, iov,
+                                     npages);
+        if (k < 0) {
+            return NGX_ERROR;
+        }
+        io_uring_prep_readv(sqe, t->fd, iov, (unsigned) k,
+                            (__u64) t->offset);
+        *fd_out = t->fd;
+        return NGX_OK;
+    }
+
     default:
         return NGX_ERROR;
     }
@@ -274,7 +336,8 @@ brix_uring_prep_primary(struct io_uring_sqe *sqe, brix_uring_op_e op,
  */
 ngx_int_t
 brix_uring_submit(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_thread_task_t *task, brix_uring_op_e op, ngx_flag_t *posted)
+    ngx_thread_pool_t *pool, ngx_thread_task_t *task, brix_uring_op_e op,
+    ngx_flag_t *posted)
 {
     brix_uring_t      *u = brix_uring_worker();
     brix_uring_slot_t *slot;
@@ -291,6 +354,10 @@ brix_uring_submit(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (u == NULL) {
         return NGX_OK;                 /* defensive: selector already checked */
+    }
+
+    if (op == XRD_URING_OP_PGREAD && pool == NULL) {
+        return NGX_OK;                 /* CRC hop needs a pool -> thread tier */
     }
 
     nsqe = brix_uring_nsqe(op, task);
@@ -314,6 +381,7 @@ brix_uring_submit(brix_ctx_t *ctx, ngx_connection_t *c,
     slot->owner    = c;                 /* orphan key: task lives in c->pool  */
     slot->orphaned = 0;
     slot->op_kind  = (uint8_t) op;
+    slot->pool     = pool;              /* PGREAD reap-time CRC hop (P44-B)   */
     /* in_use was set by slot_acquire; generation is current. */
 
     cookie = ((uint64_t) slot->generation << 32) | idx;

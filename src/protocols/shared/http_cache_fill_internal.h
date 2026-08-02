@@ -28,6 +28,7 @@ typedef struct brix_http_fill_waiter_s {
     ngx_http_request_t                   *r;
     brix_http_cache_reenter_pt          reenter;
     void                                 *reenter_data;
+    brix_http_fill_fail_pt              on_fail;   /* NULL = no intercept */
     struct brix_http_fill_waiter_s     *next;
     struct brix_http_cache_fill_ctx_s  *owner;   /* valid while !resolved */
     ngx_event_t                           hold;    /* T20 client-hold timer */
@@ -47,6 +48,10 @@ typedef struct brix_http_cache_fill_ctx_s {
     time_t                               max_life;
     ngx_int_t                            result;    /* NGX_OK/DECLINED/ERROR */
     int                                  err;       /* errno from the fill  */
+    int                                  passthrough; /* phase-92: filled ONLY
+                                                    * under brix_cache_passthrough
+                                                    * — evict the key after every
+                                                    * waiter has been served     */
     ngx_msec_t                           started_ms; /* fill post timestamp */
     unsigned                             attempts;   /* origin attempts run */
     char                                 key[PATH_MAX];
@@ -67,7 +72,7 @@ void brix_http_fill_detach(brix_http_fill_waiter_t *w);
 void brix_http_fill_send_retry_later(ngx_http_request_t *r);
 ngx_int_t brix_http_fill_attach(brix_http_cache_fill_ctx_t *t,
     ngx_http_request_t *r, brix_http_cache_reenter_pt reenter,
-    void *reenter_data);
+    void *reenter_data, brix_http_fill_fail_pt on_fail);
 
 /* Worker unit (http_cache_fill_worker.c). */
 void brix_http_cache_fill_thread(void *data, ngx_log_t *log);

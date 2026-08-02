@@ -42,7 +42,14 @@ REPO = "test.cern.ch"
 # CORE list from the shell scripts (brixcvmfs + full client stack).
 BRIXCVMFS_CORE = [
     "shared/cvmfs/client/client.c",
+    "shared/cvmfs/client/client_negfilter.c",
+    "shared/cvmfs/client/client_pathidx.c",
+    "shared/cvmfs/index/pathidx.c",
+    "shared/cvmfs/filter/xorf.c",
     "shared/cvmfs/fetch/fetch.c",
+    "shared/cvmfs/fetch/fetch_bundle.c",
+    "shared/cvmfs/bundle/bundle.c",
+    "shared/cvmfs/dict/dict.c",
     "shared/cvmfs/object/object.c",
     "shared/cvmfs/failover/failover.c",
     "shared/cvmfs/catalog/catalog.c",
@@ -54,8 +61,22 @@ BRIXCVMFS_CORE = [
     "shared/cvmfs/signature/verify.c",
     "shared/cvmfs/config/repo.c",
     "shared/cvmfs/config/cvmfs_conf.c",
-    "shared/cache/cas_store.c",
+    "shared/cache/cas_store.c", "shared/cache/cas_pack.c",
+    "shared/cvmfs/platform/platform.c",
     "shared/net/proxy_env.c",
+]
+
+# brixcvmfs.c is one translation unit of a private multi-file split bound through
+# brixcvmfs_split.h: its ops table (brixcvmfs_ops), cache-dir prep
+# (brixcvmfs_prepare_cache_dir), prefetch engine (pf_start) and transport live in
+# sibling TUs.  Mirror the canonical client/Makefile BRIXMOUNT_OBJS core so both
+# the standalone binary and the brixMount umbrella resolve every split symbol.
+# (rw/rw_ext + autofs frontends are added per-binary via no_main_frontends.)
+BRIXCVMFS_APP_SPLIT = [
+    "client/apps/fs/brixcvmfs_transport.c",
+    "client/apps/fs/brixcvmfs_prefetch.c",
+    "client/apps/fs/brixcvmfs_ops.c",
+    "client/apps/fs/brixcvmfs_mount.c",
 ]
 
 MKREPO_DEPS = [
@@ -131,8 +152,10 @@ def _umbrella_link_deps() -> tuple[list[str], list[str], list[str], list[str]]:
     return (
         ["client/lib", "src"],                       # brix.h + wire headers
         ["-DXRDPROTO_NO_NGX"],                        # ngx-free proto shim
-        ["client/apps/fs/brixcvmfs_rw.c",             # brixcvmfs_rw_main ref
-         "client/apps/fs/brixautofs.c"],              # brixautofs_main ref
+        ["client/apps/fs/brixcvmfs_rw.c",             # brixcvmfs_rw core
+         "client/apps/fs/brixcvmfs_rw_ext.c",         # brixcvmfs_rw_main ref
+         "client/apps/fs/brixautofs.c",               # brixautofs core
+         "client/apps/fs/brixautofs_ext.c"],          # brixautofs_main ref
         list(_UMBRELLA_ARCHIVES),
     )
 
@@ -177,8 +200,8 @@ def _build_brixcvmfs(run: LiveRun, *, no_main_frontends: list[str] | None = None
     args += cflags
     if no_main_frontends:
         args += ["-DBRIXCVMFS_NO_MAIN", *no_main_frontends]
-    args += ["client/apps/fs/brixcvmfs.c", *sources, *BRIXCVMFS_CORE, *archives,
-             *libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", *syslibs]
+    args += ["client/apps/fs/brixcvmfs.c", *BRIXCVMFS_APP_SPLIT, *sources, *BRIXCVMFS_CORE, *archives,
+             *libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd", *syslibs]
     return _gcc(run, run.root / name, args)
 
 
@@ -341,6 +364,56 @@ def brixcvmfs_live(nginx: Path | None = None) -> int:
         ])
 
 
+def negfilter_live(nginx: Path | None = None) -> int:
+    """G1 negative-lookup filter: sidecar persisted, tamper -> verified rebuild."""
+    _fuse3_flags()
+    with LiveRun("negfilter_live", nginx) as run:
+        mkrepo = _build_mkrepo(run)
+        brixcvmfs = _build_brixcvmfs(run)
+        web, mnt, cache = run.mkdir("web"), run.mkdir("mnt"), run.mkdir("cache")
+        pub = run.root / "repo.pub"
+        expect = _make_repo(run, mkrepo, web, pub)
+        port = _serve(run, web)
+        env = _repo_env(run, port, pub, cache=cache)
+        sidecar = cache / "negfilter.bxf"
+        mount_opts = "negfilter,noclever,auto_unmount"
+
+        def _mount_and_probe() -> tuple[bool, str | None, bool]:
+            try:
+                run.spawn([brixcvmfs, REPO, mnt, "-o", mount_opts, "-f"], env=env)
+                mounted = _wait_mounted(mnt)
+                got = _read(mnt / "hello")
+                absent = not (mnt / "nope").exists()
+                return mounted, got, absent
+            finally:
+                _unmount(mnt)
+
+        print("== mount 1: -o negfilter builds + persists the sidecar ==")
+        mounted1, got1, absent1 = _mount_and_probe()
+        side_ok = sidecar.is_file() and sidecar.stat().st_size > 44
+        print(f"   ls hello:[{got1}] absent-ok:{absent1} sidecar:{side_ok}")
+
+        print("== tamper the sidecar, remount: fail-closed rebuild ==")
+        original = sidecar.read_bytes() if side_ok else b""
+        if side_ok:
+            tampered = bytearray(original)
+            tampered[len(tampered) // 2] ^= 0xFF   # flip a fingerprint bit
+            sidecar.write_bytes(bytes(tampered))
+        mounted2, got2, absent2 = _mount_and_probe()
+        # the tampered image must have been refused and REPLACED by a fresh build
+        rewritten = side_ok and sidecar.is_file() and sidecar.read_bytes() != bytes(tampered)
+        print(f"   hello:[{got2}] absent-ok:{absent2} sidecar-rewritten:{rewritten}")
+
+        return _checks([
+            (mounted1 and got1 == expect and absent1,
+             "negfilter mount serves member + absent paths correctly"),
+            (side_ok, "sidecar negfilter.bxf persisted in the cache"),
+            (mounted2 and got2 == expect and absent2,
+             "tampered sidecar refused: mount still serves correctly (security-neg)"),
+            (rewritten, "tampered sidecar replaced by a fresh verified build"),
+        ])
+
+
 def atlas_live(nginx: Path | None = None) -> int:
     """Mount live atlas.cern.ch from a Stratum-1, descend a nested catalog, read."""
     stratum1 = os.environ.get("ATLAS_S1", "http://s1cern-cvmfs.openhtc.io/cvmfs/atlas.cern.ch")
@@ -467,16 +540,21 @@ def overlay(nginx: Path | None = None) -> int:
     _fuse3_flags()
     with LiveRun("brixcvmfs_ov", nginx) as run:
         mkrepo = _build_mkrepo(run)
+        # brixcvmfs_rw_ext.c carries the rw fuse-ops table + setup/main (the
+        # weak-symbol strong overrides); omitting it links cleanly but leaves
+        # brixcvmfs_rw_main NULL → "rw overlay driver not linked" at runtime.
+        rw_sources = ["client/apps/fs/brixcvmfs_rw.c", "client/apps/fs/brixcvmfs_rw_ext.c",
+                      "client/lib/fs/overlay.c", "client/lib/fs/overlay_copyup.c"]
         brixcvmfs_rw = _build_brixcvmfs(
             run,
-            extra_sources=["client/apps/fs/brixcvmfs_rw.c", "client/lib/fs/overlay.c"],
+            extra_sources=rw_sources,
             extra_includes=["client/lib"],
             name="brixcvmfs_rw",
         )
         brixmount_ov = _build_brixcvmfs(
             run,
             no_main_frontends=["client/apps/fs/brixmount.c"],
-            extra_sources=["client/apps/fs/brixcvmfs_rw.c", "client/lib/fs/overlay.c"],
+            extra_sources=rw_sources,
             extra_includes=["client/lib"],
             name="brixmount_ov",
         )
@@ -693,6 +771,7 @@ SCENARIOS = {
     "mount-cvmfs-live": mount_cvmfs_live,
     "brixmount-live": brixmount_live,
     "brixcvmfs-live": brixcvmfs_live,
+    "negfilter-live": negfilter_live,
     "atlas-live": atlas_live,
     "clever-live": clever_live,
     "overlay": overlay,

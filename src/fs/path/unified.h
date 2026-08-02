@@ -16,7 +16,6 @@ typedef struct {
     unsigned allow_missing_tail:1;      /* create/write: final component may be absent */
     unsigned require_directory:1;       /* caller requires resolved target to be a dir */
     unsigned allow_missing_parents:1;   /* recursive mkdir/HTTP PUT-style missing suffix */
-    unsigned skip_cache_check:1;        /* reserved for future cache-aware resolution */
     unsigned is_write_operation:1;      /* write semantics for audit/logging */
     unsigned reject_symlinks:1;         /* reserved; confinement still rejects escapes */
     unsigned allow_root:1;              /* allow "/" to resolve to the export root */

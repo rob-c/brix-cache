@@ -13,6 +13,7 @@
 
 #include <openssl/evp.h>
 #include <openssl/params.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * Per-worker pool state.  The nginx event thread is the ONLY mutator: it pops on
@@ -82,7 +83,7 @@ brix_kp_refill_done(ngx_event_t *ev)
         if (brix_kp_count < brix_kp_target) {
             brix_kp_ring[brix_kp_count++] = r->keys[i];
         } else {
-            EVP_PKEY_free(r->keys[i]);   /* pool refilled meanwhile — drop extra */
+            brix_evp_pkey_free(r->keys[i]);   /* pool refilled meanwhile — drop extra */
         }
     }
     brix_kp_refill_pending = 0;

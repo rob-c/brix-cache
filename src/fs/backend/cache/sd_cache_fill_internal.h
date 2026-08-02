@@ -51,6 +51,12 @@ typedef struct {
                                         * xrdckverify --cache has a producer   */
     char                cks_hex[129];  /* locally verified digest, hex         */
     struct timespec     t0;        /* T16: per-upstream fill duration         */
+    int                 allow_pt;  /* phase-92: caller opted this fill into the
+                                    * passthrough path (admission-declined fills
+                                    * proceed under the passthrough cap)       */
+    int                 passthrough; /* phase-92: this attempt was admitted ONLY
+                                    * because of brix_cache_passthrough — the
+                                    * caller must evict the key after serving   */
 } sd_cache_fill_state_t;
 
 

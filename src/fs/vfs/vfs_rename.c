@@ -163,6 +163,8 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
                            (const char *) dst->resolved.data,
                            overwrite_dirs ? 1 : 0);
     if (res.status == BRIX_NS_OK) {
+        brix_vfs_neg_stat_forget(ctx->root_canon,
+                                   (const char *) dst->resolved.data);
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
                                   NGX_OK, 0, start);
         return NGX_OK;

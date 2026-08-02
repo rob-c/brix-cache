@@ -1,0 +1,185 @@
+{{/*
+PKI bootstrap for the s3-voms scenario (pre-install hook, authority image).
+
+The zero-provisioning counterpart of s3-gsi: it mints the CA/host material,
+a VOMS *signing* cert (chaining to the test CA), then FIVE user identities.
+bob/alice/tom/jane get real VOMS-AC proxies (utils/voms_proxy_fake.py) carrying
+an atlas/cms FQAN; mallory gets a plain proxy with NO AC.  Crucially, the
+server side is NOT parameterised by any user:
+
+  vomsdir      one LSC entry per VO (subject+issuer of the VOMS signer, X509_
+               NAME_oneline form) -> /etc/grid-security/vomsdir/<vo>/voms.test.local.lsc
+  authdb       exactly two ORG rules — 'o atlas /atlas a' + 'o cms /cms a'
+               (default-deny elsewhere); the FQAN's vorg matches the org.
+  vo-<vo>.s3   exactly two VO-tier backend credentials (P80.12): vo-atlas.s3
+               -> atlas MinIO keys, vo-cms.s3 -> cms keys.  NO per-user file.
+
+A user's EEC DN never appears server-side: identity is carried entirely by the
+VOMS AC, so a never-seen atlas cert works with zero provisioning.
+
+Published object names are fixed (release-independent):
+  Secret s3voms-pki | ConfigMap s3voms-ca-bundle | ConfigMap s3voms-jwks |
+  Secret s3voms-vomsdir | Secret s3voms-server-extra
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pki-bootstrap
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-pki-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: provision
+          image: {{ .Values.pki.image }}
+          imagePullPolicy: {{ .Values.pki.pullPolicy }}
+          env:
+            - { name: TEST_ROOT, value: /work }
+            - { name: NS, value: "{{ .Release.Namespace }}" }
+            - { name: ATLAS_AK, value: {{ .Values.backendUsers.atlas.accessKey | quote }} }
+            - { name: ATLAS_SK, value: {{ .Values.backendUsers.atlas.secretKey | quote }} }
+            - { name: CMS_AK, value: {{ .Values.backendUsers.cms.accessKey | quote }} }
+            - { name: CMS_SK, value: {{ .Values.backendUsers.cms.secretKey | quote }} }
+            - { name: REGION, value: {{ .Values.s3voms.role.backend.region | quote }} }
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd /opt/brix
+              mkdir -p /work /work/tokens
+              # CA + host cert + the legacy single user (satisfies client-pki-init).
+              python3 -c 'import sys; sys.path.insert(0,"tests"); from pki_helpers import blitz_test_pki; blitz_test_pki()'
+              python3 utils/make_token.py init /work/tokens
+              PKI=/work/pki
+              # Materialize CA-dir symlinks (kubectl configmap skips symlinks).
+              find "$PKI/ca" -type l | while read -r l; do
+                cp --remove-destination "$(readlink -f "$l")" "$l"
+              done
+
+              # VOMS signing cert (chains to the test CA), CN=voms.test.local —
+              # the hostname the LSC filename + AC -uri must agree on.
+              VOMS=/work/voms; mkdir -p "$VOMS"
+              openssl genrsa -out "$VOMS/voms.key" 2048 2>/dev/null
+              openssl req -new -key "$VOMS/voms.key" \
+                -subj "/DC=test/DC=xrootd/CN=voms.test.local" -out "$VOMS/voms.csr"
+              cat > "$VOMS/voms.ext" <<'EOF'
+              subjectKeyIdentifier = hash
+              authorityKeyIdentifier = keyid:always
+              basicConstraints = CA:FALSE
+              EOF
+              openssl x509 -req -in "$VOMS/voms.csr" \
+                -CA "$PKI/ca/ca.pem" -CAkey "$PKI/ca/ca.key" -CAcreateserial \
+                -out "$VOMS/voms.pem" -days 3650 -sha256 -extfile "$VOMS/voms.ext"
+
+              dn() {  # X509_NAME_oneline form of $2 (subject|issuer) of cert $1
+                openssl x509 -in "$1" -noout "-$2" -nameopt compat \
+                  | sed "s/^$2=*//"
+              }
+              VOMS_SUBJ="$(dn "$VOMS/voms.pem" subject)"
+              VOMS_ISS="$(dn "$VOMS/voms.pem" issuer)"
+
+              # One LSC per VO — identical signer, two VO directories.  The
+              # vomsLsc init container turns each key into
+              # /etc/grid-security/vomsdir/<key>/voms.test.local.lsc.
+              LSC=/work/lsc; mkdir -p "$LSC"
+              for vo in atlas cms; do
+                printf '%s\n%s\n' "$VOMS_SUBJ" "$VOMS_ISS" > "$LSC/$vo"
+              done
+
+              EXTRA=/work/extra/server; mkdir -p "$EXTRA"
+              IDENT=/work/extra/identities.env; : > "$IDENT"
+              PROXY_FILES=()
+
+              mint_user() {  # $1=name — EEC cert+key only (no plain proxy yet)
+                local u="$1" UD="/work/u/$1"
+                mkdir -p "$UD/user" "$UD/ca"
+                cp "$PKI/ca/ca.pem" "$UD/ca/ca.pem"
+                openssl genrsa -out "$UD/user/userkey.pem" 2048 2>/dev/null
+                chmod 400 "$UD/user/userkey.pem"
+                openssl req -new -key "$UD/user/userkey.pem" \
+                  -out "$UD/user/user.csr" -subj "/DC=test/DC=xrootd/CN=$u"
+                printf 'keyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\n' \
+                  > "$UD/user/user.ext"
+                openssl x509 -req -in "$UD/user/user.csr" \
+                  -CA "$PKI/ca/ca.pem" -CAkey "$PKI/ca/ca.key" -CAcreateserial \
+                  -out "$UD/user/usercert.pem" -days 3650 -sha256 \
+                  -extfile "$UD/user/user.ext"
+              }
+
+              voms_proxy() {  # $1=user $2=vo — VOMS-AC proxy at proxy_std.pem
+                local u="$1" vo="$2" UD="/work/u/$1"
+                python3 utils/voms_proxy_fake.py \
+                  -cert "$UD/user/usercert.pem" -key "$UD/user/userkey.pem" \
+                  -certdir "$PKI/ca" \
+                  -hostcert "$VOMS/voms.pem" -hostkey "$VOMS/voms.key" \
+                  -voms "$vo" -fqan "/$vo/Role=NULL/Capability=NULL" \
+                  -uri "voms.test.local:15000" \
+                  -out "$UD/user/proxy_std.pem" -hours 4000 >/dev/null
+              }
+
+              # user  -> vo (mallory: no VO -> plain proxy, no AC)
+              declare -A VO_OF=( [bob]=atlas [alice]=atlas [tom]=cms [jane]=cms )
+              for u in bob alice tom jane mallory; do
+                mint_user "$u"
+                if [ -n "${VO_OF[$u]:-}" ]; then
+                  voms_proxy "$u" "${VO_OF[$u]}"
+                else
+                  # plain RFC-3820 proxy, no VOMS attributes
+                  python3 utils/make_proxy.py "/work/u/$u" >/dev/null
+                fi
+                echo "${u^^}_DN=$(dn "/work/u/$u/user/usercert.pem" subject)" >> "$IDENT"
+                echo "${u^^}_VO=${VO_OF[$u]:-none}" >> "$IDENT"
+                PROXY_FILES+=("--from-file=${u}_proxy.pem=/work/u/$u/user/proxy_std.pem")
+              done
+
+              # VO-tier backend credentials (P80.12): exactly two files, keyed
+              # by VO — vo-<primary_vo>.s3 is what ucred.c resolves after the
+              # per-user hash miss.  NO per-user credential exists.
+              write_s3() { printf '%s\n%s\n%s\n' "$2" "$3" "$REGION" > "$EXTRA/$1.s3"; }
+              write_s3 vo-atlas "$ATLAS_AK" "$ATLAS_SK"
+              write_s3 vo-cms   "$CMS_AK"   "$CMS_SK"
+
+              # Org-scoped authz (default-deny).  The FQAN's vorg ("atlas"/"cms")
+              # is what 'o <org>' matches; a no-AC identity has no vorg and is
+              # denied everywhere.  Two lines, no per-user rule, never reloaded.
+              cat > "$EXTRA/authdb" <<'EOF'
+              o atlas /atlas a
+              o cms   /cms   a
+              EOF
+
+              kubectl create secret generic s3voms-pki -n "$NS" \
+                --from-file=ca.pem="$PKI/ca/ca.pem" \
+                --from-file=hostcert.pem="$PKI/server/hostcert.pem" \
+                --from-file=hostkey.pem="$PKI/server/hostkey.pem" \
+                --from-file=usercert.pem="$PKI/user/usercert.pem" \
+                --from-file=userkey.pem="$PKI/user/userkey.pem" \
+                --from-file=signing_key.pem=/work/tokens/signing_key.pem \
+                --from-file=identities.env="$IDENT" \
+                "${PROXY_FILES[@]}" \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap s3voms-ca-bundle -n "$NS" \
+                --from-file="$PKI/ca/" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap s3voms-jwks -n "$NS" \
+                --from-file=jwks.json=/work/tokens/jwks.json \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create secret generic s3voms-vomsdir -n "$NS" \
+                --from-file=atlas="$LSC/atlas" \
+                --from-file=cms="$LSC/cms" \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create secret generic s3voms-server-extra -n "$NS" \
+                --from-file="$EXTRA/" --dry-run=client -o yaml | kubectl apply -f -
+              echo "s3voms pki bootstrap complete"
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - { name: work, emptyDir: {} }

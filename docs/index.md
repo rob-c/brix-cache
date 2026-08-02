@@ -220,6 +220,7 @@ graph TD
 | [SELinux Hardening](05-operations/selinux-hardening.md) | SELinux for admins new to it: what the shipped brix policy module confines, rollout runbook, denial debugging |
 | [Remote-host test suite](05-operations/remote-host-test-suite.md) | Install the RPMs on a fresh host + run the pytest fleet — source build vs. shipped `.so`, with the `load_module` injection |
 | [/cvmfs Automount](05-operations/cvmfs-automount.md) | `brixMount autofs` umbrella daemon: stock-client-style /cvmfs on-demand mounts with zero autofs/systemd dependency (WSL2 OOTB), symlink-farm design, packaging + conflict matrix |
+| [pblock per-group multi-user](05-operations/pblock-multiuser.md) | Zero-provisioning shared pblock store: `brix_gridmap` DN→user, unix/FQAN `g`-rule groups, catalog-attested ownership, `gidlifetime` de-provisioning window |
 
 ### Observability & Monitoring
 *Every request lands in a counter. Here's how to read them.*

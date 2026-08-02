@@ -526,7 +526,12 @@ class TestFixedTopologies:
     """Direct + every fleet mesh variant (proxy, redirector, manager, cluster,
     caches, 3-tier) for the protocols each front exposes."""
 
-    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
+    # cluster-ds is declared explicitly: the `cluster-cms` endpoint routes writes
+    # through the cluster-redir redirector, which has nowhere to send an open until
+    # a data server has registered — subset-boot's closure follows `requires`
+    # FORWARD only (cluster-ds requires cluster-redir, not vice-versa), so naming
+    # cluster-redir alone boots a lone redirector that answers open() with EBADF.
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "cluster-ds", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_write_read_scalar_byte_exact(self, ep):
         drv = _ensure(ep)
         path = _unique(f"int_{ep.topo}_{ep.proto}_scalar")
@@ -536,7 +541,7 @@ class TestFixedTopologies:
         assert got == data, \
             f"{ep.topo}/{ep.proto}: {len(got)}B read != {len(data)}B written"
 
-    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "cluster-ds", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_read_vector_byte_exact(self, ep):
         drv = _ensure(ep)
         if not getattr(drv, "supports_vector", False):
@@ -547,7 +552,7 @@ class TestFixedTopologies:
         res = _guard(ep, lambda: drv.read_vector(ep.locator, path, len(data)))
         _assert_vector(res, data)
 
-    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
+    @pytest.mark.registry_servers("cache-only", "chaos-tier1", "cluster-redir", "cluster-ds", "manager", "proxy-nginx", "pure-nginx-proxy", "virtual-redir", "wt-sync")
     def test_checksum_matches(self, ep):
         drv = _ensure(ep)
         path = _unique(f"int_{ep.topo}_{ep.proto}_cks")

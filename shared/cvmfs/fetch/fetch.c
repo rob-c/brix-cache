@@ -1,5 +1,6 @@
 /* fetch.c — CVMFS content-addressed fetch orchestrator. See fetch.h. */
 #include "cvmfs/fetch/fetch.h"
+#include "cvmfs/fetch/fetch_internal.h"
 #include "cvmfs/object/object.h"
 
 #include <errno.h>
@@ -30,10 +31,11 @@ static int sidecar_body(cvmfs_hash_algo_e algo, const unsigned char *plain, size
 }
 
 /* Store verified plaintext + its integrity sidecar. Best-effort: a failed
- * sidecar put just means the entry re-verifies as a miss later. */
-static void cache_put_verified(brix_cas_store_t *cache, const char *key,
-                               cvmfs_hash_algo_e algo,
-                               const unsigned char *plain, size_t len) {
+ * sidecar put just means the entry re-verifies as a miss later. Non-static:
+ * the bundle ingest (fetch_bundle.c) stores through the same step. */
+void cvmfs_fetch_cache_put(brix_cas_store_t *cache, const char *key,
+                           cvmfs_hash_algo_e algo,
+                           const unsigned char *plain, size_t len) {
     char skey[176], body[192];
     int  blen;
     brix_cas_put(cache, key, plain, len);
@@ -93,10 +95,11 @@ static void cache_purge(brix_cas_store_t *cache, const char *key) {
  * atlas.cern.ch catalogs/certs). So we hash-verify the raw fetched bytes FIRST,
  * then decompress; a mangled/poisoned reply fails the hash and is retried
  * elsewhere. Decompression of the verified bytes is deterministic, so the
- * plaintext is authentic without a second hash. */
-static int decode_and_verify(cvmfs_fetch_ctx_t *ctx, const cvmfs_hash_t *hash,
-                             const unsigned char *raw, size_t rawlen,
-                             unsigned char *out, size_t outcap, size_t *outlen) {
+ * plaintext is authentic without a second hash. Non-static: the bundle
+ * ingest (fetch_bundle.c) verifies members through the same step. */
+int cvmfs_fetch_decode_verify(cvmfs_fetch_ctx_t *ctx, const cvmfs_hash_t *hash,
+                              const unsigned char *raw, size_t rawlen,
+                              unsigned char *out, size_t outcap, size_t *outlen) {
     if (!cvmfs_object_verify(raw, rawlen, hash)) return -1;   /* stored-form hash */
 
     if (ctx->store_form == CVMFS_STORE_PLAIN) {
@@ -160,9 +163,10 @@ int cvmfs_fetch_object(cvmfs_fetch_ctx_t *ctx, const cvmfs_hash_t *hash, char su
                                     &rawlen, ctx->transport_ud);
             if (tr != 0) break;                           /* transport dead → next mirror */
 
-            if (decode_and_verify(ctx, hash, ctx->scratch, rawlen, out, outcap, outlen) == 0) {
+            if (cvmfs_fetch_decode_verify(ctx, hash, ctx->scratch, rawlen,
+                                          out, outcap, outlen) == 0) {
                 cvmfs_failover_record(ctx->fo, &route, 1, 1 /*rtt*/, now);
-                cache_put_verified(ctx->cache, key, hash->algo, out, *outlen);
+                cvmfs_fetch_cache_put(ctx->cache, key, hash->algo, out, *outlen);
                 return 0;
             }
             /* corrupt-but-complete: retry the SAME route (transient DPI corruption). */

@@ -28,6 +28,8 @@
 #include "fs/cache/cache_reap.h"             /* brix_cache_reap_dirty */
 #include "fs/xfer/stage_engine.h"            /* brix_stage_scheduler_tick */
 #include "fs/xfer/backend_async_queue.h"     /* brix_baq_tick */
+#include "fs/backend/csi_scrub.h"            /* brix_csi_scrub_walk */
+#include "observability/metrics/metrics.h"   /* ngx_brix_srv_metrics_t, shm zone */
 
 /*
  * nginx's timer-expiry debug log (ngx_event_expire_timers, compiled in on a
@@ -170,6 +172,93 @@ brix_cache_reap_handler(ngx_event_t *ev)
     }
     if (!ngx_exiting) {
         ngx_add_timer(ev, BRIX_CACHE_REAP_INTERVAL_MS);
+    }
+}
+
+/*
+ * Phase-59 W2b: per-server at-rest CSI scrub. Recomputes every recorded block
+ * CRC of every tagged data file under the export root and surfaces at-rest rot
+ * (metrics + error.log DIAG) that the hot read path — which only verifies the
+ * blocks a read FULLY spans — would otherwise never notice. ev->data is the
+ * server conf. The pacing IS the operator's brix_csi_scrub_interval: one full
+ * walk per interval, re-armed at the same cadence.
+ *
+ * The engine (fs/backend/csi_scrub.c) is pure libc + xmeta + crc32c and is unit-
+ * tested standalone (tests/c/test_csi_scrub.c); this handler is the thin nginx
+ * caller that resolves the root, drives one walk, and folds the mismatch count
+ * into the shared-memory metrics slot.
+ */
+
+/* The per-server SHM metrics slot for `xcf`, or NULL when metrics are
+ * unconfigured (so the scrub degrades cleanly with no counter). Mirrors the slot
+ * resolution in fs/cache/cache_reap.c::reap_metrics_slot + connection/handler.c. */
+static ngx_brix_srv_metrics_t *
+brix_csi_scrub_metrics_slot(const ngx_stream_brix_srv_conf_t *xcf)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (xcf->metrics_slot < 0
+        || xcf->metrics_slot >= BRIX_METRICS_MAX_SERVERS
+        || ngx_brix_shm_zone == NULL
+        || ngx_brix_shm_zone->data == NULL
+        || ngx_brix_shm_zone->data == (void *) 1)
+    {
+        return NULL;
+    }
+    shm = ngx_brix_shm_zone->data;
+    return &shm->servers[xcf->metrics_slot];
+}
+
+/* Per-mismatch report sink: one DIAG line per corrupt block so an operator sees
+ * the offending path + block, not just an opaque counter tick. */
+static void
+brix_csi_scrub_report(void *u, const char *path, uint64_t block,
+    uint32_t want, uint32_t got)
+{
+    ngx_log_t *log = u;
+
+    BRIX_DIAG_CRIT(log, 0,
+        "brix: CSI scrub found at-rest corruption in \"%s\" block %uL "
+        "(recorded crc32c %08xD, on-disk %08xD)",
+        "a data block's on-disk bytes no longer match the checksum recorded "
+        "when it was written — silent storage rot, a truncating restore, or an "
+        "out-of-band edit that bypassed the gateway",
+        "restore the file from a good replica; the gateway keeps serving it, so "
+        "a spanning read will now fail closed for the affected client",
+        path, block, want, got);
+}
+
+void
+brix_csi_scrub_handler(ngx_event_t *ev)
+{
+    ngx_stream_brix_srv_conf_t *xcf = ev->data;
+    brix_csi_scrub_stats_t        st;
+    const char                   *root = (const char *) xcf->common.root_canon;
+
+    ngx_memzero(&st, sizeof(st));
+    (void) brix_csi_scrub_walk(root, &st, 0 /* unlimited: interval is the pace */,
+                               brix_csi_scrub_report, ev->log);
+
+    if (st.mismatches > 0) {
+        ngx_brix_srv_metrics_t *m = brix_csi_scrub_metrics_slot(xcf);
+
+        if (m != NULL) {
+            (void) ngx_atomic_fetch_add(&m->csi_scrub_mismatch_total,
+                                        (ngx_atomic_int_t) st.mismatches);
+        }
+        ngx_log_error(NGX_LOG_ERR, ev->log, 0,
+                      "brix: CSI scrub of \"%s\" found %uL corrupt block(s) "
+                      "across %uL tagged file(s)",
+                      root, st.mismatches, st.files_tagged);
+    } else {
+        ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ev->log, 0,
+                       "brix: CSI scrub of \"%s\" clean "
+                       "(%uL files, %uL blocks verified)",
+                       root, st.files_scanned, st.blocks_verified);
+    }
+
+    if (xcf->csi.scrub_interval > 0 && !ngx_exiting) {
+        ngx_add_timer(ev, (ngx_msec_t) xcf->csi.scrub_interval * 1000);
     }
 }
 

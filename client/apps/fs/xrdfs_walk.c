@@ -54,7 +54,7 @@ chmod_visit(const char *full, const brix_dirent *e, int depth, void *u)
     (void) e; (void) depth;
     brix_status_clear(&st);
     if (brix_chmod(w->c, full, w->mode, &st) != 0) {
-        fprintf(stderr, "xrdfs: chmod %s: %s\n", full, st.msg);
+        (void) xrdfs_report_err("chmod", full, &st, 1, w->c);
         w->failures++;
     }
     return 0;   /* keep walking */
@@ -154,8 +154,7 @@ du_one_path(brix_conn *c, const char *path, int human, int json, int *jfirst)
 
     brix_status_clear(&st);
     if (walk_dir(c, path, 0, du_visit, &a, &st) != 0) {
-        fprintf(stderr, "xrdfs: du %s: %s\n", path, st.msg);
-        return brix_shellcode(&st);
+        return xrdfs_report_err("du", path, &st, 0, c);
     }
     if (json && !*jfirst) { fputs(",\n", stdout); }
     du_print(path, &a, human, json);
@@ -283,8 +282,7 @@ do_find(brix_conn *c, const char *cwd, int argc, char **argv)
     build_path(cwd, start, path, sizeof(path));
     brix_status_clear(&st);
     if (walk_dir(c, path, 0, find_visit, &p, &st) != 0) {
-        fprintf(stderr, "xrdfs: find %s: %s\n", path, st.msg);
-        return brix_shellcode(&st);
+        return xrdfs_report_err("find", path, &st, 0, c);
     }
     return 0;
 }
@@ -402,8 +400,7 @@ do_tree(brix_conn *c, const char *cwd, int argc, char **argv)
     printf("%s\n", path);
     brix_status_clear(&st);
     if (tree_recurse(c, path, "", 0, &o, &st) != 0) {
-        fprintf(stderr, "xrdfs: tree %s: %s\n", path, st.msg);
-        return brix_shellcode(&st);
+        return xrdfs_report_err("tree", path, &st, 0, c);
     }
     printf("\n%ld directories, %ld files\n", o.ndirs, o.nfiles);
     return 0;

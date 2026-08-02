@@ -8,6 +8,7 @@ from cmdscripts.c_auth_units import (
     RUNNERS,
     X509_HARNESS_TUS,
     X509_POLICY_SOURCES,
+    _coverage_link_flags,
     link_x509_harness,
     run_checks,
     x509_fixture_dir,
@@ -34,6 +35,28 @@ def test_c_auth_unit(name, private_tmp):
     assert all(ok for ok, _ in results), "\n".join(
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
     )
+
+
+def test_coverage_link_flags_adds_flag_for_instrumented_object(private_tmp):
+    # success: a linked-in object with a sibling .gcno (gcov build) forces
+    # --coverage onto the harness link line so it resolves __gcov_* and flushes
+    # the object's .gcda — otherwise cred_mint.c reads 0% in the coverage lane.
+    obj = private_tmp / "dep.o"
+    obj.write_bytes(b"")
+    obj.with_suffix(".gcno").write_bytes(b"")
+    assert _coverage_link_flags([str(obj)]) == ["--coverage"]
+    # a repo-relative object path resolves against REPO_ROOT, not just absolute.
+    assert _coverage_link_flags(["x.c", str(obj), "-lcrypto"]) == ["--coverage"]
+
+
+def test_coverage_link_flags_noop_without_gcno(private_tmp):
+    # error/negative: a normal (non-instrumented) build has no .gcno sibling, so
+    # the flag must NOT be added — ordinary unit runs stay unchanged.
+    obj = private_tmp / "plain.o"
+    obj.write_bytes(b"")
+    assert _coverage_link_flags([str(obj)]) == []
+    # non-object args (source files, libs) never trigger the flag on their own.
+    assert _coverage_link_flags(["tests/c/test_cred_mint.c", "-lcrypto"]) == []
 
 
 def test_x509_link_guard_registered():

@@ -458,6 +458,32 @@ class TestAioDestroyedGuard:
 
         fresh_sock.close()
 
+    def test_disconnect_during_large_read_rst_midflight(self):
+        """Hard RST (not an orderly FIN) mid-read: the AIO completion fires
+        against an already-reset fd.  The destroyed guard must swallow the stale
+        callback and the worker must keep serving.  This is the read-side analog
+        of the write-mirror `close_then_immediate_disconnect` UAF driver."""
+        size = 12 * 1024 * 1024
+        _upload(ANON_URL, "aio-rst.bin", _pattern(size, 5, 11))
+        _aio_open_read_then_drop(ANON_HOST, ANON_PORT, "/aio-rst.bin", size,
+                                 rst=True)
+        time.sleep(0.5)   # let the stale AIO completion land
+        _aio_still_serves(ANON_HOST, ANON_PORT)
+
+    def test_disconnect_read_churn_survives(self):
+        """Alloc/free churn: many open->read->drop cycles (alternating RST and
+        FIN) each allocate then tear down a per-read AIO context.  Under
+        AddressSanitizer this catches any double-free / use-after-free / leak in
+        the destroyed-guard teardown that a single cycle would miss; the final
+        liveness probe proves the worker never fell over.  Mirrors the
+        write-mirror `disconnect_churn_survives` driver."""
+        size = 8 * 1024 * 1024
+        _upload(ANON_URL, "aio-churn.bin", _pattern(size, 7, 3))
+        for i in range(12):
+            _aio_open_read_then_drop(ANON_HOST, ANON_PORT, "/aio-churn.bin",
+                                     size, rst=bool(i % 2))
+        _aio_still_serves(ANON_HOST, ANON_PORT)
+
 
 # ---------------------------------------------------------------------------
 # Wire helpers for raw socket tests
@@ -501,3 +527,72 @@ kXR_open     = 3010
 kXR_read     = 3013
 kXR_ping     = 3011
 kXR_pgread   = 3030
+
+
+# ---------------------------------------------------------------------------
+# Raw-wire session + disconnect-mid-read drivers (destroyed-guard stressors).
+#
+# `test_disconnect_during_large_read` above exercises ONE clean-close cycle.
+# These add the two stressors the write-mirror ASan drivers have but the read
+# side lacked: a HARD RST mid-flight (so the AIO completion fires against an
+# already-reset fd, not an orderly FIN), and a churn loop that allocates then
+# tears down the per-read AIO context many times so a double-free / UAF / leak
+# in the destroyed-guard path is caught by AddressSanitizer.  Both run in the
+# default (`not slow and not serial`) fleet, so they ride ASAN_TEST_CMD.
+# ---------------------------------------------------------------------------
+
+def _aio_login(sock, streamid):
+    """Handshake + kXR_protocol + kXR_login as the anon user; asserts each OK."""
+    sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
+    _recv_exact(sock, 16)
+    sock.sendall(struct.pack(">BBHIBB10xI", 0, 1, kXR_protocol,
+                             0x00000520, 0x02, 0x03, 0))
+    status, _ = _read_response(sock)
+    assert status == kXR_ok, "kXR_protocol failed"
+    login_hdr = (struct.pack(">2sH", streamid, kXR_login) + struct.pack(">I", 0)
+                 + b"anon\x00\x00\x00\x00" + struct.pack(">BBB", 0, 0, 5)
+                 + struct.pack(">B", 0) + struct.pack(">I", 0))
+    sock.sendall(login_hdr)
+    status, _ = _read_response(sock)
+    assert status == kXR_ok, "kXR_login failed"
+
+
+def _aio_open_read_then_drop(host, port, path, size, rst, streamid=b"\x00\x01"):
+    """Log in, open `path` for read, fire a large kXR_read that forces the AIO
+    path, then drop the connection WITHOUT draining the reply — so the async
+    completion lands after the client is gone.  `rst=True` sends a RST (SO_LINGER
+    0) instead of an orderly close.  Returns nothing; the point is the drop."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+    try:
+        _aio_login(sock, streamid)
+        open_body = (struct.pack(">H", OpenFlags.READ) + struct.pack(">HH", 0, 0)
+                     + b"\x00" * 6 + b"\x00" * 4)
+        status, fhandle = _send_req(sock, streamid, kXR_open, body=open_body,
+                                    payload=path.encode())
+        assert status == kXR_ok, "kXR_open failed"
+        read_body = fhandle[:4] + struct.pack(">qi", 0, size)
+        read_hdr = (struct.pack(">2sH", streamid, kXR_read) + read_body
+                    + struct.pack(">I", 0))
+        sock.sendall(read_hdr)        # do NOT read the response — drop mid-flight
+        if rst:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                            struct.pack("ii", 1, 0))   # close() -> RST, no FIN
+    finally:
+        sock.close()
+
+
+def _aio_still_serves(host, port):
+    """A fresh login+ping must still round-trip — proves the worker survived the
+    stale AIO completion (no crash / UAF took it down)."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+    try:
+        _aio_login(sock, b"\x00\x09")
+        ping_hdr = (struct.pack(">2sH", b"\x00\x09", kXR_ping) + b"\x00" * 16
+                    + struct.pack(">I", 0))
+        sock.sendall(ping_hdr)
+        status, _ = _read_response(sock)
+        assert status == kXR_ok, "worker stopped serving after a mid-read drop"
+    finally:
+        sock.close()

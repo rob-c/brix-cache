@@ -735,6 +735,75 @@ namespace differs from the local filesystem root.
 
 How often each worker sends CMS load/availability heartbeats after registration.
 
+### `brix_cms_vnid <string>`
+
+**Default:** unset
+
+Virtual network id advertised in the CMS login envCGI string (`vnid=`), matching
+stock `cmsd` semantics. The manager records it per registered server and shows it
+in the dashboard cluster rows. *(Phase-89 W9.)*
+
+---
+
+### CMS manager tuning (phase-89 CMS parity — all default to pre-phase behaviour)
+
+These flags extend manager-mode selection and mutation handling. Every default
+preserves the previous behaviour, so leaving them unset is a provable no-op.
+
+#### `brix_cms_load_weight <0–100>`
+
+**Default:** `0`
+
+Blends the real machine-load vector from node heartbeats (`/proc`-sourced
+cpu/net/mem/pagefault meter) into selection scoring. Read selection scores
+`((100-w)·util + w·load)/100`; write selection scales `free_mb` down by
+`w·load/10000`. `0` keeps the byte-identical space/util-only scoring.
+
+#### `brix_cms_locate_window <time>`
+
+**Default:** `0` (off)
+
+Dynamic location: on a locate miss in the SHM location cache, park the client,
+fan `kYR_state` probes out to logged-in node connections whose exports cover the
+path, and redirect to the first `kYR_have` answer (which is then cached with a
+30 s TTL). On window expiry the client gets `kXR_wait` and selection falls back
+to the static registry chain. `0` = static prefix selection only.
+
+#### `brix_cms_state_fanout <n>`
+
+**Default:** `8`
+
+Cap on how many node connections one dynamic-locate window probes.
+
+#### `brix_cms_affinity on|off`
+
+**Default:** `off`
+
+Sticky selection: among the fresh (non-stale, non-blacklisted) candidate set, a
+path hash — not the load metric — picks the server, so repeat opens of the same
+path land on the same node. A drained or blacklisted host is never sticky.
+
+#### `brix_cms_locate_multi on|off`
+
+**Default:** `off`
+
+`kXR_locate` answers `kXR_ok` with the full live `S<r|w>host:port` server set
+(lateral redirect) instead of a single `kXR_redirect`. An empty set falls
+through to the single-server path unchanged.
+
+#### `brix_cms_fanout on|off` / `brix_cms_fanout_window <time>`
+
+**Defaults:** `off` / `500ms`
+
+Multi-replica mutation fan-out: with `brix_cms_fanout on`, a client
+`kXR_rm`/`kXR_rmdir` whose path has ≥2 registered holders (all connected to this
+worker) is forwarded to *every* holder instead of redirecting to one. The node
+executor is silent on success, so aggregation is a deadline window: no
+`kYR_error` inside `brix_cms_fanout_window` ⇒ `kXR_ok`; any node error ⇒
+`kXR_error` with that node's text. Single-holder paths keep the redirect path.
+**Gotcha:** the window is a msec slot — write `600ms`; a bare `600` parses as
+600 *seconds*.
+
 ---
 
 ### `brix_manager_mode on|off`
@@ -774,8 +843,11 @@ This directive is used on a dedicated management port (default 1213), not on the
 
 | CMS frame | Action |
 |---|---|
-| `kYR_login` | Register server: host, port, path list, free space, utilisation |
-| `kYR_avail` / `kYR_load` / `kYR_space` | Update load metrics |
+| `kYR_login` | Register server: host, port, path list, free space, utilisation (+ `vnid=` from envCGI) |
+| `kYR_avail` / `kYR_load` / `kYR_space` | Update load metrics (incl. the phase-89 machine-load vector) |
+| `kYR_usage` / `kYR_stats` | Answer aggregate free-space (`kYR_load` 13-byte form) / size form |
+| `kYR_status` | Reset / suspend / resume / stage-state transitions |
+| `kYR_have` | Cache a node's dynamic location assertion (export-confined, drained/blacklisted refused) |
 | `kYR_pong` | Update last-seen timestamp |
 | Disconnect | Unregister server from registry |
 
@@ -787,6 +859,19 @@ stream {
     }
 }
 ```
+
+#### `brix_cms_blacklist_file <path>` (CMS-server block)
+
+**Default:** unset
+
+Operator-driven blacklist file for the CMS-server block: one `host`,
+`host:port`, or IPv4 `a.b.c.d/n` CIDR per line (bare/bracketed IPv6 host text
+matches exactly; malformed lines are warned and skipped, never fatal; 128
+entries / 64 KB caps). The file is mtime-polled from the per-connection ping
+tick and re-asserted after every registration, so **the file wins over an admin
+`undrain`** — a file-listed host stays excluded until the file changes, while
+removing a line lifts the ban within ≤3 ping intervals. *(Phase-89 W6′; see the
+admin cluster API for runtime drain/undrain.)*
 
 ---
 
@@ -807,6 +892,7 @@ server-block scoped.
 | `brix_csi_block <size>` | `1m` | CRC granule for NEW records (existing records keep their own) |
 | `brix_csi_require on\|off` | `off` | Refuse read-opens of files with no verifiable record |
 | `brix_csi_trust_fs on\|off` | `off` | Trust the backing filesystem: skip read-verify |
+| `brix_csi_scrub_interval <time>` | `0` (off) | Paced at-rest scrub cadence: re-verify every recorded block CRC under the export root every `<time>` |
 
 ### `brix_csi_trust_fs on|off`
 
@@ -840,6 +926,43 @@ Semantics worth knowing: a read verifies only the blocks it FULLY covers
 "not computed" and never fails a read; a crash between writing and close
 leaves stale CRCs, so reads of a torn upload fail with `kXR_ChkSumErr` until
 the file is rewritten (fail-closed).
+
+### `brix_csi_scrub_interval <time>`
+
+**Default:** `0` (off)
+
+Arms a paced background **at-rest scrub**. Because a read only verifies the
+blocks it fully covers, a corrupt block in cold data is never noticed until an
+unlucky client happens to read across it. When set, a per-server maintenance
+timer walks the export root once every `<time>` and re-verifies **every**
+recorded block CRC of every tagged file against its bytes on disk — surfacing
+silent storage rot proactively rather than on the read path.
+
+The interval is the pacing: one full sweep per interval, never a self-rearming
+hot poll (it is a `cancelable` timer, so it never delays a graceful shutdown).
+A block whose CRC slot is unset ("not computed") or whose recorded range runs
+past the file on disk is skipped (fail-open on coverage gaps); the scrub only
+reports a genuine CRC difference. Each corrupt block increments the
+`brix_csi_scrub_mismatch_total` metric and emits an `error.log` diagnostic
+naming the file, block index, and recorded-vs-on-disk CRC. The scrub is
+read-only — it never repairs or quarantines; restore the affected file from a
+good replica.
+
+```nginx
+stream {
+    server {
+        listen 1094;
+        brix_root on;
+        brix_export /data;
+        brix_csi on;
+        brix_csi_scrub_interval 6h;   # sweep the whole export every 6 hours
+    }
+}
+```
+
+Leave it at `0` on filesystems that already scrub themselves (ZFS/CephFS/RADOS
+with periodic `scrub`), pairing with `brix_csi_trust_fs on` — the storage layer
+does the at-rest verification there.
 
 ---
 
@@ -1021,3 +1144,86 @@ See the unified grammar section at the top of this page for the complete list.
 | `brix_cache_evict_to <pct>` | `80` | Percent-full target the reaper evicts down to (hysteresis partner of `brix_cache_evict_at`; must be lower). Same plane caveat as above. |
 | `brix_storage_backend <url>` | unset | Reverse-proxy origin(s) — pipe-separated `http://` URL list for failover; use instead of `brix_cvmfs_upstream_allow` in reverse mode |
 | `brix_thread_pool <name>` | `default` | nginx thread pool for fill I/O |
+
+## Network / TCP tuning directives
+
+Per-connection socket options applied once at accept on the `root://` stream
+plane. All are **best-effort and non-fatal** — a kernel that rejects the option
+(missing feature, value above a sysctl cap) leaves its default and the connection
+proceeds. All default to the kernel default, so a stock deployment is unchanged.
+
+### `brix_socket_sndbuf <size>`
+
+**Default:** `0` (kernel autotuning) · **Context:** `stream {}`, `server {}`
+
+Sets `SO_SNDBUF` (send-buffer bytes) on each accepted connection. On a high
+bandwidth-delay-product link (long-RTT WAN transfers) the kernel's send
+autotuning can lag the true BDP, capping a single download stream below line
+rate; pinning the send buffer to the deployment BDP (`bandwidth × RTT`) lets the
+server keep the pipe full. Setting it disables send autotuning for that socket,
+so leave it `0` unless you have **measured** the BDP. The kernel doubles the
+requested value for bookkeeping and clamps it to `net.core.wmem_max`. Phase-33
+P3-B3. Download (server→client) is the dominant `root://` read direction, so this
+is the primary throughput knob of the pair.
+
+### `brix_socket_rcvbuf <size>`
+
+**Default:** `0` (kernel autotuning) · **Context:** `stream {}`, `server {}`
+
+Sets `SO_RCVBUF` (receive-buffer bytes) on each accepted connection — the
+symmetric knob for the upload/PUT direction. Same BDP guidance and
+`net.core.rmem_max` clamp as `brix_socket_sndbuf`.
+
+**Example** — a 10 Gbps path with a 30 ms RTT (BDP ≈ 37.5 MiB):
+
+```nginx
+stream {
+    server {
+        listen 1094;
+        brix_root on;
+        brix_storage_backend posix:/data;
+        brix_socket_sndbuf 40m;   # requires: sysctl -w net.core.wmem_max=41943040
+        brix_socket_rcvbuf 40m;   # requires: sysctl -w net.core.rmem_max=41943040
+    }
+}
+```
+
+## Backend credential delegation directives
+
+Control how the gateway re-presents a client's proven identity to a downstream
+backend/origin (the phase-70 "full credential delegation" work). All default to
+**off / disabled**, so a stock deployment forwards nothing.
+
+### `brix_backend_krb5_forwardable on|off`
+
+**Default:** `off` · **Context:** `http {}`, `server {}`, `location {}` and
+`stream {}`, `server {}`
+
+Arms the Kerberos (krb5) origin leg. When a client authenticates over `root://`
+with a **forwardable** TGT (`GSS_C_DELEG_FLAG`), turning this on lets the gateway
+capture the delegated ticket and re-delegate it — via a fresh GSSAPI context — to
+a Kerberised origin backend, so the origin sees the *client's* identity rather
+than the gateway's. Left `off`, no forwarded credential is ever captured and the
+gateway falls back to SELECT (its own service identity).
+
+The origin service principal is **derived** as `host/<backend-fqdn>@<REALM>`,
+taking the realm from the gateway's own configured principal — there is no
+separate directive for the origin principal, and a backend host string is
+rejected if it tries to smuggle a realm (`@`) or principal component (`/`).
+
+Available on **both** request planes: the HTTP plane and the `root://` stream
+plane (krb5 auth runs on the stream plane). The value is validated at `nginx -t`
+— any token other than `on`/`off` is a hard load error, never a silent no-op.
+
+> **Status (2026-07-28):** the cryptographic core (capture + forward + principal
+> derivation) is landed and LIVE-verified against a real MIT KDC; the inbound
+> two-round wire state machine and the outbound multi-leg drive are the remaining
+> runtime pieces, blocked on live krb5 peers. See
+> `docs/refactor/phase-70-full-credential-delegation.md` §5.7 / §5.7.1.
+
+### S3 STS (`brix_backend_s3_sts_endpoint` / `brix_backend_s3_sts_flavor`)
+
+The sibling S3 delegation directives (SigV4 `AssumeRole` against an STS endpoint;
+`aws` or `minio` dialect) are documented in
+`docs/refactor/phase-70-full-credential-delegation.md` §5.5. `…_endpoint` is
+load-validated at `nginx -t` (must be a well-formed `http(s)://` URL).

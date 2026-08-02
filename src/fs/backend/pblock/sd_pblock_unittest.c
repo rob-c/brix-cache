@@ -110,6 +110,7 @@ main(void)
     test_truncate_and_stat(&inst);
     test_preadv(&inst);
     test_dirs(&inst);
+    test_mkdir_trailing_slash(&inst);
     test_rename(&inst);
     test_server_copy(&inst);
     test_xattr(&inst);

@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 
 EVP_PKEY *
@@ -35,7 +36,7 @@ brix_jwt_load_ec_key(const char *pem_path)
         return NULL;
     }
     if (EVP_PKEY_base_id(pkey) != EVP_PKEY_EC) {
-        EVP_PKEY_free(pkey);
+        brix_evp_pkey_free(pkey);
         return NULL;
     }
     return pkey;
@@ -109,22 +110,22 @@ brix_jwt_sign_es256(EVP_PKEY *eckey, const char *header_json,
                           (const unsigned char *) signing_input, (size_t) n) != 1
         || der_len == 0)
     {
-        EVP_MD_CTX_free(mdctx);
+        brix_evp_md_ctx_free(mdctx);
         return NGX_ERROR;
     }
     der = OPENSSL_malloc(der_len);
     if (der == NULL) {
-        EVP_MD_CTX_free(mdctx);
+        brix_evp_md_ctx_free(mdctx);
         return NGX_ERROR;
     }
     if (EVP_DigestSign(mdctx, der, &der_len,
                        (const unsigned char *) signing_input, (size_t) n) != 1)
     {
         OPENSSL_free(der);
-        EVP_MD_CTX_free(mdctx);
+        brix_evp_md_ctx_free(mdctx);
         return NGX_ERROR;
     }
-    EVP_MD_CTX_free(mdctx);
+    brix_evp_md_ctx_free(mdctx);
 
     /* DER → raw r||s → base64url. */
     if (brix_jwt_der_to_p1363(der, der_len, raw) != 0) {

@@ -16,19 +16,23 @@ Everything here is configured once at startup (`../config/postconfiguration.c` c
 |---|---|
 | `registry.h` | Public registry API + the `brix_srv_entry_t` / `brix_srv_table_t` / `brix_srv_snapshot_entry_t` types; capacity constants (`BRIX_SRV_REGISTRY_SLOTS`, `BRIX_SRV_MAX_PATHS`). |
 | `registry.c` | The shared-memory server table core: zone init/configure (owns the `brix_srv_shm_zone`/`_mutex`/`_nslots` globals), `brix_srv_register` / `_update_load` / `_unregister`. *(Phase 38: split.)* |
-| `registry_select.c` | Server selection (`srv_select_core`, read=least-loaded / write=most-free), path-prefix matcher, count, `tried/triedrc` retry-exhaustion, blacklist/undrain. *(Phase 38 split of `registry.c`.)* |
+| `registry_select.c` | Server selection (`srv_select_core`, read=least-loaded / write=most-free), path-prefix matcher, count, `tried/triedrc` retry-exhaustion. *(Phase 38 split of `registry.c`.)* |
+| `registry_select_blacklist.c` | Blacklist / drain / undrain admin mutations + path-cover query. *(Split from `registry_select.c`.)* |
 | `registry_health.c` | Health-check slot helpers (`_hc_claim/_pass/_fail`), `brix_srv_locate_all` (lateral-redirect listing), per-path deregistration, aggregate-space + snapshot exporters. *(Phase 38 split of `registry.c`.)* |
 | `registry_internal.h` | Private split contract shared by `registry*.c` (the `extern` SHM-state decls + prototypes). |
+| `loc_cache.h` / `loc_cache.c` | Dynamic file-location cache (phase-89 W3): SHM `path → host:port` table recording which node answered `kYR_have` for a path; fnv1a open-addressing over `BRIX_LOC_CACHE_SLOTS` (256), fixed 30s TTL with lazy eviction; zone built via `brix_shm_table_alloc` (INVARIANT #10, mirrors `pending.c`). |
 | `redir_cache.h` | Redirect-collapse cache API + `BRIX_REDIR_CACHE_SLOTS` default. |
 | `redir_cache.c` | FNV-1a-hashed, bounded-probe open-addressing cache in SHM: `brix_redir_cache_lookup` / `_insert` with TTL expiry, free/expired-slot reuse, and soonest-to-expire eviction within the probe window. |
 | `pending.h` | Pending-locate table API + the `brix_pending_locate_t` / `brix_pending_table_t` types; `BRIX_PENDING_LOCATE_SLOTS` (32). |
 | `pending.c` | SHM table of in-flight `kXR_locate` requests keyed by `(streamid, worker_pid)`: `brix_pending_insert` (with expiry reaping), `brix_pending_lookup` (returns **locked**), `brix_pending_unlock`, `brix_pending_remove`. |
 | `health_check.h` | Active health-check API (`brix_hc_manager_start`) + probe-type constants (`BRIX_HC_TYPE_PING` / `_STAT`). |
-| `health_check.c` | Self-contained async XRootD probe client (handshake → protocol → login → `kXR_ping`/`kXR_stat "/"`) plus the per-worker scan timer that claims one due registry slot per interval and reports pass/fail back to the registry. |
+| `health_check.c` | Scan-timer half of the active probe: per-worker timer that claims one due registry slot per interval, opens the non-blocking connection, queues the pipelined bootstrap, and reports pass/fail back to the registry. |
+| `health_check_probe.c` | Async probe I/O state machine (handshake → protocol → login → `kXR_ping`/`kXR_stat "/"`): write-buffer flush, 8-byte-header frame accumulation, verdict dispatch. *(File-size split of `health_check.c`.)* |
+| `health_check_internal.h` | Private split contract between `health_check.c` and `health_check_probe.c` (probe ctx struct, phase enum, shared prototypes). |
 
 ## Key types & data structures
 
-- **`brix_srv_entry_t`** (`registry.h`) — one registered data server: `host[256]`, `port`, colon-delimited `paths[BRIX_SRV_MAX_PATHS]`, `free_mb`, `util_pct`, `last_seen`, `in_use`, plus availability state (`blacklisted_until`, `error_count`) and health-check state (`hc_next_check`, `hc_last_ok`, `hc_fail_count`, `hc_in_progress`).
+- **`brix_srv_entry_t`** (`registry.h`) — one registered data server: `host[256]`, `port`, colon-delimited `paths[BRIX_SRV_MAX_PATHS]`, `free_mb`, `util_pct`, `last_seen`, `in_use`, phase-89 cluster metadata (`vnid[64]` login virtual-network id, `stage` staging-available bit, `load_pct` heartbeat machine load 0–100), plus availability state (`blacklisted_until`, `error_count`) and health-check state (`hc_next_check`, `hc_last_ok`, `hc_fail_count`, `hc_in_progress`).
 - **`brix_srv_table_t`** (`registry.h`) — the registry itself: `ngx_shmtx_sh_t lock` (must be first, required by `ngx_shmtx_create`), runtime `capacity`, and a C99 flexible `slots[]` array of `capacity` entries.
 - **`brix_srv_snapshot_entry_t`** (`registry.h`) — lock-free copy of an entry returned by `brix_srv_snapshot()` for the dashboard / metrics exporters, so they can format output without holding the spinlock.
 - **`brix_redir_cache_entry_t` / `brix_redir_cache_t`** (`redir_cache.c`, file-private) — cache slot (`path[256]` key, `host[128]`, `port`, `in_use`, `expires`) and the SHM header (`lock`, `capacity`, flexible `entries[]`). Probing is bounded by `BRIX_REDIR_PROBE_MAX` (32) slots from `hash(path) % capacity`.

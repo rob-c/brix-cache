@@ -83,6 +83,7 @@ typedef struct {
 /* xrd.c */
 int is_fs_verb(const char *s);
 void usage(const char *prog);
+void usage_fp(FILE *out, const char *prog);   /* xrd_usage.c */
 void exec_tool(const char *prefix, const char *tool, char **argv);
 char * map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch);
 
@@ -90,6 +91,7 @@ char * map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch);
 void bat_add(xrd_battery *b, const char *name, int status, const char *fmt, ...);
 void fill_pattern(uint8_t *buf, size_t n);
 int tmpfile_with(const uint8_t *buf, size_t n);
+ssize_t bat_upload_src_fd(void *ctx, uint8_t *buf, int64_t off, size_t cap, brix_status *st);  /* xrd_battery.c */
 void battery_root(const brix_url *u, const brix_opts *o, int do_write, xrd_battery *b);
 void battery_web(const brix_weburl *u, int do_write, const char *bearer, int verify, xrd_battery *b);
 void battery_s3(const brix_weburl *u, int do_write, const char *ak, const char *sk, const char *region, int verify, xrd_battery *b);

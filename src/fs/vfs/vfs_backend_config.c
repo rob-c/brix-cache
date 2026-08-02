@@ -60,6 +60,67 @@ brix_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     e->block_size = (int64_t) block_size;
 }
 
+/* Register a fixed-extent block backend (sd_block server plane). `device` is the
+ * block device (or a regular file used as one); the export presents it as a flat
+ * namespace of equal-size extents "/0".."/N-1". The per-extent size is the
+ * export's block_size (0 ⇒ the whole device is a single extent "/0", since
+ * brix_storage_backend carries no block_size argument). */
+static void
+brix_vfs_backend_config_block(const char *root_canon, const char *device,
+    size_t block_size)
+{
+    brix_vfs_backend_entry_t *e;
+
+    if (root_canon == NULL || root_canon[0] == '\0'
+        || device == NULL || device[0] == '\0')
+    {
+        return;
+    }
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    if (e == NULL) {
+        return;
+    }
+    ngx_memcpy(e->backend, "block", sizeof("block"));
+    ngx_cpystrn((u_char *) e->origin_path, (u_char *) device,
+                sizeof(e->origin_path));      /* the block device / file path */
+    e->block_size = (int64_t) block_size;      /* per-extent size (0 ⇒ whole dev) */
+    e->inst = NULL;
+}
+
+/* "block:<device>" / "block://<device>" → a fixed-extent block backend served by
+ * sd_block. Returns NGX_OK if it claimed the value, else NGX_DECLINED. */
+static ngx_int_t
+vfs_parse_block_origin(const char *root_canon, const ngx_str_t *sb,
+    size_t block_size)
+{
+    const u_char *dev = NULL;
+    size_t        devn = 0;
+    char          buf[1024];
+
+    if (sb->len > sizeof("block://") - 1
+        && ngx_strncmp(sb->data, "block://", sizeof("block://") - 1) == 0)
+    {
+        dev  = sb->data + sizeof("block://") - 1;
+        devn = sb->len - (sizeof("block://") - 1);
+    } else if (sb->len > sizeof("block:") - 1
+        && ngx_strncmp(sb->data, "block:", sizeof("block:") - 1) == 0)
+    {
+        dev  = sb->data + sizeof("block:") - 1;
+        devn = sb->len - (sizeof("block:") - 1);
+    }
+
+    if (dev == NULL) {
+        return NGX_DECLINED;
+    }
+    if (devn == 0 || devn >= sizeof(buf)) {
+        return NGX_DECLINED;
+    }
+    ngx_memcpy(buf, dev, devn);
+    buf[devn] = '\0';
+    brix_vfs_backend_config_block(root_canon, buf, block_size);
+    return NGX_OK;
+}
+
 void
 brix_vfs_backend_set_credential(const char *root_canon,
     const brix_vfs_backend_cred_t *cred)
@@ -130,6 +191,8 @@ brix_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         return NGX_OK;
     }
 
+    rc = vfs_parse_block_origin(root_canon, sb, block_size);
+    if (rc != NGX_DECLINED) { return rc; }
     rc = vfs_parse_cephfsro_origin(cf, root_canon, sb);
     if (rc != NGX_DECLINED) { return rc; }
     rc = vfs_parse_ceph_origin(cf, root_canon, sb);

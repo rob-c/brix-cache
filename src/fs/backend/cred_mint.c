@@ -39,6 +39,7 @@
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/x509.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 #define MINT_PATH_MAX 1024
 
@@ -337,7 +338,7 @@ mint_generate(const char *cred_dir, const char *ca_cert_path,
 
     if (mint_build_cert(&ca, principal, ttl_secs, &mat, log) != NGX_OK) {
         X509_free(ca.cert);
-        EVP_PKEY_free(ca.key);
+        brix_evp_pkey_free(ca.key);
         return NGX_ERROR;
     }
     mat.ca_cert = ca.cert;   /* trust-chain tail written into the PEM */
@@ -352,9 +353,9 @@ mint_generate(const char *cred_dir, const char *ca_cert_path,
     }
 
     X509_free(mat.cert);
-    EVP_PKEY_free(mat.key);
+    brix_evp_pkey_free(mat.key);
     X509_free(ca.cert);
-    EVP_PKEY_free(ca.key);
+    brix_evp_pkey_free(ca.key);
     return rc;
 }
 

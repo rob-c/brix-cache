@@ -15,6 +15,8 @@
  */
 #include "sd_frm.h"
 #include "sd_frm_mss.h"     /* MSS adapters (stub/exec) split out */
+#include "fs/xfer/xfer.h"   /* brix_xfer_finish — the unified kind=tape recall
+                             * ledger line (one record per terminal transfer) */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -50,14 +52,20 @@ typedef struct {
 /* Bounded synchronous recall: ensure `key` is online in the MSS buffer. Returns 0
  * (online), or -1 (errno: ENOENT absent, EAGAIN still in-flight, EIO error). A
  * genuinely slow MSS would return EAGAIN and the cache tier would park the open on
- * the stage_engine waiter (the deferred async path); the stub completes at once. */
+ * the stage_engine waiter (the deferred async path); the stub completes at once.
+ *
+ * `*recalled` (when non-NULL) is set to 1 iff a tape->cache recall was actually
+ * initiated on this call (a real nearline miss-fill), so the caller can book the
+ * one unified `kind=tape` ledger line only for genuine recalls — never for an
+ * already-online cache hit (residency ONLINE) or an absent object. */
 static int
-frm_ensure_online(sd_frm_state *st, const char *key)
+frm_ensure_online(sd_frm_state *st, const char *key, int *recalled)
 {
     off_t  sz = 0;
     time_t mt = 0;
     int    res = st->mss->residency(st->mss_ctx, key, &sz, &mt);
 
+    if (recalled != NULL) { *recalled = 0; }
     if (res == BRIX_RESIDENCY_ONLINE) {
         return 0;
     }
@@ -65,6 +73,7 @@ frm_ensure_online(sd_frm_state *st, const char *key)
         errno = ENOENT;
         return -1;
     }
+    if (recalled != NULL) { *recalled = 1; }
     if (st->mss->recall_begin(st->mss_ctx, key) != 0) {
         errno = EIO;
         return -1;
@@ -94,6 +103,8 @@ sd_frm_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     sd_frm_state    *st = SD_FRM_ST(inst);
     brix_sd_obj_t *o;
     int              fd;
+    int              recalled = 0;
+    ngx_log_t       *log = (ngx_cycle != NULL) ? ngx_cycle->log : NULL;
 
     (void) mode;
     if ((sd_flags & BRIX_SD_O_WRITE) != 0) {
@@ -102,18 +113,39 @@ sd_frm_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
         if (err_out) { *err_out = EROFS; }
         return NULL;
     }
-    if (frm_ensure_online(st, path) != 0) {
-        if (err_out) { *err_out = errno; }
+    if (frm_ensure_online(st, path, &recalled) != 0) {
+        int e = errno;
+
+        /* A tape recall that terminally FAILED books a kind=tape/error ledger
+         * line; EAGAIN is not terminal (the open parks and the client retries,
+         * §9.2) and must not be recorded — it would double-count against the
+         * eventual completion. An already-online cache hit (recalled==0) is no
+         * recall at all. */
+        if (recalled && e != EAGAIN) {
+            brix_xfer_finish(BRIX_XFER_TAPE, "in", path, NULL, 0,
+                BRIX_XFER_SRC_ERR, e, log);
+        }
+        if (err_out) { *err_out = e; }
         return NULL;
     }
     fd = st->mss->open_online(st->mss_ctx, path);
     if (fd < 0) {
-        if (err_out) { *err_out = errno ? errno : EIO; }
+        int e = errno ? errno : EIO;
+
+        if (recalled) {
+            brix_xfer_finish(BRIX_XFER_TAPE, "in", path, NULL, 0,
+                BRIX_XFER_SRC_ERR, e, log);
+        }
+        if (err_out) { *err_out = e; }
         return NULL;
     }
     o = calloc(1, sizeof(*o));
     if (o == NULL) {
         (void) close(fd);
+        if (recalled) {
+            brix_xfer_finish(BRIX_XFER_TAPE, "in", path, NULL, 0,
+                BRIX_XFER_SRC_ERR, ENOMEM, log);
+        }
         if (err_out) { *err_out = ENOMEM; }
         return NULL;
     }
@@ -129,6 +161,14 @@ sd_frm_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
             o->snap.mode   = sb.st_mode;
             o->snap.is_reg = 1;
         }
+    }
+    /* Terminal success of a genuine tape->cache recall: one unified ledger line
+     * (kind=tape, dir=in), byte count from the now-online object. Mirrors the
+     * async stage_engine RECALL emit so the sync read-fault path is auditable in
+     * the same schema (finding #12). */
+    if (recalled) {
+        brix_xfer_finish(BRIX_XFER_TAPE, "in", path, NULL,
+            (size_t) o->snap.size, BRIX_XFER_OK, 0, log);
     }
     return o;
 }
@@ -222,15 +262,40 @@ sd_frm_residency(brix_sd_instance_t *inst, const char *key,
 static ngx_int_t
 sd_frm_recall(brix_sd_instance_t *inst, const char *key, char reqid_out[40])
 {
-    sd_frm_state *st = SD_FRM_ST(inst);
+    sd_frm_state *st  = SD_FRM_ST(inst);
+    ngx_log_t    *log = (ngx_cycle != NULL) ? ngx_cycle->log : NULL;
+    int           recalled = 0;
 
     if (reqid_out != NULL) {
         reqid_out[0] = '\0';         /* synchronous recall: no parking handle */
     }
-    if (frm_ensure_online(st, key) == 0) {
+    if (frm_ensure_online(st, key, &recalled) == 0) {
+        /* The cache-fill path (sd_cache) drives every nearline miss through this
+         * verb, so a genuine tape->cache recall books its one unified ledger
+         * line here (kind=tape, dir=in) — the sync counterpart to the async
+         * stage_engine RECALL emit (finding #12). Byte count = the now-online
+         * object size. An already-online object (recalled==0) is a plain fill. */
+        if (recalled) {
+            off_t  sz = 0;
+            time_t mt = 0;
+
+            (void) st->mss->residency(st->mss_ctx, key, &sz, &mt);
+            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, NULL,
+                (size_t) (sz > 0 ? sz : 0), BRIX_XFER_OK, 0, log);
+        }
         return NGX_OK;               /* online now - the cache tier does a normal fill */
     }
-    return (errno == EAGAIN) ? NGX_AGAIN : NGX_ERROR;
+    {
+        int e = errno;
+
+        /* Terminal recall failure books a kind=tape/error line; EAGAIN (async
+         * still in flight) is non-terminal and must not be recorded. */
+        if (recalled && e != EAGAIN) {
+            brix_xfer_finish(BRIX_XFER_TAPE, "in", key, NULL, 0,
+                BRIX_XFER_SRC_ERR, e, log);
+        }
+        return (e == EAGAIN) ? NGX_AGAIN : NGX_ERROR;
+    }
 }
 
 /* ---- migrate via the staged-write path (online buffer -> tape on commit) ---- */
@@ -323,23 +388,141 @@ static const brix_sd_driver_t brix_sd_frm_driver = {
     .staged_abort  = sd_frm_staged_abort,
 };
 
-/* ---- Select the "exec" MSS adapter when requested ----
+/* ---- exec-family MSS dialects (exec / hpss / cta) ----
  *
- * WHAT: If `adapter` names the "exec" HSM driver AND $BRIX_FRM_STAGECMD is set,
- * builds the exec MSS context and points `st->mss`/`st->mss_ctx` at it. Returns 0
- * whenever the caller may proceed (adapter not "exec", or missing stage command -
- * in both cases `st->mss` is left NULL so the stub fallback runs); returns -1 with
- * errno set to ENOMEM only when the exec context allocation itself fails.
+ * WHAT: Is `adapter` one of the exec-family dialects? All three drive a real MSS
+ * through an operator stage command (the classic FRM model); "hpss" and "cta" are
+ * named HSM dialects over the same transport, differing only in which stage
+ * command they resolve. A NULL adapter is not exec-family.
+ */
+static int
+frm_adapter_is_exec_family(const char *adapter)
+{
+    return adapter != NULL
+        && (ngx_strcmp(adapter, "exec") == 0
+         || ngx_strcmp(adapter, "hpss") == 0
+         || ngx_strcmp(adapter, "cta") == 0);
+}
+
+/* Resolve the stage command for an exec-family `adapter`.
+ *
+ * WHY: A node can front an HPSS silo (an `hsi`/`pftp` stager) and a CTA silo (an
+ * `eos`/`cta-admin` stager) at once, so each dialect gets its own env override;
+ * all fall back to the generic $BRIX_FRM_STAGECMD. Returns the command, or NULL
+ * when neither the dialect override nor the generic var is set/non-empty. */
+static const char *
+frm_exec_stagecmd(const char *adapter)
+{
+    const char *cmd = NULL;
+
+    if (ngx_strcmp(adapter, "hpss") == 0) {
+        cmd = getenv("BRIX_FRM_HPSS_STAGECMD");
+    } else if (ngx_strcmp(adapter, "cta") == 0) {
+        cmd = getenv("BRIX_FRM_CTA_STAGECMD");
+    }
+    if (cmd == NULL || cmd[0] == '\0') {
+        cmd = getenv("BRIX_FRM_STAGECMD");
+    }
+    return (cmd != NULL && cmd[0] != '\0') ? cmd : NULL;
+}
+
+/* ---- library-native MSS dialects (lib / libhpss / libcta) ----
+ *
+ * WHAT: Is `adapter` one of the library-native dialects? All three drive a real
+ * HSM through a dlopen'd shared object (sd_frm_lib.c) instead of forking a stage
+ * command; "libhpss"/"libcta" are named silo dialects over the same transport,
+ * differing only in which library path they resolve. A NULL adapter is not
+ * lib-family.
+ */
+static int
+frm_adapter_is_lib_family(const char *adapter)
+{
+    return adapter != NULL
+        && (ngx_strcmp(adapter, "lib") == 0
+         || ngx_strcmp(adapter, "libhpss") == 0
+         || ngx_strcmp(adapter, "libcta") == 0);
+}
+
+/* Resolve the HSM shared-object path for a library-native `adapter`.
+ *
+ * WHY: a node can front an HPSS silo and a CTA silo at once, so each dialect gets
+ * its own env override; all fall back to the generic $BRIX_FRM_LIB. Returns the
+ * path, or NULL when neither the dialect override nor the generic var is set. */
+static const char *
+frm_lib_path(const char *adapter)
+{
+    const char *path = NULL;
+
+    if (ngx_strcmp(adapter, "libhpss") == 0) {
+        path = getenv("BRIX_FRM_HPSS_LIB");
+    } else if (ngx_strcmp(adapter, "libcta") == 0) {
+        path = getenv("BRIX_FRM_CTA_LIB");
+    }
+    if (path == NULL || path[0] == '\0') {
+        path = getenv("BRIX_FRM_LIB");
+    }
+    return (path != NULL && path[0] != '\0') ? path : NULL;
+}
+
+/* ---- Select a library-native MSS adapter (lib / libhpss / libcta) ----
+ *
+ * WHAT: If `adapter` names a library-native dialect AND its .so path is
+ * resolvable AND the library loads with the required ABI, points st->mss/mss_ctx
+ * at the dlopen'd adapter. ALWAYS returns 0 (the caller may proceed): a
+ * non-lib-family adapter, an unset path, an absent library, or a missing symbol
+ * all leave st->mss NULL so the exec/stub fallback runs. The vendor library is a
+ * runtime plug-in; its absence is a graceful degrade, never a hard failure.
+ *
+ * WHY: isolates the library-native decision so brix_sd_frm_create stays a flat
+ * orchestration below the complexity cap, and mirrors frm_select_exec_adapter.
+ */
+static int
+frm_select_lib_adapter(sd_frm_state *st, const char *adapter,
+    const char *location, ngx_log_t *log)
+{
+    const char *path;
+
+    if (!frm_adapter_is_lib_family(adapter)) {
+        return 0;
+    }
+    path = frm_lib_path(adapter);
+    if (path == NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd frm: the \"%s\" MSS adapter needs an HSM library path "
+            "($BRIX_FRM_LIB, or the per-dialect override); "
+            "falling back to the built-in stub", adapter);
+        return 0;
+    }
+    st->mss_ctx = brix_mss_lib_create(location, path, log);
+    if (st->mss_ctx == NULL) {
+        /* brix_mss_lib_create already WARN-logged the dlopen/symbol failure. */
+        return 0;                            /* graceful fallback to exec/stub */
+    }
+    st->mss = &brix_mss_lib_adapter;
+    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        "xrootd frm: \"%s\" library-native MSS adapter (lib=%s, online buffer=%s)",
+        adapter, path, location);
+    return 0;
+}
+
+/* ---- Select an exec-family MSS adapter (exec / hpss / cta) when requested ----
+ *
+ * WHAT: If `adapter` names an exec-family HSM dialect AND its stage command is
+ * resolvable (`frm_exec_stagecmd`), builds the exec MSS context and points
+ * `st->mss`/`st->mss_ctx` at it. Returns 0 whenever the caller may proceed
+ * (adapter not exec-family, or no stage command - in both cases `st->mss` is left
+ * NULL so the stub fallback runs); returns -1 with errno set to ENOMEM only when
+ * the exec context allocation itself fails.
  *
  * WHY: Isolates the exec-adapter decision (the classic FRM model over an external
  * stage command) so brix_sd_frm_create stays a flat orchestration below the
- * complexity cap, without changing any allocation, log line, or errno behaviour.
+ * complexity cap. HPSS/CTA are real named dialects here, not stub fallthroughs.
  *
  * HOW:
- *   1. If `adapter` is NULL or not "exec", return 0 (fall through to the stub).
- *   2. Read $BRIX_FRM_STAGECMD; if unset/empty, WARN and return 0 (stub fallback).
+ *   1. If `adapter` is not exec-family, return 0 (fall through to the stub).
+ *   2. Resolve the stage command; if none, WARN and return 0 (stub fallback).
  *   3. Create the exec MSS context; on failure set errno=ENOMEM and return -1.
- *   4. On success, publish the exec adapter, NOTICE-log it, and return 0.
+ *   4. On success, publish the exec adapter, NOTICE-log the dialect, return 0.
  */
 static int
 frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
@@ -347,15 +530,15 @@ frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
 {
     const char *cmd;
 
-    /* "exec" drives a real HSM via $BRIX_FRM_STAGECMD (the classic FRM model). */
-    if (adapter == NULL || ngx_strcmp(adapter, "exec") != 0) {
+    if (!frm_adapter_is_exec_family(adapter)) {
         return 0;
     }
-    cmd = getenv("BRIX_FRM_STAGECMD");
-    if (cmd == NULL || cmd[0] == '\0') {
+    cmd = frm_exec_stagecmd(adapter);
+    if (cmd == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-            "xrootd frm: the \"exec\" MSS adapter needs $BRIX_FRM_STAGECMD "
-            "(the stage command); falling back to the built-in stub");
+            "xrootd frm: the \"%s\" MSS adapter needs a stage command "
+            "($BRIX_FRM_STAGECMD, or the per-dialect override); "
+            "falling back to the built-in stub", adapter);
         return 0;
     }
     st->mss_ctx = brix_mss_exec_create(location, cmd, log);
@@ -365,8 +548,8 @@ frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
     }
     st->mss = &brix_mss_exec_adapter;
     ngx_log_error(NGX_LOG_NOTICE, log, 0,
-        "xrootd frm: exec MSS adapter (stagecmd=%s, online buffer=%s)",
-        cmd, location);
+        "xrootd frm: \"%s\" MSS adapter (stagecmd=%s, online buffer=%s)",
+        adapter, cmd, location);
     return 0;
 }
 
@@ -383,7 +566,8 @@ frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
  * the complexity cap while preserving the exact warning and errno semantics.
  *
  * HOW:
- *   1. If `adapter` is a non-empty name other than "stub"/"exec", WARN about it.
+ *   1. If `adapter` is a non-empty name that is neither "stub" nor an
+ *      exec-family dialect (exec/hpss/cta), WARN that it is unrecognized.
  *   2. Create the stub MSS context; on failure set errno=ENOMEM and return -1.
  *   3. Publish the stub adapter and return 0.
  */
@@ -393,11 +577,13 @@ frm_select_stub_adapter(sd_frm_state *st, const char *adapter,
 {
     if (adapter != NULL && adapter[0] != '\0'
         && ngx_strcmp(adapter, "stub") != 0
-        && ngx_strcmp(adapter, "exec") != 0)
+        && !frm_adapter_is_exec_family(adapter)
+        && !frm_adapter_is_lib_family(adapter))
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-            "xrootd frm: MSS adapter \"%s\" is not yet implemented "
-            "(phase-64 SP5: hpss/cta); using the built-in stub", adapter);
+            "xrootd frm: MSS adapter \"%s\" is not recognized (known: stub, "
+            "exec, hpss, cta, lib, libhpss, libcta); using the built-in stub",
+            adapter);
     }
     st->mss_ctx = brix_mss_stub_create(location, log);
     if (st->mss_ctx == NULL) {
@@ -446,7 +632,14 @@ brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
     }
     st->log = log;
 
-    if (frm_select_exec_adapter(st, adapter, location, log) != 0) {
+    /* Adapter precedence: library-native (dlopen) → exec (stagecmd) → stub. The
+     * lib select never hard-fails (an absent vendor .so degrades gracefully), so
+     * only the exec/stub selects can abort the create on a real allocation error. */
+    (void) frm_select_lib_adapter(st, adapter, location, log);
+
+    if (st->mss == NULL
+        && frm_select_exec_adapter(st, adapter, location, log) != 0)
+    {
         free(inst);
         free(st);
         return NULL;

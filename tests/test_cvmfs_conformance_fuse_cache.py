@@ -48,7 +48,7 @@ import pytest
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
-from conformance_common import BRIXMOUNT, _unmount, _wait_mounted
+from conformance_common import BRIXMOUNT, PortBlock, _unmount, _wait_mounted
 from conformance_common import fuse_mount as _fuse_mount_shared
 
 
@@ -151,12 +151,23 @@ _FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is no
 # and poisons later runs with wrong-key trust failures (see MockOrigin.start).
 pytestmark = [
     pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing"),
+    # This whole module asserts the FLAT cache's on-disk contract (two-hex
+    # fan-out, plaintext entries + .chk sidecars, file-level corruption
+    # surgery, atime-LRU reaper, clever overlay).  A packed-store parity run
+    # (BRIXCVMFS_CACHE_FORMAT=packed) makes every premise false by design;
+    # the packed equivalents live in test_cvmfs_packed_client.py.
+    pytest.mark.skipif(os.environ.get("BRIXCVMFS_CACHE_FORMAT") == "packed",
+                       reason="flat-cache layout contract — packed equivalents "
+                              "live in test_cvmfs_packed_client.py"),
     pytest.mark.timeout(300),          # ceiling: a saturated box slows every mount;
 ]                                      # healthy runs finish each test in seconds
 
-# This file owns the 13300-13319 block (PORT_BLOCKS["fuse_cache"]); tests run
-# sequentially within the module, so cycling the block is collision-free.
-_PORTS = itertools.cycle(range(13300, 13320))
+# This file owns the fuse_cache block (PORT_BLOCKS["fuse_cache"], shifted into
+# this session's tile by PortBlock); tests run sequentially within the module,
+# so cycling the block is collision-free. Nothing here may name an absolute
+# port — a literal would land in ANOTHER session's tile (or the fleet's).
+_BLOCK = PortBlock("fuse_cache")
+_PORTS = itertools.cycle(range(_BLOCK.base, _BLOCK.base + 20))
 
 
 # ---- local helpers ---------------------------------------------------------
@@ -179,7 +190,7 @@ class MockOrigin:
         # brixMount then fetches a repo signed with the WRONG keys and the mount
         # fails with trust error -5/-9.  Guard: the port is ours only if OUR mock
         # process is still alive once the port is listening; otherwise cycle on.
-        for _ in range(len(range(13300, 13320))):
+        for _ in range(20):
             self.proc = subprocess.Popen(
                 [sys.executable, MOCK, "--port", str(self.port), "--repo", self.repo,
                  "--webroot", str(self.web)],
@@ -188,7 +199,7 @@ class MockOrigin:
                 return self
             self.kill()                      # reap the bind-loser (or non-starter)
             self.port = next(_PORTS)         # and try the next port in the block
-        raise RuntimeError("no free port in the fuse_cache block 13300-13319")
+        raise RuntimeError("no free port in the session's fuse_cache block")
 
     def kill(self) -> None:
         if self.proc is None or self.proc.poll() is not None:

@@ -69,13 +69,55 @@ struct brix_deleg_live_s {
      * call is absent tx.endpoint stays empty and the verbatim fallback applies. */
     brix_token_exchange_conf_t tx;
     ngx_str_t                  tx_audience;
+    /* Borrowed pointer at the conf's per-worker minted-token cache slot
+     * (phase-70 §5.4 / P90-70.9): the EXCHANGE leg lazily creates a
+     * brix_tx_cache_t there (ngx_cycle->pool) and consults it before POSTing
+     * the RFC-8693 grant. NULL ⇒ no caching (every op re-exchanges). */
+    void                     **tx_cache_slot;
+    /* Phase-70 §5.1 in-gate chain re-verify (P90-70.4). Borrowed X509_STORE*
+     * (conf-owned; typed void* so this header stays OpenSSL-free) + max proxy
+     * chain depth (0 = OpenSSL default), stamped by
+     * brix_vfs_deleg_set_ca_store() at capture time. NULL ⇒ the PASSTHROUGH
+     * materialiser skips the re-verify and relies on the capture-side gate. */
+    void       *ca_store;
+    ngx_uint_t  ca_verify_depth;
+    /* Phase-70 §5.6 SSS identity injection (P90-70.3). Borrowed conf bytes
+     * (NUL-terminated — conf tokens are). Non-empty ⇒ when the bag carries NO
+     * forwardable bytes (no pem, no bearer) the gate materialises an SSS
+     * credential asserting the caller's principal, signed with this keytab.
+     * Proven credential bytes always win over injection. Stamped by
+     * brix_vfs_deleg_set_sss() — which, unlike the other setters, allocates
+     * the bag itself when none is bound (injection needs no captured bytes). */
+    ngx_str_t   sss_keytab;
+    /* Phase-70 §5.5 S3 STS EXCHANGE. Borrowed brix_s3_sts_conf_t* (typed void*
+     * so the field costs no extra coupling beyond the sts.h already included).
+     * Non-NULL => when the bag carries NO forwardable bytes AND the leaf backend
+     * accepts BRIX_SD_CRED_S3, the gate exchanges the node's S3 service cred for
+     * temporary creds scoped to the caller via brix_vfs_deleg_sts_cred(). Like
+     * SSS injection this needs no captured bytes, so brix_vfs_deleg_set_sts()
+     * allocates the bag when none is bound. The conf (5 borrowed conf-owned
+     * ngx_str_t + ttl) is built on the request pool at the capture site. */
+    const void *sts;
+    /* Phase-70 §5.7 krb5 GSSAPI EXCHANGE. Unlike SSS/STS this DOES have captured
+     * bytes: the front door captures the user's forwarded TGT and serialises it
+     * to a 0600 FILE ccache (brix_krb5_cred_to_ccache) — a live gss_cred_id_t is
+     * request-scoped and cannot ride the async brix_cache_fill_t, so the path is
+     * the async-safe carry, mirroring the gsi proxy-PEM→0600-path trick.
+     * `krb5_ccache` is that path and `krb5_origin_princ` the derived origin
+     * service principal (host/<fqdn>@REALM); both are borrowed NUL-terminated
+     * strings on the request pool. Non-empty krb5_ccache ⇒ when the leaf accepts
+     * BRIX_SD_CRED_GSS_KRB5 the gate carries them onto the cred and the origin
+     * leg re-imports via brix_krb5_cred_from_ccache. Stamped by
+     * brix_vfs_deleg_set_krb5(). A full x509 proxy still wins above. */
+    ngx_str_t   krb5_ccache;
+    ngx_str_t   krb5_origin_princ;
 };
 
 struct brix_vfs_file_s {
     /* Backend object: carries the open descriptor plus its driver + instance,
-     * so close and (future) data-plane ops route through the storage driver
-     * rather than assuming a raw POSIX fd. obj.fd is the descriptor for fd-based
-     * backends, NGX_INVALID_FILE otherwise. */
+     * so close and the data-plane ops (vfs_io_core.c) route through the storage
+     * driver rather than assuming a raw POSIX fd. obj.fd is the descriptor for
+     * fd-based backends, NGX_INVALID_FILE otherwise. */
     brix_sd_obj_t   obj;
     /* phase-71 step 2: lazily-materialised memfd for a CAP_MEMFILE backend that
      * has no kernel fd of its own (obj.fd == NGX_INVALID_FILE). The whole object
@@ -550,18 +592,27 @@ int brix_vfs_cred_gate_active(brix_vfs_ctx_t *ctx);
  *       new origin-leg code is needed.
  *
  * HOW:  Reuses brix_proxy_gsi_write_pem_temp() (net/proxy) for the bytes→path
- *       adaptor and PEM_read_bio_X509 to reject non-PEM. The full RFC-3820
- *       chain-trust + DN-match validation is a documented TODO (§5.1) — the
- *       capture agent supplies validated bytes for now. */
+ *       adaptor and PEM_read_bio_X509 to reject non-PEM. When the capture site
+ *       stamped a CA store via brix_vfs_deleg_set_ca_store(), the full RFC-3820
+ *       chain-trust verify re-runs here at the gate (P90-70.4); DN-match
+ *       happens at capture. Unit: tests/c/deleg_gate_test.c. */
 ngx_int_t brix_vfs_deleg_live_cred(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     int *use_cred, int *err_out);
+
+/* Single failure terminal for the delegation gate (vfs_deleg.c): bumps the
+ * P90-70.6 outcome + failure-reason counters, then EACCES/NGX_ERROR under
+ * fallback-deny (or a NULL ctx), else *use_cred=0 + NGX_OK (service-cred
+ * fallback). Shared across the deleg TUs (vfs_deleg_hooks.c) — every deny in
+ * the family MUST route through here so policy + metrics stay in one place. */
+ngx_int_t brix_vfs_deleg_deny(brix_vfs_ctx_t *ctx, int *use_cred, int *err_out,
+    brix_cred_fail_t reason);
 
 /* Phase-70 §5.5/§5.7 call-ready EXCHANGE hooks — compiled + linkable but not yet
  * driven from the cred gate (the STS service-key conf / delegated GSS cred are
  * not reachable from brix_vfs_ctx_t without a capture-site bind owned by other
- * agents; see the DEFERRED notes in vfs_deleg.c). Declared here (not static) so
- * they link and are ready for that wiring. brix_s3_sts_conf_t comes from
- * auth/s3/sts.h (included above). */
+ * agents; see the DEFERRED notes in vfs_deleg_hooks.c). Declared here (not
+ * static) so they link and are ready for that wiring. brix_s3_sts_conf_t comes
+ * from auth/s3/sts.h (included above). */
 ngx_int_t brix_vfs_deleg_sts_cred(brix_vfs_ctx_t *ctx,
     const brix_s3_sts_conf_t *cf, brix_sd_cred_t *cred,
     int *use_cred, int *err_out);

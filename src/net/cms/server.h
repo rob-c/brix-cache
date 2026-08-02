@@ -47,6 +47,19 @@ typedef struct {
     char               vnid[64];                     /* login envCGI vnid= (may be "") */
     uint32_t           free_mb;
     uint32_t           util_pct;
+    const char        *role_type;                    /* this manager's XrdCmsRole::Type
+                                                        for stats: "R" when the process
+                                                        is a supervisor, else "M" */
+    uint32_t           login_mode;                   /* CmsLoginData Mode word from the
+                                                        node's LOGIN frame (kYR_* role
+                                                        bits) */
+    const char        *node_role;                    /* the admitted node's
+                                                        XrdCmsRole::Type per stock
+                                                        Admit: manager+server → "R",
+                                                        manager/subman → "M", else "S" */
+    unsigned           metaman:1;                    /* we are a pure manager (no local
+                                                        export) — stamp kYR_metaman on
+                                                        state fan-out */
     ngx_uint_t         logged_in;
     brix_cms_auth_state_t auth_state;              /* sss handshake state    */
     ngx_event_t        ping_timer;

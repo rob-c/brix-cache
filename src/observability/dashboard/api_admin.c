@@ -3,6 +3,7 @@
  * Phase-38 split of api_admin.c; behavior-identical.
  */
 #include "dashboard_api_admin_internal.h"
+#include "core/compat/crypto.h"   /* brix_sha256 (E1 audit chain, P90-28.2) */
 
 ngx_int_t
 admin_send_ok(ngx_http_request_t *r, const char *result)
@@ -215,15 +216,51 @@ brix_admin_check_auth(ngx_http_request_t *r,
 }
 
 
-/* Structured audit line — separate from the dashboard event ring buffer. */
+/* Structured audit line — separate from the dashboard event ring buffer.
+ *
+ * E1 tamper-evidence (P90-28.2): every line commits to the previous one via
+ * a rolling SHA-256 chain (state + partitioning contract documented in
+ * dashboard_http.h at audit_chain).  The canonical text that is hashed is
+ * exactly the logged message up to (excluding) " chain=".  Verify a
+ * worker's stream with: prev = 32 zero bytes; per line, in order:
+ * digest = SHA-256(prev || canon); assert hex(digest[0..15]) == chain;
+ * prev = digest.  A crypto failure never drops the audit line — it is
+ * logged with chain=- (unchained) instead. */
 void
 admin_audit(ngx_http_request_t *r, const char *action, const char *target,
     const char *result)
 {
-    ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-        "brix: admin: %V %s target=%s client=%V result=%s",
+    ngx_http_brix_dashboard_loc_conf_t *conf;
+    u_char   canon[512], msg[32 + 512], digest[32], hex[32];
+    u_char  *end;
+    size_t   canon_len;
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
+
+    end = ngx_snprintf(canon, sizeof(canon),
+        "brix: admin: %V %s target=%s client=%V result=%s seq=%uL",
         &r->method_name, action, target ? target : "-",
-        &r->connection->addr_text, result);
+        &r->connection->addr_text, result, conf->audit_seq);
+    canon_len = (size_t) (end - canon);
+
+    ngx_memcpy(msg, conf->audit_chain, 32);
+    ngx_memcpy(msg + 32, canon, canon_len);
+
+    if (brix_sha256(msg, 32 + canon_len, digest) != 1) {
+        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+                      "%*s chain=-", canon_len, canon);
+        return;
+    }
+
+    /* Commit the chain before logging so the emitted line and the state
+     * agree even if a later line races this one on another location. */
+    ngx_memcpy(conf->audit_chain, digest, 32);
+    conf->audit_seq++;
+
+    ngx_hex_dump(hex, digest, 16);
+    ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+                  "%*s chain=%*s", canon_len, canon,
+                  (size_t) sizeof(hex), hex);
 }
 
 

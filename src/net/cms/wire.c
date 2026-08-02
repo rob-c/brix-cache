@@ -1,4 +1,7 @@
 #include "cms_internal.h"
+
+#include <stdio.h>
+
 /*
  * wire.c — CMS frame header and XrdOucPup payload codec
  *
@@ -102,4 +105,22 @@ ngx_brix_cms_put_string(u_char *p, const u_char *data, size_t len)
     p += len;
     *p++ = '\0';
     return p;
+}
+
+/* ngx_brix_cms_stats_doc — render the Cluster.Stats document (the kYR_stats
+ * full-form text: CMS_STATS_FMT with the node's XrdCmsRole::Type substituted).
+ * Both CMS legs share this one renderer so the wire document has a single
+ * truth. Returns the snprintf length (no NUL) or -1 on truncation (cannot
+ * happen for a buf sized from CMS_STATS_BUFSZ: role is at most 2 chars vs the
+ * 8-byte slack stock reserves). */
+int
+ngx_brix_cms_stats_doc(u_char *buf, size_t buflen, const char *role)
+{
+    int  len;
+
+    len = snprintf((char *) buf, buflen, CMS_STATS_FMT, role);
+    if (len < 0 || (size_t) len >= buflen) {
+        return -1;
+    }
+    return len;
 }

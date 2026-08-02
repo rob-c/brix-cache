@@ -194,6 +194,19 @@ wire framing), `../metrics/README.md` (`brix_metrics_shared`), `../webdav/`
   here (`brix_http_mirror_set_url`, `brix_stream_mirror_set_url`, etc.) are the
   template.
 
+## Tests
+
+`tests/test_phase24_mirror.py` (registry-backed, `serial`, `xdist_group("lc-mir")`)
+is the single home for this subsystem — source-marker + config parse/reject checks,
+HTTP/WebDAV functional (GET/HEAD replay, auth-strip, shadow-down transparency,
+sample 0/100, PUT-body/DELETE write mirroring, `mirror_writes off` gate), stream
+metadata replay + divergence, and the **Step-G data-write e2e** legs
+(`test_stream_data_write_{mirrored_byte_exact,abort_not_replayed,over_cap_not_replayed,off_not_mirrored}`)
+which drive a real `open->write->close` against a live writable embedded shadow via
+`tests/configs/nginx_mirror_stream_wpair.conf`. The disconnect-mid-write UAF /
+heap-ownership paths in the detached replay are only machine-checkable under an
+ASan lane (phase-88 §4 B-2, still infra-blocked).
+
 ## See also
 
 - [`../handshake/README.md`](../../protocols/root/handshake/README.md) — stream dispatch hooks that

@@ -29,6 +29,7 @@ typedef struct {
     char        ak[128];
     char        sk[256];
     char        region[64];
+    char        session[2048];   /* STS X-Amz-Security-Token (phase-70 §5.5); "" static */
 } sd_remote_staged_state;
 
 /* Multipart part size for a staged upload of unknown final size (S3's 5 MiB
@@ -41,7 +42,8 @@ typedef struct {
  * HEAD (P80.2) presents the same identity as the upload (P80.3). */
 static brix_sd_staged_t *
 sd_remote_staged_open_impl(brix_sd_instance_t *inst, const char *final_path,
-    const char *ak, const char *sk, const char *region, int *err_out)
+    const char *ak, const char *sk, const char *region, const char *session,
+    int *err_out)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
@@ -53,9 +55,10 @@ sd_remote_staged_open_impl(brix_sd_instance_t *inst, const char *final_path,
 
     sd_remote_s3_key(cfg, final_path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
-    if (ak != NULL)     { p.ak     = ak; }
-    if (sk != NULL)     { p.sk     = sk; }
-    if (region != NULL) { p.region = region; }
+    if (ak != NULL)      { p.ak            = ak; }
+    if (sk != NULL)      { p.sk            = sk; }
+    if (region != NULL)  { p.region        = region; }
+    if (session != NULL) { p.session_token = session; }
 
     /* Unknown final size: sd_s3 buffers a single PUT and lazily upgrades to a
      * multipart upload only past SD_REMOTE_PART_SIZE (P80.2), so small objects
@@ -83,6 +86,8 @@ sd_remote_staged_open_impl(brix_sd_instance_t *inst, const char *final_path,
         snprintf(ss->sk, sizeof(ss->sk), "%s", sk);
         snprintf(ss->region, sizeof(ss->region), "%s",
                  (region != NULL) ? region : "");
+        snprintf(ss->session, sizeof(ss->session), "%s",
+                 (session != NULL) ? session : "");
     }
     h->inst  = inst;
     h->state = ss;
@@ -94,7 +99,7 @@ sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
     (void) mode;
-    return sd_remote_staged_open_impl(inst, final_path, NULL, NULL, NULL,
+    return sd_remote_staged_open_impl(inst, final_path, NULL, NULL, NULL, NULL,
                                       err_out);
 }
 
@@ -113,14 +118,15 @@ sd_remote_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
 
     if (gate > 0) {
         return sd_remote_staged_open_impl(inst, final_path,
-            cred->s3_ak, cred->s3_sk, cred->s3_region, err_out);
+            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session,
+            err_out);
     }
     if (gate < 0) {
         if (err_out) { *err_out = EACCES; }
         errno = EACCES;
         return NULL;
     }
-    return sd_remote_staged_open_impl(inst, final_path, NULL, NULL, NULL,
+    return sd_remote_staged_open_impl(inst, final_path, NULL, NULL, NULL, NULL,
                                       err_out);
 }
 
@@ -159,10 +165,13 @@ sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)
         sd_remote_s3_params(cfg, ss->objpath, &p);
         if (ss->has_cred) {
             /* P80.3: the existence probe must present the same identity as
-             * the upload it gates — never the shared service credential. */
+             * the upload it gates — never the shared service credential. A
+             * delegated STS identity (phase-70 §5.5) also carries its session
+             * token, or the HEAD signs with an incomplete temporary key. */
             p.ak = ss->ak;
             p.sk = ss->sk;
-            if (ss->region[0] != '\0') { p.region = ss->region; }
+            if (ss->region[0] != '\0')  { p.region        = ss->region; }
+            if (ss->session[0] != '\0') { p.session_token = ss->session; }
         }
         probe = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
         if (probe != NULL) {
@@ -179,13 +188,18 @@ sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)
     }
 
     rc = sd_s3_commit(ss->s3, errbuf, sizeof(errbuf));
-    sd_s3_close(ss->s3);
-    free(ss);
-    free(h);
     if (rc != 0) {
+        /* Failure contract (as in the noreplace/EEXIST branch above): leave the
+         * staged handle intact — the caller's staged_abort discards the upload
+         * (sd_s3_abort) and frees ss->s3/ss/h. Freeing here too double-frees /
+         * uses-after-free that abort (stage_engine_move always aborts a failed
+         * commit): the reused sd_s3_file surfaced as free(put_buf==0x1). */
         errno = EIO;
         return NGX_ERROR;
     }
+    sd_s3_close(ss->s3);
+    free(ss);
+    free(h);
     return NGX_OK;
 }
 
@@ -201,21 +215,29 @@ sd_remote_staged_abort(brix_sd_staged_t *h)
 }
 
 /* Shared unlink body: DELETE the object, optionally signing with a per-user
- * ak/sk/region override (NULL = the instance's static service credential). */
+ * ak/sk/region override (NULL = the instance's static service credential). A
+ * directory (is_dir, from rmdir) targets the zero-byte "path/" marker object
+ * (#4) — the VFS rmtree has already emptied its children — rather than a
+ * same-named file key. */
 static ngx_int_t
-sd_remote_unlink_impl(brix_sd_instance_t *inst, const char *path,
-    const char *ak, const char *sk, const char *region)
+sd_remote_unlink_impl(brix_sd_instance_t *inst, const char *path, int is_dir,
+    const char *ak, const char *sk, const char *region, const char *session)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
     char                          objpath[768];
     char                          errbuf[256];
 
-    sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
+    if (is_dir) {
+        sd_remote_s3_dirkey(cfg, path, objpath, sizeof(objpath));
+    } else {
+        sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
+    }
     sd_remote_s3_params(cfg, objpath, &p);
-    if (ak != NULL)     { p.ak     = ak; }
-    if (sk != NULL)     { p.sk     = sk; }
-    if (region != NULL) { p.region = region; }
+    if (ak != NULL)      { p.ak            = ak; }
+    if (sk != NULL)      { p.sk            = sk; }
+    if (region != NULL)  { p.region        = region; }
+    if (session != NULL) { p.session_token = session; }
 
     if (sd_s3_delete(&p, errbuf, sizeof(errbuf)) != 0) {
         if (errno == 0) { errno = EIO; }
@@ -227,8 +249,7 @@ sd_remote_unlink_impl(brix_sd_instance_t *inst, const char *path,
 ngx_int_t
 sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
-    (void) is_dir;
-    return sd_remote_unlink_impl(inst, path, NULL, NULL, NULL);
+    return sd_remote_unlink_impl(inst, path, is_dir, NULL, NULL, NULL, NULL);
 }
 
 /* Cred-scoped unlink (P80.3): the DELETE runs as the requesting user. Gate
@@ -239,15 +260,13 @@ sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path, int is_dir,
 {
     int gate = sd_remote_cred_gate(cred);
 
-    (void) is_dir;
-
     if (gate > 0) {
-        return sd_remote_unlink_impl(inst, path,
-            cred->s3_ak, cred->s3_sk, cred->s3_region);
+        return sd_remote_unlink_impl(inst, path, is_dir,
+            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session);
     }
     if (gate < 0) {
         errno = EACCES;
         return NGX_ERROR;
     }
-    return sd_remote_unlink_impl(inst, path, NULL, NULL, NULL);
+    return sd_remote_unlink_impl(inst, path, is_dir, NULL, NULL, NULL, NULL);
 }

@@ -24,13 +24,30 @@
 #include "core/types/identity.h"
 
 /*
+ * STS wire dialect. AWS STS accepts a GET request whose SigV4 lives in the query
+ * (presigned form) and implements GetSessionToken; MinIO's STS accepts ONLY a
+ * POST with a form-encoded body and header-auth SigV4, and implements ONLY
+ * AssumeRole (no GetSessionToken). The two are not interchangeable on the wire,
+ * so the target's dialect is an explicit, load-validated config choice.
+ *   AWS   — GET + presigned-query SigV4; no role_arn selects GetSessionToken.
+ *   MINIO — POST + form-body + header-auth SigV4; always AssumeRole (role_arn
+ *           optional — MinIO returns creds inheriting the service user's policy).
+ */
+enum brix_s3_sts_flavor {
+    BRIX_STS_FLAVOR_AWS   = 0,
+    BRIX_STS_FLAVOR_MINIO = 1
+};
+
+/*
  * Static, load-time-validated configuration for one STS exchange target.
  *   endpoint  — STS base URL, e.g. "https://minio.example:9000"
  *   region    — SigV4 region for the "sts" service, e.g. "us-east-1"
- *   role_arn  — role to AssumeRole into; empty selects GetSessionToken
+ *   role_arn  — role to AssumeRole into; empty selects GetSessionToken (AWS) or
+ *               a policy-inheriting AssumeRole (MinIO)
  *   svc_ak    — backend S3 *service* access-key id (signs the STS request)
  *   svc_sk    — backend S3 service secret access key (never logged)
  *   ttl_secs  — requested credential lifetime in seconds (clamped 900..43200)
+ *   flavor    — wire dialect (enum brix_s3_sts_flavor); AWS is the default
  */
 typedef struct {
     ngx_str_t endpoint;
@@ -39,6 +56,7 @@ typedef struct {
     ngx_str_t svc_ak;
     ngx_str_t svc_sk;
     int       ttl_secs;
+    int       flavor;
 } brix_s3_sts_conf_t;
 
 /*

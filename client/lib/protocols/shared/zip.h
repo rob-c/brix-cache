@@ -129,8 +129,10 @@ typedef struct {
 /* Append-mode writer: seeds the central directory from `seed` (the verbatim
  * existing CD bytes + entry count) and starts writing new local headers at
  * base_offset (the existing archive's old CD offset, which the new member data
- * overwrites).  Used by `xrdcp --zip-append`.  Rejects ZIP64 seed archives
- * (caller checks via brix_zip_read_eocd) — returns NULL on allocation failure. */
+ * overwrites).  Used by `xrdcp --zip-append`.  ZIP64 seed archives are supported:
+ * the existing CD bytes (including their per-entry ZIP64 extra fields) are copied
+ * through unchanged and brix_zip_writer_finish re-emits a ZIP64 EOCD when the
+ * combined offset/size/count still needs it.  Returns NULL on allocation failure. */
 brix_zip_writer *brix_zip_writer_new_append(brix_zip_write_fn wr, void *ctx,
                                             uint64_t base_offset,
                                             const brix_zip_seed *seed);

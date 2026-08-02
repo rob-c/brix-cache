@@ -3,30 +3,30 @@
  */
 
 #include "prefetch.h"
+#include "fs/backend/sd.h"   /* read-ahead hints go through the SD seam */
 #include <string.h>
 
-/* Issue a POSIX_FADV_WILLNEED read-ahead hint for [offset, offset+length) on
- * fd.  Best-effort; a no-op on bad args or if fadvise is unavailable. */
+/* Issue a WILLNEED read-ahead hint for [offset, offset+length) on fd through
+ * the Storage Driver seam (phase-56 B-2).  Best-effort; a no-op on bad args
+ * or a driver without the read_advise slot. */
 void
 brix_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset, size_t length)
 {
-#if defined(POSIX_FADV_WILLNEED)
-    int rc;
+    brix_sd_obj_t obj;
+
     if (fd < 0 || offset < 0 || length < BRIX_READ_PREFETCH_MIN) {
         return;
     }
-    rc = posix_fadvise(fd, offset, (off_t) length, POSIX_FADV_WILLNEED);
-    if (rc != 0) {
-        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, rc,
-                       "brix: POSIX_FADV_WILLNEED ignored: %s",
-                       strerror(rc));
+
+    brix_sd_posix_wrap(&obj, fd);
+    if (obj.driver->read_advise != NULL
+        && obj.driver->read_advise(&obj, offset, length, BRIX_SD_ADV_WILLNEED)
+           != NGX_OK)
+    {
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, log, errno,
+                       "brix: WILLNEED read-ahead hint ignored: %s",
+                       strerror(errno));
     }
-#else
-    (void) log;
-    (void) fd;
-    (void) offset;
-    (void) length;
-#endif
 }
 
 /* ---- Validate a read-file prefetch request and compute its clamped end ----
@@ -224,7 +224,7 @@ brix_prefetch_readv_segments(brix_ctx_t *ctx, ngx_connection_t *c,
 
         /*
          * readv often arrives as nearby ranges against the same file.  Merge
-         * those ranges before issuing posix_fadvise() so one vector request
+         * those ranges before issuing the WILLNEED hint so one vector request
          * does not turn into many tiny kernel hints.
          */
         if (merged_fd == fd

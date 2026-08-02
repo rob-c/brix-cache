@@ -58,6 +58,20 @@
 #define OCSP_MAX_RESPONSE_BYTES  (64 * 1024)
 
 /*
+ * Max-staleness bounds for the response validity window (phase-28 C3),
+ * applied via OCSP_check_validity() in check_ocsp_response().  A signed
+ * response is only evidence between its thisUpdate and nextUpdate stamps;
+ * without this check a captured nonce-less pre-signed GOOD response replays
+ * indefinitely — long after the CA revoked the cert.  SKEW absorbs clock
+ * drift between us and the responder; MAX_AGE additionally bounds how old a
+ * thisUpdate we accept when the responder omits nextUpdate (open-ended
+ * responses).  Outside the window the status degrades to UNKNOWN (soft_fail
+ * policy decides) — except REVOKED, which is never overridden.
+ */
+#define BRIX_OCSP_VALIDITY_SKEW_SEC     300          /* 5 min clock skew   */
+#define BRIX_OCSP_VALIDITY_MAX_AGE_SEC  (24 * 3600)  /* 1 day, no-nextUpdate */
+
+/*
  * ocsp_url_t — parsed components of an OCSP responder URL.
  *
  * WHAT: Fixed-capacity home for the host, path, port, and scheme extracted

@@ -141,8 +141,8 @@ s3put_stream_offload(s3put_state_t *st)
 /*
  * s3put_stream_sync — write the body to the staged fd synchronously.
  *
- * WHAT: the inline body-write path — decodes a Content-Encoding body or streams
- *   an identity body straight to the staged fd.
+ * WHAT: the inline body-write path — decodes a Content-Encoding body into the
+ *   writer session (fd or driver-backed object) or streams an identity body.
  * WHY: reached only when the async offload declined (encoded body, empty body,
  *   or no thread pool); maps a decode failure to the right S3 client error.
  * HOW: returns NGX_OK on a successful write; returns NGX_DONE after aborting the
@@ -155,22 +155,15 @@ s3put_stream_sync(s3put_state_t *st)
     ngx_int_t decode_status = 0;
 
     if (st->put_codec != BRIX_CODEC_IDENTITY) {
-        ngx_fd_t wfd = brix_vfs_writer_fd(st->writer);
-
-        /* Codec decode writes through a raw fd; a driver-backed object session
-         * has none (NGX_INVALID_FILE) — reject with 501 rather than corrupt. */
-        if (wfd == NGX_INVALID_FILE) {
-            errno = ENOSYS;
-            wrc = NGX_ERROR;
-            decode_status = NGX_HTTP_NOT_IMPLEMENTED;
-        } else {
-            wrc = brix_http_body_decode_to_fd(st->r, wfd,
+        /* Codec decode streams the decoded bytes through the writer session, so a
+         * driver-backed object (S3, Ceph) with no kernel fd is written like a
+         * POSIX temp and every byte passes through the CRC accumulator. */
+        wrc = brix_http_body_decode_to_writer(st->r, st->writer,
                                                 (const char *) st->fs_path,
                                                 st->put_codec,
                                                 BRIX_DECODE_MAX_OUTPUT,
                                                 &st->body_summary,
                                                 &decode_status);
-        }
     } else {
         wrc = brix_http_body_write_to_writer(st->r, st->writer);
     }

@@ -19,8 +19,16 @@ stream plane ALREADY routes open-for-write through the VFS staged seam when
 the backend lacks `CAP_RANDOM_WRITE` — finding 1.2 is rewritten to the actual
 residual gaps.
 
-**Implementation status (2026-07-16):** the in-scope plan (P80.1–P80.7) is
-LANDED; the stretch goals (P80.11–P80.14, P80.21–P80.25) remain open.
+**Implementation status (2026-07-16; stretch closed 2026-07-27):** the in-scope
+plan (P80.1–P80.7) is LANDED. The zero-provisioning + per-group stretch
+(P80.11–P80.14, P80.21–P80.25) is now LANDED too (all UNCOMMITTED): code-side
+work (P80.11/12/13, P80.21/22/23/24) shipped earlier; the two k8s-only pieces —
+**P80.14** (VOMS zero-provisioning S3, `charts/s3-voms` + `test_s3voms_multiuser.py`,
+`./xrd-lab test s3voms`) and **P80.25** (pblock per-UNIX-group GSI,
+`charts/pb-gsi` + `test_pbgsi_multiuser.py`, `./xrd-lab test pbgsi`) — landed
+2026-07-27. See the P80.14 and P80.25 "Status — LANDED" blocks for the
+design deltas (notably: `@=` token authz was never viable, so P80.14 uses
+`o <org>` + `require_vo`).
 
 - **P80.1** unified credential mapper — done (stream replay wipe fixed).
 - **P80.4** honest `kXR_Unsupported` mapping (ENOTSUP/ENOSYS→3013) — done.
@@ -860,6 +868,51 @@ write/read/delete under `/atlas/<their-token>/`, is denied everywhere else,
 and MinIO's trace shows every one of their requests signed with the atlas
 group key. No gridmap, no per-user file, no config reload.
 
+**Status — LANDED (uncommitted).** `k8s-tests/charts/s3-voms/` (a MinIO plane +
+a topology-role alias) + `k8s-tests/charts/topology-role/configs/s3_voms_multiuser.conf`
++ `k8s-tests/remote-suite/tests/test_s3voms_multiuser.py`, wired
+`./xrd-lab test s3voms` (`labtools/lab_suite.py::_s3voms`, release `sv` →
+Services `sv-minio`/`sv-s3voms`, port 1097). Realised against the shipped seams,
+with two refinements the draft did not anticipate:
+
+1. **`@=` template authz was NOT viable, so authz is `o <org>` + `require_vo`,
+   not per-token subtree.** P80.13's `@=` substitution depends on
+   `brix_identity_user_token()` (a normalized, path-safe principal), which never
+   landed — the gate still substitutes the raw EEC DN (`/` and `=` in it break
+   `@=`). The zero-provisioning contract is instead carried by the FQAN's *vorg*:
+   a two-line org authdb (`o atlas /atlas a` + `o cms /cms a`) grants the VO its
+   prefix and default-denies elsewhere (authdb present ⇒ unmatched = deny), with
+   `brix_require_vo /atlas atlas` + `/cms cms` as the redundant VO tier. A no-AC
+   identity (mallory) has empty vorg/VO and is denied by both — so the posture
+   still needs zero per-user provisioning, just keyed on VO rather than a token
+   subtree. The isolation contract is therefore **per-VO** (two atlas members
+   share `/atlas` by design), not per-user.
+2. **The VOMS trust store is built by an init container, not a flat mount.** VOMS
+   resolves `<vomsdir>/<vo>/<host>.lsc`, but a k8s Secret key cannot contain `/`;
+   a generic `voms-lsc-init` container (topology-role, gated on `auth.vomsLsc`)
+   materialises the `<vo>/` subdir tree into an emptyDir from a flat per-VO LSC
+   secret. The credential plane ships exactly `vo-atlas.s3`/`vo-cms.s3` (P80.12
+   VO tier) — `ucred.c` resolves them after the per-user hash miss — with
+   `fallback deny`, so an atlas write to `atlas/wprobe/*` (denied for the atlas
+   MinIO key, allowed for the service key) failing at the backend is the
+   unforgeable proof the VO key — not the service credential — signed it.
+
+k8s-only (needs a live cluster + brix-client/brix-authority/brix-server images);
+correct-by-construction and validated with `helm dependency build`/`lint`/
+`template` + `py_compile`; the 21 tests skip cleanly without `TEST_S3VOMS_HOST`.
+
+*Test coverage added for the new machinery (cluster-free).* The user-side suite
+above only exercises against a live gateway, so the reusable pieces it rides on
+now carry their own no-cluster tests: the generic `voms-lsc-init` builder is
+covered by `charts/topology-role/tests/stretch_init_test.yaml` (helm-unittest —
+asserts the `<vo>/*.lsc` trust store is materialised and mounted only when
+`auth.vomsLsc` is set, and that a plain `auth.vomsdir` configMap is used with no
+builder otherwise), and the `s3voms` scenario wiring is covered by
+`pytests/test_remote_suite.py::test_s3voms_scenario_dry_run_wires_voms_zero_provisioning`
+plus `test_stretch_profiles_build_authority_server_and_client_images` in
+`test_xrd_lab.py`. Run with `helm unittest charts/topology-role` and
+`pytest pytests/ -m 'not e2e'`.
+
 ## 3. Order & effort
 
 P80.1 (S, unblocks 9 failing tests, kills the drift class) → P80.4 + P80.5 +
@@ -1116,6 +1169,30 @@ instrumentation, exactly the `mc admin trace` role. Matrix: phys-user rw on
 cross-group deny both directions; unmapped DN denied everywhere; ownership
 rows byte-checked in the catalog.
 
+**Status — LANDED (uncommitted).** `tests/test_pblock_group_multiuser.py` +
+config template `tests/configs/nginx_pblock_group_gsi.conf`. Realised against
+the shipped seams, with three design refinements the draft did not anticipate:
+
+1. **EEC DN, not the proxy leaf, is the identity** — post-P80.11 the gate and
+   the pblock owner both key on `login.eec_dn` (proxy serial stripped,
+   `auth.c` `auth_dn`), so the gridmap principals are the EEC DNs, and the
+   catalog's `ids` registry (kind 0) resolves an object's synthetic `uid` back
+   to the exact EEC DN — a *stronger* attribution oracle than a raw uid check.
+2. **Gate is sole enforcement, achieved by neutralising the pblock POSIX
+   layer** — a no-VOMS GSI identity carries no VO, so `sd_pblock_ident.c` gives
+   each principal a *private* catalog gid; a shared group directory would
+   collide there. The suite seeds the governed prefixes `/phys` and `/eng` as
+   world-writable service-owned dirs (0777) directly in `catalog.db` before
+   launch, so the pblock layer admits every authenticated user (created files
+   default 0644 → cross-group *reads* also pass) and the `g`-rule gate is the
+   only differentiator — exactly the "gate decides, catalog attests" posture.
+3. **PKI reuse over `blitz_test_pki()`** — the suite mints one RFC 3820 proxy
+   per principal off the *existing* shared CA (`x509forge`), rather than
+   rebuilding the whole PKI, so it never disturbs the sibling GSI suites.
+
+Root-only + pyxrootd-gated (getgrouplist needs real accounts; a real proxy
+client drives `root://`); 6 tests skip cleanly everywhere else.
+
 **P80.25 — k8s chart (`pbgsi` scenario) — S/M.** Reuse the s3gsi bootstrap
 patterns wholesale (§4): DN-derived provisioning job (mints proxies first,
 generates the gridmap from actual leaf DNs), `role.auth.extraSecret` +
@@ -1123,6 +1200,52 @@ generates the gridmap from actual leaf DNs), `role.auth.extraSecret` +
 object names. The container replaces MinIO+mc with an initContainer that
 `groupadd`/`useradd`s the mapped accounts in the server image. Register in
 `TEST_REGISTRY.md` per P80.8's pattern; wire `./xrd-lab test pbgsi`.
+
+**Status — LANDED (uncommitted).** `k8s-tests/charts/pb-gsi/` (topology-role
+alias + a DN-derived `pki-bootstrap` Job) +
+`k8s-tests/charts/topology-role/configs/pbgsi.conf` +
+`k8s-tests/remote-suite/tests/test_pbgsi_multiuser.py`, wired
+`./xrd-lab test pbgsi` (`labtools/lab_suite.py::_pbgsi`, release `pb` → Service
+`pb-pbgsi`, port 1096). Refinements vs. the draft:
+
+1. **NSS persistence is a subPath merge, not `useradd` in an init container.**
+   `groupadd`/`useradd` in an initContainer don't persist to the main container,
+   and a Secret symlink farm can't be `subPath`-mounted. A generic `nss-init`
+   container (topology-role, gated on `auth.nssSecret`) concatenates the
+   bootstrap's `passwd.frag`/`group.frag` over the image's `/etc/passwd`+`/etc/group`
+   into an emptyDir the main container mounts back via `subPath`, so
+   `getpwnam`/`getgrouplist` resolve the mapped accounts' groups.
+2. **Governed prefixes are seeded world-writable by a `data-seed` container**
+   (gated on `dataSeed.enabled`) writing `objects` rows (mode `0o40000|0o777`,
+   uid/gid 0) directly into `catalog.db` before launch — a no-VOMS GSI identity
+   carries no VO, so pblock hands each principal a private catalog gid; seeding
+   0777 makes the pblock POSIX layer permissive and the `g`-rule gate the sole
+   differentiator ("gate decides, catalog attests").
+3. **Registry: the bespoke remote-only lab suites (s3gsi/s3fwd/gridftp) are NOT
+   in `TEST_REGISTRY.md`** — that file is strictly the 1:1 fork table of
+   `tests/`. Following the realised P80.8 pattern, `test_pbgsi_multiuser.py` is
+   wired via `lab_suite`/`xrd-lab` and carries `# brix-remote-ok` (coverage
+   classifier stays `server_local == 0`), not a registry row.
+4. **The catalog attestation oracle stays in the LOCAL suite.** The `sqlite3`
+   `objects.uid`→EEC-DN join is pod-internal; the P80.24 privileged local suite
+   (`tests/test_pblock_group_multiuser.py`) owns it. The k8s suite asserts the
+   client-observable grant/deny matrix (phys rw `/phys` + share; eng ro `/phys`,
+   rw `/eng`; cross-group deny both directions; unmapped `stray` DN denied
+   everywhere), which is what proves the gate wiring end-to-end in-cluster.
+
+k8s-only; correct-by-construction, validated with `helm dependency build`/
+`lint`/`template` + `py_compile`; the 9 tests skip cleanly without
+`TEST_PBGSI_HOST`.
+
+*Test coverage added for the new machinery (cluster-free).* The two
+topology-role hooks this scenario introduces — the `nss-init` fragment merge
+(mounted back via subPath) and the world-writable `data-seed` catalog seeder
+(mode `0o40000|0o777`) — are covered by
+`charts/topology-role/tests/stretch_init_test.yaml` (helm-unittest, positive +
+feature-absent assertions each), and the `pbgsi` scenario wiring by
+`pytests/test_remote_suite.py::test_pbgsi_scenario_dry_run_wires_local_pblock_no_backend`
+(which also pins the *no-MinIO* invariant — a local pblock store has no S3
+backend) plus the shared image-plan test in `test_xrd_lab.py`.
 
 ### 6.3 Order, and how this meets the stretch goal
 

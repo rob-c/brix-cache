@@ -11,17 +11,34 @@
  *       (brix_token_validate_registry — the same engine the WebDAV and
  *       stream token paths use; READ scope suffices for a read-only
  *       protocol). This file contains POLICY GLUE ONLY — zero crypto.
- *       VOMS/GSI client-cert mode is future work (the WebDAV auth_cert
- *       machinery needs a conf-independent seam first); the directive
- *       accepts none|bearer today.
+ *       x509 mode authenticates the TLS-verified peer by its end-entity (EEC)
+ *       subject DN (RFC 3820 proxy certs skipped via brix_px_classify — a GSI
+ *       proxy authenticates as its issuing EEC) against an optional DN
+ *       allow-glob list; it is still POLICY GLUE — the crypto is nginx's own
+ *       ssl_verify_client chain validation plus the shared brix_x509_oneline /
+ *       brix_sp_glob_match helpers. voms mode layers a VOMS-VO authorisation
+ *       gate on top of x509 via the shared brix_extract_voms_info engine
+ *       (per-VO LSC vomsdir + VOMS signing-CA trust); still POLICY GLUE.
  */
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
+#include "core/ngx_brix_module.h"           /* brix_extract_voms_info (voms) */
 #include "auth/token/issuer_registry.h"
+#include "auth/crypto/store_policy.h"       /* brix_x509_oneline, brix_px_classify */
+#include "auth/crypto/signing_policy.h"     /* brix_sp_glob_match (DN allow-glob) */
 #include "core/compat/cstr.h"
 #include "core/types/tunables.h"
 
 #include <limits.h>
+
+#if (NGX_HTTP_SSL)
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
+#endif
+
+/* Max rendered subject-DN length (matches BRIX_UCRED_PRINC_MAX = 512, kept
+ * local so this policy-glue TU need not pull the ucred backend header). */
+#define SCVMFS_DN_MAX  512
 
 /* Extract "Authorization: Bearer <token>" into a NUL-terminated pool copy. */
 static ngx_int_t
@@ -177,6 +194,19 @@ cvmfs_repo_authz_match(ngx_http_brix_cvmfs_loc_conf_t *lcf,
     return NULL;
 }
 
+/* Is `repo` behind an F3 gate in this location? Pure lookup — no token work.
+ * The G15 attest plane uses this to mark sessions that touched gated content
+ * and to refuse serving their records under an ungated sibling name. */
+ngx_uint_t
+brix_cvmfs_repo_authz_gated(ngx_http_brix_cvmfs_loc_conf_t *lcf,
+    const char *repo, size_t repo_len)
+{
+    if (lcf->repo_authz == NULL || repo == NULL || repo_len == 0) {
+        return 0;
+    }
+    return cvmfs_repo_authz_match(lcf, repo, repo_len) != NULL;
+}
+
 ngx_int_t
 brix_cvmfs_repo_authz_eval(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf)
@@ -252,6 +282,235 @@ brix_cvmfs_repo_authz_eval(ngx_http_request_t *r,
     return NGX_DECLINED;                   /* authenticated: proceed        */
 }
 
+/* ---- x509 client-cert authz (phase-92) -----------------------------------
+ * Authenticate the TLS-verified peer by its end-entity subject DN. nginx's
+ * ssl_verify_client chain does the crypto; we require a peer cert that VERIFIED
+ * (X509_V_OK) — a location that forgot ssl_verify_client presents no cert and
+ * fails CLOSED here. The EEC is the leaf when the client used a bare cert, else
+ * the first non-proxy cert in the presented chain (RFC 3820 proxies chain
+ * leaf → EEC), so a GSI proxy authenticates as its issuing identity. An
+ * optional brix_scvmfs_x509_dn glob list gates the DN; an empty list accepts
+ * any verified client. The validated DN becomes the F9 QoS / attest subject. */
+#if (NGX_HTTP_SSL)
+static X509 *
+scvmfs_find_eec(SSL *sc, X509 *leaf)
+{
+    STACK_OF(X509)  *chain;
+    int              i, n;
+
+    if (brix_px_classify(leaf) == BRIX_PX_NONE) {
+        return leaf;
+    }
+    chain = SSL_get_peer_cert_chain(sc);      /* server side: excludes leaf */
+    n = (chain != NULL) ? sk_X509_num(chain) : 0;
+    for (i = 0; i < n; i++) {
+        X509 *cert = sk_X509_value(chain, i);
+        if (brix_px_classify(cert) == BRIX_PX_NONE) {
+            return cert;
+        }
+    }
+    return NULL;
+}
+
+static ngx_int_t
+scvmfs_dn_allowed(ngx_array_t *globs, const char *dn)
+{
+    ngx_str_t  *g;
+    ngx_uint_t  i;
+
+    if (globs == NULL || globs->nelts == 0) {
+        return 1;                             /* no list = any verified peer */
+    }
+    g = globs->elts;
+    for (i = 0; i < globs->nelts; i++) {
+        char pat[SCVMFS_DN_MAX];
+
+        if (g[i].len >= sizeof(pat)) {
+            continue;                         /* pathological glob; skip */
+        }
+        ngx_memcpy(pat, g[i].data, g[i].len);
+        pat[g[i].len] = '\0';
+        if (brix_sp_glob_match(pat, dn)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* voms mode: gate the proxy's carried VO name(s) against an allow-glob list.
+ * vo_csv is the comma-separated VO list lifted by brix_extract_voms_info; an
+ * empty glob list admits any client carrying at least one VO, otherwise one
+ * glob must match one carried VO. Fails CLOSED (0) on the empty-VO case — the
+ * caller has already rejected a proxy with no VOMS AC. */
+static ngx_int_t
+scvmfs_vo_allowed(ngx_array_t *globs, const char *vo_csv)
+{
+    ngx_str_t   *g;
+    ngx_uint_t   i;
+    const char  *tok;
+
+    if (globs == NULL || globs->nelts == 0) {
+        return 1;                             /* no list = any carried VO */
+    }
+    g = globs->elts;
+    for (tok = vo_csv; tok != NULL && *tok != '\0'; ) {
+        const char *comma = strchr(tok, ',');
+        size_t      tlen  = (comma != NULL) ? (size_t) (comma - tok)
+                                            : ngx_strlen(tok);
+        char        vo[256];
+
+        if (tlen < sizeof(vo)) {
+            ngx_memcpy(vo, tok, tlen);
+            vo[tlen] = '\0';
+            for (i = 0; i < globs->nelts; i++) {
+                char pat[256];
+
+                if (g[i].len >= sizeof(pat)) {
+                    continue;                 /* pathological glob; skip */
+                }
+                ngx_memcpy(pat, g[i].data, g[i].len);
+                pat[g[i].len] = '\0';
+                if (brix_sp_glob_match(pat, vo)) {
+                    return 1;
+                }
+            }
+        }
+        tok = (comma != NULL) ? comma + 1 : NULL;
+    }
+    return 0;
+}
+#endif
+
+static ngx_int_t
+scvmfs_check_x509(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf)
+{
+#if (NGX_HTTP_SSL)
+    ngx_connection_t *c = r->connection;
+    X509             *leaf, *eec;
+    char              dn[SCVMFS_DN_MAX];
+
+    if (c->ssl == NULL
+        || SSL_get_verify_result(c->ssl->connection) != X509_V_OK)
+    {
+        return NGX_HTTP_UNAUTHORIZED;         /* no verified client chain */
+    }
+
+    leaf = SSL_get_peer_certificate(c->ssl->connection);
+    if (leaf == NULL) {
+        return NGX_HTTP_UNAUTHORIZED;         /* verify off / no cert presented */
+    }
+
+    dn[0] = '\0';
+    eec = scvmfs_find_eec(c->ssl->connection, leaf);
+    if (eec != NULL) {
+        brix_x509_oneline(X509_get_subject_name(eec), dn, sizeof(dn));
+    }
+    X509_free(leaf);
+
+    if (dn[0] == '\0') {
+        return NGX_HTTP_UNAUTHORIZED;         /* every presented cert a proxy */
+    }
+    if (!scvmfs_dn_allowed(lcf->scvmfs_x509_dn, dn)) {
+        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+            "scvmfs: client DN \"%s\" not in brix_scvmfs_x509_dn allow-list "
+            "- 403", dn);
+        return NGX_HTTP_FORBIDDEN;            /* verified, but out of policy */
+    }
+
+    {
+        ngx_http_brix_cvmfs_ctx_t *ctx =
+            ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
+
+        if (ctx != NULL) {
+            ngx_cpystrn((u_char *) ctx->token_sub, (u_char *) dn,
+                        sizeof(ctx->token_sub));
+        }
+    }
+    return NGX_DECLINED;                       /* authenticated: proceed */
+#else
+    (void) r; (void) lcf;
+    return NGX_HTTP_UNAUTHORIZED;              /* no TLS built in: fail closed */
+#endif
+}
+
+/* voms mode = x509 authentication PLUS a VOMS-FQAN authorisation gate. The
+ * TLS-verified peer is authenticated by its EEC DN exactly as x509 mode, then
+ * brix_extract_voms_info lifts+verifies the proxy's VOMS VO(s) against the
+ * per-VO LSC dir (vomsdir) and VOMS signing-CA trust (voms_cert_dir); the VO(s)
+ * are gated by the brix_scvmfs_voms allow-glob list. Fails CLOSED: a plain GSI
+ * proxy carrying no VOMS AC is 403, never admitted. The crypto is nginx's
+ * ssl_verify_client chain plus the shared brix_extract_voms_info engine — this
+ * TU stays policy glue. */
+static ngx_int_t
+scvmfs_check_voms(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf)
+{
+#if (NGX_HTTP_SSL)
+    ngx_connection_t *c = r->connection;
+    X509             *leaf, *eec;
+    STACK_OF(X509)   *chain;
+    char              dn[SCVMFS_DN_MAX];
+    char              primary_vo[256] = "";
+    char              vo_list[1024]   = "";
+
+    if (c->ssl == NULL
+        || SSL_get_verify_result(c->ssl->connection) != X509_V_OK)
+    {
+        return NGX_HTTP_UNAUTHORIZED;         /* no verified client chain */
+    }
+    leaf = SSL_get_peer_certificate(c->ssl->connection);
+    if (leaf == NULL) {
+        return NGX_HTTP_UNAUTHORIZED;         /* verify off / no cert presented */
+    }
+    chain = SSL_get_peer_cert_chain(c->ssl->connection);   /* borrowed */
+
+    dn[0] = '\0';
+    eec = scvmfs_find_eec(c->ssl->connection, leaf);
+    if (eec != NULL) {
+        brix_x509_oneline(X509_get_subject_name(eec), dn, sizeof(dn));
+    }
+    (void) brix_extract_voms_info(c->log, leaf, chain,
+                                  &lcf->scvmfs_vomsdir,
+                                  &lcf->scvmfs_voms_cert_dir,
+                                  primary_vo, sizeof(primary_vo),
+                                  vo_list, sizeof(vo_list));
+    X509_free(leaf);
+
+    if (dn[0] == '\0') {
+        return NGX_HTTP_UNAUTHORIZED;         /* every presented cert a proxy */
+    }
+    if (vo_list[0] == '\0') {
+        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+            "scvmfs: client DN \"%s\" carries no VOMS attribute - 403", dn);
+        return NGX_HTTP_FORBIDDEN;            /* voms mode requires a VO */
+    }
+    if (!scvmfs_vo_allowed(lcf->scvmfs_voms, vo_list)) {
+        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+            "scvmfs: client VO(s) \"%s\" not in brix_scvmfs_voms allow-list "
+            "- 403", vo_list);
+        return NGX_HTTP_FORBIDDEN;            /* verified, but out of policy */
+    }
+
+    {
+        ngx_http_brix_cvmfs_ctx_t *ctx =
+            ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
+
+        if (ctx != NULL) {
+            ngx_cpystrn((u_char *) ctx->token_sub, (u_char *) dn,
+                        sizeof(ctx->token_sub));
+        }
+    }
+    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                  "scvmfs: x509+voms admit DN=\"%s\" primary_vo=\"%s\"",
+                  dn, primary_vo);
+    return NGX_DECLINED;                       /* authenticated + authorised */
+#else
+    (void) r; (void) lcf;
+    return NGX_HTTP_UNAUTHORIZED;              /* no TLS built in: fail closed */
+#endif
+}
+
 ngx_int_t
 brix_scvmfs_preamble(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf)
@@ -273,6 +532,12 @@ brix_scvmfs_preamble(ngx_http_request_t *r,
     case BRIX_SCVMFS_AUTHZ_BEARER:
         rc = scvmfs_check_bearer(r, lcf);
         break;
+    case BRIX_SCVMFS_AUTHZ_X509:
+        rc = scvmfs_check_x509(r, lcf);
+        break;
+    case BRIX_SCVMFS_AUTHZ_VOMS:
+        rc = scvmfs_check_voms(r, lcf);
+        break;
     case BRIX_SCVMFS_AUTHZ_NONE:
     default:
         rc = NGX_DECLINED;
@@ -285,6 +550,120 @@ brix_scvmfs_preamble(ngx_http_request_t *r,
     ctx->secure = 1;                               /* unlocks https upstream */
     BRIX_CVMFS_METRIC_INC(secure_requests_total);
     return NGX_DECLINED;
+}
+
+#if (NGX_HTTP_SSL)
+static ngx_int_t scvmfs_loc_wants_proxy_certs(ngx_http_core_loc_conf_t *clcf);
+
+/* Recurse the static (prefix/exact) location tree looking for an scvmfs
+ * x509/voms location. By module postconfiguration nginx has already folded the
+ * config-time location queue into this tree (built in ngx_http_merge_servers),
+ * so the queue is empty and the tree is the live structure to walk. */
+static ngx_int_t
+scvmfs_tree_wants_proxy_certs(ngx_http_location_tree_node_t *node)
+{
+    if (node == NULL) {
+        return 0;
+    }
+    if (node->exact != NULL && scvmfs_loc_wants_proxy_certs(node->exact)) {
+        return 1;
+    }
+    if (node->inclusive != NULL
+        && scvmfs_loc_wants_proxy_certs(node->inclusive))
+    {
+        return 1;
+    }
+    return scvmfs_tree_wants_proxy_certs(node->left)
+        || scvmfs_tree_wants_proxy_certs(node->right)
+        || scvmfs_tree_wants_proxy_certs(node->tree);
+}
+
+/* Does this location (or any nested location) run scvmfs x509/voms — i.e. want
+ * client GSI-proxy chains to verify? scvmfs_authz is a LOCATION directive, so a
+ * server-level check alone misses the common `location /cvmfs/ { brix_scvmfs on;
+ * ... }` layout; descend the static location tree and any regex locations. */
+static ngx_int_t
+scvmfs_loc_wants_proxy_certs(ngx_http_core_loc_conf_t *clcf)
+{
+    ngx_http_brix_cvmfs_loc_conf_t  *lcf;
+    ngx_http_core_loc_conf_t       **regex;
+    ngx_uint_t                        i;
+
+    /* clcf->loc_conf is set on real location clcfs but is NULL on the server's
+     * implicit core loc conf at this stage — guard before dereferencing. */
+    if (clcf->loc_conf != NULL) {
+        lcf = clcf->loc_conf[ngx_http_brix_cvmfs_module.ctx_index];
+        if (lcf != NULL && lcf->scvmfs
+            && (lcf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_X509
+                || lcf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_VOMS))
+        {
+            return 1;
+        }
+    }
+    if (scvmfs_tree_wants_proxy_certs(clcf->static_locations)) {
+        return 1;
+    }
+    regex = clcf->regex_locations;
+    if (regex != NULL) {
+        for (i = 0; regex[i] != NULL; i++) {
+            if (scvmfs_loc_wants_proxy_certs(regex[i])) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+#endif
+
+/* Enable client GSI-proxy-cert verification on an scvmfs x509/voms server's TLS
+ * context. nginx core rejects RFC 3820 proxy certs during ssl_verify_client
+ * chain validation unless X509_V_FLAG_ALLOW_PROXY_CERTS is set; x509 mode
+ * authenticates a proxy as its issuing EEC and voms mode lifts the proxy's VOMS
+ * AC, so both need a proxy chain to VERIFY (X509_V_OK) before the preamble sees
+ * it. Mirrors webdav's proxy_certs postconfig hook. Bearer/none modes (and
+ * servers with no scvmfs x509/voms location) are left untouched. cscf is an
+ * ngx_http_core_srv_conf_t *. */
+ngx_int_t
+brix_scvmfs_postconf_proxy_certs(ngx_conf_t *cf, void *cscf)
+{
+#if (NGX_HTTP_SSL)
+    ngx_http_core_srv_conf_t       *core_srv = cscf;
+    ngx_http_conf_ctx_t            *ctx = core_srv->ctx;
+    ngx_http_core_loc_conf_t       *clcf;
+    ngx_http_brix_cvmfs_loc_conf_t *lcf;
+    ngx_http_ssl_srv_conf_t        *sslcf;
+    X509_VERIFY_PARAM              *param;
+    ngx_int_t                       wants;
+
+    /* Server-level directive (ctx->loc_conf is valid here even though the core
+     * loc conf's own ->loc_conf field is not), then the nested location tree. */
+    lcf = ctx->loc_conf[ngx_http_brix_cvmfs_module.ctx_index];
+    wants = (lcf != NULL && lcf->scvmfs
+             && (lcf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_X509
+                 || lcf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_VOMS));
+    if (!wants) {
+        clcf = ctx->loc_conf[ngx_http_core_module.ctx_index];
+        wants = (clcf != NULL && scvmfs_loc_wants_proxy_certs(clcf));
+    }
+    if (!wants) {
+        return NGX_OK;
+    }
+    sslcf = ctx->srv_conf[ngx_http_ssl_module.ctx_index];
+    if (sslcf == NULL || sslcf->ssl.ctx == NULL) {
+        return NGX_OK;                             /* no TLS on this server */
+    }
+    param = SSL_CTX_get0_param(sslcf->ssl.ctx);
+    if (param != NULL) {
+        X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_ALLOW_PROXY_CERTS);
+        ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+            "scvmfs: enabled X509_V_FLAG_ALLOW_PROXY_CERTS on server %V",
+            &core_srv->server_name);
+    }
+    return NGX_OK;
+#else
+    (void) cf; (void) cscf;
+    return NGX_OK;
+#endif
 }
 
 /* ---- per-VO/per-job QoS fill throttling (phase-85 F9) ---------------------

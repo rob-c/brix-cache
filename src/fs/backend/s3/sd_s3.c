@@ -51,6 +51,8 @@ sd_s3_open_read(const sd_s3_open_params *p, char *errbuf, size_t errcap)
     snprintf(f->sk, sizeof(f->sk), "%s", p->sk ? p->sk : "");
     snprintf(f->region, sizeof(f->region), "%s",
              (p->region && p->region[0]) ? p->region : "us-east-1");
+    snprintf(f->session_token, sizeof(f->session_token), "%s",
+             p->session_token ? p->session_token : "");
     f->port       = p->port;
     f->tls        = p->tls;
     f->transport  = p->transport;

@@ -11,6 +11,28 @@
       0,
       NULL },
 
+    /* Phase-61 W7: explicit cluster role for the upward (node->manager) CMS
+     * leg — Pander-parity login Mode bits + the stock inbound valid-ops table
+     * (manVOps for manager, supVOps for supervisor).  auto (default) keeps
+     * the legacy mode derivation and permissive dispatch. */
+    { ngx_string("brix_cms_role"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.role),
+      brix_cms_roles },
+
+    /* Phase-61 W7: on a registry miss, relay a parent manager's kYR_state
+     * down to this tier's own data nodes and echo the first kYR_have back up
+     * (multi-tier recursion).  Off by default — single-tier meshes keep the
+     * registry-only fast path. */
+    { ngx_string("brix_cms_state_relay"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.state_relay),
+      NULL },
+
     { ngx_string("brix_cms_paths"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -308,6 +330,22 @@
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, tcp_congestion),
+      NULL },
+
+    /* Phase-33 P3-B3: pin SO_SNDBUF/SO_RCVBUF to the deployment BDP at accept so
+     * a single stream keeps a high-BDP pipe full; 0 = kernel autotuning. */
+    { ngx_string("brix_socket_sndbuf"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, socket_sndbuf),
+      NULL },
+
+    { ngx_string("brix_socket_rcvbuf"),
+      NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, socket_rcvbuf),
       NULL },
 
     { ngx_string("brix_tcp_keepalive"),

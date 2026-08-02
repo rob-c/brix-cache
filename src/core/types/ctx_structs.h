@@ -30,6 +30,24 @@ typedef struct {
     char      user[64];        /* username asserted in round 1, verified in round 2 */
 } brix_ctx_pwd_t;
 
+/* XrdSeckrb5 forwarded-TGT delegation-capture state (phase-70 §5.7, inbound
+ * two-round exchange).  Round 1 verifies the AP_REQ and — when brix_krb5_delegate
+ * is on — replies kXR_authmore "fwdtgt" instead of finalizing, parking the
+ * round-1 auth context (holds the session subkey the forwarded KRB_CRED is
+ * encrypted under) and the mapped client principal so round 2 can decrypt the
+ * client's krb5_fwd_tgt_creds() blob.  Handles are opaque (void*) so krb5.h never
+ * leaks into this widely-included header; deleg_capture.c owns the casts and the
+ * pool-cleanup that frees them.  On capture the forwarded TGT is serialised to a
+ * 0600 FILE ccache whose path is stashed in `ccache` for the request-time VFS
+ * delegation bind (brix_root_vfs_bind_deleg → brix_vfs_deleg_set_krb5). */
+typedef struct {
+    unsigned  round;          /* 0 = fresh; 1 = fwdtgt challenge sent, awaiting KRB_CRED */
+    void     *auth_ctx;       /* round-1 krb5_auth_context (session subkey), freed at round 2/cleanup */
+    void     *client;         /* copied krb5_principal of the verified client */
+    char      cname[512];     /* mapped local name, promoted to login.dn at finalize */
+    char      ccache[1024];   /* captured forwarded-TGT 0600 FILE ccache path (no "FILE:" prefix) */
+} brix_ctx_krb5_t;
+
 /* Bearer-token (WLCG/SciToken) auth state.  auth=1 means this session was
  * authenticated via a token (not GSI); the extracted scopes are checked
  * per-operation in the open/write handlers. */
@@ -162,7 +180,11 @@ typedef struct {
     uint32_t   pid;             /* client pid from kXR_login, host byte order */
     uint8_t    auth_fail_count; /* failed kXR_auth attempts; capped */
     size_t     pool_bytes_used; /* cumulative ngx_palloc bytes; capped */
-    char       dn[512];         /* GSI subject DN */
+    char       dn[512];         /* GSI subject DN (literal proxy-leaf DN) */
+    char       eec_dn[512];     /* P80.11: stable End-Entity Cert DN (proxy
+                                 * serial stripped); "" for non-proxy/non-GSI
+                                 * auth. The authorization identity — see
+                                 * brix_gsi_complete_auth. */
     char       primary_vo[128]; /* first VO from the VOMS attribute cert */
     char       vo_list[512];    /* space-separated list of all VOs */
     char       peer_ip[64];     /* remote peer address for authdb HOST ('p') rules */
@@ -231,6 +253,11 @@ typedef struct {
     ngx_thread_task_t *readv_aio_task;
     brix_read_slot_t *pool;          /* [pipeline_depth] in-flight read buffers */
     ngx_uint_t         inflight;     /* pool entries currently in use */
+    ngx_uint_t         aio_inflight; /* phase-32 WS3: single-shot read AIO tasks
+                                      * posted but not yet completed — a worker
+                                      * thread is preading into a pool buffer, so
+                                      * teardown must defer until this hits 0
+                                      * (mirrors out.wr_inflight for writes) */
     unsigned           backpressured:1; /* recv stopped admitting reads (pool full) */
     unsigned   win_active:1;         /* windowed memory-read in flight */
     int        win_idx;

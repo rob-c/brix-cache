@@ -180,10 +180,11 @@
 >   and need a pure `(data,len)` entry carved from their TUs first (a production refactor
 >   kept out of the additive fuzz work).
 >
-> Deferred (need an ASan lane, new CI, or new directives/process): B-1 (analyzer
-> workflows exist; blocking-flip needs a pinned CI toolchain baseline), B-2 (ASan lane),
+> Deferred (need new CI, or new directives/process): B-1 (analyzer
+> workflows exist; blocking-flip needs a pinned CI toolchain baseline),
 > remaining C-1 targets + C-2 (framing fuzz — need pure-entry refactors; attach to the
-> new B-3 lane).
+> new B-3 lane). **B-2 (ASan+UBSan lane) LANDED 2026-07-30** — `tools/ci/asan.py`
+> + `.github/workflows/asan.yml`; see § B-2 below.
 >
 > A-2 is no longer deferred: RESOLVED 2026-07-20 by surface retirement (the dead
 > WebDAV reverse-proxy transport was deleted) — see § A-2 Resolution below; B-2
@@ -779,11 +780,27 @@ tunable — deferred (compile-time cap ships now). `brix_ocsp_require_nonce on|o
 Process, not product. The tooling exists; today it is advisory. Making it a wall is the
 cheapest large risk-reduction available (defends T6).
 
-## B-1 · Static analyzers: blocking, per-PR, pinned
+## B-1 · Static analyzers: blocking, per-PR, pinned — ✅ LANDED (2026-07-30)
 
 | Severity | Effort | Type | Confidence |
 |---|---|---|---|
 | **HIGH** | S | GATE | CONFIRMED |
+
+> **LANDED 2026-07-30.** Both analyzer workflows are now BLOCKING per-PR gates.
+> `fanalyzer.yml` and `codechecker.yml` gained `pull_request` + `push` triggers,
+> dropped `continue-on-error`, and — the load-bearing change — now run inside
+> `container: almalinux:9`, the **dev distro** whose gcc 11.5.0 / clang 21.1.8
+> produced the frozen ratchet baselines. Pinning the CI toolchain to the exact
+> toolchain that generated the baseline is what makes the finding set reproducible
+> and the ratchet stable enough to block (the codechecker header's long-standing
+> blocker). The ratchet itself is unchanged: frozen `fanalyzer_baseline.txt` /
+> `codechecker_baseline.txt` still gate on *new* findings only; if the el9 gcc/clang
+> package is bumped the baseline is regenerated on the new toolchain (`--regen`,
+> reviewed), never from CI output. All four **Fix** steps done. Guarded by
+> `tests/test_ci_analyzer_gate.py` (blocking · per-PR triggers · almalinux:9 pin ·
+> ratchet-runner retained · baselines present). *First-CI-run validation (the
+> plan's Test — a throwaway PR with a deliberate leak/UAF turns the gate red,
+> revert → green) remains the natural acceptance check on the pinned image.*
 
 **Evidence:** `[R28][R29][R30][R31]`.
 
@@ -819,11 +836,48 @@ scoped-compile logic ~0.5d.
 
 ---
 
-## B-2 · CI ASan + UBSan test lane
+## B-2 · CI ASan + UBSan test lane — ✅ LANDED (2026-07-30)
 
 | Severity | Effort | Type | Confidence |
 |---|---|---|---|
 | **HIGH** | M | GATE | CONFIRMED |
+
+> **LANDED 2026-07-30.** The lane exists: `tools/ci/asan.py` +
+> `.github/workflows/asan.yml`. It builds the module + client with
+> `-fsanitize=address,undefined` (`operator_build build_sanitizer`), boots the
+> fleet under `SANITIZE=1` (findings → `$SANITIZE_LOG_DIR/asan.<pid>`,
+> `abort_on_error=0` so a worker keeps serving), drives real root:// I/O in
+> attach mode (PR/push = the deterministic `test_sanitizer_smoke.py`; nightly
+> cron widens `ASAN_TEST_CMD` to the `not slow and not serial` fast tier), then
+> stops the fleet (LSan fires at exit) and **scans every report for a hard ASan/
+> UBSan/LSan signature** — a match (heap error, UB, or an *unsuppressed* leak;
+> the third-party leaks are curated out by `tests/lsan.supp`) fails the job. The
+> scan, not `abort_on_error`, is the gate, and it covers both the fleet and the
+> sanitized client `xrdcp`. **Blocking on PRs** and safe to be so: the
+> orchestrator self-skips cleanly (exit 0) when the compiler / configured nginx
+> source / a bootable fleet are absent, so only a real finding reddens a green
+> tree. Guarded locally by `tests/test_ci_asan_lane.py` (12 fast unit cases over
+> the report scanner + sanitizer-env + workflow wiring, plus a slow self-skipping
+> end-to-end runner). Item 3 of the original **Fix** (the `ASAN_OPTIONS`/
+> `UBSAN_OPTIONS`/`LSAN_OPTIONS` wiring) is realised as `asan.py::_sanitizer_env`
+> mirroring `manage_test_servers._sanitize_env`. Full record →
+> `tools/ci/README.md § ASan + UBSan`.
+>
+> **Extended 2026-07-30 — second driver leg (write-mirror disconnect suite).**
+> `asan.py` now honours an optional `ASAN_TEST_CMD2` — a second driver command run
+> in the same sanitized+attached fleet after `ASAN_TEST_CMD` and before stop+scan
+> (both legs' reports scanned together; a non-zero exit from *either* fails the
+> job). The nightly cron points it at
+> `pytest test_phase24_mirror.py -k data_write`, the **serial** write-mirror suite
+> the `not serial` fast tier drops. This closes the phase-88 audit § 4
+> write-mirroring residual: the phase-24 / 57-W3 detached-replay
+> disconnect-mid-write **UAF / heap-ownership** paths (a replay that outlives its
+> client and owns a stolen `ngx_alloc` buffer; a teardown-cleanup that races a
+> launch) are now machine-checked nightly under ASan+UBSan+LSan rather than
+> gating `brix_mirror_writes` production-enable on an unbuilt driver. Driver:
+> `test_phase24_mirror.py::test_stream_data_write_{disconnect_midwrite_no_replay,
+> close_then_immediate_disconnect_replays,disconnect_churn_survives}`; wiring
+> guards in `test_ci_asan_lane.py`.
 
 **Evidence:** `[R32][R33]`.
 
@@ -894,19 +948,27 @@ Nothing ran them in CI.
 **Fix.**
 1. ✅ CI **fuzz smoke**: each harness ~60s against its committed corpus on every PR; any
    new crash/leak fails. — *done (`fuzz.yml`, blocking).*
-2. ⏳ **Nightly** longer run — *done (600s cron)*; corpus minimization **committed back**
-   so coverage compounds is **deferred**: it needs a write-back bot (a CI job that
-   `git commit`s minimized corpora), which is a git-write automation to add under its own
-   review, not folded into the scaffold.
-3. This same lane hosts the *new* C-1/C-2 harnesses as they land.
+2. ✅ **Nightly** longer run — *done (600s cron)*; corpus minimization **committed back**
+   so coverage compounds — *done 2026-07-30*: `tools/ci/fuzz_corpus_writeback.py` +
+   the `corpus-writeback` job in `fuzz.yml`. The bot minimizes every corpus with
+   libFuzzer `-merge=1` and commits the coverage-minimal `corpus_*` dirs back to
+   `main`. Kept safe as its own reviewed automation: it runs ONLY on
+   `schedule`/`workflow_dispatch` (never `pull_request`, so no untrusted PR can
+   push), and refuses to commit if anything outside `tests/fuzz/corpus_*` is
+   staged. Guarded by `tests/test_ci_fuzz_corpus_writeback.py` (stray-path refusal ·
+   no-op paths · PR-gating · dry-run leaves the tree untouched).
+3. ✅ This same lane hosts the *new* C-1/C-2 harnesses (`fuzz_gsi_bucket`,
+   `fuzz_sss_frame`, `fuzz_macaroon_frame`, `fuzz_sigv4_canonical`,
+   `fuzz_root_frame`) — landed 2026-07-30 via `cmdscripts.fuzz_all`.
 
 **Test.** A seeded crashing input in a scratch harness fails the smoke; removing it
 passes. *(Verified live: the pre-existing `fuzz_zip_dir` link break is exactly the
 "harness stopped working" failure mode the smoke now catches — it was red before the
 `sd_posix_io.c` unity-build fix, green after.)*
 
-**Acceptance.** Three harnesses run in CI; corpora are version-controlled *(corpus
-auto-grow-back deferred, see Fix 2)*.
+**Acceptance.** ✅ The harnesses (now ten: the three original + JWT-JSON + urlcodec +
+the five C-1/C-2 carves) run in CI; corpora are version-controlled *and*
+auto-grow-back via the nightly `corpus-writeback` bot (Fix 2, landed 2026-07-30).
 
 **Effort breakdown.** Smoke job ~0.5d · nightly + corpus-commit ~0.5d.
 
@@ -921,11 +983,33 @@ Wire parsing is already well-bounded — per-opcode `dlen` caps *before* allocat
 `[R44]` with a 256 MiB total cap `[R45]`, signed-`rlen` trap `[R46]`. The gap is fuzz
 *reach* into the auth parsers, and one recurring logic-bug class.
 
-## C-1 · Fuzz the unauthenticated auth parsers — 🔶 IN PROGRESS (JWT-JSON + shared percent-codec landed 2026-07-18)
+## C-1 · Fuzz the unauthenticated auth parsers — ✅ LANDED (all named targets, 2026-07-30)
 
 | Severity | Effort | Type | Confidence |
 |---|---|---|---|
-| **HIGH** | L | COVERAGE | CONFIRMED (2 harnesses landed: JWT-JSON, percent-codec) |
+| **HIGH** | L | COVERAGE | CONFIRMED (JWT-JSON · percent-codec · GSI bucket · SSS frame · macaroon · SigV4 canonical) |
+
+> **LANDED 2026-07-30.** The four remaining named targets are harnessed. Each
+> attacker-facing parse function was carved into a pure `(data,len)` TU and the
+> nginx-coupled caller now delegates to it (single-source):
+> * **GSI bucket walk** — `fuzz_gsi_bucket.c` over `brix_gsi_find_bucket`
+>   (`src/auth/gsi/gsi_buf.c`, already pure; links `-lcrypto`).
+> * **SSS frames** — `fuzz_sss_frame.c` over `brix_sss_header_framing_ok`, carved
+>   from `auth_request.c` into `src/auth/sss/sss_framing.{c,h}`.
+> * **Macaroon** — `fuzz_macaroon_frame.c` over `brix_macaroon_scan_frames` /
+>   `brix_macaroon_packet_len`, carved from `macaroon_parse.c` into
+>   `src/auth/token/macaroon_frame.{c,h}`.
+> * **SigV4 canonicaliser** — `fuzz_sigv4_canonical.c` unity-`#include`s
+>   `auth_sigv4_canonical.c` with `BRIX_SIGV4_STANDALONE`, which swaps the three
+>   `ngx_flag_t`/`ngx_memcpy`/`ngx_strcmp` aliases for libc (see
+>   `auth_sigv4_canonical_standalone.h`) instead of pulling `s3.h`→`ngx_http.h`;
+>   the production build (guard off) is byte-identical.
+>
+> All ASan+UBSan-clean over millions of runs; wired into the B-3 lane via
+> `cmdscripts.fuzz_all`. Behaviour pinned by `kat_carved_parsers.c` /
+> `tests/test_fuzz_carved_parsers.py` (success + error + security-neg per function).
+> The GSI ASN.1 note below refers to the deeper `parse_x509_*` cert paths, which
+> stay nginx-coupled; the bucket-framing walk that precedes them is now covered.
 
 **Why first.** They parse attacker-controlled bytes **before** authentication — the
 highest-value remote surface (T1), several hand-rolled.
@@ -956,6 +1040,30 @@ highest-value remote surface (T1), several hand-rolled.
    the full canonicaliser needs its handful of `ngx_flag_t`/`ngx_memcpy`/`ngx_strcmp`
    uses decoupled from the full nginx header first.
 
+   **DETERMINISTIC CORRECTNESS SUITE — LANDED (2026-08-02).** The libFuzzer target
+   above only proves crash-safety under ASan; it does not pin *byte-exact* output.
+   `tests/test_nonutf8_input.py` (**2946** fast-lane cases, driver
+   `tests/c/nonutf8_codec_harness.c` linking the real `uri.c`/`hex.c`/`opaque_validate.c`
+   plus header-only `reserved_names.h`, via `tests/cmdscripts/nonutf8_codec.py`) asserts
+   four pure kernels' exact contracts against independent Python oracles over the full
+   0x00-0xFF space and a battery of non-UTF8 multi-byte sequences (overlong, surrogate,
+   out-of-range, truncated, BOM, Latin-1, CP1252, Shift-JIS/GB18030-ish, deterministic
+   high-byte blobs). Codec: `%XX`→byte transparency (upper/lower hex), literal high-byte
+   passthrough, `%00` reject-vs-pass per `REJECT_NUL`, embedded-NUL C-string truncation,
+   malformed-`%` preserved-verbatim, `+` handling, overflow/BADARG boundaries, `encode`
+   vs RFC 3986 + `safe_extra`, and the `encode∘decode == identity` round trip for every
+   byte. It exhaustively verifies `brix_opaque_illegal_byte`'s 0x01-0xFF verdict +
+   offending byte against the permit set; the Tier-2 `brix_opaque_schema_check`
+   offending-key echo byte-transparency + `oss.asize` non-digit-value rejection over every
+   byte; and `brix_is_internal_name`'s classification (no lone byte misclassified;
+   non-UTF8-stemmed reserved names still hidden; polluted suffixes not over-hidden; NUL
+   truncation that both hides and reveals).
+   **Bug it caught & fixed:** `brix_http_urlencode` passed a NUL byte through *literally*
+   instead of encoding it to `%00` — `strchr(unreserved, c)` with `c=='\0'` matches the
+   set string's own terminator, misclassifying NUL as unreserved. A literal NUL in a
+   canonical S3 signing string or a generated URL is a truncation / smuggling primitive.
+   Fixed at `src/core/compat/uri.c` with a `c != '\0'` guard before the `strchr` tests.
+
 **Fix.** One libFuzzer harness per target under `tests/fuzz/`, seeded from real corpora
 (capture valid frames from the existing suites), run under ASan+UBSan in the B-2/B-3
 lane. Land incrementally, GSI ASN.1 and JWT JSON first. *Remaining targets (1, 3, 4, and
@@ -971,20 +1079,32 @@ wired into the nightly job. Any crash becomes a regression test.
 
 **Deps.** B-2/B-3. **Rollback.** n/a (additive).
 
-## C-2 · Fuzz the XRootD wire-framing dispatcher
+## C-2 · Fuzz the XRootD wire-framing dispatcher — ✅ LANDED (2026-07-30)
 
 | Severity | Effort | Type | Confidence |
 |---|---|---|---|
-| **MED** | M | COVERAGE | STRONG |
+| **MED** | M | COVERAGE | CONFIRMED |
 
 **Evidence:** `[R41][R42][R43][R44][R45][R46]`.
+
+> **LANDED 2026-07-30.** `brix_max_payload_for_request` (the per-opcode `dlen` cap
+> table) was carved out of `recv_process.c` into the pure
+> `src/protocols/root/connection/recv_frame_bounds.{c,h}`, alongside a new
+> `brix_root_frame_dlen_ok` that decodes a 24-byte `ClientRequestHdr` (requestid
+> @2, `dlen` @20) and returns `dlen <= cap(reqid)` — the "reject an oversized `dlen`
+> BEFORE any allocation" invariant made executable on raw bytes. `recv_process.c`
+> now calls the carved cap table (single-source). `fuzz_root_frame.c` drives
+> arbitrary framed headers and additionally cross-checks (abort-on-mismatch) that
+> the accept/reject verdict agrees with a hand-recomputed cap comparison, so a
+> cap-arithmetic regression is a hard failure, not a silent pass.
 
 **Fix.** A structure-aware harness feeding arbitrary framed PDUs (opcode + `dlen` +
 body) into the dispatcher `[R41][R42]`; assert no crash/UB and that the per-opcode cap
 holds — i.e. **no path allocates before the cap check**. This makes executable the
-bound the recon proved statically.
+bound the recon proved statically. — *done: `fuzz_root_frame.c` + the KAT
+(`kat_carved_parsers.c`) pinning at-cap accept / over-cap reject / short-header reject.*
 
-**Acceptance.** Harness in CI, clean on seed corpus; the `dlen`-cap invariant becomes
+**Acceptance.** ✅ Harness in CI, clean on seed corpus; the `dlen`-cap invariant is now
 executable, not review-only. **Deps.** B-2/B-3.
 
 ## C-3 · Audit the `NGX_OK`-on-deny sentinel class — ✅ LANDED (audit + guard, 2026-07-18)
@@ -1788,7 +1908,7 @@ Copy-paste starting points. Fleet/log conventions per CLAUDE.md
 | **A-5** | While a TPC transfer runs: `ls -la /tmp/tpc_token_body_* 2>/dev/null` must return nothing; `stat -c '%a' "$(dirname <stage-path>)"` must be `700`. New: `pytest tests/test_tpc_cred_staging.py -v` |
 | **A-6** | Fake OCSP responder returning a 1 GiB body → worker memory must stay bounded; nonce-stripped replay → deny under hard-fail |
 | **B-1** | Open a throwaway PR with a deliberate NULL-deref → both analyzer gates go red; revert → green. Never hand-edit `[R31]` to silence |
-| **B-2** | New lane builds `-fsanitize=address,undefined`; `ASAN_OPTIONS=abort_on_error=1:detect_leaks=1`; goes red on the A-2 repro (joint acceptance) |
+| **B-2** | ✅ LANDED 2026-07-30 — `tools/ci/asan.py` + `.github/workflows/asan.yml` build `-fsanitize=address,undefined`, boot the fleet, drive real root:// I/O, and go red on any ASan/UBSan/LSan finding via a post-run report scan (`detect_leaks=1`, third-party leaks curated out by `tests/lsan.supp`). The lane runs the fleet `abort_on_error=0` and lets the scan be the gate — cleaner than aborting a worker mid-test — so it would redden on the A-2 repro. Guard: `tests/test_ci_asan_lane.py` |
 | **B-3** | ✅ wired: `.github/workflows/fuzz.yml` runs all three via `python3 -m cmdscripts.fuzz_all` (PR smoke 60s, nightly 600s). Local: `PHASE81_RUN_FUZZ_PORT=1 pytest tests/test_cmd_fuzz_all.py` |
 | **C-1** | ✅ 2 harnesses in the `fuzz.yml` lane: `fuzz_jwt_json.c` (+`json.c -ljansson`, `corpus_jwt_json/`) and `fuzz_urlcodec.c` (+`uri.c`+`hex.c`, `corpus_urlcodec/`). Per remaining harness: `clang -O1 -g -fsanitize=fuzzer,address,undefined <harness>.c -o <t>` against a seed corpus captured from the live auth suites |
 | **C-3** | `grep -rn "return NGX_OK" src/auth src/protocols/**/auth_* ` and prove each success path gates on the verdict, not an intermediate step `[R47]` |

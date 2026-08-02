@@ -64,9 +64,12 @@ typedef struct {
  * WHY:  mirrors posix_ring_select so the same semantics apply across backends.
  * HOW:  mode from opts->io_uring; guards brix_uring_available(); delegates to
  *       brix_disk_ring_create with a modest window (4 ops, 64 KiB each).
+ *       direct (from opts->io_uring_direct) engages the O_DIRECT tier; when the
+ *       device/filesystem rejects it the ring create fails EUNSUPPORTED, which
+ *       AUTO turns into a silent buffered fallback and ON surfaces as an error.
  */
 static int
-block_ring_select(int fd, int mode, brix_disk_ring **ring, brix_status *st)
+block_ring_select(int fd, int mode, int direct, brix_disk_ring **ring, brix_status *st)
 {
     *ring = NULL;
 
@@ -87,7 +90,7 @@ block_ring_select(int fd, int mode, brix_disk_ring **ring, brix_status *st)
     {
         brix_status tmp_st;
         brix_status_clear(&tmp_st);
-        *ring = brix_disk_ring_create(fd, 4, 65536, 0, &tmp_st);
+        *ring = brix_disk_ring_create(fd, 4, 65536, direct, &tmp_st);
         if (*ring == NULL && mode == XRDC_IO_URING_ON) {
             if (st != NULL) {
                 *st = tmp_st;
@@ -364,12 +367,14 @@ block_be_open(const brix_vfs_backend *be, const char *path, int flags,
     int             fd = -1;
     char           *path_copy = NULL;
     int             uring_mode;
+    int             uring_direct;
 
     (void) be;
 
     *out = NULL;
 
-    uring_mode = (opts != NULL) ? opts->io_uring : XRDC_IO_URING_AUTO;
+    uring_mode   = (opts != NULL) ? opts->io_uring : XRDC_IO_URING_AUTO;
+    uring_direct = (opts != NULL) ? opts->io_uring_direct : 0;
 
     path_copy = strdup(path);
     if (path_copy == NULL) {
@@ -416,7 +421,7 @@ block_be_open(const brix_vfs_backend *be, const char *path, int flags,
     bf->path = path_copy;
     bf->ring = NULL;
 
-    if (block_ring_select(fd, uring_mode, &bf->ring, st) != 0) {
+    if (block_ring_select(fd, uring_mode, uring_direct, &bf->ring, st) != 0) {
         close(fd);
         free(path_copy);
         free(bf);

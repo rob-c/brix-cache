@@ -179,6 +179,10 @@ webdav_put_ranged_resume(ngx_http_request_t *r,
         if (stage_tracked) {
             brix_stage_unmark_pending(staged.tmp_path);
         }
+        /* C-2 (phase-56): the commit rename just materialised the destination
+         * outside brix_vfs_open/vfs_staged — drop any per-worker cached
+         * negative so a stat racing the publish never sees a stale ENOENT. */
+        brix_vfs_neg_stat_forget(conf->common.root_canon, (const char *) path);
         webdav_put_persist_checksums(r, (const char *) path);   /* §8.3 */
         webdav_send_status_only(r, NGX_HTTP_CREATED);
         return;

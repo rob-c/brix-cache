@@ -322,7 +322,7 @@ brix_chain_append_file(ngx_pool_t *pool, ngx_connection_t *c,
 
 /*
  * brix_build_chunked_chain — build a multi-chunk memory chain for large
- * reads (data_total > BRIX_READ_CHUNK_MAX = 16 MiB).
+ * reads (data_total > BRIX_READ_CHUNK_MAX = 32 MiB).
  *
  * XRootD responses larger than 16 MiB must be split into multiple wire frames:
  *   [kXR_oksofar frame][data][kXR_oksofar frame][data]...[kXR_ok frame][data]

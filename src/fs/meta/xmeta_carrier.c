@@ -73,7 +73,15 @@ xmeta_sidecar_write(brix_sd_instance_t *store, const char *key,
         return NGX_ERROR;
     }
     if (store->driver->staged_commit(st, 0) != NGX_OK) {
-        return NGX_ERROR;                          /* errno from the driver */
+        int e = errno;                             /* errno from the driver */
+
+        /* Contract: a failed commit leaves the handle valid (the driver frees
+         * on success only) — abort to release it. */
+        if (store->driver->staged_abort != NULL) {
+            store->driver->staged_abort(st);
+        }
+        errno = e ? e : EIO;
+        return NGX_ERROR;
     }
     return NGX_OK;
 }

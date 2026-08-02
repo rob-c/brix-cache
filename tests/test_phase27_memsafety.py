@@ -80,6 +80,84 @@ def test_f4_session_reaper_and_f5_cap_drift():
     assert "session_registry_full_total" in c
 
 
+def test_w5_per_source_soft_quota_present():
+    # W5/P90-27.2 success shape: soft cap + per-source scan tracking + own-LRU
+    # self-eviction, keyed via the SHARED ratelimit formatters (no local hash
+    # reimplementation).
+    h = _read("src/protocols/root/session/registry.h")
+    assert "BRIX_SESSION_PER_SOURCE_SOFT_CAP" in h
+    assert "BRIX_SESSION_SRC_KEY_LEN" in h
+    assert "src_key" in h
+    c = _read("src/protocols/root/session/registry.c")
+    assert "brix_rl_key_dn_hash" in c and "brix_rl_key_sub_hash" in c
+    assert "src_count" in c and "src_lru_slot" in c
+    assert "brix_session_src_cap_evict" in c
+
+
+def test_w5_unkeyed_exemption_and_defensive_bounds():
+    # Error/edge shape: a DN-less login is un-keyed (exempt, pre-W5 regime) and
+    # the self-evictor bounds-checks the own-LRU slot before touching it.
+    c = _read("src/protocols/root/session/registry.c")
+    assert "src_key[0] != '\\0'" in c            # un-keyed slots never counted
+    assert "src_lru_slot >= tbl->capacity" in c  # defensive no-victim return
+
+
+def test_w5_self_eviction_only_and_ordering():
+    # Security-negative shape: the cap must evict the over-quota identity's OWN
+    # slot (src_lru_slot, matched by src_key strcmp), never another identity's,
+    # and must bite BEFORE the F4 global reap so third parties are untouched.
+    c = _read("src/protocols/root/session/registry.c")
+    assert "ngx_strcmp(e->src_key, src_key) == 0" in c
+    cap_branch = c.index("sc.src_count >= BRIX_SESSION_PER_SOURCE_SOFT_CAP")
+    f4_branch = c.index("brix_session_reap_lru(tbl, now, sc.lru_slot")
+    assert cap_branch < f4_branch
+    # the self-evictor consumes the OWN-lru slot, not the global one
+    assert "brix_session_src_cap_evict(tbl, sc.src_lru_slot" in c
+    assert "session_src_cap_evict_total" in c
+
+
+def test_f3_secret_page_guard_present():
+    # Phase-28 F3 / P90-28.1 success shape: the guard exists (page-aligned
+    # MADV_DONTDUMP + mlock) and is applied to every long-lived secret arena.
+    h = _read("src/core/compat/crypto.h")
+    assert "brix_secret_page_guard" in h
+    c = _read("src/core/compat/crypto.c")
+    assert "MADV_DONTDUMP" in c
+    assert "mlock(" in c
+    assert "_SC_PAGESIZE" in c
+    for site in ("src/auth/sss/config.c",
+                 "src/observability/dashboard/api_admin_config.c",
+                 "src/core/config/server_conf_merge_security.c"):
+        assert "brix_secret_page_guard" in _read(site), site
+
+
+def test_f3_guard_is_best_effort_never_fatal():
+    # Error shape: a failed madvise/mlock (e.g. RLIMIT_MEMLOCK) must log a
+    # warning and continue — the guard is defence-in-depth, never load-bearing.
+    for site in ("src/auth/sss/config.c",
+                 "src/observability/dashboard/api_admin_config.c",
+                 "src/core/config/server_conf_merge_security.c"):
+        assert "continuing unguarded" in _read(site), site
+    c = _read("src/core/compat/crypto.c")
+    # both knobs applied independently — one failing must not skip the other
+    assert c.index("MADV_DONTDUMP") < c.index("mlock((void *) start")
+
+
+def test_f3_guard_after_materialise_and_fork_caveat():
+    # Security-negative shape: the guard must cover the FINAL resting buffer
+    # (applied after the secret is fully materialised), and the fork semantics
+    # (DONTDUMP survives into workers, mlock does not) must be documented so
+    # nobody mistakes the swap pin for worker-wide coverage.
+    sss = _read("src/auth/sss/config.c")
+    assert sss.index("has no usable keys") \
+        < sss.index("brix_secret_page_guard(keys->elts")
+    adm = _read("src/observability/dashboard/api_admin_config.c")
+    assert adm.index("ngx_memcpy(lcf->admin_secret.data") \
+        < adm.index("brix_secret_page_guard(lcf->admin_secret.data")
+    h = _read("src/core/compat/crypto.h")
+    assert "SURVIVES fork" in h and "mlock does NOT cross fork" in h
+
+
 def test_f9_evict_realloc_guard():
     e = _read("src/fs/cache/evict_candidates.c")
     assert "brix_size_mul" in e
@@ -90,8 +168,10 @@ def test_metrics_present():
     m = _read("src/observability/metrics/metrics.h")
     assert "session_registry_full_total" in m
     assert "session_evict_total" in m
+    assert "session_src_cap_evict_total" in m
     s = _read("src/observability/metrics/stream.c")
     assert "brix_session_evict_total" in s
+    assert "brix_session_src_cap_evict_total" in s
 
 
 def test_w7_fuzz_target_present():

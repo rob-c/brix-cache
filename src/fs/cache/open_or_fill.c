@@ -136,6 +136,65 @@ cache_composed_fill_pool(ngx_stream_brix_srv_conf_t *conf)
     return pool;
 }
 
+/* Project the fill task's carried per-user credential (populated on the main
+ * thread by brix_cache_open_fill_offload) into a borrowed brix_sd_cred_t whose
+ * pointers alias the task's owned buffers — valid for the duration of the fill.
+ * Returns 1 when any credential field is set (so the source open forwards the
+ * inbound user's delegated identity), 0 when the task carries none (anonymous /
+ * service-credential fill, unchanged legacy behaviour). */
+static int
+cache_fill_cred_view(const brix_cache_fill_t *t, brix_sd_cred_t *out)
+{
+    int have = 0;
+
+    ngx_memzero(out, sizeof(*out));
+    if (t->cred_x509_proxy[0] != '\0') { out->x509_proxy = t->cred_x509_proxy; have = 1; }
+    if (t->cred_bearer[0]     != '\0') { out->bearer     = t->cred_bearer;     have = 1; }
+    if (t->cred_sss_keytab[0] != '\0') { out->sss_keytab = t->cred_sss_keytab; have = 1; }
+    if (t->cred_krb5_ccache[0] != '\0') { out->krb5_ccache = t->cred_krb5_ccache; have = 1; }
+    if (t->cred_krb5_princ[0]  != '\0') { out->krb5_princ  = t->cred_krb5_princ; }
+    if (t->cred_principal[0]   != '\0') { out->principal   = t->cred_principal; }
+    return have;
+}
+
+/* Copy a resolved per-user credential's strings into the fill task's owned
+ * buffers so the async worker (which outlives the caller's ucred store) can
+ * forward the inbound user's identity to the source origin. Mirrors the driver
+ * carry (sd_xroot_copy_cred_into_task) but stays in the cache layer — no reach
+ * into a backend's internals. NULL cred (no forwarded identity) is a no-op; the
+ * task's cred_* fields stay empty (calloc-zeroed) → anonymous fill. */
+static void
+cache_fill_carry_cred(brix_cache_fill_t *t, const brix_sd_cred_t *cred)
+{
+    if (cred == NULL) {
+        return;
+    }
+    if (cred->x509_proxy != NULL && cred->x509_proxy[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_x509_proxy, (u_char *) cred->x509_proxy,
+                    sizeof(t->cred_x509_proxy));
+    }
+    if (cred->bearer != NULL && cred->bearer[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_bearer, (u_char *) cred->bearer,
+                    sizeof(t->cred_bearer));
+    }
+    if (cred->sss_keytab != NULL && cred->sss_keytab[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_sss_keytab, (u_char *) cred->sss_keytab,
+                    sizeof(t->cred_sss_keytab));
+    }
+    if (cred->krb5_ccache != NULL && cred->krb5_ccache[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_krb5_ccache, (u_char *) cred->krb5_ccache,
+                    sizeof(t->cred_krb5_ccache));
+    }
+    if (cred->krb5_princ != NULL && cred->krb5_princ[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_krb5_princ, (u_char *) cred->krb5_princ,
+                    sizeof(t->cred_krb5_princ));
+    }
+    if (cred->principal != NULL && cred->principal[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_principal, (u_char *) cred->principal,
+                    sizeof(t->cred_principal));
+    }
+}
+
 /* Worker thread: the blocking source → cache-store transfer, off the loop. */
 static void
 brix_cache_fill_composed_thread(void *data, ngx_log_t *log)
@@ -143,10 +202,13 @@ brix_cache_fill_composed_thread(void *data, ngx_log_t *log)
     brix_cache_fill_t *t = data;
     const char          *key = brix_vfs_export_relative_root(
                                    t->cache_path, t->conf->common.root_canon);
+    brix_sd_cred_t       cred;
+    int                  have_cred = cache_fill_cred_view(t, &cred);
 
     (void) log;
     errno = 0;
-    t->result    = brix_sd_cache_fill_key(t->source_inst, key);
+    t->result    = brix_sd_cache_fill_key(t->source_inst, key,
+                                            have_cred ? &cred : NULL);
     t->sys_errno = errno;
 }
 
@@ -210,7 +272,7 @@ ngx_int_t
 brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *clean_path,
     const char *full_path, brix_sd_instance_t *inst,
-    uint16_t options, uint16_t mode_bits)
+    uint16_t options, uint16_t mode_bits, const brix_sd_cred_t *cred)
 {
     ngx_thread_pool_t   *pool = cache_composed_fill_pool(conf);
     ngx_thread_task_t   *task;
@@ -243,6 +305,7 @@ brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
                 sizeof(t->clean_path));
     ngx_cpystrn((u_char *) t->cache_path, (u_char *) full_path,
                 sizeof(t->cache_path));
+    cache_fill_carry_cred(t, cred);   /* forward the inbound user's identity */
 
     brix_task_bind(task, brix_cache_fill_composed_thread,
                      brix_cache_fill_composed_done);

@@ -203,22 +203,25 @@ bearer_acquire(const brix_cred_config *cfg, brix_cred_view *out,
 }
 
 /*
- * bearer_refresh — no-op for task B4.
+ * bearer_refresh — near-expiry bearer re-mint (phase-92 C2a).
  *
- * WHAT: called by the store when auto_refresh is set and the token is near expiry.
- * WHY:  the oidc-token refresh path (credrefresh.c:run_oidc_token) does not yet
- *       conform to the (cfg, st) handler contract.  Adapting it — mapping
- *       cfg->oidc_account into run_oidc_token and installing the new token into the
- *       store cache — is deferred to task C2.  Returning 0 is correct: the store
- *       treats a non-zero refresh return as best-effort advisory only.
- * HOW:  no-op; suppress unused-parameter warnings.
+ * WHAT: called by the store when auto_refresh is set and the token is within
+ *       min_remaining_s of expiry; re-mints the token via oidc-agent so the
+ *       store's follow-up acquire() reads fresh material.
+ * WHY:  wires the fully-written engine (brix_cred_refresh_bearer → refresh_
+ *       bearer_token) onto the (cfg, st) handler contract, so --auto-refresh is
+ *       no longer a silent no-op for bearer tokens.  The store discards the
+ *       return and re-acquires regardless, so this is best-effort: a missing
+ *       oidc-agent/account simply leaves the existing token in place.
+ * HOW:  resolve the account from cfg->oidc_account ($OIDC_ACCOUNT fallback lives
+ *       in the engine); quiet (verbose=0, out=NULL) — the store, not the handler,
+ *       owns narration.
  */
 static int
 bearer_refresh(const brix_cred_config *cfg, brix_status *st)
 {
-    (void)cfg;
     (void)st;
-    return 0;   /* no-op; C2 will wire brix_cred_autorefresh here */
+    return brix_cred_refresh_bearer(cfg ? cfg->oidc_account : NULL, 0, NULL);
 }
 
 /* handler accessor */

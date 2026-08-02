@@ -12,12 +12,22 @@
  *
  * HOW:  liburing IORING_OP_READ/WRITE over a small pool of buffers, one op per
  *       buffer (user_data = buffer/slot index).  Stubs out under
- *       !BRIX_HAVE_LIBURING.  Buffered I/O only for now; an O_DIRECT tier is a
- *       documented deferral (it needs the fd opened O_DIRECT by copy.c). */
+ *       !BRIX_HAVE_LIBURING.  Two tiers: buffered (page-cache) and, when the
+ *       caller requests `direct`, an O_DIRECT tier — the fd is flipped to
+ *       O_DIRECT and the slab is block-aligned so full-block reads/writes bypass
+ *       the page cache.  The one hard O_DIRECT edge is the final short write of a
+ *       download (a non-block-multiple tail), which O_DIRECT rejects with EINVAL;
+ *       that op alone is drained and re-issued as a buffered write with O_DIRECT
+ *       momentarily cleared, so the file lands byte-exact at its true size. */
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE            /* O_DIRECT on glibc */
+#endif
 
 #include "uring.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -25,6 +35,12 @@
 #if (BRIX_HAVE_LIBURING)
 
 #include <liburing.h>
+
+/* O_DIRECT alignment: offset, length and buffer must be a multiple of the
+ * device logical block size.  4096 is a safe superset of both 512 B and 4 KiB
+ * sector geometries (it is a multiple of 512) and matches the page size on the
+ * platforms we run, so we align to it rather than probing per-device. */
+#define BRIX_URING_DIRECT_ALIGN  4096u
 
 enum { SLOT_FREE = 0, SLOT_INFLIGHT = 1, SLOT_DONE = 2 };
 
@@ -42,7 +58,10 @@ struct brix_disk_ring {
     int              fd;
     unsigned         depth;
     size_t           bufsz;
-    int              direct;        /* reserved (O_DIRECT tier deferred) */
+    int              direct;        /* O_DIRECT tier engaged for this ring     */
+    size_t           align;         /* block alignment when direct (else 0)    */
+    int              orig_flags;    /* fd flags before we OR'd O_DIRECT         */
+    int              direct_fd_set; /* 1 iff we flipped the fd to O_DIRECT      */
     ring_slot       *slots;
     uint8_t         *slab;
     unsigned         inflight;
@@ -97,11 +116,40 @@ brix_disk_ring_fail(brix_disk_ring *r, int ring_inited)
         if (ring_inited) {
             io_uring_queue_exit(&r->ring);
         }
+        if (r->direct_fd_set) {
+            (void) fcntl(r->fd, F_SETFL, r->orig_flags);   /* leave fd as found */
+        }
         free(r->slab);
         free(r->slots);
         free(r);
     }
     return NULL;
+}
+
+/* Flip an already-open fd to O_DIRECT for the direct tier, remembering its
+ * original flags so create/destroy can leave the caller's fd as it found it.
+ * A filesystem that rejects O_DIRECT (e.g. tmpfs) fails here with EUNSUPPORTED,
+ * which the ring_select AUTO path treats as a silent fallback to buffered. */
+static int
+brix_ring_enable_direct(brix_disk_ring *r, brix_status *st)
+{
+    int fl = fcntl(r->fd, F_GETFL);
+
+    if (fl < 0) {
+        brix_status_set(st, XRDC_ESOCK, errno, "fcntl F_GETFL");
+        return -1;
+    }
+    r->orig_flags = fl;
+    if ((fl & O_DIRECT) == 0) {
+        if (fcntl(r->fd, F_SETFL, fl | O_DIRECT) < 0) {
+            brix_status_set(st, XRDC_EUNSUPPORTED, errno,
+                            "O_DIRECT unavailable on this fd/filesystem: %s",
+                            strerror(errno));
+            return -1;
+        }
+        r->direct_fd_set = 1;
+    }
+    return 0;
 }
 
 brix_disk_ring *
@@ -125,18 +173,41 @@ brix_disk_ring_create(int fd, unsigned depth, size_t bufsz, int direct,
     }
     r->fd     = fd;
     r->depth  = depth;
-    r->bufsz  = bufsz;
     r->direct = direct;
+
+    if (direct) {
+        /* O_DIRECT needs block-aligned lengths; round the per-op buffer up so
+         * every full-block op stays aligned (the caller re-queries bufsz via
+         * brix_disk_ring_bufsz and splits its chunks to match). */
+        r->align = BRIX_URING_DIRECT_ALIGN;
+        if (bufsz % r->align != 0) {
+            bufsz += r->align - (bufsz % r->align);
+        }
+        if (brix_ring_enable_direct(r, st) != 0) {
+            return brix_disk_ring_fail(r, 0);
+        }
+    }
+    r->bufsz  = bufsz;
 
     r->slots = calloc(depth, sizeof(ring_slot));
     if (r->slots == NULL) {
         brix_status_set(st, XRDC_ESOCK, errno, "disk ring slots");
         return brix_disk_ring_fail(r, 0);
     }
-    r->slab = malloc((size_t) depth * bufsz);
-    if (r->slab == NULL) {
-        brix_status_set(st, XRDC_ESOCK, errno, "disk ring buffers");
-        return brix_disk_ring_fail(r, 0);
+    if (direct) {
+        void *slab = NULL;
+        int   rc = posix_memalign(&slab, r->align, (size_t) depth * bufsz);
+        if (rc != 0) {
+            brix_status_set(st, XRDC_ESOCK, rc, "disk ring aligned buffers");
+            return brix_disk_ring_fail(r, 0);
+        }
+        r->slab = slab;
+    } else {
+        r->slab = malloc((size_t) depth * bufsz);
+        if (r->slab == NULL) {
+            brix_status_set(st, XRDC_ESOCK, errno, "disk ring buffers");
+            return brix_disk_ring_fail(r, 0);
+        }
     }
     {
         unsigned i;
@@ -192,6 +263,46 @@ brix_ring_reap_one(brix_disk_ring *r)
 }
 
 
+/* O_DIRECT tail: a non-block-aligned offset/length (the final short write of a
+ * download) is rejected by O_DIRECT with EINVAL.  Drain every queued direct
+ * write (the tail is the highest offset), momentarily clear O_DIRECT on the fd,
+ * write the tail buffered — straight from the caller's buffer, no alignment
+ * needed — then restore O_DIRECT for any further full-block writes. */
+static int
+brix_ring_direct_tail_write(brix_disk_ring *r, int64_t off, const uint8_t *buf,
+                            size_t n, brix_status *st)
+{
+    size_t done = 0;
+
+    if (brix_disk_ring_flush(r, st) != 0) {
+        return -1;
+    }
+    if (fcntl(r->fd, F_SETFL, r->orig_flags & ~O_DIRECT) < 0) {
+        brix_status_set(st, XRDC_ESOCK, errno, "fcntl clear O_DIRECT");
+        return -1;
+    }
+    while (done < n) {
+        ssize_t w = pwrite(r->fd, buf + done, n - done,
+                           (off_t) off + (off_t) done);
+        if (w < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            r->werr = errno;
+            brix_status_set(st, XRDC_ESOCK, errno, "local tail write: %s",
+                            strerror(errno));
+            (void) fcntl(r->fd, F_SETFL, r->orig_flags | O_DIRECT);
+            return -1;
+        }
+        done += (size_t) w;
+    }
+    if (fcntl(r->fd, F_SETFL, r->orig_flags | O_DIRECT) < 0) {
+        brix_status_set(st, XRDC_ESOCK, errno, "fcntl restore O_DIRECT");
+        return -1;
+    }
+    return 0;
+}
+
 /* write-behind (downloads) */
 int
 brix_disk_ring_pwrite(brix_disk_ring *r, int64_t off, const uint8_t *buf,
@@ -204,6 +315,12 @@ brix_disk_ring_pwrite(brix_disk_ring *r, int64_t off, const uint8_t *buf,
     if (n > r->bufsz) {
         brix_status_set(st, XRDC_ESOCK, 0, "disk ring chunk too large");
         return -1;
+    }
+
+    if (r->direct
+        && ((off % (int64_t) r->align) != 0 || (n % r->align) != 0))
+    {
+        return brix_ring_direct_tail_write(r, off, buf, n, st);   /* short tail */
     }
 
     /* Reap a completed write to free a buffer when the window is full. */
@@ -421,6 +538,9 @@ brix_disk_ring_destroy(brix_disk_ring *r)
         if (brix_ring_reap_one(r) < 0) {
             break;
         }
+    }
+    if (r->direct_fd_set) {
+        (void) fcntl(r->fd, F_SETFL, r->orig_flags);   /* leave fd as found */
     }
     io_uring_queue_exit(&r->ring);
     free(r->slab);

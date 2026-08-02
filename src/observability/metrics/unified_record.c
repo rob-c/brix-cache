@@ -32,7 +32,6 @@ brix_metric_op_done(brix_proto_t proto, brix_metric_op_t op,
     size_t bytes, ngx_msec_t latency_usec, brix_err_class_t err)
 {
     ngx_brix_metrics_t *shm;
-    ngx_uint_t            i;
 
     if (proto >= BRIX_PROTO_COUNT || op >= BRIX_METRIC_OP_COUNT
         || err >= BRIX_ERR_COUNT)
@@ -53,14 +52,39 @@ brix_metric_op_done(brix_proto_t proto, brix_metric_op_t op,
         BRIX_ATOMIC_ADD(&shm->unified.io_bytes_written[proto], bytes);
     }
 
-    /*
-     * Non-cumulative histogram: increment ONLY the single bucket this sample
-     * falls into, not every bucket whose bound it satisfies.  This bounds the
-     * hot path to a fixed 3 atomics (one bucket + count + sum) instead of up to
-     * BRIX_IO_LATENCY_BUCKETS atomics per I/O.  The exporter cumulates the
-     * per-bucket counts at scrape time (Prometheus `le` buckets stay cumulative
-     * and +Inf still equals count), so /metrics output is byte-identical.
-     */
+    brix_metric_op_latency(proto, op, latency_usec);
+}
+
+/*
+ * brix_metric_op_latency — histogram-only recording (phase-56 D-2).
+ *
+ * Non-cumulative histogram: increment ONLY the single bucket this sample
+ * falls into, not every bucket whose bound it satisfies.  This bounds the
+ * hot path to a fixed 3 atomics (one bucket + count + sum) instead of up to
+ * BRIX_IO_LATENCY_BUCKETS atomics per I/O.  The exporter cumulates the
+ * per-bucket counts at scrape time (Prometheus `le` buckets stay cumulative
+ * and +Inf still equals count), so /metrics output is byte-identical.
+ *
+ * Split out of brix_metric_op_done so completion paths whose op/byte totals
+ * already reach the exporter via the legacy per-port fold (the root:// AIO
+ * data plane) can file latency without double-counting io_ops_total/io_bytes.
+ */
+void
+brix_metric_op_latency(brix_proto_t proto, brix_metric_op_t op,
+    ngx_msec_t latency_usec)
+{
+    ngx_brix_metrics_t *shm;
+    ngx_uint_t            i;
+
+    if (proto >= BRIX_PROTO_COUNT || op >= BRIX_METRIC_OP_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
     for (i = 0; i < BRIX_IO_LATENCY_BUCKETS - 1; i++) {
         if (latency_usec <= brix_latency_bounds[i]) {
             break;
@@ -185,6 +209,58 @@ brix_metric_cred_result(brix_proto_t proto, brix_cred_outcome_t outcome)
 }
 
 /*
+ * brix_metric_cred_deleg / brix_metric_cred_fail — record a phase-70
+ * delegation-gate terminal (P90-70.6).
+ *
+ * WHAT: cred_deleg bumps cred_deleg_total[proto][mode][outcome]; cred_fail
+ *       bumps cred_deleg_fail_total[proto][reason].
+ *
+ * WHY:  The live-bag terminals (PASSTHROUGH/EXCHANGE/…) were invisible — only
+ *       the SELECT path fed cred_select_*.  Mode + closed failure-reason
+ *       dimensions let operators see WHICH delegation mode is denying and why,
+ *       at fixed cardinality (INVARIANT #8).
+ *
+ * HOW:  Same contract as brix_metric_cred_result: range-check every index,
+ *       resolve the SHM, atomic-increment.  mode arrives as ngx_uint_t (the
+ *       fs-layer enum value); vfs_deleg.c carries the compile-time size check.
+ */
+void
+brix_metric_cred_deleg(brix_proto_t proto, ngx_uint_t mode,
+    brix_cred_outcome_t outcome)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT || mode >= BRIX_CRED_MODE_METRIC_COUNT
+        || outcome >= BRIX_CRED_OUTCOME_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.cred_deleg_total[proto][mode][outcome]);
+}
+
+void
+brix_metric_cred_fail(brix_proto_t proto, brix_cred_fail_t reason)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT || reason >= BRIX_CRED_FAIL_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.cred_deleg_fail_total[proto][reason]);
+}
+
+/*
  * brix_metric_cache_usage_ratio — publish the current cache_root occupancy
  * (ppm, 0-1e6) as a process-wide gauge. Called from the watermark reaper timer
  * each tick. A plain aligned-word store is atomic on the platforms nginx targets;
@@ -304,4 +380,26 @@ brix_metric_tpc(brix_proto_t proto, unsigned int is_push,
     if (err == BRIX_ERR_NONE) {
         BRIX_ATOMIC_ADD(&shm->unified.tpc_bytes[proto][direction], bytes);
     }
+}
+
+/*
+ * brix_metric_tpc_gsi_deleg — record the outbound native-TPC GSI proxy-
+ * delegation credential-selection result (phase-58 §5.8): bump
+ * tpc_gsi_deleg_total[result]. Called on the event loop from the pull launcher.
+ */
+void
+brix_metric_tpc_gsi_deleg(brix_tpc_deleg_result_t result)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (result >= BRIX_TPC_DELEG_RESULT_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.tpc_gsi_deleg_total[result]);
 }

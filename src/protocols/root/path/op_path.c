@@ -23,6 +23,8 @@
 #include "fs/path/beneath.h"
 #include "fs/path/path_internal.h"
 #include "fs/vfs/vfs.h"   /* existence/type pre-gate via the VFS seam */
+#include "protocols/shared/deleg_wire.h"   /* §5.2 aud gate + §5.4 exchange */
+#include "auth/krb5/deleg_capture.h"        /* §5.7 forwarded-TGT origin-SPN bind */
 #include "fs/vfs/vfs_backend_registry.h"  /* POSIX-vs-driver existence-gate routing */
 
 #include <sys/stat.h>
@@ -391,6 +393,65 @@ brix_resolve_op_path(brix_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
+#if (BRIX_HAVE_KRB5)
+/* ---- op_path_backend_host --------------------------------------------------
+ *
+ * WHAT: Extract the bare host from a "root://host:port" storage-backend URL as a
+ *       borrowed view into `url` — handling the "roots://" scheme, bracketed IPv6
+ *       ([::1]:port), and an optional trailing "/path". Empty view when absent.
+ *
+ * WHY:  §5.7 krb5 EXCHANGE. The modern brix_storage_backend grammar parses the
+ *       driver host lazily in the sd_xroot factory, so conf->cache_origin_host is
+ *       empty on a plain root:// export; the delegated-TGT origin SPN derivation
+ *       (brix_krb5_deleg_origin_spn) needs the host, recovered from the URL here.
+ *       The derived SPN is only a fallback — the origin's advertised "&P=krb5,<spn>"
+ *       wins at auth time — but a non-empty host is required for the bind to run.
+ *
+ * HOW:  Strip the scheme prefix, then take the bracketed IPv6 body or the token up
+ *       to the first ':' or '/'. A borrowed view (no allocation); the bytes live on
+ *       the config and outlive the op. */
+static ngx_str_t
+op_path_backend_host(const ngx_str_t *url)
+{
+    ngx_str_t  h = { 0, NULL };
+    u_char    *p, *end, *stop, *rb;
+
+    if (url == NULL || url->len == 0) {
+        return h;
+    }
+    p   = url->data;
+    end = url->data + url->len;
+
+    if ((size_t) (end - p) > sizeof("roots://") - 1
+        && ngx_strncmp(p, "roots://", sizeof("roots://") - 1) == 0)
+    {
+        p += sizeof("roots://") - 1;
+    } else if ((size_t) (end - p) > sizeof("root://") - 1
+        && ngx_strncmp(p, "root://", sizeof("root://") - 1) == 0)
+    {
+        p += sizeof("root://") - 1;
+    }
+
+    if (p < end && *p == '[') {                 /* [IPv6]:port */
+        rb = ngx_strlchr(p, end, ']');
+        if (rb == NULL) {
+            return h;
+        }
+        h.data = p + 1;
+        h.len  = (size_t) (rb - (p + 1));
+        return h;
+    }
+
+    stop = p;                                   /* host ends at ':' or '/' */
+    while (stop < end && *stop != ':' && *stop != '/') {
+        stop++;
+    }
+    h.data = p;
+    h.len  = (size_t) (stop - p);
+    return h;
+}
+#endif
+
 /* ---- brix_root_vfs_bind_deleg ----------------------------------------------
  *
  * WHAT: Bind the session's captured raw bearer JWT onto a cred-bound VFS ctx for
@@ -413,9 +474,9 @@ brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
                            ngx_stream_brix_srv_conf_t *conf,
                            brix_vfs_ctx_t *vctx)
 {
-    ngx_str_t  bearer;
-    ngx_str_t *bearer_arg = NULL;
-    ngx_str_t *proxy_arg = NULL;
+    ngx_str_t         bearer;
+    const ngx_str_t  *bearer_arg = NULL;
+    const ngx_str_t  *proxy_arg = NULL;
 
     if (ctx == NULL || conf == NULL || vctx == NULL
         || conf->common.backend_delegation == BRIX_CRED_SELECT)
@@ -426,7 +487,11 @@ brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
     bearer.data = (u_char *) ctx->bearer_token;
     bearer.len  = ngx_strlen(ctx->bearer_token);
     if (bearer.len > 0) {
-        bearer_arg = &bearer;
+        /* Backend audience gate (phase-70 §5.2 / P90-70.9): a bearer forwarded
+         * verbatim must name the backend in its aud — on refusal nothing is
+         * bound and the service-cred policy applies. */
+        bearer_arg = brix_proto_deleg_gate_bearer(&bearer, &conf->common,
+                                                  vctx->log);
     }
 
     /* A full proxy is a PASSTHROUGH-only credential: it is presented to the
@@ -439,6 +504,42 @@ brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
         proxy_arg = &ctx->deleg_proxy_pem;
     }
 
+    /* Phase 70 §5.7: an inbound-captured forwarded TGT (ctx->krb5.ccache) binds
+     * as a krb5 EXCHANGE credential so the origin leg re-authenticates AS the
+     * user over GSSAPI. The origin service principal is derived from the
+     * configured origin host + the gateway realm; independent of the bearer/proxy
+     * binding, and it allocates its own live-cred bag (like the STS/SSS stamps),
+     * so it must run before the no-bearer/no-proxy early return. */
+#if (BRIX_HAVE_KRB5)
+    {
+        ngx_str_t  cc;
+        ngx_str_t  spn;
+        ngx_str_t  origin_host = conf->cache_origin_host;
+
+        /* The modern "brix_storage_backend root://host:port" grammar parses the
+         * origin host lazily in the driver factory (sd_xroot), so on a plain
+         * root:// export conf->cache_origin_host is empty here — only the legacy
+         * tier grammar fills it. Recover the host from the backend URL so the
+         * delegated-TGT origin SPN can still be derived; without it the krb5
+         * EXCHANGE bind would silently no-op and the origin leg would fall back
+         * to the (absent) service credential. */
+        if (origin_host.len == 0) {
+            origin_host = op_path_backend_host(&conf->common.storage_backend);
+        }
+
+        cc.data = (u_char *) ctx->krb5.ccache;
+        cc.len  = ngx_strlen(ctx->krb5.ccache);
+
+        if (brix_krb5_deleg_origin_spn(&cc, conf->common.backend_krb5_forwardable,
+                &origin_host, &conf->krb5.principal,
+                vctx->pool, &spn) == NGX_OK)
+        {
+            brix_vfs_deleg_set_krb5(vctx,
+                (enum brix_cred_mode) conf->common.backend_delegation, &cc, &spn);
+        }
+    }
+#endif
+
     if (bearer_arg == NULL && proxy_arg == NULL) {
         return;
     }
@@ -446,4 +547,12 @@ brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
     (void) brix_vfs_deleg_bind(vctx->pool, vctx,
         (enum brix_cred_mode) conf->common.backend_delegation,
         bearer_arg, proxy_arg);
+
+    brix_proto_deleg_stamp_conf(vctx, &conf->common);
+
+    /* P90-70.4: stamp the server's GSI trust store so the VFS deleg gate
+     * re-runs the RFC-3820 chain-trust check on the pushed proxy before
+     * materialising it (gsi_promote_fullproxy only DN-matches the push).
+     * Depth 0 = OpenSSL default, matching the root:// login verify. */
+    brix_vfs_deleg_set_ca_store(vctx, conf->gsi_store, 0);
 }

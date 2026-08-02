@@ -247,7 +247,7 @@ s3_get_cache_fill(ngx_http_request_t *r, const char *fs_path,
 
     fr = brix_http_cache_fill_if_needed(r, vctx->sd,
         brix_vfs_export_relative(vctx, fs_path), &cf->common,
-        s3_get_reenter, rd);
+        s3_get_reenter, rd, NULL);
     if (fr == NGX_DONE) {
         return NGX_DONE;
     }
@@ -294,6 +294,10 @@ s3_get_resolve(ngx_http_request_t *r, brix_vfs_ctx_t *vctx,
         BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+
+    /* GetObject streams the object front-to-back, so grow the whole-fd
+     * read-ahead window (phase-56 B-2); best-effort — ignore failure. */
+    (void) brix_vfs_file_read_advise(fh, 0, 0, BRIX_SD_ADV_SEQUENTIAL);
 
     if (out_vst->is_directory) {
         brix_vfs_close(fh, r->connection->log);

@@ -4,15 +4,22 @@
  * s3:// delegates entirely to the shared S3 driver (sd_s3): the SD object wraps
  * an sd_s3_file*; pread/preadv are signed Range GETs; stat/fstat report the HEAD
  * size. Writes are staged whole-object uploads (.staged_* → single PUT or MPU)
- * plus .unlink (DELETE) — there is deliberately no .pwrite, so the caps stay
- * CAP_RANGE_READ|CAP_MEMFILE and random in-place writes are rejected at the cap
- * layer. Namespace ops (dirlist/mkdir/rename) remain unimplemented.
+ * plus .unlink (DELETE) — there is deliberately no .pwrite, so CAP_RANDOM_WRITE
+ * is NOT advertised and random in-place writes are rejected at the cap layer.
+ * .server_copy is a native S3 CopyObject (in-store, x-amz-copy-source).
+ *
+ * The namespace is a mutable object catalog (CAP_DIRS|CAP_DIRS_WRITE): a folder
+ * is a zero-byte "path/" marker object, so .mkdir PUTs one, .rename copies+deletes
+ * (files, and empty-directory markers), .stat recognises a marker as a directory,
+ * and .opendir pages ListObjectsV2. There is no atomic prefix move: renaming a
+ * NON-empty directory reports ENOTSUP rather than a partial in-store shuffle.
  */
 
 #include "sd_remote.h"
 #include "sd_remote_internal.h"
 #include "fs/backend/s3/sd_s3.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +37,25 @@ sd_remote_s3_key(const brix_sd_remote_cfg_t *cfg, const char *key,
     char *dst, size_t dstcap)
 {
     snprintf(dst, dstcap, "/%s%s", cfg->bucket, (key != NULL) ? key : "/");
+}
+
+/* Compose the "/bucket/key/" DIRECTORY-MARKER object path: the same key as
+ * sd_remote_s3_key but with exactly one trailing '/'. S3 has no directories, so
+ * a folder is represented by a zero-byte object whose key ends in '/' (mkdir
+ * writes it, stat/opendir recognise it, rmdir deletes it). Shared with the meta
+ * sibling via sd_remote_internal.h. */
+void
+sd_remote_s3_dirkey(const brix_sd_remote_cfg_t *cfg, const char *key,
+    char *dst, size_t dstcap)
+{
+    size_t n;
+
+    sd_remote_s3_key(cfg, key, dst, dstcap);
+    n = strlen(dst);
+    if (n > 0 && dst[n - 1] != '/' && n + 1 < dstcap) {
+        dst[n]     = '/';
+        dst[n + 1] = '\0';
+    }
 }
 
 /* Fill sd_s3_open_params from the instance config + a composed object path.
@@ -103,7 +129,8 @@ sd_remote_cred_gate(const brix_sd_cred_t *cred)
  *       none), and proceeds identically to the prior sd_remote_open body. */
 static brix_sd_obj_t *
 sd_remote_open_impl(brix_sd_instance_t *inst, const char *path, int sd_flags,
-    const char *ak, const char *sk, const char *region, int *err_out)
+    const char *ak, const char *sk, const char *region, const char *session,
+    int *err_out)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
@@ -123,9 +150,10 @@ sd_remote_open_impl(brix_sd_instance_t *inst, const char *path, int sd_flags,
 
     sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
-    if (ak != NULL)     { p.ak     = ak; }
-    if (sk != NULL)     { p.sk     = sk; }
-    if (region != NULL) { p.region = region; }
+    if (ak != NULL)      { p.ak            = ak; }
+    if (sk != NULL)      { p.sk            = sk; }
+    if (region != NULL)  { p.region        = region; }
+    if (session != NULL) { p.session_token = session; }
 
     s3 = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
@@ -168,7 +196,7 @@ sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
     (void) mode;
-    return sd_remote_open_impl(inst, path, sd_flags, NULL, NULL, NULL,
+    return sd_remote_open_impl(inst, path, sd_flags, NULL, NULL, NULL, NULL,
                                err_out);
 }
 
@@ -197,14 +225,15 @@ sd_remote_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
 
     if (gate > 0) {
         return sd_remote_open_impl(inst, path, sd_flags,
-            cred->s3_ak, cred->s3_sk, cred->s3_region, err_out);
+            cred->s3_ak, cred->s3_sk, cred->s3_region, cred->s3_session,
+            err_out);
     }
     if (gate < 0) {
         if (err_out) { *err_out = EACCES; }
         errno = EACCES;
         return NULL;
     }
-    return sd_remote_open_impl(inst, path, sd_flags, NULL, NULL, NULL,
+    return sd_remote_open_impl(inst, path, sd_flags, NULL, NULL, NULL, NULL,
                                err_out);
 }
 
@@ -332,24 +361,201 @@ sd_remote_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* ---- directory listing (S3 ListObjectsV2, delimited + paged) --------------
+ *
+ * WHAT: opendir/readdir/closedir over the object catalog as a POSIX-shaped
+ *       single directory level — <Contents> under the prefix are files,
+ *       <CommonPrefixes> are sub-directories (finding #4).
+ * WHY:  S3 has no readdir; a WebDAV PROPFIND / xrdfs ls / recursive walk over an
+ *       s3:// export previously hit the NULL opendir slot and reported ENOTSUP.
+ * HOW:  opendir derives the S3 key prefix from the export-relative path (no I/O)
+ *       and readdir pages ListObjectsV2 lazily via the shared sd_s3_list_page,
+ *       buffering one page of decoded basenames at a time; closedir frees the
+ *       malloc-owned handle (this driver runs off the event loop with no pool).
+ *       Object stores expose no per-object owner/mode, so d_type is DT_DIR for a
+ *       CommonPrefixes entry and DT_REG otherwise — the VFS stats on anything it
+ *       cannot classify, so a coarse d_type is a cheap hint, never authority. */
+typedef struct {
+    char           name[256];
+    unsigned char  d_type;
+} sd_remote_dirent;
+
+typedef struct {
+    brix_sd_instance_t *inst;
+    char                prefix[768];   /* S3 key prefix, "" or "dir/" */
+    char                cont[2048];    /* NextContinuationToken for the next page */
+    int                 started;       /* fetched at least one page */
+    int                 truncated;     /* more pages remain */
+    sd_remote_dirent   *ents;          /* current page, grown on demand */
+    size_t              n;
+    size_t              cap;
+    size_t              cursor;
+} sd_remote_dir_state;
+
+/* sd_s3_list_page callback: append one decoded entry to the page buffer. A
+ * realloc failure stops the page (returns 1) and surfaces as a short page. */
+static int
+sd_remote_dir_add(void *ud, const char *name, int is_dir)
+{
+    sd_remote_dir_state *ds = ud;
+
+    if (ds->n == ds->cap) {
+        size_t nc = (ds->cap != 0) ? ds->cap * 2 : 64;
+        void  *nb = realloc(ds->ents, nc * sizeof(*ds->ents));
+
+        if (nb == NULL) {
+            return 1;
+        }
+        ds->ents = nb;
+        ds->cap  = nc;
+    }
+    snprintf(ds->ents[ds->n].name, sizeof(ds->ents[ds->n].name), "%s", name);
+    ds->ents[ds->n].d_type = (unsigned char) (is_dir ? DT_DIR : DT_REG);
+    ds->n++;
+    return 0;
+}
+
+/* Fetch the next ListObjectsV2 page into the (reset) buffer. 0 / -1 (errno). */
+static int
+sd_remote_dir_fetch(sd_remote_dir_state *ds)
+{
+    const brix_sd_remote_cfg_t *cfg = ds->inst->state;
+    sd_s3_open_params           p;
+    char                        root[300];
+    char                        cont_out[2048];
+    char                        errbuf[256];
+    int                         truncated = 0;
+
+    snprintf(root, sizeof(root), "/%s/", cfg->bucket);  /* bucket-root canon URI */
+    sd_remote_s3_params(cfg, root, &p);
+
+    ds->n      = 0;
+    ds->cursor = 0;
+    errno      = 0;
+    if (sd_s3_list_page(&p, ds->prefix, ds->started ? ds->cont : "",
+            sd_remote_dir_add, ds, &truncated, cont_out, sizeof(cont_out),
+            errbuf, sizeof(errbuf)) != 0)
+    {
+        if (errno == 0) { errno = EIO; }
+        return -1;
+    }
+    ds->truncated = truncated;
+    snprintf(ds->cont, sizeof(ds->cont), "%s", cont_out);
+    ds->started = 1;
+    return 0;
+}
+
+static brix_sd_dir_t *
+sd_remote_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
+{
+    sd_remote_dir_state *ds;
+    brix_sd_dir_t       *dir;
+    const char          *rel = (path != NULL) ? path : "/";
+    size_t               n;
+
+    ds  = calloc(1, sizeof(*ds));
+    dir = calloc(1, sizeof(*dir));
+    if (ds == NULL || dir == NULL) {
+        free(ds);
+        free(dir);
+        if (err_out != NULL) { *err_out = ENOMEM; }
+        return NULL;
+    }
+    ds->inst = inst;
+
+    /* export-relative path -> S3 key prefix: drop the leading '/', ensure a
+     * trailing '/' so LIST returns children of THIS level (root -> ""). */
+    while (*rel == '/') { rel++; }
+    n = strlen(rel);
+    if (n + 1 >= sizeof(ds->prefix)) {
+        free(ds);
+        free(dir);
+        if (err_out != NULL) { *err_out = ENAMETOOLONG; }
+        return NULL;
+    }
+    memcpy(ds->prefix, rel, n);
+    if (n > 0 && ds->prefix[n - 1] != '/') { ds->prefix[n++] = '/'; }
+    ds->prefix[n] = '\0';
+
+    dir->inst  = inst;
+    dir->state = ds;
+    return dir;
+}
+
+static ngx_int_t
+sd_remote_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
+{
+    sd_remote_dir_state *ds = d->state;
+
+    for ( ;; ) {
+        if (ds->cursor < ds->n) {
+            snprintf(out->name, sizeof(out->name), "%s",
+                     ds->ents[ds->cursor].name);
+            out->d_type = ds->ents[ds->cursor].d_type;
+            ds->cursor++;
+            return NGX_OK;
+        }
+        if (ds->started && !ds->truncated) {
+            return NGX_DONE;
+        }
+        if (sd_remote_dir_fetch(ds) != 0) {
+            return NGX_ERROR;
+        }
+    }
+}
+
+static ngx_int_t
+sd_remote_closedir(brix_sd_dir_t *d)
+{
+    sd_remote_dir_state *ds;
+
+    if (d == NULL || d->state == NULL) {
+        return NGX_OK;
+    }
+    ds = d->state;
+    free(ds->ents);
+    free(ds);
+    d->state = NULL;
+    free(d);           /* malloc-owned shell (no pool off the event loop) */
+    return NGX_OK;
+}
+
 /* Read + write: the S3 store serves as a read origin (Range GET) and a writable
  * cache_store / stage_store / backend (staged single-PUT / multipart upload, plus
  * DELETE for eviction and post-flush stage cleanup). */
 static const brix_sd_driver_t brix_sd_remote_driver = {
     .name  = "remote",
     /* phase-71: no .pwrite slot — writes are staged whole-object uploads via
-     * .staged_*, so CAP_RANDOM_WRITE is deliberately NOT advertised. */
-    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE,
-    .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM,
+     * .staged_*, so CAP_RANDOM_WRITE is deliberately NOT advertised.
+     * #4: CAP_DIRS advertises the ListObjectsV2 catalog; CAP_DIRS_WRITE gates the
+     * marker-based mkdir/rmdir/rename below (and gates S3-PUT parent-prefix
+     * creation in put_inner.c — the marker mkdir keeps that self-consistent). */
+    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE
+             | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE
+             /* #4: metadata mutation — setxattr/removexattr rewrite the
+              * x-amz-meta-* user-xattr surface, setattr patches the advisory
+              * unix-attr blob (both read-merge-write, sd_remote_xattr.c). */
+             | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_XATTR_WRITE,
+    .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM
+                   | BRIX_SD_CRED_S3,   /* phase-70 §5.5 STS EXCHANGE keypair */
     .open  = sd_remote_open,
     .close = sd_remote_close,
     .pread = sd_remote_pread,
     .preadv = sd_remote_preadv,   /* coalesced ranged GETs (P80.1 read path) */
     .fstat = sd_remote_fstat,
     .stat  = sd_remote_stat,
+    .opendir       = sd_remote_opendir,    /* #4: ListObjectsV2 (delimited) */
+    .readdir       = sd_remote_readdir,
+    .closedir      = sd_remote_closedir,
+    .server_copy   = sd_remote_server_copy,   /* #4: S3 CopyObject (in-store) */
+    .mkdir         = sd_remote_mkdir,      /* #4: zero-byte "path/" folder marker */
+    .rename        = sd_remote_rename,     /* #4: copy+delete (file / empty dir) */
     .unlink        = sd_remote_unlink,
     .getxattr      = sd_remote_getxattr,   /* x-amz-meta-* as user.* xattrs */
     .listxattr     = sd_remote_listxattr,
+    .setxattr      = sd_remote_setxattr,       /* #4: read-merge-write REPLACE */
+    .removexattr   = sd_remote_removexattr,
+    .setattr       = sd_remote_setattr,        /* #4: advisory unix-attr blob */
     .staged_open   = sd_remote_staged_open,
     .staged_write  = sd_remote_staged_write,
     .staged_commit = sd_remote_staged_commit,
@@ -361,6 +567,11 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .staged_open_cred = sd_remote_staged_open_cred,
     .stat_cred        = sd_remote_stat_cred,
     .unlink_cred      = sd_remote_unlink_cred,
+    .mkdir_cred       = sd_remote_mkdir_cred,
+    .rename_cred      = sd_remote_rename_cred,
+    .setxattr_cred    = sd_remote_setxattr_cred,
+    .removexattr_cred = sd_remote_removexattr_cred,
+    .setattr_cred     = sd_remote_setattr_cred,
 };
 
 brix_sd_instance_t *

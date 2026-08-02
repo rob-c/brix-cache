@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * gsi_pem_export_one / gsi_pem_export_chain - serialise a single X509 or a
@@ -390,10 +391,10 @@ webdav_delegation_put_handle(ngx_http_request_t *r)
     if (delegation_put_assemble(r, id, reqkey, body, body_len, &out_pem,
                                 &out_len) != NGX_OK)
     {
-        EVP_PKEY_free(reqkey);
+        brix_evp_pkey_free(reqkey);
         return;
     }
-    EVP_PKEY_free(reqkey);
+    brix_evp_pkey_free(reqkey);
 
     /* Same validation strictness as T8's uploaded-chain path: every cert
      * unexpired, end-entity DN matches the authenticated client. */

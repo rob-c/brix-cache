@@ -4,7 +4,9 @@
 # need ./tests + ./utils, and the server module build needs ./config + ./src.
 # The RPM builder Dockerfiles need ./packaging (spec file), ./client (tools),
 # ./contrib + ./docs (%doc payload), and the top-level LICENSE/README/pytest
-# files the spec installs.
+# files the spec installs — plus the whole ./deploy/cvmfs tree, since the spec's
+# %install runs `make -C client install-automount`, which pulls mount.cvmfs,
+# auto.cvmfs and etc/cvmfs/** from there (not just the demo docker/ subdir).
 # Everything else (.git, .rpmbuild, node_modules, scratch) stays out.
 *
 !config
@@ -19,7 +21,7 @@
 !conftest.py
 !pytest.ini
 !requirements.txt
-!deploy/cvmfs/docker
+!deploy/cvmfs
 !deploy/fail2ban
 !tests
 !utils

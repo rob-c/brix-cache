@@ -3,12 +3,14 @@
  *
  * The fill and serve calls are thin forwards onto the cache-store driver's
  * staged-write / open / pread slots; evict/scan/freespace walk the store's
- * namespace; cinfo_load/store keep the per-object record. SP1 implements LOCAL
- * mode (a posix cache store with
- * byte-identical ".cinfo" sidecars and a per-worker write-through L1); XATTR and
- * SIDECAR modes land in SP2 and return ENOSYS here until then.
+ * namespace; cinfo_load/store keep the per-object record. LOCAL mode (a posix
+ * cache store with byte-identical ".cinfo" sidecars and a per-worker
+ * write-through L1) reads the record directly; XATTR and SIDECAR modes carry it
+ * through the unified xmeta record (fs/meta/xmeta_carrier.h) on the store
+ * driver — the mode is picked per store in brix_cstore_init (section 6.3).
  */
 #include "cstore.h"
+#include "gcas.h"                    /* phase-87 G13: canonical-name evict GC */
 #include "fs/meta/xmeta_carrier.h"   /* the unified record: xattr/sidecar carrier */
 
 #include <errno.h>
@@ -85,6 +87,14 @@ brix_cstore_init(brix_cstore_t *cs, brix_sd_instance_t *store,
             "to persist hit state; this store has none");
     }
     return NGX_OK;
+}
+
+void
+brix_cstore_enable_gcas(brix_cstore_t *cs)
+{
+    if (cs != NULL && cs->local_root[0] != '\0') {
+        cs->gcas = 1;
+    }
 }
 
 void
@@ -289,6 +299,10 @@ brix_cstore_evict(brix_cstore_t *cs, const char *key)
 
     if (cs->store->driver->unlink != NULL) {
         (void) cs->store->driver->unlink(cs->store, key, 0);  /* idempotent */
+    }
+    if (cs->gcas) {
+        brix_gcas_evict_gc(cs, key);   /* phase-87 G13: reap the canonical name
+                                        * once this was its last data link */
     }
     return NGX_OK;
 }

@@ -13,6 +13,8 @@
 #include "fs/vfs/vfs.h"   /* chmod/rm/rmdir via the VFS seam */
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
 #include "backend_async_root.h"           /* brix_backend_async park/resume     */
+#include "net/cms/cns.h"                   /* BRIX_CNS_DEL / BRIX_CNS_RMDIR      */
+#include "net/cms/cns_emit.h"             /* brix_cns_emit (§6 wire wrappers)   */
 
 /* Build a stream VFS ctx for a simple namespace op on e->resolved.
  *
@@ -169,6 +171,17 @@ brix_dispatch_op(brix_ctx_t *ctx, ngx_connection_t *c,
         BRIX_RETURN_ERR(ctx, c, d->op_id, d->name, resolved, "-",
                           brix_kxr_from_errno(err),
                           brix_kxr_err_string(err));
+    }
+
+    /* §6 CNS: report the namespace removal to the manager (best-effort no-op
+     * unless `brix_cns emit` + a live manager link). CHMOD is not a namespace
+     * mutation CNS tracks. The async-backend queue path returns above and emits
+     * its own late CNS event from the queue waker (baq_root_done) once the
+     * durable removal actually runs — see backend_async_root.c. */
+    if (d->opcode == kXR_rm) {
+        brix_cns_emit(conf, BRIX_CNS_DEL, resolved, 0, 0);
+    } else if (d->opcode == kXR_rmdir) {
+        brix_cns_emit(conf, BRIX_CNS_RMDIR, resolved, 0, 0);
     }
 
     BRIX_RETURN_OK(ctx, c, d->op_id, d->name, resolved, "-", 0);

@@ -97,6 +97,8 @@ brix_sd_cache_demote(brix_sd_instance_t *inst, const char *key)
             free(buf);
             brix_sd_obj_release(so);
             if (sg->inst->driver->staged_commit(sg, 0) != NGX_OK) {
+                /* Failed commit keeps the handle valid — abort to release it. */
+                sg->inst->driver->staged_abort(sg);
                 return NGX_ERROR;
             }
             return NGX_OK;

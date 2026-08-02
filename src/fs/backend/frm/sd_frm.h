@@ -42,8 +42,9 @@
 
 /*
  * The pluggable MSS adapter - how the frm driver talks to the tape system. One
- * vtable; the tape:// store-URL selects it (exec | hpss | cta | stub). All calls
- * are blocking and run on the cache-fill / scheduler path (off the event loop).
+ * vtable; the tape:// store-URL selects it (stub | exec/hpss/cta stagecmd |
+ * lib/libhpss/libcta dlopen). All calls are blocking and run on the cache-fill /
+ * scheduler path (off the event loop).
  */
 typedef struct {
     const char *name;                                   /* "stub" | "exec" | ... */

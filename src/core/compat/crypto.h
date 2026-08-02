@@ -37,4 +37,18 @@ int   brix_sha256_stream_update(void *s, const uint8_t *data, size_t len);
 int   brix_sha256_stream_final(void *s, uint8_t out[32]); /* re-inits on ok  */
 void  brix_sha256_stream_free(void *s);
 
+/* Phase-28 F3 / P90-28.1: keep a LONG-LIVED secret buffer (parsed keytab key
+ * array, admin bearer secret, macaroon root-secret hex) out of core dumps and
+ * off swap.  Page-aligns the range, then best-effort madvise(MADV_DONTDUMP)
+ * + mlock().  Returns 0 when both succeeded (or len==0), -1 when either
+ * failed — callers log a warning and continue; the guard is defence-in-depth,
+ * never load-bearing.  Caveats (accepted, see phase-90 register P90-28.1):
+ * page granularity over-covers neighbouring allocations (harmless — only
+ * excludes MORE bytes from dumps); conf-pool pages recycled across a reload
+ * stay guarded (marginal RSS pin, no correctness effect); and while the
+ * MADV_DONTDUMP VMA flag SURVIVES fork — so conf-time guards protect every
+ * worker's core dumps, the primary threat — mlock does NOT cross fork, so the
+ * swap pin covers only the calling process's mapping. */
+int brix_secret_page_guard(const void *p, size_t len);
+
 #endif /* BRIX_COMPAT_CRYPTO_H */

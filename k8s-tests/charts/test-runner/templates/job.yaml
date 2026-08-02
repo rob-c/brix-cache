@@ -45,6 +45,9 @@ spec:
             {{- if .Values.clientPki.enabled }}
             - { name: auth-pki,  mountPath: /auth/pki,  readOnly: true }
             - { name: auth-jwks, mountPath: /auth/jwks, readOnly: true }
+            {{- if .Values.clientPki.caBundleConfigMap }}
+            - { name: auth-cabundle, mountPath: /auth/cabundle, readOnly: true }
+            {{- end }}
             {{- end }}
           {{- end }}
       {{- if or .Values.results.pvc .Values.clientPki.enabled }}
@@ -58,8 +61,17 @@ spec:
         - name: auth-pki
           secret:
             secretName: {{ .Values.clientPki.pkiSecret }}
+            # GSI clients (globus-url-copy/gfal) refuse a proxy/key that is group-
+            # or world-readable ("permissions too permissive; max 600"); the
+            # default secret mount is 0644, so pin the projected files to 0600.
+            defaultMode: 0600
         - name: auth-jwks
           configMap:
             name: {{ .Values.clientPki.jwksConfigMap }}
+        {{- if .Values.clientPki.caBundleConfigMap }}
+        - name: auth-cabundle
+          configMap:
+            name: {{ .Values.clientPki.caBundleConfigMap }}
+        {{- end }}
         {{- end }}
       {{- end }}

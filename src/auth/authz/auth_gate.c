@@ -12,6 +12,7 @@
 #include "auth_gate_l1.h"
 #include "core/compat/crypto.h"
 #include "auth/authz/acc/acc.h"
+#include "auth/impersonate/impersonate.h"          /* P80.21: brix_idmap_gate_* */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): auth-gate L1 counters */
 
 /*
@@ -65,20 +66,57 @@ brix_acc_gate_select_op(brix_acc_op_t op_in, int auth_level)
 }
 
 /*
+ * brix_acc_gate_map_name — P80.21: present a grid-mapped local username to the
+ * XrdAcc engine instead of the raw DN, so `g <unixgroup>` rules (which resolve
+ * the OS gidlist via getpwnam+getgrouplist) and `u <name>` rules fire for a GSI
+ * principal without the privileged impersonation broker.
+ *
+ * WHAT: returns the local username when a grid-mapfile maps `dn`, else `dn`.
+ * WHY: the engine keys the unix-group resolver on the entity name; a raw DN
+ * never resolves an account, so unix-group authz was dead for GSI (gap 6.1.1).
+ * HOW: gridmap ONLY — no default_user squash, no literal getpwnam fallback, so
+ * an UNMAPPED DN flows unchanged and DN-keyed `u` rules + default-deny keep
+ * their exact prior verdicts.  The result is cached on the identity for the
+ * connection.  Restricted to the structured-identity path: without a place to
+ * cache (identity==NULL) the login.dn fallback runs unmapped, as before.
+ */
+static const char *
+brix_acc_gate_map_name(brix_identity_t *id, const char *dn)
+{
+    if (id == NULL || dn == NULL || dn[0] == '\0'
+        || !brix_idmap_gate_enabled())
+    {
+        return (dn != NULL) ? dn : "";
+    }
+    if (!id->mapped_resolved) {
+        id->mapped_resolved = 1;
+        if (!brix_idmap_gate_username(dn, id->mapped_user,
+                                      sizeof(id->mapped_user)))
+        {
+            id->mapped_user[0] = '\0';        /* unmapped: keep the DN */
+        }
+    }
+    return (id->mapped_user[0] != '\0') ? id->mapped_user : dn;
+}
+
+/*
  * brix_acc_gate_identity — resolve the XrdAcc entity's name and VO views.
  *
  * WHAT: fills *name / *vorg / *role / *grp from the structured identity when
  * present, else from the best-effort login fields (DN + raw VO list).
  * WHY: extracts the identity-vs-login fallback out of the engine body; the
  * *role / *grp defaults ("") set by the caller survive the no-identity path.
- * HOW: reads ctx only; writes through the four out-params.
+ * HOW: reads ctx only; writes through the four out-params.  When a grid-mapfile
+ * is configured the structured-identity name is mapped DN->local-username
+ * (P80.21) before it reaches the engine.
  */
 static void
 brix_acc_gate_identity(brix_ctx_t *ctx, const char **name,
     const char **vorg, const char **role, const char **grp)
 {
     if (ctx->identity != NULL) {
-        *name = brix_identity_dn_cstr(ctx->identity);
+        *name = brix_acc_gate_map_name(ctx->identity,
+                                       brix_identity_dn_cstr(ctx->identity));
         *vorg = brix_identity_acc_vorg_cstr(ctx->identity);
         *role = brix_identity_acc_role_cstr(ctx->identity);
         *grp  = brix_identity_acc_group_cstr(ctx->identity);

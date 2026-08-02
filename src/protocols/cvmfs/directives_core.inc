@@ -26,6 +26,38 @@
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_token_issuers),
       NULL },
 
+    { ngx_string("brix_scvmfs_x509_dn"),   /* EEC-DN allow-glob (x509 mode);
+                                            * multi-occurrence, first match wins;
+                                            * omit = accept any verified client */
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_array_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_x509_dn),
+      NULL },
+
+    { ngx_string("brix_scvmfs_vomsdir"),   /* per-VO LSC dir (voms mode)      */
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_vomsdir),
+      NULL },
+
+    { ngx_string("brix_scvmfs_voms_cert_dir"), /* VOMS signing-CA trust dir   */
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_voms_cert_dir),
+      NULL },
+
+    { ngx_string("brix_scvmfs_voms"),      /* VO-name allow-glob (voms mode);
+                                            * multi-occurrence, any match wins;
+                                            * omit = accept any carried VO      */
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_array_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_voms),
+      NULL },
+
     /* ---- token-gated repos (phase-85 F3) ---- */
 
     { ngx_string("brix_cvmfs_repo_authz"),
@@ -33,6 +65,24 @@
       cvmfs_conf_repo_authz,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, repo_authz),
+      NULL },
+
+    /* ---- virtual / composed repos (phase-87 G16) ---- */
+
+    { ngx_string("brix_cvmfs_virtual_repo"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_2MORE,
+      cvmfs_conf_virtual_repo,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, virtual_repos),
+      NULL },
+
+    /* ---- runtime provenance attestation (phase-87 G15) ---- */
+
+    { ngx_string("brix_cvmfs_attest"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      cvmfs_conf_attest,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, attest_pkey),
       NULL },
 
     /* ---- per-VO/per-job QoS fill throttling (phase-85 F9) ---- */

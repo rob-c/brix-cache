@@ -7,6 +7,7 @@
 /* HOW: Two distinct verification paths. RS256 path (brix_token_verify_rs256): EVP_MD_CTX_new() → EVP_DigestVerifyInit(mdctx, NULL, EVP_sha256(), NULL, pkey) with SHA-256 digest and RSA public key → EVP_DigestVerifyUpdate(mdctx, signed_data, signed_len) with JWT payload (header+body concatenated without separator) → EVP_DigestVerifyFinal(mdctx, sig, sig_len) with base64url-decoded signature bytes. Returns 0 on any step failure or ctx allocation failure. ES256 path (brix_token_verify_es256): validate sig_len==64 (P1363 format requires exactly 32+32 bytes) → BN_bin2bn() converts r and s components to BIGNUM objects → ECDSA_SIG_new() + ECDSA_SIG_set0() transfers ownership of r/s to signature struct → i2d_ECDSA_SIG() produces DER-encoded ASN.1 output → same three-step EVP verification chain as RS256 → OPENSSL_free(der) cleanup. Multiple allocation failure paths return 0 with appropriate BN/ECDSA_SIG cleanup. */
 
 #include "token_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 int
 brix_token_verify_rs256(const u_char *signed_data, size_t signed_len,
@@ -28,7 +29,7 @@ brix_token_verify_rs256(const u_char *signed_data, size_t signed_len,
         ok = 1;
     }
 
-    EVP_MD_CTX_free(mdctx);
+    brix_evp_md_ctx_free(mdctx);
     return ok;
 }
 
@@ -93,7 +94,7 @@ brix_token_verify_es256(const u_char *signed_data, size_t signed_len,
         ok = 1;
     }
 
-    EVP_MD_CTX_free(mdctx);
+    brix_evp_md_ctx_free(mdctx);
     OPENSSL_free(der);
     return ok;
 }

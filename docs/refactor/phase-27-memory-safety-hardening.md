@@ -2,7 +2,15 @@
 
 **Date:** 2026-06-12
 **Author:** security / memory-safety audit
-**Status:** PLAN — not yet begun
+**Status:** SUPERSEDED — substantially LANDED (see the note below)
+
+> SUPERSEDED (2026-07-25): substantially LANDED, largely via the hyper-hardening
+> sweep (`docs/07-security/hyper-hardening-plan.md` §11). F1/F2/F4/F5/F9 and
+> W1/W2/W5/W8 are DONE in-tree. New-files table corrections: the lint landed as
+> `tests/cmdscripts/lint_alloc.py` (not `tests/lint_alloc.sh`); additionally
+> shipped: `src/core/safe_size.h`, `src/core/scoped.h`, and the fuzz corpus under
+> `tests/fuzz/`. Residual (scoped.h adoption breadth, per-source quota) + the
+> infra-blocked ASan/CI set: `phase-90-plan-phase-remainder-register.md` §3.
 **Scope:** the module under `src/` only — no nginx-core edits (per build governance)
 
 ---

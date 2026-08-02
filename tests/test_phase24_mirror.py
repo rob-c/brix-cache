@@ -656,3 +656,298 @@ def test_writes_off_not_mirrored(lifecycle, tmp_path):
     time.sleep(1.0)
     assert ("PUT", "/off.bin") not in _shadow.methods, \
         "PUT mirrored despite brix_mirror_writes off"
+
+
+# --------------------------------------------------------------------------- #
+# Phase 24 W3 — XRootD stream DATA-write mirroring (open->write->close replay)  #
+#                                                                              #
+# The audit's one open item for phase-24 was that the data-write mirror        #
+# (src/net/mirror/stream_wmirror*.c) had unit/marker coverage but no live      #
+# runtime validation of the actual detached shadow replay.  These three drive  #
+# a real root:// open->write->close on the primary and assert against a live,  #
+# writable embedded shadow origin: the file is replayed byte-exact (success),  #
+# a non-sequential write aborts the mirror before any replay launches (error), #
+# and the whole thing stays inert unless brix_mirror_writes is opted in        #
+# (security-neg — replayed writes must never escape to the shadow namespace by  #
+# default).                                                                    #
+# --------------------------------------------------------------------------- #
+
+_kXR_open, _kXR_write, _kXR_close = 3010, 3019, 3003
+# open for create+truncate+write:  kXR_new | kXR_delete | kXR_open_updt
+_OPEN_CREATE_WR = 0x0008 | 0x0002 | 0x0020
+
+
+def _recv_exact(s, n):
+    b = b""
+    while len(b) < n:
+        c = s.recv(n - len(b))
+        if not c:
+            raise EOFError("shadow/primary closed mid-frame")
+        b += c
+    return b
+
+
+def _xrd_resp(s):
+    hdr = _recv_exact(s, 8)
+    status = struct.unpack(">H", hdr[2:4])[0]
+    dlen = struct.unpack(">I", hdr[4:8])[0]
+    return status, (_recv_exact(s, dlen) if dlen else b"")
+
+
+def _xrd_open_wr(s, path):
+    p = path.encode() + b"\x00"
+    s.sendall(struct.pack(">2sHHH12sI", b"\x00\x05", _kXR_open, 0o644,
+                          _OPEN_CREATE_WR, b"\x00" * 12, len(p)) + p)
+    st, body = _xrd_resp(s)
+    return st, body[:4]
+
+
+def _xrd_write(s, fh, off, data):
+    s.sendall(struct.pack(">2sH4sqB3sI", b"\x00\x06", _kXR_write, fh, off,
+                          0, b"\x00\x00\x00", len(data)) + data)
+    return _xrd_resp(s)[0]
+
+
+def _xrd_close_fh(s, fh):
+    s.sendall(struct.pack(">2sH4s12sI", b"\x00\x07", _kXR_close, fh,
+                          b"\x00" * 12, 0))
+    return _xrd_resp(s)[0]
+
+
+def _xrd_write_seq(host, port, path, data, chunk=4096):
+    """open(create)->sequential writes->close; returns first non-ok status (0=ok)."""
+    s = _xrd_login(host, port)
+    try:
+        st, fh = _xrd_open_wr(s, path)
+        if st != 0:
+            return st
+        off = 0
+        while off < len(data):
+            wst = _xrd_write(s, fh, off, data[off:off + chunk])
+            if wst != 0:
+                return wst
+            off += chunk
+        return _xrd_close_fh(s, fh)
+    finally:
+        s.close()
+
+
+def _xrd_write_gapped(host, port, path):
+    """open->write@0->write@(gap)->close: the primary sparse-writes fine, but the
+    non-contiguous offset aborts the mirror accumulator (no replay launches)."""
+    s = _xrd_login(host, port)
+    try:
+        st, fh = _xrd_open_wr(s, path)
+        if st != 0:
+            return st
+        if _xrd_write(s, fh, 0, b"A" * 64) != 0:
+            return 1
+        if _xrd_write(s, fh, 64 + 4096, b"B" * 64) != 0:   # gap -> non-sequential
+            return 1
+        return _xrd_close_fh(s, fh)
+    finally:
+        s.close()
+
+
+def _start_wmirror_pair(lifecycle, tmp_path, name, writes):
+    pdata = tmp_path / "pdata"; pdata.mkdir(exist_ok=True)
+    sdata = tmp_path / "sdata"; sdata.mkdir(exist_ok=True)
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name=name,
+        template="nginx_mirror_stream_wpair.conf",
+        data_root=str(pdata),
+        template_values={"BIND_HOST": BIND_HOST, "HOST": HOST,
+                         "SHADOW_DATA": str(sdata), "MIRROR_WRITES": writes},
+        reason="stream data-write mirror e2e replay coverage",
+    ))
+    return endpoint.port, endpoint.extra_ports["METRICS_PORT"], sdata
+
+
+def _wait_file(path, min_size, timeout=8):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if path.exists() and path.stat().st_size >= min_size:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def test_stream_data_write_mirrored_byte_exact(lifecycle, tmp_path):
+    """A sequential open->write->close is replayed to the shadow byte-exact."""
+    primary, metrics, sdata = _start_wmirror_pair(
+        lifecycle, tmp_path, "lc-mir-stream-wr", "on")
+    body = bytes((i * 37 + 11) & 0xFF for i in range(9000))   # spans >1 chunk
+    assert _xrd_write_seq(HOST, primary, "/wmir-ok.bin", body) == 0, \
+        "primary write sequence failed"
+    got = _wait_metric(metrics, "brix_mirror_requests_total", "stream", 1)
+    assert got is not None and got >= 1, \
+        f"data-write replay not counted (got {got})"
+    shadow_file = sdata / "wmir-ok.bin"
+    assert _wait_file(shadow_file, len(body)), \
+        "shadow never received the replayed data-write file"
+    assert shadow_file.read_bytes() == body, "shadow file not byte-exact"
+
+
+def test_stream_data_write_abort_not_replayed(lifecycle, tmp_path):
+    """A non-sequential write aborts the mirror in the accumulator: the primary's
+    own (sparse) write still succeeds, but no shadow replay is ever launched."""
+    primary, metrics, sdata = _start_wmirror_pair(
+        lifecycle, tmp_path, "lc-mir-stream-wrabort", "on")
+    base_ok = _scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0
+    base_err = _scrape_metric(metrics, "brix_mirror_errors_total", "stream") or 0
+    assert _xrd_write_gapped(HOST, primary, "/wmir-abort.bin") == 0, \
+        "primary sparse write should still succeed"
+    time.sleep(1.5)   # a (wrongly) launched replay would have fired by now
+    assert not (sdata / "wmir-abort.bin").exists(), \
+        "aborted (non-sequential) write must not reach the shadow"
+    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) \
+        == base_ok, "aborted write must not count a mirror success"
+    assert (_scrape_metric(metrics, "brix_mirror_errors_total", "stream") or 0) \
+        == base_err, "an aborted write launches no replay (no error either)"
+
+
+def test_stream_data_write_over_cap_not_replayed(lifecycle, tmp_path):
+    """A write stream exceeding the per-file cap (BRIX_WMIRROR_FILE_CAP, 4 MiB)
+    aborts the accumulator: the primary stores the whole file fine, but the
+    over-cap file is dropped (counted) and never replayed to the shadow."""
+    primary, metrics, sdata = _start_wmirror_pair(
+        lifecycle, tmp_path, "lc-mir-stream-wrcap", "on")
+    base_drop = _scrape_metric(metrics, "brix_mirror_dropped_total", "stream") or 0
+    body = b"\x5a" * (5 * 1024 * 1024)   # 5 MiB > 4 MiB per-file cap
+    assert _xrd_write_seq(HOST, primary, "/wmir-big.bin", body,
+                          chunk=512 * 1024) == 0, "primary large write failed"
+    drop = _wait_metric(metrics, "brix_mirror_dropped_total", "stream",
+                        base_drop + 1)
+    assert drop is not None and drop >= base_drop + 1, \
+        "over-cap data-write should count a dropped mirror"
+    time.sleep(1.0)
+    assert not (sdata / "wmir-big.bin").exists(), \
+        "over-cap write must not reach the shadow"
+    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) == 0, \
+        "an over-cap (aborted) write launches no replay"
+
+
+def test_stream_data_write_off_not_mirrored(lifecycle, tmp_path):
+    """Security-neg: with brix_mirror_writes off, a clean sequential write is NOT
+    replayed — data writes never escape to the shadow namespace unless opted in."""
+    primary, metrics, sdata = _start_wmirror_pair(
+        lifecycle, tmp_path, "lc-mir-stream-wroff", "off")
+    body = b"stays-local-only\n" * 64
+    assert _xrd_write_seq(HOST, primary, "/wmir-off.bin", body) == 0
+    time.sleep(1.5)
+    assert not (sdata / "wmir-off.bin").exists(), \
+        "data write replayed despite brix_mirror_writes off"
+    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) == 0, \
+        "no stream data-write mirror may fire with writes off"
+
+
+# --------------------------------------------------------------------------- #
+# 5. Disconnect-mid-write — UAF / heap-ownership drivers                       #
+#                                                                              #
+# These exercise the two lifetime hazards the phase-88 audit § 4 flagged as    #
+# machine-checkable only under the B-2 ASan+UBSan lane:                        #
+#   (a) a client that vanishes mid-upload (no kXR_close) — the accumulator's   #
+#       malloc'd per-file buffers are live and must be freed exactly once by   #
+#       brix_stream_wmirror_cleanup on connection teardown (LSan: leak;        #
+#       ASan: use-after-free if teardown races a launch);                      #
+#   (b) a client that closes (launching the DETACHED replay, which STEALS      #
+#       f->data) then immediately drops the socket — the replay must own and   #
+#       free the transferred heap buffer on its own cycle-pool lifetime, with  #
+#       the client connection already gone (ASan: UAF on the stolen buffer).   #
+# They assert observable behaviour on every run (worker survives; replay fires #
+# or doesn't as expected); under the ASan lane the sanitizer is the extra gate #
+# that no report is emitted. See tools/ci/asan.py (ASAN_TEST_CMD2).            #
+# --------------------------------------------------------------------------- #
+
+def _xrd_open_write_drop(host, port, path, data, rst, do_close):
+    """open(create) -> one write -> [optional kXR_close] -> drop the socket.
+
+    rst=True forces a TCP RST (SO_LINGER 0) so the server sees an abrupt reset
+    rather than a graceful FIN; do_close=False never sends kXR_close (the client
+    vanishes mid-upload). Returns the open status (0=ok) so the caller can assert
+    the primary leg itself was healthy before the drop.
+    """
+    s = _xrd_login(host, port)
+    try:
+        st, fh = _xrd_open_wr(s, path)
+        if st != 0:
+            return st
+        if _xrd_write(s, fh, 0, data) != 0:
+            return 1
+        if do_close:
+            _xrd_close_fh(s, fh)          # launches the detached replay
+        if rst:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                         struct.pack("ii", 1, 0))   # close() -> RST, no FIN
+        return 0
+    finally:
+        s.close()
+
+
+def _primary_still_serves(host, port, sdata, tag):
+    """A clean sequential write must still round-trip to the shadow after the
+    disconnect churn — proves the worker survived (no crash/UAF took it down)."""
+    body = b"post-disconnect-liveness\n" * 32
+    assert _xrd_write_seq(host, port, f"/{tag}.bin", body) == 0, \
+        "primary worker stopped serving after a mid-write disconnect"
+    assert _wait_file(sdata / f"{tag}.bin", len(body)), \
+        "shadow never received the liveness write — worker or replay wedged"
+    assert (sdata / f"{tag}.bin").read_bytes() == body
+
+
+def test_stream_data_write_disconnect_midwrite_no_replay(lifecycle, tmp_path):
+    """A client that writes then RST-drops WITHOUT kXR_close: the accumulator's
+    live heap buffers are freed by the teardown cleanup path (never leaked), and
+    because no close was ever observed no replay is launched — the shadow stays
+    empty. The worker keeps serving afterwards."""
+    primary, metrics, sdata = _start_wmirror_pair(
+        lifecycle, tmp_path, "lc-mir-stream-wrdrop", "on")
+    assert _xrd_open_write_drop(
+        HOST, primary, "/wmir-drop.bin", b"Q" * 4096, rst=True,
+        do_close=False) == 0, "primary open/write failed before the drop"
+    time.sleep(1.5)   # a (wrongly) launched replay would have fired by now
+    assert not (sdata / "wmir-drop.bin").exists(), \
+        "a write with no close must never reach the shadow"
+    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) == 0, \
+        "an unclosed (abandoned) write launches no replay"
+    _primary_still_serves(HOST, primary, sdata, "wmir-drop-live")
+
+
+def test_stream_data_write_close_then_immediate_disconnect_replays(lifecycle, tmp_path):
+    """A client that sends kXR_close (launching the detached replay, which STEALS
+    the accumulator buffer) then immediately RST-drops: the replay owns the stolen
+    heap buffer on its own lifetime and completes to the shadow byte-exact even
+    though the client connection is already gone — the classic UAF path."""
+    primary, metrics, sdata = _start_wmirror_pair(
+        lifecycle, tmp_path, "lc-mir-stream-wrcdrop", "on")
+    body = bytes((i * 53 + 7) & 0xFF for i in range(6000))
+    assert _xrd_open_write_drop(
+        HOST, primary, "/wmir-cdrop.bin", body, rst=True,
+        do_close=True) == 0, "primary open/write/close failed"
+    got = _wait_metric(metrics, "brix_mirror_requests_total", "stream", 1)
+    assert got is not None and got >= 1, \
+        "detached replay did not fire after the client vanished"
+    shadow_file = sdata / "wmir-cdrop.bin"
+    assert _wait_file(shadow_file, len(body)), \
+        "replay never landed on the shadow after an immediate client disconnect"
+    assert shadow_file.read_bytes() == body, "replayed file not byte-exact"
+    _primary_still_serves(HOST, primary, sdata, "wmir-cdrop-live")
+
+
+def test_stream_data_write_disconnect_churn_survives(lifecycle, tmp_path):
+    """Stress the alloc/free/cleanup churn: many open->write->RST-drop cycles in
+    a row with no close. Every cycle allocates then frees a per-file accumulator
+    on the teardown path; the sanitizer catches any double-free / UAF / leak in
+    the churn, and the final liveness write proves the worker never fell over."""
+    primary, metrics, sdata = _start_wmirror_pair(
+        lifecycle, tmp_path, "lc-mir-stream-wrchurn", "on")
+    for i in range(12):
+        # Vary size (some cross the internal grow boundary) and alternate RST/FIN
+        # so both abrupt-reset and graceful-close teardown are exercised.
+        _xrd_open_write_drop(HOST, primary, f"/wmir-churn-{i}.bin",
+                             b"Z" * (1024 * (i + 1)), rst=(i % 2 == 0),
+                             do_close=False)
+    time.sleep(1.0)
+    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) == 0, \
+        "no churn cycle sent a close, so none may launch a replay"
+    _primary_still_serves(HOST, primary, sdata, "wmir-churn-live")

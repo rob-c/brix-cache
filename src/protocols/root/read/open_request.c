@@ -252,8 +252,43 @@ brix_open_try_cache_offload(brix_ctx_t *ctx, ngx_connection_t *c,
 	    brix_vfs_export_relative_root(full_path, conf->common.root_canon);
 
 	if (gsd != NULL && brix_sd_cache_fill_needs_offload(gsd, gkey)) {
-		ngx_int_t grc = brix_cache_open_fill_offload(ctx, c, conf,
-		                    clean_path, full_path, gsd, options, mode_bits);
+		/* Resolve the session's forwarded backend credential on the MAIN
+		 * thread (the async fill worker cannot touch the request ctx) and
+		 * carry it onto the fill task, so the origin leg of a cache MISS
+		 * authenticates AS the inbound user — the delegated bearer / x509
+		 * proxy / krb5-forwarded TGT — exactly as the inline data-plane open
+		 * does (open_resolved_file.c). Without this the miss-fill would open
+		 * the origin anonymously and a krb5/bearer-gated origin refuses it. */
+		brix_vfs_ctx_t   cvctx;
+		brix_sd_ucred_t  ustore;
+		brix_sd_cred_t   ucred;
+		int              use_cred = 0;
+		int              cerr = 0;
+		ngx_int_t        grc;
+
+		ngx_memzero(&ucred, sizeof(ucred));
+		brix_vfs_ctx_init(&cvctx, c->pool, c->log, BRIX_PROTO_ROOT,
+		    conf->common.root_canon, NULL, conf->common.allow_write,
+		    0 /* is_tls */, ctx != NULL ? ctx->identity : NULL, full_path);
+		brix_vfs_ctx_bind_backend_cred(&cvctx,
+		    &conf->common.storage_credential_dir,
+		    conf->common.storage_credential_fallback);
+		if (ctx != NULL) {
+			brix_root_vfs_bind_deleg(ctx, conf, &cvctx);
+		}
+		if (brix_vfs_backend_cred(&cvctx, &ustore, &ucred, &use_cred, &cerr)
+		    != NGX_OK)
+		{
+			/* Deny-mode gate refused this principal: fail closed rather than
+			 * fall back to a service-credential fill. */
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
+			    "cache", kXR_NotAuthorized,
+			    "backend credential resolution denied");
+		}
+		grc = brix_cache_open_fill_offload(ctx, c, conf,
+		          clean_path, full_path, gsd, options, mode_bits,
+		          use_cred ? &ucred : NULL);
+		brix_sd_ucred_wipe(&ustore);   /* secret consumed; erase (A-4/T4) */
 		if (grc != NGX_DECLINED) {
 			return grc;   /* parked (async) or a queued-error rc */
 		}

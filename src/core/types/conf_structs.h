@@ -51,6 +51,12 @@ typedef struct {
                                Empty = Kerberos default keytab. */
     ngx_flag_t   ip_check;  /* [brix_krb5_ip_check on|off]
                                Default off, matching upstream XrdSeckrb5. */
+    ngx_flag_t   delegate;  /* [brix_krb5_delegate on|off]
+                               When on, a verified krb5 login is answered with a
+                               kXR_authmore "fwdtgt" continuation that requests the
+                               client forward its TGT (phase-70 §5.7 inbound
+                               two-round capture).  Default off — delegation is
+                               opt-in and demands a forwardable-TGT-capable client. */
 #if (BRIX_HAVE_KRB5)
     krb5_context   context;
     krb5_keytab    keytab_obj;
@@ -75,6 +81,15 @@ typedef struct {
     ngx_array_t             *allow_prefixes; /* same, always included in WT regardless of size */
     brix_wt_decision_cfg_t   decision;       /* decision callback + config block (postconfig) */
 } brix_wt_conf_t;
+
+/* Explicit CMS cluster role for the upward (node->manager) leg, Phase-61 W7:
+ * Pander-parity login Mode bits + the inbound valid-ops table for frames from
+ * the parent.  AUTO keeps the legacy derivation (server, or server|manager
+ * when manager_mode) with the permissive dispatch table. */
+#define BRIX_CMS_ROLE_AUTO        0
+#define BRIX_CMS_ROLE_SERVER      1   /* kYR_server (0x8) */
+#define BRIX_CMS_ROLE_MANAGER     2   /* kYR_manager (0x2), manVOps inbound */
+#define BRIX_CMS_ROLE_SUPERVISOR  3   /* kYR_manager|kYR_server (0xA), supVOps */
 
 /* CMS manager heartbeat + client-side network-fault resilience.  Grouped as one
  * sub-struct so the per-server config block stays navigable; every field is
@@ -122,6 +137,16 @@ typedef struct {
     ngx_msec_t          fanout_window;    /* [brix_cms_fanout_window] W8 reply
                                              window: no kYR_error from any node
                                              within it => kXR_ok; unset => 500ms */
+    ngx_uint_t          role;             /* [brix_cms_role auto|server|manager|
+                                             supervisor] Phase-61 W7: BRIX_CMS_ROLE_*
+                                             — explicit Pander login Mode + inbound
+                                             valid-ops parity; auto = legacy */
+    ngx_flag_t          state_relay;      /* [brix_cms_state_relay on] Phase-61 W7:
+                                             on a registry miss, relay a parent
+                                             manager's kYR_state down to this
+                                             tier's own nodes and echo the first
+                                             kYR_have up (multi-tier recursion);
+                                             off = registry-only legacy */
 } brix_cms_conf_t;
 
 /* Active upstream health-check settings (Phase 22, off by default).  Grouped as
@@ -209,6 +234,11 @@ typedef struct {
     void       *zone;            /* brix_rl_zone_t* resolved at postconfig */
     ngx_uint_t  max_open_files;  /* [brix_throttle_max_open_files] */
     ngx_uint_t  max_active_conn; /* [brix_throttle_max_active_connections] */
+    /* phase-92: XrdBwm-style bandwidth reservation (default off). A read open
+     * reserves its file size against the named per-worker byte budget; over-budget
+     * opens are refused with kXR_Overloaded. Engine: net/ratelimit/reservation.c. */
+    ngx_str_t   bwm_zone_name;   /* [brix_throttle_bandwidth_zone <name>] "" = off */
+    size_t      bwm_budget;      /* [brix_throttle_bandwidth_budget <size>] 0 = off */
 } brix_throttle_conf_t;
 
 /* CSI block-checksum integrity on the xmeta record (ON by default).  Grouped as
@@ -219,6 +249,8 @@ typedef struct {
     size_t      block;     /* [brix_csi_block 1m] granule for NEW records */
     ngx_flag_t  require;   /* [brix_csi_require on|off] no record = err */
     ngx_flag_t  trust_fs;  /* [brix_csi_trust_fs on|off] fs self-checksums: skip read-verify */
+    time_t      scrub_interval; /* [brix_csi_scrub_interval] secs between at-rest
+                                 * sweeps of the export root; 0 = off (default) */
 } brix_csi_conf_t;
 
 /* XrdAcc authorization engine (selected by `brix_authdb_format xrdacc`).  Grouped
@@ -298,6 +330,7 @@ static ngx_inline void
 brix_krb5_conf_init(brix_krb5_conf_t *c)
 {
     c->ip_check = NGX_CONF_UNSET;
+    c->delegate = NGX_CONF_UNSET;
 }
 
 static ngx_inline void
@@ -324,6 +357,8 @@ brix_cms_conf_init(brix_cms_conf_t *c)
     c->locate_multi     = NGX_CONF_UNSET;
     c->fanout           = NGX_CONF_UNSET;
     c->fanout_window    = NGX_CONF_UNSET_MSEC;
+    c->role             = NGX_CONF_UNSET_UINT;
+    c->state_relay      = NGX_CONF_UNSET;
 }
 
 static ngx_inline void
@@ -375,6 +410,7 @@ brix_csi_conf_init(brix_csi_conf_t *c)
     c->block    = NGX_CONF_UNSET_SIZE;
     c->require  = NGX_CONF_UNSET;
     c->trust_fs = NGX_CONF_UNSET;
+    c->scrub_interval = NGX_CONF_UNSET;
 }
 
 static ngx_inline void
@@ -433,6 +469,7 @@ brix_csi_conf_merge(brix_csi_conf_t *c, brix_csi_conf_t *p)
     ngx_conf_merge_size_value(c->block, p->block, 1024 * 1024); /* 1MiB cinfo default */
     ngx_conf_merge_value(c->require,  p->require,  0);
     ngx_conf_merge_value(c->trust_fs, p->trust_fs, 0);
+    ngx_conf_merge_value(c->scrub_interval, p->scrub_interval, 0); /* 0 = off */
 }
 
 #endif /* BRIX_TYPES_CONF_STRUCTS_H */

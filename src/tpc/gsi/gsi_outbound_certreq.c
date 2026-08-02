@@ -13,7 +13,7 @@
  * enforces status == kXR_authmore with a ≥16-byte body. On success the orchestrator drives
  * round 2 (tpc_outbound_gsi_exchange, which consumes `body`). Every exit returns through
  * tpc_outbound_gsi_finish(rc, res): BIO_free(cbio/kbio), sk_X509_free(chain),
- * EVP_PKEY_free(pkey), free(certreq/body) — every handle is zero-init and each guard is
+ * brix_evp_pkey_free(pkey), free(certreq/body) — every handle is zero-init and each guard is
  * NULL-safe, so it frees exactly what had been built. Returns NGX_OK on success or an error
  * code. Caller: tpc/bootstrap.c (tpc_pull_start).
  * */
@@ -22,6 +22,7 @@
 #include "auth/gsi/gsi_core.h"          /* build_certreq / parse_parms / rand */
 #include "protocols/root/session/session.h"       /* BRIX_SESSION_ID_LEN */
 #include "core/compat/cstr.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Helper functions declared in gsi_outbound_common.c — extern to link them.
  * tpc_put_u32 writes a big-endian uint32 (wire byte order); tpc_send_kxr_auth
@@ -68,7 +69,7 @@ tpc_outbound_gsi_finish(int rc, tpc_certreq_res_t *res)
     if (res->cbio) BIO_free(res->cbio);
     if (res->kbio) BIO_free(res->kbio);
     if (res->chain) sk_X509_free(res->chain);
-    if (res->pkey) EVP_PKEY_free(res->pkey);
+    if (res->pkey) brix_evp_pkey_free(res->pkey);
     if (res->certreq) free(res->certreq);
     if (res->body) free(res->body);
     return rc;

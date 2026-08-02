@@ -25,7 +25,6 @@ src/fs/backend/pblock/sd_pblock_ident.c::pblock_ident_resolve	18
 src/fs/backend/pblock/sd_pblock_io.c::sd_pblock_ftruncate	16
 src/fs/backend/pblock/sd_pblock_io.c::sd_pblock_pwrite	16
 src/fs/backend/pblock/sd_pblock_namespace.c::sd_pblock_rename	20
-src/fs/backend/pblock/sd_pblock_namespace.c::sd_pblock_unlink	24
 src/fs/backend/pblock/sd_pblock_open.c::pblock_open_existing	22
 src/fs/backend/pblock/sd_pblock_open.c::sd_pblock_close	21
 src/fs/backend/pblock/sd_pblock_staged.c::sd_pblock_staged_commit	20
@@ -43,7 +42,6 @@ src/net/ratelimit/ratelimit_keys.c::brix_rl_key_stream	16
 src/net/ratelimit/ratelimit_keys.c::rl_key_http_derive	16
 src/protocols/cvmfs/gate.c::brix_cvmfs_gate	17
 src/protocols/gridftp/ev/ftp_ev_data.c::ev_do_pasv	18
-src/protocols/gridftp/ev/ftp_ev_data.c::ev_do_port	23
 src/protocols/gridftp/ev/ftp_ev_io.c::brix_ftp_ev_process	17
 src/protocols/gridftp/ev/ftp_ev_mode_e_recv.c::brix_ftp_ev_eb_accept	17
 src/protocols/gridftp/ftp_module_gsi.c::brix_ftp_build_gsi	17

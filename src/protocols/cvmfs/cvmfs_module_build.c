@@ -42,6 +42,9 @@
 
 #include <stdlib.h>                        /* strtod (coord parsing) */
 
+static char *cvmfs_merge_services(ngx_conf_t *cf,
+    ngx_http_brix_cvmfs_loc_conf_t *conf);
+
 /*
  * brix_cvmfs_reject_unsupported() — EMERG at config load for storage grammar
  * that cvmfs cannot honour.
@@ -200,6 +203,46 @@ cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
         brix_cvmfs_rtt_register(conf->common.root_canon,
                                   conf->cvmfs.rtt_interval,
                                   &conf->common.thread_pool_name);
+    }
+
+    return cvmfs_merge_services(cf, conf);
+}
+
+/* The phase-87 background-service registrations (scrub / learn / swarm):
+ * each rides the RTT-probe lifecycle — registered here at config time, the
+ * worker-0 timer / per-worker state arms at init_process. */
+static char *
+cvmfs_merge_services(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    /* Phase-87 G17: register the background CAS scrub for this export; the
+     * worker-0 timer arms at init_process (scrub.c, RTT-probe lifecycle). */
+    if (conf->cvmfs.scrub) {
+        brix_cvmfs_scrub_register(conf->common.root_canon,
+                                    conf->cvmfs.scrub_interval,
+                                    conf->cvmfs.scrub_rate,
+                                    &conf->common.thread_pool_name);
+    }
+
+    /* Phase-87 G11: register the predictive-prewarm learner for this export;
+     * the per-worker model + fill task build at init_process (learn.c). */
+    if (conf->cvmfs.learn) {
+        brix_cvmfs_learn_register(conf->common.root_canon,
+                                    &conf->common.thread_pool_name);
+    }
+
+    /* Phase-87 G12: the swarm extends the F8 static mesh — it needs the
+     * brix_cache_peers seed ring to know who this node IS. Fail loudly at
+     * config time instead of gossiping into the void. */
+    if (conf->cvmfs.swarm) {
+        if (conf->common.cache_peers == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cvmfs_swarm requires brix_cache_peers (the seed "
+                "ring naming this node's own \"self=\" slot)");
+            return NGX_CONF_ERROR;
+        }
+        brix_cvmfs_swarm_register(conf->common.root_canon,
+                                    conf->cvmfs.swarm_interval,
+                                    &conf->common.thread_pool_name);
     }
 
     /* WARN (not NOTICE — config-parse NOTICE is dropped at cf->log ERR

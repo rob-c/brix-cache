@@ -25,10 +25,16 @@
 #if (BRIX_HAVE_LIBURING)
 #include <liburing.h>
 #endif
-#define AIO_MAXEV      64        
-#define AIO_URING_SLOTS 128      
-#define AIO_READ_CHUNK 65536u    
-#define AIO_TICK_MS    1000      
+#define AIO_MAXEV      64
+#define AIO_URING_SLOTS 128
+#define AIO_READ_CHUNK 65536u
+#define AIO_TICK_MS    1000
+
+/* Phase-44 ii-b (P44-C): cleartext RECV/SEND multishot tier. */
+#define AIO_URING_BGID_RX   1        /* provided-buffer group id (receive)     */
+#define AIO_URING_RXBUFS    32u      /* provided buffers (power of two)        */
+#define AIO_URING_RXBUF_SZ  32768u   /* bytes per provided buffer              */
+#define AIO_URING_STAGE_SZ  65536u   /* per-conn send staging slice            */
 typedef struct {
     uint8_t *buf;
     size_t   cap;
@@ -148,6 +154,15 @@ struct brix_poll_slot {
     brix_aconn *ac;
     uint32_t    gen;
     int         in_use;
+
+    /* Phase-44 ii-b (P44-C): engine-owned cleartext RECV/SEND state.  Lives in
+     * the slot (not the aconn) so brix_aconn keeps fd_gen as its single
+     * phase-44 addition (§13.6). */
+    int         rxtx;          /* 1 = this conn runs multishot RECV/SEND     */
+    int         recv_armed;    /* multishot RECV outstanding for current gen */
+    int         send_inflight; /* one-shot SEND outstanding                  */
+    uint8_t    *stage;         /* lazily-malloc'd send staging slice         */
+    uint32_t    stage_len;     /* bytes handed to the in-flight SEND         */
 };
 
 struct brix_loop {
@@ -164,16 +179,31 @@ struct brix_loop {
     int             stop;
 
     int             use_uring; /* phase-44: loop engine is io_uring (default 0) */
+    int             use_rxtx;  /* phase-44 ii-b: cleartext RECV/SEND multishot  */
 #if (BRIX_HAVE_LIBURING)
     struct io_uring uring;
     int             uring_ok;  /* ring initialized (teardown guard)             */
     struct brix_poll_slot uslots[AIO_URING_SLOTS];
+    struct io_uring_buf_ring *brx;      /* provided-buffer ring (BGID_RX)       */
+    uint8_t                  *brx_pool; /* its backing memory (RXBUFS * SZ)     */
 #endif
 };
 
 #if (BRIX_HAVE_LIBURING)
 #define AIO_URING_EVFD_UD    0xffffffffffffffffULL  /* evfd readiness poll       */
 #define AIO_URING_IGNORE_UD  0xfffffffffffffffeULL  /* cancel-ack CQE (drop)     */
+
+/* Slot-CQE user_data packing: (gen << 32) | (kind << 30) | slot.  Slots are
+ * < AIO_URING_SLOTS (128) so bits 30-31 are free for the op kind; the legacy
+ * poll encoding is unchanged (kind 0).  P44-C adds RECV/SEND kinds. */
+#define AIO_UD_POLL  0u
+#define AIO_UD_RECV  1u
+#define AIO_UD_SEND  2u
+#define AIO_URING_UD(kind, gen, slot) \
+    (((uint64_t) (gen) << 32) | ((uint64_t) (kind) << 30) | (uint64_t) (slot))
+#define AIO_UD_SLOT(ud)  ((uint32_t) ((ud) & 0x3fffffffULL))
+#define AIO_UD_KIND(ud)  ((uint32_t) (((ud) >> 30) & 3u))
+#define AIO_UD_GEN(ud)   ((uint32_t) ((ud) >> 32))
 #endif /* BRIX_HAVE_LIBURING */
 typedef struct {
     pthread_mutex_t mx;
@@ -215,6 +245,24 @@ unsigned uring_pollmask(int want);
 int uring_slot_alloc(brix_loop *l, brix_aconn *ac);
 int uring_poll_submit(brix_loop *l, brix_aconn *ac, int want);
 void uring_poll_cancel(brix_loop *l, brix_aconn *ac, int freeing);
+int uring_rxtx_send_submit(brix_loop *l, brix_aconn *ac);
+/* submit-side helpers shared with the Phase-38 CQE split sibling
+ * (aio_engine_cqe.c): re-arm recv + recycle an exhausted rxtx recv buffer. */
+int uring_recv_submit(brix_loop *l, brix_aconn *ac);
+void uring_rxtx_recycle(brix_loop *l, struct io_uring_cqe *cqe);
+/* aconn_is_rxtx — true when this conn's bytes move via the cleartext
+ * RECV/SEND multishot tier (P44-C): loop engine is io_uring with the rxtx
+ * tier enabled and the conn is not TLS. */
+static inline int
+aconn_is_rxtx(const brix_aconn *ac)
+{
+    return ac->loop != NULL && ac->loop->use_uring && ac->loop->use_rxtx
+           && ac->ssl == NULL;
+}
+#else
+static inline int aconn_is_rxtx(const brix_aconn *ac) { (void) ac; return 0; }
+static inline int uring_rxtx_send_submit(brix_loop *l, brix_aconn *ac)
+{ (void) l; (void) ac; return -1; }
 #endif /* BRIX_HAVE_LIBURING */
 int io_engine_setup(brix_loop *l, brix_status *st);
 void io_engine_teardown(brix_loop *l);
@@ -250,6 +298,7 @@ int loop_process_timeouts(brix_loop *l);
 void * loop_thread(void *arg);
 brix_loop * brix_loop_create_fail(brix_loop *l);
 int brix_loop_want_uring(void);
+int brix_loop_want_rxtx(void);
 void call_cb(void *ctx, int rc, uint16_t kxr, uint8_t *body, uint32_t blen, const brix_status *st);
 
 #endif /* BRIX_AIO_INTERNAL_H */

@@ -369,6 +369,33 @@ metrics_emit_path_depth(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 }
 
 /*
+ * metrics_emit_csi_scrub() — phase-59 W2b at-rest CSI scrub family.
+ *
+ * WHAT: Corrupt blocks the paced background scrub (brix_csi_scrub_interval)
+ *       found by re-verifying recorded per-block CRC32c against disk.
+ * WHY:  Surfaces cold-data rot the hot read path never sees (it only verifies
+ *       blocks a read fully spans). A rising counter is a storage-integrity
+ *       alert, not a client-facing error.
+ * HOW:  Single-entry descriptor through the shared slot-scan emitter; stays 0
+ *       unless a scrub timer is armed and hit real rot.
+ */
+void
+metrics_emit_csi_scrub(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_csi_scrub_mismatch_total",
+                "At-rest data blocks whose on-disk bytes failed CRC32c "
+                "re-verification during the background CSI scrub "
+                "(brix_csi_scrub_interval). A rising value is silent storage "
+                "rot; 0 unless a scrub is armed."),
+            "brix_csi_scrub_mismatch_total", csi_scrub_mismatch_total),
+    };
+
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
+
+/*
  * metrics_emit_ssi() — §7 XrdSsi service families.
  *
  * WHAT: XrdSsi request/error totals plus out-of-band alert push accounting.

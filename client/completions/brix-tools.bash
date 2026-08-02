@@ -14,7 +14,7 @@ _xrdcp() {
     --max-stall --auto-refresh --oidc-account --jobs --sync --sync-check
     --delete --dry-run --exclude --include --remove-source --journal --resume
     --progress --verify --tls --notlsok --noverifyhost --auth --proxy --pgrw
-    --io-uring --cksum --compress --zip --zip-append --streams --tpc
+    --io-uring --io-uring-direct --cksum --compress --zip --zip-append --streams --tpc
     --tpc-token-mode --token --s3-access --s3-secret --s3-region
     --wire-trace --timing"
   _brix_opts_filter "$opts" && return

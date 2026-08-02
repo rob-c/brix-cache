@@ -154,11 +154,16 @@ def _restart_nginx(run: LiveRun, config: Path, port: int, cache: Path) -> None:
 # ---------------------------------------------------------------------------
 
 BRIX_CORE_SOURCES = [
-    "shared/cvmfs/client/client.c", "shared/cvmfs/fetch/fetch.c", "shared/cvmfs/object/object.c",
+    "shared/cvmfs/client/client.c", "shared/cvmfs/client/client_negfilter.c",
+    "shared/cvmfs/client/client_pathidx.c", "shared/cvmfs/index/pathidx.c",
+    "shared/cvmfs/filter/xorf.c", "shared/cvmfs/fetch/fetch.c", "shared/cvmfs/object/object.c",
+    "shared/cvmfs/fetch/fetch_bundle.c", "shared/cvmfs/bundle/bundle.c",
+    "shared/cvmfs/dict/dict.c",
     "shared/cvmfs/failover/failover.c", "shared/cvmfs/catalog/catalog.c", "shared/cvmfs/grammar/hash.c",
     "shared/cvmfs/grammar/classify.c", "shared/cvmfs/signature/manifest.c", "shared/cvmfs/signature/whitelist.c",
     "shared/cvmfs/signature/verify.c", "shared/cvmfs/config/repo.c", "shared/cvmfs/config/cvmfs_conf.c",
-    "shared/cvmfs/walk/walk.c", "shared/cache/cas_store.c", "shared/net/proxy_env.c",
+    "shared/cvmfs/walk/walk.c", "shared/cache/cas_store.c", "shared/cache/cas_pack.c",
+    "shared/cvmfs/platform/platform.c", "shared/net/proxy_env.c",
     "client/lib/net/cpool.c", "client/lib/core/types/status.c",
     "src/core/compat/kxr_names.c", "src/core/compat/error_mapping.c",
 ]
@@ -177,8 +182,16 @@ def _ensure_brixcvmfs(run: LiveRun) -> Path:
     built = run.call(
         ["gcc", "-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "client/lib",
          "-I", "src", "-DXRDPROTO_NO_NGX", *flags.stdout.split(),
-         "-o", binary, "client/apps/fs/brixcvmfs.c", *BRIX_CORE_SOURCES,
-         *libs.stdout.split(), "-lcurl", "-lsqlite3", "-lcrypto", "-lz"],
+         "-o", binary,
+         # phase-38: brixcvmfs is split by concern (front-end + transport/
+         # prefetch/ops/mount siblings) — none are archived, list all five.
+         "client/apps/fs/brixcvmfs.c",
+         "client/apps/fs/brixcvmfs_transport.c",
+         "client/apps/fs/brixcvmfs_prefetch.c",
+         "client/apps/fs/brixcvmfs_ops.c",
+         "client/apps/fs/brixcvmfs_mount.c",
+         *BRIX_CORE_SOURCES,
+         *libs.stdout.split(), "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd"],
         cwd=REPO_ROOT, check=False,
     )
     if built.returncode != 0:

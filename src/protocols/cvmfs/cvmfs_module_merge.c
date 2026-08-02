@@ -215,6 +215,18 @@ cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
     ngx_conf_merge_value(conf->cvmfs.shared_cache, prev->cvmfs.shared_cache, 0);
     ngx_conf_merge_value(conf->cvmfs.unified_origin, prev->cvmfs.unified_origin,
                          0);
+    ngx_conf_merge_value(conf->cvmfs.bundle, prev->cvmfs.bundle, 0);
+    ngx_conf_merge_value(conf->cvmfs.dict, prev->cvmfs.dict, 0);
+    ngx_conf_merge_value(conf->cvmfs.scrub, prev->cvmfs.scrub, 0);
+    ngx_conf_merge_sec_value(conf->cvmfs.scrub_interval,
+                             prev->cvmfs.scrub_interval, 60);
+    ngx_conf_merge_uint_value(conf->cvmfs.scrub_rate,
+                              prev->cvmfs.scrub_rate, 20);
+    ngx_conf_merge_value(conf->cvmfs.delta, prev->cvmfs.delta, 0);
+    ngx_conf_merge_value(conf->cvmfs.learn, prev->cvmfs.learn, 0);
+    ngx_conf_merge_value(conf->cvmfs.swarm, prev->cvmfs.swarm, 0);
+    ngx_conf_merge_sec_value(conf->cvmfs.swarm_interval,
+                             prev->cvmfs.swarm_interval, 3);
     /* unified_origin serves every proxy request from the location's configured
      * origin backend, so that backend MUST be an http(s) origin set (ideally a
      * "|"-separated multi-endpoint one for the failover that hides a dead
@@ -298,6 +310,11 @@ cvmfs_merge_secure(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
     if (conf->scvmfs_registry == NULL) {
         conf->scvmfs_registry = prev->scvmfs_registry;
     }
+    ngx_conf_merge_ptr_value(conf->scvmfs_x509_dn, prev->scvmfs_x509_dn, NULL);
+    ngx_conf_merge_str_value(conf->scvmfs_vomsdir, prev->scvmfs_vomsdir, "");
+    ngx_conf_merge_str_value(conf->scvmfs_voms_cert_dir,
+                             prev->scvmfs_voms_cert_dir, "");
+    ngx_conf_merge_ptr_value(conf->scvmfs_voms, prev->scvmfs_voms, NULL);
 
     /* scvmfs (T22, EXPERIMENTAL) is a LAYER on cvmfs — structural, checked
      * at config time. Bearer mode needs the issuer registry to exist. */
@@ -326,6 +343,27 @@ cvmfs_merge_secure(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
                 conf->scvmfs_registry = reg;
             }
         }
+        if (conf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_VOMS) {
+            if (conf->scvmfs_vomsdir.len == 0
+                || conf->scvmfs_voms_cert_dir.len == 0)
+            {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "brix_scvmfs_authz voms requires brix_scvmfs_vomsdir "
+                    "<dir> and brix_scvmfs_voms_cert_dir <dir>");
+                return NGX_CONF_ERROR;
+            }
+            /* VOMS is dlopen'd at postconfiguration (after this merge), so init
+             * it here to fail loudly at config time if libvomsapi is absent —
+             * mirrors webdav's config_merge. Idempotent (returns early if
+             * already loaded). */
+            (void) brix_voms_init(cf->log);
+            if (!brix_voms_available()) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "brix_scvmfs_authz voms requires libvomsapi.so.1 "
+                    "(VOMS runtime not found)");
+                return NGX_CONF_ERROR;
+            }
+        }
     }
 
     /* Token-gated repos (phase-85 F3). Inherit the entry list by pointer,
@@ -338,6 +376,14 @@ cvmfs_merge_secure(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
      * the class list is pure config + worker-local bucket state, nothing to
      * build at merge time. */
     ngx_conf_merge_ptr_value(conf->qos, prev->qos, NULL);
+
+    /* virtual / composed repos (phase-87 G16): pure config, consumed at
+     * gate time — nothing to build here. */
+    ngx_conf_merge_ptr_value(conf->virtual_repos, prev->virtual_repos, NULL);
+
+    /* runtime provenance attestation (phase-87 G15): key already loaded by
+     * the setter — nothing to build here. */
+    ngx_conf_merge_ptr_value(conf->attest_pkey, prev->attest_pkey, NULL);
 
     ngx_conf_merge_ptr_value(conf->repo_authz, prev->repo_authz, NULL);
     if (conf->cvmfs.enable == 1 && conf->repo_authz != NULL) {

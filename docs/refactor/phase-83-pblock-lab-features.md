@@ -40,7 +40,7 @@ Waves A + B + C + D complete: F0–F17 (F14 test-triad completed 2026-07-18, clo
 (latency/bandwidth shaping: `shape.read_bps`/`shape.write_bps`/`shape.open_ms`),
 F16 (in-memory catalog mode), F14 (native catalog enumeration + `CAP_CATALOG`),
 **F7** (crash-point harness + `pblock-fsck` consistency oracle),
-**F17** (op audit log — `--replay` deferred, see below), **F3** (per-block
+**F17** (op audit log + `--replay` — replay landed 2026-07-27, see below), **F3** (per-block
 CRC32c integrity / CSI — driver-owned `csi` catalog table + `pblock-fsck
 --verify-csi` oracle, see below), **F5** (quotas + space accounting — trigger
 rollup + three-tier EDQUOT enforcement + the `space` seam slot + `pblock-fsck
@@ -120,9 +120,26 @@ the 2 direct `driver->caps` consumers (vfs_sync.c, s3/put_inner.c) converted to
   outcome. Byte-I/O accounting (`a_rbytes`/`a_wbytes`/`a_maxblock` on
   `pblock_obj_t`) is guarded `if (os->st->audit)` in `sd_pblock_io.c`, so the
   audit-off byte path is untouched.
-- **Deferred:** `pblock-fsck --replay` (re-execute an oplog against a fresh
-  export). Fragile cross-schema coupling into a clean catalog, no F17 test leg
-  needs it, and it is orthogonal to the audit-write contract this slice proves.
+- ~~**Deferred:** `pblock-fsck --replay`~~ — **LANDED 2026-07-27** (phase-88
+  §5 backlog burndown). `pblock-fsck <fresh-export-root> --replay
+  <source-catalog.db>`: re-executes the source oplog's namespace op sequence
+  in seq order against the fresh export's catalog, then diffs the reproduced
+  namespace against the source's own `objects` table on the reproducible
+  projection (path, is_dir, size, uid, gid) — each divergence is a
+  `REPLAY-DIFF` finding (exit 1), so a crash-truncated catalog's lost rows
+  ARE the forensic output. Semantics: only `result=0` rows replay;
+  open/staged_open are catalog no-ops (effects land at close/commit); close
+  upserts size from its folded `w=` total (exact for sequential-write
+  traces; a `w=0` pure-read close only materialises a missing row, never
+  shrinks one); commit/copy carry the exact size; blob_id/mode/xattrs are
+  not in the oplog and not reproduced. Fail-closed: refuses a non-fresh
+  target (exit 3), an unknown target schema (exit 3, shared mutating-mode
+  rule), a source without an oplog (exit 2), and counts an unknown op verb
+  as a finding rather than silently dropping it. Pure-Python suite:
+  `tests/test_pblock_fsck_replay.py` (7 green — full-trace convergence incl.
+  subtree rename, failed/read-only op inertness, crash-forensic diff,
+  no-oplog refusal, non-fresh + unknown-schema refusals, unknown-op
+  fail-closed).
 
 **F3 realized — per-block CRC32c integrity (CSI):**
 - **`csi=1`** rides the same `?tail` static-opts channel (its own gate, not the
@@ -859,7 +876,7 @@ fsck on a live export under load reports no false positives (WAL snapshot
 read); (sec) fsck refuses to run `--gc` on a catalog whose `schema_version`
 it doesn't know.
 
-### F17 — Op audit log + deterministic replay  ✅ LANDED (audit); replay deferred
+### F17 — Op audit log + deterministic replay  ✅ LANDED (audit 2026-07-18; replay 2026-07-27 — see STATUS)
 
 **What:** `audit=1` → append-only `oplog` catalog table
 `(seq, ts, op, path, aux, uid, gid, result, errno)` written at metadata

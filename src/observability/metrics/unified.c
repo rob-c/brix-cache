@@ -76,6 +76,16 @@ const char *brix_unified_tpc_direction_names[
     "push",
 };
 
+/* Shared with the tpc-delegation exporter (unified_export.c); external linkage.
+ * Order matches brix_tpc_deleg_result_t. */
+const char *brix_unified_tpc_deleg_result_names[
+    BRIX_TPC_DELEG_RESULT_COUNT] =
+{
+    "ok",
+    "expired",
+    "absent",
+};
+
 /* Shared with the record hot path (unified_record.c) and the latency exporter
  * (unified_export_io.c); external linkage via unified_internal.h. */
 const ngx_msec_t brix_latency_bounds[BRIX_IO_LATENCY_BUCKETS - 1] = {
@@ -107,6 +117,44 @@ const char *
 brix_metric_err_name(brix_err_class_t err)
 {
     return err < BRIX_ERR_COUNT ? brix_unified_err_names[err] : "other";
+}
+
+/* Phase-70 delegation-gate label vocabularies (P90-70.6). Mode names mirror
+ * the brix_backend_delegation directive enum; the fail names are the closed
+ * reason set from unified.h. Out-of-range renders "unknown" so future enum
+ * growth can never emit unbounded label values (INVARIANT #8). */
+static const char *brix_unified_cred_mode_names[BRIX_CRED_MODE_METRIC_COUNT] =
+{
+    "select",
+    "passthrough",
+    "exchange",
+    "delegate",
+    "mint",
+    "auto",
+};
+
+static const char *brix_unified_cred_fail_names[BRIX_CRED_FAIL_COUNT] =
+{
+    "missing",
+    "kind",
+    "pem",
+    "chain",
+    "materialise",
+    "exchange",
+};
+
+const char *
+brix_metric_cred_mode_name(ngx_uint_t mode)
+{
+    return mode < BRIX_CRED_MODE_METRIC_COUNT
+        ? brix_unified_cred_mode_names[mode] : "unknown";
+}
+
+const char *
+brix_metric_cred_fail_name(brix_cred_fail_t reason)
+{
+    return (ngx_uint_t) reason < BRIX_CRED_FAIL_COUNT
+        ? brix_unified_cred_fail_names[reason] : "unknown";
 }
 
 /*

@@ -65,6 +65,7 @@ brix_try_post_write_aio(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
                 (u_char *) (ctx->files[idx].path != NULL
                              ? ctx->files[idx].path : "-"),
                 sizeof(t->path));
+    t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
 
     brix_task_bind(task, brix_write_aio_thread, brix_write_aio_done);
 

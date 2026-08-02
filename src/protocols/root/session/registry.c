@@ -10,6 +10,7 @@
 
 #include "registry.h"
 #include "core/compat/shm_slots.h"
+#include "net/ratelimit/ratelimit.h"   /* brix_rl_key_{dn,sub}_hash (W5 quota key) */
 #include <ngx_shmtx.h>
 #include <string.h>
 
@@ -111,43 +112,85 @@ brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots)
     return NGX_OK;
 }
 
-/* ---- Scan the session table for a sessid, tracking free and LRU slots ----
+/* ---- Per-source quota key for one registrant (W5 / P90-27.2) --------------
+ *
+ * WHAT: Renders the registrant's ratelimit-vocabulary bucket id into `out`
+ * (BRIX_SESSION_SRC_KEY_LEN bytes): "sub:<8-hex>" for token logins,
+ * "dn:<8-hex>" for certificate/system logins, "" when the login carried no DN
+ * (un-keyed — such sessions are exempt from the per-source cap and only ever
+ * subject to the F4 global LRU, exactly the pre-W5 regime).
+ *
+ * WHY: The registry only receives (dn, token_auth), not the full connection
+ * ctx, so the key is derived here from the same identity string every caller
+ * already passes — via the SHARED brix_rl_key_* formatters, so one principal
+ * maps to the same no-PII bucket id in the limiter and in this quota. */
+static void
+brix_session_src_key(const char *dn, ngx_uint_t token_auth,
+    char out[BRIX_SESSION_SRC_KEY_LEN])
+{
+    out[0] = '\0';
+    if (dn == NULL || dn[0] == '\0') {
+        return;
+    }
+    if (token_auth) {
+        brix_rl_key_sub_hash((const u_char *) dn, ngx_strlen(dn),
+                             out, BRIX_SESSION_SRC_KEY_LEN);
+    } else {
+        brix_rl_key_dn_hash((const u_char *) dn, ngx_strlen(dn),
+                            out, BRIX_SESSION_SRC_KEY_LEN);
+    }
+}
+
+/* Scan results: slot-selection candidates gathered in one table pass. */
+typedef struct {
+    ngx_uint_t free_slot;     /* first free slot, or capacity if none */
+    ngx_uint_t lru_slot;      /* global LRU occupied slot (F4), capacity if none */
+    ngx_msec_t lru_seen;
+    ngx_uint_t src_count;     /* live slots owned by the registrant's src_key */
+    ngx_uint_t src_lru_slot;  /* LRU among the registrant's OWN slots (W5) */
+    ngx_msec_t src_lru_seen;
+} brix_session_scan_t;
+
+/* ---- Scan the session table for a sessid, tracking free/LRU/quota slots ----
  *
  * WHAT: Walks every occupied slot looking for `sessid`.  On a hit it refreshes
- * that slot's last_seen to `now` and returns 1.  On a miss it returns 0 and, via
- * the out-params, reports the first free slot index (or tbl->capacity if none)
- * and the least-recently-seen occupied slot index + its last_seen (used for
- * reap-on-full); lru_slot is tbl->capacity when the table holds no occupied slot.
+ * that slot's last_seen to `now` and returns 1.  On a miss it returns 0 with
+ * `sc` reporting the first free slot, the global-LRU occupied slot (F4
+ * reap-on-full), and — when `src_key` is non-empty — how many slots the
+ * registrant already owns plus its own-LRU slot (W5 per-source quota).
  *
  * WHY: Isolates the single linear pass over the SHM table so the caller stays a
  * flat sequence of decisions.  Must run with brix_session_mutex held — it reads
  * and (on a hit) writes shared slot state.
  *
  * HOW:
- *   1. Seed all three out-params to their empty-table defaults.
+ *   1. Seed `sc` to its empty-table defaults.
  *   2. For each slot: record the first free one and skip it.
  *   3. On a sessid match, stamp last_seen and return 1.
- *   4. Otherwise fold the occupied slot into the running LRU minimum.
+ *   4. Otherwise fold the occupied slot into the global LRU minimum, and — on
+ *      a src_key match — into the registrant's own count + own-LRU minimum.
  *   5. Return 0 if no slot matched.
  */
 static int
 brix_session_scan(brix_session_table_t *tbl,
     const u_char sessid[BRIX_SESSION_ID_LEN], ngx_msec_t now,
-    ngx_uint_t *free_slot_out, ngx_uint_t *lru_slot_out,
-    ngx_msec_t *lru_seen_out)
+    const char *src_key, brix_session_scan_t *sc)
 {
     brix_session_entry_t *e;
     ngx_uint_t              i;
 
-    *free_slot_out = tbl->capacity;
-    *lru_slot_out  = tbl->capacity;
-    *lru_seen_out  = 0;
+    sc->free_slot    = tbl->capacity;
+    sc->lru_slot     = tbl->capacity;
+    sc->lru_seen     = 0;
+    sc->src_count    = 0;
+    sc->src_lru_slot = tbl->capacity;
+    sc->src_lru_seen = 0;
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
-            if (*free_slot_out == tbl->capacity) {
-                *free_slot_out = i;
+            if (sc->free_slot == tbl->capacity) {
+                sc->free_slot = i;
             }
             continue;
         }
@@ -156,9 +199,19 @@ brix_session_scan(brix_session_table_t *tbl,
             return 1;
         }
         /* Track the global-LRU occupied slot for reap-on-full (F4). */
-        if (*lru_slot_out == tbl->capacity || e->last_seen < *lru_seen_out) {
-            *lru_slot_out = i;
-            *lru_seen_out = e->last_seen;
+        if (sc->lru_slot == tbl->capacity || e->last_seen < sc->lru_seen) {
+            sc->lru_slot = i;
+            sc->lru_seen = e->last_seen;
+        }
+        /* Track the registrant's OWN slot count + own-LRU (W5 quota). */
+        if (src_key[0] != '\0' && ngx_strcmp(e->src_key, src_key) == 0) {
+            sc->src_count++;
+            if (sc->src_lru_slot == tbl->capacity
+                || e->last_seen < sc->src_lru_seen)
+            {
+                sc->src_lru_slot = i;
+                sc->src_lru_seen = e->last_seen;
+            }
         }
     }
 
@@ -224,7 +277,7 @@ static void
 brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth,
-    ngx_msec_t now)
+    const char *src_key, ngx_msec_t now)
 {
     brix_session_entry_t *e = &tbl->slots[slot];
 
@@ -232,9 +285,49 @@ brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     ngx_cpystrn((u_char *) e->dn, (u_char *) (dn ? dn : ""), sizeof(e->dn));
     ngx_cpystrn((u_char *) e->vo_list, (u_char *) (vo_list ? vo_list : ""),
                 sizeof(e->vo_list));
+    ngx_cpystrn((u_char *) e->src_key, (u_char *) src_key,
+                sizeof(e->src_key));
     e->token_auth = token_auth;
     e->last_seen  = now;
     e->in_use     = 1;
+}
+
+/* ---- Self-evict an over-quota identity's own LRU slot (W5 / P90-27.2) -----
+ *
+ * WHAT: Invoked when the registrant already owns >= the per-source soft cap of
+ * live slots.  Snapshots the registrant's OWN least-recently-seen session into
+ * `victim`, clears that slot, publishes its index via `free_slot_out`, bumps
+ * the src-cap metric, and returns 1.  Returns 0 (nothing evicted) if the scan
+ * found no own-LRU slot (defensive; count >= cap implies one exists).
+ *
+ * WHY: The soft cap must bite BEFORE free-slot consumption and BEFORE the F4
+ * global reap: an over-quota identity recycles its own sessions, so it can
+ * neither fill the table nor pressure OTHER identities' slots.  Only the
+ * over-quota principal pays — its oldest session dies, everyone else is
+ * untouched.  No minimum-age gate (unlike F4): self-eviction harms no third
+ * party, and an identity churning through its own quota is exactly the
+ * behaviour the cap exists to bound.  Must run with brix_session_mutex held.
+ */
+static int
+brix_session_src_cap_evict(brix_session_table_t *tbl,
+    ngx_uint_t src_lru_slot, ngx_uint_t *free_slot_out,
+    u_char victim[BRIX_SESSION_ID_LEN])
+{
+    ngx_brix_metrics_t *m;
+
+    if (src_lru_slot >= tbl->capacity) {
+        return 0;
+    }
+
+    ngx_memcpy(victim, tbl->slots[src_lru_slot].sessid, BRIX_SESSION_ID_LEN);
+    ngx_memzero(&tbl->slots[src_lru_slot], sizeof(tbl->slots[src_lru_slot]));
+    *free_slot_out = src_lru_slot;
+
+    m = brix_metrics_shared();
+    if (m != NULL) {
+        (void) ngx_atomic_fetch_add(&m->session_src_cap_evict_total, 1);
+    }
+    return 1;
 }
 
 /* ---- Finish an eviction after the session mutex is released ----
@@ -263,15 +356,18 @@ brix_session_finish_eviction(const u_char victim[BRIX_SESSION_ID_LEN])
 
 /* Store a session's metadata (sessid, DN, VO list, token_auth) in the first free
  * SHM slot at login completion; a no-op if the sessid is already present.
- * Mutex-protected (cross-worker). */
+ * W5/P90-27.2: an identity at its per-source soft cap recycles its OWN LRU slot
+ * first (self-eviction), so the F4 global reap only ever fires for genuinely
+ * diverse load.  Mutex-protected (cross-worker). */
 void
 brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth)
 {
     brix_session_table_t *tbl;
-    ngx_uint_t              free_slot, lru_slot;
-    ngx_msec_t              now, lru_seen;
+    brix_session_scan_t     sc;
+    ngx_msec_t              now;
     int                     found, reaped = 0;
+    char                    src_key[BRIX_SESSION_SRC_KEY_LEN];
     u_char                  victim[BRIX_SESSION_ID_LEN];
 
     tbl = session_table();
@@ -279,23 +375,30 @@ brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
         return;
     }
 
+    brix_session_src_key(dn, token_auth, src_key);
     now = ngx_current_msec;
 
     ngx_shmtx_lock(&brix_session_mutex);
 
-    found = brix_session_scan(tbl, sessid, now,
-                              &free_slot, &lru_slot, &lru_seen);
+    found = brix_session_scan(tbl, sessid, now, src_key, &sc);
+
+    /* Per-source soft cap (W5): over-quota identities recycle their own LRU
+     * slot BEFORE consuming a free one or invoking the global reap. */
+    if (!found && sc.src_count >= BRIX_SESSION_PER_SOURCE_SOFT_CAP) {
+        reaped = brix_session_src_cap_evict(tbl, sc.src_lru_slot,
+                                            &sc.free_slot, victim);
+    }
 
     /* Table full and no match: try the Phase 27 F4 reap-on-full defence, which
      * may free the LRU slot (reaped) or reject and count the attempt. */
-    if (!found && free_slot == tbl->capacity) {
-        reaped = brix_session_reap_lru(tbl, now, lru_slot, lru_seen,
-                                       &free_slot, victim);
+    if (!found && !reaped && sc.free_slot == tbl->capacity) {
+        reaped = brix_session_reap_lru(tbl, now, sc.lru_slot, sc.lru_seen,
+                                       &sc.free_slot, victim);
     }
 
-    if (!found && free_slot < tbl->capacity) {
-        brix_session_fill_slot(tbl, free_slot, sessid, dn, vo_list,
-                               token_auth, now);
+    if (!found && sc.free_slot < tbl->capacity) {
+        brix_session_fill_slot(tbl, sc.free_slot, sessid, dn, vo_list,
+                               token_auth, src_key, now);
     }
 
     ngx_shmtx_unlock(&brix_session_mutex);

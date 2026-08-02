@@ -313,6 +313,16 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
         return NGX_OK;
     }
 
+    /* The staged fd is still open here (commit renames; only abort closes), so
+     * the committed size comes from a local fstat of OUR temp taken before the
+     * rename — never a path re-stat of final_path, which under impersonation is
+     * a broker IPC round-trip per upload and can race a concurrent overwrite. */
+    if (st->staged.fd != NGX_INVALID_FILE && fstat(st->staged.fd, &sb) == 0
+        && S_ISREG(sb.st_mode))
+    {
+        bytes = (size_t) sb.st_size;
+    }
+
     rc = excl
          ? brix_staged_commit_excl(st->log, st->ctx->root_canon, &st->staged,
                                      final_path)
@@ -328,13 +338,7 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
         return NGX_ERROR;
     }
 
-    if (brix_lstat_confined_canon(st->log, st->ctx->root_canon, final_path,
-                                    &sb, 1) == 0
-        && S_ISREG(sb.st_mode))
-    {
-        bytes = (size_t) sb.st_size;
-    }
-
+    brix_vfs_neg_stat_forget(st->ctx->root_canon, final_path);
     brix_vfs_observe_ctx_op(st->ctx, final_path, BRIX_METRIC_OP_WRITE, NULL,
                               bytes, NGX_OK, 0, start);
     /* The publication record — the single place this committed object is

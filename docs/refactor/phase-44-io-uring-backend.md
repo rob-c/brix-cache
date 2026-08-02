@@ -1,7 +1,15 @@
 # Phase 44 — Optional Linux io_uring I/O backend (server module + native client)
 
 **Status:** IMPLEMENTED 2026-06-22 (server backend + client disk ring + security
-hardening). Authored 2026-06-21.
+hardening). Authored 2026-06-21. **Gap-closure landed 2026-07-27** (UNCOMMITTED):
+the five deferred follow-ons P44-A…P44-E — ring quiesce-and-teardown on kill
+(P44-A), hybrid uring-pgread (P44-B), client cleartext RECV/SEND multishot tier
+(P44-C), raw-wire writev+linked-FSYNC live exercise (P44-D), admin kill-switch
+HTTP runtime test (P44-E) — plus a **real latent bug fixed** (restricted ring
+never whitelisted `IOSQE_IO_LINK`, so every `kXR_writev` do_sync SQE was kernel-
+rejected with `-EACCES`; §14.4 / §34.5). See **§38 (gap-closure landed)** below.
+Doc-ruled exclusions remain deferred: SQPOLL, per-identity personalities, client
+Option B pump-bypass, `IORING_OP_GETDENTS` (§36).
 
 **Implementation status by workstream:**
 
@@ -10,12 +18,13 @@ hardening). Authored 2026-06-21.
 | SB-W1 build/gate/directives/§32 fail-fast | ✅ done + verified | `config` double-gate; `nginx -t` fails for `on` on a stub build (verified) / passes on a liburing build; `auto`/`off` always start. |
 | SB-W2 ring lifecycle + eventfd bridge + reaper + slot table | ✅ done + verified | NOP self-test gate; `register_eventfd` ordered BEFORE `register_restrictions`+`enable_rings` (real EINVAL bug fixed); UAF-safe generation-guarded slots; posts to `ngx_posted_events`. |
 | SB-W3 READ/WRITE submit + CQE→OUT + selector | ✅ done + verified | Byte-exact 5 MiB read and 3 MiB write/read-back through the ring. |
-| SB-W4 READV + WRITEV(+linked FSYNC) + gating | ✅ done; readv verified | Single-contiguous-group only (multi-fd/gap → pool). readv byte-exact via pyxrootd `vector_read` (and gapped → pool, byte-exact). **writev is build+logic-verified but runtime-unexercised** — pyxrootd exposes no `vector_write`; covered by the parity matrix when a writev-issuing client is available. |
-| SB-W5 fallback + SB-W5b security/ops | ✅ done + verified | SHM kill-switch atomic (hot-path lock-free read in the selector); panic-file watcher (verified: drop file → DISABLED + pool, byte-exact; remove → re-enabled); `POST /xrootd/api/v1/admin/io_uring` (built + wired; HTTP runtime test pending); `register_restrictions` to fd-only opcodes. |
+| SB-W4 READV + WRITEV(+linked FSYNC) + gating | ✅ done + verified (P44-D) | Single-contiguous-group only (multi-fd/gap → pool). readv byte-exact via pyxrootd `vector_read` (and gapped → pool, byte-exact). **writev + linked-FSYNC now runtime-verified (P44-D):** `tests/test_io_uring_runtime.py` issues a raw-wire `kXR_writev` (do_sync set → trailing `IORING_OP_FSYNC` linked via `IOSQE_IO_LINK`) and reads the bytes back byte-exact through the hybrid uring-pgread; a bad-framing writev is rejected (error case). This exercise surfaced + fixed the restricted-ring `IOSQE_IO_LINK` bug (§34.5). |
+| SB-W4b hybrid uring-pgread (P44-B) | ✅ done + verified | pgread wire `[CRC32c(4 BE)][page ≤4096]` per page: one `IORING_OP_READV` scatters into a CRC-gapped scratch, the reap rebinds `task->handler` to the pool CRC32c hop (`ngx_thread_task_post`) so the CPU-bound encode stays off the event loop. **Verified:** unaligned multi-page pgread reassembles byte-exact (`tests/test_io_uring_runtime.py`). |
+| SB-W5 fallback + SB-W5b security/ops | ✅ done + verified (P44-A/E) | SHM kill-switch atomic (hot-path lock-free read in the selector); panic-file watcher (verified: drop file → DISABLED + pool, byte-exact; remove → re-enabled); **`POST /brix/api/v1/admin/io_uring` HTTP runtime test landed (P44-E)** — bearer-secret flip quiesces then re-enables at runtime, and a missing/bad bearer is rejected (security-neg); **ring quiesce-and-teardown on kill landed (P44-A)** — a 2 s maintenance timer tears the per-worker ring down once `inflight==0` while disabled and lazily re-inits on clear; `register_restrictions` to fd-only opcodes (+ now `IORING_RESTRICTION_SQE_FLAGS_ALLOWED` for `IOSQE_IO_LINK`, §34.5). |
 | CB-W1 client build/detect/probe + `--io-uring`/env + opts | ✅ done + verified | `HAVE_LIBURING` Makefile gate; `lib/uring.{c,h}` (stub + full both `-Werror`-clean); `xrdc_copy_opts.io_uring` + `--io-uring=auto\|on\|off` + `XRDC_IO_URING`. |
 | CB-W2 `copy.c` disk-ring adapters (Option A) | ✅ done + verified | Write-behind (download) + read-ahead (upload) overlap ring; byte-exact xrdcp over off/on/auto × {0,1 B,1 MiB,8 MiB,20 MB} download + 1 B/8 MiB/20 MB upload. **O_DIRECT and registered-buffers are deferred** (need the fd opened O_DIRECT by copy.c; buffered overlap is the main win). |
 | CB-W3 FUSE-local disk ring | ✅ n/a by architecture | The FUSE driver has no client-side local-disk fd (its data path is remote `xrdc_mfile`→server). The disk ring is an xrdcp/`copy.c` construct; FUSE gains io_uring via the server side and (when enabled) the CB-W4 socket engine. Nothing to wire. |
-| CB-W4 `aio.c` loop engine swap (POLL_ADD multishot) | ✅ done + verified | Engine seam in `client/lib/aio.c` with the epoll path byte-preserved (default) and a multishot `IORING_OP_POLL_ADD` engine, default OFF (`XRDC_IO_URING_LOOP=on` + runtime probe; best-effort fallback to epoll). UAF-safe generation-guarded poll-slot table; reconnect cancels the old poll (`poll_remove`) + bumps the slot generation + re-arms the new fd. **Verified:** strace shows `io_uring_enter`/no `epoll_wait` when on; `aio_smoke` PASS (async demux + 400 concurrent MT calls); **`aio_resil` M2 PASS** (200 reqs survive a server bounce) and **`aio_mfile` M3 PASS** (read + write across a mid-transfer bounce, byte-exact) under the io_uring engine; the epoll default path is regression-free (both harnesses also pass with loop OFF). TLS-safe (loop still runs `aconn_do_read`/`aconn_do_write`). Cleartext `RECV/SEND` multishot + provided buffers remains a documented follow-on. |
+| CB-W4 `aio.c` loop engine swap (POLL_ADD multishot) | ✅ done + verified | Engine seam in `client/lib/aio.c` with the epoll path byte-preserved (default) and a multishot `IORING_OP_POLL_ADD` engine, default OFF (`XRDC_IO_URING_LOOP=on` + runtime probe; best-effort fallback to epoll). UAF-safe generation-guarded poll-slot table; reconnect cancels the old poll (`poll_remove`) + bumps the slot generation + re-arms the new fd. **Verified:** strace shows `io_uring_enter`/no `epoll_wait` when on; `aio_smoke` PASS (async demux + 400 concurrent MT calls); **`aio_resil` M2 PASS** (200 reqs survive a server bounce) and **`aio_mfile` M3 PASS** (read + write across a mid-transfer bounce, byte-exact) under the io_uring engine; the epoll default path is regression-free (both harnesses also pass with loop OFF). TLS-safe (loop still runs `aconn_do_read`/`aconn_do_write`). **Cleartext `RECV/SEND` multishot + provided buffers now landed (P44-C, §13.4 ii-b):** for `ac->ssl==NULL` only, a provided-buffer ring (`BGID_RX`) drives multishot `IORING_OP_RECV` and staged one-shot `IORING_OP_SEND`; gated behind `XRDC_IO_URING_LOOP=rxtx` (the ii-a `on`/`1` value stays POLL_ADD-only). **Verified:** `aio_smoke`/`aio_resil`/`aio_mfile` all PASS under `rxtx` (and unchanged under `on`/`epoll`), incl. transparent reconnect; **automated in `tests/test_io_uring_rxtx.py`** (success: cleartext byte-exact + strace-proven ring engagement; security-neg: TLS `roots://` falls back to `SSL_*` byte-exact; fail-safe: unknown selector → epoll, byte-exact). |
 | Metrics exposition (`/metrics` gauges/counters) | ✅ done + verified | `xrootd_stream_io_uring_active` (gauge), `xrootd_stream_io_uring_ops_total` / `_fallback_total` (counters), per-listener `{port,auth}`. **Verified:** a write and a `vector_read` each increment `ops_total` and set `active=1` (counter-confirmed via `/metrics`), byte-exact. Plus the existing observability: the "backend active" NOTICE + an audited NOTICE on every kill-switch flip. |
 
 Original plan status line (historical): PLAN ONLY (not implemented). Authored 2026-06-21.
@@ -2905,7 +2914,9 @@ All transfers verified by SHA256 against the source over the corpus `{empty, 1 B
 | `cli_diskring_shortread_err` | error | source truncated mid-transfer | download | short-read surfaces the same `xrdc_status` as the epoll path; pump cancel/progress intact | `test_client_robustness.py` |
 | `cli_diskring_baddst_secneg` | security-neg | unwritable dest dir | upload/download to it | clean error, no partial/corrupt file, no buffer leak | `test_client_robustness.py` |
 | `cli_engine_polladd_tls_ok` | success | `--io-uring=on`, TLS link | multishot `POLL_ADD`; `SSL_read`/`SSL_write` still own syscalls | transfer byte-exact; TLS path unchanged (POLL_ADD readiness only) | `test_libxrdc.py`, `test_xrootdfs_aio.py` |
-| `cli_engine_cleartext_recv_ok` | success | cleartext link (deferred tier) | `IORING_OP_RECV/SEND` multishot + provided buffers | byte-exact; only the `ac->ssl==NULL` branch swapped | `test_libxrdc.py` |
+| `cli_engine_cleartext_recv_ok` | success | cleartext link, `XRDC_IO_URING_LOOP=rxtx` | `IORING_OP_RECV/SEND` multishot + provided buffers | byte-exact; **ring truly engaged** (`strace`: `io_uring_enter` present, no `epoll_wait`) | **LANDED (P44-C)** `test_io_uring_rxtx.py` |
+| `cli_engine_tls_declines_rxtx` | security-neg | TLS `roots://` link, `XRDC_IO_URING_LOOP=rxtx` | attempt rxtx on an encrypted socket | `ac->ssl != NULL` forces `SSL_*`; byte-exact (raw `RECV` of ciphertext would corrupt/hang) — encrypted stream never fed to a raw socket read | **LANDED (P44-C)** `test_io_uring_rxtx.py` |
+| `cli_engine_badmode_failsafe` | error | unknown `XRDC_IO_URING_LOOP` value | select an undefined engine | no ring engaged (`strace`: `epoll_wait`, no `io_uring_enter`); still byte-exact — degrades to the epoll default, never a crash/mis-selected transport | **LANDED (P44-C)** `test_io_uring_rxtx.py` |
 | `cli_engine_fd_gen_secneg` | security-neg | recycle an aconn fd mid-flight | force a late CQE for the old fd_gen | late CQE dropped by `fd_gen` stamp; no cross-talk to the new connection | `tests/c/aio_resil.c` |
 
 ### 17.4 Fallback tests
@@ -6011,12 +6022,14 @@ Per-function contracts (preconditions, postconditions, invariants, error returns
 | `xrdc_disk_ring_drain(r,st)` | CT | — | flush all in-flight; first error (incl. short write)→`-1`+`st`; else 0 | **must precede the atomic rename** on download; every buffer returned |
 | `xrdc_disk_ring_destroy(r)` | CT | — | drains, unregisters, frees; safe on NULL | no buffer outlives the ring; idempotent |
 | `engine_vtbl.{arm,wait,wake,cancel}` | LT | engine selected at `xrdc_loop_create` | epoll: today's behavior; io_uring: POLL_ADD multishot readiness | TLS conns keep `SSL_*`; `cancel` bumps `fd_gen` to drop stale CQEs |
+| `uring_recv_submit(l,ac)` / `uring_rxtx_send_submit(l,ac)` (P44-C) | LT | `XRDC_IO_URING_LOOP=rxtx`, `ac->ssl==NULL` | RECV: arm multishot `IORING_OP_RECV` over the provided-buffer ring (`BGID_RX`); SEND: stage one-shot `IORING_OP_SEND` of `wbuf` | TLS conns never take this path (fall back to `SSL_*`); slot `gen`-guarded; `-ENOBUFS`/`-EAGAIN` transient re-arm; `!F_MORE` auto-disarm re-arms |
 
 ### 34.5 ABI / layout contract
 
 - The six `*_aio_t` structs and `xrdc_aconn` (except the one new `fd_gen`) are **layout-frozen**; any change requires a full rebuild (mixed-ABI hazard, §9.8). `xrootd_uring_t`, `xrootd_uring_slot_t`, and `xrdc_disk_ring` are **new and never embedded** in an existing struct.
 - The SHM metrics block grows once (the `uring` sibling of `frm`, §22.8); declare all fields up-front so a rolling reload never re-attaches a stale layout.
-- `user_data` encoding is a **stable contract**: server `(generation<<32)|slot_index`, client `(fd_gen<<32)|slot_index`. Any change is an ABI break of in-flight-completion routing and must land atomically.
+- `user_data` encoding is a **stable contract**: server `(generation<<32)|slot_index`, client `(fd_gen<<32)|slot_index`. For the P44-C rxtx tier the client packs `(gen<<32)|(kind<<30)|slot` (`kind` ∈ {RECV,SEND}); the two high slot bits are reserved and MUST stay unused by the poll tier so a slot index never aliases a kind.
+- **Restricted-ring SQE-flags contract (P44-D fix, §14.4).** A restricted ring (`brix_io_uring_restrict on`, default) defaults `sqe_flags_allowed` to **0** — so any flagged SQE is kernel-rejected with `-EACCES`. The backend sets exactly one SQE flag, `IOSQE_IO_LINK`, to chain the trailing `IORING_OP_FSYNC` barrier behind a `kXR_writev` do_sync. `brix_uring_apply_restrictions` MUST therefore register `IORING_RESTRICTION_SQE_FLAGS_ALLOWED = IOSQE_IO_LINK` alongside the `IORING_RESTRICTION_SQE_OP` opcode allowlist. Omitting it silently breaks *only* the linked-FSYNC writev (unlinked data ops carry no flags), surfacing as `writev I/O error: Permission denied`. This was a **real latent bug** the P44-D live exercise caught.
 
 ---
 
@@ -6063,30 +6076,29 @@ What is supported on which kernel/liburing/distro, and the exact behavior (use /
 
 ## 36. Appendix — explicitly deferred tiers
 
-These are designed-for but **not** in the first cut; each has its own flag:
+These are designed-for but **not** implemented; each has its own flag. (The
+three previously-listed follow-ons — hybrid uring-pgread, cleartext RECV/SEND
+multishot, and ring quiesce-and-teardown — **landed 2026-07-27 as P44-B/C/A**;
+see §38. What remains deferred:)
 
 - **Server SQPOLL** (`IORING_SETUP_SQPOLL`) — kernel poller thread, needs
   registered files to pay off and a per-worker kernel-thread CPU budget; opt-in
-  via `xrootd_io_uring on sqpoll`.
+  via `xrootd_io_uring on sqpoll`. **Deferred on a security recommendation:** an
+  SQPOLL kernel thread submits without the opcode/flag restriction check on the
+  hot path, weakening the restricted-ring containment (§8.2 / §34.5).
 - **Server registered files/buffers** (`IORING_REGISTER_FILES`/`_BUFFERS`) — the
   long-lived `ctx->files` fds and reused scratch are natural candidates; their
   bytes must then be added to `xrootd_budget_ctx_footprint`.
-- **Server uring-pgread (hybrid)** — uring read → thread-pool CRC32c interleave,
-  so the CPU-bound encode stays off the event loop.
-- **Server `IORING_OP_GETDENTS`** for dirlist — only on very new kernels.
+- **Server `IORING_OP_GETDENTS`** for dirlist — the opcode was **never merged
+  mainline**, so there is nothing to gate against; dirlist stays on the pool.
 - **Client Option B** — pump-bypass fused local↔remote path eliminating the
   Option A memcpy.
-- **Client cleartext `IORING_OP_RECV/SEND` multishot + provided buffers** — true
-  zero-readiness-syscall I/O on non-TLS links (follow-on within CB-W4).
 - **Per-identity io_uring personalities** (`io_uring_register_personality`,
   `sqe->personality`) — run each impersonated data op under the *mapped* user's
   credentials rather than the worker's service account (§8.2). Deferred because it
   needs the broker's credential context + a broker-owned ring; the first-cut
   unprivileged-worker + confined-fd + opcode-restricted model already contains the
   surface.
-- **Ring quiesce-and-teardown on kill** — beyond "stop submitting" (§8.1), tear
-  the per-worker ring down once `inflight == 0` so the ring fd itself disappears
-  while disabled.
 
 ---
 
@@ -6113,3 +6125,103 @@ fd these already produce, adding no privileged code.
 engine vtable), `client/Makefile` (gating), `client/lib/xrdc.h`
 (`xrdc_copy_opts`). **New:** `client/lib/uring.{c,h}`. **Inherited/test-only:**
 `client/apps/xrootdfs_aio.c`, `tests/c/fault_proxy.c`, `tests/c/aio_resil.c`.
+
+---
+
+## 38. Gap-closure landed 2026-07-27 (P44-A…E) — UNCOMMITTED
+
+The five follow-ons deferred at the original cut are now implemented, each with
+success + error + security-negative coverage, and one real latent bug was fixed
+along the way. **All UNCOMMITTED.**
+
+### P44-A — ring quiesce-and-teardown on the kill switch
+A per-worker maintenance timer (`BRIX_URING_MAINT_POLL_MS = 2000`) runs
+`brix_uring_quiesce_tick`: when the SHM kill flag is set **and** `inflight == 0`,
+it tears the ring down (`io_uring_queue_exit`, eventfd unregister/close) so the
+ring fd itself disappears while disabled; clearing the flag lazily re-inits the
+ring (same init + restriction sequence) on the next submit. Beyond §8.1's
+"stop submitting". Live-verified: flip → "quiesced/torn down" NOTICE, clear →
+"backend active" NOTICE, byte-exact I/O after re-enable.
+
+### P44-B — hybrid uring-pgread
+pgread wire is `[CRC32c(4 BE)][page ≤ 4096]` per page (`kXR_pgPageSZ = 4096`). One
+`IORING_OP_READV` scatters file bytes into a CRC-gapped scratch; the reap sees the
+readv complete and rebinds `task->handler = brix_pgread_aio_crc_thread`, then
+`ngx_thread_task_post(slot->pool)` runs the CRC32c encode on the pool so the
+CPU-bound hop never blocks the event loop. Verified: unaligned multi-page pgread
+reassembles byte-exact.
+
+### P44-C — client cleartext RECV/SEND multishot tier (§13.4 ii-b)
+For `ac->ssl == NULL` only: a provided-buffer ring (`BGID_RX`) drives multishot
+`IORING_OP_RECV`; writes stage a one-shot `IORING_OP_SEND`. UD packing
+`(gen<<32)|(kind<<30)|slot`. Gated behind `XRDC_IO_URING_LOOP=rxtx` (the ii-a
+`on`/`1` value stays POLL_ADD-only; `epoll` is the default). TLS conns always fall
+back to `SSL_*`. Verified across all three loop modes via `aio_smoke` (400 MT
+calls), `aio_resil` (200 reqs survive a server bounce), `aio_mfile` (byte-exact
+across a mid-transfer bounce).
+
+**Automated coverage — `tests/test_io_uring_rxtx.py`** (3 tests; ledger
+`lc-uring-rxtx` 31182/31183; `tests/configs/nginx_lc_uring_rxtx.conf` = one anon
+export behind a cleartext **and** a TLS listener; drives the `aio_smoke` C
+harness):
+- **success** — a cleartext run under `rxtx` is byte-exact **and** the ring is
+  genuinely engaged: `strace` shows `io_uring_enter` with **no** `epoll_wait`, so
+  a silent auto-fallback to epoll can never masquerade as a pass.
+- **security-negative** — a `roots://` (TLS) run under `rxtx` is byte-exact,
+  proving `ac->ssl != NULL` forces the `SSL_*` path. A wrong guard would raw-`RECV`
+  the encrypted socket (reading ciphertext) and corrupt the stream — the run
+  would fail or hang. Passing is the proof the encrypted byte stream never
+  reaches a raw socket read.
+- **error / fail-safe** — an unknown `XRDC_IO_URING_LOOP` value engages no ring
+  (`strace`: `epoll_wait` present, no `io_uring_enter`) yet still transfers
+  byte-exact: a malformed/hostile engine selector degrades to the epoll default,
+  never a crash or a mis-selected transport.
+
+(`aio_resil`'s server-bounce M2 and `aio_mfile`'s M3 remain dev/manual harnesses
+for two reasons, both live: (1) they need an external `XRD_BOUNCE_CMD` to
+kill+restart the server mid-transfer, which the lifecycle fixture does not expose
+— wiring it would mean raw-managing an nginx that gets killed underneath the
+fixture, re-introducing the orphan-process class the fixed-port refactor
+eliminated; and (2) they are timing-critical reconnect tests (40 ms cadence, 20 s
+stall budgets, reconnect windows) and this dev host carries an open clock-steps-
+backwards defect that makes exactly this class of timing test flaky/untrustworthy.
+Both were run by hand under `rxtx` and pass; they stay manual until a perf host
+with a monotonic clocksource is available — automating them into the CI-facing
+suite before then would knowingly plant a flaky test.)
+
+### P44-D — live-exercise WRITEV + linked-FSYNC (raw-wire pure-python)
+`tests/test_io_uring_runtime.py` issues a raw `kXR_writev` (3031) with
+`kXR_wv_doSync` set — the backend links a trailing `IORING_OP_FSYNC` behind the
+writev via `IOSQE_IO_LINK` — then reads the bytes back byte-exact through the
+hybrid uring-pgread (P44-B). A bad-framing writev is rejected (error case). This
+was the first client to actually issue a writev over the ring, closing SB-W4's
+"runtime-unexercised" caveat.
+
+**Real latent bug this caught (§34.5):** the restricted ring never registered
+`IORING_RESTRICTION_SQE_FLAGS_ALLOWED`, so `sqe_flags_allowed` defaulted to 0 and
+the kernel rejected every `IOSQE_IO_LINK`-flagged writev with `-EACCES`
+("writev I/O error: Permission denied"). Isolated to do_sync only (unlinked data
+ops carry no flags → unaffected). Fixed in `brix_uring_apply_restrictions`
+(`src/core/aio/uring_bringup.c`) by whitelisting `IOSQE_IO_LINK`; re-verified
+byte-exact.
+
+### P44-E — admin io_uring kill-switch HTTP runtime test
+`POST /brix/api/v1/admin/io_uring` (bearer-secret) flipped at runtime:
+disable → the worker quiesces (P44-A) and I/O keeps working on the pool tier;
+enable → "backend active" and the ring is live again. Security-negative: a
+missing/bad bearer is rejected. Codified in `tests/test_io_uring_runtime.py`
+(lifecycle harness, fixed exclusive port `lc-uring` 31180/31181,
+`tests/configs/nginx_lc_uring.conf`).
+
+### Still deferred (doc-ruled exclusions, §36)
+SQPOLL (security recommendation against — bypasses the restricted-ring check on
+the submit hot path), per-identity io_uring personalities, client Option B
+pump-bypass, `IORING_OP_GETDENTS` (opcode never merged mainline).
+
+### CCN note
+The reap/engine additions were kept ≤ 15 CCN by extracting
+`brix_uring_apply_readv_cqe`/`brix_uring_apply_writev_cqe` (server `uring_reap.c`),
+`aconn_write_ssl_step`/`aconn_write_plain_step` (client `aio_io.c`), and
+`uring_rxtx_recv_resolve`/`uring_rxtx_recv_data` (client `aio_engine.c`).
+`check_complexity` is green for all phase-44 functions (the remaining
+`cms_srv_parse_login` red is an unrelated other-workstream baseline item).

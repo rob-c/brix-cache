@@ -22,10 +22,17 @@ brix speaks the GridFTP dialect of FTP (RFC 959 + RFC 2228 GSI security + RFC
 module, so `globus-url-copy`, `gfal-copy`, and FTS can push and pull data
 through brix the same way they talk to a dCache or StoRM door.
 
-The gateway is a compact synchronous door: one blocking worker per control
-connection, transfers run inline. It exports a **posix tree** — `brix_gridftp`
-does not (yet) route through `brix_storage_backend`, so pblock/s3/Ceph backends
-are not served over gsiftp today (see §6).
+The gateway runs on the non-blocking nginx **stream** event engine — the control
+dialogue, the GSI handshake, and MODE E data channels all drive off the event
+loop, not a blocking worker-per-connection. Like `root://`, WebDAV and S3, it
+terminates on the shared `brix_vfs_*` storage seam, so the same export can be a
+plain **posix tree** *or* any other storage backend — `brix_gridftp_storage_backend`
+selects `posix` (default), `pblock`, `s3://…` or Ceph, and every transfer is
+served transparently through the VFS (see §6). Because all four front-ends share
+one VFS namespace, a byte written over gsiftp is byte-identical when read back
+over root/WebDAV/S3 and vice versa: gsiftp is a fully-fledged bidirectional
+protocol, usable both as a front-end (ingress) and as the egress translation of a
+namespace another protocol wrote.
 
 ---
 
@@ -151,12 +158,19 @@ handshake, so the effective gate is the security layer, not the login verb.
 
 ## 6. Backends and limits
 
-- **posix only.** `brix_gridftp_export` is a real filesystem tree; there is no
-  `brix_storage_backend` hook on the gateway yet, so pblock/s3/Ceph are not
-  served over gsiftp. The interop matrix marks those rows `xfail` until the hook
-  lands.
-- **Synchronous door.** Transfers run inline on the worker; there is no async
-  ABOR of an in-flight transfer (ABOR simply drops a pending passive listener).
+- **Any storage backend.** `brix_gridftp_storage_backend` selects what the export
+  is backed by: `posix` (default, a real filesystem tree rooted at
+  `brix_gridftp_export`), `pblock` (block store; needs the SQLite build), `s3://…`
+  (an object store, keys carried by `brix_gridftp_storage_credential`), or Ceph.
+  STOR/RETR/LIST/CKSM travel `brix_vfs_*` → the storage driver, so the object-store
+  path uses the same staged-write-then-verify writer as WebDAV/S3. `s3` and
+  `pblock` are covered by `test_gridftp_s3.py` / `test_gridftp_pblock.py`.
+- **Cross-protocol translation.** The gsiftp namespace is the *same* VFS export
+  root/WebDAV/S3 serve, so bytes cross-translate between all four protocols
+  byte-for-byte — write over gsiftp, read over WebDAV (and the reverse), proven in
+  both directions by `test_gridftp_translation.py`.
+- **Async ABOR.** There is no async ABOR of an in-flight transfer (ABOR simply
+  drops a pending passive listener).
 - **TPC.** gsiftp↔gsiftp third-party copy between two brix doors is supported
   (DCAU A); see the phase-82 record.
 
@@ -179,3 +193,24 @@ $ TEST_GRIDFTP_HOST=<gateway-svc> \
 It runs `{PROT C,P} × {MODE S,E}` over gsiftp, `{active,passive}` over the
 cleartext leg, a second-client `gfal-copy` round-trip, and an FTS-style bulk
 batch — each asserting a byte-identical round-trip.
+
+### 7.1 Running the matrix locally (no k8s cluster)
+
+The same matrix runs against a locally-booted gateway under **rootless podman**,
+so a cluster is not required to exercise the reference-client interop:
+
+```console
+# once — build the grid-client image (needs network for the EL9 grid RPMs):
+$ cd tests && python3 -m cmdscripts.gridftp_interop_local build-image
+# boot a combined gsiftp+ftp gateway locally and drive the matrix in-container:
+$ python3 -m cmdscripts.gridftp_interop_local run
+# inspect the exact podman invocation without building/booting anything:
+$ python3 -m cmdscripts.gridftp_interop_local run --dry-run
+```
+
+The runner boots `tests/configs/nginx_gridftp_interop.conf` (the chart's
+two-listeners-over-one-export topology), mounts the local test PKI proxy + CA
+dir into the image, points `TEST_GRIDFTP_*` at the host gateway via
+`--network=host`, and tears the gateway down on exit. Any missing prerequisite
+(podman, image, nginx build, PKI) self-skips (exit `77`). The image/runner/matrix
+contract is held by `tools/ci/check_gridftp_interop_image.py`.

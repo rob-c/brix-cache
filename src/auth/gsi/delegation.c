@@ -29,6 +29,7 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/bio.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Serialise an X509 (or the whole chain when chain!=NULL) to a malloc'd PEM. */
 static u_char *
@@ -121,7 +122,7 @@ void
 brix_gsi_delegation_cleanup(brix_ctx_t *ctx)
 {
     if (ctx->gsi.deleg_reqkey != NULL) {
-        EVP_PKEY_free(ctx->gsi.deleg_reqkey);
+        brix_evp_pkey_free(ctx->gsi.deleg_reqkey);
         ctx->gsi.deleg_reqkey = NULL;
     }
     if (ctx->gsi.deleg_chain_pem != NULL) {
@@ -172,7 +173,7 @@ bdg_fail(bdg_ctx *b)
     free(b->chain_pem);
     free(b->req_der);
     free(b->req_pem);
-    if (b->reqkey) EVP_PKEY_free(b->reqkey);
+    if (b->reqkey) brix_evp_pkey_free(b->reqkey);
     free(b->enc);
     brix_gbuf_free(&b->inner);
     brix_gbuf_free(&b->outer);
@@ -387,7 +388,7 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /* The request key is consumed; the captured proxy credential remains for the
      * TPC pull. Clear the await flag + cleanse the session key. */
-    EVP_PKEY_free(ctx->gsi.deleg_reqkey);
+    brix_evp_pkey_free(ctx->gsi.deleg_reqkey);
     ctx->gsi.deleg_reqkey = NULL;
     ctx->gsi.deleg_await = 0;
     OPENSSL_cleanse(ctx->gsi.sess_key, sizeof(ctx->gsi.sess_key));

@@ -164,7 +164,12 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | Multi-tier hierarchy | ✅ | Three-tier tested: meta-manager → sub-manager → leaf DS; `nginx_cluster_sub_manager.conf` |
 | Server blacklisting | ✅ | 30 s blacklist on CMS disconnect; `brix_srv_blacklist()` + `error_count` in SHM; cleared on reconnect |
 | Per-server performance metrics | ✅ | `brix_cluster_server_free_megabytes`, `_utilization_percent`, `_last_seen_seconds`, `_blacklisted`, `_disconnect_total` Prometheus gauges in `src/observability/metrics/cluster.c` |
-| Virtual node ID | ❌ | |
+| Virtual node ID | ✅ | `brix_cms_vnid` sent in login envCGI, recorded per registry entry (phase-89 W9) |
+| Load-weighted selection | ✅ | Native `/proc` machine-load meter feeds `kYR_load`; `brix_cms_load_weight` blends load into read selection (phase-89 W4) |
+| Dynamic file-location cache | ✅ | SHM path→host:port cache from `kYR_have` answers, 30 s TTL; optional `brix_cms_locate_window`/`_locate_multi` (phase-89 W3) |
+| Staging forward (`kYR_prepadd`/`prepdel`) | ✅ | Manager forwards stage requests to data nodes → stage-request registry, reqid correlation in SHM sidecar (phase-89 W2) |
+| rm/rmdir fan-out | ✅ | `brix_cms_fanout` forwards to all path-holders, aggregates within `brix_cms_fanout_window` (phase-89 W8) |
+| File-driven blacklist | ✅ | `brix_cms_blacklist_file` polled like cms.blacklist; file wins over admin undrain (phase-89 W6′) |
 | CMS admin interface | ❌ | No admin socket |
 | Colocation hint | ✅ | `kXR_prefname` parsed; `kXR_locate` returns all matching servers — client selects by network locality |
 | Lateral 307 redirect | ✅ | `kXR_locate` returns `kXR_ok` with full server list via `brix_srv_locate_all()`; no redirect chaining needed |
@@ -221,7 +226,7 @@ paths where required.
 | `XrdOssAt` | Archive transfer | POSIX-backed only |
 | `XrdOssMSS` | Mass storage | Partial control-plane integration only; no in-process MSS driver stack |
 | `XrdOssMio` | Memory-backed I/O | TLS memory buffers suffice |
-| `XrdCeph` | Ceph storage | POSIX-backed only |
+| `XrdCeph` | Ceph storage | Striper-interop `sd_ceph` driver (`src/fs/backend/rados/`, phase-60/89): reads stock on-RADOS data, dir listing, rename, xattr, staged commit; read-only `cephfsro` for CephFS pools |
 | `XrdFrm` | Distributed replication / file residency | Partial FRM queue and Tape REST gateway; not full upstream XrdFrm daemon ecosystem |
 | `XrdPfc` | Policy file cache | Partial: read-through, slice cache, eviction, and write-through helpers; not full upstream PFC |
 | `XrdBwm` | Bandwidth management | Built-in identity-aware bandwidth limits exist; not upstream XrdBwm plugin parity |
@@ -335,7 +340,7 @@ paths where required.
 | Feature | Reason |
 |---------|--------|
 | `xrd.monitor` UDP stream | Fire-and-forget, fragile, no standard consumer |
-| Full tape/archive backend ecosystem (ARC, PSS, Ceph, HDFS, MSS drivers) | Narrower POSIX-backed module with FRM/Tape REST control-plane integration |
+| Full tape/archive backend ecosystem (ARC, PSS, HDFS, MSS drivers) | Narrower driver set (POSIX/pblock/S3/Ceph-RADOS/remote-root) with FRM/Tape REST control-plane integration |
 | Full distributed replication / XrdFrm daemon ecosystem | Partial FRM queue only |
 | Upstream BWM/Throttle plugin parity | Built-in bandwidth/rate/concurrency policy exists, but not as those upstream plugins |
 | ZIP archive serving | Nice-to-have |

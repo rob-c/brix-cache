@@ -19,12 +19,19 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
             "shared",
             "shared/cvmfs/fetch/fetch_unittest.c",
             "shared/cvmfs/fetch/fetch.c",
+            "shared/cvmfs/fetch/fetch_bundle.c",
+            "shared/cvmfs/bundle/bundle.c",
             "shared/cvmfs/object/object.c",
             "shared/cvmfs/failover/failover.c",
             "shared/cvmfs/grammar/hash.c",
             "shared/cache/cas_store.c",
+            # cas_store.c dispatches to the packed backend (cas_pack.c) which
+            # rests on the platform fsync/anon-fd shims; both are needed to link.
+            "shared/cache/cas_pack.c",
+            "shared/cvmfs/platform/platform.c",
             "-lcrypto",
             "-lz",
+            "-lzstd",
         ],
         cwd=REPO_ROOT,
     )

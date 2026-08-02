@@ -51,6 +51,7 @@ copy_remote_to_block(const char *src_url, const char *dst_url,
     }
 
     vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+    vopts.io_uring_direct = (o != NULL) ? o->io_uring_direct : 0;
     vopts.expected_size = si.size;
     vopts.cred          = NULL;
 
@@ -112,6 +113,7 @@ copy_block_to_remote(const char *src_url, const char *dst_url,
     }
 
     vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+    vopts.io_uring_direct = (o != NULL) ? o->io_uring_direct : 0;
     vopts.expected_size = -1;
     vopts.cred          = NULL;
 
@@ -171,6 +173,7 @@ copy_vfs_to_vfs(const char *src_url, const char *dst_url,
     int                 rc;
 
     vopts.io_uring      = (o != NULL) ? o->io_uring : XRDC_IO_URING_AUTO;
+    vopts.io_uring_direct = (o != NULL) ? o->io_uring_direct : 0;
     vopts.expected_size = -1;
     vopts.cred          = NULL;
 

@@ -1,15 +1,23 @@
 /*
- * cns.c — Composite Cluster Name Space inventory + event codec (§6). See cns.h.
+ * cns.c — Composite Cluster Name Space event codec + inventory host (§6). See cns.h.
  *
- * v1 inventory: a per-worker linear table (correct for a single-worker manager).
- * Each op is O(n) over a small federation namespace; a cross-worker SHM table and
- * a hashed index are documented follow-ups.
+ * The inventory slot logic lives in cns_inventory.c (pure, POD). This file hosts
+ * the backing store: an nginx SHM slab shared across every manager worker when a
+ * `brix_cns_zone` is registered (brix_cns_configure, wired from
+ * postconfiguration), else a lazily-allocated per-worker heap table for the
+ * common single-worker redirector. All apply/stat/count run under the zone's
+ * slab lock (SHM path) so concurrent workers never corrupt a slot.
  */
 
 #include "cns.h"
+#include "cns_inventory.h"
+#include "core/compat/shm_slots.h"
 
+#include <ngx_shmtx.h>
 #include <stdlib.h>
 #include <string.h>
+
+extern ngx_module_t  ngx_stream_brix_module;
 
 /* wire codec */
 static void
@@ -75,125 +83,122 @@ brix_cns_event_decode(const uint8_t *buf, size_t len, uint8_t *op,
     return NGX_OK;
 }
 
-/* inventory (per-worker, v1) */
-typedef struct {
-    char     path[BRIX_CNS_PATH_MAX + 1];
-    uint64_t size;
-    uint64_t mtime;
-    uint32_t server_id;
-    uint8_t  is_dir;
-    uint8_t  used;
-} cns_entry_t;
+/* ===================== inventory backing store ===================== */
 
-#define CNS_CAP 8192
+/* Cross-worker SHM zone (registered by brix_cns_configure). When present, the
+ * inventory lives in its slab and cns_mtx (bound to the slab-pool lock) serialises
+ * every worker's access. When absent, s_heap is a per-worker fallback table. */
+static ngx_shm_zone_t  *cns_zone;
+static ngx_shmtx_t      cns_mtx;
+static ngx_uint_t       cns_slots_req;
 
-static cns_entry_t *s_inv;       /* lazily allocated CNS_CAP-entry table */
-static ngx_uint_t   s_count;
+static brix_cns_inv_t  *s_heap;              /* lazy per-worker fallback table */
 
-static cns_entry_t *
-cns_find(const char *path)
+static ngx_int_t
+cns_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
-    ngx_uint_t i;
-    if (s_inv == NULL) {
-        return NULL;
+    brix_cns_inv_t *inv;
+    ngx_flag_t      fresh;
+    ngx_uint_t      cap = cns_slots_req ? cns_slots_req : BRIX_CNS_DEFAULT_SLOTS;
+
+    inv = brix_shm_table_alloc(shm_zone, data,
+                                 brix_cns_inv_bytes((uint32_t) cap),
+                                 &cns_mtx, &fresh);
+    if (inv == NULL) {
+        return NGX_ERROR;
     }
-    for (i = 0; i < CNS_CAP; i++) {
-        if (s_inv[i].used && strcmp(s_inv[i].path, path) == 0) {
-            return &s_inv[i];
-        }
+    if (fresh) {
+        brix_cns_inv_init(inv, (uint32_t) cap);   /* helper already zeroed slots */
     }
-    return NULL;
+    return NGX_OK;
 }
 
-static cns_entry_t *
-cns_free_slot(void)
+ngx_int_t
+brix_cns_configure(ngx_conf_t *cf, ngx_uint_t slots)
 {
-    ngx_uint_t i;
-    for (i = 0; i < CNS_CAP; i++) {
-        if (!s_inv[i].used) {
-            return &s_inv[i];
+    ngx_str_t  zone_name = ngx_string("brix_cns_inventory");
+    size_t     zone_size;
+
+    if (slots == 0) { slots = BRIX_CNS_DEFAULT_SLOTS; }
+    cns_slots_req = slots;
+
+    zone_size = brix_shm_zone_size(brix_cns_inv_bytes((uint32_t) slots));
+    cns_zone  = ngx_shared_memory_add(cf, &zone_name, zone_size,
+                                        &ngx_stream_brix_module);
+    if (cns_zone == NULL) {
+        return NGX_ERROR;
+    }
+    cns_zone->init = cns_init_zone;
+    cns_zone->data = (void *) 1;
+    return NGX_OK;
+}
+
+/* Resolve the live table. SHM when the zone is initialised; else the per-worker
+ * heap fallback (lazily allocated). *shared reports whether cns_mtx must be held. */
+static brix_cns_inv_t *
+cns_active_table(ngx_flag_t *shared)
+{
+    if (cns_zone != NULL
+        && cns_zone->data != NULL
+        && cns_zone->data != (void *) 1)
+    {
+        *shared = 1;
+        return (brix_cns_inv_t *) cns_zone->data;
+    }
+    *shared = 0;
+    if (s_heap == NULL) {
+        s_heap = calloc(1, brix_cns_inv_bytes(BRIX_CNS_DEFAULT_SLOTS));
+        if (s_heap != NULL) {
+            brix_cns_inv_init(s_heap, BRIX_CNS_DEFAULT_SLOTS);
         }
     }
-    return NULL;
+    return s_heap;
 }
 
 ngx_int_t
 brix_cns_apply(uint8_t op, const char *path, uint64_t size, uint64_t mtime,
                  uint32_t server_id)
 {
-    cns_entry_t *e;
-    size_t       plen;
+    ngx_flag_t       shared;
+    brix_cns_inv_t  *inv = cns_active_table(&shared);
+    int              rc;
 
-    if (path == NULL) {
+    if (inv == NULL) {
         return NGX_ERROR;
     }
-    plen = strlen(path);
-    if (plen == 0 || plen > BRIX_CNS_PATH_MAX) {
-        return NGX_ERROR;
-    }
-
-    if (op == BRIX_CNS_DEL || op == BRIX_CNS_RMDIR) {
-        e = cns_find(path);
-        if (e != NULL) {
-            e->used = 0;
-            if (s_count > 0) { s_count--; }
-        }
-        return NGX_OK;
-    }
-
-    if (op != BRIX_CNS_ADD && op != BRIX_CNS_MKDIR) {
-        return NGX_ERROR;
-    }
-
-    if (s_inv == NULL) {
-        s_inv = calloc(CNS_CAP, sizeof(*s_inv));
-        if (s_inv == NULL) {
-            return NGX_ERROR;
-        }
-    }
-
-    e = cns_find(path);
-    if (e == NULL) {
-        e = cns_free_slot();
-        if (e == NULL) {
-            return NGX_ERROR;   /* inventory full (v1 fixed cap) */
-        }
-        memcpy(e->path, path, plen);
-        e->path[plen] = '\0';
-        e->used = 1;
-        s_count++;
-    }
-    e->size      = size;
-    e->mtime     = mtime;
-    e->server_id = server_id;
-    e->is_dir    = (op == BRIX_CNS_MKDIR) ? 1 : 0;
-    return NGX_OK;
+    if (shared) { ngx_shmtx_lock(&cns_mtx); }
+    rc = brix_cns_inv_apply(inv, op, path, size, mtime, server_id);
+    if (shared) { ngx_shmtx_unlock(&cns_mtx); }
+    return (rc == 0) ? NGX_OK : NGX_ERROR;
 }
 
 ngx_int_t
 brix_cns_stat(const char *path, struct stat *out)
 {
-    cns_entry_t *e;
+    ngx_flag_t       shared;
+    brix_cns_inv_t  *inv = cns_active_table(&shared);
+    uint64_t         csize = 0, cmtime = 0;
+    int              is_dir = 0, rc;
 
-    if (path == NULL || out == NULL) {
+    if (out == NULL) {
         return NGX_ERROR;
     }
-    e = cns_find(path);
-    if (e == NULL) {
+    if (inv == NULL) {
         return NGX_DECLINED;
     }
+    if (shared) { ngx_shmtx_lock(&cns_mtx); }
+    rc = brix_cns_inv_stat(inv, path, &csize, &cmtime, &is_dir);
+    if (shared) { ngx_shmtx_unlock(&cns_mtx); }
+
+    if (rc != 0) {
+        return (rc < 0) ? NGX_ERROR : NGX_DECLINED;
+    }
     ngx_memzero(out, sizeof(*out));
-    out->st_size  = (off_t) e->size;
-    out->st_mtime = (time_t) e->mtime;
-    out->st_mode  = e->is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644);
+    out->st_size  = (off_t) csize;
+    out->st_mtime = (time_t) cmtime;
+    out->st_mode  = is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644);
     out->st_nlink = 1;
     return NGX_OK;
-}
-
-ngx_uint_t
-brix_cns_count(void)
-{
-    return s_count;
 }
 
 static ngx_flag_t s_collect;

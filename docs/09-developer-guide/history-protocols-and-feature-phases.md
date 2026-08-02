@@ -359,6 +359,37 @@ allow-list-subset check, which is a stronger guard than a raw count cap.
 PyXRootD's client cannot parse `root://[::1]` literals, so root:///CMS/TPC
 IPv6 tests had to be written as raw-wire socket tests, not through pyxrootd.
 
+### 4.4 Phase-89 CMS parity burndown (PR-1…PR-8, 2026-07-21; closed 2026-07-27)
+
+The remaining "Partial" cells in phase-61's opcode matrix were flipped in
+eight flag-gated PRs (all default to pre-phase behaviour; knobs documented in
+`docs/03-configuration/directives.md` § CMS manager tuning): usage/stats
+telemetry (PR-1), status handling (PR-2), a native `/proc`-backed machine-load
+meter feeding `kYR_load` (PR-3, `cms/meter.c`, `brix_cms_load_weight` blends
+utilisation vs load in selection: `((100-w)·util + w·load)/100`), a dynamic
+file-location cache answering repeat locates from `kYR_have` observations
+(PR-5/W3, `manager/loc_cache.c`, SHM, 30s TTL) with an optional
+`brix_cms_locate_window` collection window and `brix_cms_locate_multi`,
+forwarded staging (PR-6/W2: `kYR_prepadd`/`prepdel` down to data nodes →
+stage-request registry, manager↔engine reqid correlation via the
+`cms/reqid_map.c` SHM sidecar, ADR-2b), select/try vocabulary (PR-7),
+manager-side rm/rmdir fan-out to all path-holders (PR-8/W8, `cms/fanout.c`,
+parked client + aggregated verdict inside `brix_cms_fanout_window`), plus
+`brix_cms_vnid` login metadata (W9), a file-driven server blacklist
+(W6′, `cms/blacklist_file.c` — file wins over admin undrain, lifts within
+≤3 ping intervals of the line's removal), and `brix_cms_affinity`/
+`brix_cms_state_fanout` tuning. Along the way both dispatchers were
+converted from switch-cases to route tables mirroring `XrdCmsRouting.cc`
+(`cms/router.c` + `recv_frame.c`/`server_recv_frame.c`): a new opcode is now
+one `{code, handler}` row. W7 (multi-tier sub-manager chaining) remains the
+one deliberately-split-out item. Config gotcha rediscovered here:
+`ngx_conf_set_msec_slot` parses bare numbers as **seconds** — msec-scale
+directives must be written with an explicit `ms` suffix.
+
+The same phase closed the phase-64 long tail: ADR-3 was ratified 2026-07-27
+keeping the `brix_frm_*` directive grammar as engine/adapter knobs (not
+`tape://` URL params), pinned by `tests/test_frm_directive_pin.py`.
+
 ---
 
 ## 5. Proxy mode: an incident-driven history

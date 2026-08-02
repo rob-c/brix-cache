@@ -53,4 +53,17 @@ ngx_int_t brix_token_exchange(ngx_pool_t *pool,
                               ngx_str_t *out_token,
                               ngx_log_t *log);
 
+/*
+ * Internal — parse an RFC 8693 token-endpoint JSON reply into `out_token`
+ * (pool-copied, NUL-terminated at out_token->data[out_token->len]). Returns
+ * NGX_OK only for an object carrying a non-empty string `access_token`; a
+ * malformed document, a missing / non-string / empty `access_token`, or a
+ * duplicated key is NGX_ERROR (and out_token is left untouched). Exposed so the
+ * response-parse branches unit-test without a live TLS endpoint; production
+ * callers use brix_token_exchange() above.
+ */
+ngx_int_t brix_tx_parse_response(ngx_pool_t *pool, const u_char *doc,
+                                 size_t len, ngx_str_t *out_token,
+                                 ngx_log_t *log);
+
 #endif /* BRIX_AUTH_TOKEN_EXCHANGE_H */

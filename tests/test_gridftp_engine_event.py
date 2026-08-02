@@ -189,6 +189,45 @@ def test_error_paths(ev_gateway):
         c.close()
 
 
+def test_port_eprt_parse_replies(ev_gateway):
+    """Pin the exact wire replies of the PORT/EPRT argument parsers.
+
+    Exercises both the classic ``h,h,h,h,p,p`` path and the extended
+    ``|1|ip|port|`` (EPRT) path — including their malformed-argument replies,
+    the shared data-port range check, and the anti-FTP-bounce peer pin — which
+    ftplib's PORT-only active mode (test_retr_active_mode) never reaches."""
+    c = _Ctrl(ev_gateway.port)
+    try:
+        peer_ip = c.sock.getsockname()[0]
+        if ":" in peer_ip:
+            pytest.skip("IPv4-only PORT/EPRT (control peer is IPv6)")
+        octs = peer_ip.split(".")
+        port = 50000  # arbitrary high port; success path arms but never connects
+
+        # success: control-peer target satisfies the anti-bounce pin
+        classic = "%s,%d,%d" % (",".join(octs), port >> 8, port & 0xFF)
+        assert c.cmd("PORT " + classic) == "200 PORT command successful"
+        assert c.cmd("EPRT |1|%s|%d|" % (peer_ip, port)) \
+            == "200 EPRT command successful"
+
+        # classic malformed / out-of-range octet
+        assert c.cmd("PORT 1,2,3") == "501 Bad PORT argument"
+        assert c.cmd("PORT 1,2,3,4,5,999") == "501 Bad PORT argument"
+        # valid tuple, illegal data port 0 → shared range check
+        assert c.cmd("PORT %s,0,0" % ",".join(octs)) == "501 Bad data port"
+
+        # extended malformed / unsupported family / bad address
+        assert c.cmd("EPRT |1|127.0.0.1") == "501 Bad EPRT argument"
+        assert c.cmd("EPRT |2|::1|%d|" % port) == "522 Only IPv4 (|1|) supported"
+        assert c.cmd("EPRT |1|999.1.2.3|%d|" % port) == "501 Bad EPRT address"
+
+        # anti-FTP-bounce: an off-peer target is refused (no DCAU-A leg)
+        assert c.cmd("EPRT |1|127.0.0.2|%d|" % port) \
+            == "500 Data address must match control peer"
+    finally:
+        c.close()
+
+
 # ---- security-negative -----------------------------------------------------
 
 def test_preauth_gate(ev_gateway):

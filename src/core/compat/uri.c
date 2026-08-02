@@ -88,8 +88,14 @@ brix_http_urlencode(const unsigned char *src, size_t srclen,
     for (si = 0; si < srclen; si++) {
         unsigned char c = src[si];
 
-        if (strchr(unreserved, c)
-            || (safe_extra != NULL && strchr(safe_extra, c)))
+        /* c != 0 first: strchr(s, '\0') matches s's terminator, which would
+         * misclassify a NUL byte as unreserved and pass it through literally
+         * instead of encoding it to "%00" (contract: everything outside the
+         * unreserved/safe set is %XX). A literal NUL in a canonical S3 string
+         * or a generated URL is a truncation / smuggling primitive. */
+        if (c != '\0'
+            && (strchr(unreserved, c)
+                || (safe_extra != NULL && strchr(safe_extra, c))))
         {
             if (di + 1 >= dstsz) {
                 return -1;

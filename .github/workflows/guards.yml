@@ -63,3 +63,9 @@ jobs:
       - name: ports registry — settings.py constants all documented
         if: '!cancelled()'
         run: tools/ci/check_ports_doc.py
+      - name: brix namespace — no pre-rebrand xrootd_/xrdc_ tokens reintroduced
+        if: '!cancelled()'
+        run: tools/ci/check_brix_namespace.py
+      - name: gridftp interop — client-image/runner/matrix contract intact
+        if: '!cancelled()'
+        run: tools/ci/check_gridftp_interop_image.py

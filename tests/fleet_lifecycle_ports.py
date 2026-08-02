@@ -98,6 +98,12 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
     "lc-rl-conc-hi": {"port": 31122},
     "lc-rl-keycache": {"port": 31123},
     "lc-rl-volume": {"port": 31124},
+    # phase-92 XrdBwm bandwidth reservation (test_phase92_bwm_reservation.py) —
+    # single instance, serialised under xdist_group("lc-bwm").  The reservation
+    # engine is a per-worker static registry, so this MUST run on its own worker
+    # with worker_processes 1 (one registry) to make the acquire→refuse→release
+    # sequence deterministic.
+    "lc-bwm-reserve": {"port": 31125},
     # Mirror/shadow instances (test_phase24_mirror.py) — serialised under
     # xdist_group("lc-mir") (+ the file is `serial`: the shadow mock is shared
     # global state).  Three accept-parse (harness + `nginx -t`), five single-listen
@@ -115,6 +121,28 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
                          "extra": {"SHADOW_PORT": 31139, "METRICS_PORT": 31140}},
     "lc-mir-stream-div": {"port": 31141,
                           "extra": {"SHADOW_PORT": 31142, "METRICS_PORT": 31143}},
+    # Phase-24 W3 DATA-write mirror e2e pairs (test_phase24_mirror.py) — each is
+    # ONE nginx binding a writable primary root:// listen, an embedded writable
+    # shadow root:// listen the primary replays open->write->close to, and a
+    # metrics listen.  `-wr` (brix_mirror_writes on) backs both the byte-exact
+    # success leg and the non-sequential-abort leg; `-wroff` (writes off) is the
+    # production-safety gate (a write must never replay unless opted in).
+    "lc-mir-stream-wr": {"port": 31144,
+                         "extra": {"SHADOW_PORT": 31145, "METRICS_PORT": 31146}},
+    "lc-mir-stream-wroff": {"port": 31147,
+                            "extra": {"SHADOW_PORT": 31148, "METRICS_PORT": 31149}},
+    "lc-mir-stream-wrabort": {"port": 31153,
+                              "extra": {"SHADOW_PORT": 31154, "METRICS_PORT": 31155}},
+    "lc-mir-stream-wrcap": {"port": 31156,
+                            "extra": {"SHADOW_PORT": 31157, "METRICS_PORT": 31158}},
+    # Disconnect-mid-write UAF / heap-ownership drivers (phase-88 audit § 4;
+    # exercised under the B-2 ASan lane via ASAN_TEST_CMD2 → -k data_write).
+    "lc-mir-stream-wrdrop": {"port": 31174,
+                             "extra": {"SHADOW_PORT": 31175, "METRICS_PORT": 31176}},
+    "lc-mir-stream-wrcdrop": {"port": 31177,
+                              "extra": {"SHADOW_PORT": 31178, "METRICS_PORT": 31179}},
+    "lc-mir-stream-wrchurn": {"port": 31187,
+                              "extra": {"SHADOW_PORT": 31188, "METRICS_PORT": 31189}},
     # Phase-51 resilience directive parse-only instances (test_phase51_resilience.py)
     # — register + `nginx -t` on the harness (fixed port, never binds).
     "lc-phase51-directives": {"port": 31150},
@@ -138,6 +166,34 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
     # the batch flushes; each family serialises on its own xdist_group.
     "lc-backend-async-s3": {"port": 31172},
     "lc-backend-async-webdav": {"port": 31173},
+    # Phase-44 io_uring runtime subject (test_io_uring_runtime.py) — one
+    # instance with a stream root:// export (`brix_io_uring on` +
+    # `brix_io_uring_admin on`) and an HTTP dashboard listen for the admin
+    # kill-switch endpoint.  The suite flips the cross-worker kill switch at
+    # runtime (ring quiesce/teardown + re-enable), so the subject is a
+    # Bucket-2 mutation and takes exclusive fixed ports.
+    "lc-uring": {"port": 31180, "extra": {"HTTP_PORT": 31181}},
+    # Phase-44 P44-C client cleartext RECV/SEND multishot tier
+    # (test_io_uring_rxtx.py).  One instance with two anon root:// exports over
+    # the same data dir: a cleartext listen the rxtx ring engages on, and a TLS
+    # (roots://) listen the rxtx path MUST decline (ac->ssl != NULL falls back
+    # to SSL_*).  The C client harness (aio_smoke) is driven at both under
+    # XRDC_IO_URING_LOOP=rxtx; the instance itself is never mutated but takes a
+    # fixed exclusive port because the harness serialises the C driver on it.
+    "lc-uring-rxtx": {"port": 31182, "extra": {"TLS_PORT": 31183}},
+    # phase-33 P0 A/B throughput gate (test_perf_ab_gate.py): each server boots
+    # fresh with a per-test data file and is torn down — mutation subjects, so
+    # the exclusive band.  One xdist_group serialises the three (self-test +
+    # baseline/tuned A/B pair).
+    "lc-perf-ab-self": {"port": 31184},
+    "lc-perf-ab-base": {"port": 31185},
+    "lc-perf-ab-tuned": {"port": 31186},
+    # phase-33 P1 pipeline-depth correctness gate (test_pipeline_depth.py); one
+    # exclusive listen per depth exercised, serialised by xdist_group.
+    "lc-pipeline-depth-1": {"port": 31191},
+    "lc-pipeline-depth-32": {"port": 31192},
+    # phase-33 P5 userspace-TLS A/B harness self-test (test_perf_ab_gate.py).
+    "lc-perf-ab-tls": {"port": 31193},
 }
 
 # Non-binding placeholder port for standalone `nginx_t` parse tests (nginx -t
@@ -176,6 +232,8 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     # one instance per file (serialised per-file), no extra listens unless noted.
     "lc-krb5-auth": {"port": 30020},
     "lc-native-krb5": {"port": 30021},
+    "lc-native-krb5-deleg": {"port": 30457},  # inbound TGT-delegation e2e (test_krb5_delegation_e2e.py)
+    "lc-krb5-cache-origin": {"port": 30458},  # delegated cache->origin krb5 e2e (test_krb5_cache_origin_e2e.py)
     "lc-macaroon-negative": {"port": 30022},
     "lc-macaroon-request": {"port": 30023},
     "lc-token-aud-array": {"port": 30024},
@@ -206,7 +264,8 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     # xrddiag compare --davs — ONE nginx, root primary + two WebDAV planes
     # (match / mismatch) as owned extra listens.
     "lc-xrddiag-compare-davs": {"port": 30044,
-                                "extra": {"OK_PORT": 30045, "BAD_PORT": 30046}},
+                                "extra": {"OK_PORT": 30045, "BAD_PORT": 30046,
+                                          "TLS_PORT": 30449}},
     # xrddiag multiproto — ONE nginx serving root primary + http/https/s3 planes
     # as owned extra listens.
     "lc-xrddiag-multiproto": {"port": 30047,
@@ -310,8 +369,18 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "lc-frm-recall": {"port": 30125},            # primary only
     "lc-cache-reap-metrics": {"port": 30126, "extra": {"METRICS_PORT": 30127}},
     "lc-ssi-metrics": {"port": 30128, "extra": {"METRICS_PORT": 30129}},
+    "lc-tpc-gsi-deleg-metrics": {"port": 30422, "extra": {"METRICS_PORT": 30423}},
     "lc-tape-rest": {"port": 30130, "extra": {"STREAM_PORT": 30131}},
     "lc-put-content-encoding": {"port": 30132, "extra": {"S3_PORT": 30133}},
+    # WebDAV front (primary {PORT}) over a co-hosted posix-backed s3:// origin
+    # ({ORIGIN_PORT}); the front's PUT writer is a driver-backed object session
+    # with no kernel fd — exercises the Content-Encoding decode-to-writer path.
+    "lc-ce-driver-s3": {"port": 30445, "extra": {"ORIGIN_PORT": 30447}},
+    # WebDAV front (primary {PORT}) over a co-hosted posix-backed s3:// origin
+    # ({ORIGIN_PORT}); exercises the s3:// namespace-mutation slots end-to-end
+    # (MKCOL->mkdir marker, nested PUT->parent-prefix marker, MOVE->rename
+    # copy+delete, DELETE collection->rmtree+rmdir marker) — #4-rest.
+    "lc-s3-driver-ns": {"port": 30446, "extra": {"ORIGIN_PORT": 30448}},
     "lc-scan-dashboard": {"port": 30134, "extra": {"OFF_PORT": 30135}},
     "lc-stage-hydration": {"port": 30136, "extra": {"ORIGIN_PORT": 30137}},
     "lc-client-web-transfer": {"port": 30138, "extra": {"S3_PORT": 30139}},
@@ -333,6 +402,9 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     # cns: manager BINDS the CMS extra port; data DIALS it.
     "lc-cns-manager": {"port": 30153, "extra": {"CMS_PORT": 30154}},
     "lc-cns-data": {"port": 30155},
+    # phase-58: CNS data server with brix_backend_async on — the durable-queue
+    # RM/RMDIR path emits its late CNS event from the queue waker (baq_root_done).
+    "lc-cns-data-async": {"port": 30427},
     # gohep: redirector references ds.port.
     "lc-gohep-ds": {"port": 30156},
     "lc-gohep-anon": {"port": 30157},
@@ -405,6 +477,23 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "lc-cms-state-server": {"port": 30210},
     "lc-cms-wire-node": {"port": 30211},
     "lc-cms-wire-server": {"port": 30212},
+    # Phase-61 W7 role/relay stacks (same dial-out-to-mock-peer shape).
+    "lc-cms-wire-mgr-node": {"port": 30412},
+    "lc-cms-wire-super": {"port": 30413},
+    "lc-cms-wire-super-norelay": {"port": 30414},
+    "lc-cms-wire-srv-node": {"port": 30415},
+    # Phase-61 W7 hostile-network conformance (test_cms_hostile_conformance.py):
+    # dedicated instances so adversarial framing never contends on the ports the
+    # well-behaved conformance suite uses.
+    "lc-cms-hostile-server": {"port": 30416},
+    "lc-cms-hostile-node": {"port": 30417},
+    "lc-cms-hostile-super": {"port": 30418},
+    "lc-cms-hostile-hardened": {"port": 30419},
+    # Class-scoped opcode/size/path FUZZ SWEEPS (parametrized, hundreds of cases)
+    # — one shared instance per sweep class so the matrix does not pay an nginx
+    # boot per parametrized case.
+    "lc-cms-hostile-sweep-srv": {"port": 30420},
+    "lc-cms-hostile-sweep-node": {"port": 30421},
     # -- Wave 6: pblock-lab family (test_pblock_lab_*.py).  Every instance is
     # built by pblock_live.pblock_lab_spec(name, tail, workers=) — no port in
     # template_values, so the listen is owned entirely by this ledger.  Only ONE
@@ -467,6 +556,7 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "lc-mu-webdav-authz": {"port": 30260},
     "lc-native-sss": {"port": 30261},
     "lc-netfault-stream": {"port": 30262},
+    "lc-socketbuf-stream": {"port": 30442},
     "lc-pblock-pwd": {"port": 30263},
     "lc-phase20-ratelimit": {"port": 30264, "extra": {"METRICS_PORT": 30265}},
     "lc-xrdhttp-filter": {"port": 30266},
@@ -513,11 +603,34 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "chaos-proxy-sss-bad": {"port": 30290},
     "cgaps-rw-root": {"port": 30291},
     "cgaps-srr": {"port": 30292},
+    "gridftp-plain": {"port": 30424},
+    # GridFTP verb/lifecycle gateways (test_gridftp_*.py) — each a cleartext
+    # gsiftp control listen the file's `serial` tests drive with ftplib
+    # (start→drive→stop, one instance live at a time per file).  The passive
+    # DATA-channel ports are runtime-negotiated from a per-test _contiguous_free_
+    # range window, not an nginx listen, so only the control listen is ledgered.
+    "gridftp-pblock": {"port": 30431},
+    "gridftp-evil": {"port": 30432},
+    "gridftp-mode-e-event": {"port": 30433},
+    "gridftp-mode-e-evil": {"port": 30434},
+    "gridftp-allo-lenient": {"port": 30435},
+    "gridftp-allo-require": {"port": 30436},
+    "gridftp-verify-pblock": {"port": 30437},
+    "gridftp-verify-posix": {"port": 30438},
+    "gridftp-vo": {"port": 30450},
+    "gridftp-vo-gsi": {"port": 30451},
+    "gridftp-pasv-range": {"port": 30439},
+    "gridftp-pasv-xfer": {"port": 30440},
+    "gridftp-pasv-exhaust": {"port": 30441},
     "gridftp-plain-ev": {"port": 30293},
     "gridftp-plain-ev-ro": {"port": 30294},
     "gridftp-mode-e-truncation": {"port": 30295},
     "gridftp-gsi-evil": {"port": 30296},
     "gridftp-s3": {"port": 30297, "extra": {"S3_PORT": 30298}},
+    # test_gridftp_translation.py — one posix export fronted by BOTH a gsiftp
+    # gateway (PORT) and a WebDAV endpoint (DAV_PORT); proves cross-protocol
+    # byte-identity through the shared brix_vfs_* seam.
+    "gridftp-xproto": {"port": 30443, "extra": {"DAV_PORT": 30444}},
     "im-mirror-sink": {"port": 30299},
     "im-mirror-front": {"port": 30300},
     "im-proxy-storage": {"port": 30301},
@@ -526,6 +639,11 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "brix-fault-cache": {"port": 30304},
     "root-s3-staged": {"port": 30305, "extra": {"S3_PORT": 30306}},
     "root-s3-readonly-wire": {"port": 30307, "extra": {"S3_PORT": 30308}},
+    # Runtime S3-STS origin-leg e2e subject (test_sts_runtime_e2e.py, group
+    # lc-sts-e2e, serial) — booted three times in sequence (exchange / select /
+    # broken-STS variants) against an external docker MinIO; single listen, the
+    # MinIO S3+STS authority is external so no embedded extra listen is needed.
+    "root-s3-sts": {"port": 30456},
     "root-require-pgwrite": {"port": 30309, "extra": {"OFF_PORT": 30310}},
     "frmsec-stub": {"port": 30311},
     "tpc-harden": {"port": 30312, "extra": {"PORT_OFF": 30313}},
@@ -723,6 +841,26 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     # closed at each test's teardown, so the fixed port is reused.
     "lc-frm-exec": {"port": 30409},
     "lc-frm-stub": {"port": 30410},
+    # test_frm_scratch.py — hpss/cta exec-family MSS dialects (phase-64 SP5):
+    # frm://hpss and frm://cta drive the exec transport via the per-dialect
+    # $BRIX_FRM_{HPSS,CTA}_STAGECMD override (same serial lc-frm-scratch group).
+    "lc-frm-hpss": {"port": 30425},
+    "lc-frm-cta": {"port": 30426},
+    # test_frm_lib_adapter.py (group lc-frm-lib) — library-native (dlopen) MSS
+    # dialects (phase-64 residual): frm://lib, frm://libhpss and frm://libcta
+    # dlopen the operator HSM .so and dlsym the sd_frm_lib_abi.h verbs instead of
+    # forking a stage command; the .so path resolves from $BRIX_FRM_LIB or the
+    # per-dialect $BRIX_FRM_{HPSS,CTA}_LIB override.
+    "lc-frm-lib": {"port": 30428},
+    "lc-frm-libhpss": {"port": 30429},
+    "lc-frm-libcta": {"port": 30430},
+    # test_cvmfs_global_cas.py (group lc-cvmfs-gcas-evict) — phase-87 G13
+    # watermark-reaper stream instance asserting the gcas canonical-hardlink GC.
+    "lc-cvmfs-gcas-evict": {"port": 30411},
+    # test_neg_stat_cache.py (group lc-negstat) — phase-56 C-2 subject: the
+    # per-worker negative-stat cache enabled via BRIX_NEG_STAT_CACHE=1 in the
+    # spec env, single-listen single-worker anon root export.
+    "lc-negstat": {"port": 30455},
 }
 
 # Non-binding placeholder for lifecycle-shared-band `nginx -t`-only instances

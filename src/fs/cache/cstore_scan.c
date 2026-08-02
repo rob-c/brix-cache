@@ -144,6 +144,59 @@ cstore_scan_dir(brix_cstore_t *cs, const char *dirkey,
     return rc;
 }
 
+/* ---- catalog-enumerate fallback (stores with no directory verbs) ---------- */
+
+/*
+ * WHAT:  Bridge state carried across a driver->enumerate run: the cstore, the
+ *        eviction visitor, its ctx, and the first non-OK visitor code seen.
+ * WHY:   driver->enumerate speaks the catalog callback (brix_sd_catalog_cb),
+ *        not the cstore visitor; the bridge adapts one onto the other and
+ *        preserves the visitor's early-abort code past the enumerate return.
+ */
+typedef struct {
+    brix_cstore_t         *cs;
+    brix_cstore_visit_fn   visit;
+    void                  *ctx;
+    ngx_int_t              rc;      /* first non-OK visitor code (abort cause) */
+} cstore_enum_bridge_t;
+
+/*
+ * WHAT:  Present one enumerated catalog object to the cstore visitor.
+ * WHY:   A remote object store (S3/http/rados) advertises no opendir but a
+ *        native BRIX_SD_CAP_CATALOG enumerate; this makes each stored object
+ *        look to the eviction/scrub visitor exactly like a readdir-scanned one
+ *        (its cinfo when present, a store stat synthesised from the catalog
+ *        entry), so phase-87 G17 scrub / inventory works over such a store.
+ * HOW:   Skip metadata sidecars by key suffix (same predicate as the readdir
+ *        scan); synthesise a regular-file stat from the entry (size/mtime only
+ *        when the enumerator captured them); load the cinfo (NULL when absent);
+ *        record the visitor's code and abort the enumeration on non-OK.
+ */
+static int
+cstore_enum_cb(void *vbridge, const brix_sd_catalog_ent_t *ent)
+{
+    cstore_enum_bridge_t *b = vbridge;
+    brix_cache_cinfo_t    ci;
+    brix_sd_stat_t        stx;
+    int                   loaded;
+
+    if (ent->key == NULL || cstore_is_sidecar(ent->key)) {
+        return 0;                               /* not a cached object: skip */
+    }
+
+    memset(&stx, 0, sizeof(stx));
+    stx.is_reg = 1;
+    if (ent->have_stat) {
+        stx.size  = ent->size;
+        stx.mtime = ent->mtime;
+    }
+
+    loaded = (brix_cstore_cinfo_load(b->cs, ent->key, &ci) == NGX_OK);
+
+    b->rc = b->visit(ent->key, loaded ? &ci : NULL, &stx, b->ctx);
+    return (b->rc == NGX_OK) ? 0 : 1;           /* non-zero aborts enumerate */
+}
+
 ngx_int_t
 brix_cstore_scan(brix_cstore_t *cs, brix_cstore_visit_fn visit, void *ctx)
 {
@@ -151,11 +204,28 @@ brix_cstore_scan(brix_cstore_t *cs, brix_cstore_visit_fn visit, void *ctx)
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (cs->store->driver->opendir == NULL || cs->store->driver->readdir == NULL
-        || cs->store->driver->closedir == NULL)
+    if (cs->store->driver->opendir != NULL && cs->store->driver->readdir != NULL
+        && cs->store->driver->closedir != NULL)
     {
-        errno = ENOSYS;                         /* store lacks DIRS - needs dev */
-        return NGX_DECLINED;
+        return cstore_scan_dir(cs, "/", visit, ctx);
     }
-    return cstore_scan_dir(cs, "/", visit, ctx);
+
+    /* No directory verbs: fall back to a native object-catalog enumerate so a
+     * remote store (S3/http/rados, see finding #4) is still scrubbable and
+     * inventoriable. want_stat=1 so the visitor sees per-object size/mtime. */
+    if ((cs->store->caps & BRIX_SD_CAP_CATALOG) != 0
+        && cs->store->driver->enumerate != NULL)
+    {
+        cstore_enum_bridge_t b = { cs, visit, ctx, NGX_OK };
+        ngx_int_t              erc;
+
+        erc = cs->store->driver->enumerate(cs->store, 1, cstore_enum_cb, &b);
+        if (b.rc != NGX_OK) {
+            return b.rc;                        /* visitor stopped early: its code */
+        }
+        return (erc == NGX_OK) ? NGX_OK : NGX_ERROR;   /* enumerate failure: errno set */
+    }
+
+    errno = ENOSYS;                             /* store lacks DIRS and CATALOG */
+    return NGX_DECLINED;
 }

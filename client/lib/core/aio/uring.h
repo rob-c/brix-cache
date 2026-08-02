@@ -37,8 +37,15 @@ typedef struct brix_disk_ring brix_disk_ring;
 /*
  * Create a disk ring bound to an already-open local fd.
  *   depth  = max ops in flight = number of internal buffers (clamped 2..256)
- *   bufsz  = per-op buffer size (match the pump chunk, e.g. XRDC_COPY_CHUNK)
- *   direct = reserved for an O_DIRECT tier (currently a no-op hint; buffered I/O)
+ *   bufsz  = per-op buffer size (match the pump chunk, e.g. XRDC_COPY_CHUNK);
+ *            rounded UP to the block alignment when direct (re-query with
+ *            brix_disk_ring_bufsz)
+ *   direct = engage the O_DIRECT tier: the fd is flipped to O_DIRECT and the
+ *            slab is block-aligned, so full-block ops bypass the page cache.
+ *            The final short write of a download is transparently re-issued as a
+ *            buffered write (O_DIRECT forbids a non-block-aligned tail).  A
+ *            filesystem that rejects O_DIRECT fails create with EUNSUPPORTED, so
+ *            an AUTO caller falls back to the buffered tier.
  * Returns NULL (with *st set) on failure or when built without liburing.
  */
 brix_disk_ring *brix_disk_ring_create(int fd, unsigned depth, size_t bufsz,

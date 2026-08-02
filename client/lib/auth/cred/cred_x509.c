@@ -192,24 +192,25 @@ x509_acquire(const brix_cred_config *cfg, brix_cred_view *out,
 }
 
 /*
- * x509_refresh — documented no-op for task B3.
+ * x509_refresh — near-expiry GSI proxy regeneration (phase-92 C2a).
  *
  * WHAT: called by the store when auto_refresh is set and the proxy is near
- *       expiry; currently does nothing.
- * WHY:  credrefresh.c's brix_cred_autorefresh(want_write, oidc_account, verbose,
- *       out) does not match the (cfg, st) handler contract.  Adapting it (mapping
- *       cfg->oidc_account into the call and running the proxy regeneration path)
- *       is deferred to task C2, where the full auth suite validates the end-to-end
- *       refresh path.  Returning 0 is correct: the store treats a non-zero return
- *       as best-effort advisory only (it still re-acquires after refresh).
- * HOW:  no-op; suppress unused-parameter warnings.
+ *       expiry; regenerates the proxy via brix_proxy_create so the store's
+ *       follow-up acquire() reads the fresh proxy file.
+ * WHY:  wires the engine (brix_cred_refresh_gsi → refresh_gsi_proxy) onto the
+ *       (cfg, st) handler contract, so --auto-refresh is no longer a silent
+ *       no-op for X.509 proxies.  Best-effort: the store discards the return and
+ *       re-acquires regardless, so a missing user cert simply leaves the proxy
+ *       untouched.
+ * HOW:  quiet (verbose=0, out=NULL) — narration is the store's concern, not the
+ *       handler's; the GSI path takes no account argument.
  */
 static int
 x509_refresh(const brix_cred_config *cfg, brix_status *st)
 {
     (void)cfg;
     (void)st;
-    return 0;   /* no-op; C2 will wire brix_cred_autorefresh here */
+    return brix_cred_refresh_gsi(0, NULL);
 }
 
 /* handler accessor */

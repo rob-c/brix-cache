@@ -54,12 +54,16 @@ The single most important thing to check before starting work in an
 unfamiliar area: each history document ends with an open-items table. As of
 2026-07-15 the notable standing ones are:
 
-- **Native TPC-over-GSI delegation is broken** — flagged prominently near the
-  top of [History — Security & Credentials](history-security-and-credentials.md#open-item)
-  with repro steps and root-cause diagnosis. Do not assume this is fixed
-  without re-running the `--tpc only` gate.
-- See each document's closing table for the rest (hybrid-mesh WebDAV/XrdHttp
-  gaps, S3 metadata-parity scoping decisions left undone, etc.)
+- **Native TPC-over-GSI delegation** — RESOLVED 2026-07-19 (a `tpc.org`
+  host-string mismatch, not a push-model limitation; see the RESOLVED section
+  at the top of
+  [History — Security & Credentials](history-security-and-credentials.md)).
+- **Backend delegation (phase-70/90)** — all locally-doable legs closed
+  2026-07-27; only the S3-STS and krb5 origin legs remain, container-blocked
+  (`docs/refactor/phase-90-plan-phase-remainder-register.md`).
+- See each document's closing table for the rest (S3 metadata-parity scoping
+  decisions left undone, etc.). The hybrid-mesh WebDAV/XrdHttp crash was
+  resolved by surface retirement 2026-07-20 (hyper-hardening § A-2).
 
 ## Relationship to the memory system
 

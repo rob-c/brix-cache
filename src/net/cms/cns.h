@@ -16,9 +16,12 @@
  *       (brix_cns_emit); the manager applies into an in-memory inventory
  *       (brix_cns_apply) and looks it up from the stat handler (brix_cns_stat).
  *
- * Scope (v1): in-memory, per-worker inventory — correct for a single-worker
- * manager (the common redirector config). A cross-worker SHM inventory and full
- * emit coverage (unlink/mkdir/rmdir/mv) are documented follow-ups.
+ * Scope: the inventory is a fixed-slot POD table (cns_inventory.h). When a
+ * `brix_cns_zone` is registered (any collector block; wired in
+ * postconfiguration) it lives in an nginx SHM slab shared across every manager
+ * worker, so a mutation on worker A is visible to a stat on worker B; without a
+ * zone it falls back to a per-worker heap table (correct for the common
+ * single-worker redirector). Emit coverage is add/del/mkdir/rmdir.
  */
 
 #include <ngx_config.h>
@@ -26,23 +29,20 @@
 #include <stdint.h>
 #include <sys/stat.h>
 
+#include "cns_inventory.h"    /* BRIX_CNS_{ADD,DEL,MKDIR,RMDIR}, BRIX_CNS_PATH_MAX */
+
 /* Private CMS frame code for nginx-manager↔nginx-data-server CNS events. Outside
  * the stock XrdCms kYR_* range (which tops out in the 20s); only our own peers
  * parse it, and the manager ignores it unless brix_cns collect is set. */
 #define CMS_RR_CNS  40
 
-/* Namespace-mutation opcodes. */
-#define BRIX_CNS_ADD     1   /* file created / closed-after-write (size known) */
-#define BRIX_CNS_DEL     2   /* file unlinked */
-#define BRIX_CNS_MKDIR   3
-#define BRIX_CNS_RMDIR   4
+/* Namespace-mutation opcodes (BRIX_CNS_{ADD,DEL,MKDIR,RMDIR}) and
+ * BRIX_CNS_PATH_MAX come from cns_inventory.h (shared with the table ops). */
 
 /* brix_cns modes (conf->cns_mode). */
 #define BRIX_CNS_OFF     0
 #define BRIX_CNS_EMIT    1   /* data server: report mutations to the manager */
 #define BRIX_CNS_COLLECT 2   /* manager: maintain the inventory + answer stat */
-
-#define BRIX_CNS_PATH_MAX 512
 
 /*
  * Fixed wire layout (raw, big-endian), followed by `name_len` path bytes:
@@ -70,13 +70,19 @@ ngx_int_t brix_cns_apply(uint8_t op, const char *path, uint64_t size,
  * + size + mtime). NGX_OK on hit, NGX_DECLINED on miss. */
 ngx_int_t brix_cns_stat(const char *path, struct stat *out);
 
-/* Number of live inventory entries (observability / tests). */
-ngx_uint_t brix_cns_count(void);
-
 /* Process-global "this node is a CNS collector" flag, set at config time when any
  * server block has `brix_cns collect`. The CMS-server frame handler (a separate
  * module from the one that owns cns_mode) gates inventory updates on it. */
 void      brix_cns_set_collect(ngx_flag_t on);
 ngx_flag_t brix_cns_collecting(void);
+
+/* CONFIG-TIME (manager). Register the cross-worker SHM inventory zone sized for
+ * `slots` entries. Call once from postconfiguration when any block collects, so
+ * every manager worker shares one inventory. Without it the inventory falls back
+ * to a per-worker heap table (single-worker-correct). NGX_OK / NGX_ERROR. */
+ngx_int_t brix_cns_configure(ngx_conf_t *cf, ngx_uint_t slots);
+
+/* Default SHM inventory capacity when postconfiguration does not size it. */
+#define BRIX_CNS_DEFAULT_SLOTS 8192
 
 #endif /* NGX_BRIX_CMS_CNS_H */

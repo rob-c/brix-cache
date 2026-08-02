@@ -131,6 +131,18 @@ typedef struct {
     char      cred_x509_proxy[1024];
     char      cred_principal[512];
     char      cred_bearer[4096];
+    /* SSS identity injection (phase-70 §5.6 / P90-70.3): when non-empty the
+     * origin bootstrap must authenticate via SSS ASSERTING cred_principal,
+     * signed with THIS keytab — never the keytab's own principal, and never a
+     * service-credential fallback. */
+    char      cred_sss_keytab[1024];
+    /* krb5 delegation carry (phase-70 §5.7): when cred_krb5_ccache is non-empty
+     * the origin bootstrap re-imports the delegated TGT from THIS FILE ccache
+     * PATH (async-safe carry — never a live gss_cred_id_t) and re-authenticates
+     * AS the inbound user against cred_krb5_princ via the multi-leg GSSAPI
+     * EXCHANGE leg. Per-user like the branches above — never a service fallback. */
+    char      cred_krb5_ccache[1024];
+    char      cred_krb5_princ[512];
 } brix_cache_fill_t;
 
 /*
@@ -275,8 +287,31 @@ int brix_cache_origin_auth_ztn(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const ngx_str_t *token);
 int brix_cache_origin_auth_gsi(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const char *gsi_parms, const char *proxy_path);
+/* as_user selects the identity ASSERTED in the SSS credential: NULL = the
+ * keytab's own principal (static service leg); non-NULL = identity injection
+ * (phase-70 §5.6) — assert THAT caller, failing closed when it is empty or
+ * exceeds the SSS NAME TLV bound (63 bytes) rather than letting the credential
+ * builder substitute/truncate the identity. */
 int brix_cache_origin_auth_sss(brix_cache_fill_t *t,
-    brix_cache_origin_conn_t *oc, const char *keytab_path);
+    brix_cache_origin_conn_t *oc, const char *keytab_path,
+    const char *as_user);
+#if (BRIX_HAVE_KRB5)
+/* Origin-side krb5/GSSAPI re-auth AS the inbound user (phase-70 §5.7): drives the
+ * multi-leg brix_krb5_deleg_negotiate() over kXR_auth/kXR_authmore frames with
+ * the delegated cred (NULL ⇒ process default) against origin_service_princ.
+ * Returns 0 on a completed mutual-auth exchange, -1 otherwise (t error set). */
+int brix_cache_origin_auth_krb5(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, void *deleg_gss_cred,
+    const char *origin_service_princ);
+/* Origin-side RAW krb5 re-auth AS the inbound user (phase-70 §5.7): builds a
+ * "krb5\0"+AP-REQ from the delegated TGT ccache PATH and presents it in a single
+ * kXR_auth leg — the dialect stock XRootD (krb5_rd_req) actually accepts, unlike
+ * the GSSAPI engine above. origin_service_princ is the origin's advertised krb5
+ * principal. Returns 0 on kXR_ok, -1 otherwise (t error set). */
+int brix_cache_origin_auth_krb5_raw(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *ccache_path,
+    const char *origin_spn);
+#endif
 /* Frame one kXR_auth request (credtype = the 4-byte protocol id + payload) on the
  * connector stream.  Shared across origin_auth.c (ztn/sss) and origin_auth_gsi.c.
  * Returns 0, or -1 (errno set). */

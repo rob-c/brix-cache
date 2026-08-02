@@ -58,7 +58,7 @@
 static ngx_int_t
 brix_uring_apply_restrictions(struct io_uring *ring)
 {
-    struct io_uring_restriction res[6];
+    struct io_uring_restriction res[7];
 
     ngx_memzero(res, sizeof(res));
     res[0].opcode = IORING_RESTRICTION_SQE_OP; res[0].sqe_op = IORING_OP_NOP;
@@ -68,7 +68,16 @@ brix_uring_apply_restrictions(struct io_uring *ring)
     res[4].opcode = IORING_RESTRICTION_SQE_OP; res[4].sqe_op = IORING_OP_WRITEV;
     res[5].opcode = IORING_RESTRICTION_SQE_OP; res[5].sqe_op = IORING_OP_FSYNC;
 
-    return io_uring_register_restrictions(ring, res, 6) == 0
+    /* Whitelist the one SQE flag the backend sets: IOSQE_IO_LINK, which chains
+     * the trailing FSYNC barrier behind a kXR_writev do_sync (uring_submit.c).
+     * A restricted ring defaults sqe_flags_allowed to 0, so WITHOUT this every
+     * flagged SQE — i.e. the linked writev — is rejected by the kernel with
+     * -EACCES (surfacing as "writev I/O error: Permission denied").  The
+     * unlinked data ops carry no flags and are unaffected. */
+    res[6].opcode    = IORING_RESTRICTION_SQE_FLAGS_ALLOWED;
+    res[6].sqe_flags = IOSQE_IO_LINK;
+
+    return io_uring_register_restrictions(ring, res, 7) == 0
            ? NGX_OK : NGX_ERROR;
 }
 #endif
@@ -324,13 +333,21 @@ uring_install_eventfd(brix_uring_t *u, ngx_cycle_t *cycle)
  * WHY:  Slots are the only per-op state the reaper trusts; they must exist
  *       before the first submission and live as long as the worker.
  * HOW:  ngx_pcalloc from the cycle pool (freed with the cycle — never
- *       manually).  Early-returns the failing step's name for
- *       brix_uring_init_fail, NULL on success.  Non-static: driven by
- *       brix_uring_init_worker() in uring.c.
+ *       manually).  A P44-A re-enable after a quiesce reuses the existing
+ *       table (zeroed — the old ring is gone, so no CQE can reference the old
+ *       generations) instead of allocating again: repeated kill-switch flips
+ *       must not grow the cycle pool.  Early-returns the failing step's name
+ *       for brix_uring_init_fail, NULL on success.  Non-static: driven by
+ *       brix_uring_init_worker() and brix_uring_quiesce_tick() in uring.c.
  */
 const char *
 uring_register_buffers(brix_uring_t *u, ngx_cycle_t *cycle)
 {
+    if (u->slots != NULL) {           /* quiesce re-enable: same queue_depth */
+        ngx_memzero(u->slots, u->queue_depth * sizeof(brix_uring_slot_t));
+        return NULL;
+    }
+
     u->slots = ngx_pcalloc(cycle->pool,
                            u->queue_depth * sizeof(brix_uring_slot_t));
     if (u->slots == NULL) {

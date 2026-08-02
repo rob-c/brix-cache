@@ -103,6 +103,9 @@ brix_readv_aio_done(ngx_event_t *ev)
         return;
     }
 
+    /* phase-56 D-2: readv files as one READ latency sample. */
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
+
     if (t->io_error) {
         ngx_free(t->segments);
         brix_release_read_buffer(ctx, c, t->response_buffer);

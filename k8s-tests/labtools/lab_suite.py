@@ -38,6 +38,12 @@ def run(scenario, argv):
         return _s3fwd(argv[0] if argv else "tests/test_minio_s3_forward.py")
     if scenario == "s3gsi":
         return _s3gsi(argv[0] if argv else "tests/test_s3gsi_multiuser.py")
+    if scenario == "s3voms":
+        return _s3voms(argv[0] if argv else "tests/test_s3voms_multiuser.py")
+    if scenario == "pbgsi":
+        return _pbgsi(argv[0] if argv else "tests/test_pbgsi_multiuser.py")
+    if scenario == "gridftp":
+        return _gridftp(argv[0] if argv else "tests/test_gridftp_interop.py")
     sel = argv[0] if argv else ("tests/test_file_api.py" if scenario == "suite" else "tests/test_query.py")
     if scenario == "suite":
         return _suite(sel, argv[1] if len(argv) > 1 else "")
@@ -165,6 +171,132 @@ def _s3gsi(sel):
           "--set", "clientPki.enabled=true", "--set", "clientPki.pkiSecret=s3gsi-pki",
           "--set", "clientPki.jwksConfigMap=s3gsi-jwks")
     return _collect(ns, ["sg", "run"])
+
+
+def _s3voms(sel):
+    """root://+GSI ZERO-provisioning gateway over MinIO S3: authorization AND
+    backend-credential selection are both driven by the client's VOMS AC
+    (P80.14).  bob/alice carry a vo=atlas AC, tom/jane a vo=cms AC, mallory no
+    AC at all; the server ships only two VO-tier credentials + a two-line org
+    authdb — no gridmap, no per-user file.  Verified user-side by
+    test_s3voms_multiuser.py.  Release "sv" → Services sv-minio / sv-s3voms
+    (port 1097, fallback=deny only)."""
+    ns = "brix-s3voms"
+    if _dry():
+        return ["helm dependency build charts/s3-voms",
+                "helm upgrade --install sv charts/s3-voms -n brix-s3voms",
+                f"helm upgrade --install run charts/test-runner -n brix-s3voms "
+                f"image=brix-client TEST_S3VOMS_HOST=sv-s3voms TEST_MINIO_HOST=sv-minio -- pytest {sel}"]
+    subprocess.run(["kubectl", "create", "namespace", ns], capture_output=True)
+    _helm("dependency", "build", str(_CHARTS / "s3-voms"))
+    _helm("upgrade", "--install", "sv", str(_CHARTS / "s3-voms"), "-n", ns,
+          "--wait", "--timeout", "5m")
+    _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
+          "--set", "image.repository=brix-client,image.tag=dev",
+          "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
+          "--set", "testRunner.extraArgs=-p no:xdist -v",
+          "--set", "testRunner.env.TEST_S3VOMS_HOST=sv-s3voms",
+          "--set", "testRunner.env.TEST_S3VOMS_PORT=1097",
+          "--set", "testRunner.env.TEST_MINIO_HOST=sv-minio",
+          "--set", "testRunner.env.TEST_MINIO_PORT=9000",
+          "--set", "testRunner.env.TEST_S3VOMS_BUCKET=brixvoms",
+          # brix-client image has no local nginx — never let conftest
+          # start-all a local fleet; this suite only talks to the cluster.
+          "--set", "testRunner.env.TEST_SKIP_SERVER_SETUP=1",
+          "--set", "testRunner.env.TEST_ROOT=/tmp/tr",
+          "--set", "clientPki.enabled=true", "--set", "clientPki.pkiSecret=s3voms-pki",
+          "--set", "clientPki.jwksConfigMap=s3voms-jwks")
+    return _collect(ns, ["sv", "run"])
+
+
+def _pbgsi(sel):
+    """root://+GSI multi-user gateway over a LOCAL pblock:// store with
+    per-UNIX-GROUP r/w isolation (P80.25): pa/pb→phys (rw /phys), ea→eng (ro
+    /phys, rw /eng), stray→unmapped-DN deny.  No backend credential — the axis
+    is authorization + ownership (gate decides, catalog attests).  Verified
+    user-side by test_pbgsi_multiuser.py.  Release "pb" → Service pb-pbgsi
+    (port 1096)."""
+    ns = "brix-pbgsi"
+    if _dry():
+        return ["helm dependency build charts/pb-gsi",
+                "helm upgrade --install pb charts/pb-gsi -n brix-pbgsi",
+                f"helm upgrade --install run charts/test-runner -n brix-pbgsi "
+                f"image=brix-client TEST_PBGSI_HOST=pb-pbgsi -- pytest {sel}"]
+    subprocess.run(["kubectl", "create", "namespace", ns], capture_output=True)
+    _helm("dependency", "build", str(_CHARTS / "pb-gsi"))
+    _helm("upgrade", "--install", "pb", str(_CHARTS / "pb-gsi"), "-n", ns,
+          "--wait", "--timeout", "5m")
+    _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
+          "--set", "image.repository=brix-client,image.tag=dev",
+          "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
+          "--set", "testRunner.extraArgs=-p no:xdist -v",
+          "--set", "testRunner.env.TEST_PBGSI_HOST=pb-pbgsi",
+          "--set", "testRunner.env.TEST_PBGSI_PORT=1096",
+          # brix-client image has no local nginx — never let conftest
+          # start-all a local fleet; this suite only talks to the cluster.
+          "--set", "testRunner.env.TEST_SKIP_SERVER_SETUP=1",
+          "--set", "testRunner.env.TEST_ROOT=/tmp/tr",
+          "--set", "clientPki.enabled=true", "--set", "clientPki.pkiSecret=pbgsi-pki",
+          "--set", "clientPki.jwksConfigMap=pbgsi-jwks")
+    return _collect(ns, ["pb", "run"])
+
+
+def _gridftp(sel):
+    """brix GridFTP gateway (gsiftp:// + cleartext) fronting a posix export,
+    driven by the REFERENCE grid client stack — globus-url-copy, gfal2, a VOMS-AC
+    proxy, and an FTS-style transfer-list / third-party-copy bulk lane (phase-82
+    P82.5/P82.10).  Self-contained (like pb-gsi): the chart's own pki-bootstrap
+    publishes the CA/host material + two client proxies (user_proxy.pem plain,
+    vuser_proxy.pem VOMS-AC vo=atlas) as the gridftp-pki Secret.  Release "gf" →
+    Service gf-gridftp (gsiftp 2811, cleartext ftp 2810)."""
+    ns = "brix-gridftp"
+    if _dry():
+        return ["helm dependency build charts/gridftp-interop",
+                "helm upgrade --install gf charts/gridftp-interop -n brix-gridftp",
+                f"helm upgrade --install run charts/test-runner -n brix-gridftp "
+                f"image=gridftp-client TEST_GRIDFTP_HOST=gf-gridftp "
+                f"TEST_GRIDFTP_VOMS_PROXY=/auth/pki/vuser_proxy.pem -- pytest {sel}"]
+    subprocess.run(["kubectl", "create", "namespace", ns], capture_output=True)
+    _helm("dependency", "build", str(_CHARTS / "gridftp-interop"))
+    _helm("upgrade", "--install", "gf", str(_CHARTS / "gridftp-interop"), "-n", ns,
+          "--wait", "--timeout", "5m")
+    _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
+          # the REFERENCE grid client stack (globus-url-copy + gfal2 + voms),
+          # NOT brix-client (plain xrootd tools) — cross-implementation interop
+          # is the whole point; the image also ships the /opt/brix runner layout.
+          "--set", "image.repository=gridftp-client,image.tag=dev",
+          "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
+          "--set", "testRunner.extraArgs=-p no:xdist -v",
+          "--set", "testRunner.env.TEST_GRIDFTP_HOST=gf-gridftp",
+          "--set", "testRunner.env.TEST_GRIDFTP_GSIFTP_PORT=2811",
+          "--set", "testRunner.env.TEST_GRIDFTP_FTP_PORT=2810",
+          # the two proxies the pki-bootstrap published into gridftp-pki, mounted
+          # at /auth/pki by the runner's clientPki init.
+          "--set", "testRunner.env.X509_USER_PROXY=/auth/pki/user_proxy.pem",
+          "--set", "testRunner.env.TEST_GRIDFTP_VOMS_PROXY=/auth/pki/vuser_proxy.pem",
+          # GSI trust: client-pki-init.sh dereferences the mounted CA bundle
+          # (/auth/cabundle configMap → hash-linked ca .0 + .signing_policy) into
+          # REAL files under $TEST_ROOT/pki/ca; point globus/gfal there. Same CA
+          # that signed the gateway host cert (pki-bootstrap is now idempotent, so
+          # gateway and runner stay on one CA generation), so gsiftp validates.
+          "--set", "testRunner.env.X509_CERT_DIR=/tmp/tr/pki/ca",
+          # pytest runs from workingDir /opt/brix; settings.py lives in tests/,
+          # so put it on the import path for conftest's `from settings import`.
+          "--set", "testRunner.env.PYTHONPATH=/opt/brix/tests",
+          # the gateway pins every data channel to the control peer, so behind a
+          # single k8s Service it exposes no passive data-port range and refuses
+          # a same-endpoint gsiftp→gsiftp TPC (data addr ≠ control peer). Gate
+          # the passive + TPC cells here; they stay live on host-network / dual-
+          # endpoint deployments where the reference client can satisfy them.
+          "--set", "testRunner.env.TEST_GRIDFTP_DATACHAN_PINNED=1",
+          # the runner image has no local nginx — never let conftest start-all a
+          # local fleet; this suite only talks to the cluster gateway.
+          "--set", "testRunner.env.TEST_SKIP_SERVER_SETUP=1",
+          "--set", "testRunner.env.TEST_ROOT=/tmp/tr",
+          "--set", "clientPki.enabled=true", "--set", "clientPki.pkiSecret=gridftp-pki",
+          "--set", "clientPki.jwksConfigMap=gridftp-jwks",
+          "--set", "clientPki.caBundleConfigMap=gridftp-ca-bundle")
+    return _collect(ns, ["gf", "run"])
 
 
 def _deploy_auth(ns):

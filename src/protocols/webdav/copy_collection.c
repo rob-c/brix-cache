@@ -242,19 +242,7 @@ webdav_copy_collection_done(ngx_event_t *ev)
 static ngx_thread_pool_t *
 webdav_copy_thread_pool(ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_thread_pool_t *pool = conf->common.thread_pool;
-
-    if (pool == NULL) {
-        static ngx_str_t default_name = ngx_string("default");
-        ngx_str_t *pname = conf->common.thread_pool_name.len > 0
-                           ? &conf->common.thread_pool_name : &default_name;
-        pool = ngx_thread_pool_get((ngx_cycle_t *) ngx_cycle, pname);
-        if (pool != NULL) {
-            conf->common.thread_pool = pool;
-        }
-    }
-
-    return pool;
+    return brix_shared_thread_pool(&conf->common);
 }
 
 /*

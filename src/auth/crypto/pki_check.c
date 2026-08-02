@@ -7,6 +7,7 @@
 
 #include <openssl/pem.h>
 #include <openssl/evp.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * CRL issuer matching and signature checks shared by stream and WebDAV
@@ -119,7 +120,7 @@ brix_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
      * the CRL was actually issued by that CA key.
      */
     verify_ok = X509_CRL_verify(crl, issuer_public_key);
-    EVP_PKEY_free(issuer_public_key);
+    brix_evp_pkey_free(issuer_public_key);
 
     if (verify_ok != 1) {
         brix_pki_log_name_error(log, log_prefix,

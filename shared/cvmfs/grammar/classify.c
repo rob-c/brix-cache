@@ -1,7 +1,8 @@
 /* classify.c — CVMFS URL classifier.
  *
- * WHAT: maps a request path onto the four CVMFS traffic classes (immutable CAS
- *       object / mutable signed metadata / geo API / reject).
+ * WHAT: maps a request path onto the five CVMFS traffic classes (immutable CAS
+ *       object / mutable signed metadata / geo API / bundle batch-fetch /
+ *       reject).
  * WHY:  the whole cache policy — TTL, verification, pass-through, guard — keys
  *       off the class; classifying in one pure function keeps policy testable
  *       without nginx and reusable from both dispatch and the fill verifier.
@@ -91,6 +92,14 @@ int cvmfs_classify_url(const char *path, size_t len, cvmfs_url_info_t *out) {
     }
     if (out->rel_len > 13 && memcmp(p, "api/v1.0/geo/", 13) == 0) {
         out->cls = CVMFS_URL_GEO;
+        return 0;
+    }
+    if (out->rel_len == 13 && memcmp(p, ".cvmfs-bundle", 13) == 0) {
+        out->cls = CVMFS_URL_BUNDLE;         /* phase-87 G2 batch fetch */
+        return 0;
+    }
+    if (out->rel_len > 12 && memcmp(p, ".cvmfs-dict/", 12) == 0) {
+        out->cls = CVMFS_URL_DICT;           /* phase-87 G3 shared dictionary */
         return 0;
     }
     return 0;

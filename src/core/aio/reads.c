@@ -1,5 +1,7 @@
 #include "core/ngx_brix_module.h"
 #include "protocols/root/connection/budget.h"
+#include "protocols/root/connection/disconnect.h"  /* run_deferred_teardown (WS3) */
+#include "protocols/root/read/read.h"
 
 /*
  * reads.c — thread-pool offload for the stream kXR_read / kXR_pgread opcodes.
@@ -208,6 +210,12 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
                  */
                 t->csi = ctx->files[ctx->rd.win_idx].csi;
                 t->obj = ctx->files[ctx->rd.win_idx].sd_obj;
+                t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
+                /* phase-32 WS3: the windowed read self-serializes on win_active
+                 * (recv stays suspended in XRD_ST_AIO across its windows), so it
+                 * is NOT counted in rd.aio_inflight — only the pipelined single-
+                 * shot path is.  Clear explicitly to survive task-struct reuse. */
+                t->counted = 0;
                 brix_task_bind(task, brix_read_aio_thread,
                                  brix_read_aio_done);
                 (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool,
@@ -307,9 +315,32 @@ brix_read_aio_done(ngx_event_t *ev)
     ngx_connection_t   *c = t->c;
     ngx_chain_t        *rsp_chain;
 
+    /*
+     * phase-32 WS3 (concurrent read-AIO): a counted single-shot read is no
+     * longer in flight.  Decrement BEFORE the liveness guard so a deferred
+     * teardown (the client vanished while pipelined reads were running) fires on
+     * the LAST completion — once no worker thread references any rd_pool buffer.
+     * Mirrors the wr_inflight discipline in brix_write_aio_done.
+     */
+    if (t->counted && ctx->rd.aio_inflight > 0) {
+        ctx->rd.aio_inflight--;
+    }
+
     if (!brix_aio_restore_stream(ctx, t->streamid)) {
+        /* Connection torn down while this read ran: on the last outstanding op
+         * (no pwrite and no read still in flight) run the held teardown that
+         * brix_defer_teardown_if_writing parked, else touch nothing. */
+        if (t->counted && ctx->out.finalize_pending
+            && ctx->out.wr_inflight == 0 && ctx->rd.aio_inflight == 0)
+        {
+            brix_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
+        }
         return;
     }
+
+    /* phase-56 D-2: file this completed read (per window for a windowed read —
+     * each window is one physical I/O op) into the op-latency histogram. */
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
 
     if (ctx->rd.win_active) {
         /*
@@ -378,13 +409,12 @@ brix_read_aio_done(ngx_event_t *ev)
     } else {
         /*
          * Parked and draining: the buffer is a per-in-flight rd_pool slot and the
-         * header is per-slot, so this memory-backed read is SAFE to pipeline.  Note
-         * the cold-AIO path does not yet ACTUALLY pipeline: recv already suspended
-         * on this read's AIO and brix_aio_resume() only drains the write side, so
-         * the next read is not issued until this response drains.  Setting the flag
-         * is correct and forward-compatible with the non-suspending read-AIO change
-         * that will let cold reads pipeline like the warm-cache inline path does.
-         * Single-chunk only (non-windowed read <= BRIX_READ_WINDOW < CHUNK_MAX).
+         * header is per-slot, so this memory-backed read is SAFE to pipeline.
+         * phase-32 WS3: recv no longer suspends on a cold read's AIO — after the
+         * post it keeps receiving and issues the next read into a different pool
+         * buffer with its own per-slot task (read_post_aio), so cold reads now
+         * pipeline like the warm-cache inline path.  Single-chunk only (non-
+         * windowed read <= BRIX_READ_WINDOW < CHUNK_MAX).
          */
         ctx->out.resp_pipelinable = 1;
     }
@@ -431,6 +461,30 @@ brix_pgread_aio_thread(void *data, ngx_log_t *log)
 }
 
 /*
+ * brix_pgread_aio_crc_thread — encode-only pool worker for the P44-B hybrid
+ * io_uring pgread.
+ *
+ * The ring already scattered the file bytes into t->scratch's gapped wire
+ * layout and the reaper stored the delivered byte count in t->nread; all that
+ * remains is the per-page CRC32c pass, which must run here on a pool thread —
+ * never on the event thread (R-07).  The reaper rebinds the (per-request
+ * re-bound) task to this fn and re-posts it; the pool's completion then fires
+ * the unchanged brix_pgread_aio_done.  Error/EOF completions (nread <= 0)
+ * skip this hop entirely — the reaper posts the done event directly.
+ */
+void
+brix_pgread_aio_crc_thread(void *data, ngx_log_t *log)
+{
+    brix_pgread_aio_t *t = data;
+
+    (void) log;
+
+    t->out_size = brix_pgread_crc_encode_delivered(t->offset, t->rlen,
+                                                     t->scratch,
+                                                     (size_t) t->nread);
+}
+
+/*
  * brix_pgread_aio_done — response builder for pgread AIO completion.
  *
  * pgread wire format ([CRC32C(4)][page data] × N) cannot use
@@ -451,6 +505,9 @@ brix_pgread_aio_done(ngx_event_t *ev)
     if (!brix_aio_restore_request(ctx, t->streamid)) {
         return;
     }
+
+    /* phase-56 D-2: pgread files as a READ op on the latency histogram. */
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
 
     if (t->nread < 0) {
         brix_release_read_buffer(ctx, c, t->scratch);

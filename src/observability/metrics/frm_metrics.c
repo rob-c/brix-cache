@@ -12,9 +12,11 @@
  *   other exporter the labels are strictly low-cardinality (a fixed fail reason);
  *   never a path/DN/reqid (INVARIANT #8).
  *
- * HOW: Counters are written lock-free by the stream-side FRM engine (queue.c /
- *   stage.c) via the BRIX_FRM_METRIC_* macros into shm->frm; this file only
- *   READS them (ngx_atomic_fetch_add(..., 0)) at scrape time, so the snapshot is
+ * HOW: Counters are written lock-free by the durable stage-request registry
+ *   lifecycle (stage_request_registry_mutate.c: admit → requests_total/in_flight,
+ *   terminal set_status → success/fail/latency + in_flight) via the
+ *   BRIX_FRM_METRIC_* macros into shm->frm; this file only READS them
+ *   (ngx_atomic_fetch_add(..., 0)) at scrape time, so the snapshot is
  *   eventually consistent. The histogram is stored non-cumulative in SHM and
  *   cumulated into Prometheus `le` buckets here, exactly like unified.c. This unit
  *   is compiled into the HTTP metrics module (it runs at /metrics request time),

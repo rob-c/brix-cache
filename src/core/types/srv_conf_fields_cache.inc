@@ -40,6 +40,7 @@
     ngx_str_t    cache_state_root;        /* [brix_cache_state_root] */
     time_t       cache_dirty_max_age;     /* [brix_cache_dirty_max_age] secs; 0=off */
     ngx_event_t *cache_reap_timer;        /* per-worker stale-dirty reaper; NULL if off */
+    ngx_event_t *csi_scrub_timer;         /* per-worker at-rest CSI scrub; NULL if off */
     ngx_array_t *cache_deny_prefixes;     /* brix_wt_prefix_entry_t[] — read admission */
     ngx_array_t *cache_allow_prefixes;    /* same; whitelist when non-empty */
 
@@ -317,6 +318,16 @@
                                        throughput, and BBR ignores the spurious
                                        loss signals packet reordering induces.
                                        Empty = leave the kernel default. */
+    size_t      socket_sndbuf;      /* [brix_socket_sndbuf 0] Phase-33 P3-B3:
+                                       SO_SNDBUF bytes at accept — pin the send
+                                       buffer to the deployment BDP so a single
+                                       download stream keeps a high-BDP pipe full
+                                       instead of being capped by lagging send
+                                       autotuning.  0 = leave the kernel default
+                                       (autotuning). */
+    size_t      socket_rcvbuf;      /* [brix_socket_rcvbuf 0] SO_RCVBUF bytes at
+                                       accept — the symmetric knob for the
+                                       upload/PUT direction.  0 = kernel default. */
     ngx_msec_t  manager_stale_after; /* [brix_manager_stale_after 0] WS7: ms with
                                        no heartbeat after which a registered data
                                        server is de-preferred in cluster selection

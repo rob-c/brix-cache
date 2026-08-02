@@ -1,0 +1,50 @@
+# pb-gsi — root://+GSI gateway whose storage plane is a LOCAL pblock:// store,
+# with per-UNIX-GROUP r/w isolation.  Unlike s3-gsi there is NO backend
+# credential to select: the interesting axis is authorization + ownership.
+#
+# Provisioned identities (fixed, see templates/pki-bootstrap-job.yaml):
+#   pa, pb   -> group phys  (rw on /phys)
+#   ea       -> group eng   (ro on /phys, rw on /eng)
+#   stray    -> valid GSI proxy but its EEC DN is NOT in the gridmap
+#              (unmapped-DN deny probe; the account still exists in NSS)
+# The bootstrap job derives the gridmap from the ACTUAL minted EEC (end-entity)
+# DN (post-P80.11 identity keying), and emits deterministic passwd/group NSS
+# fragments so the server can resolve each mapped user's OS groups.  Published
+# object names are release-independent:
+#   Secret    pbgsi-pki           (CA, host cert, per-user proxies, identities.env)
+#   ConfigMap pbgsi-ca-bundle     (hashed CA dir for /etc/grid-security/certificates)
+#   ConfigMap pbgsi-jwks          (jwks.json — only to satisfy client-pki-init)
+#   Secret    pbgsi-server-extra  (gridmap + authdb + passwd.frag + group.frag
+#                                  -> /etc/brix/extra and the NSS init)
+
+pki:
+  image: brix-authority:dev
+  pullPolicy: Never
+
+pbgsi:
+  enabled: true
+  role:
+    name: pbgsi
+    configKey: pbgsi
+    ports:
+      - { name: rootgsi, port: 1096 }
+    data: { root: /data/xrootd }
+    auth:
+      caBundle: pbgsi-ca-bundle
+      hostCertSecret: pbgsi-pki
+      # gridmap (DN -> user) + authdb (g-rules) delivered to /etc/brix/extra.
+      extraSecret: pbgsi-server-extra
+      # passwd.frag + group.frag merged into /etc/passwd + /etc/group so the
+      # gate's getpwnam/getgrouplist resolves the mapped accounts.
+      nssSecret: pbgsi-server-extra
+    dataSeed:
+      # Pre-create the governed prefixes as service-owned (uid/gid 0),
+      # world-writable dirs directly in the pblock catalog, so the pblock
+      # POSIX layer admits every authenticated user (a no-VOMS GSI identity
+      # carries no VO -> pblock hands each principal a PRIVATE catalog gid,
+      # which would otherwise collide on a shared group dir) and the g-rule
+      # gate is the SOLE differentiator — "gate decides, catalog attests".
+      enabled: true
+      image: brix-authority:dev
+      pullPolicy: Never
+      dirs: "/phys /eng"

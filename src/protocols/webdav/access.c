@@ -24,6 +24,7 @@
 #include "fs/path/path.h"   /* brix_check_authdb_identity, brix_check_vo_acl_identity */
 #include "webdav_tpc.h"     /* webdav_tpc_find_header — COPY PULL/PUSH direction */
 #include "protocols/shared/deleg_capture.h"  /* phase-70 §5.1 proxy header capture */
+#include "protocols/shared/deleg_wire.h"    /* §5.2 aud gate + §5.4 exchange */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 #include "access_internal.h"  /* access_authenticate — access_auth.c */
 
@@ -497,21 +498,38 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
  *
  * HOW:  Reads conf->common.backend_delegation as the mode and the req ctx's
  *       bearer_token / deleg_proxy_pem as the bytes; brix_vfs_deleg_bind is a
- *       no-op for SELECT mode or when nothing was captured. */
+ *       no-op for SELECT mode or when nothing was captured. A captured bearer
+ *       that would be forwarded VERBATIM (any mode except EXCHANGE-with-endpoint,
+ *       which re-audiences it) must first pass the backend audience gate
+ *       (`brix_backend_token_audience_ok`, phase-70 §5.2 / P90-70.9) — on
+ *       refusal the bearer is simply not bound (SELECT/service-cred policy then
+ *       applies). EXCHANGE conf + the per-conf minted-token cache slot are
+ *       stamped after the bind. */
 void
 webdav_vfs_bind_deleg(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, brix_vfs_ctx_t *vctx)
 {
     ngx_http_brix_webdav_req_ctx_t *rctx;
+    const ngx_str_t                *bearer;
 
     if (conf->common.backend_delegation == BRIX_CRED_SELECT) {
         return;
     }
 
-    rctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    rctx   = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    bearer = brix_proto_deleg_gate_bearer(
+        (rctx != NULL) ? &rctx->bearer_token : NULL,
+        &conf->common, r->connection->log);
 
     (void) brix_vfs_deleg_bind(r->pool, vctx,
         (enum brix_cred_mode) conf->common.backend_delegation,
-        (rctx != NULL) ? &rctx->bearer_token : NULL,
+        bearer,
         (rctx != NULL) ? &rctx->deleg_proxy_pem : NULL);
+
+    brix_proto_deleg_stamp_conf(vctx, &conf->common);
+
+    /* P90-70.4: stamp the export's trust store so the VFS deleg gate re-runs
+     * the RFC-3820 chain-trust check before materialising the proxy (no-op
+     * when nothing was bound or no CA store is configured). */
+    brix_vfs_deleg_set_ca_store(vctx, conf->ca_store, conf->verify_depth);
 }

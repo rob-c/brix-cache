@@ -13,6 +13,11 @@
 > §6.1 (table) and §7 (cross-cutting lessons). This document is the *distilled* version:
 > the durable engineering principles a reviewer should carry into the **next** gateway,
 > independent of which byte flipped in which finding.
+>
+> **Companion (read/parse side):** [`protocol-fuzz-conformance.md`](protocol-fuzz-conformance.md)
+> — the malformed-first-bytes conformance corpus (12,800 tests) that hardens every
+> parser against crashing or emitting corrupt framing, where this doc hardens the
+> write path against mistaking a stopped transfer for a complete one.
 
 ## The threat model in one sentence
 

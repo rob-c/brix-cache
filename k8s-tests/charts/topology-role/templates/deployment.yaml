@@ -20,7 +20,9 @@ spec:
       {{- include "brix-common.nodePinning" . | nindent 6 }}
       {{- $sg := and .Values.role.startGate .Values.role.startGate.enabled }}
       {{- $auth := .Values.role.auth }}
-      {{- if or $sg (and $auth $auth.crlUrl) (and $auth $auth.jwksUrl) (and $auth $auth.extraSecret) }}
+      {{- $seed := and .Values.role.dataSeed .Values.role.dataSeed.enabled }}
+      {{- $vlsc := and $auth $auth.vomsLsc }}
+      {{- if or $sg $seed $vlsc (and $auth $auth.crlUrl) (and $auth $auth.jwksUrl) (and $auth $auth.extraSecret) (and $auth $auth.nssSecret) }}
       initContainers:
         {{- if and $auth $auth.extraSecret }}
         # Secret volumes materialize files as symlinks (..data/) which
@@ -34,6 +36,82 @@ spec:
           volumeMounts:
             - { name: extra-src, mountPath: /etc/brix/extra-src, readOnly: true }
             - { name: extra, mountPath: /etc/brix/extra }
+        {{- end }}
+        {{- if and $auth $auth.nssSecret }}
+        # DN->local-account gateways (brix_gridmap) need the mapped accounts in
+        # NSS so the authz gate's getpwnam/getgrouplist resolves their groups.
+        # Merge the bootstrap-generated passwd.frag/group.frag OVER the image's
+        # /etc/passwd + /etc/group into a plain emptyDir the main container
+        # mounts back via subPath (Secret symlink farms can't be subPath'd, and
+        # groupadd/useradd in an init container don't persist to the main one).
+        - name: nss-init
+          image: "{{ .Values.role.image.repository }}:{{ .Values.role.image.tag }}"
+          imagePullPolicy: {{ .Values.role.image.pullPolicy | default "Never" }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              cp /etc/passwd /nss/passwd
+              cp /etc/group  /nss/group
+              [ -f /etc/brix/nss-src/passwd.frag ] && cat /etc/brix/nss-src/passwd.frag >> /nss/passwd
+              [ -f /etc/brix/nss-src/group.frag ]  && cat /etc/brix/nss-src/group.frag  >> /nss/group
+              true
+          volumeMounts:
+            - { name: nss-src, mountPath: /etc/brix/nss-src, readOnly: true }
+            - { name: nss, mountPath: /nss }
+        {{- end }}
+        {{- if $vlsc }}
+        # Lay out a real VOMS trust store: each key of the vomsLsc secret is a
+        # VO name whose value is the LSC (subject+issuer of the VOMS signer);
+        # VOMS looks for <vomsdir>/<vo>/<host>.lsc, so a flat Secret mount can't
+        # serve it — build the <vo>/ subdir tree into an emptyDir the main
+        # container mounts at /etc/grid-security/vomsdir.  (Secret keys can't
+        # contain '/', so the subdir has to be materialised here.)
+        - name: voms-lsc-init
+          image: "{{ .Values.role.image.repository }}:{{ .Values.role.image.tag }}"
+          imagePullPolicy: {{ .Values.role.image.pullPolicy | default "Never" }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              for f in /etc/brix/voms-lsc-src/*; do
+                [ -f "$f" ] || continue
+                vo=$(basename "$f")
+                mkdir -p "/vomsdir/$vo"
+                cp "$f" "/vomsdir/$vo/voms.test.local.lsc"
+              done
+              true
+          volumeMounts:
+            - { name: voms-lsc-src, mountPath: /etc/brix/voms-lsc-src, readOnly: true }
+            - { name: vomsdir-built, mountPath: /vomsdir }
+        {{- end }}
+        {{- if $seed }}
+        # Seed the storage plane before the server starts (e.g. pblock catalog
+        # governed-prefix rows).  Generic: runs dataSeed.image against a python3
+        # sqlite seeder over the shared data volume.
+        - name: data-seed
+          image: "{{ .Values.role.dataSeed.image }}"
+          imagePullPolicy: {{ .Values.role.dataSeed.pullPolicy | default "Never" }}
+          command: ["python3", "-c"]
+          args:
+            - |
+              import os, sqlite3
+              root = {{ .Values.role.data.root | quote }}
+              os.makedirs(root, exist_ok=True)
+              db = os.path.join(root, "catalog.db")
+              con = sqlite3.connect(db)
+              con.execute("CREATE TABLE IF NOT EXISTS objects("
+                          "path TEXT PRIMARY KEY, parent TEXT NOT NULL, is_dir INTEGER NOT NULL,"
+                          "blob_id TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0,"
+                          "block_size INTEGER NOT NULL DEFAULT 0, mtime INTEGER NOT NULL DEFAULT 0,"
+                          "ctime INTEGER NOT NULL DEFAULT 0, mode INTEGER NOT NULL DEFAULT 0,"
+                          "uid INTEGER NOT NULL DEFAULT 0, gid INTEGER NOT NULL DEFAULT 0,"
+                          "xform TEXT NOT NULL DEFAULT '')")
+              for d in {{ .Values.role.dataSeed.dirs | default "" | quote }}.split():
+                  con.execute("INSERT OR REPLACE INTO objects(path, parent, is_dir, mode, uid, gid) "
+                              "VALUES(?, '/', 1, ?, 0, 0)", (d, 0o40000 | 0o777))
+              con.commit(); con.close()
+              print("data-seed: seeded", db)
+          volumeMounts:
+            - { name: data, mountPath: {{ .Values.role.data.root }} }
         {{- end }}
         {{- if $sg }}
         - name: start-gate
@@ -89,11 +167,20 @@ spec:
             {{- if $auth.jwksUrl }}
             - { name: jwks, mountPath: /etc/brix/jwks }
             {{- end }}
-            {{- if $auth.vomsdir }}
+            {{- if $auth.vomsLsc }}
+            # Built <vo>/*.lsc tree (from the voms-lsc-init container).
+            - { name: vomsdir-built, mountPath: /etc/grid-security/vomsdir, readOnly: true }
+            {{- else if $auth.vomsdir }}
             - { name: vomsdir, mountPath: /etc/grid-security/vomsdir, readOnly: true }
             {{- end }}
             {{- if $auth.extraSecret }}
             - { name: extra, mountPath: /etc/brix/extra, readOnly: true }
+            {{- end }}
+            {{- if $auth.nssSecret }}
+            # Merged NSS files (image base + bootstrap fragments), mounted back
+            # over the stock ones so the gate resolves mapped accounts.
+            - { name: nss, mountPath: /etc/passwd, subPath: passwd, readOnly: true }
+            - { name: nss, mountPath: /etc/group,  subPath: group,  readOnly: true }
             {{- end }}
             {{- end }}
           resources: {{- toYaml .Values.role.resources | nindent 12 }}
@@ -129,7 +216,14 @@ spec:
         {{- if $auth.jwksUrl }}
         - { name: jwks, emptyDir: {} }
         {{- end }}
-        {{- if $auth.vomsdir }}
+        {{- if $auth.vomsLsc }}
+        # Flat per-VO LSC secret (keys = VO names) + the built vomsdir tree.
+        - name: voms-lsc-src
+          secret:
+            secretName: {{ $auth.vomsLsc }}
+        - name: vomsdir-built
+          emptyDir: {}
+        {{- else if $auth.vomsdir }}
         - name: vomsdir
           configMap:
             name: {{ $auth.vomsdir }}
@@ -142,6 +236,14 @@ spec:
           secret:
             secretName: {{ $auth.extraSecret }}
         - name: extra
+          emptyDir: {}
+        {{- end }}
+        {{- if $auth.nssSecret }}
+        # Raw passwd.frag/group.frag secret + the merged-NSS emptyDir.
+        - name: nss-src
+          secret:
+            secretName: {{ $auth.nssSecret }}
+        - name: nss
           emptyDir: {}
         {{- end }}
         {{- end }}

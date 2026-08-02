@@ -17,7 +17,7 @@
  *       FRM tape queue). P5 folds them into ONE engine; the src/dst become SD
  *       instances (any driver) instead of FRM's local-path/stagecmd model, so the
  *       same engine moves bytes between any two tiers. The sd_stage / sd_cache
- *       decorators and the (future) frm nearline driver are its only callers.
+ *       decorators and the frm nearline driver (sd_frm, SP5) are its only callers.
  *
  * HOW:  brix_stage_submit(kind, src, src_key, dst, dst_key, opts) runs the
  *       generic promote loop - open `src` for read, staged_open `dst`, pread ->
@@ -25,13 +25,14 @@
  *       line on the terminal state. A synchronous submit runs the mover inline and
  *       returns ""; an async submit parks the open on a durable request id.
  *
- *       SP1 lands this seam with the inline mover fully working; the durable queue
- *       + waiter + restart-reconcile are EXTRACTED from src/frm/ in SP4 (section
- *       13b) and attach behind this same surface without touching a caller. Until
- *       then an async submit degrades to an inline move (honest: no durability is
- *       claimed that is not yet implemented), and the scheduler/reconcile entry
- *       points are no-ops. See docs/refactor/phase-64-fully-tiered-composable-
- *       storage.md (section 11, Appendix H/I).
+ *       The durable queue + waiter + restart-reconcile (extracted from the retired
+ *       src/frm/ in SP4, section 13b) sit behind this same surface: an async
+ *       submit journals a stage_pending_t and returns a durable request id, the
+ *       per-worker scheduler tick drains the FIFO through the mover (thread-pool
+ *       offload when available), and brix_stage_reconcile replays journalled
+ *       FLUSH records on worker start (phase-79 split the three concerns into
+ *       stage_engine{,_scheduler,_reconcile,_journal}.c). See docs/refactor/
+ *       phase-64-fully-tiered-composable-storage.md (section 11, Appendix H/I).
  */
 
 #include <ngx_core.h>

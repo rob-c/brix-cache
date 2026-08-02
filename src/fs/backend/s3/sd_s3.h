@@ -1,8 +1,8 @@
 /*
- * sd_s3.h — shared S3 object-store storage driver (read path; write/MPU follow).
+ * sd_s3.h — shared S3 object-store storage driver (read + write/MPU paths).
  *
  * WHAT: The S3 storage logic — SigV4 signing (shared kernels), HEAD/Range-GET,
- *       and (later) single-PUT + multipart upload — living once in
+ *       and single-PUT + multipart upload (sd_s3_write.c) — living once in
  *       src/fs/backend/, used by the userland clients (and any future server
  *       consumer) through an injected HTTP transport (sd_s3_transport.h).
  * WHY:  S3 was previously a client-only backend welded to client/lib's HTTP
@@ -33,6 +33,10 @@ typedef struct {
     const char                  *ak;          /* access key id */
     const char                  *sk;          /* secret key */
     const char                  *region;      /* e.g. "us-east-1" */
+    const char                  *session_token; /* STS X-Amz-Security-Token; NULL for a
+                                                * static keypair (phase-70 §5.5). When
+                                                * set it is signed into every request as
+                                                * a canonical header. Never logged. */
     const brix_s3_transport_t *transport;   /* injected HTTP transport */
     void                        *tctx;        /* transport context */
     int                          timeout_ms;
@@ -117,6 +121,34 @@ typedef struct { const char *name; const char *value; } sd_s3_meta_kv;
  * sent and SigV4-signed as x-amz-meta-<name>. 0 / -1 (errbuf). */
 int sd_s3_set_meta(const sd_s3_open_params *p, const sd_s3_meta_kv *kv,
                    size_t nkv, char *errbuf, size_t errcap);
+
+/* Server-side CopyObject: copy `copy_source` (an "/bucket/key" object path) onto
+ * the destination object addressed by `p->key`, signed with p's credential. The
+ * bytes never traverse this host — S3 copies in-store via the x-amz-copy-source
+ * header (default COPY metadata-directive, so the source's user metadata is
+ * preserved). Returns 0, or -1 with errno mapped from the HTTP status
+ * (ENOENT on a missing source, EACCES on auth, EIO otherwise) + errbuf. */
+int sd_s3_copy(const sd_s3_open_params *p, const char *copy_source,
+               char *errbuf, size_t errcap);
+
+/* ---- object listing (ListObjectsV2, delimited) ----------------------------
+ * Enumerate ONE page of the bucket under `prefix` with delimiter '/', so the
+ * result is a single directory level: <Contents> keys directly under the prefix
+ * (files) and <CommonPrefixes> (sub-directories). `p->key` MUST address the
+ * bucket root ("/bucket/") — that is the canonical URI the request is signed
+ * against; `prefix` (may be "") and the continuation token ride in the query
+ * string. `cb` fires once per entry with the entry BASENAME (a sub-directory
+ * carries no trailing slash) and `is_dir` distinguishing the two; the
+ * directory-marker object (Key == prefix) is skipped. Returning non-zero from
+ * `cb` stops enumeration of the current page early (reported as success). On
+ * success *truncated says whether more pages remain and cont_out receives the
+ * NextContinuationToken (empty when not truncated) to feed the next call's
+ * cont_in. 0 / -1 (errbuf + errno mapped from the HTTP status). */
+typedef int (*sd_s3_list_cb)(void *ud, const char *name, int is_dir);
+int sd_s3_list_page(const sd_s3_open_params *p, const char *prefix,
+                    const char *cont_in, sd_s3_list_cb cb, void *ud,
+                    int *truncated, char *cont_out, size_t cont_cap,
+                    char *errbuf, size_t errcap);
 
 /* Advisory POSIX attrs carried in x-amz-meta-<S3META>. get returns 1 (present +
  * decoded) / 0 (absent) / -1 (error); set replaces the user metadata with the

@@ -31,8 +31,12 @@ brix_recv_run_deferred(ngx_stream_session_t *s, ngx_connection_t *c,
      * pwrites (wr_inflight) have drained — a write completion or the send-side
      * drain re-enters recv to re-check.  This is what lets a kXR_close safely
      * follow a burst of pipelined writes: every pwrite lands before the retire.
+     * phase-32 WS3: also hold until in-flight cold reads (rd.aio_inflight) drain,
+     * so the deferred op never runs while a read worker still holds a handle.
      */
-    if (ctx->out.count > 0 || ctx->out.wr_inflight > 0) {
+    if (ctx->out.count > 0 || ctx->out.wr_inflight > 0
+        || ctx->rd.aio_inflight > 0)
+    {
         if (ngx_handle_read_event(rev, 0) != NGX_OK) {
             return BRIX_RECV_STEP_BREAK;
         }
@@ -93,8 +97,15 @@ brix_recv_header_prep(ngx_stream_session_t *s, ngx_connection_t *c,
      * out.count + wr_inflight at pipeline_depth caps BOTH in-flight pwrites and
      * queued acks, so the out_ring can never overflow.  (Both counters are 0 for
      * the common serial case, so this is a no-op there.)
+     *
+     * phase-32 WS3: cold reads in flight (rd.aio_inflight) each hold a rd_pool
+     * buffer and will each become a queued response, so count them here too —
+     * this is what caps the concurrent-read depth (and guarantees a free pool
+     * slot / out_ring slot for the next read the recv loop admits).
      */
-    if (ctx->out.count + ctx->out.wr_inflight >= ctx->out.pipeline_depth) {
+    if (ctx->out.count + ctx->out.wr_inflight + ctx->rd.aio_inflight
+        >= ctx->out.pipeline_depth)
+    {
         ctx->state = XRD_ST_SENDING;
         BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
         return BRIX_RECV_STEP_RETURN;
@@ -106,8 +117,13 @@ brix_recv_header_prep(ngx_stream_session_t *s, ngx_connection_t *c,
      * scratch a prior large read/pgwrite grew back to the streaming window, then
      * reconcile the transfer-heap footprint with the SHM-global budget.  Gated
      * on out.count==0 so a pipelined read still in flight is never disturbed.
+     * phase-32 WS3: also gate on rd.aio_inflight==0 — a cold read on a worker
+     * thread still owns a pool buffer, and the ngx_exiting idle-close below would
+     * otherwise free it (via brix_on_disconnect) mid-pread.
      */
-    if (ctx->out.count == 0 && ctx->out.wr_inflight == 0) {
+    if (ctx->out.count == 0 && ctx->out.wr_inflight == 0
+        && ctx->rd.aio_inflight == 0)
+    {
         brix_trim_scratch(ctx, c);
         brix_budget_sync(ctx);
 

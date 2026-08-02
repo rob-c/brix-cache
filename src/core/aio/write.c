@@ -125,7 +125,11 @@ brix_write_aio_done_pipelined(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *errmsg = NULL;
 
     if (!brix_aio_restore_stream(ctx, t->streamid)) {
-        if (ctx->out.finalize_pending && ctx->out.wr_inflight == 0) {
+        /* phase-32 WS3: a concurrent read may still be preading into a pool
+         * buffer — only the genuinely last outstanding op runs the teardown. */
+        if (ctx->out.finalize_pending && ctx->out.wr_inflight == 0
+            && ctx->rd.aio_inflight == 0)
+        {
             brix_run_deferred_teardown(ctx, c);
         }
         return;
@@ -136,6 +140,9 @@ brix_write_aio_done_pipelined(brix_ctx_t *ctx, ngx_connection_t *c,
     } else if ((size_t) t->nwritten < t->len) {
         errmsg = "short write (disk full?)";
     }
+
+    /* phase-56 D-2: file the write's latency (errored completions included). */
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_WRITE);
 
     if (errmsg != NULL) {
         brix_write_aio_logrec_t rec = { 0, kXR_IOError, errmsg, 0 };
@@ -215,6 +222,9 @@ brix_write_aio_done_serial(brix_ctx_t *ctx, ngx_connection_t *c,
     if (!brix_aio_restore_request(ctx, t->streamid)) {
         return;
     }
+
+    /* phase-56 D-2: file the write's latency (errored completions included). */
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_WRITE);
 
     if (t->nwritten < 0) {
         const char *errmsg = t->io_errno ? strerror(t->io_errno)
@@ -308,7 +318,9 @@ brix_write_aio_done(ngx_event_t *ev)
          * writes were in flight.  Touch nothing further except, on the last
          * pipelined completion, running the teardown that was held off.
          */
-        if (pipelined && ctx->out.finalize_pending && ctx->out.wr_inflight == 0) {
+        if (pipelined && ctx->out.finalize_pending && ctx->out.wr_inflight == 0
+            && ctx->rd.aio_inflight == 0)
+        {
             brix_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
         }
         return;
@@ -398,6 +410,9 @@ brix_writev_write_aio_done(ngx_event_t *ev)
     if (!brix_aio_restore_request(ctx, t->streamid)) {
         return;
     }
+
+    /* phase-56 D-2: writev files as one WRITE latency sample. */
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_WRITE);
 
     if (t->io_error) {
         BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);

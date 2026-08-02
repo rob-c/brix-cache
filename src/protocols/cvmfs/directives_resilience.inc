@@ -132,3 +132,78 @@
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.geo_max_servers),
       NULL },
+
+    /* ---- chunk-bundle batch fetch (phase-87 G2) ---- */
+
+    { ngx_string("brix_cvmfs_bundle"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.bundle),
+      NULL },
+
+    /* ---- trained shared-dictionary coding (phase-87 G3) ---- */
+
+    { ngx_string("brix_cvmfs_dict"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.dict),
+      NULL },
+
+    /* ---- background CAS integrity scrubbing (phase-87 G17) ---- */
+
+    { ngx_string("brix_cvmfs_scrub"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.scrub),
+      NULL },
+
+    { ngx_string("brix_cvmfs_scrub_interval"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.scrub_interval),
+      NULL },
+
+    { ngx_string("brix_cvmfs_scrub_rate"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.scrub_rate),
+      NULL },
+
+    /* ---- cross-revision delta transfer (phase-87 G10) ---- */
+
+    { ngx_string("brix_cvmfs_delta"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.delta),
+      NULL },
+
+    /* ---- workload-learned predictive prewarm (phase-87 G11) ---- */
+
+    { ngx_string("brix_cvmfs_learn"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.learn),
+      NULL },
+
+    /* ---- P2P swarm cold-start (phase-87 G12) ---- */
+
+    { ngx_string("brix_cvmfs_swarm"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.swarm),
+      NULL },
+
+    { ngx_string("brix_cvmfs_swarm_interval"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.swarm_interval),
+      NULL },

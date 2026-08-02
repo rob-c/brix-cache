@@ -447,6 +447,7 @@ brix_tier_parse_store(brix_tier_parse_t *p, ngx_str_t *url, ngx_array_t *args,
     }
 
     is_local = (ngx_strcmp(out->driver, "posix") == 0
+                || ngx_strcmp(out->driver, "block") == 0
                 || ngx_strcmp(out->driver, "pblock") == 0);
 
     if (is_local) {

@@ -88,6 +88,35 @@ brix_vbr_build_posix(brix_vfs_backend_entry_t *e, ngx_log_t *log)
     return inst;
 }
 
+/* Fixed-extent block backend (sd_block server plane): the export presents the
+ * block device (or a file used as one) at e->origin_path as a flat namespace of
+ * equal-size extents. e->block_size is the per-extent size (0 ⇒ whole device is
+ * a single extent "/0"). */
+static brix_sd_instance_t *
+brix_vbr_build_block(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_block_conf_t conf;
+    int                    sderr = 0;
+    brix_sd_instance_t  *inst;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.device      = e->origin_path;
+    conf.extent_size = e->block_size;
+
+    inst = brix_sd_instance_create(log, "block", &conf, &sderr);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, sderr,
+            "brix: block backend init failed for export \"%s\" (device \"%s\")",
+            e->root_canon, e->origin_path);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: block storage backend ready at \"%s\" (device \"%s\", "
+            "extent_size=%uz)", e->root_canon, e->origin_path,
+            (size_t) e->block_size);
+    }
+    return inst;
+}
+
 /* Remote root:// backend: the in-process origin wire client (read + write +
  * staged_open, auth via ztn/gsi). */
 static brix_sd_instance_t *
@@ -348,6 +377,7 @@ typedef struct {
 } brix_vbr_source_desc_t;
 
 static const brix_vbr_source_desc_t  brix_vbr_source_table[] = {
+    { "block",    brix_vbr_build_block },
     { "xroot",    brix_vbr_build_xroot },
 #if BRIX_HAVE_CEPH
     { "ceph",     brix_vbr_build_ceph },

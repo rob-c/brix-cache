@@ -239,6 +239,14 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->cms.fanout, prev->cms.fanout, 0);
     ngx_conf_merge_msec_value(conf->cms.fanout_window,
                                 prev->cms.fanout_window, 500);
+
+    /* Phase-61 W7: explicit upward-leg cluster role (auto = legacy mode
+     * derivation + permissive inbound dispatch). */
+    ngx_conf_merge_uint_value(conf->cms.role, prev->cms.role,
+                              BRIX_CMS_ROLE_AUTO);
+
+    /* Phase-61 W7: multi-tier kYR_state recursion (off = registry-only). */
+    ngx_conf_merge_value(conf->cms.state_relay, prev->cms.state_relay, 0);
     ngx_conf_merge_value(conf->cms.interval,        prev->cms.interval,    30);
     if (conf->cms.interval < 1) {
         /* 0 would arm a 0ms heartbeat timer AND zero the reconnect backoff

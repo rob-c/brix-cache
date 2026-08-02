@@ -245,10 +245,10 @@ sd_http_staged_commit(brix_sd_staged_t *h, int noreplace)
                                ss->buf, ss->len, is->timeout_ms, &resp,
                                errbuf, sizeof(errbuf));
     }
+    /* Ownership contract (brix_vfs_staged_commit / sd_remote_staged_commit):
+     * free the handle ONLY on success. On failure it stays valid for the
+     * caller's staged_abort — freeing here would double-free. */
     if (rq != 0) {
-        free(ss->buf);
-        free(ss);
-        free(h);
         errno = EIO;
         return NGX_ERROR;
     }
@@ -257,10 +257,13 @@ sd_http_staged_commit(brix_sd_staged_t *h, int noreplace)
         rc = NGX_ERROR;
     }
     is->transport->resp_free(&resp);
+    if (rc != NGX_OK) {
+        return rc;
+    }
     free(ss->buf);
     free(ss);
     free(h);
-    return rc;
+    return NGX_OK;
 }
 
 void
@@ -295,6 +298,110 @@ sd_http_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     if (resp.status != 204 && resp.status != 200 && resp.status != 404) {
         is->transport->resp_free(&resp);
         errno = EIO;
+        return NGX_ERROR;
+    }
+    is->transport->resp_free(&resp);
+    return NGX_OK;
+}
+
+/* sd_http_status_to_errno — map a WebDAV mutation status to a POSIX errno for the
+ * mkdir/rename slots. 401/403 → EACCES, 404/409 → ENOENT (target or its parent
+ * absent), 405 → EEXIST (method not allowed on an existing collection), 412 →
+ * EEXIST (Overwrite:F precondition — dst already present), anything else → EIO.
+ * The caller decides which codes count as success before calling this. */
+static int
+sd_http_status_to_errno(long status)
+{
+    switch (status) {
+    case 401:
+    case 403: return EACCES;
+    case 404:
+    case 409: return ENOENT;
+    case 405:
+    case 412: return EEXIST;
+    default:  return EIO;
+    }
+}
+
+/* sd_http_mkdir — create a collection at `path` via WebDAV MKCOL (RFC 4918 §9.3).
+ * `mode` is ignored: a WebDAV collection has no POSIX mode, and the VFS treats a
+ * best-effort chmod as a no-op success (sd.h setattr contract). Writes never fail
+ * over (a mutation on a non-primary origin would split-brain the store), so this
+ * targets endpoint 0 exactly like unlink/commit. 201 Created is success; 405 means
+ * the collection already exists (→ EEXIST); 409 means the parent is missing. */
+ngx_int_t
+sd_http_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
+{
+    sd_http_inst_state *is = inst->state;
+    brix_s3_resp_t      resp;
+    char                errbuf[256], full[SD_HTTP_PATH_MAX];
+
+    (void) mode;
+    sd_http_write_path(is, path, full, sizeof(full));
+    if (is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
+                               is->eps[0].tls, "MKCOL",
+                               full, is->auth_hdr[0] ? is->auth_hdr : NULL,
+                               NULL, 0, is->timeout_ms, &resp,
+                               errbuf, sizeof(errbuf)) != 0)
+    {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    if (resp.status != 201 && resp.status != 200) {
+        errno = sd_http_status_to_errno(resp.status);
+        is->transport->resp_free(&resp);
+        return NGX_ERROR;
+    }
+    is->transport->resp_free(&resp);
+    return NGX_OK;
+}
+
+/* sd_http_rename — rename/move `src` to `dst` via WebDAV MOVE (RFC 4918 §9.9).
+ * The Destination header must be a full absolute URI on this origin, so it is
+ * composed from endpoint 0's scheme/host/port and the write-path of `dst`.
+ * `noreplace` sends Overwrite: F so an existing destination fails 412 (→ EEXIST)
+ * rather than being clobbered; otherwise Overwrite: T replaces it. 201 (created)
+ * and 204 (replaced) are success. Any per-instance auth header is preserved
+ * alongside the MOVE-specific headers. Endpoint 0 only (writes never fail over). */
+ngx_int_t
+sd_http_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
+    int noreplace)
+{
+    sd_http_inst_state *is = inst->state;
+    brix_s3_resp_t      resp;
+    char                errbuf[256], srcfull[SD_HTTP_PATH_MAX];
+    char                dstfull[SD_HTTP_PATH_MAX];
+    char                hdrs[SD_HTTP_PATH_MAX + 512];
+    int                 n;
+
+    sd_http_write_path(is, src, srcfull, sizeof(srcfull));
+    sd_http_write_path(is, dst, dstfull, sizeof(dstfull));
+
+    /* Destination is an absolute URI on this origin; append Overwrite and any
+     * static auth header. A default HTTP/HTTPS port is emitted explicitly — it is
+     * always valid in an authority and keeps the composition branch-free. */
+    n = snprintf(hdrs, sizeof(hdrs),
+                 "Destination: %s://%s:%d%s\r\nOverwrite: %c\r\n%s",
+                 is->eps[0].tls ? "https" : "http",
+                 is->eps[0].host, is->eps[0].port, dstfull,
+                 noreplace ? 'F' : 'T',
+                 is->auth_hdr[0] ? is->auth_hdr : "");
+    if (n <= 0 || (size_t) n >= sizeof(hdrs)) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+
+    if (is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
+                               is->eps[0].tls, "MOVE",
+                               srcfull, hdrs, NULL, 0, is->timeout_ms, &resp,
+                               errbuf, sizeof(errbuf)) != 0)
+    {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    if (resp.status != 201 && resp.status != 204) {
+        errno = sd_http_status_to_errno(resp.status);
+        is->transport->resp_free(&resp);
         return NGX_ERROR;
     }
     is->transport->resp_free(&resp);

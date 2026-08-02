@@ -2,6 +2,11 @@
 
 **Status:** PLAN ONLY (not implemented). Authored 2026-06-24.
 
+> SUPERSEDED (2026-07-25): LANDED as `brix_vfs_io_core`
+> (`src/fs/vfs/vfs_io_core.{h,c}`). Note the repo-wide `xrootd_*`→`brix_*`
+> rename — grep for `brix_vfs_io_` not the `xrootd_vfs_io_*` names used below.
+> No open remainder; see `phase-90-plan-phase-remainder-register.md` §5.
+
 **Scope chosen:** Full rewire (incremental) — build the thread-safe core AND migrate
 every existing AIO worker through it, phase-by-phase with perf gates.
 

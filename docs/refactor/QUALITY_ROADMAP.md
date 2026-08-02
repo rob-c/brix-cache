@@ -95,9 +95,22 @@
 >   `ev_eb_reserve_range` (overflow/overlap guard + range reservation) +
 >   `ev_eb_drain_payload` (offset-addressed writer drain). Behavior-preserving
 >   (17 GSI-delegation + MODE-E event/framing/truncation tests green). Seventeen
->   stale backlog lines removed → **58 entries**. Next:
->   `sd_pblock_namespace.c::sd_pblock_unlink` (24),
->   `ftp_ev_data.c::ev_do_port` (23).
+>   stale backlog lines removed → **58 entries**.
+>
+>   **Continued 2026-07-31.** Both prior "Next" offenders closed, behavior-preserving:
+>   `sd_pblock_namespace.c::sd_pblock_unlink` (**CCN 24 → ≤15**) split into
+>   `pblock_unlink_check_target` (ENOTDIR/ENOTEMPTY/EISDIR gate) +
+>   `pblock_unlink_release_file` (F11 trash · F10 refs · F4 nearline · F9 anomaly ·
+>   F15 locks · F7 lab-crash) + `pblock_unlink_commit` (catalog remove + F17 audit);
+>   and `ftp_ev_data.c::ev_do_port` (**CCN 23 → ≤15**) split into
+>   `ev_port_parse_classic` (`h,h,h,h,p,p`) + `ev_port_parse_extended` (`|1|ip|port|`,
+>   IPv4-only) + `ev_port_screen_target` (getpeername anti-bounce pin + SSRF policy),
+>   all helpers ≤7. Verified: pblock C-unit + the new
+>   `test_gridftp_engine_event.py::test_port_eprt_parse_replies` (pins the exact
+>   PORT/EPRT wire replies the classic-only ftplib active-mode test never reached).
+>   Two backlog lines removed (surgically, no regen). Next:
+>   `sd_pblock_namespace.c::sd_pblock_rename` (20),
+>   `ftp_ev_data.c::ev_do_pasv` (18).
 > - **Stricter 9.5 gates (3.7)** — ✅ **TODO/FIXME ratchet LANDED** (`check_todo_fixme.sh`
 >   + `todo_fixme_backlog.txt`, wired into `guards.yml`; freezes the 5 existing
 >   files/6 markers, blocks new debt). The CCN cap stays 15 (not 8) **by deliberate
@@ -1007,6 +1020,11 @@ checks:
 >   flip (a red-on-drift gate violates the B-1 "no red-and-ignored gate" rule).
 >   A no-TODO/FIXME *zero-tolerance* gate is likewise ratcheted-to-zero rather than
 >   hard-zero, since 6 reviewed marker-comments (mostly XRootD-TODO references) exist.
+>   **2026-07-27 update:** the backlog is down to **3 permanent prose markers**
+>   (two comments quoting XRootD's own unimplemented `// { TODO??? }` at
+>   `XrdNetPMarkCfg.cc` in `pmark.h`/`flowlabel.c`, one `XXX` example URL in
+>   `http_query.h`) — these reference upstream text or example strings, not open
+>   work, so the ratchet floor is terminal. FIXME count is zero repo-wide.
 
 ### 3.1 Style Guide & Enforcement
 
@@ -1207,7 +1225,7 @@ TOTAL:      12-14 weeks (3-3.5 months)
 - [x] Security documentation complete — *`docs/07-security/*` full set*
 - [ ] Zero style violations — *not asserted (no formatter gate at zero-tolerance)*
 - [~] Zero static analysis warnings — *baselined, not zero (codechecker/fanalyzer frozen baselines)*
-- [~] No TODO/FIXME comments — *ratcheted to current 6 (check_todo_fixme.sh); new debt blocked, trending to zero*
+- [x] No TODO/FIXME comments — *backlog at its terminal floor of 3 permanent prose markers (upstream-XRootD-TODO quotes + one example URL, none actionable); zero FIXMEs; new debt blocked by `check_todo_fixme.py`*
 - [x] All functions documented
 - [ ] Code analysis tools report 9.5+ — *re-score not run*
 
@@ -1326,4 +1344,5 @@ jobs:
 | 2026-07-21 | 2.1 | Complexity burndown | Decomposed the next two offenders. `sd_pblock.c::pblock_open_as_inner` (**CCN 26 → 9**, helpers ≤12): the pblock open decision tree split into `pblock_open_locked` (F15 mandatory-lease name gate, before both lanes), `pblock_open_existing_gated` (the existing-file path: F9 visibility-lag hide + O_CREATE\|O_EXCL conflict + F4 nearline recall → `pblock_open_existing`), and `pblock_open_absent` (create-or-ENOENT + F9 anomaly record); parent is now lookup → lock-gate → dir → existing → absent. `brixautofs.c::af_readdir` (**CCN 26 → 8**): the ghost-entry enumeration split into `af_repos_nth_token` (comma/colon/space list nth-token parse), `af_ghost_name` (ghost-array vs repos-list source select), `af_seen_has` (dedup scan), and `af_fill_mounted` (the under-lock live-mount emit). Behavior-preserving: clean `-Werror` nginx + `-Wall -Wextra` brixMount builds + `-Wall -Wextra` pblock C-unit (ALL PASS) + 21 tests (17 pblock lab-locks/nearline/anomaly/cache-copy/gridftp-pblock open paths + 4 autofs-unit/automount) green. Removed both stale backlog lines (62 → 60). |
 | 2026-07-21 | 2.2 | Complexity burndown | Decomposed the next two offenders — both GSI/MODE-E gridftp event-engine hotspots. `ftp_ev_path.c::brix_ftp_ev_forward_pem` (**CCN 25 → 9**, helpers ≤6): the RFC-3820 proxy-chain rebuild split into `fwd_find_leaf` (locate the cert whose public key matches the delegated private key), `fwd_next_issuer` (subject↔issuer link walk that skips self + drops the self-signed trust anchor), `fwd_emit_chain` (emit leaf → … bounded by the cert count against a cross-signed spin), and `fwd_serialize` (append the key + copy the PEM into the pool); the forward-verbatim-on-failure fallback and cleanup ordering preserved exactly. `ftp_ev_mode_e.c::ev_eb_child_read` (**CCN 25 → 10**): the extended-block reader's state machine split via an `ev_eb_step_t` (RET/MORE/OK) status into `ev_eb_recv_header` (accumulate + unpack the 17-byte header), `ev_eb_reserve_range` (overflow/overlap guard + range reservation before payload read), and `ev_eb_drain_payload` (offset-addressed writer drain); the RET-means-completed / MORE-means-loop control flow keeps every original early-return path. Behavior-preserving: clean `-Werror` nginx build + 17 tests (3 GSI x509-delegation-to-`root://` + 14 MODE-E event/framing/truncation) green. Removed both stale backlog lines (60 → 58). |
 | 2026-07-21 | 2.3 | CI guard bash→Python | Ported the entire `tools/ci` guard fleet from bash to Python — all 18 remaining `.sh` (config-coverage, vfs-seam, http-helper, auth-verdict, metric-cardinality, sd-driver, shm-mutex, file-size, todo-fixme, doc-paths, doc-links, readme-coverage, ports-doc, vfs-identity-branch, duplication, coverage, run_fanalyzer, run_codechecker) rewritten as self-contained `.py` (byte-identical stdout/stderr/exit + `--regen` set-parity verified per guard), then the `.sh` deleted; zero bash remains under `tools/ci`. Rewired `guards.yml` + `fanalyzer.yml`/`coverage.yml`/`codechecker.yml` + living docs (CLAUDE.md, agent-guide-extended, component READMEs, this file) `.sh`→`.py`. Ratchets normalized to codepoint (`LC_ALL=C`) order (locale-independent). **Wired into the pytest gate** via new `tests/test_ci_guards.py` — runs the real `tools/ci/*.py` scripts (fast static guards every run, lizard ratchets when the analyzer is present, analyzer/coverage runners in the `slow`/nightly lane), so a guard reddens the local loop, not just CI. (Rationale: bash is a liability — locale-dependent `sort`, unsafe parsing, poor testability.) |
+| 2026-07-27 | 2.4 | comment-hygiene sweep | TODO/FIXME backlog burned down 6→**3 terminal prose markers** (backlog regenerated after verifying the flagged features — e.g. the vfs_deleg chain-trust gate — are implemented and rewording the stale comments); FIXME count verified **zero** repo-wide. Plus a stale-placeholder-comment truth sweep: 10 in-code comments claiming work was future/deferred corrected against the tree where the work had landed (stage-engine durable queue/scheduler/reconcile + frm driver, SD seam VFS wiring, cache tier/async-fill/recall, cstore XATTR/SIDECAR modes, S3 write/MPU, CMS routed opcodes, VFS driver-routed data plane, cvmfs T12 manifest TTLs) — full register in phase-88 §2 addendum. |
 

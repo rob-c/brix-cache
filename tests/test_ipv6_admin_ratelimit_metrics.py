@@ -763,6 +763,7 @@ def test_metrics_ipv6_label_cardinality_bounded():
         "method",        # HTTP method (GET/PUT/...)
         "mode",          # server mode (standalone/manager/...)
         "op",            # protocol opcode (read/stat/open/...)
+        "outcome",       # cred-deleg gate terminal outcome (ENUM: 3 fixed values)
         "plane",         # data vs control plane
         "port",          # listener port (closed set of configured listeners)
         "proto",         # protocol (root/https/s3/...)

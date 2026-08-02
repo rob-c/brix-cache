@@ -24,6 +24,8 @@ static const char *cvmfs_json_class_names[BRIX_CVMFS_CLASS_COUNT] = {
     "cas",
     "manifest",
     "geo",
+    "bundle",
+    "dict",
     "reject",
 };
 

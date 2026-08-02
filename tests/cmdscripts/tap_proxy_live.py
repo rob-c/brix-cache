@@ -376,12 +376,23 @@ sec.protbind * only gsi
 # ---------------------------------------------------------------------------
 CVMFS_CORE = [
     "shared/cvmfs/client/client.c",
+    "shared/cvmfs/client/client_pathidx.c",
+    "shared/cvmfs/client/client_negfilter.c",
     "shared/cvmfs/fetch/fetch.c",
+    # phase-87 G2 bundle ingest + G3 zstd-dict decode, called from the
+    # brixcvmfs transport/prefetch siblings.
+    "shared/cvmfs/fetch/fetch_bundle.c",
+    "shared/cvmfs/bundle/bundle.c",
+    "shared/cvmfs/dict/dict.c",
     "shared/cvmfs/object/object.c",
     "shared/cvmfs/failover/failover.c",
     "shared/cvmfs/catalog/catalog.c",
     "shared/cvmfs/grammar/hash.c",
     "shared/cvmfs/grammar/classify.c",
+    # client.c consults the negative xor-filter and the mmap path index
+    # (phase-87 G1/G6) unconditionally at link time.
+    "shared/cvmfs/filter/xorf.c",
+    "shared/cvmfs/index/pathidx.c",
     "shared/cvmfs/signature/manifest.c",
     "shared/cvmfs/signature/whitelist.c",
     "shared/cvmfs/signature/verify.c",
@@ -389,6 +400,11 @@ CVMFS_CORE = [
     "shared/cvmfs/config/cvmfs_conf.c",
     "shared/cvmfs/walk/walk.c",
     "shared/cache/cas_store.c",
+    # cas_store.c calls into the packed-CAS backend (brix_cas_pack_*) whenever a
+    # store has a live pack; the symbol is referenced unconditionally at link
+    # time, and cas_pack.c in turn needs the platform fd/mmap helpers.
+    "shared/cache/cas_pack.c",
+    "shared/cvmfs/platform/platform.c",
     "shared/net/proxy_env.c",
 ]
 
@@ -485,7 +501,16 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
             (brixcvmfs, ["gcc", "-Wall", "-Wextra", "-Werror",
                          "-I", "shared", "-I", "client/lib", "-I", "src",
                          "-DXRDPROTO_NO_NGX", *fuse_cflags.stdout.split(),
-                         "-o", str(brixcvmfs), "client/apps/fs/brixcvmfs.c", *CVMFS_CORE,
+                         "-o", str(brixcvmfs),
+                         # phase-38: brixcvmfs is split by concern (front-end +
+                         # transport/prefetch/ops/mount siblings) — none are
+                         # archived, so list all five app sources here.
+                         "client/apps/fs/brixcvmfs.c",
+                         "client/apps/fs/brixcvmfs_transport.c",
+                         "client/apps/fs/brixcvmfs_prefetch.c",
+                         "client/apps/fs/brixcvmfs_ops.c",
+                         "client/apps/fs/brixcvmfs_mount.c",
+                         *CVMFS_CORE,
                          "client/libbrix.a", "shared/xrdproto/libxrdproto.a",
                          *fuse_libs.stdout.split(), "-lcurl", "-lsqlite3", "-lcrypto", "-lz",
                          *BRIX_CONN_LDLIBS]),

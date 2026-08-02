@@ -35,6 +35,8 @@
 #include "core/compat/err_strings.h"                 /* brix_kxr_err_string     */
 #include "fs/xfer/backend_async_queue.h"             /* brix_baq_enqueue        */
 #include "fs/path/path.h"                            /* brix_log_access         */
+#include "net/cms/cns_emit.h"                        /* brix_cns_emit           */
+#include "net/cms/cns.h"                             /* BRIX_CNS_DEL / _RMDIR   */
 
 #include <errno.h>
 #include <limits.h>
@@ -44,8 +46,9 @@
  * on the original streamid (which ctx->recv.cur_streamid still holds — the recv
  * loop reads no new PDU while WAITING_BAQ). */
 typedef struct {
-    brix_ctx_t       *ctx;
-    ngx_connection_t *c;
+    brix_ctx_t                 *ctx;
+    ngx_connection_t           *c;
+    ngx_stream_brix_srv_conf_t *conf;      /* for the late CNS emit on success   */
     ngx_uint_t        op_id;               /* BRIX_OP_RM / _RMDIR / _MV slot     */
     const char       *verb;                /* "RM" / "RMDIR" / "MV" (static)     */
     brix_baq_op_t     baq_op;              /* for RMDIR ENOENT→OK idempotency    */
@@ -80,6 +83,16 @@ baq_root_done(void *client, int op_errno)
     if (op_errno == 0) {
         brix_log_access(ctx, c, park->verb, park->resolved, park->detail,
                         1, kXR_ok, NULL, 0);
+        /* §6 CNS: the durable-queue removal has now actually run, so emit the
+         * namespace mutation the inline path emits at op_table.c (the async park
+         * returned before that emit). RENAME/MV is outside the CNS v1 op set
+         * (ADD/DEL/MKDIR/RMDIR only), so it emits nothing. Best-effort no-op
+         * unless `brix_cns emit` + a live manager link. */
+        if (park->baq_op == BRIX_BAQ_UNLINK) {
+            brix_cns_emit(park->conf, BRIX_CNS_DEL, park->resolved, 0, 0);
+        } else if (park->baq_op == BRIX_BAQ_RMDIR) {
+            brix_cns_emit(park->conf, BRIX_CNS_RMDIR, park->resolved, 0, 0);
+        }
         BRIX_OP_OK(ctx, park->op_id);
         (void) brix_send_ok(ctx, c, NULL, 0);
     } else {
@@ -130,6 +143,7 @@ brix_root_backend_async_try(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     park->ctx    = ctx;
     park->c      = c;
+    park->conf   = conf;
     park->op_id  = d->op_id;
     park->verb   = d->name;
     park->baq_op = baq_op;
@@ -181,6 +195,7 @@ brix_root_backend_async_mv_try(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     park->ctx    = ctx;
     park->c      = c;
+    park->conf   = conf;
     park->op_id  = BRIX_OP_MV;
     park->verb   = "MV";
     park->baq_op = BRIX_BAQ_RENAME;

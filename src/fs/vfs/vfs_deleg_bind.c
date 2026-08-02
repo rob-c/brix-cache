@@ -6,6 +6,8 @@
  *       reports the resolved delegation mode back to the cred gate:
  *       brix_vfs_ctx_bind_backend_deleg() — hang a borrowed bag on a VFS ctx.
  *       brix_vfs_deleg_set_exchange()      — stamp EXCHANGE conf onto the bag.
+ *       brix_vfs_deleg_set_ca_store()      — stamp the CA store for the in-gate
+ *                                            chain re-verify (P90-70.4).
  *       brix_vfs_deleg_bind()              — allocate + fill + bind the bag.
  *       brix_vfs_backend_mode()            — report the ctx's resolved mode.
  *       brix_vfs_backend_accepts_proxy()   — does the leaf backend take a proxy?
@@ -17,6 +19,11 @@
  *       points are public (declared in vfs.h via vfs_internal.h).
  */
 #include "vfs_internal.h"
+
+/* The metrics layer mirrors enum brix_cred_mode as a plain count so it never
+ * imports fs headers (P90-70.6); hold the two in lock-step at compile time. */
+typedef char brix_cred_mode_metric_count_check[
+    (BRIX_CRED_AUTO + 1 == BRIX_CRED_MODE_METRIC_COUNT) ? 1 : -1];
 
 /* ---- brix_vfs_ctx_bind_backend_deleg ---------------------------------------
  *
@@ -53,11 +60,15 @@ brix_vfs_ctx_bind_backend_deleg(brix_vfs_ctx_t *vctx, brix_deleg_live_t *live)
  *
  * HOW:  A no-op when no bag is bound (nothing forwardable was captured) or the
  *       endpoint is empty (EXCHANGE then degrades to verbatim passthrough in the
- *       gate). All strings are borrowed (conf-owned, NUL-terminated). */
+ *       gate). All strings are borrowed (conf-owned, NUL-terminated).
+ *       `tx_cache_slot` (optional) points at the conf's per-worker minted-token
+ *       cache pointer so the gate can lazily create + reuse the RFC-8693 result
+ *       cache across requests (P90-70.9); NULL disables caching. */
 void
 brix_vfs_deleg_set_exchange(brix_vfs_ctx_t *vctx,
     const ngx_str_t *endpoint, const ngx_str_t *client_id,
-    const ngx_str_t *client_secret, const ngx_str_t *audience)
+    const ngx_str_t *client_secret, const ngx_str_t *audience,
+    void **tx_cache_slot)
 {
     brix_deleg_live_t *live;
 
@@ -79,6 +90,170 @@ brix_vfs_deleg_set_exchange(brix_vfs_ctx_t *vctx,
     if (audience != NULL) {
         live->tx_audience = *audience;
     }
+    live->tx_cache_slot = tx_cache_slot;
+}
+
+/* ---- brix_vfs_deleg_set_ca_store -------------------------------------------
+ *
+ * WHAT: Stamp the export's trusted CA store (+ max proxy chain depth) onto the
+ *       ctx's already-bound live-cred bag (phase-70 §5.1 / P90-70.4).
+ *
+ * WHY:  The capture sites validate transport + leaf DN, but the RFC-3820
+ *       chain-trust check against the CA store must also hold at the single
+ *       seam where the bytes become a backend credential — with a store bound,
+ *       the materialiser no longer trusts the capture site alone, and a future
+ *       capture site that forgets the check still fails closed.
+ *
+ * HOW:  Mirrors brix_vfs_deleg_set_exchange: a no-op when no bag is bound or
+ *       the store is NULL (the gate then relies on the capture-side check).
+ *       The store pointer is borrowed (conf-owned X509_STORE*, typed void* so
+ *       vfs.h stays OpenSSL-free); depth 0 = OpenSSL default. */
+void
+brix_vfs_deleg_set_ca_store(brix_vfs_ctx_t *vctx, void *ca_store,
+    ngx_uint_t verify_depth)
+{
+    brix_deleg_live_t *live;
+
+    if (vctx == NULL || vctx->deleg_live == NULL || ca_store == NULL) {
+        return;
+    }
+
+    live = vctx->deleg_live;
+    live->ca_store        = ca_store;
+    live->ca_verify_depth = verify_depth;
+}
+
+/* ---- brix_vfs_deleg_set_sss ------------------------------------------------
+ *
+ * WHAT: Arm SSS identity injection (phase-70 §5.6 / P90-70.3): stamp the
+ *       backend keytab path onto the ctx's live-cred bag, allocating the bag
+ *       first when none is bound.
+ *
+ * WHY:  Injection is the leg for callers with NO forwardable bytes — exactly
+ *       the case where brix_vfs_deleg_bind declines to bind a bag (it degrades
+ *       to SELECT by design). So this setter cannot piggyback on an existing
+ *       bag the way set_exchange/set_ca_store do; it must be able to create
+ *       one. With the keytab stamped, the gate's no-bytes path asserts the
+ *       caller's principal via SSS instead of denying / falling to SELECT.
+ *
+ * HOW:  No-op on NULL vctx, mode==SELECT, or an empty keytab (injection off).
+ *       When no bag is bound: ngx_pcalloc one from vctx->pool with `mode` set;
+ *       on OOM return silently — the ctx stays on SELECT, the same degrade
+ *       brix_vfs_deleg_bind's no-bytes path produces (the cred gate, not the
+ *       capture, owns deny decisions). `keytab` is borrowed conf bytes
+ *       (NUL-terminated) and outlives every request. */
+void
+brix_vfs_deleg_set_sss(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
+    const ngx_str_t *keytab)
+{
+    brix_deleg_live_t *live;
+
+    if (vctx == NULL || mode == BRIX_CRED_SELECT
+        || keytab == NULL || keytab->len == 0 || keytab->data == NULL)
+    {
+        return;
+    }
+
+    live = vctx->deleg_live;
+    if (live == NULL) {
+        live = ngx_pcalloc(vctx->pool, sizeof(*live));
+        if (live == NULL) {
+            return;              /* degrade to SELECT, as bind's no-bytes path */
+        }
+        live->mode = mode;
+        brix_vfs_ctx_bind_backend_deleg(vctx, live);
+    }
+
+    live->sss_keytab = *keytab;
+}
+
+/* ---- brix_vfs_deleg_set_sts ------------------------------------------------
+ *
+ * WHAT: Arm S3 STS credential EXCHANGE (phase-70 §5.5): stamp a borrowed STS
+ *       conf onto the ctx's live-cred bag, allocating the bag first when none
+ *       is bound.
+ *
+ * WHY:  Like SSS injection, STS is the leg for callers with NO forwardable
+ *       bytes — an S3 SigV4 secret is never transmitted, so nothing of the
+ *       caller's can be passed through; instead the node exchanges its own S3
+ *       service credential for temporary creds scoped to the caller. So this
+ *       setter, like set_sss, cannot piggyback on an existing bag and must be
+ *       able to create one.
+ *
+ * HOW:  No-op on NULL vctx, mode==SELECT, or a NULL conf (STS off). When no bag
+ *       is bound: ngx_pcalloc one from vctx->pool with `mode` set; on OOM return
+ *       silently — the ctx stays on SELECT (deny decisions belong to the gate,
+ *       not the capture). `cf` is borrowed and must outlive the op (the caller
+ *       builds it on the request pool from conf-owned bytes). Proven credential
+ *       bytes (proxy/bearer) always win over STS in the gate. */
+void
+brix_vfs_deleg_set_sts(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
+    const brix_s3_sts_conf_t *cf)
+{
+    brix_deleg_live_t *live;
+
+    if (vctx == NULL || mode == BRIX_CRED_SELECT || cf == NULL) {
+        return;
+    }
+
+    live = vctx->deleg_live;
+    if (live == NULL) {
+        live = ngx_pcalloc(vctx->pool, sizeof(*live));
+        if (live == NULL) {
+            return;              /* degrade to SELECT, as bind's no-bytes path */
+        }
+        live->mode = mode;
+        brix_vfs_ctx_bind_backend_deleg(vctx, live);
+    }
+
+    live->sts = cf;
+}
+
+/* ---- brix_vfs_deleg_set_krb5 -----------------------------------------------
+ *
+ * WHAT: Arm krb5 GSSAPI EXCHANGE (phase-70 §5.7): stamp the async-safe FILE
+ *       ccache PATH (the serialised forwarded TGT) + the origin service
+ *       principal onto the ctx's live-cred bag, allocating the bag first when
+ *       none is bound.
+ *
+ * WHY:  krb5 EXCHANGE does carry captured bytes (the user's forwarded TGT), but
+ *       the front door serialises them to a FILE ccache before this call so a
+ *       request-scoped gss_cred_id_t never has to survive onto the async fill
+ *       task — only the path does. That path may arrive with or without a bag
+ *       already bound (a bearer could co-exist), so like set_sss/set_sts this
+ *       must be able to create one.
+ *
+ * HOW:  No-op on NULL vctx, mode==SELECT, or an empty ccache/principal. When no
+ *       bag is bound: ngx_pcalloc one from vctx->pool with `mode` set; on OOM
+ *       return silently (degrade to SELECT — deny decisions belong to the gate).
+ *       Both strings are borrowed NUL-terminated request-pool bytes and must
+ *       outlive the op. A full x509 proxy still wins over krb5 in the gate. */
+void
+brix_vfs_deleg_set_krb5(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
+    const ngx_str_t *ccache, const ngx_str_t *origin_princ)
+{
+    brix_deleg_live_t *live;
+
+    if (vctx == NULL || mode == BRIX_CRED_SELECT
+        || ccache == NULL || ccache->len == 0 || ccache->data == NULL
+        || origin_princ == NULL || origin_princ->len == 0
+        || origin_princ->data == NULL)
+    {
+        return;
+    }
+
+    live = vctx->deleg_live;
+    if (live == NULL) {
+        live = ngx_pcalloc(vctx->pool, sizeof(*live));
+        if (live == NULL) {
+            return;              /* degrade to SELECT, as bind's no-bytes path */
+        }
+        live->mode = mode;
+        brix_vfs_ctx_bind_backend_deleg(vctx, live);
+    }
+
+    live->krb5_ccache       = *ccache;
+    live->krb5_origin_princ = *origin_princ;
 }
 
 /* ---- brix_vfs_deleg_bind ---------------------------------------------------

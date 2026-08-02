@@ -35,6 +35,7 @@
 #include <openssl/x509_vfy.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Load the proxy cert chain as one contiguous PEM blob (certs only). The proxy is an
  * operator-configured path (trusted, like the server's own cert/key); opened
@@ -276,7 +277,7 @@ originauth_gsi_load_credential(brix_cache_fill_t *t, const char *proxy_path,
             : proxy_path);
     if (cred->pem == NULL || cred->key == NULL) {
         free(cred->pem);
-        EVP_PKEY_free(cred->key);
+        brix_evp_pkey_free(cred->key);
         ngx_memzero(cred, sizeof(*cred));
         brix_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin gsi cannot load proxy credential");
@@ -344,7 +345,7 @@ originauth_gsi_send_response(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
                                         err, sizeof(err));
     free(body);
     free(cred->pem);
-    EVP_PKEY_free(cred->key);
+    brix_evp_pkey_free(cred->key);
     if (rc != 0) {
         brix_cache_set_error(t, kXR_AuthFailed, 0,
                                err[0] ? err : "cache origin gsi round-2 failed");

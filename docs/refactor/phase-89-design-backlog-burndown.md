@@ -1,15 +1,21 @@
 # Phase 89 — design-backlog burndown: phase-60 Ceph namespace plane · phase-61 CMS parity implementation · phase-64 long tail
 
-**Status:** COMPLETE 2026-07-21 (code + tests + docs; everything below is the
-per-workstream record). Remaining follow-ups only: B's live Docker legs are
-infra-blocked (daemon down, `xrd-ceph-build` image missing) and D.1's ADR-3
-ratify awaits OP confirmation. — Workstream A (doc truth sweep) **DONE
-2026-07-21**;
-**B (Ceph namespace plane) CODE-COMPLETE 2026-07-21** (unit tests + build green;
-live Docker legs written but blocked: Docker daemon down on this host, so the
-phase-60 close-out doc sweep stays pending live verification);
-**D.1 DONE 2026-07-21** (ratify recommended; grammar frozen by
-`tests/test_frm_directive_pin.py`, 3 green — OP confirmation still pending);
+**Status:** **CLOSED 2026-07-27** — the two 2026-07-21 follow-ups are
+resolved: B's live Docker legs ran green (daemon + `xrd-ceph-build` image back;
+`tests/test_ceph_live.py` 5/5 in the demo-RADOS lab, phase-60 header now reads
+COMPLETE) and D.1's ADR-3 is RATIFIED (§D.1, phase-64 status block amended).
+Exit criteria §F.1–.4 all met: F.2's last gap (phase-61 App E.1 matrix cells
+still 🟦) flipped ✅ 2026-07-27. Also fixed en route: `build_in_container`
+tarball moved out of the shared pytest basetemp
+(`pytest_shared_basetemp_rotation_race` — a concurrent session's rotation
+deleted it mid-tar on the first live run). Everything below is the
+per-workstream record. — Workstream A (doc truth sweep) **DONE 2026-07-21**;
+**B (Ceph namespace plane) DONE — code 2026-07-21, LIVE-VERIFIED 2026-07-27**
+(unit tests + build green; `test_ceph_live.py` 5/5: namespace plane
+mkdir/list/rename + error/security legs, per-user CephX listing, export
+smoke);
+**D.1 DONE 2026-07-21, ADR-3 RATIFIED 2026-07-27** (grammar frozen by
+`tests/test_frm_directive_pin.py`, 3 green re-verified);
 **C: PR-1 (W1) DONE** (usage→load 13-byte golden + stats size-form + pre-auth
 neg, `tests/test_cms_wire_pup_conformance.py` green) and **PR-2 (W9) DONE
 2026-07-21** (status reset/suspend/resume/stage handler reading the modifier at
@@ -49,7 +55,7 @@ connections are not re-covered until some node logs in.  Tests:
 `nginx_cms_blfile_server.conf`, CMS wire login + anonymous dashboard
 `draining` observable) — CIDR-drained-at-registration / mtime edit picked up /
 malformed lines skipped while good line applies / file wins over authorized
-admin undrain; 4 green + wire file still 32 green; `check_vfs_seam.sh` green
+admin undrain; 4 green + wire file still 32 green; `check_vfs_seam.py` green
 (stat/fopen carry `vfs-seam-allow` operator-config markers).
 **PR-5 (W3) DONE 2026-07-21**: dynamic location — loc cache + `kYR_state`
 fan-out + `kYR_have` ingest, default-off (`brix_cms_locate_window 0` =
@@ -88,7 +94,7 @@ re-probe / window expiry → `kXR_wait` and the connection stays usable /
 hostile `have` outside the node's exported paths dropped+logged, never cached;
 3 green + full CMS gate green (wire 32, blacklist-file 4, state/have/select,
 manager-mode = 76 passed).  INVARIANT-#10 grep gate landed with this PR as
-mandated: `tools/ci/check_shm_mutex.sh` (no bare `ngx_shmtx_create` outside
+mandated: `tools/ci/check_shm_mutex.py` (no bare `ngx_shmtx_create` outside
 `shm_slots.c`) wired into `guards.yml` + README (pre-push globs it
 automatically); tree clean.
 **PR-6 (W2) DONE 2026-07-21**: forwarded staging — node-side `kYR_prepadd`/
@@ -624,8 +630,16 @@ which survived the dissolution as first-class subsystems; renaming
 operator-visible directives is churn without a correctness payoff, and P2's
 "no legacy" was aimed at the *cache* grammar (which WAS deleted, §14 status
 block). Whichever way: one config-grammar pin test
-(`nginx -t` matrix over the knob set) locks the outcome. **Needs OP
-confirmation before the phase-64 close-out.**
+(`nginx -t` matrix over the knob set) locks the outcome.
+
+**RATIFIED (a) 2026-07-27** — executed under the OP's phase-89 completion
+directive. Phase-64's status block now records the amendment ("§13c step 4:
+directives retained as engine/adapter knobs") plus the knob-owner table;
+operator-facing ownership already documented in
+`docs/03-configuration/quick-reference.md`. Grammar frozen by
+`tests/test_frm_directive_pin.py` (3 green, re-verified 2026-07-27). The
+optional `brix_stage_*` alias rename stays unscheduled (low priority, no
+correctness payoff).
 
 ### D.2 Object-store eviction scan — **absorbed into §B.1**
 
@@ -644,13 +658,41 @@ uses the thread-pool serve off-load
 no correctness gap. Defer until a profile shows worker stall under mixed
 load; pickup is a generalisation of the existing off-load, not new design.
 
-### D.4 HPSS/CTA native MSS adapters — infra-blocked (parked)
+### D.4 HPSS/CTA MSS adapters — SUPPORTED as exec-family dialects (2026-07-30)
 
-The `exec` stagecmd adapter (`sd_frm_exec.c`) covers the generic HSM
-contract; native adapters need vendor libraries unavailable in this
-environment. Parked with the phase-88 §4 infra-blocked register. The adapter
-vtable (`sd_frm_mss.h`) is the stable seam — no design work remains, only the
-vendored builds + a lab.
+> **UPDATE 2026-07-30 — CLOSED for the operational path.** `hpss` and `cta` are
+> now **first-class named MSS dialects**, not stub fallthroughs. `tape://hpss`
+> and `tape://cta` drive the classic FRM stage-command transport (`sd_frm_exec.c`)
+> — which *is* the production model real XRootD uses to front HPSS/CTA/dCache
+> (operator `hsi`/`pftp`/`eos`/`cta-admin` stage scripts) — each resolving its own
+> per-dialect stage command so a node can front an HPSS silo and a CTA silo at
+> once: `$BRIX_FRM_HPSS_STAGECMD` / `$BRIX_FRM_CTA_STAGECMD`, both falling back to
+> the generic `$BRIX_FRM_STAGECMD`. `frm_adapter_is_exec_family` +
+> `frm_exec_stagecmd` in `sd_frm.c`; an unknown adapter name is now the only stub
+> fallthrough. Tests: `test_frm_scratch.py::test_named_hsm_dialect_recalls_via_
+> dialect_stagecmd[hpss,cta]` (fixed ports `lc-frm-hpss` 30425 / `lc-frm-cta`
+> 30426) drive a real recall through each dialect with ONLY its per-dialect
+> override set, proving both the wiring and the resolution precedence.
+>
+> **LANDED 2026-07-30 — the *library-native* adapter:** `sd_frm_lib.c` implements
+> the vtable seam by `dlopen`ing an operator HSM `.so` and `dlsym`ing the
+> `sd_frm_lib_abi.h` verbs (`brix_frm_hsm_exists`/`recall`/`migrate`, optional
+> `purge`) — each verb an in-process call, removing the per-recall `fork+exec` that
+> dominates small-object staging latency. Dialects `lib`/`libhpss`/`libcta`
+> resolve the `.so` from `$BRIX_FRM_LIB` → per-dialect `$BRIX_FRM_{HPSS,CTA}_LIB`
+> (`frm_adapter_is_lib_family` / `frm_lib_path` / `frm_select_lib_adapter`, tried
+> before exec/stub). The vendor library is a runtime plug-in: an absent `.so` or a
+> missing required symbol WARN-logs and degrades to exec/stub, never a boot
+> failure — so the "needs vendor libraries + a real silo lab" blocker no longer
+> applies (a mock HSM `.so` stands in for the lab). Tests:
+> `test_frm_lib_adapter.py` (4/4, fixed ports `lc-frm-lib` 30428 / `lc-frm-libhpss`
+> 30429 / `lc-frm-libcta` 30430) drive a live recall through the `dlsym`'d verbs
+> with a compiled mock HSM (`tests/cmdscripts/frm_mock_hsm.c`).
+
+The `exec` stagecmd adapter (`sd_frm_exec.c`) covers the generic HSM contract and
+backs the named `hpss`/`cta` dialects; the library-native adapter (`sd_frm_lib.c`)
+adds the fork-free transport for the `lib`/`libhpss`/`libcta` dialects. The adapter
+vtable (`sd_frm_mss.h`) is the stable seam shared by all three.
 
 ### D.5 Phase-64 §21 open questions — resolve-on-touch
 
@@ -704,11 +746,13 @@ from the phase-88 "Design-only" line.
   retargeted at the stage-request registry; **ADR-2b:** `notify`/`prty`
   (absent from `brix_stage_request_view_t`) live in that sidecar map, not in
   the engine's frozen durable record (§C.0.1).
-- **ADR-3:** `brix_frm_*` directives — recommendation is
-  ratify-as-engine-knobs (§D.1a); **requires OP confirmation** before the
-  phase-64 close-out.
+- **ADR-3:** `brix_frm_*` directives — **RATIFIED as engine/adapter knobs
+  2026-07-27** (§D.1a; phase-64 status block amended, pin test
+  `tests/test_frm_directive_pin.py` 3 green).
 - **ADR-4 (inherited):** phase-61 W7 multi-tier remains split into its own
-  future phase; nothing here depends on it.
+  future phase; nothing here depends on it. *(Superseded 2026-07-27: the W7
+  remainder landed directly at a much smaller scoped size — see the phase-61
+  LANDED block; no phase-62 was opened.)*
 - **ADR-5:** rename on rados is copy+delete without `CAP_HARD_RENAME`;
   directory rename refused (§B.2) — parity with the s3/http drivers'
   posture, not a regression.

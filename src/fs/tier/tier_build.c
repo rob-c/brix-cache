@@ -4,9 +4,11 @@
  *
  * brix_tier_build is the SINGLE driver-name dispatch in the whole storage plane:
  * it maps a parsed tier cfg onto the existing per-driver create function. A driver
- * not yet implemented as a tier (rados, tape) is a tracked "needs development"
- * (P1) - it logs a [warn] and returns NULL so the export is held inactive, never a
- * crash. brix_tier_build_stack composes cache(stage(backend)) via the sd_cache /
+ * that needs an optional library absent from this build (rados needs librados,
+ * pblock needs libsqlite3) is a tracked "needs development" (P1) - it logs a
+ * [warn] and returns NULL so the export is held inactive, never a crash. posix /
+ * xroot / http / s3 / tape are always available.
+ * brix_tier_build_stack composes cache(stage(backend)) via the sd_cache /
  * sd_stage decorators and enforces tape-requires-cache (P4/G8). The result is
  * memoised per worker; the VFS resolves to it blind (P3, G4/G5).
  */
@@ -94,6 +96,24 @@ tier_build_posix(const brix_tier_cfg_t *t, ngx_log_t *log)
     int err = 0;
 
     return brix_sd_instance_create(log, "posix", (void *) t->path, &err);
+}
+
+/* WHAT: build a block-device backend from a tier cfg.
+ * WHY:  a block-backed server export — a raw device (or a file used as one)
+ *       presented as a fixed-extent namespace ("/0".."/N-1").
+ * HOW:  the location is the device path; block_size (when a store directive
+ *       carries one) is the per-extent size, else the whole device is one
+ *       extent. The driver's init probes the capacity and derives the geometry. */
+static brix_sd_instance_t *
+tier_build_block(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+    brix_sd_block_conf_t conf;
+    int                  err = 0;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.device      = t->path;
+    conf.extent_size = (int64_t) t->block_size;   /* 0 → whole device is /0 */
+    return brix_sd_instance_create(log, "block", &conf, &err);
 }
 
 /* WHAT: hand a pblock store's master-created state to the runtime worker ids.
@@ -238,19 +258,51 @@ tier_build_http(const brix_tier_cfg_t *t, ngx_log_t *log)
     return brix_sd_http_create(&cfg, log);
 }
 
+/* WHAT: copy a tier's §14 credential's static S3 service keys into a remote conf.
+ * WHY:  SP3 — a private bucket authenticates via access-key / secret-key /
+ *       region carried on the credential; without this the fields were dropped
+ *       and every S3 *tier* stayed anonymous/public-read only.
+ * HOW:  copy each present (len > 0) field; an absent key leaves cfg.access_key[0]
+ *       == '\0' so the driver stays anonymous (SP1). region is optional (the
+ *       driver defaults it). A NULL credential is a no-op. Non-static so the
+ *       credential-mapping can be unit-tested without a live origin
+ *       (tests/c/test_tier_s3_creds.c declares the prototype). */
+void
+brix_tier_s3_apply_creds(brix_sd_remote_cfg_t *cfg, const brix_credential_t *c);
+
+void
+brix_tier_s3_apply_creds(brix_sd_remote_cfg_t *cfg, const brix_credential_t *c)
+{
+    if (cfg == NULL || c == NULL) {
+        return;
+    }
+    if (c->s3_access_key.len > 0) {
+        (void) brix_str_cbuf(cfg->access_key, sizeof(cfg->access_key),
+                             &c->s3_access_key);
+    }
+    if (c->s3_secret_key.len > 0) {
+        (void) brix_str_cbuf(cfg->secret_key, sizeof(cfg->secret_key),
+                             &c->s3_secret_key);
+    }
+    if (c->s3_region.len > 0) {
+        (void) brix_str_cbuf(cfg->region, sizeof(cfg->region),
+                             &c->s3_region);
+    }
+}
+
 /* WHAT: build an S3 remote-origin backend from a tier cfg.
- * WHY:  a tier sourced from a public/anonymous S3 bucket (SP1).
+ * WHY:  a tier sourced from an S3 bucket — public/anonymous when no credential
+ *       carries S3 keys (SP1), or a private bucket when it does (SP3).
  * HOW:  copy host/port/tls and the leading-slash-stripped bucket into the
- *       remote conf; no access/secret yet (that representation is SP3). */
+ *       remote conf; when the tier's §14 credential carries S3 access-key /
+ *       secret-key / region, copy them in so the driver signs SigV4 (an empty
+ *       access-key leaves the origin anonymous). */
 static brix_sd_instance_t *
 tier_build_s3(const brix_tier_cfg_t *t, ngx_log_t *log)
 {
-    brix_sd_remote_cfg_t cfg;
-    const char            *bucket = t->path;
+    brix_sd_remote_cfg_t     cfg;
+    const char                *bucket = t->path;
 
-    /* The §14 credential block carries no S3 access/secret/region yet (that
-     * representation is SP3, section 21); SP1 builds an anonymous/public S3
-     * source - read works for public buckets. */
     ngx_memzero(&cfg, sizeof(cfg));
     cfg.scheme = BRIX_SD_REMOTE_S3;
     ngx_cpystrn((u_char *) cfg.host, (u_char *) t->host, sizeof(cfg.host));
@@ -260,6 +312,12 @@ tier_build_s3(const brix_tier_cfg_t *t, ngx_log_t *log)
         bucket++;
     }
     ngx_cpystrn((u_char *) cfg.bucket, (u_char *) bucket, sizeof(cfg.bucket));
+
+    /* SP3: a private bucket authenticates via the tier's credential's S3 keys.
+     * Absent keys leave access_key[0] == '\0' → the driver stays anonymous (SP1,
+     * public-read). region is optional (defaults inside the driver). */
+    brix_tier_s3_apply_creds(&cfg, t->credential);
+
     cfg.timeout_ms = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
     cfg.transport  = &brix_s3_origin_curl_transport;
     return brix_sd_remote_create(&cfg, log);
@@ -310,6 +368,9 @@ brix_tier_build(const brix_tier_cfg_t *t, ngx_log_t *log)
 
     if (ngx_strcmp(t->driver, "posix") == 0) {
         return tier_build_posix(t, log);
+    }
+    if (ngx_strcmp(t->driver, "block") == 0) {
+        return tier_build_block(t, log);
     }
     if (ngx_strcmp(t->driver, "pblock") == 0) {
         return tier_build_pblock(t, log);

@@ -222,6 +222,7 @@ brix_readv_try_post_async(brix_ctx_t *ctx, ngx_connection_t *c,
     t->io_error = 0;
     t->streamid[0] = ctx->recv.cur_streamid[0];
     t->streamid[1] = ctx->recv.cur_streamid[1];
+    t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
 
     brix_task_bind(task, brix_readv_aio_thread, brix_readv_aio_done);
 

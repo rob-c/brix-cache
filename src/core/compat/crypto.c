@@ -14,6 +14,10 @@
 #include "crypto.h"
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
+#include <sys/mman.h>   /* madvise/mlock (F3 secret-page guard) */
+#include <unistd.h>     /* sysconf(_SC_PAGESIZE) */
+#include <stdint.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 static EVP_MAC *s_hmac_mac;
 static EVP_MD  *s_sha256_md;
@@ -81,7 +85,7 @@ brix_sha256(const uint8_t *data, size_t len, uint8_t out[32])
         ok = 1;
     }
 
-    EVP_MD_CTX_free(ctx);
+    brix_evp_md_ctx_free(ctx);
     return ok;
 }
 
@@ -95,7 +99,7 @@ brix_sha256_stream_new(void)
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL) { return NULL; }
     if (EVP_DigestInit_ex(ctx, s_sha256_md, NULL) != 1) {
-        EVP_MD_CTX_free(ctx);
+        brix_evp_md_ctx_free(ctx);
         return NULL;
     }
     return ctx;
@@ -124,5 +128,49 @@ brix_sha256_stream_final(void *s, uint8_t out[32])
 void
 brix_sha256_stream_free(void *s)
 {
-    EVP_MD_CTX_free((EVP_MD_CTX *) s);
+    brix_evp_md_ctx_free((EVP_MD_CTX *) s);
+}
+
+/* ---- brix_secret_page_guard (Phase-28 F3 / P90-28.1) -----------------------
+ *
+ * WHAT: Excludes the pages holding [p, p+len) from core dumps
+ * (madvise MADV_DONTDUMP) and pins them off swap (mlock).  Best-effort and
+ * never load-bearing: 0 = fully applied (or len==0), -1 = at least one knob
+ * failed (caller logs and continues).
+ *
+ * WHY: F1 wipes secrets at end-of-life, but a LONG-LIVED secret (keytab key
+ * array, admin bearer token, macaroon root-secret hex) sits in worker memory
+ * for the process lifetime — one core dump or swap-out would persist it to
+ * disk.  Guarding the pages closes both channels without touching how the
+ * secret is used.
+ *
+ * HOW: Round p down / p+len up to the page boundary (madvise and mlock are
+ * page-granular and EINVAL on unaligned starts), then apply both knobs
+ * independently so one failing (e.g. RLIMIT_MEMLOCK exhausted) does not skip
+ * the other.  MADV_DONTDUMP is Linux-specific — compiled out elsewhere and
+ * that knob then counts as success (nothing to apply). */
+int
+brix_secret_page_guard(const void *p, size_t len)
+{
+    size_t     page, off;
+    uintptr_t  start;
+    int        rc = 0;
+
+    if (p == NULL || len == 0) {
+        return 0;
+    }
+
+    page  = (size_t) sysconf(_SC_PAGESIZE);
+    start = (uintptr_t) p & ~(page - 1);
+    off   = (size_t) ((uintptr_t) p - start);
+
+#ifdef MADV_DONTDUMP
+    if (madvise((void *) start, len + off, MADV_DONTDUMP) != 0) {
+        rc = -1;
+    }
+#endif
+    if (mlock((void *) start, len + off) != 0) {
+        rc = -1;
+    }
+    return rc;
 }

@@ -1,5 +1,24 @@
 # BriX Symbol & Namespace Rebrand — Implementation Plan
 
+> **✅ EXECUTED & RECONCILED against the tree — 2026-07-30 (phase-88 §5 pass).**
+> All seven tasks are landed: the boxes below stayed unticked because the work
+> was committed but never marked. Verified against the live tree, not trusted:
+> the engine + verifier exist (`tools/refactor/brix_rebrand.{py,sh}`), the
+> migration map is generated (`docs/refactor/brix-rename-migration.md`), server
+> and client residuals are **0** under `brix_verify.sh`, the header/asset renames
+> and `libbrix.{so,a,pc}` + `libbrixposix_preload.so` artifacts are in place, all
+> Group-B routes/log-prefixes/snapshot names are gone, env-var/log-filename
+> renames are complete, and `.git-blame-ignore-revs` carries the rename SHAs.
+> **One genuine drift found and fixed:** phase-44 io_uring code landed later with
+> a stale `xrdc_aconn` in an `aio_internal.h` comment (the anchored engine only
+> ever ran once, so post-rebrand code could reintroduce old spellings). To make
+> that class of regression impossible to reintroduce silently, a standing guard
+> was added — `tools/ci/check_brix_namespace.py` (reuses this engine's rule +
+> EXCLUDE tables), wired into `.github/workflows/guards.yml` and the pytest fast
+> lane (`tests/test_ci_guards.py`, with an injected-drift negative test). Treat
+> the per-step checkboxes below as historical: the *reconciliation* is the
+> deliverable, not a re-run of the mechanical pass.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebrand the project's *own* namespace — `xrootd_` / `XROOTD_` / `ngx_xrootd*` in the server, `xrdc_` / `libxrdc` in the client — to the BriX namespace (`brix_` / `BRIX_` / `ngx_brix*` / `libbrix`), across C code, nginx config directives, Prometheus metrics, the embedded dashboard (symbols **and** URL routes), operator-facing log-line prefixes, env-var contracts, log filenames, the client shared library, deploy assets, and documentation — while **preserving** every reference to the upstream *XRootD project*, the `root://` *protocol* (`kXR_*`, `XrdCl`/`XrdHttp`, `root://`, upstream-mirroring tools `xrdcp`/`xrdfs`), and the nginx module identity `nginx-xrootd`.

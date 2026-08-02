@@ -27,6 +27,7 @@
 #include <openssl/crypto.h>   /* OPENSSL_cleanse — wipe recovered key material */
 #include <string.h>
 #include <time.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * WHAT: One AES-256-CBC vid-decrypt request — the inputs and the output buffer
@@ -93,7 +94,7 @@ macaroon_decrypt_vid_inner(EVP_CIPHER_CTX *ctx, u_char *plain,
 /* WHAT: Decrypt a third-party caveat vid blob to recover the discharge macaroon's 32-byte root key via AES-256-CBC.
  * WHY: At macaroon creation time, the discharge key was encrypted as vid = [16-byte IV] || AES-256-CBC(sig_before_cid, discharge_key).
  * sig_before_cid (the HMAC signature before cid update) serves as the AES decryption key. This function reverses that encryption so we can validate the discharge macaroon with its recovered root key.
- * HOW: Validate vid_len≥32 (16-byte IV + minimum 16-byte ciphertext); EVP_CIPHER_CTX_new(); bundle operands into macaroon_vid_t; call macaroon_decrypt_vid_inner (set_padding=0, DecryptInit/Update/Final, verify ≥32 plaintext, copy key out); OPENSSL_cleanse plain; EVP_CIPHER_CTX_free(ctx); return 0 success or -1 failure. */
+ * HOW: Validate vid_len≥32 (16-byte IV + minimum 16-byte ciphertext); EVP_CIPHER_CTX_new(); bundle operands into macaroon_vid_t; call macaroon_decrypt_vid_inner (set_padding=0, DecryptInit/Update/Final, verify ≥32 plaintext, copy key out); OPENSSL_cleanse plain; brix_evp_cipher_ctx_free(ctx); return 0 success or -1 failure. */
 int
 macaroon_decrypt_vid(const u_char *vid, size_t vid_len,
     const u_char *aes_key, u_char *discharge_key)
@@ -122,6 +123,6 @@ macaroon_decrypt_vid(const u_char *vid, size_t vid_len,
     rc = macaroon_decrypt_vid_inner(ctx, plain, &v);
 
     OPENSSL_cleanse(plain, sizeof(plain));
-    EVP_CIPHER_CTX_free(ctx);
+    brix_evp_cipher_ctx_free(ctx);
     return rc;
 }

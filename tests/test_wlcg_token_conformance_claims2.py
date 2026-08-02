@@ -65,19 +65,26 @@ def test_clm2_02_iss_non_string_rejected():
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rules 4/6: RFC 7519 §4.1.2 requires sub to be "
-                          "a StringOrURI; array sub should be rejected; validator does "
-                          "not enforce sub type → actual=accept")
 def test_clm2_03_sub_non_string_rejected():
     """sub is an array ["a","b"] — MUST reject (rules 4/6).
 
     WHY:  RFC 7519 §4.1.2 / rules 4/6 — the sub claim MUST be a StringOrURI;
-          an array value violates the type constraint.  The implementation reads
-          sub for logging/mapping only and does not enforce its type → accepts.
-    DIVERGENCE: actual=accept; RFC-correct=reject.
+          an array value violates the type constraint.  token_extract_claims()
+          now rejects a present-but-non-string "sub" (phase-92 hardening); an
+          absent sub stays valid (the claim is optional).
     """
     assert root_ztn(_f().sub_non_string(), "/test.txt", port=PORT) == "reject"
+
+
+@pytest.mark.tokenconf
+def test_clm2_03b_sub_absent_accepted():
+    """sub omitted entirely — accept (RFC 7519 §4.1.2: sub is OPTIONAL).
+
+    WHY:  The sub-type hardening (phase-92) must reject only a present-but-non-
+          string sub; a token carrying no sub at all stays valid.  Guards the
+          json_has_member() edge so the array-sub reject never over-triggers.
+    """
+    assert root_ztn(_f().sub_absent(), "/test.txt", port=PORT) == "accept"
 
 
 @pytest.mark.tokenconf

@@ -18,6 +18,7 @@ def test_brixcvmfs_live_scenarios_are_importable():
         "mount-cvmfs-live",
         "brixmount-live",
         "brixcvmfs-live",
+        "negfilter-live",
         "atlas-live",
         "clever-live",
         "overlay",

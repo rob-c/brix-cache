@@ -645,6 +645,41 @@ Sweep result: no other configs/tests used the map or
 {CA_CERT}` uses point at a single CA PEM file — the correct directive for
 that shape — and were deliberately not migrated.
 
+### Phase 90 (2026-07-27): the delegation burndown — closing phase-70's local remainder
+
+`phase-90-plan-phase-remainder-register.md` §2 (blockquotes = full record)
+burned down the phase-70 residuals that needed no container labs. The pieces:
+P90-70.3 SSS identity injection (caller-asserted mint, fail-closed) · 70.4
+in-gate RFC-3820 chain re-verify · 70.5 client full-proxy send path
+verified-and-hardened · 70.6 metrics mode dimension · 70.7/70.8 reference doc
++ load-time trust validation + three scope rulings · 70.9 aud gate + exchange
+mint cache at all three bearer fronts. Delegation is now live end-to-end on
+every front door for PASSTHROUGH (bearer + full proxy), EXCHANGE (RFC 8693),
+and SSS injection; only the S3-STS and krb5 origin legs await their labs
+(P90-70.1/.2). Reference: `docs/10-reference/backend-delegation.md`.
+
+Two durable lessons beyond the FINDING entries in Part 3
+(FINDING-FULLPROXY-1, FINDING-TX-1):
+
+1. **Verify a register row's premise before implementing it.** P90-70.5
+   claimed the client had "no fullproxy send path" — it pointed at
+   `client/lib/auth/gsi/proxy.c`, which is proxy *file* management. The real
+   send path had existed since phase-70 T-3 in the shared round-2 kernel
+   (`gsi_core_cresp_util.c::gsi_add_fullproxy_bucket`, linked into the native
+   client via `libxrdproto.a`, env-gated `XRD_DELEGATEFULLPROXY` — env vars
+   ARE the native client's directive surface). What the row actually needed
+   was hardening (Part 3) plus the first live e2e proof — the channel had
+   zero test coverage anywhere. Same failure shape phase-90's preamble warns
+   about: trusting a doc's `Status:` over the tree.
+2. **"Store how to re-acquire, never the expiring credential" was already
+   the async design.** Phase-70 §6's async invariant is satisfied by the
+   stage journal as landed: `brix_stage_cred_t` persists
+   `{key, principal, dir, deny}` — re-resolvable identity, no credential
+   bytes — flush re-resolves via `brix_sd_ucred_resolve()`, and
+   missing/expired dead-letters (`deny=1` → EACCES) rather than promoting to
+   a service credential. Captured fullproxies and exchanged bearers are never
+   spilled to disk at all. Ruled satisfied-by-design; no code.
+
 ---
 
 ## Part 2 — Design-decision inventory
@@ -1203,6 +1238,38 @@ config — that is a deliberate opt-in feature decision (a
   connection — it fails at the same loss rates against a stock xrootd
   server too), not an nginx-xrootd regression.
 
+- **FINDING-FULLPROXY-1 / P90-70.5 (fixed, 2026-07-27):** the shared-kernel
+  full-proxy sender (`gsi_core_cresp_util.c::gsi_add_fullproxy_bucket`,
+  opt-in via `XRD_DELEGATEFULLPROXY`) opened the key-bearing proxy file
+  with a bare `fopen` — no symlink or ownership guard on the predictable
+  `/tmp/x509up_u<uid>` path, so a planted symlink could exfiltrate an
+  arbitrary readable file into the (encrypted) login stream, and it read
+  *only* `$X509_USER_PROXY`, silently no-oping when unset even though every
+  GSI client resolves the standard default path. Fixed with
+  `open(O_RDONLY|O_NOFOLLOW|O_CLOEXEC)` + `fstat` requiring a regular file
+  owned by the effective uid (mirroring the client-lib `brix_open_credfile`
+  contract, unavailable in the ngx-free kernel) and the default-path
+  fallback. Source-contract ratchets + first-ever live e2e coverage of the
+  whole channel (TLS accept / default-off / cleartext reject):
+  `tests/test_fullproxy_passthrough.py`. Lesson: a credential-file open in
+  *any* tree must carry the `brix_open_credfile` guards — the ngx-free
+  kernel can't call the helper, but it must still match its contract.
+
+- **FINDING-TX-1 / P90-70.8 (fixed, 2026-07-27):** `brix_backend_token_
+  exchange_endpoint` was a plain string slot while the RFC-8693 client
+  (`exchange.c::brix_tx_http_post`) pins libcurl HTTPS-only — an `http://`
+  endpoint (or a host-less/whitespace-bearing URL, spliced verbatim into
+  `CURLOPT_URL`) parsed fine at `nginx -t` and surfaced only as every
+  EXCHANGE delegation fail-closing at first use. Fixed with a validating
+  setter (`brix_conf_set_backend_tx_endpoint`, `http_common.c`);
+  `tests/test_tx_endpoint_load_validation.py`. This closed the last live
+  gap in phase-70 §6's "trust config validated at load" invariant — SSS
+  keytab and mint CA were already load-validated; STS/KDC get theirs when
+  their conf binds land (P90-70.1/.2). Lesson: whenever runtime code pins a
+  transport policy (scheme, TLS, format), the directive that feeds it must
+  enforce the same policy at load — a value that can never work should
+  never survive `nginx -t`.
+
 ---
 
 ## Part 4 — Feature inventory: what shipped, current status
@@ -1213,6 +1280,7 @@ config — that is a deliberate opt-in feature decision (a
 | Per-user backend credentials (Ph 1–3) | Implemented, tested, reviewed ready-to-merge — check current git log for merge status | `src/fs/backend/ucred.c`, `src/fs/vfs/vfs_cred.c`, `brix_sd_cred_t` (`sd.h`) | See dedicated section below. |
 | Credential-forwarding matrix (normal access) | Done — 16 PASS/4 GAP/4 SKIP, gaps are upstream stock limitations | `tests/lib/fwd_matrix.sh`, ports 21960-21999 | See narrative above. |
 | TPC credential forwarding | Done, default-on | `brix_tpc_outbound_passthrough`, `brix_webdav_tpc_credential_forward` | Opportunistic-by-default per Rob's decision. |
+| Full backend delegation (phase-70/90) | Done for all local legs 2026-07-27 — PASSTHROUGH (bearer + full proxy incl. opt-in client sender), EXCHANGE (RFC 8693, load-validated endpoint, aud gate + mint cache), SSS injection; S3-STS/krb5 origin legs container-blocked (P90-70.1/.2) | `src/fs/vfs/vfs_deleg*.c`, `src/auth/token/{exchange,aud_match,exchange_cache}.c`, `gsi_add_fullproxy_bucket`, `brix_backend_sss_keytab` | Reference: `docs/10-reference/backend-delegation.md`; record: phase-90 register §2 + Phase 90 narrative above. |
 | Native TPC over GSI | RESOLVED 2026-07-19 (incl. stock `ofs.tpc` sources) | `src/tpc/`, `src/gsi/gsi_core.c` | **See RESOLVED item at top of this doc.** |
 | X.509 proxy delegation (F6) | Code-complete, e2e unverified | `xrootd_tpc_delegate` directive | Needs a real grid host to fully verify; WSL2 rig can't complete the `usedDNS` check. |
 | GSI signed-DH (server) | Done, stock-verified both directions | `xrootd_gsi_signed_dh off\|auto\|require` | 220 tests, 0 skips. |
@@ -1225,7 +1293,7 @@ config — that is a deliberate opt-in feature decision (a
 | SRR (WLCG Storage Resource Reporting) HTTP endpoint | Done | `src/srr/`, `xrootd_srr` | Deliberate replacement for UDP f/g-stream monitoring — see decision table. |
 | WebDAV upstream proxy | Done (foundational, Phase 21 era) | `src/webdav/proxy.c`, `xrootd_webdav_proxy` | See Phase 21 narrative. |
 | Hybrid-mesh HTTP/root:// single-port handoff | Done | `src/handoff/handoff.c`, `xrootd_http_handoff` | Lets a stock redirector's data-port HTTP redirect reach an nginx data node. |
-| `xrootd_webdav_proxy` → stock XrdHttp backend | **Open bug** — intermittent heap corruption / SIGSEGV | `src/webdav/proxy_response.c` | Needs ASan repro; see hybrid-mesh narrative above. |
+| `xrootd_webdav_proxy` → stock XrdHttp backend | RESOLVED by surface retirement 2026-07-20 — the heap corruption lived in the already-dead WebDAV reverse-proxy transport, which was deleted (`upstream_proxy` unsettable) | — | Full record: `docs/07-security/hyper-hardening-plan.md` § A-2 + `src/protocols/webdav/README.md`. |
 
 ### XrdAcc authorization port — key faithful-port facts
 

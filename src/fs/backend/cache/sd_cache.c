@@ -86,10 +86,10 @@ cache_open_serve_hit(sd_cache_inst_state *st, const char *path, int *err_out)
  * WHAT: For a NEARLINE source, kicks the async recall for `path` and reports
  *       whether the open should park (fail soft with EAGAIN).
  *
- * WHY:  A nearline miss is an async recall the open parks on (section 9.2).
- *       The waiter that parks/wakes the open lands with the frm driver
- *       (SP4/SP5); until then a NEARLINE source cannot be served here, so
- *       fail soft with EAGAIN rather than block.
+ * WHY:  A nearline miss is an async recall the open must not block on
+ *       (section 9.2): the recall runs through the stage engine, and the
+ *       open fails soft with EAGAIN so the protocol plane can answer
+ *       "staging, retry later" instead of stalling a worker.
  *
  * HOW:  Returns 1 (recall in flight — *err_out = EAGAIN; the HTTP plane
  *       answers 202 "staging" + Retry-After; a retry re-polls the recall and,
@@ -152,7 +152,7 @@ cache_open_miss_serve(brix_sd_instance_t *inst, sd_cache_inst_state *st,
         /* partial open failed - fall through to a whole-file fill / source read */
     }
 
-    if (sd_cache_fill(st, path, cred) == NGX_OK) {
+    if (sd_cache_fill(st, path, cred, 0, NULL) == NGX_OK) {
         obj = brix_cstore_serve_open(&st->cstore, path, err_out);
         if (obj != NULL) {
             ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
@@ -333,6 +333,10 @@ brix_sd_cache_create(brix_sd_instance_t *source, brix_sd_instance_t *store,
         return NULL;
     }
 
+    if (policy->global_cas) {
+        brix_cstore_enable_gcas(&st->cstore);   /* phase-87 G13 */
+    }
+
     inst->driver = &brix_sd_cache_driver;
     inst->log    = log;
     inst->pool   = NULL;
@@ -442,13 +446,28 @@ brix_sd_cache_fill_needs_offload(brix_sd_instance_t *inst, const char *key)
  * NGX_DECLINED (admission declined - not cached), NGX_ERROR (fill failure).
  * Safe off the event loop: pure driver pread/pwrite + cstore ops, no nginx pool. */
 ngx_int_t
-brix_sd_cache_fill_key(brix_sd_instance_t *inst, const char *key)
+brix_sd_cache_fill_key(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred)
 {
+    return brix_sd_cache_fill_key_ex(inst, key, cred, 0, NULL);
+}
+
+/* As brix_sd_cache_fill_key, but with the phase-92 store-then-evict passthrough
+ * opt-in threaded through (see sd_cache_fill / sd_cache.h). When *out_pt is set
+ * to 1 on an NGX_OK return, the object was filled ONLY under the passthrough
+ * policy: the caller must evict `key` (brix_sd_cache_evict) after serving it. */
+ngx_int_t
+brix_sd_cache_fill_key_ex(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, int allow_pt, int *out_pt)
+{
+    if (out_pt != NULL) {
+        *out_pt = 0;
+    }
     if (!brix_sd_cache_instance_is(inst) || key == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
-    return sd_cache_fill(SD_CACHE_ST(inst), key, NULL);
+    return sd_cache_fill(SD_CACHE_ST(inst), key, cred, allow_pt, out_pt);
 }
 
 /* The cache STORE instance (where served objects live), or NULL for a non-cache
@@ -519,4 +538,48 @@ brix_sd_cache_set_peers(brix_sd_instance_t *inst,
     }
     st->n_peers   = n;
     st->peer_self = self;
+}
+
+/* Publish a swarm-built ring (phase-87 G12). Event loop only; the barrier
+ * orders the ring's contents before the pointer store so a worker-thread
+ * fill that loads the new pointer sees a fully built ring. */
+void
+brix_sd_cache_ring_swap(brix_sd_instance_t *inst,
+    const brix_sd_cache_ring_t *ring)
+{
+    sd_cache_inst_state *st;
+
+    if (!brix_sd_cache_instance_is(inst)) {
+        return;
+    }
+    if (ring != NULL
+        && (ring->n <= 0 || ring->n > BRIX_SD_CACHE_MAX_PEERS
+            || ring->self < 0 || ring->self >= ring->n))
+    {
+        return;
+    }
+    st = SD_CACHE_ST(inst);
+    ngx_memory_barrier();
+    st->dyn_ring = ring;
+}
+
+int
+brix_sd_cache_get_peers(const brix_sd_instance_t *inst,
+    brix_sd_cache_peer_t *out, int *self)
+{
+    const sd_cache_inst_state *st;
+    int                        i;
+
+    if (!brix_sd_cache_instance_is(inst) || out == NULL || self == NULL) {
+        return 0;
+    }
+    st = SD_CACHE_ST(inst);
+    if (st->n_peers <= 0) {
+        return 0;
+    }
+    for (i = 0; i < st->n_peers; i++) {
+        out[i] = st->peers[i];
+    }
+    *self = st->peer_self;
+    return st->n_peers;
 }

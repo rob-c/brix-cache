@@ -19,6 +19,7 @@
 #include "fs/backend/csi_tagstore.h"
 #include "protocols/root/zip/zip_member.h"   /* brix_zip_handle_cleanup (frees inflate stream) */
 #include "protocols/ssi/ssi.h"          /* brix_ssi_handle_cleanup (timers + registry) */
+#include "net/ratelimit/reservation.h"  /* phase-92: XrdBwm bandwidth release */
 
 #include <errno.h>
 #include <string.h>
@@ -205,6 +206,7 @@ fhandle_reset_slot(brix_file_t *file)
     file->wrts_head        = 0;
     file->wrts_count       = 0;
     file->wrts_gen         = 0;
+    file->bwm_reserved     = 0;
     brix_pgw_fob_reset(file);
 }
 
@@ -236,6 +238,19 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
 
     if (!ctx->is_bound && file->fd >= 0) {
         brix_session_handle_unpublish(ctx->login.sessid, handle_index);
+    }
+
+    /* phase-92: return this handle's XrdBwm bandwidth reservation to the budget.
+     * The single teardown choke point (close, disconnect via brix_close_all_files,
+     * and every open-path error unwind) so no grant leaks. Released by the exact
+     * bytes reserved at open; the zone is resolved by name from the srv conf. */
+    if (file->bwm_reserved != 0) {
+        if (conf != NULL && conf->throttle.bwm_zone_name.len > 0) {
+            brix_resv_zone_t *z = brix_resv_zone_get(
+                (const char *) conf->throttle.bwm_zone_name.data);
+            brix_resv_done(z, file->bwm_reserved);
+        }
+        file->bwm_reserved = 0;
     }
 
     fhandle_release_descriptors(file);

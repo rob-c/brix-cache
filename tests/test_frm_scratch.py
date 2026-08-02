@@ -62,17 +62,27 @@ def _start(harness, tmp_path, *, adapter="exec", nearline=True):
     audit = tmp_path / "audit.log"; audit.write_text("")
     env = {}
 
-    if adapter == "exec":
+    # The exec transport backs three dialect names: the generic "exec" and the
+    # named HSM dialects "hpss"/"cta" (phase-64 SP5). All shell out to the same
+    # stage command; they differ only in which env var resolves it — the named
+    # dialects read a per-dialect override so a node can front an HPSS silo and a
+    # CTA silo at once. A test setting ONLY the dialect override proves the
+    # resolution precedence (the generic $BRIX_FRM_STAGECMD stays unset).
+    _EXEC_ENV = {"exec": "BRIX_FRM_STAGECMD",
+                 "hpss": "BRIX_FRM_HPSS_STAGECMD",
+                 "cta": "BRIX_FRM_CTA_STAGECMD"}
+
+    if adapter in _EXEC_ENV:
         base = tmp_path / "base"; base.mkdir()
         tape = tmp_path / "tape"; tape.mkdir()
         if nearline:
             (tape / "near.dat").write_bytes(TAPE_BYTES)
-        # Exec MSS adapter — every verb is appended to the audit log as
+        # Exec-family MSS adapter — every verb is appended to the audit log as
         # "verb key online". Tape dir + audit path ride in a JSON sidecar (nginx
-        # rewrites its worker environ; only argv + BRIX_FRM_STAGECMD survive).
+        # rewrites its worker environ; only argv + the stagecmd env survive).
         stagecmd = frm_stagecmd.install(tmp_path, tape=str(tape), audit=str(audit))
-        storage = f"frm://exec{base}"
-        env["BRIX_FRM_STAGECMD"] = stagecmd
+        storage = f"frm://{adapter}{base}"
+        env[_EXEC_ENV[adapter]] = stagecmd
     else:  # stub: the base directory IS the tape (offline objects live in it)
         tape = tmp_path / "tape"; tape.mkdir()
         if nearline:
@@ -173,3 +183,21 @@ def test_stub_adapter_recalls_from_local_tape(frm, tmp_path):
     r = _xrdcp(ep.port, "/near.dat", out)
     assert r.returncode == 0, r.stderr.decode(errors="replace")
     assert open(out, "rb").read() == TAPE_BYTES
+
+
+@pytest.mark.parametrize("adapter", ["hpss", "cta"])
+def test_named_hsm_dialect_recalls_via_dialect_stagecmd(frm, tmp_path, adapter):
+    """Phase-64 SP5: ``frm://hpss`` and ``frm://cta`` are first-class named HSM
+    dialects over the exec transport — NOT stub fallthroughs. With ONLY the
+    per-dialect ``$BRIX_FRM_{HPSS,CTA}_STAGECMD`` set (the generic
+    ``$BRIX_FRM_STAGECMD`` unset), the dialect stage command's recall verb
+    materialises the object into the online buffer and its bytes are served
+    byte-exact through the cache tier — proving both the dialect wiring and the
+    per-dialect stagecmd resolution precedence."""
+    ep, audit = _start(frm, tmp_path, adapter=adapter)
+    out = str(tmp_path / "o")
+    r = _xrdcp(ep.port, "/near.dat", out)
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    assert open(out, "rb").read() == TAPE_BYTES
+    recalls = [v for v in _audit(audit) if v[0] == "recall"]
+    assert recalls and recalls[-1][1] == "near.dat", _audit(audit)

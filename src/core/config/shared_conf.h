@@ -54,6 +54,9 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_store_endpoint = NGX_CONF_UNSET;
     conf->storage_staging    = NGX_CONF_UNSET;
     conf->cache_verify_mode  = NGX_CONF_UNSET_UINT;
+    conf->cache_global_cas   = NGX_CONF_UNSET;
+    conf->cache_passthrough  = NGX_CONF_UNSET;
+    conf->cache_passthrough_max = NGX_CONF_UNSET;
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
@@ -77,12 +80,23 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->backend_tx_client_id.data     = NULL;
     conf->backend_tx_client_secret.len  = 0;
     conf->backend_tx_client_secret.data = NULL;
+    conf->backend_tx_cache              = NULL;   /* lazily created per worker */
     conf->backend_sts_endpoint.len      = 0;
     conf->backend_sts_endpoint.data     = NULL;
     conf->backend_sts_role.len          = 0;
     conf->backend_sts_role.data         = NULL;
+    conf->backend_sts_access_key.len    = 0;
+    conf->backend_sts_access_key.data   = NULL;
+    conf->backend_sts_secret_key.len    = 0;
+    conf->backend_sts_secret_key.data   = NULL;
+    conf->backend_sts_region.len        = 0;
+    conf->backend_sts_region.data       = NULL;
+    conf->backend_sts_ttl               = NGX_CONF_UNSET;
+    conf->backend_sts_flavor            = NGX_CONF_UNSET_UINT;
     conf->backend_krb5_forwardable      = NGX_CONF_UNSET;
     conf->backend_passthrough_persist   = NGX_CONF_UNSET;
+    conf->backend_sss_keytab.len        = 0;
+    conf->backend_sss_keytab.data       = NULL;
     conf->pblock_block_size  = NGX_CONF_UNSET_SIZE;
     conf->storage_instance   = NULL;   /* built per worker at init_process */
     conf->cache_store.len    = 0;
@@ -301,7 +315,7 @@ brix_shared_security_gate(ngx_conf_t *cf, ngx_flag_t strict,
  * WHY: This is the SINGLE audit point for common.* config inheritance — every
  * HTTP protocol (WebDAV, S3, cvmfs) calls it instead of hand-merging the same
  * ~20 fields (which drifted per protocol and dropped the read-only enforcement
- * in cvmfs). Defaults: enable=0, allow_write=0, compress=0, ktls=1,
+ * in cvmfs). Defaults: enable=0, allow_write=0, compress=0, ktls=0,
  * thread_pool_name="", storage_credential_dir=BRIX_CREDENTIAL_DIR_DEFAULT
  * (tmpfs store, ensured 0700 by brix_shared_credential_dir_ensure above),
  * tier grammar defaults as before.
@@ -353,7 +367,7 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
         conf->access_log_file = NULL;
     }
     ngx_conf_merge_value(conf->session_log, prev->session_log, 1);
-    ngx_conf_merge_value(conf->ktls, prev->ktls, 1);   /* default ON (offload-gated) */
+    ngx_conf_merge_value(conf->ktls, prev->ktls, 0);   /* default OFF (phase-33 P5: opt-in, HW-offload-only) */
     /* Trusted cache-store surface: default OFF everywhere, so the reserved-name
      * 404 guard stays in force on every normal client location (default-deny). */
     ngx_conf_merge_value(conf->cache_store_endpoint,
@@ -393,10 +407,21 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
                              prev->backend_sts_endpoint, "");
     ngx_conf_merge_str_value(conf->backend_sts_role,
                              prev->backend_sts_role, "");
+    ngx_conf_merge_str_value(conf->backend_sts_access_key,
+                             prev->backend_sts_access_key, "");
+    ngx_conf_merge_str_value(conf->backend_sts_secret_key,
+                             prev->backend_sts_secret_key, "");
+    ngx_conf_merge_str_value(conf->backend_sts_region,
+                             prev->backend_sts_region, "");
+    ngx_conf_merge_value(conf->backend_sts_ttl, prev->backend_sts_ttl, 3600);
+    ngx_conf_merge_uint_value(conf->backend_sts_flavor,
+                              prev->backend_sts_flavor, 0);
     ngx_conf_merge_value(conf->backend_krb5_forwardable,
                          prev->backend_krb5_forwardable, 0);
     ngx_conf_merge_value(conf->backend_passthrough_persist,
                          prev->backend_passthrough_persist, 0);
+    ngx_conf_merge_str_value(conf->backend_sss_keytab,
+                             prev->backend_sss_keytab, "");
     ngx_conf_merge_size_value(conf->pblock_block_size, prev->pblock_block_size,
                               0);
 
@@ -449,6 +474,10 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
      * drags stream-typed cache internals into every HTTP module conf). */
     ngx_conf_merge_uint_value(conf->cache_verify_mode, prev->cache_verify_mode,
                               0);
+    ngx_conf_merge_value(conf->cache_global_cas, prev->cache_global_cas, 0);
+    ngx_conf_merge_value(conf->cache_passthrough, prev->cache_passthrough, 0);
+    ngx_conf_merge_off_value(conf->cache_passthrough_max,
+                             prev->cache_passthrough_max, 0);
 
     /* Hard read-only: force allow_write off HERE so no protocol merge can
      * forget the enforcement (it must win before token-scope checks). */
@@ -465,6 +494,47 @@ brix_http_shared_access_log_fd(const ngx_http_brix_shared_conf_t *conf)
     }
 
     return conf->access_log_file->fd;
+}
+
+/*
+ * brix_shared_thread_pool() — resolve the async-I/O thread pool for a merged
+ * common loc-conf, lazily and idempotently.
+ *
+ * WHY: postconfig only wires common.thread_pool for a *server-level* enabled
+ * loc-conf (webdav_postconf_setup_thread_pool walks cscf->ctx->loc_conf). A
+ * protocol enabled per-`location` (the common production shape for WebDAV TPC
+ * and PUT) leaves common.thread_pool NULL, so any path that only NULL-checks it
+ * falls back to a synchronous, event-loop-blocking transfer regardless of how
+ * many workers are configured. Resolving by name at first use — the pool is
+ * fully initialized by the time any request runs — closes that gap for every
+ * offload site with one shared helper (previously copy/paste'd into move.c,
+ * copy_collection.c, open_or_fill.c, http_serve_offload.c, http_cache_fill.c).
+ *
+ * HOW: returns the cached handle if already resolved; else looks it up by the
+ * configured name (default "default"), caches a hit back onto common, and
+ * returns it. NULL means no such pool exists — the caller must run synchronously.
+ */
+static inline ngx_thread_pool_t *
+brix_shared_thread_pool(ngx_http_brix_shared_conf_t *common)
+{
+    ngx_thread_pool_t *pool;
+
+    if (common == NULL) {
+        return NULL;
+    }
+
+    pool = common->thread_pool;
+    if (pool == NULL) {
+        static ngx_str_t default_name = ngx_string("default");
+        ngx_str_t *pname = common->thread_pool_name.len > 0
+                           ? &common->thread_pool_name : &default_name;
+        pool = ngx_thread_pool_get((ngx_cycle_t *) ngx_cycle, pname);
+        if (pool != NULL) {
+            common->thread_pool = pool;
+        }
+    }
+
+    return pool;
 }
 
 /*

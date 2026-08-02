@@ -272,7 +272,7 @@ Representative exposed metric names (grepped from `src/observability/metrics/*.c
 | Group | Example metric names |
 |---|---|
 | Wire / stream | `brix_requests_total`, `brix_wire_bytes_rx_total`, `brix_wire_bytes_tx_total`, `brix_stream_connections_rejected_total`, `brix_stream_handshake_timeouts_total` |
-| Unified (proto-labeled) | `brix_io_ops_total`, `brix_io_latency_usec_bucket` (histogram), `brix_auth_total`, `brix_tpc_transfers_total` |
+| Unified (proto-labeled) | `brix_io_ops_total`, `brix_io_latency_usec_bucket` (histogram), `brix_auth_total`, `brix_tpc_transfers_total`, `brix_tpc_gsi_delegated_total` (`result="ok\|expired\|absent"` — outbound native-TPC GSI proxy-delegation outcome) |
 | WebDAV | `brix_webdav_requests_total`, `brix_webdav_responses_total`, `brix_webdav_bytes_rx_ipv4_total`/`_ipv6_total`, `brix_webdav_tpc_total`, `brix_webdav_cors_total` |
 | S3 | `brix_s3_requests_total`, `brix_s3_auth_total`, `brix_s3_put_bodies_total`, `brix_s3_list_truncated_total` |
 | Proxy | `brix_proxy_opens_total`, `brix_proxy_reconnects_total`, `brix_proxy_upstream_auth_errors_total`, `brix_proxy_abandoned_handles_total` |

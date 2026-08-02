@@ -80,6 +80,18 @@ CMS_PT_INT    = 0xa0   # tagged 4-byte scalar
 CMS_MOD_RAW     = 0x20  # kYR_raw — payload is unmarshalled
 CMS_HAVE_ONLINE = 0x01  # kYR_have modifier: file is resident/online
 
+# CmsLoginData Mode role bits (YProtocol.hh) — Phase-61 W7 explicit roles.
+CMS_MODE_MANAGER = 0x02   # kYR_manager
+CMS_MODE_SERVER  = 0x08   # kYR_server
+# CmsStateRequest modifier: kYR_metaman — only a PURE meta-manager (no local
+# export) may stamp it on a fanned-out kYR_state (XrdCmsNode.cc do_State).
+CMS_STATE_METAMAN = 0x08
+
+CMS_STATS_SIZE  = 0x01  # CmsStatsRequest::kYR_size — size form only
+# Cluster.Stats statsz advertisement: sizeof(statfmt1) + 8 in stock v5.9.6,
+# where statfmt1 = '<stats id="cms"><role>%s</role></stats>' (39 chars + NUL).
+CMS_STATS_BUFSZ = 48
+
 CMS_ST_RESUME   = 0x04
 CMS_ST_NOSTAGE  = 0x02
 CMS_ST_STAGE    = 0x01
@@ -326,6 +338,11 @@ class CmsManagerPeer:
             time.sleep(0.1)
         return None
 
+    def count_frames(self, code):
+        """Total captured frames with the given rrCode (full history)."""
+        with self._lock:
+            return sum(1 for fr in self.frames if fr[1] == code)
+
     def close(self):
         self._stop = True
         try:
@@ -406,16 +423,22 @@ def load_frame(node_stack):
 
 
 @pytest.fixture
-def cms_server(lifecycle):
-    """A dedicated nginx CMS *server* whose frame parser we probe directly."""
-    ep = lifecycle.start(NginxInstanceSpec(
+def cms_server_ep(lifecycle):
+    """A dedicated nginx CMS *server* whose frame parser we probe directly.
+    Yields the full endpoint (port + prefix, for error-log asserts)."""
+    return lifecycle.start(NginxInstanceSpec(
         name="lc-cms-wire-server",
         template="nginx_cms_wire_server.conf",
         protocol="root",
         readiness="tcp",
         reason="CMS wire/Pup conformance: server-side frame parser.",
     ))
-    return ep.port
+
+
+@pytest.fixture
+def cms_server(cms_server_ep):
+    """The CMS server's listen port (most tests only need the port)."""
+    return cms_server_ep.port
 
 
 def _node_login_dialog(port, login_payload):
@@ -919,19 +942,43 @@ class TestServerLivenessPlaneA:
             sock.close()
 
     def test_stats_gets_size_form(self, cms_server):
-        """Phase-89 W1: kYR_stats -> kYR_data echoing the streamid, payload a
-        raw 4-byte big-endian buffer-size advertisement (> 0)."""
+        """Phase-61 W7: kYR_stats(kYR_size) -> kYR_data echoing the streamid,
+        payload the raw 4-byte big-endian statsz — byte-exact with stock
+        v5.9.6 (Cluster.Stats(0,0) = sizeof(statfmt1) + 8 = 48)."""
         sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
         try:
             time.sleep(0.4)
-            sock.sendall(_build_frame(9, CMS_RR_STATS, 0))
+            sock.sendall(_build_frame(9, CMS_RR_STATS, CMS_STATS_SIZE))
             fr = _recv_code(sock, CMS_RSP_DATA, timeout=5.0)
             assert fr is not None, "server did not reply kYR_data to stats"
             sid, _code, _mod, data = fr
             assert sid == 9, "stats reply must echo the request streamid"
             assert len(data) == 4, f"size form must be exactly 4 bytes: {data!r}"
             (need,) = struct.unpack(">I", data)
-            assert need > 0, "advertised stats buffer size must be positive"
+            assert need == CMS_STATS_BUFSZ, \
+                f"statsz must be the stock advertisement {CMS_STATS_BUFSZ}, got {need}"
+        finally:
+            sock.close()
+
+    def test_stats_full_form_returns_role_document(self, cms_server):
+        """Phase-61 W7: kYR_stats without kYR_size -> kYR_data whose payload is
+        [4B BE statsz][Cluster.Stats XML, snprintf length, no NUL] with this
+        manager's role type ("M") in the role slot — byte-exact do_Stats."""
+        sock = _node_login_dialog(cms_server, _minimal_login_payload(NODE_DATA_PORT))
+        try:
+            time.sleep(0.4)
+            sock.sendall(_build_frame(10, CMS_RR_STATS, 0))
+            fr = _recv_code(sock, CMS_RSP_DATA, timeout=5.0)
+            assert fr is not None, "server did not reply kYR_data to stats"
+            sid, _code, _mod, data = fr
+            assert sid == 10, "stats reply must echo the request streamid"
+            assert len(data) > 4, f"full form must carry the document: {data!r}"
+            (need,) = struct.unpack(">I", data[:4])
+            assert need == CMS_STATS_BUFSZ, \
+                f"statsz prefix must be {CMS_STATS_BUFSZ}, got {need}"
+            doc = data[4:]
+            assert doc == b'<stats id="cms"><role>M</role></stats>', \
+                f"unexpected Cluster.Stats document: {doc!r}"
         finally:
             sock.close()
 
@@ -1086,3 +1133,461 @@ class TestForwardedNamespaceOps:
         # The escape target must never have been created.
         assert not os.path.exists(escape), \
             "confinement breach: directory created outside the export root"
+
+
+# ===========================================================================
+# Phase-61 W7 — explicit cluster roles + multi-tier state relay
+# ===========================================================================
+
+def _login_payload_with_mode(dport, mode, paths=b"r /"):
+    """_minimal_login_payload with the Mode word (2nd field: 1 tag byte +
+    4-byte BE int at payload offsets [3:8]) replaced."""
+    p = _minimal_login_payload(dport, paths)
+    assert p[3] == CMS_PT_INT
+    return p[:3] + bytes([CMS_PT_INT]) + struct.pack(">I", mode) + p[8:]
+
+
+def _wait_log_contains(ep, needle, timeout=10.0):
+    """Poll the instance's error.log until `needle` (bytes) appears."""
+    path = os.path.join(ep.prefix, "logs", "error.log")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with open(path, "rb") as f:
+                if needle in f.read():
+                    return True
+        except OSError:
+            pass
+        time.sleep(0.2)
+    return False
+
+
+def _start_peered_node(lifecycle, name, template, template_values, reason,
+                       data_dir):
+    """Shared bring-up: Python manager peer + an nginx instance that dials it.
+    Returns the peer (node listen port on peer.node_port); caller closes it."""
+    os.makedirs(data_dir, exist_ok=True)
+    mgr_port = free_port()
+    try:
+        peer = CmsManagerPeer(mgr_port)
+    except OSError as exc:
+        pytest.skip(f"could not bind CMS manager peer port {mgr_port}: {exc}")
+    values = dict(template_values)
+    values["MANAGER_PORT"] = mgr_port
+    try:
+        ep = lifecycle.start(NginxInstanceSpec(
+            name=name,
+            template=template,
+            protocol="root",
+            readiness="tcp",
+            data_root=data_dir,
+            template_values=values,
+            reason=reason,
+        ))
+    except Exception:
+        peer.close()
+        raise
+    peer.node_port = ep.port
+    if not peer.have_connection(timeout=20.0):
+        peer.close()
+        pytest.skip(f"{name} never opened a CMS connection to the peer")
+    return peer
+
+
+@pytest.fixture
+def manager_node_stack(lifecycle):
+    """A node running with an EXPLICIT ``brix_cms_role manager`` + its peer."""
+    data_dir = os.path.join(_DIR, "mgr_node_data")
+    os.makedirs(data_dir, exist_ok=True)
+    with open(os.path.join(data_dir, "have_me.bin"), "wb") as f:
+        f.write(b"resident-bytes" * 16)
+    peer = _start_peered_node(
+        lifecycle, "lc-cms-wire-mgr-node", "nginx_cms_wire_role_node.conf",
+        {"ROLE": "manager"},
+        "Phase-61 W7: explicit manager role — login Mode + manVOps filter.",
+        data_dir)
+    try:
+        yield peer
+    finally:
+        peer.close()
+
+
+@pytest.fixture
+def server_node_stack(lifecycle):
+    """A node running with an EXPLICIT ``brix_cms_role server`` + its peer."""
+    peer = _start_peered_node(
+        lifecycle, "lc-cms-wire-srv-node", "nginx_cms_wire_role_node.conf",
+        {"ROLE": "server"},
+        "Phase-61 W7: explicit server role — stock Pander login Mode word.",
+        os.path.join(_DIR, "srv_node_data"))
+    try:
+        yield peer
+    finally:
+        peer.close()
+
+
+def _super_stack(lifecycle, state_relay):
+    name = "lc-cms-wire-super" + ("" if state_relay == "on" else "-norelay")
+    return _start_peered_node(
+        lifecycle, name, "nginx_cms_wire_super.conf",
+        {"STATE_RELAY": state_relay},
+        "Phase-61 W7: supervisor tier — kYR_state relay recursion.",
+        os.path.join(_DIR, name.replace("-", "_") + "_data"))
+
+
+@pytest.fixture
+def super_stack(lifecycle):
+    """Supervisor (manager_mode + cms_server + upward leg), state relay ON."""
+    peer = _super_stack(lifecycle, "on")
+    try:
+        yield peer
+    finally:
+        peer.close()
+
+
+@pytest.fixture
+def super_stack_norelay(lifecycle):
+    """Same supervisor topology with brix_cms_state_relay left at default off."""
+    peer = _super_stack(lifecycle, "off")
+    try:
+        yield peer
+    finally:
+        peer.close()
+
+
+class TestRoleDirectiveNodeLeg:
+    """Phase-61 W7 PR-B: ``brix_cms_role`` on the upward leg — stock Pander
+    login Mode word + the role's inbound valid-ops table (manVOps)."""
+
+    def test_manager_role_login_mode_word(self, manager_node_stack):
+        """brix_cms_role manager -> LOGIN Mode is exactly kYR_manager (0x02),
+        matching XrdCmsPander for a sub-manager (no kYR_server bit)."""
+        fr = manager_node_stack.wait_for_code(CMS_RR_LOGIN, timeout=20.0)
+        assert fr is not None, "manager-role node did not emit a LOGIN frame"
+        login = _decode_login(fr[3])
+        assert login["mode"] == CMS_MODE_MANAGER, \
+            f"manager role must log in with Mode 0x02, got {login['mode']:#x}"
+
+    def test_manager_role_valid_op_still_served(self, manager_node_stack):
+        """kYR_state is in manVOps: a resident-path probe still draws kYR_have
+        (the filter must not eat legitimate manager-leg traffic)."""
+        sid = 0x61B00001
+        manager_node_stack.send_to_node(sid, CMS_RR_STATE, CMS_MOD_RAW,
+                                        b"/have_me.bin\x00")
+        reply = manager_node_stack.collect_reply(CMS_RR_HAVE, timeout=8.0)
+        assert reply is not None, \
+            "manVOps must still admit kYR_state on a manager-role node"
+        assert reply[0] == sid
+
+    def test_manager_role_drops_op_outside_manvops(self, manager_node_stack):
+        """Security-neg: kYR_mkdir is NOT in manVOps (stock initMANrouting) —
+        a manager-role node must drop it silently: no directory created, no
+        kYR_error, and the connection stays live (PING still answered)."""
+        made = os.path.join(_DIR, "mgr_node_data", "mgr_no_mkdir")
+        if os.path.isdir(made):
+            os.rmdir(made)
+        manager_node_stack.send_to_node(
+            0x61B00002, CMS_RR_MKDIR, 0,
+            _fwd_a_payload(b"mgr", b"755", b"/mgr_no_mkdir"))
+        time.sleep(1.0)
+        assert not os.path.isdir(made), \
+            "manVOps filter breach: manager-role node executed kYR_mkdir"
+        assert manager_node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0) \
+            is None, "invalid ops are dropped, not answered with kYR_error"
+        ping_sid = 0x61B00003
+        manager_node_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
+        alive = manager_node_stack.collect_reply(CMS_RR_PONG, timeout=8.0)
+        assert alive is not None and alive[0] == ping_sid, \
+            "connection must survive a dropped invalid op"
+
+    def test_server_role_login_mode_word(self, server_node_stack):
+        """brix_cms_role server -> LOGIN Mode is exactly kYR_server (0x08),
+        the stock Pander data-server word (no manager bit)."""
+        fr = server_node_stack.wait_for_code(CMS_RR_LOGIN, timeout=20.0)
+        assert fr is not None, "server-role node did not emit a LOGIN frame"
+        login = _decode_login(fr[3])
+        assert login["mode"] == CMS_MODE_SERVER, \
+            f"server role must log in with Mode 0x08, got {login['mode']:#x}"
+
+
+class TestSupervisorValidOps:
+    """Phase-61 W7 PR-B, supervisor leg: supVOps (stock initSUProuting)
+    admits namespace mutations but marks them Forward — the supervisor fans
+    them DOWN to its own data nodes instead of executing locally — and
+    excludes kYR_update entirely."""
+
+    CHILD_DPORT = NODE_DATA_PORT + 11
+
+    def _login_child(self, peer):
+        sock = _node_login_dialog(
+            peer.node_port,
+            _login_payload_with_mode(self.CHILD_DPORT, CMS_MODE_SERVER,
+                                     paths=b"r /data"))
+        time.sleep(0.4)
+        return sock
+
+    def test_supervisor_fans_forwarded_mkdir_down(self, super_stack):
+        """kYR_mkdir IS in supVOps, flagged Forward: the supervisor must relay
+        it down to its logged-in child — and must NOT create the directory
+        locally (a supervisor is a routing tier, not an executor)."""
+        child = self._login_child(super_stack)
+        try:
+            super_stack.send_to_node(
+                0x61E00001, CMS_RR_MKDIR, 0,
+                _fwd_a_payload(b"mgr", b"755", b"/fan_down_dir"))
+            fr = _recv_code(child, CMS_RR_MKDIR, timeout=8.0)
+            assert fr is not None, \
+                "supervisor must fan a forwarded kYR_mkdir down to its child"
+            assert b"/fan_down_dir" in fr[3], \
+                "fanned-down op must carry the original path"
+            local = os.path.join(_DIR, "lc_cms_wire_super_data",
+                                 "fan_down_dir")
+            assert not os.path.isdir(local), \
+                "supervisor executed a Forward-flagged op locally"
+        finally:
+            child.close()
+
+    def test_supervisor_drops_update_outside_supvops(self, super_stack):
+        """Security-neg: kYR_update is NOT in supVOps — no kYR_status reply
+        may come back (auto-role nodes answer update with status), and the
+        connection survives."""
+        # The upward leg announces kYR_status once right after login
+        # (connect.c) — wait it out so collect_reply below can only match a
+        # status provoked by the update.
+        assert super_stack.wait_for_code(CMS_RR_STATUS, timeout=20.0) \
+            is not None, "supervisor never sent its login-time kYR_status"
+        super_stack.send_to_node(0x61E00002, CMS_RR_UPDATE, 0)
+        assert super_stack.collect_reply(CMS_RR_STATUS, timeout=2.5) is None, \
+            "supVOps must drop kYR_update on a supervisor"
+        ping_sid = 0x61E00003
+        super_stack.send_to_node(ping_sid, CMS_RR_PING, 0)
+        alive = super_stack.collect_reply(CMS_RR_PONG, timeout=8.0)
+        assert alive is not None and alive[0] == ping_sid, \
+            "connection must survive a dropped invalid op"
+
+
+class TestServerAdmitRoles:
+    """Phase-61 W7 PR-C: the CMS server leg classifies a node's login Mode
+    like stock Admit — (manager|subman) ? (server ? R : M) : S — and stamps
+    the role into the registry (visible in the registration NOTICE)."""
+
+    def test_supervisor_mode_login_admits_role_r(self, cms_server_ep):
+        """Mode kYR_manager|kYR_server (0x0A) -> admitted as role R and still
+        a fully-functional registrant (statfs sees its advertised space)."""
+        dport = NODE_DATA_PORT + 1
+        sock = _node_login_dialog(
+            cms_server_ep.port, _login_payload_with_mode(dport, 0x0A))
+        try:
+            assert _wait_log_contains(
+                cms_server_ep, f":{dport} role=R".encode()), \
+                "supervisor-mode login must register with role=R"
+            time.sleep(0.2)
+            assert _statfs_wfree(sock, 61) == 5000, \
+                "an R-role registrant must still serve/aggregate normally"
+        finally:
+            sock.close()
+
+    def test_manager_mode_login_admits_role_m(self, cms_server_ep):
+        """Mode kYR_manager alone (0x02) -> admitted as role M."""
+        dport = NODE_DATA_PORT + 2
+        sock = _node_login_dialog(
+            cms_server_ep.port, _login_payload_with_mode(dport, 0x02))
+        try:
+            assert _wait_log_contains(
+                cms_server_ep, f":{dport} role=M".encode()), \
+                "manager-mode login must register with role=M"
+            sock.sendall(_build_frame(62, CMS_RR_PING, 0))
+            fr = _recv_code(sock, CMS_RR_PONG, timeout=5.0)
+            assert fr is not None, "M-role registrant must stay serviceable"
+        finally:
+            sock.close()
+
+    def test_unrelated_mode_bits_default_role_s(self, cms_server_ep):
+        """Security-neg: a Mode word carrying only non-role bits (kYR_nostage,
+        0x200) grants nothing — the node is classified plain server (role=S),
+        the safe default."""
+        dport = NODE_DATA_PORT + 3
+        sock = _node_login_dialog(
+            cms_server_ep.port, _login_payload_with_mode(dport, 0x200))
+        try:
+            assert _wait_log_contains(
+                cms_server_ep, f":{dport} role=S".encode()), \
+                "non-role Mode bits must fall back to role=S"
+        finally:
+            sock.close()
+
+
+class TestStateRelayRecursion:
+    """Phase-61 W7 PR-D: ``brix_cms_state_relay`` — on a registry miss a
+    supervisor re-asks its own children and echoes the first kYR_have back up
+    under the parent's streamid.  Default is OFF (silent miss)."""
+
+    CHILD_DPORT = NODE_DATA_PORT + 10
+
+    def _login_child(self, peer):
+        """Register a Python child under the supervisor with a NARROW export
+        (r /data) so a probe outside it is a registry miss."""
+        sock = _node_login_dialog(
+            peer.node_port,
+            _login_payload_with_mode(self.CHILD_DPORT, CMS_MODE_SERVER,
+                                     paths=b"r /data"))
+        time.sleep(0.4)
+        return sock
+
+    def test_supervisor_login_mode_word(self, super_stack):
+        """brix_cms_role supervisor -> upward LOGIN Mode is exactly
+        kYR_manager|kYR_server (0x0A), the stock supervisor Pander word."""
+        fr = super_stack.wait_for_code(CMS_RR_LOGIN, timeout=20.0)
+        assert fr is not None, "supervisor did not emit a LOGIN frame"
+        login = _decode_login(fr[3])
+        assert login["mode"] == (CMS_MODE_MANAGER | CMS_MODE_SERVER), \
+            f"supervisor must log in with Mode 0x0A, got {login['mode']:#x}"
+
+    def test_state_relay_round_trip(self, super_stack):
+        """Parent kYR_state for a path outside every child export (registry
+        miss) is relayed DOWN to the child; the child's kYR_have is echoed
+        back UP under the parent's original streamid.  The relayed probe MUST
+        carry kYR_metaman: a brix_manager_mode instance keeps root_canon empty
+        (no confined local export, process_server_init.c), so it holds nothing
+        itself — stock do_State stamps kYR_metaman for exactly such a
+        non-server sender."""
+        child = self._login_child(super_stack)
+        try:
+            up_sid = 0x61D00001
+            path = b"/elsewhere/wanted.bin"
+            super_stack.send_to_node(up_sid, CMS_RR_STATE, CMS_MOD_RAW,
+                                     path + b"\x00")
+            fr = _recv_code(child, CMS_RR_STATE, timeout=8.0)
+            assert fr is not None, \
+                "relay-on supervisor must re-ask its child on a registry miss"
+            down_sid, _code, mod, payload = fr
+            assert payload.rstrip(b"\x00") == path, \
+                "relayed probe must carry the parent's path verbatim"
+            assert mod & CMS_MOD_RAW, "relayed kYR_state must be raw"
+            assert mod & CMS_STATE_METAMAN, \
+                "a no-local-export manager tier must stamp kYR_metaman"
+            child.sendall(_build_frame(down_sid, CMS_RR_HAVE,
+                                       CMS_MOD_RAW | CMS_HAVE_ONLINE,
+                                       path + b"\x00"))
+            up = super_stack.wait_for_code(CMS_RR_HAVE, timeout=8.0)
+            assert up is not None, \
+                "child kYR_have must be echoed up to the parent"
+            assert up[0] == up_sid, \
+                "upward kYR_have must carry the PARENT's original streamid"
+            assert up[3].rstrip(b"\x00") == path
+        finally:
+            child.close()
+
+    def test_state_relay_default_off_is_silent(self, super_stack_norelay):
+        """Default (brix_cms_state_relay off): a registry miss stays silent —
+        nothing is relayed to the child and the parent gets no kYR_have."""
+        child = self._login_child(super_stack_norelay)
+        try:
+            super_stack_norelay.send_to_node(0x61D00002, CMS_RR_STATE,
+                                             CMS_MOD_RAW,
+                                             b"/elsewhere/wanted.bin\x00")
+            assert _recv_code(child, CMS_RR_STATE, timeout=3.0) is None, \
+                "relay must be OFF by default — child saw a relayed probe"
+            # Full-history scan (fresh peer): no kYR_have may EVER go upward.
+            assert super_stack_norelay.wait_for_code(CMS_RR_HAVE, timeout=2.0) \
+                is None, "silent miss must stay silent upward"
+        finally:
+            child.close()
+
+    def test_unsolicited_child_have_cannot_reach_parent(self, super_stack):
+        """Security-neg: a child kYR_have whose streamid was never issued by
+        the relay (a forged/unsolicited claim) must NOT surface upward as a
+        parent-facing kYR_have."""
+        child = self._login_child(super_stack)
+        try:
+            child.sendall(_build_frame(0x0666BEEF, CMS_RR_HAVE,
+                                       CMS_MOD_RAW | CMS_HAVE_ONLINE,
+                                       b"/forged/claim.bin\x00"))
+            # Full-history scan (fresh peer): a forged HAVE that leaked up
+            # before this call would still be caught.
+            assert super_stack.wait_for_code(CMS_RR_HAVE, timeout=3.0) is None, \
+                "unsolicited child kYR_have leaked up to the parent"
+        finally:
+            child.close()
+
+    def test_forged_path_on_issued_streamid_refused_then_honest_lands(
+            self, super_stack):
+        """Security-neg + success: the relay trust anchor is streamid AND
+        exact probed path.  A kYR_have on the REAL relay streamid but a
+        different path must be refused WITHOUT consuming the entry — the
+        honest answer for the probed path must still be echoed upward."""
+        child = self._login_child(super_stack)
+        try:
+            up_sid = 0x61D00004
+            path = b"/elsewhere/wanted.bin"
+            super_stack.send_to_node(up_sid, CMS_RR_STATE, CMS_MOD_RAW,
+                                     path + b"\x00")
+            fr = _recv_code(child, CMS_RR_STATE, timeout=8.0)
+            assert fr is not None, "child never saw the relayed probe"
+            down_sid = fr[0]
+            child.sendall(_build_frame(down_sid, CMS_RR_HAVE,
+                                       CMS_MOD_RAW | CMS_HAVE_ONLINE,
+                                       b"/elsewhere/DECOY.bin\x00"))
+            # Full-history scan (fresh peer): nothing has been echoed yet,
+            # so any upward kYR_have here is the forgery leaking through.
+            assert super_stack.wait_for_code(CMS_RR_HAVE, timeout=2.5) \
+                is None, "forged-path kYR_have on a real streamid leaked up"
+            child.sendall(_build_frame(down_sid, CMS_RR_HAVE,
+                                       CMS_MOD_RAW | CMS_HAVE_ONLINE,
+                                       path + b"\x00"))
+            up = super_stack.wait_for_code(CMS_RR_HAVE, timeout=8.0)
+            assert up is not None, \
+                "forged path consumed the relay entry — honest answer lost"
+            assert up[0] == up_sid and up[3].rstrip(b"\x00") == path, \
+                "upward echo must carry the parent streamid + probed path"
+        finally:
+            child.close()
+
+    def test_relay_entry_is_single_use(self, super_stack):
+        """A consumed relay entry is gone: replaying the identical honest
+        kYR_have must not produce a second upward echo (no amplification /
+        stale-entry reuse)."""
+        child = self._login_child(super_stack)
+        try:
+            up_sid = 0x61D00005
+            path = b"/elsewhere/wanted.bin"
+            super_stack.send_to_node(up_sid, CMS_RR_STATE, CMS_MOD_RAW,
+                                     path + b"\x00")
+            fr = _recv_code(child, CMS_RR_STATE, timeout=8.0)
+            assert fr is not None, "child never saw the relayed probe"
+            have = _build_frame(fr[0], CMS_RR_HAVE,
+                                CMS_MOD_RAW | CMS_HAVE_ONLINE, path + b"\x00")
+            child.sendall(have)
+            assert super_stack.wait_for_code(CMS_RR_HAVE, timeout=8.0) \
+                is not None, "honest kYR_have was not echoed upward"
+            before = super_stack.count_frames(CMS_RR_HAVE)
+            child.sendall(have)
+            time.sleep(2.0)
+            assert super_stack.count_frames(CMS_RR_HAVE) == before, \
+                "replayed kYR_have re-used a consumed relay entry"
+        finally:
+            child.close()
+
+    def test_unsolicited_have_does_not_poison_loc_cache(self, super_stack):
+        """Security-neg: a dropped unsolicited kYR_have must leave NO trace —
+        a later parent probe for that very path must still be a miss that is
+        relayed down to the child (a cached forgery would answer it directly
+        and short-circuit the relay)."""
+        child = self._login_child(super_stack)
+        try:
+            path = b"/elsewhere/poison.bin"
+            child.sendall(_build_frame(0x0666AAAA, CMS_RR_HAVE,
+                                       CMS_MOD_RAW | CMS_HAVE_ONLINE,
+                                       path + b"\x00"))
+            time.sleep(0.5)
+            super_stack.send_to_node(0x61D00006, CMS_RR_STATE, CMS_MOD_RAW,
+                                     path + b"\x00")
+            fr = _recv_code(child, CMS_RR_STATE, timeout=8.0)
+            assert fr is not None, \
+                "probe was not relayed — the forged kYR_have was cached"
+            assert fr[3].rstrip(b"\x00") == path
+            # And the forgery itself must never have surfaced upward.
+            assert super_stack.wait_for_code(CMS_RR_HAVE, timeout=2.0) \
+                is None, "forged kYR_have surfaced upward"
+        finally:
+            child.close()

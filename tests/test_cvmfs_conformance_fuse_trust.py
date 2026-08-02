@@ -58,6 +58,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 
 from conformance_common import (BRIXMOUNT, MOCK, _unmount, _wait_mounted,  # noqa: E402
                                 check_repo)
+from cmdscripts.cvmfs_driver_units import (  # noqa: E402
+    BRIXCVMFS_CORE_DEPS,
+    BRIXCVMFS_DRIVER_SRCS,
+)
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from ephemeral_port import free_port  # noqa: E402
 from settings import HOST
@@ -368,15 +372,11 @@ _CASES: list[tuple[str, str, object]] = [
 # ---------------------------------------------------------------------------
 # build the standalone brixcvmfs binary (for --check) once per module.
 # ---------------------------------------------------------------------------
-_CVMFS_CORE = [
-    "shared/cvmfs/client/client.c", "shared/cvmfs/fetch/fetch.c",
-    "shared/cvmfs/object/object.c", "shared/cvmfs/failover/failover.c",
-    "shared/cvmfs/catalog/catalog.c", "shared/cvmfs/grammar/hash.c",
-    "shared/cvmfs/grammar/classify.c", "shared/cvmfs/signature/manifest.c",
-    "shared/cvmfs/signature/whitelist.c", "shared/cvmfs/signature/verify.c",
-    "shared/cvmfs/config/repo.c", "shared/cvmfs/config/cvmfs_conf.c",
-    "shared/cvmfs/walk/walk.c", "shared/cache/cas_store.c", "shared/net/proxy_env.c",
-]
+# Shared-core source list is single-truth in cmdscripts (tracks every
+# phase-87 seam brixcvmfs pulls in); the client-lib half comes from the
+# prebuilt archives below, so keep only the shared/ .c entries.
+_CVMFS_CORE = [d for d in BRIXCVMFS_CORE_DEPS
+               if d.startswith("shared/") and d.endswith(".c")]
 
 # Since phase-86 brixcvmfs.c fetches through the pooled brix_cpool
 # (client/lib/net/cpool.c), so it transitively includes client/lib/brix.h and
@@ -419,7 +419,7 @@ def _build_brixcvmfs() -> str | None:
                           capture_output=True, text=True).stdout.split()
     argv = ["gcc", "-O1", "-I", "client/lib", "-I", "src", "-I", "shared",
             "-DXRDPROTO_NO_NGX", *cflags,
-            "client/apps/fs/brixcvmfs.c", "client/apps/fs/brixcvmfs_rw.c",
+            *BRIXCVMFS_DRIVER_SRCS, "client/apps/fs/brixcvmfs_rw.c",
             *_CVMFS_CORE, *_CLIENT_ARCHIVES, *libs, *_EXTRA_LIBS, "-o", out]
     r = subprocess.run(argv, cwd=root, capture_output=True, text=True)
     if r.returncode != 0:

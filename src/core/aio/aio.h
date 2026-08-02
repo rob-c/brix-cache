@@ -3,6 +3,7 @@
 
 #include "core/ngx_brix_module.h"
 #include "core/compat/pgio.h"   /* xrdp_pg_bad_t — pgwrite CSE bad-page list */
+#include "core/compat/lifecycle_timing.h"   /* brix_phase_now_ns — D-2 clock */
 #include "fs/vfs/vfs_io_core.h"
 
 /*
@@ -41,6 +42,34 @@ brix_task_bind(ngx_thread_task_t *task,
     task->event.data    = task;
 }
 #endif
+
+/*
+ * brix_aio_metric_done — phase-56 D-2: file the op-latency histogram sample
+ * for a completed stream data-plane op (kXR_read/pgread/readv → READ,
+ * kXR_write/pgwrite/writev → WRITE).
+ *
+ * HISTOGRAM ONLY (brix_metric_op_latency): the stream plane's io_ops_total and
+ * io_bytes_{read,written} already reach the exporter via the legacy per-port
+ * fold in unified_export_io.c — which also covers the non-AIO paths (sendfile
+ * reads, inline fallbacks) — so booking them again here would double-count.
+ * The latency series is the one thing the AIO plane never emitted; its count
+ * is therefore the AIO-sampled subset of ops, not io_ops_total.
+ *
+ * start_ns is stamped at task-post time and consumed here in the done
+ * callback — both run on the event-loop thread, so the timestamp needs no
+ * synchronization; the worker never touches it.  Errored completions file too
+ * (parity with the VFS inline observer, whose histogram includes error ops).
+ * Low-cardinality labels only (proto=stream, op) per INVARIANT #8.
+ */
+static ngx_inline void
+brix_aio_metric_done(uint64_t start_ns, brix_metric_op_t op)
+{
+    uint64_t  now_ns = brix_phase_now_ns();
+
+    brix_metric_op_latency(BRIX_PROTO_ROOT, op,
+        (now_ns > start_ns) ? (ngx_msec_t) ((now_ns - start_ns) / 1000ull)
+                            : 0);
+}
 
 /* Build a chain of oksofar+ok bufs from a flat data buffer. */
 ngx_chain_t *brix_build_chunked_chain(brix_ctx_t *ctx,
@@ -145,6 +174,11 @@ typedef struct {
     int       io_errno;
     void     *csi;        /* phase-59 W2: brix_csi_t* or NULL (verify on read) */
     brix_sd_obj_t obj;  /* Layer 3: driver obj (driver==NULL ⇒ POSIX-wrap fd) */
+    uint64_t  start_ns;   /* phase-56 D-2: stamped at post, read in done      */
+    unsigned  counted:1;  /* phase-32 WS3: single-shot read counted in
+                           * rd.aio_inflight (0 for the windowed task, which
+                           * self-serializes on win_active and is never
+                           * pipelined) — gates the concurrent-read teardown */
 } brix_read_aio_t;
 
 typedef struct {
@@ -169,6 +203,7 @@ typedef struct {
     xrdp_pg_bad_t  bad_pages[kXR_pgMaxEpr];
     void          *csi;        /* phase-59 W2: brix_csi_t* or NULL (tag update) */
     brix_sd_obj_t obj;       /* Layer 3: driver obj (driver==NULL ⇒ POSIX fd) */
+    uint64_t       start_ns;   /* phase-56 D-2: stamped at post, read in done  */
 } brix_write_aio_t;
 
 typedef struct {
@@ -182,6 +217,7 @@ typedef struct {
     size_t  response_bytes;
     int     io_error;
     char    err_msg[64];
+    uint64_t start_ns;    /* phase-56 D-2: stamped at post, read in done */
 } brix_readv_aio_t;
 
 typedef brix_vfs_writev_seg_t brix_writev_seg_desc_t;
@@ -197,6 +233,7 @@ typedef struct {
     size_t  bytes_total;  /* set by thread */
     int     io_error;     /* 0=ok, 1=pwrite error, 2=short write */
     char    err_msg[64];  /* set by thread on error */
+    uint64_t start_ns;    /* phase-56 D-2: stamped at post, read in done */
 } brix_writev_aio_t;
 
 /*
@@ -220,6 +257,7 @@ typedef struct {
     ssize_t   nread;      /* actual pread return (set by thread) */
     int       io_errno;
     brix_sd_obj_t obj;  /* Layer 3: driver obj (driver==NULL ⇒ POSIX-wrap fd) */
+    uint64_t  start_ns;   /* phase-56 D-2: stamped at post, read in done      */
 } brix_pgread_aio_t;
 
 /*
@@ -344,6 +382,10 @@ void brix_writev_write_aio_thread(void *data, ngx_log_t *log);
 void brix_readv_aio_thread(void *data, ngx_log_t *log);
 /* pread then per-page CRC32c interleave into brix_pgread_aio_t scratch. */
 void brix_pgread_aio_thread(void *data, ngx_log_t *log);
+/* CRC-only pgread half for the io_uring hybrid (P44-B): the ring already
+ * scattered nread bytes into the gapped scratch; this pass just fills the
+ * per-page CRC32c gaps (never on the event thread, R-07). */
+void brix_pgread_aio_crc_thread(void *data, ngx_log_t *log);
 /* opendir/iterate + optional checksum, building the full wire reply in-struct. */
 void brix_dirlist_aio_thread(void *data, ngx_log_t *log);
 

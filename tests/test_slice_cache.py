@@ -90,15 +90,27 @@ class TestSliceConfig:
 
 
 # ---------------------------------------------------------------------------
-# Integration coverage — executable spec.  The stream slice path (open + read)
-# is implemented (slice_read.c); these end-to-end cases need a live XRootD
-# origin + cache, which the current OOM-constrained test host cannot sustain,
-# so they remain skipped until a healthy env is available.
+# Integration coverage — executable spec for the *superseded* phase-26
+# protocol-plane slice serving (its `.__xrds_` per-slice files, kXR_wait retry
+# loop, and N+1 prefetch).  That design never shipped: slice-granular read
+# caching landed instead at the VFS/SD-decorator level via phase-64's generic
+# slice fill (src/fs/backend/cache/sd_cache_partial.c), gated on
+# brix_cache_slice_size > 0 on a LOCAL cache store.  Per-slice residency
+# (cinfo present-bitmap), slice-hit serving (brix_cstore_serve_pread range-fill),
+# and the stream data-plane (a root:// kXR_read reaches sd_cache_pread through
+# the decorator) are ALL delivered and verified green by
+# tests/test_cache_partial_fill.py (21 passing: residency block-marking,
+# COMPLETE promotion, warm-block byte-exact, generic-backend fill, and the
+# oversized/allow-deny-prefix/include-regex security-negatives).  The cases
+# below stay skipped because their `.__xrds_`/kXR_wait/prefetch semantics do not
+# map onto the decorator architecture that shipped; they are kept as the record
+# of the alternative protocol-plane spec.
 # ---------------------------------------------------------------------------
 
-_PENDING = "needs a live XRootD origin + cache env (stream slice serving)"
-_SLICE_DEFERRED = ("slice-granular read-caching is deferred; the current open-time/whole-file VFS cache design caches whole files, not per-slice "
-                   "windows — see module docstring. xfail until generic-slice serving lands.")
+_PENDING = ("superseded phase-26 protocol-plane spec — the shipped slice cache "
+            "lives in the VFS decorator (sd_cache_partial.c); see "
+            "test_cache_partial_fill.py for the live coverage")
+_SLICE_DEFERRED = _PENDING
 
 
 @pytest.mark.skip(reason=_PENDING)

@@ -5,6 +5,7 @@
 #include "auth/gsi/gsi_core.h"              /* shared XrdSecgsi handshake kernel (C-3 GSI) */
 #include "protocols/root/protocol/gsi.h"              /* kXRS_x509 bucket id (origin-cert verify) */
 #include "auth/sss/sss_keytab_kernel.h"     /* §14 SSS: shared keytab line grammar */
+#include "auth/krb5/carry.h"                /* §5.7 krb5: re-import delegated TGT from carried FILE ccache */
 #include <stdio.h>                        /* fdopen/fgets for the keytab reader */
 
 
@@ -47,6 +48,27 @@ cache_origin_gsi_parms(const char *parms, size_t plen)
     return NULL;
 }
 
+/* Extract the origin's advertised krb5 service principal from "&P=krb5,<princ>"
+ * (phase-70 §5.7). Returns a pointer INTO `parms` just past "krb5," — the SPN the
+ * raw AP-REQ must target, exactly as the native client honours it — or NULL when
+ * krb5 is advertised bare ("&P=krb5" with no principal). */
+static const char *
+cache_origin_krb5_princ(const char *parms, size_t plen)
+{
+    static const char needle[] = "krb5,";
+    size_t            i;
+
+    if (parms == NULL || plen < sizeof(needle) - 1) {
+        return NULL;
+    }
+    for (i = 0; i + (sizeof(needle) - 1) <= plen; i++) {
+        if (ngx_strncmp(parms + i, needle, sizeof(needle) - 1) == 0) {
+            return parms + i + (sizeof(needle) - 1);
+        }
+    }
+    return NULL;
+}
+
 /* origin_frame_t — one decoded origin reply (status + owned body). WHY: the
  * bootstrap wire steps each read exactly one frame; bundling the status/body/dlen
  * triple keeps the step helpers under the 5-parameter cap and makes body
@@ -67,7 +89,9 @@ typedef struct {
     int   has_ztn;
     int   has_gsi;
     int   has_sss;
+    int   has_krb5;      /* §5.7: origin advertises "&P=krb5" (delegated TGT leg) */
     char  gsi_parms[256];   /* gsi v:/c:/ca: list, NUL-terminated */
+    char  krb5_princ[512];  /* §5.7: origin's advertised "&P=krb5,<princ>" SPN */
 } origin_auth_advert_t;
 
 /* origin_expect_frame — read one origin reply into fr and require kXR_ok. WHAT:
@@ -224,8 +248,23 @@ origin_bs_parse_advert(const u_char *parms, size_t plen,
                                   (u_char *) parms + plen, '=') != NULL);
     ad->has_ztn = (ngx_strnstr((u_char *) parms, "ztn", plen) != NULL);
     ad->has_sss = (ngx_strnstr((u_char *) parms, "sss", plen) != NULL);
+    ad->has_krb5 = (ngx_strnstr((u_char *) parms, "krb5", plen) != NULL);
     ad->has_gsi = 0;
     ad->gsi_parms[0] = '\0';
+    ad->krb5_princ[0] = '\0';
+
+    if (ad->has_krb5) {
+        const char *kp = cache_origin_krb5_princ((const char *) parms, plen);
+        if (kp != NULL) {
+            size_t end = (size_t) ((const char *) parms + plen - kp);
+            size_t i;
+
+            for (i = 0; i < end && kp[i] != '&'; i++) { /* find terminator */ }
+            if (i >= sizeof(ad->krb5_princ)) { i = sizeof(ad->krb5_princ) - 1; }
+            ngx_memcpy(ad->krb5_princ, kp, i);
+            ad->krb5_princ[i] = '\0';
+        }
+    }
 
     gp = cache_origin_gsi_parms((const char *) parms, plen);
     if (gp != NULL) {
@@ -262,6 +301,45 @@ origin_bs_auth_fail_msg(const brix_cache_fill_t *t)
                  "'defined more than once' warning at config load)";
 }
 
+/* origin_bs_auth_krb5 — run the origin krb5 EXCHANGE leg AS the inbound user with
+ * a RAW AP-REQ (phase-70 §5.7). WHAT: the front door's krb5 delegation gate
+ * (brix_vfs_deleg_krb5) serialised the captured forwardable TGT to a 0600 FILE
+ * ccache and carried its PATH (async-safe) onto the fill task; here — on the async
+ * fill worker — brix_cache_origin_auth_krb5_raw builds a "krb5\0"+AP-REQ straight
+ * from that ccache PATH and presents it in one kXR_auth leg. WHY raw (not the
+ * GSSAPI engine brix_cache_origin_auth_krb5): stock XRootD krb5 (libXrdSeckrb5)
+ * validates a raw AP-REQ with krb5_rd_req, NOT a gss_init_sec_context token, so
+ * the raw leg is the dialect that interoperates with real "&P=krb5" origins (and
+ * brix's own acceptor). The origin's advertised "&P=krb5,<princ>" SPN is the
+ * ticket target (the native client honours it the same way); it falls back to the
+ * request-time derived principal carried on the fill task. Per-user only: any
+ * failure fails CLOSED (kXR_AuthFailed), never a service-credential fallback.
+ * Returns the auth result / -1 (task error set). */
+#if (BRIX_HAVE_KRB5)
+static int
+origin_bs_auth_krb5(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const origin_auth_advert_t *ad)
+{
+    const char *spn;
+
+    spn = (ad->krb5_princ[0] != '\0') ? ad->krb5_princ
+        : (t->cred_krb5_princ[0] != '\0') ? t->cred_krb5_princ
+        : NULL;
+
+    return brix_cache_origin_auth_krb5_raw(t, oc, t->cred_krb5_ccache, spn);
+}
+#else
+static int
+origin_bs_auth_krb5(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const origin_auth_advert_t *ad)
+{
+    (void) oc; (void) ad;
+    brix_cache_set_error(t, kXR_AuthFailed, 0,
+        "cache origin krb5 auth unavailable (built without krb5 support)");
+    return -1;
+}
+#endif
+
 /* origin_bs_auth_dispatch — credential ladder for an auth-demanding advert.
  * WHY the ordering: per-user overrides WIN over every static service credential
  * (the session must carry the user's identity, never the service's), and x509 vs
@@ -283,6 +361,17 @@ origin_bs_auth_dispatch(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
             "origin does not advertise gsi for the per-user credential");
         return -1;
     }
+    if (t->cred_krb5_ccache[0] != '\0') {
+        /* Delegated krb5 TGT (phase-70 §5.7): a forwarded USER credential, so it
+         * outranks bearer/sss and — like every per-user branch — never falls back
+         * to a service credential. */
+        if (ad->has_krb5) {
+            return origin_bs_auth_krb5(t, oc, ad);
+        }
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "origin does not advertise krb5 for the delegated-TGT credential");
+        return -1;
+    }
     if (t->cred_bearer[0] != '\0') {
         if (ad->has_ztn) {
             ngx_str_t bt = {
@@ -295,6 +384,20 @@ origin_bs_auth_dispatch(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
             "origin does not advertise ztn for the per-user bearer credential");
         return -1;
     }
+    if (t->cred_sss_keytab[0] != '\0') {
+        /* SSS identity injection (phase-70 §5.6 / P90-70.3): the delegation
+         * gate resolved "assert the caller via SSS, signed with the export's
+         * backend keytab". Per-user like the two branches above — never fall
+         * through to a service credential. */
+        if (ad->has_sss) {
+            return brix_cache_origin_auth_sss(t, oc, t->cred_sss_keytab,
+                                                t->cred_principal);
+        }
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "origin does not advertise sss for the identity-injection "
+            "credential");
+        return -1;
+    }
     if (ad->has_ztn && t->conf->cache_origin_bearer.len > 0) {
         return brix_cache_origin_auth_ztn(t, oc,
                                             &t->conf->cache_origin_bearer);
@@ -305,7 +408,7 @@ origin_bs_auth_dispatch(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     }
     if (ad->has_sss && t->conf->cache_origin_sss_keytab.len > 0) {
         return brix_cache_origin_auth_sss(t, oc,
-            (const char *) t->conf->cache_origin_sss_keytab.data);
+            (const char *) t->conf->cache_origin_sss_keytab.data, NULL);
     }
     brix_cache_set_error(t, kXR_AuthFailed, 0, origin_bs_auth_fail_msg(t));
     return -1;
@@ -328,6 +431,18 @@ origin_bs_authmore_fallback(brix_cache_fill_t *t,
     if (t->cred_bearer[0] != '\0') {
         brix_cache_set_error(t, kXR_AuthFailed, 0,
             "origin sent kXR_authmore with no auth advert for the per-user credential");
+        return -1;
+    }
+    if (t->cred_sss_keytab[0] != '\0') {
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "origin sent kXR_authmore with no auth advert for the "
+            "identity-injection credential");
+        return -1;
+    }
+    if (t->cred_krb5_ccache[0] != '\0') {
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "origin sent kXR_authmore with no auth advert for the "
+            "delegated-TGT credential");
         return -1;
     }
     if (t->conf->cache_origin_bearer.len > 0) {

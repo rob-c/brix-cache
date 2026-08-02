@@ -3,6 +3,7 @@
  * Phase-38 split of gsi_core.c; behavior-identical.
  */
 #include "gsi_core_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 
 EVP_PKEY *
@@ -22,10 +23,10 @@ brix_gsi_dh_keygen(void)
     if (EVP_PKEY_keygen_init(ctx) <= 0
         || EVP_PKEY_CTX_set_params(ctx, params) <= 0
         || EVP_PKEY_keygen(ctx, &k) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
+        brix_evp_pkey_ctx_free(ctx);
         return NULL;
     }
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     return k;
 }
 
@@ -115,7 +116,7 @@ brix_gsi_dh_build_peer(EVP_PKEY *mine, BIGNUM *peer_pub)
         }
     }
 
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     OSSL_PARAM_free(merged);
     OSSL_PARAM_free(cparams);
     OSSL_PARAM_BLD_free(bld);
@@ -137,16 +138,16 @@ brix_gsi_dh_derive(EVP_PKEY *mine, EVP_PKEY *peer, size_t *slen)
         || EVP_PKEY_CTX_set_dh_pad(ctx, 0) != 1
         || EVP_PKEY_derive_set_peer(ctx, peer) != 1
         || EVP_PKEY_derive(ctx, NULL, slen) != 1) {
-        EVP_PKEY_CTX_free(ctx);
+        brix_evp_pkey_ctx_free(ctx);
         return NULL;
     }
     secret = (uint8_t *) malloc(*slen);
     if (secret == NULL || EVP_PKEY_derive(ctx, secret, slen) != 1) {
         free(secret);
-        EVP_PKEY_CTX_free(ctx);
+        brix_evp_pkey_ctx_free(ctx);
         return NULL;
     }
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     return secret;
 }
 
@@ -187,9 +188,9 @@ gsi_dh_keygen_with(EVP_PKEY *dhparams)
     if (ctx != NULL && EVP_PKEY_keygen_init(ctx) == 1) {
         EVP_PKEY_keygen(ctx, &key);
     }
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     if (dhparams == NULL) {
-        EVP_PKEY_free(params);
+        brix_evp_pkey_free(params);
     }
     return key;
 }

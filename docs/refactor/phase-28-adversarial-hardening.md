@@ -2,7 +2,19 @@
 
 **Date:** 2026-06-12
 **Author:** security threat-model audit
-**Status:** PLAN — not yet begun
+**Status:** SUPERSEDED — substantially LANDED (see the note below)
+
+> SUPERSEDED (2026-07-25): substantially LANDED under different names. Map:
+> A1–A4 → `src/tpc/` (`tpc_*`) + `src/net/net_target.c`; B1/B2 →
+> `net_target.c` + `tpc_curl_setup.c` (the planned `egress_policy.{c,h}` /
+> `argv_guard.h` landed as `net_target.{c,h}`, with
+> `brix_net_host_chars_valid` covering the argv/host-chars guard); C1 →
+> `src/protocols/cms/server_auth.c`; D1 → `auth_sigv4_verify_crypto.c` (SigV4
+> replay/nonce, ≈:263); E1 → `admin_audit`; G1 → `propfind_walk.c`; G2 →
+> `BRIX_RL_KEY_SUBJECT`; H8 → `tests/test_security_redteam.py`. Treat the
+> satisfied Appendix-B checklist rows as ticked per that map. Residual
+> (MADV_DONTDUMP, hash-chained audit, audience binding, ADMIN path-scope test,
+> nonce cache breadth): `phase-90-plan-phase-remainder-register.md` §4.
 **Scope:** the module under `src/` only — no nginx-core edits (build governance)
 **Companion:** [Phase 27 — Memory-Safety & Anti-Abuse](phase-27-memory-safety-hardening.md)
 covers heap/handle leaks + raw resource exhaustion. **This phase covers

@@ -144,6 +144,55 @@ brix_gsi_enforce_cert_policy(X509_STORE_CTX *vctx, X509 *leaf, ngx_log_t *log,
 }
 
 /*
+ * WHAT: Extract the End-Entity Certificate (EEC) subject DN from a verified
+ *       chain into res->eec_buf (P80.11).
+ * WHY:  Every identity consumer that keys on the proxy LEAF DN drifts when the
+ *       user re-mints a proxy (a fresh RFC 3820 /CN=<serial> is appended), so
+ *       authz verdicts, home paths, and per-user credential hashes silently
+ *       change for the SAME user.  The EEC — the first non-proxy cert in the
+ *       chain — is the stable identity; keying on it makes the derivation
+ *       serial-independent.
+ * HOW:  Walk the verified chain leaf..root; the first cert WITHOUT the RFC 3820
+ *       proxy flag (EXFLAG_PROXY) is the EEC (a proxy's issuer is its EEC or a
+ *       parent proxy, never a trust anchor — the same walk shape as the signing
+ *       policy check above).  Copy its subject via X509_NAME_oneline.  Fall
+ *       back to the already-extracted leaf DN when the chain is unavailable or
+ *       every entry looks like a proxy (defensive: never leave eec_buf empty on
+ *       an otherwise-verified chain).
+ */
+static void
+brix_gsi_extract_eec_dn(X509_STORE_CTX *vctx, brix_gsi_verify_result_t *res)
+{
+    STACK_OF(X509) *chain = X509_STORE_CTX_get0_chain(vctx);
+    int             n     = chain ? sk_X509_num(chain) : 0;
+    int             i;
+
+    for (i = 0; i < n; i++) {
+        X509 *cert = sk_X509_value(chain, i);
+
+        if (X509_get_extension_flags(cert) & EXFLAG_PROXY) {
+            continue;                       /* proxy layer — keep walking up */
+        }
+        {
+            char *dn = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+
+            if (dn != NULL) {
+                ngx_cpystrn((u_char *) res->eec_buf, (u_char *) dn,
+                            sizeof(res->eec_buf));
+                OPENSSL_free(dn);
+                return;
+            }
+        }
+        break;                              /* found the EEC but oneline failed */
+    }
+
+    /* No non-proxy cert reachable (or oneline failed): the leaf DN is the best
+     * available identity — never leave the stable-identity buffer empty. */
+    ngx_cpystrn((u_char *) res->eec_buf, (u_char *) res->dn_buf,
+                sizeof(res->eec_buf));
+}
+
+/*
  * WHAT: Verify an x.509 proxy certificate chain against a CA trust store.
  *
  * HOW (step by step):
@@ -229,14 +278,18 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
         return NGX_ERROR;
     }
 
-    X509_STORE_CTX_free(vctx);
-
     dn_str = X509_NAME_oneline(X509_get_subject_name(leaf), NULL, 0);
     if (dn_str != NULL) {
         ngx_cpystrn((u_char *) res->dn_buf, (u_char *) dn_str,
                     sizeof(res->dn_buf));
         OPENSSL_free(dn_str);
     }
+
+    /* P80.11: derive the stable EEC identity from the verified chain (still
+     * live) before releasing vctx; falls back to dn_buf, just set above. */
+    brix_gsi_extract_eec_dn(vctx, res);
+
+    X509_STORE_CTX_free(vctx);
 
     return NGX_OK;
 }

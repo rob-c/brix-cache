@@ -15,11 +15,15 @@ from cmdscripts.c_regression_units import run_checks
         "delegation_store",
         "pblock",
         "mu_unit",
+        "chunk_geometry",
+        "staged_commit_contract",
+        "shared_thread_pool",
         "fd_kind",
         "stage_reconcile",
         "compression",
         "sreq_compat",
         "sd_remote_wrongkind",
+        "gftp_parse",
     ],
 )
 # Each case compiles a C harness before running it (~10s alone); under a full

@@ -30,8 +30,13 @@
 static const brix_sd_driver_t brix_sd_http_driver = {
     .name  = "http",
     /* phase-71: read-only primary — no .pwrite slot (writes are staged whole-object
-     * PUTs via .staged_*), so CAP_RANDOM_WRITE is NOT advertised (honest caps). */
-    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE,
+     * PUTs via .staged_*), so CAP_RANDOM_WRITE is NOT advertised (honest caps).
+     * phase-92: CAP_DIRS advertises WebDAV PROPFIND enumeration (.opendir);
+     * CAP_DIRS_WRITE advertises the mutable catalog — .mkdir (MKCOL), .rename
+     * (MOVE), and .unlink with is_dir (DELETE on a collection). CAP_HARD_RENAME:
+     * MOVE is atomic on the origin, so the VFS never falls back to copy+delete. */
+    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE | BRIX_SD_CAP_DIRS
+           | BRIX_SD_CAP_DIRS_WRITE | BRIX_SD_CAP_HARD_RENAME,
     .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM,
     .open  = sd_http_open,
     .open_cred = sd_http_open_cred,
@@ -41,11 +46,17 @@ static const brix_sd_driver_t brix_sd_http_driver = {
     .stat  = sd_http_stat,
     .stat_cred     = sd_http_stat_cred,
     .unlink        = sd_http_unlink,
+    .mkdir         = sd_http_mkdir,
+    .rename        = sd_http_rename,
     .staged_open   = sd_http_staged_open,
     .staged_open_cred = sd_http_staged_open_cred,
     .staged_write  = sd_http_staged_write,
     .staged_commit = sd_http_staged_commit,
     .staged_abort  = sd_http_staged_abort,
+    .opendir       = sd_http_opendir,
+    .readdir       = sd_http_readdir,
+    .closedir      = sd_http_closedir,
+    .opendir_cred  = sd_http_opendir_cred,
 };
 
 /* 1 iff `inst` is an sd_http instance.  Kept beside the (file-private) driver

@@ -66,6 +66,7 @@ brix_uring_slot_release(brix_uring_t *u, uint32_t idx)
     s->task       = NULL;
     s->done_fn    = NULL;
     s->owner      = NULL;
+    s->pool       = NULL;
     s->orphaned   = 0;
     s->generation++;
     (void) u;
@@ -91,13 +92,70 @@ brix_uring_orphan_owner(void *owner)
 }
 
 /*
+ * brix_uring_apply_readv_cqe — fill a brix_readv_aio_t's OUT fields from an
+ * IORING_OP_READV completion, matching brix_readv_aio_thread.  The wire segment
+ * headers were written at plan-build, so only totals + error state land here.
+ */
+static void
+brix_uring_apply_readv_cqe(brix_readv_aio_t *t, int32_t res)
+{
+    size_t  total = 0, i;
+
+    for (i = 0; i < t->segment_count; i++) {
+        total += t->segments[i].read_length;
+    }
+    if (res < 0) {
+        t->io_error = 1; t->bytes_read_total = 0; t->response_bytes = 0;
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "readv I/O error: %s", strerror(-res));
+    } else if ((size_t) res != total) {
+        t->io_error = 1; t->bytes_read_total = 0; t->response_bytes = 0;
+        snprintf(t->err_msg, sizeof(t->err_msg), "readv past EOF");
+    } else {
+        t->io_error = 0;
+        t->bytes_read_total = (size_t) res;
+        t->response_bytes   = t->segment_count * BRIX_READV_SEGSIZE
+                              + (size_t) res;
+    }
+}
+
+/*
+ * brix_uring_apply_writev_cqe — fill a brix_writev_aio_t's OUT fields from an
+ * IORING_OP_WRITEV completion.  io_error encodes the failure kind exactly as
+ * brix_writev_write_aio_thread (1 = hard error, 2 = short write).  A trailing
+ * FSYNC (when do_sync) is a separate linked SQE whose CQE the reaper drops —
+ * best-effort, matching the pool path's ignored return.
+ */
+static void
+brix_uring_apply_writev_cqe(brix_writev_aio_t *t, int32_t res)
+{
+    size_t  total = 0, i;
+
+    for (i = 0; i < t->n_segs; i++) {
+        total += t->segs[i].wlen;
+    }
+    if (res < 0) {
+        t->io_error = 1; t->bytes_total = 0;
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "writev I/O error: %s", strerror(-res));
+    } else if ((size_t) res < total) {
+        t->io_error = 2; t->bytes_total = (size_t) res;
+        snprintf(t->err_msg, sizeof(t->err_msg), "writev short write");
+    } else {
+        t->io_error = 0; t->bytes_total = (size_t) res;
+    }
+}
+
+/*
  * brix_uring_apply_cqe — translate cqe->res into the task's OUT fields, the
  * same fields the worker-thread fn would have set.  io_uring reports failures
  * as a negative -errno in cqe->res (it does NOT set errno).
  *
  * Returns 1 when the task is fully complete and its done-callback should be
  * posted, 0 when more CQEs are still expected for this task (the linked
- * writev+fsync chain, added in SB-W4).  READV/WRITEV cases also land in SB-W4;
+ * writev+fsync chain, added in SB-W4), and 2 when the data landed but the task
+ * still needs its pool-thread CRC hop (the P44-B hybrid pgread — CRC32c never
+ * runs on the event thread, R-07).  READV/WRITEV cases also land in SB-W4;
  * READ/WRITE are handled here so the reaper is complete for the hot path.
  */
 static ngx_int_t
@@ -122,60 +180,35 @@ brix_uring_apply_cqe(brix_uring_slot_t *slot, struct io_uring_cqe *cqe)
         return 1;
     }
 
-    case XRD_URING_OP_READV: {
-        brix_readv_aio_t *t = task->ctx;
-        size_t              total = 0, i;
-
-        /* Single contiguous group (op_for gated it): one IORING_OP_READV
-         * scattered into the per-segment payload pointers.  The wire segment
-         * headers were already written at plan-build, so nothing to fix up here
-         * — only the totals + error state, matching brix_readv_aio_thread. */
-        for (i = 0; i < t->segment_count; i++) {
-            total += t->segments[i].read_length;
-        }
-        if (res < 0) {
-            t->io_error = 1; t->bytes_read_total = 0; t->response_bytes = 0;
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "readv I/O error: %s", strerror(-res));
-        } else if ((size_t) res != total) {
-            t->io_error = 1; t->bytes_read_total = 0; t->response_bytes = 0;
-            snprintf(t->err_msg, sizeof(t->err_msg), "readv past EOF");
-        } else {
-            t->io_error = 0;
-            t->bytes_read_total = (size_t) res;
-            t->response_bytes   = t->segment_count * BRIX_READV_SEGSIZE
-                                  + (size_t) res;
-        }
+    case XRD_URING_OP_READV:
+        brix_uring_apply_readv_cqe(task->ctx, res);
         return 1;
-    }
 
-    case XRD_URING_OP_WRITEV: {
-        brix_writev_aio_t *t = task->ctx;
-        size_t               total = 0, i;
-
-        /* Single contiguous same-fd group: one IORING_OP_WRITEV gathering the
-         * segment buffers.  io_error encodes the failure kind exactly as
-         * brix_writev_write_aio_thread (1 = hard error, 2 = short write).  A
-         * trailing FSYNC (when do_sync) is a separate linked SQE whose CQE the
-         * reaper drops — best-effort, matching the pool path's ignored return. */
-        for (i = 0; i < t->n_segs; i++) {
-            total += t->segs[i].wlen;
-        }
-        if (res < 0) {
-            t->io_error = 1; t->bytes_total = 0;
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "writev I/O error: %s", strerror(-res));
-        } else if ((size_t) res < total) {
-            t->io_error = 2; t->bytes_total = (size_t) res;
-            snprintf(t->err_msg, sizeof(t->err_msg), "writev short write");
-        } else {
-            t->io_error = 0; t->bytes_total = (size_t) res;
-        }
+    case XRD_URING_OP_WRITEV:
+        brix_uring_apply_writev_cqe(task->ctx, res);
         return 1;
+
+    case XRD_URING_OP_PGREAD: {
+        brix_pgread_aio_t *t = task->ctx;
+
+        /* Hybrid tier (P44-B): the READV scattered the bytes into the gapped
+         * wire buffer; error and EOF complete here (out_size 0 -> done builds
+         * the error / empty reply), while delivered data returns 2 so the
+         * caller re-posts the task for its pool-thread CRC pass. */
+        if (res < 0) {
+            t->nread = -1; t->io_errno = -res; t->out_size = 0;
+            return 1;
+        }
+        if (res == 0) {
+            t->nread = 0; t->io_errno = 0; t->out_size = 0;
+            return 1;
+        }
+        t->nread = res; t->io_errno = 0;
+        return 2;
     }
 
     default:
-        /* pgread/dirlist are never routed to io_uring (op_for -> NONE). */
+        /* dirlist is never routed to io_uring (op_for -> NONE). */
         return 1;
     }
 }
@@ -250,12 +283,44 @@ uring_complete_one(brix_uring_t *u, struct io_uring_cqe *cqe)
 
     /* 2b. translate + post (the done-callback is task->event.handler, set
      * at brix_task_bind time). */
-    if (brix_uring_apply_cqe(slot, cqe)) {
+    switch (brix_uring_apply_cqe(slot, cqe)) {
+
+    case 2: {
+        /* PGREAD hybrid (P44-B): data landed; hop to a pool thread for the
+         * CRC32c pass (R-07 — never on the event thread).  Rebinding the
+         * handler is safe: the pgread post path re-binds the reused task via
+         * brix_task_bind on every request.  The pool's own completion fires
+         * the unchanged done-callback.  If the pool refuses the post, fall
+         * back to an inline CRC + direct post — the reply must still go out
+         * (mirrors the tier-3 inline-sync last resort). */
+        ngx_thread_task_t *task = slot->task;
+
+        task->handler = brix_pgread_aio_crc_thread;
+
+        if (ngx_thread_task_post(slot->pool, task) != NGX_OK) {
+            ngx_log_error(NGX_LOG_WARN, u->log, 0,
+                "brix: io_uring pgread CRC hop: thread-pool post failed; "
+                "computing CRC32c inline on the event thread (last resort)");
+            brix_pgread_aio_crc_thread(task->ctx, u->log);
+            task->event.complete = 1;
+            ngx_post_event(&task->event, &ngx_posted_events);
+        }
+
+        brix_uring_slot_release(u, idx);
+        break;
+    }
+
+    case 1: {
         ngx_thread_task_t *task = slot->task;
 
         task->event.complete = 1;
         ngx_post_event(&task->event, &ngx_posted_events);
         brix_uring_slot_release(u, idx);
+        break;
+    }
+
+    default:
+        break;                        /* more CQEs pending for this task */
     }
 
     uring_cqe_retire(u, cqe);

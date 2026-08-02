@@ -16,13 +16,16 @@
 
 /*
  * Per-process CVMFS protocol metrics (phase-68). Class labels are a fixed
- * 4-value set, so cardinality is bounded by construction; repo names and
- * object paths MUST NOT become label values.
+ * 5-value set, so cardinality is bounded by construction; repo names and
+ * object paths MUST NOT become label values. Order mirrors
+ * cvmfs_url_class_e (classify.h) — the gate indexes by that enum.
  */
 typedef enum {
     BRIX_CVMFS_CLASS_CAS = 0,
     BRIX_CVMFS_CLASS_MANIFEST,
     BRIX_CVMFS_CLASS_GEO,
+    BRIX_CVMFS_CLASS_BUNDLE,        /* phase-87 G2 batch fetch */
+    BRIX_CVMFS_CLASS_DICT,          /* phase-87 G3 shared dictionary */
     BRIX_CVMFS_CLASS_REJECT,
     BRIX_CVMFS_CLASS_COUNT
 } brix_cvmfs_class_metric_e;

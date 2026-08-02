@@ -3,12 +3,14 @@ xrddiag compare --davs (phase-37 §15.6): the cross-protocol consistency oracle.
 
 Reads the SAME logical object via `root://` and cleartext WebDAV (HTTP GET) and
 asserts size + MD5 agree — the capability no upstream client has, since this
-project unifies the planes over one VFS. (S3 SigV4 + HTTPS-WebDAV planes are
-deferred — the tool prints a one-line note.)
+project unifies the planes over one VFS. The HTTPS WebDAV plane (--davs-tls,
+TLS + chunked) is also compared when supplied; only S3 SigV4 remains deferred
+(the tool prints a one-line note).
 
 Self-contained: one nginx with a stream root:// server on data-R, a WebDAV
-location on the SAME data-R (the "match" plane), and a second WebDAV location on
-a DIFFERENT data-B (the "mismatch/404" plane). Free loopback ports throughout.
+location on the SAME data-R (the "match" plane), a second WebDAV location on a
+DIFFERENT data-B (the "mismatch/404" plane), and a TLS WebDAV listener on data-R
+(the --davs-tls plane). Free loopback ports throughout.
 
 Run (serial):
     PYTHONPATH=tests pytest tests/test_xrddiag_compare_davs.py -v -p no:xdist
@@ -67,13 +69,28 @@ def fixture(lifecycle, tmp_path_factory):
     ))
     yield {"rport": ep.port,
            "ok": ep.extra_ports["OK_PORT"],
-           "bad": ep.extra_ports["BAD_PORT"]}
+           "bad": ep.extra_ports["BAD_PORT"],
+           "tls": ep.extra_ports["TLS_PORT"]}
 
 
 def _cmp(fx, name, davs_port, timeout=30):
     url = f"root://{HOST}:{fx['rport']}//{name}"
     return subprocess.run([XRDDIAG, "compare", url, "--davs", f"{HOST}:{davs_port}"],
                           capture_output=True, text=True, timeout=timeout)
+
+
+def _cmp_tls(fx, name, tls_port, extra=(), env=None, timeout=30):
+    """Run compare with both the cleartext plane (always required) and the
+    --davs-tls HTTPS plane against `tls_port`."""
+    url = f"root://{HOST}:{fx['rport']}//{name}"
+    cmd = [XRDDIAG, "compare", url,
+           "--davs", f"{HOST}:{fx['ok']}",
+           "--davs-tls", f"{HOST}:{tls_port}", *extra]
+    runenv = None
+    if env is not None:
+        runenv = {**os.environ, **env}
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                          env=runenv)
 
 
 def test_davs_identical_matches(fixture):
@@ -97,3 +114,38 @@ def test_davs_missing_clean_fail(fixture):
     p = _cmp(fixture, "match.bin", fixture["bad"])   # match.bin not in dataB
     assert p.returncode != 0, p.stdout
     assert "davs-http" in p.stdout, p.stdout
+
+
+def test_davs_tls_identical_matches(fixture):
+    """success: same object over the HTTPS WebDAV plane (--davs-tls) agrees with
+    root://. Self-signed test cert → --no-verify-tls."""
+    p = _cmp_tls(fixture, "match.bin", fixture["tls"], extra=("--no-verify-tls",))
+    assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+    assert "[PASS] davs-tls" in p.stdout, p.stdout
+    assert "[PASS] davs-tls-md5" in p.stdout, p.stdout
+    assert "Result: 0 difference(s)" in p.stdout, p.stdout
+
+
+def test_davs_tls_verify_enforced(fixture):
+    """security-neg: with TLS verification ON (default), the self-signed cert
+    MUST be rejected — the oracle must not silently trust an unverified peer."""
+    p = _cmp_tls(fixture, "match.bin", fixture["tls"])   # no --no-verify-tls
+    assert p.returncode != 0, f"self-signed cert accepted:\n{p.stdout}"
+    assert "[FAIL] davs-tls" in p.stdout, p.stdout
+
+
+def test_davs_tls_connect_error_clean_fail(fixture):
+    """error: pointing --davs-tls at a closed port → connection refused → clean
+    [FAIL] davs-tls, non-zero (the TLS plane surfaces a connect error, not a
+    silent pass). --no-verify-tls isolates this from cert verification."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((HOST, 0))
+    closed_port = s.getsockname()[1]
+    s.close()                               # port now free → connect refused
+    # XRDC_MAX_STALL_MS=0 disables the resume/retry window so a hard connect
+    # refusal fails on the first attempt instead of riding the patience window.
+    p = _cmp_tls(fixture, "match.bin", closed_port, extra=("--no-verify-tls",),
+                 env={"XRDC_MAX_STALL_MS": "0"})
+    assert p.returncode != 0, p.stdout
+    assert "[FAIL] davs-tls" in p.stdout, p.stdout

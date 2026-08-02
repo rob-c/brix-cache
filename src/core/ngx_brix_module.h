@@ -376,7 +376,7 @@ ngx_int_t brix_cache_open_or_fill(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t brix_cache_open_fill_offload(brix_ctx_t *ctx,
     ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
     const char *clean_path, const char *full_path, brix_sd_instance_t *inst,
-    uint16_t options, uint16_t mode_bits);
+    uint16_t options, uint16_t mode_bits, const brix_sd_cred_t *cred);
 
 /* tpc/ — XRootD root:// third-party copy (TPC) */
 #include "tpc/engine/tpc_internal.h"

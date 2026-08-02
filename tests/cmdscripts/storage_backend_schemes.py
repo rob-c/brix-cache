@@ -23,6 +23,7 @@ XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
 PARSE_OK = (
     ("posix:<path>", "brix_storage_backend posix:{data};"),
     ("posix://<path>", "brix_storage_backend posix://{data};"),
+    ("block:<device>", "brix_storage_backend block:{devimg};"),
     ("pblock://<path>", "brix_storage_backend pblock://{pb};"),
     ("root://host:port", "brix_storage_backend root://{host}:{origin_port};"),
     ("roots://host:port", "brix_storage_backend roots://{host}:{origin_port};"),
@@ -70,6 +71,7 @@ def render_directives(template: str, base: Path, origin_port: int) -> str:
     return template.format(
         data=base / "data",
         pb=base / "pb",
+        devimg=base / "dev.img",
         tape=base / "tape",
         cache=base / "cache",
         origin_port=origin_port,
@@ -142,6 +144,61 @@ stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_auth none; bri
         time.sleep(0.2)
 
 
+def block_data_plane(
+    base: Path, nginx_bin: str, xrdcp: Path = XRDCP, xrdfs: Path = XRDFS
+) -> list[tuple[bool, str]]:
+    """A block:// server export presents the device as a fixed-extent namespace.
+    With no block_size the whole device is one extent "/0"; GET "/0" returns the
+    device bytes, stat "/0" reports the capacity, and any name that is not a
+    fixed extent index ("/1" out of range, "/etc" non-numeric) is ENOENT — the
+    namespace exposes ONLY the extents, so a device export cannot be walked into
+    an arbitrary path."""
+    if not os.access(xrdcp, os.X_OK):
+        return [(True, "SKIP block: data plane (native xrdcp not built)")]
+    port = _PORTS[2]  # posix_data_plane has stopped by now — reuse its port
+    logs = base / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    devimg = base / "dev.img"
+    payload = deterministic_bytes(250_000, 71)
+    devimg.write_bytes(payload)
+    conf = base / "b.conf"
+    conf.write_text(
+        f"""daemon on; error_log {logs / 'b.log'} info; pid {base / 'b.pid'};
+events {{ worker_connections 64; }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_auth none; brix_storage_backend block:{devimg}; }} }}
+""",
+        encoding="utf-8",
+    )
+    start = run([nginx_bin, "-p", str(base), "-c", str(conf)])
+    if start.returncode != 0:
+        return [(False, "block:// node start")]
+    results: list[tuple[bool, str]] = []
+    try:
+        time.sleep(1)
+        got = base / "b.got"
+        cp = run([str(xrdcp), f"root://{HOST}:{port}//0", str(got), "-f"])
+        results.append((
+            cp.returncode == 0 and got.exists() and got.read_bytes() == payload,
+            "block: GET /0 byte-exact (whole-device extent)",
+        ))
+        st = run([str(xrdfs), f"root://{HOST}:{port}", "stat", "/0"])
+        results.append((
+            st.returncode == 0 and "250000" in (st.stdout or ""),
+            "block: stat /0 reports the device capacity",
+        ))
+        oob = run([str(xrdcp), f"root://{HOST}:{port}//1", str(base / "b.no"), "-f"])
+        results.append((oob.returncode != 0, "block: GET /1 (out-of-range extent) fails"))
+        bad = run([str(xrdcp), f"root://{HOST}:{port}//etc", str(base / "b.no2"), "-f"])
+        results.append((
+            bad.returncode != 0,
+            "block: GET non-numeric name rejected (namespace exposes only /N)",
+        ))
+        return results
+    finally:
+        stop_pidfile(base / "b.pid")
+        time.sleep(0.2)
+
+
 def frm_data_plane(base: Path, nginx_bin: str, xrdfs: Path = XRDFS) -> tuple[bool, str]:
     if not os.access(xrdfs, os.X_OK):
         return True, "SKIP frm:// data plane (native xrdfs not built)"
@@ -195,6 +252,9 @@ stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {fexpor
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
     for path in (base / "logs", base / "cache", base / "data"):
         path.mkdir(parents=True, exist_ok=True)
+    # the block: parse check builds the backend at config time, which probes the
+    # device — the file must exist before `nginx -t` runs.
+    (base / "dev.img").write_bytes(deterministic_bytes(250_000, 71))
     results = [
         parse_check(nginx_bin, base, desc, directives, True)
         for desc, directives in PARSE_OK
@@ -204,6 +264,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         for desc, directives, patterns in PARSE_NO
     )
     results.append(posix_data_plane(base, nginx_bin))
+    results.extend(block_data_plane(base, nginx_bin))
     results.append(frm_data_plane(base, nginx_bin))
     return results
 

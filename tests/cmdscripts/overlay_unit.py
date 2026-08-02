@@ -19,6 +19,8 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
             "client/lib",
             "client/lib/fs/overlay_unittest.c",
             "client/lib/fs/overlay.c",
+            # copy-up / nameset helpers split out of overlay.c into a sibling TU.
+            "client/lib/fs/overlay_copyup.c",
         ],
         cwd=REPO_ROOT,
     )

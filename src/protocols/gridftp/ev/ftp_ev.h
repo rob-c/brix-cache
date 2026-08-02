@@ -97,7 +97,6 @@ typedef struct {
     int     type_binary;                     /* TYPE I vs A (informational)    */
     int     authed;                          /* USER+PASS or GSI accepted      */
     int     mode_e;                          /* 1 = MODE E extended-block      */
-    int     parallelism;                     /* OPTS RETR Parallelism hint     */
     off_t   rest_off;                        /* REST restart offset (one-shot) */
     off_t   allo_size;                       /* ALLO declared file size, -1 =  */
                                              /*   unset (one-shot, per STOR)   */

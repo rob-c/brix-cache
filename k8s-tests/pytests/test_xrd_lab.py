@@ -31,6 +31,19 @@ def test_images_plan_is_profile_specific():
     assert lab.plan_images("nonesuch") == []
 
 
+def test_stretch_profiles_build_authority_server_and_client_images():
+    """The phase-80 stretch scenarios (s3voms, pbgsi) each need the GSI
+    authority (proxies/PKI), the brix server, and the brix client that drives
+    xrdcp/xrdfs — but NOT the standalone test-runner image."""
+    for profile in ("s3voms", "pbgsi"):
+        cmds = _flat(lab.plan_images(profile))
+        blob = " ".join(cmds)
+        assert "brix-authority:dev" in blob, profile
+        assert "brix-server:dev" in blob, profile
+        assert "brix-client:dev" in blob, profile
+        assert "brix-test-runner" not in blob, profile
+
+
 def test_down_plan_uninstalls_release_and_namespace():
     cmds = _flat(lab.plan_down("dev"))
     assert "helm uninstall brix-dev --namespace brix-dev" in cmds

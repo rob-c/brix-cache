@@ -43,7 +43,13 @@ typedef struct {
 
 
 /* small helpers */
-static void
+/* Non-static (declared in pelican_register.h): the OriginAdvertiseV2 payload
+ * builders below construct the exact JSON/timestamp the federation Director
+ * consumes, and are unit-tested offline against synthetic advertise config —
+ * the registry POST itself needs a live Director + an out-of-band operator key
+ * handshake, but the document *construction* is deterministic and must be
+ * conformance-checked without one. */
+void
 brix_pelican_rfc3339(time_t t, char *out, size_t outsz)
 {
     struct tm tmv;
@@ -80,7 +86,8 @@ brix_pelican_cstr(const ngx_str_t *s, const char *dflt)
 }
 
 
-/* capabilities object (cache defaults: public read-only serving) */static json_t *
+/* capabilities object (cache defaults: public read-only serving) */
+json_t *
 brix_pelican_caps_json(void)
 {
     json_t *c = json_object();
@@ -97,7 +104,8 @@ brix_pelican_caps_json(void)
 }
 
 
-/* OriginAdvertiseV2 document → compact JSON string (caller free()s) */static char *
+/* OriginAdvertiseV2 document → compact JSON string (caller free()s) */
+char *
 brix_pelican_build_ad(ngx_stream_brix_srv_conf_t *conf, time_t now)
 {
     json_t      *ad;

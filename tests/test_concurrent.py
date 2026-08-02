@@ -14,10 +14,11 @@ import multiprocessing as mp
 import os
 import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 import pytest
 from XRootD import client
+from XRootD.client.flags import OpenFlags
 from settings import (
     CA_DIR,
     NGINX_ANON_PORT,
@@ -386,3 +387,127 @@ class TestConcurrentTLS:
             f"Expected ≥1.5× aggregate throughput at n=4 vs n=1, got {ratio:.2f}×. "
             f"n=1={agg1/1e6:.0f} MB/s  n=4={agg4/1e6:.0f} MB/s"
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase-32 WS3 / phase-33 P1.2 — concurrent in-flight cold AIO reads
+# ---------------------------------------------------------------------------
+#
+# The classes above run each transfer in its OWN process, so each gets its own
+# brix connection: concurrency across connections, never within one.  The recv
+# state-machine flip these tests guard operates *within* a single connection —
+# it lets several cold single-shot buffered reads be in flight at once instead
+# of freezing recv after the first is handed to the AIO thread pool.  To
+# exercise it we open many File handles to the SAME roots:// URL from threads:
+# the XRootD client pools them onto one physical connection, so their reads
+# multiplex on it (the proxy worker services each call on its own thread —
+# tests/_xrdcl_worker.py).
+
+_PIPE_FILE = "pipelined-tls.bin"
+
+
+def _pipe_pattern(size: int) -> bytes:
+    """Position-derived payload: every 1 MiB window holds distinct bytes, so a
+    mis-demultiplexed streamID returns the wrong slice and the assert fires."""
+    period = bytes((i * 37 + 11) & 0xFF for i in range(256))
+    return (period * (size // 256 + 1))[:size]
+
+
+def _tls_read_slice(idx: int, offset: int, length: int, expect: bytes):
+    """Open an independent File on the shared TLS connection, read one
+    <=window slice, verify it byte-exact, close.  Returns (idx, ok, detail)."""
+    f = client.File()
+    try:
+        st, _ = f.open(f"{GSI_TLS_URL}//{_PIPE_FILE}", OpenFlags.READ)
+        if not st.ok:
+            return idx, False, f"open: {st.message}"
+        st, data = f.read(offset=offset, size=length)
+        if not st.ok:
+            return idx, False, f"read at {offset}: {st.message}"
+        if bytes(data) != expect:
+            return idx, False, f"slice mismatch at {offset} (len {len(data)})"
+        return idx, True, ""
+    finally:
+        try:
+            f.close()
+        except Exception:
+            pass
+
+
+class TestPipelinedTLSReads:
+    """Concurrent in-flight buffered (cold) AIO reads on ONE connection.
+
+    Only the roots:// endpoint reaches read_post_aio — a cleartext regular-file
+    read is served zero-copy by sendfile and never buffers (see
+    read_sendfile_eligible).  Each read here is 1 MiB, i.e. <= BRIX_READ_WINDOW
+    (2 MiB), so it is a single-shot buffered read: exactly the counted=1 path
+    the flip lets pipeline (windowed reads > one window stay serial).
+    """
+
+    pytestmark = pytest.mark.timeout(120)
+
+    READ   = 1 * 1024 * 1024
+    NREADS = 16                          # > default brix_pipeline_depth (8):
+    SIZE   = NREADS * (1 * 1024 * 1024)  # also drives the backpressure gate
+
+    @classmethod
+    def _ensure_file(cls) -> bytes:
+        """Upload the patterned file once via the fast cleartext anon endpoint
+        (same posix {DATA_DIR} export the roots:// server reads)."""
+        content = _pipe_pattern(cls.SIZE)
+        f = client.File()
+        st, _ = f.open(f"{ANON_URL}//{_PIPE_FILE}",
+                       OpenFlags.DELETE | OpenFlags.NEW)
+        assert st.ok, f"upload open failed: {st.message}"
+        # Write in <=8 MiB slices: pyxrootd relays each write as one base64 JSON
+        # line through the single-worker proxy, and a single multi-MiB payload can
+        # exceed the worker op timeout.  Chunking keeps each relayed message small
+        # while producing a byte-identical file.
+        chunk, off = 8 * 1024 * 1024, 0
+        while off < len(content):
+            part = content[off:off + chunk]
+            st, _ = f.write(part, offset=off)
+            assert st.ok, f"upload write@{off} failed: {st.message}"
+            off += len(part)
+        f.close()
+        return content
+
+    def test_pipelined_reads_demux_byte_exact(self):
+        """Success + concurrency: NREADS reads issued simultaneously on one TLS
+        connection each return their own slice byte-exact.  Proves per-streamID
+        demultiplexing survives the concurrent-read flip and that the pipeline
+        depth cap (NREADS > 8) does not drop or reorder responses."""
+        content = self._ensure_file()
+        with ThreadPoolExecutor(max_workers=self.NREADS) as pool:
+            futs = [
+                pool.submit(_tls_read_slice, i, i * self.READ, self.READ,
+                            content[i * self.READ:(i + 1) * self.READ])
+                for i in range(self.NREADS)
+            ]
+            results = [fu.result() for fu in as_completed(futs)]
+        bad = [(i, d) for i, ok, d in results if not ok]
+        assert not bad, f"concurrent TLS reads failed/mis-demuxed: {bad}"
+        assert len(results) == self.NREADS
+
+    def test_pipelined_reads_churn_survives(self):
+        """Teardown safety: many rounds of heavily-concurrent TLS reads, each
+        round closing 16 handles on the shared connection while sibling reads
+        are still in the AIO pool.  Regression guard for the aio_inflight
+        teardown-deferral — a kXR_close (namespace mutation) or disconnect must
+        defer until in-flight reads drain, never freeing a read buffer a worker
+        thread is still preading.  Final liveness probe proves the worker kept
+        serving.  (test_aio.TestAioDestroyedGuard's RST/FIN drivers cover the
+        cleartext sendfile path; this covers the buffered read_post_aio path,
+        reachable only over TLS.)"""
+        content = self._ensure_file()
+        for _ in range(6):
+            with ThreadPoolExecutor(max_workers=self.NREADS) as pool:
+                futs = [
+                    pool.submit(_tls_read_slice, i, i * self.READ, self.READ,
+                                content[i * self.READ:(i + 1) * self.READ])
+                    for i in range(self.NREADS)
+                ]
+                for fu in as_completed(futs):
+                    fu.result()
+        idx, ok, detail = _tls_read_slice(0, 0, self.READ, content[:self.READ])
+        assert ok, f"server stopped serving after churn: {detail}"

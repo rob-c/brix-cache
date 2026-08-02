@@ -288,6 +288,23 @@
       offsetof(ngx_stream_brix_srv_conf_t, throttle.max_active_conn),
       NULL },
 
+    /* phase-92: XrdBwm-style read-bandwidth reservation (default off). The zone
+     * names a per-worker byte budget; a read open reserves its file size and is
+     * refused (kXR_Overloaded) when the aggregate is exhausted. */
+    { ngx_string("brix_throttle_bandwidth_zone"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, throttle.bwm_zone_name),
+      NULL },
+
+    { ngx_string("brix_throttle_bandwidth_budget"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, throttle.bwm_budget),
+      NULL },
+
     { ngx_string("brix_csi"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -315,7 +332,14 @@
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, csi.trust_fs),
       NULL },
- 
+
+    { ngx_string("brix_csi_scrub_interval"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, csi.scrub_interval),
+      NULL },
+
     { ngx_string("brix_macaroon_secret"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -358,6 +382,15 @@
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, krb5.ip_check),
+      NULL },
+
+    /* Phase 70 §5.7: request the client forward its TGT after a verified krb5
+     * login (inbound two-round kXR_authmore "fwdtgt" capture).  Off by default. */
+    { ngx_string("brix_krb5_delegate"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, krb5.delegate),
       NULL },
 
     /* Upstream-compatible unix credentials are self-asserted; keep remote

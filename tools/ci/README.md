@@ -16,8 +16,9 @@ local test loop, not just CI:
 - `tests/test_ci_guards.py` executes the real `tools/ci/*.py` scripts
   end-to-end — the fast static guards every run, the lizard-backed ratchets
   (`check_complexity`, `check_duplication`) when `lizard` is installed, and the
-  analyzer/coverage runners (`run_fanalyzer`, `run_codechecker`, `coverage`)
-  in the `slow`/nightly lane when a configured build + tool are present.
+  analyzer/coverage/sanitizer runners (`run_fanalyzer`, `run_codechecker`,
+  `coverage`, `asan`) in the `slow`/nightly lane when a configured build + tool
+  are present (the `asan` runner has its own `tests/test_ci_asan_lane.py`).
 - `tests/test_source_guards.py` asserts the fast in-process verdict twins
   (`source_guards_lib`) and drives their injected-tree negative cases.
 
@@ -42,6 +43,7 @@ Run just the guard gate with
 | `check_ports_doc.py` | every `*_PORT*` constant in `tests/settings.py` has a row in `docs/10-reference/test-fleet-ports.md` | — | — |
 | `run_fanalyzer.py` | no NEW gcc `-fanalyzer` finding (UAF/leak/NULL-deref) vs baseline; needs a configured nginx build (`NGX_BUILD`) | `fanalyzer_baseline.txt` | `--regen` |
 | `run_codechecker.py` | no NEW Clang Static Analyzer + clang-tidy finding vs baseline; needs a configured nginx build (`NGX_BUILD`) + `CodeChecker` + clang/clang-tidy | `codechecker_baseline.txt` | `--regen` |
+| `asan.py` | ASan+UBSan build (`build_sanitizer`) boots the fleet + drives real root:// I/O; FAILS on any heap error / UB / unsuppressed leak (hyper-hardening B-2); needs a compiler + configured nginx build (`NGINX_SRC`) | `tests/lsan.supp` | — |
 
 ## The ratchet pattern
 
@@ -100,6 +102,38 @@ upload). Graduation to a blocking gate follows the same discipline as the
 static-analysis lanes: read a stable baseline on the runner first, THEN set
 `COVERAGE_MIN` a few points under it and drop `continue-on-error` — never flip a
 numeric gate to blocking pre-baseline.
+
+## ASan + UBSan (dynamic-sanitizer lane, B-2)
+
+`asan.py` is the hyper-hardening **B-2** lane — the dynamic complement to the
+static analyzers above. It builds the module + client with
+`-fsanitize=address,undefined` (`cmdscripts.operator_build build_sanitizer`),
+boots the test fleet against that instrumented binary
+(`SANITIZE=1 manage_test_servers restart`, which routes findings to
+`$SANITIZE_LOG_DIR/asan.<pid>` with `abort_on_error=0` so a worker keeps
+serving), drives real root:// I/O through it in **attach** mode (default the
+deterministic `test_sanitizer_smoke.py`; override with `ASAN_TEST_CMD` — the
+nightly cron widens it to the `not slow and not serial` fast tier), then
+`stop-all` (LSan fires at process exit) and **scans every report for a hard
+sanitizer signature**. A match — heap error, UB, or an *unsuppressed* leak (the
+third-party library leaks are curated out by `tests/lsan.supp`) — fails the job;
+the scan, not `abort_on_error`, is the gate, and it covers both the fleet and
+the sanitized client `xrdcp` the smoke spawns. Unlike the report-only coverage
+lane it is **blocking on PRs**: it self-skips cleanly (exit 0) when the
+compiler / configured nginx source (`NGINX_SRC`) / a bootable fleet are absent,
+so a green tree can never be reddened by missing infra, only by a real finding
+(`.github/workflows/asan.yml` — PR/push smoke + nightly fast-tier cron, artifact
+upload of any reports). Guarded locally by `tests/test_ci_asan_lane.py`.
+
+An optional `ASAN_TEST_CMD2` runs a **second** driver command in the same
+sanitized+attached fleet after `ASAN_TEST_CMD` and before stop+scan (both legs'
+reports scanned together; a non-zero exit from *either* fails the job). The
+nightly cron sets it to `pytest test_phase24_mirror.py -k data_write` — the
+**serial** write-mirror suite the `not serial` fast tier drops. That suite drives
+the phase-24 / 57-W3 detached-replay **disconnect-mid-write** UAF / heap-ownership
+paths (a replay outliving its client and owning a stolen buffer; a
+teardown-cleanup racing a launch), closing the phase-88 audit § 4 write-mirroring
+residual under the sanitizer.
 
 ## Static analysis
 

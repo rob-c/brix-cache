@@ -46,6 +46,18 @@ mirroring expansion.
   Other Phases*) was **not** extracted — the stream mirror, health check, and
   upstream each carry their own bootstrap state machine.
 
+> **UPDATE 2026-07-28 — data-write mirror e2e runtime validation now DONE.** The
+> phase-88 audit's one open item for this phase was that the Step-G XRootD stream
+> DATA-write mirror (`stream_wmirror*.c`) had only source-marker + config-parse
+> coverage, never a live drive of the detached shadow replay. That gap is closed
+> (see *Testing Requirements → Step G*): four live tests drive a real root://
+> `open(create) -> write -> close` on a primary with `brix_mirror_writes on`
+> against a **live, writable embedded shadow origin** and assert the replay end to
+> end. Only the **ASan** leg of the audit item remains, gated on the §4 B-2
+> ASan+UBSan CI lane (the disconnect-mid-write UAF / heap-buffer-ownership paths in
+> the detached replay are only machine-checkable there); production-enable still
+> gates on B-2.
+
 ---
 
 ## Motivation
@@ -798,6 +810,40 @@ subsequent changes.
 - `test_conformance.py::TestMirrorSampling::test_sample_100pct_mirrors_all` — `mirror_sample 100` → every request mirrored
 - `test_conformance.py::TestMirrorSampling::test_sample_0pct_mirrors_none` — `mirror_sample 0` → no mirror traffic
 - `test_conformance.py::TestMirrorSampling::test_write_not_mirrored_by_default` — PUT never reaches shadow unless `mirror_methods` explicitly includes `PUT`
+
+> **As-built (2026-07-28):** the shipped suite is a single registry-backed file,
+> `tests/test_phase24_mirror.py` (not the per-surface files sketched above), with
+> throwaway lifecycle instances instead of ambient endpoints. It carries the
+> Step-B/C/Sampling coverage (source markers, config parse/reject, HTTP GET/HEAD +
+> auth-strip + shadow-down transparency + sample 0/100, stream stat replay +
+> divergence, HTTP write-method PUT-body/DELETE/writes-off) **plus** the Step-G
+> data-write e2e legs below.
+
+### Step G (XRootD stream DATA-write mirror) — e2e runtime validation (2026-07-28)
+
+Config template `tests/configs/nginx_mirror_stream_wpair.conf` — one nginx binding
+a writable primary root:// listen, a **live writable embedded shadow** root://
+origin (its own posix namespace), and a metrics listen; `brix_mirror_writes`
+parameterised. Ledger triples `lc-mir-stream-wr{,off,abort,cap}`. Each test drives
+a raw-wire `open(create) -> write -> close` on the primary:
+
+- `test_phase24_mirror.py::test_stream_data_write_mirrored_byte_exact` — **success**:
+  a multi-chunk sequential write is replayed and lands **byte-exact** on the shadow
+  file; `brix_mirror_requests_total{surface="stream"}` increments.
+- `test_phase24_mirror.py::test_stream_data_write_abort_not_replayed` — **error**: a
+  non-sequential (gapped) write aborts in the accumulator, so the primary
+  sparse-writes fine but **no** replay launches (neither `requests_total` nor
+  `errors_total` moves; no shadow file).
+- `test_phase24_mirror.py::test_stream_data_write_over_cap_not_replayed` — **error**:
+  a write exceeding the 4 MiB per-file cap (`BRIX_WMIRROR_FILE_CAP`) is dropped
+  (`brix_mirror_dropped_total{surface="stream"}` increments) and never replayed,
+  while the primary stores the whole file.
+- `test_phase24_mirror.py::test_stream_data_write_off_not_mirrored` — **security-neg**:
+  with `brix_mirror_writes off`, a clean sequential write is **never** replayed —
+  data writes never escape to the shadow namespace unless explicitly opted in.
+
+The **ASan** leg (disconnect-mid-write UAF / heap-ownership in the detached replay)
+remains gated on the phase-88 §4 B-2 ASan+UBSan CI lane.
 
 ---
 

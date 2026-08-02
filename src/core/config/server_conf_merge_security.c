@@ -23,6 +23,7 @@
 #include "config.h"
 #include "server_conf_internal.h"
 #include "auth/crypto/store_policy.h"   /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
+#include "core/compat/crypto.h"         /* brix_secret_page_guard (F3) */
 #include "core/compat/af_policy.h"      /* BRIX_AF_AUTO default for origin family */
 #include "fs/cache/verify.h"          /* brix_cache_verify_mode_e default */
 #include "net/ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
@@ -153,6 +154,10 @@ brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                               prev->throttle.max_open_files, 0);
     ngx_conf_merge_uint_value(conf->throttle.max_active_conn,
                               prev->throttle.max_active_conn, 0);
+    ngx_conf_merge_str_value(conf->throttle.bwm_zone_name,
+                             prev->throttle.bwm_zone_name, "");
+    ngx_conf_merge_size_value(conf->throttle.bwm_budget,
+                              prev->throttle.bwm_budget, 0);
 
     /* phase-59 W3a: resolve the named rate-limit zone the throttle keys its
      * per-user counters into (declared via brix_rate_limit_zone). */
@@ -170,6 +175,27 @@ brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                              prev->token_macaroon_secret,     "");
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
                              prev->token_macaroon_secret_old, "");
+
+    /* F3/P90-28.1: the macaroon root-secret hex lives in conf memory for the
+     * process lifetime — keep its pages out of core dumps and off swap.
+     * Best-effort, never fatal (per-request binary copies are stack + F1-
+     * cleansed; this guards the only long-lived form of the key). */
+    if (conf->token_macaroon_secret.len > 0
+        && brix_secret_page_guard(conf->token_macaroon_secret.data,
+                                  conf->token_macaroon_secret.len) != 0)
+    {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+            "brix: could not fully page-guard the macaroon secret "
+            "(madvise/mlock); continuing unguarded");
+    }
+    if (conf->token_macaroon_secret_old.len > 0
+        && brix_secret_page_guard(conf->token_macaroon_secret_old.data,
+                                  conf->token_macaroon_secret_old.len) != 0)
+    {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+            "brix: could not fully page-guard the old macaroon secret "
+            "(madvise/mlock); continuing unguarded");
+    }
     return NGX_CONF_OK;
 }
 
@@ -203,15 +229,19 @@ brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->krb5.principal,  prev->krb5.principal,  "");
     ngx_conf_merge_str_value(conf->krb5.keytab,     prev->krb5.keytab,     "");
     ngx_conf_merge_value(conf->krb5.ip_check,       prev->krb5.ip_check,   0);
+    ngx_conf_merge_value(conf->krb5.delegate,       prev->krb5.delegate,   0);
     ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
     ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_uint_value(conf->min_sec_level, prev->min_sec_level, 0);
     ngx_conf_merge_value(conf->opaque_strict, prev->opaque_strict, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
-    /* kTLS default ON (unified with the HTTP plane); SSL_OP_ENABLE_KTLS is a
-     * transparent no-op when the negotiated cipher/kernel cannot offload. */
-    ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        1);
+    /* kTLS default OFF (phase-33 P5): software kTLS regresses vs OpenSSL's
+     * userspace AES-GCM on AES-NI hosts and is broken on some kernels (WSL2), so
+     * it is opt-in and documented HW-offload-only (`brix_ktls on`).
+     * SSL_OP_ENABLE_KTLS is a transparent no-op when the cipher/kernel cannot
+     * offload, so this default is byte-exact vs userspace TLS. */
+    ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        0);
 }
 
 /* Identity & crypto: auth scheme + GSI/pwd, XrdAcc engine (+ native-authdb

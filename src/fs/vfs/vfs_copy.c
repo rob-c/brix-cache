@@ -118,31 +118,6 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
 }
 
 /*
- * brix_vfs_copy_ns_bytes — best-effort destination size for the metric.
- *
- * WHAT: Return the size in bytes of the just-copied regular file at
- *       `dst_resolved`, or 0 when it cannot be confined-stat'd or is not
- *       a regular file.
- * WHY:  The OP_COPY metric byte count is taken from the resulting destination;
- *       a stat failure here must never affect the copy's success return value.
- * HOW:  Confined lstat under root_canon; on success for a regular file, return
- *       st_size, else 0.
- */
-static size_t
-brix_vfs_copy_ns_bytes(brix_vfs_ctx_t *ctx, const char *dst_resolved)
-{
-    struct stat sb;
-
-    if (brix_lstat_confined_canon(ctx->log, ctx->root_canon, dst_resolved,
-                                    &sb, 1) == 0
-        && S_ISREG(sb.st_mode))
-    {
-        return (size_t) sb.st_size;
-    }
-    return 0;
-}
-
-/*
  * brix_vfs_copy_ns — POSIX namespace copy path (copy_file_range + fallback).
  *
  * WHAT: Translate the public copy opts into brix_ns_copy_opts_t and run the
@@ -152,7 +127,8 @@ brix_vfs_copy_ns_bytes(brix_vfs_ctx_t *ctx, const char *dst_resolved)
  *       exact namespace status→errno mapping and the best-effort byte count.
  * HOW:  Zero-init and populate ns_opts, call brix_ns_local_copy, map a non-OK
  *       status to errno (sys_errno when set, else the status mapping) via the
- *       shared failure helper, and on success observe with the post-copy size.
+ *       shared failure helper, and on success observe with res.bytes (the size
+ *       the engine actually copied — no post-copy re-stat).
  */
 static ngx_int_t
 brix_vfs_copy_ns(brix_vfs_ctx_t *ctx, const char *src,
@@ -161,7 +137,6 @@ brix_vfs_copy_ns(brix_vfs_ctx_t *ctx, const char *src,
 {
     brix_ns_copy_opts_t ns_opts;
     brix_ns_result_t    res;
-    size_t              bytes;
 
     ngx_memzero(&ns_opts, sizeof(ns_opts));
     if (opts != NULL) {
@@ -181,10 +156,8 @@ brix_vfs_copy_ns(brix_vfs_ctx_t *ctx, const char *src,
                    start);
     }
 
-    /* Best-effort byte count for the metric; a stat failure here is non-fatal. */
-    bytes = brix_vfs_copy_ns_bytes(ctx, dst_resolved);
-    brix_vfs_observe_ctx_op(ctx, src, BRIX_METRIC_OP_COPY, NULL, bytes,
-                              NGX_OK, 0, start);
+    brix_vfs_observe_ctx_op(ctx, src, BRIX_METRIC_OP_COPY, NULL,
+                              (size_t) res.bytes, NGX_OK, 0, start);
     return NGX_OK;
 }
 

@@ -79,6 +79,26 @@ typedef struct {
     ngx_str_t    trusted_ca;             /* brix_gridftp_trusted_ca <dir|file> */
     ngx_ssl_t   *tls_ctx;                /* host cert/key ctx (built at config) */
     X509_STORE  *ca_store;               /* client-proxy trust store (config)  */
+
+    /* VO authorization on the gateway (phase-92): `brix_gridftp_require_vo
+     * <path> <vo>` appends a longest-prefix VO ACL rule (brix_vo_rule_t), the
+     * same rule shape and matcher the HTTP/root planes use. Finalized against
+     * root_canon at merge (rule .path → .resolved); NULL/empty ⇒ allow-all, so
+     * an export with no require_vo is unaffected. Every namespace/transfer verb
+     * is gated in one place (brix_ftp_ev_resolve): a resolved path covered by a
+     * rule is served only when the client's VOMS VO CSV lists the required VO. */
+    ngx_array_t *vo_rules;
+
+    /* VOMS attribute carry (phase-92): when a VO ACL rule is in force, the
+     * client's VOMS FQANs must be lifted off its GSI proxy into the session
+     * identity so an authorized VO can *satisfy* a rule (not merely be denied).
+     * `brix_gridftp_vomsdir <dir>` (per-VO LSC trust) and
+     * `brix_gridftp_voms_cert_dir <dir>` (VOMS signing-CA trust) mirror the
+     * WebDAV plane's brix_webdav_vomsdir / brix_webdav_voms_cert_dir. Both empty
+     * ⇒ no carry (a proxy's VOMS AC is ignored), so a require_vo export stays
+     * fail-closed (deny-until-VOMS-carry). */
+    ngx_str_t    vomsdir;                /* brix_gridftp_vomsdir <dir>         */
+    ngx_str_t    voms_cert_dir;          /* brix_gridftp_voms_cert_dir <dir>   */
 } ngx_stream_brix_ftp_srv_conf_t;
 
 /* Module descriptor, defined in ftp_module.c. */

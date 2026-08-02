@@ -34,6 +34,7 @@
 #include "core/types/identity.h"
 #include "observability/metrics/unified.h"
 #include "fs/backend/sd.h"
+#include "auth/s3/sts.h"                 /* brix_s3_sts_conf_t (§5.5 set_sts) */
 
 #define BRIX_VFS_O_READ        0x01
 #define BRIX_VFS_O_WRITE       0x02
@@ -210,11 +211,68 @@ ngx_int_t brix_vfs_deleg_bind(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
  * BRIX_CRED_EXCHANGE: `endpoint`/`client_id`/`client_secret` come from
  * conf->common.backend_tx_* and `audience` from the first backend_token_aud
  * entry. All strings are borrowed (conf-owned, NUL-terminated) and must outlive
- * the VFS op. A no-op when no bag is bound or `endpoint` is empty — the cred gate
- * then degrades EXCHANGE to verbatim bearer passthrough. Defined in vfs_deleg.c. */
+ * the VFS op. `tx_cache_slot` (optional, may be NULL) is the address of the
+ * conf's `backend_tx_cache` pointer — the gate lazily creates the per-worker
+ * RFC-8693 minted-token cache there (P90-70.9); NULL disables caching. A no-op
+ * when no bag is bound or `endpoint` is empty — the cred gate then degrades
+ * EXCHANGE to verbatim bearer passthrough. Defined in vfs_deleg_bind.c. */
 void brix_vfs_deleg_set_exchange(brix_vfs_ctx_t *vctx,
     const ngx_str_t *endpoint, const ngx_str_t *client_id,
-    const ngx_str_t *client_secret, const ngx_str_t *audience);
+    const ngx_str_t *client_secret, const ngx_str_t *audience,
+    void **tx_cache_slot);
+
+/* Bind the export's trusted CA store onto the ctx's bound live-cred bag so the
+ * PASSTHROUGH materialiser re-verifies the proxy chain in-gate (phase-70 §5.1
+ * RFC-3820 chain-trust, P90-70.4). Call at capture time, AFTER
+ * brix_vfs_deleg_bind: `ca_store` is the protocol conf's X509_STORE* (webdav
+ * conf->ca_store / stream conf->gsi_store; typed void* so this header stays
+ * OpenSSL-free) and is borrowed — it must outlive the VFS op. `verify_depth` is
+ * the max proxy chain depth (0 = OpenSSL default). A no-op when no bag is bound
+ * or `ca_store` is NULL — the gate then relies on the capture-side validation
+ * alone. Defined in vfs_deleg_bind.c. */
+void brix_vfs_deleg_set_ca_store(brix_vfs_ctx_t *vctx, void *ca_store,
+    ngx_uint_t verify_depth);
+
+/* Arm SSS identity injection on the ctx (phase-70 §5.6 / P90-70.3): when the
+ * request carries NO forwardable credential bytes, the cred gate materialises
+ * an SSS credential asserting the caller's authenticated principal, signed
+ * with `keytab` (conf->common.backend_sss_keytab; borrowed conf bytes,
+ * NUL-terminated). Proven bytes (proxy PEM / bearer) always win over
+ * injection. Unlike the other setters this ALLOCATES the bag (from vctx->pool)
+ * when none is bound — injection is precisely the no-captured-bytes case where
+ * brix_vfs_deleg_bind declined to bind. A no-op when `mode` is
+ * BRIX_CRED_SELECT or `keytab` is empty; on bag-allocation OOM it degrades to
+ * SELECT exactly like brix_vfs_deleg_bind's no-bytes path. Defined in
+ * vfs_deleg_bind.c. */
+void brix_vfs_deleg_set_sss(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
+    const ngx_str_t *keytab);
+
+/* Arm S3 STS credential EXCHANGE on the ctx (phase-70 §5.5): when the request
+ * carries NO forwardable credential bytes and the leaf backend accepts an S3
+ * credential, the cred gate exchanges the node's S3 SERVICE credential for
+ * temporary (ak/sk/session) creds scoped to the caller's identity via STS
+ * AssumeRole/GetSessionToken. `cf` is a borrowed brix_s3_sts_conf_t built from
+ * conf->common.backend_sts_* (its ngx_str_t fields point at conf-owned bytes;
+ * the struct itself must outlive the VFS op — build it on the request pool).
+ * Like brix_vfs_deleg_set_sss this ALLOCATES the bag (from vctx->pool) when none
+ * is bound — STS, like SSS, is precisely the no-captured-bytes case. A no-op
+ * when `mode` is BRIX_CRED_SELECT or `cf` is NULL; on bag-allocation OOM it
+ * degrades to SELECT. Defined in vfs_deleg_bind.c. */
+void brix_vfs_deleg_set_sts(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
+    const brix_s3_sts_conf_t *cf);
+
+/* Arm krb5 GSSAPI EXCHANGE on the ctx (phase-70 §5.7): the front door has
+ * captured the caller's forwarded TGT and serialised it to a 0600 FILE ccache
+ * (brix_krb5_cred_to_ccache); this stamps that async-safe ccache PATH plus the
+ * derived origin service principal onto the bag. When the leaf backend accepts
+ * BRIX_SD_CRED_GSS_KRB5 the cred gate carries them onto the cred (mode EXCHANGE)
+ * and the origin leg re-imports the cred and negotiates AS the caller. `ccache`
+ * and `origin_princ` are borrowed NUL-terminated request-pool strings that must
+ * outlive the VFS op. Like set_sss/set_sts this ALLOCATES the bag when none is
+ * bound; a no-op when `mode` is BRIX_CRED_SELECT or either string is empty; on
+ * bag-allocation OOM it degrades to SELECT. Defined in vfs_deleg_bind.c. */
+void brix_vfs_deleg_set_krb5(brix_vfs_ctx_t *vctx, enum brix_cred_mode mode,
+    const ngx_str_t *ccache, const ngx_str_t *origin_princ);
 
 /* The export-root-relative ("logical") form of an absolute confined `path` — the
  * key an inst-keyed storage driver expects (what brix_vfs_open passes to the
@@ -336,6 +394,14 @@ ngx_int_t brix_vfs_stat(brix_vfs_ctx_t *ctx,
  * metered as OP_STAT; NGX_ERROR with errno set on guard failure / stat error. */
 ngx_int_t brix_vfs_statf(brix_vfs_ctx_t *ctx,
     brix_vfs_stat_t *stat_out);
+
+/* C-2 (phase-56): drop this worker's cached negative-stat entry (both stat
+ * arms) for the resolved (root_canon, path). Every same-worker publish point
+ * that can materialise a path OUTSIDE brix_vfs_open/mkdir/rename — a protocol
+ * layer's direct create-open or staged-commit rename — MUST call this on
+ * success so a cached ENOENT never outlives a same-worker create. No-op when
+ * the cache is off (default). */
+void brix_vfs_neg_stat_forget(const char *root_canon, const char *path);
 
 /* Classify the resolved ctx path's nearline (tape/MSS) residency — online /
  * nearline / offline / lost — WITHOUT forcing a recall, so protocol handlers can
@@ -472,6 +538,13 @@ ngx_int_t brix_vfs_truncate(brix_vfs_file_t *fh, off_t length);
 /* fsync the open handle to stable storage. Unmetered (the enclosing write op
  * records the metric). NGX_ERROR with errno set on a bad handle or fsync error. */
 ngx_int_t brix_vfs_sync(brix_vfs_file_t *fh);
+/* Advisory read-ahead hint (BRIX_SD_ADV_*) for [off, off+len) on the open
+ * handle; len == 0 hints the whole object. Best-effort: NGX_OK whether or not
+ * the backend/kernel honours it, and a silent no-op success on a backend with
+ * no read_advise slot. NGX_ERROR with errno set only on a bad handle/args or a
+ * hard driver failure. Never changes position, size, or contents. */
+ngx_int_t brix_vfs_file_read_advise(brix_vfs_file_t *fh, off_t off, size_t len,
+    int advice);
 
 /* Confined walk / open-unlink / raw-rw / xattr / copy / staged-write declarations
  * were split out (phase-79 file-size burndown) into vfs_ops.h, included here so

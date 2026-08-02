@@ -219,6 +219,8 @@ brix_srv_register(const char *host, uint16_t port,
         e->free_mb   = free_mb;
         e->util_pct  = util_pct;
         e->last_seen = ngx_current_msec;
+        e->role[0]   = 'S';              /* until the login role is recorded */
+        e->role[1]   = '\0';
         e->in_use    = 1;
     } else if (!found) {
         /* Registry is full: log a warning and increment the Prometheus counter. */
@@ -402,6 +404,26 @@ brix_srv_set_vnid(const char *host, uint16_t port, const char *vnid)
     if (e != NULL) {
         ngx_cpystrn((u_char *) e->vnid,
                     (u_char *) (vnid ? vnid : ""), sizeof(e->vnid));
+    }
+    ngx_shmtx_unlock(&brix_srv_mutex);
+}
+
+/* brix_srv_set_role — record the node's XrdCmsRole::Type derived from its
+ * LOGIN Mode bits (contract in registry.h). */
+void
+brix_srv_set_role(const char *host, uint16_t port, const char *role)
+{
+    brix_srv_entry_t *e;
+
+    if (srv_table() == NULL) {
+        return;
+    }
+
+    ngx_shmtx_lock(&brix_srv_mutex);
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
+        e->role[0] = (role != NULL && role[0] != '\0') ? role[0] : 'S';
+        e->role[1] = '\0';
     }
     ngx_shmtx_unlock(&brix_srv_mutex);
 }

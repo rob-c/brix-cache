@@ -21,6 +21,9 @@ typedef struct {
     ngx_flag_t         existed;
     ngx_flag_t         created;
     ngx_flag_t         was_dir;
+    off_t              bytes;    /* bytes moved by the op — today only
+                                  * brix_ns_local_copy fills it (the copied
+                                  * source size); 0 for the other mutations. */
 } brix_ns_result_t;
 
 /*

@@ -52,6 +52,44 @@ const catches = [
     cite: 'tests/test_tpc_pull_integrity.py',
   },
 ];
+
+// How brix-fault-proxy sits among the leading classes of inline evil-actor
+// proxies. Framed as a tradeoff matrix, not a ranking: each class owns a layer,
+// and this tool is purpose-built for the byte-stream integrity question. The
+// competitor characterisations are the public, stable behaviour of each tool
+// class as of writing; the honest limit on our own card is the same one stated
+// in "How the model works" below the levers.
+const rivals = [
+  {
+    cls: 'Kernel packet emulators',
+    eg: 'tc / netem · Pumba · Comcast · WANem',
+    meta: 'L3 packet qdisc — root / CAP_NET_ADMIN',
+    best: 'Faithful WAN physics: real loss, reorder, duplication and rate applied to every packet on a NIC or network namespace. Nothing else models the transport layer as honestly.',
+    stops: 'Blind to the application. It cannot cut a transfer at exactly 5 MiB of payload or flip a byte at a chosen stream offset — and its packet-level corrupt is usually caught by the TCP checksum and retransmitted, so the mutation rarely reaches the app it means to stress. Global to the interface, and it needs privilege.',
+  },
+  {
+    cls: 'L4 chaos proxies',
+    eg: 'Toxiproxy · Muxy · Blockade',
+    meta: 'L4 TCP stream proxy — userspace',
+    best: 'Language-agnostic “toxics” — latency, bandwidth, slice, timeout, reset — behind an HTTP control API. Excellent for CI fault-injection of a service’s dependencies.',
+    stops: 'Toxics are generic stream perturbations. None models a silent in-band bit-flip that survives to the application, per-direction control is coarse, and the design targets microservice RPC rather than the completion-and-integrity gates of a binary storage protocol.',
+  },
+  {
+    cls: 'L7 intercepting / MITM proxies',
+    eg: 'mitmproxy · Burp Suite · OWASP ZAP',
+    meta: 'L7 HTTP / TLS — userspace (own CA breaks TLS)',
+    best: 'The gold standard for HTTP security work: decrypt TLS, rewrite or fuzz any request and response, replay, script arbitrary tampering.',
+    stops: 'HTTP-shaped and heavyweight. They do not speak raw root:// or GridFTP MODE E, and tampering is imperative scripting — not a declarative, reproducible transport-fault matrix you can pin a regression test to.',
+  },
+];
+
+const mine = {
+  cls: 'brix-fault-proxy',
+  eg: 'this repository · one static C binary',
+  meta: 'L4 byte-stream relay — root-free userspace',
+  best: 'Per-direction byte-level levers with deterministic, offset-tied truncation and a real in-band bit-flip that reaches the application intact — the exact stimulus an application checksum must catch. Live loopback control, protocol-agnostic across root://, HTTP, S3 and gsiftp.',
+  stops: 'Honest limit: it reassembles TCP in order, so it models packet loss as a connection reset and cannot inject true out-of-order packet delivery — that stays netem’s job. It answers the byte-integrity question, not the packet-physics one.',
+};
 ---
 
 <Layout
@@ -176,6 +214,47 @@ const catches = [
     </p>
   </Band>
 
+  <!-- HOW IT COMPARES -->
+  <Band variant="ink" id="compare">
+    <span class="eyebrow">How it compares</span>
+    <h2 class="display band-head">Where this sits among evil-actor proxies.</h2>
+    <p class="lede muted nt-intro">
+      Inline adversarial proxies split into a few well-known classes, each pitched at a different
+      layer. The point below is not that one wins — it is <em>which question each is built to
+      answer</em>, and why a storage gateway&rsquo;s integrity question needs a purpose-built L4
+      instrument.
+    </p>
+    <div class="grid grid-2 nt-cmp-grid">
+      {rivals.map((r) => (
+        <article class="panel nt-cmp">
+          <div class="nt-cmp-h">
+            <h3 class="nt-cmp-t">{r.cls}</h3>
+            <p class="nt-cmp-eg mono">{r.eg}</p>
+          </div>
+          <p class="nt-cmp-meta mono">{r.meta}</p>
+          <p class="muted"><strong>Best at.</strong> {r.best}</p>
+          <p class="muted"><strong>Where it stops.</strong> {r.stops}</p>
+        </article>
+      ))}
+      <article class="panel nt-cmp nt-cmp-mine">
+        <div class="nt-cmp-h">
+          <h3 class="nt-cmp-t">{mine.cls}</h3>
+          <p class="nt-cmp-eg mono">{mine.eg}</p>
+        </div>
+        <p class="nt-cmp-meta mono">{mine.meta}</p>
+        <p class="muted"><strong>Best at.</strong> {mine.best}</p>
+        <p class="muted"><strong>Honest limit.</strong> {mine.stops}</p>
+      </article>
+    </div>
+    <p class="muted nt-cmp-foot">
+      <strong>Complementary, not ranked.</strong> Reach for <span class="mono">netem</span> when you
+      need faithful packet physics; reach for an L7 MITM to fuzz HTTP semantics.
+      <span class="mono">brix-fault-proxy</span> owns the middle — a privilege-free, per-direction,
+      offset-deterministic instrument for the one thing a storage gateway must never get wrong: did
+      the exact bytes arrive, and was a corrupt or short transfer ever reported as success?
+    </p>
+  </Band>
+
   <!-- WHAT IT CAUGHT -->
   <Band id="caught">
     <span class="eyebrow">What it caught</span>
@@ -273,6 +352,17 @@ const catches = [
   .nt-catch-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.2rem; line-height: 1.08; }
   .nt-catch-cite { margin-top: auto; font-size: 0.72rem; color: var(--ink-2); word-break: break-word; }
   .nt-status { margin-top: 1.4rem; max-width: var(--measure); font-size: 0.92rem; }
+
+  /* compare */
+  .nt-cmp-grid { margin-top: 0.4rem; align-items: start; }
+  .nt-cmp { display: flex; flex-direction: column; gap: 0.5rem; border-top: 3px solid var(--ink-2); }
+  .nt-cmp-mine { border-top: 9px solid var(--accent); box-shadow: var(--shadow-sm), inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .nt-cmp-h { display: flex; flex-direction: column; gap: 0.15rem; }
+  .nt-cmp-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.18rem; line-height: 1.06; }
+  .nt-cmp-eg { font-size: 0.72rem; color: var(--ink-2); word-break: break-word; }
+  .nt-cmp-meta { font-size: 0.74rem; color: var(--accent); font-weight: 600; margin-bottom: 0.1rem; }
+  .nt-cmp p.muted { font-size: 0.9rem; }
+  .nt-cmp-foot { margin-top: 1.4rem; max-width: var(--measure); font-size: 0.92rem; }
 
   .nt-suites { margin-top: 0.4rem; font-size: 0.8rem; }
   .nt-doclink { text-align: center; margin-bottom: 1.6rem; font-size: 0.85rem; }

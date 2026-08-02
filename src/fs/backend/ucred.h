@@ -135,6 +135,14 @@ typedef struct {
     unsigned is_bearer:1;                      /* 1 when bearer[] is populated      */
     unsigned is_s3:1;                          /* 1 when s3_ak/s3_sk populated      */
     unsigned is_ceph:1;                        /* 1 when ceph_keyring/ceph_user set */
+    unsigned is_vo_tier:1;                      /* P80.12: 1 when the credential was */
+                                               /* found under the vo-<primary_vo>   */
+                                               /* group key rather than a per-user  */
+                                               /* key.  Orthogonal to the KIND flags*/
+                                               /* above (an is_vo_tier cred is still */
+                                               /* x509/bearer/s3/ceph); audit/log    */
+                                               /* only — lets a caller report which  */
+                                               /* tier matched (user vs vo).         */
 } brix_sd_ucred_t;
 
 /*
@@ -212,27 +220,40 @@ ngx_int_t brix_sd_ucred_resolve(const char *dir, const char *key,
 /*
  * brix_sd_ucred_select — map an identity to its best available credential.
  *
- * WHAT: Zeroes *out, derives principal into out->principal, then tries:
+ * WHAT: Zeroes *out, derives principal into out->principal, then tries in order:
  *         1. literal-key candidate <dir>/<principal>.{pem,token,s3,keyring}
  *            (only if fs-safe);
- *         2. hash-key candidate <dir>/x5h-<hex>.{pem,token,s3,keyring} (always).
+ *         2. hash-key candidate <dir>/x5h-<hex>.{pem,token,s3,keyring} (always);
+ *         3. VO group tier (P80.12): <dir>/vo-<primary_vo>.{pem,token,s3,keyring}
+ *            where <primary_vo> is the first field of the identity's parsed VO
+ *            name view (acc_vorg_csv, else vo_csv).  Tried ONLY when both
+ *            per-user candidates miss and the derived vo-<name> key is fs-safe
+ *            verbatim (an admin provisions the group file literally, so a hash
+ *            form is never substituted — the VO tier is simply skipped instead).
+ *            On a VO-tier hit out->is_vo_tier is set (KIND flags unchanged).
  *       Within each candidate, .pem is tried before .token before .s3 before
  *       .keyring: x509 wins when multiple exist, bearer wins over s3, s3
- *       wins over ceph.  An expired .pem is a hard DECLINED — neither
- *       .token, .s3, nor .keyring for the SAME key is tried as a silent
- *       fallback.  The first candidate whose credential is valid wins
- *       (NGX_OK).  When no candidate wins, returns NGX_DECLINED with out->key
- *       set to the hash-form key (so callers can log the filename the
- *       administrator must provision) and out->expired OR'd across both
- *       candidates.
+ *       wins over ceph.  An expired .pem is a hard DECLINED for THAT key —
+ *       neither .token, .s3, nor .keyring for the SAME key is tried as a silent
+ *       fallback, but the search still advances to the next key/tier (an
+ *       expired per-user .pem does not suppress the VO group credential).  The
+ *       first candidate whose credential is valid wins (NGX_OK).  When no
+ *       candidate wins, returns NGX_DECLINED with out->key set to the hash-form
+ *       key (so callers can log the filename the administrator must provision)
+ *       and out->expired OR'd across all candidates.  The VO tier gives a
+ *       single group credential (e.g. vo-atlas.s3) zero-per-user provisioning;
+ *       downstream fallback policy (allow→static cred, deny→EACCES) is the
+ *       caller's, unchanged.
  *
  * WHY:  A single entry point for all per-user credential lookups; caller
  *       need not know about key derivation or credential-kind selection.
  *
  * HOW:  1. Zero *out; derive principal.
- *       2. Build candidate list (up to 2 entries).
+ *       2. Build candidate list (up to 2 per-user entries).
  *       3. brix_sd_ucred_resolve each in order; first NGX_OK → return.
- *       4. On all-DECLINED: set out->key to hash key, return NGX_DECLINED.
+ *       4. Else derive vo-<primary_vo> (when fs-safe) and resolve it; NGX_OK →
+ *          set is_vo_tier, return.
+ *       5. On all-DECLINED: set out->key to hash key, return NGX_DECLINED.
  */
 ngx_int_t brix_sd_ucred_select(const char *dir, const brix_identity_t *id,
     brix_sd_ucred_t *out);

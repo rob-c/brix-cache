@@ -101,6 +101,18 @@ typedef struct {
     int                         batch_cinfo;     /* -1 auto | 0 per-op | 1 on-commit */
     size_t                      l1_entries;      /* per-worker cinfo LRU size        */
     unsigned                    enabled:1;       /* brix_cache on                  */
+    unsigned                    global_cas:1;    /* phase-87 G13: cross-repo
+                                                  hardlink dedup of cvmfs-cas-
+                                                  verified CAS objects           */
+    unsigned                    passthrough:1;   /* phase-92: brix_cache_passthrough
+                                                  — on admission decline, fill anyway
+                                                  (bounded by passthrough_max), serve
+                                                  the coalesced waiters via the normal
+                                                  cache-hit reenter, then evict the key */
+    off_t                       passthrough_max; /* brix_cache_passthrough_max — spool
+                                                  cap for a passthrough fill (0 = the
+                                                  max_file_size cap, or unbounded if
+                                                  that too is 0)                  */
 } brix_cache_policy_t;
 
 /* ---- stage policy (§2.4) — the kept write-through decision, re-homed ------- */

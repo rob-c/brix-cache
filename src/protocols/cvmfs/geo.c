@@ -1,9 +1,10 @@
-/* geo.c — uncached origin passthrough (geo API + T12 manifest stopgap).
+/* geo.c — uncached origin passthrough (geo API).
  *
  * WHAT: forwards a classified request (with query string) to the location's
  *       configured http origin over the shared blocking libcurl transport
  *       and relays status + body. Never cached: the geo answer depends on
- *       the caller, and (until T12) manifests are mutable signed metadata.
+ *       the caller. (Signed manifests once relayed here too; since T12 they
+ *       cache with a TTL and are served by the cache tier.)
  * WHY:  CVMFS clients call the geo API through their site proxy at mount
  *       time to order CVMFS_SERVER_URL; failure is non-fatal for the client
  *       but a correct answer improves Stratum-1 ordering.

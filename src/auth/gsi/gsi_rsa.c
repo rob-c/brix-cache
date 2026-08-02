@@ -3,6 +3,7 @@
  * Phase-38 split of gsi_core.c; behavior-identical.
  */
 #include "gsi_core_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 
 
@@ -50,7 +51,7 @@ brix_gsi_rsa_encrypt_private(EVP_PKEY *key, const uint8_t *in, size_t inlen,
 
     if (ctx == NULL || EVP_PKEY_sign_init(ctx) != 1
         || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) != 1) {
-        EVP_PKEY_CTX_free(ctx);
+        brix_evp_pkey_ctx_free(ctx);
         return 0;
     }
     while (kk < inlen && ok) {
@@ -63,7 +64,7 @@ brix_gsi_rsa_encrypt_private(EVP_PKEY *key, const uint8_t *in, size_t inlen,
             ke += lout;
         }
     }
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     return ok ? ke : 0;
 }
 
@@ -85,7 +86,7 @@ brix_gsi_rsa_decrypt_public(EVP_PKEY *key, const uint8_t *in, size_t inlen,
 
     if (ctx == NULL || ksz == 0 || EVP_PKEY_verify_recover_init(ctx) != 1
         || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING) != 1) {
-        EVP_PKEY_CTX_free(ctx);
+        brix_evp_pkey_ctx_free(ctx);
         return 0;
     }
     while (kk + ksz <= inlen && ok) {
@@ -97,6 +98,6 @@ brix_gsi_rsa_decrypt_public(EVP_PKEY *key, const uint8_t *in, size_t inlen,
             ke += lout;
         }
     }
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     return ok ? ke : 0;
 }

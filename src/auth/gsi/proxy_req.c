@@ -39,6 +39,7 @@
  * declaration all live in proxy_req_internal.h so the three-way split
  * (proxy_req.c / proxy_req_sign.c / proxy_req_assemble.c) shares one copy. */
 #include "proxy_req_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Owned resources for one request build; freed once by pxr_fail (no goto).
  * err/errcap ride along so every helper can report through pxr_fail without
@@ -67,7 +68,7 @@ pxr_fail(pxr_ctx *x, const char *msg)
     }
     if (x->parent) X509_free(x->parent);
     if (x->pbio)   BIO_free(x->pbio);
-    if (x->key)    EVP_PKEY_free(x->key);
+    if (x->key)    brix_evp_pkey_free(x->key);
     if (x->subj)   X509_NAME_free(x->subj);
     if (x->pci)    PROXY_CERT_INFO_EXTENSION_free(x->pci);
     if (x->exts)   sk_X509_EXTENSION_pop_free(x->exts, X509_EXTENSION_free);
@@ -150,7 +151,7 @@ pxr_keygen(X509 *parent)
     EVP_PKEY     *key = NULL;
     BIGNUM       *e;
 
-    EVP_PKEY_free(ppub);
+    brix_evp_pkey_free(ppub);
     if (bits < GSI_MIN_RSA_BITS) {
         bits = GSI_MIN_RSA_BITS;
     }
@@ -161,10 +162,10 @@ pxr_keygen(X509 *parent)
         || EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) <= 0
         || EVP_PKEY_CTX_set1_rsa_keygen_pubexp(ctx, e) <= 0
         || EVP_PKEY_keygen(ctx, &key) <= 0) {
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
         key = NULL;
     }
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     BN_free(e);
     return key;
 }

@@ -36,6 +36,11 @@ struct sd_s3_file {
     char                         ak[128];
     char                         sk[256];
     char                         region[64];
+    /* STS session token (X-Amz-Security-Token), empty for a static keypair
+     * (phase-70 §5.5). Sized for a MinIO/AWS temporary-credential token (a
+     * signed blob, typically a few hundred bytes). Signed into every request as
+     * a canonical header when non-empty; never logged. */
+    char                         session_token[2048];
     const brix_s3_transport_t *transport;
     void                        *tctx;
     int                          timeout_ms;

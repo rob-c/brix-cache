@@ -39,10 +39,17 @@
 #define BRIX_CACHE_REAP_FIRST_MS     5000
 #define BRIX_CACHE_REAP_INTERVAL_MS  3600000   /* hourly */
 
+/* Background CSI scrub (phase-59 W2b) first-tick delay: the steady-state cadence
+ * is the operator's brix_csi_scrub_interval (seconds), so only the startup offset
+ * is a fixed constant. Larger than the cache reaper's so the at-rest sweep never
+ * competes with the worker's crypto/cache bring-up on a cold start. */
+#define BRIX_CSI_SCRUB_FIRST_MS      30000
+
 /* Maintenance-timer callbacks defined in process_timers.c but armed from a
  * server's init ladder in process_server_init.c (via ngx_event_t->handler). */
 void brix_crl_reload_handler(ngx_event_t *ev);
 void brix_cache_reap_handler(ngx_event_t *ev);
+void brix_csi_scrub_handler(ngx_event_t *ev);
 
 /* Worker-scoped timer-arming entry points defined in process_timers.c and
  * called by the ngx_stream_brix_init_process orchestrator in process.c:

@@ -23,6 +23,7 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/x509.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* ---- mint_cn_char_ok -----------------------------------------------------
  * WHAT: 1 iff byte `c` is safe to copy verbatim into a CN RDN value: the
@@ -191,13 +192,13 @@ mint_build_cert(const mint_ca_t *ca, const char *principal, int ttl_secs,
 
     if (RAND_bytes(rnd, sizeof(rnd)) != 1) {
         MINT_LOG(NGX_LOG_ERR, log, 0, "brix: cred_mint: RNG failed");
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
         return NGX_ERROR;
     }
 
     cert = X509_new();
     if (cert == NULL) {
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
         return NGX_ERROR;
     }
 
@@ -205,7 +206,7 @@ mint_build_cert(const mint_ca_t *ca, const char *principal, int ttl_secs,
     subj = mint_make_subject(cn, log);
     if (subj == NULL) {
         X509_free(cert);
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
         return NGX_ERROR;
     }
 
@@ -221,7 +222,7 @@ mint_build_cert(const mint_ca_t *ca, const char *principal, int ttl_secs,
     X509_NAME_free(subj);
     if (!ok) {
         X509_free(cert);
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
         return NGX_ERROR;
     }
 

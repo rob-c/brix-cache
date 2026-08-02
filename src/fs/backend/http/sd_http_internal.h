@@ -148,5 +148,21 @@ ngx_int_t sd_http_staged_commit(brix_sd_staged_t *h, int noreplace);
 void      sd_http_staged_abort(brix_sd_staged_t *h);
 ngx_int_t sd_http_unlink(brix_sd_instance_t *inst, const char *path,
     int is_dir);
+/* Namespace mutation (sd_http_write.c) — WebDAV MKCOL / MOVE. mkdir ignores mode
+ * (a collection has no POSIX mode); rename composes an absolute Destination URI
+ * and honours noreplace via the Overwrite header. Endpoint 0 only. */
+ngx_int_t sd_http_mkdir(brix_sd_instance_t *inst, const char *path,
+    mode_t mode);
+ngx_int_t sd_http_rename(brix_sd_instance_t *inst, const char *src,
+    const char *dst, int noreplace);
+
+/* Directory-enumeration slots (sd_http_dir.c) — a WebDAV PROPFIND Depth:1 read
+ * of the collection; opendir_cred presents the per-user credential. */
+brix_sd_dir_t *sd_http_opendir(brix_sd_instance_t *inst, const char *path,
+    int *err_out);
+brix_sd_dir_t *sd_http_opendir_cred(brix_sd_instance_t *inst, const char *path,
+    int *err_out, const brix_sd_cred_t *cred);
+ngx_int_t sd_http_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out);
+ngx_int_t sd_http_closedir(brix_sd_dir_t *d);
 
 #endif /* BRIX_FS_BACKEND_HTTP_SD_HTTP_INTERNAL_H */

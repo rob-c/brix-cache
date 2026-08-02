@@ -34,6 +34,7 @@
 #include <openssl/crypto.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * pwd_status_word — marshal a pwdStatus_t {ctype,action,options} into the 4-byte
@@ -140,14 +141,14 @@ pwd_round1(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     srv = brix_gsi_cipher_keygen_from(peer);
     if (srv == NULL) {
-        EVP_PKEY_free(peer);
+        brix_evp_pkey_free(peer);
         return brix_send_error(ctx, c, kXR_ServerError, "pwd: keygen failed");
     }
     ok = brix_gsi_cipher_session_key(srv, peer, 0, ctx->pwd.session_key,
                                        BRIX_PWD_SESSION_KEYLEN);
-    EVP_PKEY_free(peer);
+    brix_evp_pkey_free(peer);
     if (!ok) {
-        EVP_PKEY_free(srv);
+        brix_evp_pkey_free(srv);
         return brix_send_error(ctx, c, kXR_ServerError,
                                  "pwd: key agreement failed");
     }
@@ -158,7 +159,7 @@ pwd_round1(brix_ctx_t *ctx, ngx_connection_t *c,
 
     {
         ngx_int_t rc = pwd_send_credsreq(ctx, c, srv);
-        EVP_PKEY_free(srv);
+        brix_evp_pkey_free(srv);
         return rc;
     }
 }
@@ -225,6 +226,18 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
     {
         verified = brix_pwd_verify(creds, creds_len, salt, saltlen,
                                      hash, hashlen);
+    } else {
+        /* Unknown user: burn the same PBKDF2 cost against a fixed dummy
+         * entry so response time cannot distinguish "no such user" from
+         * "wrong password" (phase-28 D4 user-enumeration timing).  The
+         * result is discarded — verified stays 0 and the wire message
+         * below is the same "invalid password" for both cases. */
+        static const uint8_t dummy_salt[16] = "brix-pwd-dummy!";
+        static const uint8_t dummy_hash[BRIX_PWD_HASH_LEN] = { 0 };
+
+        (void) brix_pwd_verify(creds, creds_len, dummy_salt,
+                                 sizeof(dummy_salt), dummy_hash,
+                                 sizeof(dummy_hash));
     }
     OPENSSL_cleanse(plain, plain_len);
     free(plain);

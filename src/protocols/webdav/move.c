@@ -256,16 +256,7 @@ webdav_move_collection_post_task(const webdav_move_req_t *req)
 
     /* postconfig only visits server-level loc_conf; resolve lazily for nested
      * location blocks where conf->common.thread_pool may still be NULL. */
-    pool = conf->common.thread_pool;
-    if (pool == NULL) {
-        static ngx_str_t default_name = ngx_string("default");
-        ngx_str_t *pname = conf->common.thread_pool_name.len > 0
-                           ? &conf->common.thread_pool_name : &default_name;
-        pool = ngx_thread_pool_get((ngx_cycle_t *) ngx_cycle, pname);
-        if (pool != NULL) {
-            conf->common.thread_pool = pool;
-        }
-    }
+    pool = brix_shared_thread_pool(&conf->common);
     if (pool == NULL) {
         return NGX_DECLINED;
     }

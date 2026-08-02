@@ -33,6 +33,7 @@
 #include <openssl/crypto.h>
 
 #include "proxy_req_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* File-local argument pack for the assemble helpers: the input PEM blobs
  * plus the caller's error buffer (keeps every helper at <=5 parameters).
@@ -70,7 +71,7 @@ asm_check_key_match(const asm_args *a, EVP_PKEY *reqkey)
 
     ppub = X509_get_pubkey(proxy);
     match = (ppub != NULL && EVP_PKEY_eq(ppub, reqkey) == 1);
-    EVP_PKEY_free(ppub);
+    brix_evp_pkey_free(ppub);
     X509_free(proxy);
     BIO_free(pbio);
     if (!match) {

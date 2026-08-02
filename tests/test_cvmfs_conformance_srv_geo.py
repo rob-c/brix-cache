@@ -49,8 +49,8 @@ BLOCK = PortBlock("srv_geo")
 # fleet, /tmp/xrd-test/dedicated) listens on 13210 — the first nginx slot of
 # this file's assigned block. Burn that slot so our instances start at 13211.
 BLOCK.nginx()
-MINI_ORIGIN_PORT = 13208        # inside our mock sub-block, never handed out
-DEAD_ORIGIN_PORT = 13209        # nothing ever listens here
+MINI_ORIGIN_PORT = BLOCK.base + 8   # inside our mock sub-block, never handed out
+DEAD_ORIGIN_PORT = BLOCK.base + 9   # nothing ever listens here
 
 pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
                                 reason=f"nginx binary not found: {NGINX_BIN}")

@@ -32,6 +32,7 @@ void  metrics_emit_fault_timeouts(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm);
 void  metrics_emit_io_uring(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 void  metrics_emit_path_depth(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
+void  metrics_emit_csi_scrub(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 void  metrics_emit_ssi(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 
 #endif /* NGX_BRIX_METRICS_STREAM_INTERNAL_H */

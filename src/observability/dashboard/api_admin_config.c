@@ -3,6 +3,7 @@
  * Phase-38 split of api_admin.c; behavior-identical.
  */
 #include "dashboard_api_admin_internal.h"
+#include "core/compat/crypto.h"   /* brix_secret_page_guard (F3) */
 
 
 /*
@@ -189,6 +190,13 @@ brix_admin_set_secret(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     lcf->admin_secret.len = len;
     /* W6/F1 — scrub the transient stack copy of the secret. */
     OPENSSL_cleanse(rbuf, sizeof(rbuf));
+    /* F3/P90-28.1 — the pool copy lives for the process lifetime: keep its
+     * pages out of core dumps and off swap.  Best-effort, never fatal. */
+    if (brix_secret_page_guard(lcf->admin_secret.data, len) != 0) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+                           "brix_admin_secret: could not fully page-guard the "
+                           "secret (madvise/mlock); continuing unguarded");
+    }
     return NGX_CONF_OK;
 }
 

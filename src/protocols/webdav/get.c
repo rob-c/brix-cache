@@ -236,7 +236,7 @@ get_offload_or_fill(ngx_http_request_t *r,
 
     fr = brix_http_cache_fill_if_needed(r, vctx->sd,
         brix_vfs_export_relative(vctx, path), &conf->common,
-        webdav_get_reenter, NULL);
+        webdav_get_reenter, NULL, NULL);
     if (fr == NGX_DONE) {
         return NGX_DONE;
     }

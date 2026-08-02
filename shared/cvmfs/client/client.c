@@ -134,6 +134,31 @@ static int resolve_full(cvmfs_client_t *cl, const char *path, cvmfs_dirent_t *ou
 }
 
 int cvmfs_client_resolve(cvmfs_client_t *cl, const char *path, cvmfs_dirent_t *out, long now) {
+    /* G1 negative-lookup short-circuit: the filter has NO false negatives, so
+     * "not a member" is a guaranteed ENOENT — but only while it is bound to the
+     * root catalog being served (a refresh-installed revision deactivates it). */
+    if (cl->negf_set && path[0] != '\0') {
+        const cvmfs_hash_t *served = cl->pin_set ? &cl->pin_root
+                                                 : &cl->manifest.root_catalog;
+        if (cvmfs_hash_eq(&cl->negf_root, served)
+            && !cvmfs_xorf_query(&cl->negf, cvmfs_xorf_key(path)))
+            return 0;
+    }
+
+    /* G6 mmap-index short-circuit: the index covers the COMPLETE namespace of
+     * its bound revision, so hit AND miss are both authoritative — under the
+     * same served-root guard as the filter. An internal defect (-1: corrupt
+     * entry/bucket) drops the index and the catalogs answer live. */
+    if (cl->pidx_set) {
+        const cvmfs_hash_t *served = cl->pin_set ? &cl->pin_root
+                                                 : &cl->manifest.root_catalog;
+        if (cvmfs_hash_eq(&cl->pidx_root, served)) {
+            int prc = cvmfs_pathidx_lookup(&cl->pidx, path, out);
+            if (prc >= 0) return prc;
+            cvmfs_client_pathidx_clear(cl);
+        }
+    }
+
     cvmfs_catalog_t *cat = NULL; int owns = 0; char tmp[512];
     int rc = resolve_full(cl, path, out, &cat, &owns, tmp, sizeof(tmp), now);
     if (owns) { cvmfs_catalog_close(cat); if (tmp[0]) unlink(tmp); }
@@ -147,6 +172,18 @@ int cvmfs_client_resolve(cvmfs_client_t *cl, const char *path, cvmfs_dirent_t *o
  * readdir count, or <0 on error. */
 int cvmfs_client_readdir(cvmfs_client_t *cl, const char *path,
                          cvmfs_readdir_cb cb, void *ud, long now) {
+    /* G6: a bound index lists a directory's (contiguous, sorted) children with
+     * zero catalog opens. -1 = not an indexed dir or a corrupt entry — fall
+     * through live; a defect will also surface (and clear) via resolve. */
+    if (cl->pidx_set) {
+        const cvmfs_hash_t *served = cl->pin_set ? &cl->pin_root
+                                                 : &cl->manifest.root_catalog;
+        if (cvmfs_hash_eq(&cl->pidx_root, served)) {
+            int n = cvmfs_pathidx_readdir(&cl->pidx, path, cb, ud);
+            if (n >= 0) return n;
+        }
+    }
+
     cvmfs_catalog_t *cat = cl->root_catalog;
     int owns = 0;
     char tmp[512] = {0};
@@ -324,9 +361,17 @@ int cvmfs_client_mount(cvmfs_client_t *cl, const char *repo_name,
     memcpy(cl->master_pub, master_pub_pem, master_pub_len);
     cl->master_pub_len = master_pub_len;
 
-    int cache_rc = cache_dirfd >= 0
-        ? brix_cas_init_at(&cl->cache, cache_dirfd, quota_bytes)
-        : brix_cas_init(&cl->cache, cache_dir, quota_bytes);
+    int cache_rc;
+    if (cl->cache_packed)                       /* phase-87 G4/G5 opt-in */
+        cache_rc = cache_dirfd >= 0
+            ? brix_cas_init_packed_at(&cl->cache, cache_dirfd, quota_bytes,
+                                      cl->cache_seg_bytes, cl->cache_tiering)
+            : brix_cas_init_packed(&cl->cache, cache_dir, quota_bytes,
+                                   cl->cache_seg_bytes, cl->cache_tiering);
+    else
+        cache_rc = cache_dirfd >= 0
+            ? brix_cas_init_at(&cl->cache, cache_dirfd, quota_bytes)
+            : brix_cas_init(&cl->cache, cache_dir, quota_bytes);
     if (cache_rc != 0) return -1;
 
     memset(&cl->fetch, 0, sizeof(cl->fetch));
@@ -421,11 +466,15 @@ int cvmfs_client_refresh(cvmfs_client_t *cl, long now) {
 }
 
 void cvmfs_client_umount(cvmfs_client_t *cl) {
+    cvmfs_xorf_reset(&cl->negf);
+    cl->negf_set = 0;
+    cvmfs_client_pathidx_clear(cl);
     if (cl->root_catalog) {
         cvmfs_catalog_close(cl->root_catalog);
         cl->root_catalog = NULL;
         if (cl->root_catalog_tmp[0]) unlink(cl->root_catalog_tmp);
     }
+    brix_cas_destroy(&cl->cache);
 }
 
 /* ---- read -------------------------------------------------------------- */
@@ -473,6 +522,28 @@ static void chunk_read_cb(uint64_t coff, uint64_t csize, const cvmfs_hash_t *h, 
 
 int cvmfs_client_read(cvmfs_client_t *cl, const char *path, uint64_t offset,
                       size_t len, unsigned char *buf, size_t *outlen, long now) {
+    /* G6: an index-resolved UNCHUNKED file reads straight from CAS with the
+     * index's hash — zero catalog opens (chunked files keep the catalog path;
+     * their chunk tables live there). A failed index read means the entry
+     * named a hash the verify-fetch could not produce (tampered index — or a
+     * genuinely unfetchable object): fail SAFE, drop the whole index, take
+     * the catalog path. Over-invalidating on a transient network error only
+     * costs the fast path. */
+    if (cl->pidx_set) {
+        const cvmfs_hash_t *served = cl->pin_set ? &cl->pin_root
+                                                 : &cl->manifest.root_catalog;
+        cvmfs_dirent_t ie;
+        if (cvmfs_hash_eq(&cl->pidx_root, served)
+            && cvmfs_pathidx_lookup(&cl->pidx, path, &ie) == 1
+            && (ie.flags & CVMFS_FLAG_FILE)
+            && !(ie.flags & CVMFS_FLAG_FILE_CHUNK)
+            && ie.has_hash) {
+            if (read_whole(cl, &ie, offset, len, buf, outlen, now) == 0)
+                return 0;
+            cvmfs_client_pathidx_clear(cl);
+        }
+    }
+
     cvmfs_catalog_t *cat = NULL; int owns = 0; char tmp[512];
     cvmfs_dirent_t e;
     int found = resolve_full(cl, path, &e, &cat, &owns, tmp, sizeof(tmp), now);
@@ -582,6 +653,15 @@ int cvmfs_client_listxattr(cvmfs_client_t *cl, const char *path,
         if (is_file) memcpy(out + cn, fileonly, fn);
     }
     return (int) n;
+}
+
+/* ---- pre-mount cache-format knob (phase-87 G4/G5) ----------------------- */
+
+void cvmfs_client_cache_config(cvmfs_client_t *cl, int packed, int tiering,
+                               long seg_bytes) {
+    cl->cache_packed = packed;
+    cl->cache_tiering = tiering;
+    cl->cache_seg_bytes = seg_bytes;
 }
 
 /* ---- reproducibility pin ------------------------------------------------ */

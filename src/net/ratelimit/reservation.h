@@ -25,8 +25,12 @@ brix_resv_zone_t *brix_resv_zone_get(const char *name);
 /* Reserve `bytes`. Returns a non-zero handle if granted, 0 if queued/over. */
 uint64_t brix_resv_schedule(brix_resv_zone_t *z, uint64_t bytes);
 
-/* Release a previously granted handle (idempotent). */
-void brix_resv_done(brix_resv_zone_t *z, uint64_t handle);
+/* Release exactly `bytes` from a prior grant (the same amount passed to
+ * schedule()). Byte-precise: the caller owns the per-grant byte count (it lives
+ * on the open-file handle it reserved for), so concurrent grants release their
+ * own budget rather than the aggregate-collapse the first cut used. Idempotent
+ * for bytes==0 / an unconfigured zone / a zone with nothing outstanding. */
+void brix_resv_done(brix_resv_zone_t *z, uint64_t bytes);
 
 /* Snapshot: queued / granted-in-use bytes / granted count. */
 void brix_resv_status(brix_resv_zone_t *z, uint64_t *queued_bytes,

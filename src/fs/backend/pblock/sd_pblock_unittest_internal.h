@@ -45,6 +45,7 @@ void test_write_read_fstat(brix_sd_instance_t *inst);
 void test_truncate_and_stat(brix_sd_instance_t *inst);
 void test_preadv(brix_sd_instance_t *inst);
 void test_dirs(brix_sd_instance_t *inst);
+void test_mkdir_trailing_slash(brix_sd_instance_t *inst);
 void test_rename(brix_sd_instance_t *inst);
 void test_server_copy(brix_sd_instance_t *inst);
 void test_xattr(brix_sd_instance_t *inst);

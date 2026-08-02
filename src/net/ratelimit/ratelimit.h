@@ -140,6 +140,16 @@ void brix_rl_zone_reset_gauges(brix_rl_shctx_t *sh);
  * locking.  Used both as the rbtree node key and the SHM lookup hash. */
 uint32_t brix_rl_hash(const char *key, size_t len);
 
+/* Canonical no-PII identity keys ("dn:<8-hex FNV-1a32>" / "sub:<8-hex>"):
+ * hash-then-format so a long, PII-bearing DN or token subject never appears
+ * verbatim in a bounded key string.  Shared vocabulary for the ratelimit
+ * rbtree keys AND the session registry's per-source quota key (P90-27.2) —
+ * one principal must map to the same bucket id everywhere. */
+void brix_rl_key_dn_hash(const u_char *dn, size_t dn_len,
+    char *out, size_t out_sz);
+void brix_rl_key_sub_hash(const u_char *sub, size_t sub_len,
+    char *out, size_t out_sz);
+
 /* Find the bucket node for (hash, key_str[0..len)); NULL if absent.  Caller
  * holds the mutex.  Side effect: on a hit the node is bumped to the LRU head
  * (so a lookup also marks it recently-used), so this is NOT read-only. */

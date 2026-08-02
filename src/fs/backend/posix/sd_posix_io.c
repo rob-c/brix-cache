@@ -142,3 +142,33 @@ sd_posix_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     sd_posix_fill_stat(&sb, out);
     return NGX_OK;
 }
+
+/* sd_posix_read_advise — map the backend-neutral advice onto posix_fadvise(2).
+ * Advisory only: NGX_OK whether or not the kernel honours the hint; NGX_ERROR
+ * (errno set) only for a hard failure (bad fd). posix_fadvise RETURNS the error
+ * number rather than setting errno, so it is copied into errno here to keep the
+ * seam's NGX_ERROR-with-errno contract. */
+ngx_int_t
+sd_posix_read_advise(brix_sd_obj_t *obj, off_t off, size_t len, int advice)
+{
+#if defined(POSIX_FADV_SEQUENTIAL)
+    int a, rc;
+
+    a = advice == BRIX_SD_ADV_WILLNEED ? POSIX_FADV_WILLNEED
+      : advice == BRIX_SD_ADV_RANDOM   ? POSIX_FADV_RANDOM
+      :                                  POSIX_FADV_SEQUENTIAL;
+
+    rc = posix_fadvise(obj->fd, off, (off_t) len, a);
+    if (rc != 0) {
+        errno = rc;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+#else
+    (void) obj;
+    (void) off;
+    (void) len;
+    (void) advice;
+    return NGX_OK;
+#endif
+}

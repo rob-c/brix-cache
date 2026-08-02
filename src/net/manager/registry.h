@@ -39,6 +39,9 @@ typedef struct {
     char        vnid[64];                /* virtual network id from login envCGI */
     ngx_uint_t  stage;                   /* 1 = staging available (status stage bit) */
 
+    /* Phase 61 W7 — the node's XrdCmsRole::Type from its LOGIN Mode bits. */
+    char        role[2];                 /* "S" server / "M" manager / "R" supervisor */
+
     /* Phase 89 W4 — machine-load figure from the heartbeat theLoad bytes. */
     uint32_t    load_pct;                /* 0-100; max of cpu/net/xeq/mem/pag */
 
@@ -69,6 +72,7 @@ typedef struct {
     char        vnid[64];        /* Phase 89 W9: login virtual network id */
     ngx_uint_t  stage;           /* Phase 89 W9: staging available */
     uint32_t    load_pct;        /* Phase 89 W4: heartbeat machine load 0-100 */
+    char        role[2];         /* Phase 61 W7: node role "S"/"M"/"R" */
 } brix_srv_snapshot_entry_t;
 
 extern ngx_shm_zone_t *brix_srv_shm_zone;
@@ -125,6 +129,10 @@ int brix_srv_undrain(const char *host, uint16_t port);
  */
 int  brix_srv_reset(const char *host, uint16_t port);
 void brix_srv_set_vnid(const char *host, uint16_t port, const char *vnid);
+
+/* Phase 61 W7: record the node's XrdCmsRole::Type ("S"/"M"/"R") derived from
+ * its LOGIN Mode bits; NULL/empty resets to the "S" default. */
+void brix_srv_set_role(const char *host, uint16_t port, const char *role);
 void brix_srv_set_stage(const char *host, uint16_t port, ngx_uint_t stage);
 
 /*

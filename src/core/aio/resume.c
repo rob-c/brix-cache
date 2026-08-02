@@ -91,7 +91,7 @@ brix_aio_post_task(brix_ctx_t *ctx, ngx_connection_t *c,
 
         if (u != NULL && u->enabled && op != XRD_URING_OP_NONE) {
             if (!brix_uring_disabled(u) && u->inflight < u->queue_depth
-                && brix_uring_submit(ctx, c, task, op, posted) == NGX_OK
+                && brix_uring_submit(ctx, c, pool, task, op, posted) == NGX_OK
                 && *posted)
             {
                 /* metrics: a mapped op that the ring accepted. */

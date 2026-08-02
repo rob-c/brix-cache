@@ -32,13 +32,30 @@ GSI certs, bearer tokens, and SigV4 respectively and never enter this code.
 | File | Responsibility |
 |---|---|
 | `config.c` | `brix_configure_krb5_auth(cf, xcf)` — config-time setup. When `auth == krb5`: requires `brix_krb5_principal`, calls `krb5_init_context`, parses the service principal (`krb5_parse_name`), resolves the keytab (`krb5_kt_resolve`, or `krb5_kt_default` if none given), and validates the keytab is readable (`krb5_kt_start_seq_get`). Logs the resolved principal/keytab/ip_check at NOTICE. Stores the long-lived `krb5_context`/`krb5_principal_obj`/`krb5_keytab_obj` objects on the server conf. When built without Kerberos, fails the config if `auth == krb5`. |
-| `auth.c` | `brix_handle_krb5_auth(ctx, c, conf)` — per-connection runtime auth. Verifies the client's AP-REQ ticket against the host keytab (`krb5_rd_req`), maps the client principal to a local name, sets the connection identity/session, emits metrics + access log, and returns success or `kXR_NotAuthorized`. Contains static helpers: `brix_krb5_error`/`brix_krb5_free_error` (error-message lifetime), `brix_krb5_peer_addr` (optional source-IP binding), `brix_krb5_client_name` (principal → localname mapping), `brix_krb5_track_identity` (unique-user metric). |
+| `auth.c` | `brix_handle_krb5_auth(ctx, c, conf)` — per-connection runtime auth. Verifies the client's AP-REQ ticket against the host keytab (`krb5_rd_req`), maps the client principal to a local name, sets the connection identity/session, emits metrics + access log, and returns success or `kXR_NotAuthorized`. Contains static helpers: `brix_krb5_error`/`brix_krb5_free_error` (error-message lifetime), `brix_krb5_peer_addr` (optional source-IP binding), `brix_krb5_client_name` (principal → localname mapping), `brix_krb5_track_identity` (unique-user metric), `brix_krb5_session_grant` (shared success bookkeeping, reused by both the single-round path and the delegation round-2 finalize). When `brix_krb5_delegate on`, round-1 branches into `brix_krb5_begin_delegation` and a round-2 `kXR_auth` re-enters via `brix_krb5_finish_delegation` (both defer to `deleg_capture.c`). |
 
-There are no headers in this directory. The two public entry points are declared
-in `../ngx_brix_module.h` (`brix_handle_krb5_auth`) and
-`../config/config.h` (`brix_configure_krb5_auth`); the persistent Kerberos
-objects and tunable fields live on `ngx_stream_brix_srv_conf_t` in
-`../types/config.h`.
+### Forwarded-TGT delegation (EXCHANGE path — phase-70 §5.7)
+
+These files implement per-user backend auth by **forwarding the caller's TGT** to
+the origin, so the outbound leg authenticates as the inbound user with no admin
+pre-provisioning. They are only exercised when `brix_krb5_delegate on` (inbound
+capture) and `brix_backend_krb5_forwardable on` (outbound drive).
+
+| File | Responsibility |
+|---|---|
+| `deleg_capture.c` / `.h` | Inbound two-round `kXR_authmore`/`"fwdtgt"` delegation-CAPTURE state machine. Always-compiled seams: `brix_krb5_deleg_wanted` (config gate), `brix_krb5_deleg_credbytes` (strip the `"krb5"` prefix + optional NUL from a round-2 payload → raw `KRB_CRED`), `brix_krb5_send_fwdtgt` (round-1 `kXR_authmore` carrying `"krb5"`+`"fwdtgt"`), `brix_krb5_deleg_origin_spn` (request-time gate + origin-SPN derivation). Under `BRIX_HAVE_KRB5`: `brix_krb5_deleg_park` (copy the verified client + park the round-1 `krb5_auth_context` on `ctx->krb5` with a pool-cleanup that frees the handles + `unlink`s the 0600 ccache at connection close), `brix_krb5_deleg_capture` (round-2: decode → `brix_krb5_capture_fwd_cred` → serialise the TGT to a fresh 0600 FILE ccache, stashing the PATH on `ctx->krb5.ccache`), `brix_krb5_deleg_release`. |
+| `capture.c` / `.h` | `brix_krb5_capture_fwd_cred()` — the crypto core: `KRB_CRED` → `krb5_rd_cred` (under the round-1 auth context) → MEMORY ccache → `gss_krb5_import_cred`. Live-proven vs a real KDC (`test_krb5_forward_live.py` mode `capture`). |
+| `carry.c` / `.h` | Async-safe cred carry: `brix_krb5_cred_to_ccache` (export the captured initiator cred to a 0600 FILE ccache via RFC 5588 `gss_store_cred_into`), `brix_krb5_cred_from_ccache` (re-import on a fresh handle for the async fill task), `brix_krb5_cred_carry_release`. A live `gss_cred_id_t` is request-scoped and unsafe to embed in the async `brix_cache_fill_t`; the PATH is not. |
+| `forward.c` / `.h` | Outbound origin leg: `brix_krb5_origin_princ_from_host` (derive `host/<fqdn>@REALM`), `brix_krb5_deleg_to_origin` (one GSSAPI step), `brix_krb5_deleg_negotiate` (the full `gss_init_sec_context` ↔ origin loop to `GSS_S_COMPLETE`, mutual-auth-required, fail-closed). |
+| `kxr_wire.c` / `.h` | `brix_krb5_kxr_wire()` — the `brix_krb5_wire_fn` transceiver over a real origin connection, framing each negotiation leg as `kXR_auth` credtype `"krb5"` ↔ `kXR_authmore`/`kXR_ok`. |
+
+The public runtime/config entry points (`brix_handle_krb5_auth`,
+`brix_configure_krb5_auth`) are declared in `../ngx_brix_module.h` and
+`../config/config.h`; the delegation modules expose their own local headers
+(above). The persistent Kerberos objects, the `krb5_*` tunable fields, and the
+`delegate` flag live on `ngx_stream_brix_srv_conf_t` in `../types/config.h`; the
+per-connection delegation round state lives in `brix_ctx_krb5_t`
+(`../types/context.h`).
 
 ## Key types & data structures
 

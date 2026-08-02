@@ -110,6 +110,89 @@ sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
 }
 
 
+/*
+ * sts_http_post — POST the MinIO-dialect AssumeRole request with header-auth.
+ *
+ * Same curl hardening as sts_http_get (http/https only, TLS verified, bounded
+ * body), but sends `pd->body` with the four signed headers plus Authorization.
+ * The Host header is set explicitly so it matches the signed authority exactly
+ * (curl's default omits a non-default port from Host, which would break SigV4).
+ * Returns NGX_OK with the status in *http_status, or NGX_ERROR (logged, no
+ * secrets — the Authorization signature is a derived MAC, not a secret).
+ */
+ngx_int_t
+sts_http_post(const char *url, const char *host, const sts_post_t *pd,
+    sts_resp_t *resp, long *http_status, ngx_log_t *log)
+{
+    CURL              *curl;
+    CURLcode           res;
+    struct curl_slist *hdrs = NULL;
+    char               errbuf[CURL_ERROR_SIZE];
+    char               line[1200];
+    ngx_int_t          rc = NGX_ERROR;
+
+    curl = curl_easy_init();
+    if (curl == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: curl_easy_init failed");
+        return NGX_ERROR;
+    }
+
+    /* Every one of the four SignedHeaders must ride on the wire with the exact
+     * signed value, or the origin recomputes a different signature and rejects. */
+    ngx_snprintf((u_char *) line, sizeof(line), "Host: %s%Z", host);
+    hdrs = curl_slist_append(hdrs, line);
+    hdrs = curl_slist_append(hdrs, "Content-Type: " BRIX_STS_POST_CTYPE);
+    ngx_snprintf((u_char *) line, sizeof(line),
+        "x-amz-content-sha256: %s%Z", pd->content_sha256);
+    hdrs = curl_slist_append(hdrs, line);
+    ngx_snprintf((u_char *) line, sizeof(line), "x-amz-date: %s%Z",
+        pd->amzdate);
+    hdrs = curl_slist_append(hdrs, line);
+    ngx_snprintf((u_char *) line, sizeof(line), "Authorization: %s%Z",
+        pd->authorization);
+    hdrs = curl_slist_append(hdrs, line);
+
+    if (hdrs == NULL) {
+        curl_easy_cleanup(curl);
+        return NGX_ERROR;
+    }
+
+    errbuf[0] = '\0';
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, pd->body);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long) ngx_strlen(pd->body));
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
+#ifdef CURLOPT_PROTOCOLS_STR
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+#else
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS,
+        (long) (CURLPROTO_HTTP | CURLPROTO_HTTPS));
+#endif
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, sts_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, resp);
+
+    res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, http_status);
+        rc = NGX_OK;
+    } else {
+        ngx_log_error(NGX_LOG_WARN, log, 0, "brix_sts: STS request failed: %s",
+            errbuf[0] ? errbuf : curl_easy_strerror(res));
+    }
+
+    curl_slist_free_all(hdrs);
+    curl_easy_cleanup(curl);
+    return rc;
+}
+
+
 /* ------------------------------------------------------------------------- *
  * Response parsing (libxml2)                                                *
  * ------------------------------------------------------------------------- */

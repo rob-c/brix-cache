@@ -338,6 +338,96 @@ int main(void) {
 
     unlink(ckeyring_path);
 
+    /* ---- P80.12: VO group credential tier -------------------------------- */
+
+    /* Fresh DN-keyed identity, primary VO "atlas", NO per-user file — only a
+     * group file exists. (Reads id->acc_vorg_csv directly; that is exactly what
+     * ucred_vo_key consults.) */
+    memset(&id, 0, sizeof(id));
+    id.is_authenticated = 1;
+    id.dn.data = (u_char *) "/DC=votest/CN=bob";
+    id.dn.len  = 17;
+    id.acc_vorg_csv.data = (u_char *) "atlas";
+    id.acc_vorg_csv.len  = 5;
+
+    char vopath[1200];
+    snprintf(vopath, sizeof(vopath), "%s/vo-atlas.s3", dir);
+
+    /* (a) success: no per-user file, vo-atlas.s3 present -> OK, is_vo_tier=1,
+     * S3 fields from the GROUP file, key = "vo-atlas", principal still the user
+     * DN (attribution stays with the human, credential with the VO). */
+    write_file(vopath, "AKIAVOATLAS\nvogroupsecret\neu-west-1\n");
+    assert(brix_sd_ucred_select(dir, &id, &out) == NGX_OK);
+    assert(out.is_vo_tier == 1);
+    assert(out.is_s3 == 1);
+    assert(strcmp(out.s3_ak, "AKIAVOATLAS") == 0);
+    assert(strcmp(out.key, "vo-atlas") == 0);
+    assert(strcmp(out.principal, "/DC=votest/CN=bob") == 0);
+
+    /* (b) precedence: a per-user (hash-keyed) file present -> per-user wins,
+     * is_vo_tier=0, even though vo-atlas.s3 still exists. */
+    {
+        char ukey[128], upath[1200];
+        assert(brix_sd_ucred_key("/DC=votest/CN=bob", ukey, sizeof(ukey)) == NGX_OK);
+        snprintf(upath, sizeof(upath), "%s/%s.s3", dir, ukey);
+        write_file(upath, "AKIAUSERBOB\nusersecret\nus-east-2\n");
+        assert(brix_sd_ucred_select(dir, &id, &out) == NGX_OK);
+        assert(out.is_vo_tier == 0);
+        assert(strcmp(out.s3_ak, "AKIAUSERBOB") == 0);
+        unlink(upath);
+    }
+
+    /* (b2) an EXPIRED per-user .pem hard-stops WITHIN its own key but does NOT
+     * suppress the VO tier — the search still advances to vo-atlas.s3. */
+    {
+        char ukey[128], upem[1200];
+        assert(brix_sd_ucred_key("/DC=votest/CN=bob", ukey, sizeof(ukey)) == NGX_OK);
+        snprintf(upem, sizeof(upem), "%s/%s.pem", dir, ukey);
+        mint_pem(upem, -1);
+        assert(brix_sd_ucred_select(dir, &id, &out) == NGX_OK);
+        assert(out.is_vo_tier == 1);
+        assert(out.is_s3 == 1 && strcmp(out.s3_ak, "AKIAVOATLAS") == 0);
+        unlink(upem);
+    }
+
+    /* (c) missing: remove the group file, no per-user file -> DECLINED,
+     * is_vo_tier=0. */
+    unlink(vopath);
+    assert(brix_sd_ucred_select(dir, &id, &out) == NGX_DECLINED);
+    assert(out.is_vo_tier == 0);
+
+    /* (d) security-neg: a VO string that is NOT filename-safe (a raw FQAN with
+     * '/' and '=') must never build a path — the VO tier is skipped, not
+     * hashed, so an attacker-controlled VO cannot traverse out of the cred dir
+     * (nor silently alias a real vo-<name> file). A matching vo-atlas.s3 on disk
+     * stays untouched because the derived key never resolves to it. */
+    write_file(vopath, "AKIAVOATLAS\nvogroupsecret\neu-west-1\n");
+    id.acc_vorg_csv.data = (u_char *) "/atlas/Role=prod";
+    id.acc_vorg_csv.len  = 16;
+    assert(brix_sd_ucred_select(dir, &id, &out) == NGX_DECLINED);
+    assert(out.is_vo_tier == 0);
+    unlink(vopath);
+
+    /* (e) fallback source: when acc_vorg_csv is empty the primary VO is taken
+     * from vo_csv's first comma field ("cms" of "cms,atlas"). */
+    memset(&id, 0, sizeof(id));
+    id.is_authenticated = 1;
+    id.dn.data = (u_char *) "/DC=votest/CN=jane";
+    id.dn.len  = 18;
+    id.vo_csv.data = (u_char *) "cms,atlas";
+    id.vo_csv.len  = 9;
+    {
+        char vocms[1200];
+        snprintf(vocms, sizeof(vocms), "%s/vo-cms.token", dir);
+        write_file(vocms, "cms.group.bearer.token\n");
+        assert(brix_sd_ucred_select(dir, &id, &out) == NGX_OK);
+        assert(out.is_vo_tier == 1);
+        assert(out.is_bearer == 1);
+        assert(strcmp(out.bearer, "cms.group.bearer.token") == 0);
+        assert(strcmp(out.key, "vo-cms") == 0);
+        unlink(vocms);
+    }
+
     printf("test_ucred: all assertions passed\n");
     return 0;
 }

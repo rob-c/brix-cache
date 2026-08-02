@@ -143,8 +143,17 @@ brix_vfs_io_dirlist_stat_entry(brix_vfs_job_t *job, int dfd,
     }
 
     /* dfd < 0 (a failed dirfd upstream) and any fstatat failure — vanished
-     * entry or otherwise — take the same path: skip the entry. */
+     * entry or otherwise — take the same path: skip the entry. A benign
+     * unlink race (ENOENT) skips silently; anything else (EIO, EACCES —
+     * failing storage or a permission misconfiguration) is surfaced in the
+     * error log so a quietly-shrinking listing is diagnosable. */
     if (dfd < 0 || fstatat(dfd, name, &entry_st, AT_SYMLINK_NOFOLLOW) != 0) {
+        if (dfd >= 0 && errno != ENOENT) {
+            ngx_log_error(NGX_LOG_ERR, job->log, errno,
+                          "xrootd[disk]: dirlist stat of entry \"%s\" under "
+                          "\"%s\" failed; entry omitted from the listing",
+                          name, job->path != NULL ? job->path : "-");
+        }
         return NGX_DECLINED;
     }
 

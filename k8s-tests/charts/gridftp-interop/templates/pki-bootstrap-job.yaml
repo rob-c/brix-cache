@@ -1,0 +1,151 @@
+{{/*
+PKI bootstrap for the gridftp-interop scenario (pre-install hook, authority
+image).  Self-contained (like pb-gsi / s3-voms): mints the CA/host material via
+the shared blitz_test_pki(), then ONE user identity carrying TWO proxies —
+
+  user_proxy.pem   plain RFC-3820 proxy (utils/make_proxy.py) — the globus-url-
+                   copy / gfal2 / cleartext / FTS matrix drives with this.
+  vuser_proxy.pem  a VOMS-AC proxy (utils/voms_proxy_fake.py) carrying a
+                   vo={{ .Values.voms.vo }} FQAN — the VOMS interop cell drives
+                   with this, proving the gsiftp GSI control channel accepts a
+                   proxy whose chain carries an embedded, out-of-issuer-order
+                   VOMS attribute certificate and still round-trips.
+
+The gateway is VOMS-TOLERANT, not VOMS-authorizing: nothing server-side keys on
+the VO (no gridmap, no authdb, no brix_require_vo on the stream plane — the
+gateway has no such directive), so this is a pure cross-implementation interop
+check, not an authorization contract.
+
+Published object names are fixed (release-independent):
+  Secret gridftp-pki | ConfigMap gridftp-ca-bundle | ConfigMap gridftp-jwks
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pki-bootstrap
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-pki-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: provision
+          image: {{ .Values.pki.image }}
+          imagePullPolicy: {{ .Values.pki.pullPolicy }}
+          env:
+            - { name: TEST_ROOT, value: /work }
+            - { name: NS,   value: "{{ .Release.Namespace }}" }
+            # the in-cluster Service DNS name the GridFTP client dials — the host
+            # cert must carry it (CN + SAN) or globus refuses the gsiftp handshake.
+            - { name: HOSTCN, value: "{{ .Release.Name }}-gridftp" }
+            - { name: VO,   value: {{ .Values.voms.vo | quote }} }
+            - { name: FQAN, value: {{ .Values.voms.fqan | quote }} }
+            - { name: URI,  value: {{ .Values.voms.uri | quote }} }
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd /opt/brix
+              # Idempotent: this Job is a pre-install,pre-upgrade hook, so it
+              # re-fires on every `helm upgrade`. Regenerating the CA there would
+              # desync the already-running gateway (still serving its old host
+              # cert — the Deployment does not roll on a hook) from a runner that
+              # mounts the freshly-published trust bundle, breaking the gsiftp GSI
+              # handshake with "cannot find trusted CA". Reuse existing material.
+              if kubectl get secret gridftp-pki -n "$NS" >/dev/null 2>&1 \
+                 && kubectl get configmap gridftp-ca-bundle -n "$NS" >/dev/null 2>&1; then
+                echo "gridftp PKI already provisioned in $NS — reusing (idempotent)."
+                exit 0
+              fi
+              mkdir -p /work /work/tokens
+              # CA + host cert + the legacy single user (satisfies client-pki-init).
+              python3 -c 'import sys; sys.path.insert(0,"tests"); from pki_helpers import blitz_test_pki; blitz_test_pki()'
+              python3 utils/make_token.py init /work/tokens
+              PKI=/work/pki
+              # Materialize CA-dir symlinks (kubectl configmap skips symlinks).
+              find "$PKI/ca" -type l | while read -r l; do
+                cp --remove-destination "$(readlink -f "$l")" "$l"
+              done
+
+              # Re-mint the host cert so its identity matches the in-cluster
+              # Service DNS name the GridFTP client connects to. blitz_test_pki()
+              # issues CN=localhost (the loopback-suite default), but globus
+              # enforces that the gsiftp server cert matches the target host —
+              # reached here as "$HOSTCN" — and otherwise denies authorization
+              # ("remote entity CN=localhost ... expected CN=$HOSTCN do not
+              # match"). Re-issue with that CN + a SAN covering every name a
+              # client may use, reusing the existing host key.
+              printf 'basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=DNS:%s,DNS:%s.%s,DNS:%s.%s.svc,DNS:%s.%s.svc.cluster.local,DNS:localhost,IP:127.0.0.1\n' \
+                "$HOSTCN" "$HOSTCN" "$NS" "$HOSTCN" "$NS" "$HOSTCN" "$NS" > /work/host.ext
+              openssl req -new -key "$PKI/server/hostkey.pem" \
+                -subj "/DC=test/DC=xrootd/CN=$HOSTCN" -out /work/host.csr
+              openssl x509 -req -in /work/host.csr \
+                -CA "$PKI/ca/ca.pem" -CAkey "$PKI/ca/ca.key" -CAcreateserial \
+                -out "$PKI/server/hostcert.pem" -days 3650 -sha256 \
+                -extfile /work/host.ext
+
+              # A VOMS signing cert (chains to the test CA); CN must agree with
+              # the AC -uri host so a strict verifier could resolve the LSC.
+              VOMS=/work/voms; mkdir -p "$VOMS"
+              openssl genrsa -out "$VOMS/voms.key" 2048 2>/dev/null
+              openssl req -new -key "$VOMS/voms.key" \
+                -subj "/DC=test/DC=xrootd/CN=voms.test.local" -out "$VOMS/voms.csr"
+              printf 'basicConstraints=CA:FALSE\n' > "$VOMS/voms.ext"
+              openssl x509 -req -in "$VOMS/voms.csr" \
+                -CA "$PKI/ca/ca.pem" -CAkey "$PKI/ca/ca.key" -CAcreateserial \
+                -out "$VOMS/voms.pem" -days 3650 -sha256 -extfile "$VOMS/voms.ext"
+
+              # One user identity: EEC cert/key + a plain proxy + a VOMS-AC proxy.
+              UD=/work/u/user; mkdir -p "$UD/user" "$UD/ca"
+              cp "$PKI/ca/ca.pem" "$UD/ca/ca.pem"
+              openssl genrsa -out "$UD/user/userkey.pem" 2048 2>/dev/null
+              chmod 400 "$UD/user/userkey.pem"
+              openssl req -new -key "$UD/user/userkey.pem" \
+                -out "$UD/user/user.csr" -subj "/DC=test/DC=xrootd/CN=gridftpuser"
+              printf 'keyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\n' \
+                > "$UD/user/user.ext"
+              openssl x509 -req -in "$UD/user/user.csr" \
+                -CA "$PKI/ca/ca.pem" -CAkey "$PKI/ca/ca.key" -CAcreateserial \
+                -out "$UD/user/usercert.pem" -days 3650 -sha256 \
+                -extfile "$UD/user/user.ext"
+
+              # Plain RFC-3820 proxy -> proxy_std.pem, copied out as user_proxy.pem.
+              python3 utils/make_proxy.py "$UD" >/dev/null
+              cp "$UD/user/proxy_std.pem" /work/user_proxy.pem
+              # VOMS-AC proxy (overwrites proxy_std.pem) -> vuser_proxy.pem.
+              python3 utils/voms_proxy_fake.py \
+                -cert "$UD/user/usercert.pem" -key "$UD/user/userkey.pem" \
+                -certdir "$PKI/ca" \
+                -hostcert "$VOMS/voms.pem" -hostkey "$VOMS/voms.key" \
+                -voms "$VO" -fqan "$FQAN" -uri "$URI" \
+                -out /work/vuser_proxy.pem -hours 4000 >/dev/null
+
+              kubectl create secret generic gridftp-pki -n "$NS" \
+                --from-file=ca.pem="$PKI/ca/ca.pem" \
+                --from-file=hostcert.pem="$PKI/server/hostcert.pem" \
+                --from-file=hostkey.pem="$PKI/server/hostkey.pem" \
+                --from-file=usercert.pem="$PKI/user/usercert.pem" \
+                --from-file=userkey.pem="$PKI/user/userkey.pem" \
+                --from-file=signing_key.pem=/work/tokens/signing_key.pem \
+                --from-file=user_proxy.pem=/work/user_proxy.pem \
+                --from-file=vuser_proxy.pem=/work/vuser_proxy.pem \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap gridftp-ca-bundle -n "$NS" \
+                --from-file="$PKI/ca/" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap gridftp-jwks -n "$NS" \
+                --from-file=jwks.json=/work/tokens/jwks.json \
+                --dry-run=client -o yaml | kubectl apply -f -
+              echo "gridftp-interop pki bootstrap complete"
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - { name: work, emptyDir: {} }

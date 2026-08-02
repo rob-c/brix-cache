@@ -46,7 +46,13 @@ data servers in either direction.
 | `config.c` | Directive parser for `brix_cms_manager host:port`: resolves and stores the manager `ngx_addr_t` in the stream server conf (`cms_addr`/`cms_manager`); rejects duplicates and missing ports. |
 | `connect.c` | Connection lifecycle and timer engine: `ngx_brix_cms_start` (per-worker init), `_connect` (`ngx_event_connect_peer`), write handler (login → status → load), `_timer` (periodic heartbeat / reconnect), `_disconnect`, `_schedule`, and exponential-backoff `_schedule_retry`. |
 | `send.c` | Outgoing client frames: `_send_login` (CmsLoginData with space/port/paths), `_send_status` (Resume\|noStage), `_send_load` (heartbeat), `_send_avail` (reply to `kYR_space`), `_send_pong` (reply to `kYR_ping`), `_send_locate` (forward client locate), `_send_have` (answer `kYR_state`), `_next_streamid`. |
-| `recv.c` | Inbound read loop + opcode dispatch: accumulates a frame, then handles `kYR_ping`→pong, `kYR_space`→avail, `kYR_status`→suspend/resume, `kYR_select`/`kYR_try`→redirect a waiting client (`cms_wake_pending_session`), `kYR_state`→`kYR_have` (kernel-confined existence probe). |
+| `recv.c` | Read/framing event loop for the client connection: accumulates one complete frame at a time, hands it to the opcode router in `recv_frame.c`, enforces read/idle deadlines and the per-wakeup fairness cap; `cms_conn_fail` is the shared teardown-and-retry epilogue. |
+| `recv_frame.c` | Per-opcode frame handlers + dispatch table for the client half: `kYR_ping`→pong, `kYR_space`→avail, `kYR_status`→suspend/resume, `kYR_select`/`kYR_try`→redirect a waiting client (`cms_wake_pending_session`), `kYR_state`→`kYR_have` (kernel-confined existence probe). |
+| `recv_forward.c` | Plane-B forwarded-namespace-op executor: applies a manager-forwarded mutation (`kYR_chmod`/`mkdir`/`mkpath`/`mv`/`rm`/`rmdir`/`trunc`) to local storage via the confined `node_ops` planner. |
+| `recv_prepare.c` | Forwarded staging ops (`kYR_prepadd`/`kYR_prepdel`, phase-89 W2/PR-6): admits a manager-forwarded stage-in into the stage-request registry and cancels it on prepdel, correlating manager↔engine request ids via `reqid_map`. |
+| `recv_internal.h` | Private cross-file contract for the client-side receive path (shared between `recv.c`, `recv_frame.c`, `recv_forward.c`, `recv_prepare.c`). |
+| `meter.c` / `meter.h` | Native machine-load meter for the heartbeat (phase-89 W4): pure `/proc` parsers (unit-tested in `meter_unittest.c`) + the sampling driver that fills the `kYR_load` `theLoad` bytes. |
+| `node_ops.c` / `node_ops.h` | Pure planner for data-node execution of forwarded namespace ops (mode/size parsing, mv-needs-two-paths); unit-tested standalone (`node_ops_unittest.c`); the confined executor lives in `recv_forward.c`. |
 | `space.c` | Filesystem capacity via `statvfs`: `_export_paths` (cms_paths else root) and `_stat_space` (total_gb / free_mb / util_pct) feeding login and load frames. |
 | `wire.c` | Big-endian scalar codecs (`get16`/`get32`/`put16`/`put32`) plus XrdOucPup-style packers: tagged `put_short`/`put_int` and bare length-prefixed `put_string`. |
 | `cms_internal.h` | Client context `ngx_brix_cms_ctx_s`, all `kYR_*`/`CMS_*` wire constants, timing/sizing constants, and client-half prototypes. |
@@ -56,6 +62,8 @@ data servers in either direction.
 | File | Responsibility |
 |------|----------------|
 | `frame_io.c` / `frame_io.h` | Transport primitives used by both halves: `brix_cms_send_all` (loop `c->send` to completion) and `brix_cms_send_frame` (build the 8-byte header + dispatch payload). |
+| `router.c` / `router.h` | Table-driven CMS opcode routing mirroring `XrdCmsRouting.cc`: per-role descriptor tables (manager merges redirector + server groups; node table = ops a data server accepts) consulted via `brix_cms_route_lookup`; unit-tested (`router_unittest.c`). |
+| `rrdata.c` / `rrdata.h` | Typed, byte-exact decode of CMS request/forwarded-op payloads reproducing `XrdCmsParser`'s Pup arg vectors; pure C, no nginx dependency, unit-tested standalone (`rrdata_unittest.c`). |
 
 ### Manager-side server (`ngx_stream_brix_cms_srv_module`)
 
@@ -64,9 +72,24 @@ data servers in either direction.
 | `server.h` | Server module API: per-connection `brix_cms_srv_ctx_t`, per-block `ngx_stream_brix_cms_srv_conf_t`, SSS handshake state enum `brix_cms_auth_state_t`, and all server-half prototypes. |
 | `server_module.c` | Module descriptor, conf create/merge, and directives: `brix_cms_server` (installs `brix_cms_srv_handler` as the stream handler), `_interval`, `_allow` (CIDR list), `_sss_keytab`. |
 | `server_handler.c` | Accept entry point `brix_cms_srv_handler`: allocates ctx, records peer host, runs the accept-time CIDR gate, sets initial SSS auth state, installs read/write handlers, arms first read. |
-| `server_recv.c` | Inbound read loop + TLV/Pup parsers + frame dispatcher: `kYR_login`→parse + (optionally) SSS-challenge + `brix_srv_register`, `kYR_xauth`→verify + register, `kYR_load`/`kYR_avail`/`kYR_space`→`brix_srv_update_load`, `kYR_gone`→`brix_srv_unregister_path`, `kYR_pong`; ping timer; `brix_cms_srv_close` (blacklist + unregister on drop). |
+| `server_recv.c` | Read/write event loop + frame framing for an accepted data-server connection: accumulates header + payload, hands each complete frame to the router in `server_recv_frame.c`, enforces read/idle deadlines and the per-wakeup fairness cap. |
+| `server_recv_frame.c` | Server-side opcode dispatch table (`cms_srv_frame_routes[]`) plus the routing core (login gate, unknown-opcode fallback). |
+| `server_recv_frame_handlers.c` | The per-opcode server handlers: `kYR_login`→parse + (optionally) SSS-challenge + `brix_srv_register`, `kYR_xauth`→verify + register, `kYR_load`/`kYR_avail`/`kYR_space`→`brix_srv_update_load`, `kYR_gone`→`brix_srv_unregister_path`, `kYR_pong`/`kYR_ping`/`kYR_disc`, `kYR_update`, `kYR_statfs`/`kYR_usage`/`kYR_stats`/`kYR_status`, `kYR_have`, `kYR_error` fold, and CNS events. |
+| `server_recv_parse.c` | Pure wire decoders for server-side payloads: the XrdOucPup TLV scalar walk, the Pup string reader, and the `CmsLoginData` parser filling `ctx->{free_mb,util_pct,port,paths}`. |
+| `server_recv_lifecycle.c` | Connection teardown + audit: ping timer, `brix_cms_srv_close` (blacklist + unregister on drop). |
+| `server_recv_internal.h` | Private cross-file contract for the server-side receive path (framing loop ↔ dispatch ↔ handlers ↔ parsers ↔ lifecycle). |
 | `server_send.c` | Server-side frame senders: `brix_cms_srv_send_ping` (liveness probe), `brix_cms_srv_send_xauth` (security challenge). |
 | `server_auth.c` | Registration auth gates: `brix_cms_srv_check_peer` (CIDR allowlist, fail-open-with-warning when unset) and `brix_cms_srv_verify_xauth` (validate the data node's SSS credential via `../sss`). |
+
+### Manager namespace/staging planes (phase-89)
+
+| File | Responsibility |
+|------|----------------|
+| `forward.c` / `forward.h` | Manager-side Plane-B fan-out primitive: encode a forwarded namespace op with the byte-exact Pup codec (`rrdata.c`) and send it on a node connection (`brix_cms_forward_to_node`). |
+| `fanout.c` / `fanout.h` | Phase-89 W8: manager-side `kXR_rm`/`kXR_rmdir` fan-out to every registered node whose exports cover the path; parks the client and aggregates node results (`brix_cms_fanout` + `brix_cms_fanout_window`). |
+| `cns.c` / `cns.h` | Composite Cluster Name Space inventory + event codec (§6): data servers report namespace mutations; the manager keeps a path→{size,mtime,server} inventory (v1 per-worker linear table). |
+| `blacklist_file.c` / `blacklist_file.h` | File-driven server blacklist (phase-89 W6′): pure line parsing/matching + a stat/read/re-assert poll driver behind `brix_cms_blacklist_file`. |
+| `reqid_map.c` / `reqid_map.h` | CMS↔engine request-id sidecar SHM map (phase-89 W2/ADR-2b): keyed by the manager's prepadd reqid, holds the engine reqid + notify/prty; built via `brix_shm_table_*` (INVARIANT #10), mirroring `../manager/loc_cache.c`. |
 
 ## Key types & data structures
 
@@ -188,12 +211,15 @@ SSS verification delegates to `../sss`.
 ## Entry points / extending
 
 - **Add a handled inbound opcode (client side):** add a `CMS_RR_*` constant in
-  `cms_internal.h`, then a `case` in `ngx_brix_cms_process_frame`
-  (`recv.c`); add a matching `_send_*` in `send.c` if a reply is needed. Bounds-
-  check the payload against `ctx->in_need - HDR_LEN` before reading it.
-- **Add a handled inbound opcode (manager side):** add a `case` in
-  `cms_srv_process_frame` (`server_recv.c`), reusing `tlv_read_next` /
-  `cms_srv_read_string` for Pup fields; gate state-changing opcodes on
+  `cms_internal.h` (and its routing entry in `router.c` if new to the tables),
+  then one `{code, handler}` row + one static handler function in the dispatch
+  table in `recv_frame.c`; add a matching `_send_*` in `send.c` if a reply is
+  needed. Bounds-check the payload against `ctx->in_need - HDR_LEN` before
+  reading it.
+- **Add a handled inbound opcode (manager side):** add one `{code, handler}`
+  row to `cms_srv_frame_routes[]` (`server_recv_frame.c`) and the handler in
+  `server_recv_frame_handlers.c`, reusing the decoders in
+  `server_recv_parse.c` for Pup fields; gate state-changing opcodes on
   `ctx->logged_in`.
 - **Add a CMS server directive:** add the field to
   `ngx_stream_brix_cms_srv_conf_t` (`server.h`), an `ngx_command_t` entry +

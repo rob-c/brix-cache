@@ -259,6 +259,7 @@ brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode, unsigned parents)
                           brix_vfs_ctx_path(ctx), mode,
                           parents ? 1 : 0);
     if (res.status == BRIX_NS_OK) {
+        brix_vfs_neg_stat_forget(ctx->root_canon, path);
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_MKDIR, NULL, 0,
                                   NGX_OK, 0, start);
         return NGX_OK;

@@ -445,8 +445,14 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
 {
     ngx_thread_task_t  *task;
     tpc_thread_ctx_t   *t;
+    ngx_thread_pool_t  *pool;
 
-    if (conf->common.thread_pool == NULL) {
+    /* Resolve lazily: per-location brix_webdav leaves common.thread_pool NULL
+     * after postconfig (which only wires server-level enabled loc-confs), so a
+     * bare NULL-check here would force every TPC leg synchronous even when a
+     * "default" thread pool exists. */
+    pool = brix_shared_thread_pool(&conf->common);
+    if (pool == NULL) {
         return NGX_DECLINED;
     }
 
@@ -482,7 +488,7 @@ webdav_tpc_post_thread_task(ngx_http_request_t *r,
     brix_task_bind(task, tpc_thread_func, tpc_thread_done);
     task->event.log     = r->connection->log;
 
-    if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
+    if (ngx_thread_task_post(pool, task) != NGX_OK) {
         (void) brix_tpc_registry_remove(t->transfer_id,
                                           r->connection->log);
         return NGX_ERROR;

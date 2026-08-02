@@ -26,6 +26,21 @@ install -m 0644 "$PKI_SRC/ca.pem" "$PKI/ca/ca.pem"
 hash="$(openssl x509 -in "$PKI/ca/ca.pem" -noout -hash)"
 ln -sf ca.pem "$PKI/ca/$hash.0"
 
+# If a ready-made GSI trust bundle is mounted (hash-linked CA .0 + .signing_policy
+# + CRL — e.g. the gridftp lab's <rel>-ca-bundle ConfigMap), materialize it into
+# the trust dir as REAL files. A configMap mount presents each entry as a symlink
+# into a hidden ..data dir; point X509_CERT_DIR at this dereferenced copy so the
+# globus/gfal CA-dir scan (which needs the signing_policy the bare ca.pem+hash
+# rebuild above does NOT synthesize) resolves the issuer for the gsiftp handshake.
+CABUNDLE_SRC="${CABUNDLE_SRC:-/auth/cabundle}"
+if [ -d "$CABUNDLE_SRC" ]; then
+  for f in "$CABUNDLE_SRC"/*.[0-9] "$CABUNDLE_SRC"/*.signing_policy \
+           "$CABUNDLE_SRC"/*.r[0-9] "$CABUNDLE_SRC"/*.crl.pem; do
+    [ -e "$f" ] || continue
+    install -m 0644 "$(readlink -f "$f")" "$PKI/ca/$(basename "$f")"
+  done
+fi
+
 install -m 0644 "$PKI_SRC/usercert.pem" "$PKI/user/usercert.pem"
 install -m 0400 "$PKI_SRC/userkey.pem"  "$PKI/user/userkey.pem"
 [ -f "$PKI_SRC/hostcert.pem" ] && install -m 0644 "$PKI_SRC/hostcert.pem" "$PKI/server/hostcert.pem"

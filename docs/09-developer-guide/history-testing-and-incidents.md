@@ -757,3 +757,75 @@ itself just wasn't stood up).
 | `start-all` returns 0 even when a server fails to bind (warn-only, no per-server readiness check); `force_stop_nginx` is pidfile-based and misses kill-9-orphaned servers | harness gap | `full_suite_run_2026_07_07` |
 | macaroon POST `/.oauth2/token` returns 403 (token-scope check runs path-write-scope on the token endpoint itself) | peer-owned, unresolved at time of writing | `full_suite_run_2026_07_07` |
 | 9 test files fail pytest *collection* on Python 3.9 (`dict \| None` annotations) | test-env gotcha, pre-existing | §1.3 above; `lessons-migration-era-2026.md` §13 |
+
+---
+
+## 8. Non-UTF8 byte-input codec correctness suite + `urlencode` NUL bug (2026-08-02)
+
+`tests/test_nonutf8_input.py` — **2946** pure fast-lane cases proving the four pure
+kernels every user-supplied byte crosses before auth/storage handle non-UTF8
+input *byte-exactly*:
+
+  1. the shared percent-codec `brix_http_urldecode`/`_urlencode`
+     (`src/core/compat/uri.c`, the decode surface under WebDAV path+query, S3 SigV4
+     canonicalisation, and XrdHttp paths);
+  2. the XRootD CGI-opaque **byte** gate `brix_opaque_illegal_byte`
+     (`src/protocols/root/path/opaque_validate.c`);
+  3. the XRootD CGI-opaque **schema** gate `brix_opaque_schema_check` (same file) —
+     the Tier-2 key/type validator whose *offending-key echo* is logged/forwarded, so
+     its byte-transparency on a non-UTF8 key, and its type-rejection of every non-digit
+     value byte, are part of "handled correctly";
+  4. the internal-name (invisible sidecar/temp) gate `brix_is_internal_name`
+     (`src/fs/path/reserved_names.h`, header-only `static inline`) — a non-UTF8 basename
+     ending in a reserved suffix must still be hidden (else its existence/size/mtime
+     leak), and no lone control/high byte may be misclassified as internal.
+
+(The suite began at 1620 cases over kernels 1-2; the 2026-08-02 expansion added
+kernels 3-4 — schema gate and internal-name gate — for the 2946 total.)
+
+**Why it is not a duplicate.** `tests/fuzz/fuzz_urlcodec.c` is a *random* libFuzzer
+target that only asserts crash-safety under ASan; the live `path-pct-XX` sweeps in
+`fuzz_corpus.py` check server *responses*, not exact codec bytes. Neither pins the
+byte-for-byte contract. This suite does, against an independent Python oracle
+(`tests/cmdscripts/nonutf8_codec.py`) — a differential check, not a copy of the C.
+
+**Shape (mirrors the `c_*_units` pattern).** A data-driven C harness
+(`tests/c/nonutf8_codec_harness.c`) links the *real* `uri.c`/`hex.c`/`opaque_validate.c`
+(and `#include`s the header-only `reserved_names.h`) and speaks a hex line protocol on
+stdin (`d` decode / `e` encode / `r` round-trip / `o` opaque-byte / `s` opaque-schema /
+`n` internal-name), so a Python suite can drive thousands of byte vectors through the
+production code with no nginx runtime and no fleet. All I/O is hex so NUL/CR/LF/0x80-0xFF
+travel unambiguously. The suite is pure (zero fleet-boot seed), so it rides
+`-m "not slow and not serial"`; 2946/2946 pass serially (~1.9s) and under xdist `-n8`
+(~2.9s), and the harness compiles clean under `-Wall -Wextra -Werror`.
+
+Coverage — kernels 1-2 (codec + opaque byte gate): `%XX`→byte transparency (upper/lower
+hex), literal high-byte passthrough, `%00` reject-vs-pass per `REJECT_NUL`, embedded-NUL
+C-string truncation (the strlen view is exactly what downstream callers see), malformed-`%`
+preserved-verbatim, `+` handling, overflow/BADARG boundaries, `encode` vs RFC 3986 +
+`safe_extra`, `encode∘decode == identity` round trip over every byte and a battery of
+non-UTF8 sequences (overlong, surrogate, out-of-range, truncated, BOM, Latin-1, CP1252,
+Shift-JIS/GB18030-ish, deterministic high-byte blobs), and the opaque gate's exhaustive
+0x01-0xFF verdict + offending byte. Kernel 3 (schema gate): every non-NUL byte as a lone
+unrecognized key must be echoed back verbatim (offending-key byte-transparency for a
+clean rejection log); `oss.asize` type enforcement rejects *every* non-digit value byte
+(0x01-0xFF minus the ten digits) as `BAD_TYPE`; a recognized-namespace value accepts an
+arbitrary high byte (schema is orthogonal to byte hygiene — Tier-1's job); plus structure,
+NUL truncation, nested-query scope, dot-guard (`xrd` ≠ `xrd.`), and keybuf truncation.
+Kernel 4 (internal-name gate): exhaustive negative over 0x01-0xFF (no lone byte is
+internal); a reserved suffix with a non-UTF8 *stem* is still hidden; a suffix polluted by
+a trailing non-UTF8 byte is *not* (no over-hiding); the upload-temp infix survives non-UTF8
+neighbours; and NUL truncation that both hides (`a.cinfo\0.txt`→hidden) and reveals
+(`a.txt\0.cinfo`→visible). The oracles are independent Python reimplementations
+(differential checks), and the internal-name curated table is cross-asserted against the
+oracle at import so an oracle drift fails collection rather than silently passing.
+
+**Bug it caught (fixed same change).** `brix_http_urlencode` passed a NUL byte through
+*literally* instead of encoding it to `%00`: `strchr(unreserved, c)` with `c=='\0'`
+returns a pointer to the `unreserved` string's own NUL terminator, so a NUL input byte
+was misclassified as unreserved and copied through. A literal NUL in a canonical S3
+signing string or a generated URL is a truncation / smuggling primitive. Fixed with a
+`c != '\0'` guard before the `strchr` tests (`src/core/compat/uri.c`); documented in
+`docs/07-security/hyper-hardening-plan.md` C-1 item 5. TRAP for anyone touching a
+`strchr`-based membership test: `strchr(set, 0)` is always a hit — guard `c != '\0'`
+whenever the scanned byte can be NUL.

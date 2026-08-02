@@ -32,6 +32,7 @@
 #include "observability/metrics/metrics.h"        /* phase-68 T16 counters */
 #include "observability/metrics/metrics_macros.h"
 #include "fs/cache/cstore.h"
+#include "fs/cache/gcas.h"              /* phase-87 G13 post-commit publish  */
 #include "fs/backend/http/sd_http.h"    /* per-upstream fill attribution     */
 #include "fs/backend/xroot/sd_xroot.h"  /* brix_sd_xroot_query_checksum      */
 #include "fs/path/path.h"               /* brix_sanitize_log_string          */
@@ -124,8 +125,25 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
     fmode = S_IRUSR | S_IWUSR;          /* 0600 — svc-owned cache artifact */
 
     if (!sd_cache_admit(&st->policy, key, fs->snap.size)) {
-        brix_sd_obj_release(fs->so);
-        return NGX_DECLINED;            /* too big / filtered - do not cache */
+        /* phase-92 store-then-evict passthrough: a caller that opted in
+         * (fs->allow_pt — the HTTP shared cache-fill plane) can still be served
+         * a remote object the admission policy declined, by filling it under a
+         * separate spool cap, serving the coalesced waiters through the normal
+         * cache-hit reenter, then evicting the key. The gate is deliberately
+         * narrow: only a size-known source within the passthrough cap qualifies,
+         * so a path-filtered object, an oversized object, or a size-unknown
+         * (no Content-Length) origin still declines to the 502 slow-path. Other
+         * planes (root://, cvmfs) never opt in, so their decline is unchanged. */
+        off_t  pt_cap = sd_cache_passthrough_cap(&st->policy);
+
+        if (fs->allow_pt && st->policy.passthrough && fs->snap.size >= 0
+            && (pt_cap == 0 || fs->snap.size <= pt_cap))
+        {
+            fs->passthrough = 1;
+        } else {
+            brix_sd_obj_release(fs->so);
+            return NGX_DECLINED;        /* too big / filtered - do not cache */
+        }
     }
 
     fs->staged = brix_cstore_fill_open(&st->cstore, key, fmode);
@@ -279,6 +297,8 @@ cache_fill_commit(sd_cache_inst_state *st, const char *key,
     }
 
     if (brix_cstore_fill_commit(fs->staged) != NGX_OK) {
+        /* Failed commit keeps the handle valid — abort to release it. */
+        brix_cstore_fill_abort(fs->staged);
         return NGX_ERROR;
     }
 
@@ -318,6 +338,15 @@ cache_fill_commit(sd_cache_inst_state *st, const char *key,
             "sd_cache: cinfo store failed for \"%s\" - will refill on next read",
             key);
     }
+
+    if (st->policy.global_cas && fs->verified
+        && st->policy.verify == BRIX_CACHE_VERIFY_CVMFS_CAS)
+    {
+        /* phase-87 G13: only cvmfs-cas binds the KEY's hash to the bytes
+         * (best-effort/require verify an origin-advertised digest instead) —
+         * with that proof, collapse byte-identical cross-repo copies. */
+        brix_gcas_publish(&st->cstore, key);
+    }
     return NGX_OK;
 }
 
@@ -331,7 +360,7 @@ cache_fill_commit(sd_cache_inst_state *st, const char *key,
 static ngx_int_t
 sd_cache_fill_attempt(sd_cache_inst_state *st, const char *key,
     const brix_sd_cred_t *cred, brix_sd_instance_t *src, int from_cold,
-    int from_peer)
+    int from_peer, int allow_pt, int *out_pt)
 {
     sd_cache_fill_state_t  fs;
     ngx_int_t              rc;
@@ -340,6 +369,7 @@ sd_cache_fill_attempt(sd_cache_inst_state *st, const char *key,
     fs.src       = src;
     fs.from_cold = from_cold;
     fs.from_peer = from_peer;
+    fs.allow_pt  = allow_pt;
     (void) clock_gettime(CLOCK_MONOTONIC, &fs.t0);
 
     rc = cache_fill_acquire(st, key, cred, &fs);
@@ -361,7 +391,11 @@ sd_cache_fill_attempt(sd_cache_inst_state *st, const char *key,
     if (cache_fill_verify(st, key, &fs) != NGX_OK) {
         return NGX_ERROR;
     }
-    return cache_fill_commit(st, key, &fs);
+    rc = cache_fill_commit(st, key, &fs);
+    if (rc == NGX_OK && fs.passthrough && out_pt != NULL) {
+        *out_pt = 1;            /* phase-92: serve-then-evict — caller drops key */
+    }
+    return rc;
 }
 
 /* Rendezvous (highest-random-weight) owner of `key` over the peer ring:
@@ -388,13 +422,14 @@ sd_cache_hrw_fnv1a64(const char *label, const char *key)
 }
 
 static int
-sd_cache_peer_owner(const sd_cache_inst_state *st, const char *key)
+sd_cache_peer_owner(const brix_sd_cache_peer_t *peers, int n,
+    const char *key)
 {
     int       i, owner = 0;
     uint64_t  best = 0, w;
 
-    for (i = 0; i < st->n_peers; i++) {
-        w = sd_cache_hrw_fnv1a64(st->peers[i].label, key);
+    for (i = 0; i < n; i++) {
+        w = sd_cache_hrw_fnv1a64(peers[i].label, key);
         if (i == 0 || w > best) {
             best  = w;
             owner = i;
@@ -430,10 +465,14 @@ sd_cache_peer_owner(const sd_cache_inst_state *st, const char *key)
  *       NGX_ERROR (failure). */
 ngx_int_t
 sd_cache_fill(sd_cache_inst_state *st, const char *key,
-    const brix_sd_cred_t *cred)
+    const brix_sd_cred_t *cred, int allow_pt, int *out_pt)
 {
+    if (out_pt != NULL) {
+        *out_pt = 0;
+    }
     if (st->cold != NULL) {
-        ngx_int_t rc = sd_cache_fill_attempt(st, key, cred, st->cold, 1, 0);
+        ngx_int_t rc = sd_cache_fill_attempt(st, key, cred, st->cold, 1, 0,
+            allow_pt, out_pt);
 
         if (rc == NGX_OK) {
             /* Promoted: the hot tier owns the object now — drop the cold copy
@@ -451,25 +490,46 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key,
         /* cold miss / outage / corrupt copy: fall back to the origin fill */
     }
 
-    if (st->n_peers > 0) {
-        int owner = sd_cache_peer_owner(st, key);
+    {
+        /* phase-87 G12: a swarm-published dynamic ring replaces the static
+         * brix_cache_peers ring. ONE pointer load — the swarm plane swaps
+         * rings on the event loop while fills run here on worker threads,
+         * and a published ring is immutable and never freed. */
+        const brix_sd_cache_ring_t *ring = st->dyn_ring;
+        const brix_sd_cache_peer_t *peers;
+        int                          n, self;
 
-        if (owner != st->peer_self && st->peers[owner].inst != NULL) {
-            ngx_int_t rc = sd_cache_fill_attempt(st, key, cred,
-                st->peers[owner].inst, 0, 1);
+        if (ring != NULL) {
+            peers = ring->peers;
+            n     = ring->n;
+            self  = ring->self;
+        } else {
+            peers = st->peers;
+            n     = st->n_peers;
+            self  = st->peer_self;
+        }
 
-            if (rc == NGX_OK) {
-                ngx_log_error(NGX_LOG_INFO, st->log, 0,
-                    "sd_cache: filled \"%s\" from mesh sibling %s",
-                    key, st->peers[owner].label);
-                return NGX_OK;
+        if (n > 0) {
+            int owner = sd_cache_peer_owner(peers, n, key);
+
+            if (owner != self && peers[owner].inst != NULL) {
+                ngx_int_t rc = sd_cache_fill_attempt(st, key, cred,
+                    peers[owner].inst, 0, 1, allow_pt, out_pt);
+
+                if (rc == NGX_OK) {
+                    ngx_log_error(NGX_LOG_INFO, st->log, 0,
+                        "sd_cache: filled \"%s\" from mesh sibling %s",
+                        key, peers[owner].label);
+                    return NGX_OK;
+                }
+                if (rc == NGX_DECLINED) {
+                    return rc;  /* admission policy — identical for the origin */
+                }
+                /* sibling miss / outage / corrupt copy: fall back to origin */
             }
-            if (rc == NGX_DECLINED) {
-                return rc;      /* admission policy — identical for the origin */
-            }
-            /* sibling miss / outage / corrupt copy: fall back to the origin */
         }
     }
 
-    return sd_cache_fill_attempt(st, key, cred, st->source, 0, 0);
+    return sd_cache_fill_attempt(st, key, cred, st->source, 0, 0,
+        allow_pt, out_pt);
 }

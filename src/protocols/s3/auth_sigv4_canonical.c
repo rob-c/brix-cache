@@ -11,7 +11,15 @@
  *   https://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
  */
 
+#ifdef BRIX_SIGV4_STANDALONE
+/* Fuzz/unit build: substitute the three nginx aliases build_canonical_qs uses
+ * (ngx_flag_t/ngx_strcmp/ngx_memcpy) for libc equivalents instead of pulling the
+ * full nginx stack via s3.h → ngx_http.h. Production leaves this undefined and
+ * includes s3.h unchanged, so the compiled object is byte-identical. */
+#include "auth_sigv4_canonical_standalone.h"
+#else
 #include "s3.h"
+#endif
 #include "core/compat/uri.h"
 
 #include <string.h>

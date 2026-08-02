@@ -21,7 +21,56 @@
 #include "stage_request_registry.h"
 #include "stage_request_registry_internal.h"
 
+#include "observability/metrics/metrics.h"   /* FRM tape-stage counters (phase-35) */
+
 #include <time.h>
+
+
+/* ---- FRM tape-stage metrics (phase-35) --------------------------------------
+ *
+ * The durable request registry is the FRM "queue": admitting a record is a stage
+ * request, and a record leaving the QUEUED/STAGING set for a terminal state is a
+ * completed (or cancelled) recall.  These helpers translate the registry
+ * lifecycle into the process-global brix_frm_* counters exported by
+ * frm_metrics.c.  Every macro is SHM-NULL-safe (a no-op until the metrics zone is
+ * mapped), so they are safe to call on any code path and from a unit test that
+ * installs a fake zone.
+ */
+
+/* True when an on-disk status counts toward the in_flight gauge — a request that
+ * has been admitted but has not yet reached a terminal state. */
+static ngx_uint_t
+srq_status_counts_inflight(uint8_t disk_status)
+{
+    return disk_status == SRQ_ST_QUEUED || disk_status == SRQ_ST_STAGING;
+}
+
+/* Record one completed recall's latency (seconds since admission) into the coarse
+ * FRM histogram: bump the matching le-bucket plus the count and running sum.  The
+ * bucket bounds mirror brix_frm_latency_bounds in frm_metrics.c.  A negative delta
+ * (WSL2 backwards-clock step, see the wsl2-clock-backwards-steps note) clamps to 0
+ * so latency is never accounted as underflow. */
+static void
+srq_frm_record_latency(time_t added)
+{
+    static const time_t bounds[BRIX_FRM_LATENCY_BUCKETS - 1] = {
+        1, 10, 30, 60, 300, 1800, 3600,
+    };
+    time_t     secs = time(NULL) - added;
+    ngx_uint_t b;
+
+    if (secs < 0) {
+        secs = 0;
+    }
+    for (b = 0; b < BRIX_FRM_LATENCY_BUCKETS - 1; b++) {
+        if (secs <= bounds[b]) {
+            break;
+        }
+    }
+    BRIX_FRM_METRIC_INC(stage_latency_bucket[b]);
+    BRIX_FRM_METRIC_INC(stage_latency_count);
+    BRIX_FRM_METRIC_ADD(stage_latency_sum_sec, (size_t) secs);
+}
 
 
 /* reqid generation */
@@ -179,6 +228,10 @@ brix_stage_request_add(brix_stage_registry_t *reg,
     }
     srq_unlock(reg);
 
+    /* Admission: one stage request entered the FRM durable queue (QUEUED). */
+    BRIX_FRM_METRIC_INC(requests_total);
+    BRIX_FRM_METRIC_INC(in_flight);
+
     ngx_cpystrn((u_char *) reqid_out, (u_char *) rec.reqid, reqid_out_sz);
     return NGX_OK;
 }
@@ -189,6 +242,9 @@ brix_stage_request_set_status(brix_stage_registry_t *reg,
 {
     srq_rec_t rec;
     int64_t   off;
+    uint8_t   old_status;
+    uint8_t   new_status;
+    time_t    added;
 
     if (reg == NULL || reg->fd < 0 || reqid == NULL) {
         return NGX_ERROR;
@@ -203,13 +259,33 @@ brix_stage_request_set_status(brix_stage_registry_t *reg,
         srq_unlock(reg);
         return NGX_DECLINED;
     }
-    rec.status     = srq_status_on_disk(status);
+    old_status     = rec.status;
+    added          = (time_t) rec.tod_added;
+    new_status     = srq_status_on_disk(status);
+    rec.status     = new_status;
     rec.tod_status = (int64_t) time(NULL);
     if (srq_rec_write(reg, off, &rec, log) != NGX_OK) {
         srq_unlock(reg);
         return NGX_ERROR;
     }
     srq_unlock(reg);
+
+    /* A request leaving the in-flight set (QUEUED/STAGING) for a terminal state
+     * drops the in_flight gauge once and books the outcome: ONLINE is a success
+     * and also lands in the latency histogram; FAILED is a coarse "other" failure;
+     * CANCELLED is neither.  Guarding on the OLD status makes a repeated
+     * set_status(ONLINE) idempotent for the gauge. */
+    if (srq_status_counts_inflight(old_status)
+        && !srq_status_counts_inflight(new_status))
+    {
+        BRIX_FRM_METRIC_DEC(in_flight);
+        if (new_status == SRQ_ST_ONLINE) {
+            BRIX_FRM_METRIC_INC(stage_success_total);
+            srq_frm_record_latency(added);
+        } else if (new_status == SRQ_ST_FAILED) {
+            BRIX_FRM_METRIC_INC(stage_fail_total[BRIX_FRM_FAIL_OTHER]);
+        }
+    }
     return NGX_OK;
 }
 
@@ -217,8 +293,9 @@ ngx_int_t
 brix_stage_request_delete(brix_stage_registry_t *reg, const char *reqid,
                             ngx_log_t *log)
 {
-    srq_rec_t rec;
-    int64_t   off;
+    srq_rec_t  rec;
+    int64_t    off;
+    ngx_uint_t was_inflight;
 
     if (reg == NULL || reg->fd < 0 || reqid == NULL) {
         return NGX_ERROR;
@@ -233,6 +310,7 @@ brix_stage_request_delete(brix_stage_registry_t *reg, const char *reqid,
         srq_unlock(reg);
         return NGX_OK;                  /* already gone — idempotent */
     }
+    was_inflight = srq_status_counts_inflight(rec.status);
     ngx_memzero(&rec, sizeof(rec));
     rec.status = SRQ_ST_FREE;
     if (srq_rec_write(reg, off, &rec, log) != NGX_OK) {
@@ -240,6 +318,12 @@ brix_stage_request_delete(brix_stage_registry_t *reg, const char *reqid,
         return NGX_ERROR;
     }
     srq_unlock(reg);
+
+    /* Deleting a still-in-flight record removes it from the queue without a
+     * terminal transition, so keep the in_flight gauge honest. */
+    if (was_inflight) {
+        BRIX_FRM_METRIC_DEC(in_flight);
+    }
     return NGX_OK;
 }
 
@@ -280,10 +364,18 @@ brix_stage_request_reap_expired(brix_stage_registry_t *reg, time_t now,
         {
             continue;
         }
-        ngx_memzero(&rec, sizeof(rec));
-        rec.status = SRQ_ST_FREE;
-        if (srq_rec_write(reg, off, &rec, log) == NGX_OK) {
-            reaped++;
+        {
+            ngx_uint_t was_inflight = srq_status_counts_inflight(rec.status);
+            ngx_memzero(&rec, sizeof(rec));
+            rec.status = SRQ_ST_FREE;
+            if (srq_rec_write(reg, off, &rec, log) == NGX_OK) {
+                reaped++;
+                /* An expired-but-still-in-flight record leaves the queue with no
+                 * terminal transition; drop the gauge so it does not leak. */
+                if (was_inflight) {
+                    BRIX_FRM_METRIC_DEC(in_flight);
+                }
+            }
         }
     }
     srq_unlock(reg);

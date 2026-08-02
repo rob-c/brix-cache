@@ -30,12 +30,12 @@ cluster-manager/admin/proxy behaviors.
 |---|---|---|---|
 | Full XrdFrm/MSS/tape ecosystem | Full upstream staging, migration, purge, space, and MSS-driver architecture | Partial FRM queue and WLCG Tape REST gateway | Tape-backed sites must validate `prepare`, `query prepare`, `cancel`, `evict`, purge, and recall behavior against the real storage manager. |
 | PSS/PFC proxy storage | Mature PSS and proxy-file-cache stack | Not a full upstream-compatible PSS/PFC replacement | Sites that depend on XRootD proxy-cache topology should not assume drop-in parity. |
-| Alternative OSS/storage plugins | Ceph/Rados, OssCsi, OssArc, Mirage, and other plugin backends | POSIX-first backend with selected local helpers (ZIP-member access is implemented in `src/protocols/root/zip/`) | This project should be presented as a high-performance POSIX/nginx module, not a complete OSS plugin host. The remaining hard backend gaps are erasure coding, Ceph/RADOS, the object-archive backend, and the CSI page tagstore. |
+| Alternative OSS/storage plugins | Ceph/Rados, OssCsi, OssArc, Mirage, and other plugin backends | Storage-driver seam (`src/fs/backend/`) with POSIX, pblock, S3, remote root://, and a striper-interop Ceph/RADOS driver (`rados/sd_ceph*`, phase-60/89 — reads stock XrdCeph on-RADOS data; plus read-only `cephfsro`); CSI page tagstore in `csi_tagstore.c` (phase-59); ZIP-member access in `src/protocols/root/zip/` | Not a loadable OSS plugin host — backends are compiled-in drivers. The remaining hard backend gaps are erasure coding and the object-archive backend; Ceph sites must supply their namelib (lfn2pfn) rule before touching production pools. |
 | Full `XrdAcc` privilege model | Upstream access-control plugin semantics | ACL/authdb/VOMS/token-scope controls | Practical policy coverage exists, but reviewers should not assume every upstream privilege and authdb behavior is reproduced. |
 | Security plugin ecosystem | Full upstream sec protocol/plugin matrix | Direct implementations for GSI, token, SSS, unix, krb5, macaroons, **pwd**, and **host** | All upstream stream auth schemes now have wire-equivalent implementations (`pwd` in `src/auth/pwd/`, `host` in `src/auth/host/`). Sites using *custom* sec plugins (not these standard schemes) still need a migration plan. |
 | Native root TPC edge cases | Broad upstream TPC paths | Partial | Basic source/destination rendezvous exists. TLS-upgraded origins, multihop delegation, and site-specific credential forwarding need validation. |
 | Checksum plugin breadth | Upstream checksum plugin catalog, including deployment-specific algorithms | Partial | CRC32c/page integrity, checksum query support, CRC-64/XZ, and CRC-64/NVME exist; full upstream plugin-framework breadth is not equivalent. |
-| CMS manager/admin breadth | Full upstream manager, redirector, and admin command ecosystem | Partial nginx-oriented manager/upstream controls | Dynamic upstream management exists, but not every CMS admin command, EC redirect mode, or redirector behavior. |
+| CMS manager/admin breadth | Full upstream manager, redirector, and admin command ecosystem | Near-parity manager behaviour (phase-89 closed the opcode matrix: load meter, locate cache, staging forward, rm/rmdir fan-out, blacklist file — all flag-gated) | Multi-tier sub-manager chaining (W7), upstream CMS admin commands, and EC redirect mode remain open. |
 
 ## Medium-Impact or Deployment-Specific Gaps
 
@@ -90,7 +90,7 @@ against the target deployment:
 
 | Question | Expected review action |
 |---|---|
-| Does the site depend on PSS, PFC, Ceph, Zip, OssCsi, or custom OSS plugins? | Treat as a blocker or require an architectural replacement. |
+| Does the site depend on PSS, PFC, or custom OSS plugins? | Treat as a blocker or require an architectural replacement. (Ceph/RADOS, ZIP-member access, and the CSI tagstore are now implemented in-tree — validate per-site config instead.) |
 | Does the site require full XrdFrm/MSS behavior? | Run real `prepare`/`qprep`/`cancel`/`evict` tests against the tape backend. |
 | Does the site use `host`, `pwd`, or custom security plugins? | Keep official XRootD or implement a migration path. |
 | Does native TPC require TLS-upgraded origins or multihop delegation? | Test with production credential flows, not only anonymous/local copies. |

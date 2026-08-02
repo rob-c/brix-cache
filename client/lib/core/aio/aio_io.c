@@ -21,57 +21,91 @@
 
 /* io */
 /* Drain the outgoing queue. Non-blocking; tolerates short writes and TLS WANT_*. */
+/* One write attempt for a single buffer chunk.  Returns 1 when it made
+ * progress (wbuf.start advanced — keep draining), 0 when the socket would block
+ * (parked; re-armed via epoll), and -1 on a fatal error (transport error
+ * already posted; the caller must abort). */
+enum { ACONN_WSTEP_PROGRESS = 1, ACONN_WSTEP_BLOCKED = 0, ACONN_WSTEP_ERROR = -1 };
+
+static int
+aconn_write_ssl_step(brix_aconn *ac, uint8_t *p, size_t n)
+{
+    int ret, err;
+
+    ERR_clear_error();
+    ret = SSL_write(ac->ssl, p, (int) (n > INT32_MAX ? INT32_MAX : n));
+    if (ret > 0) {
+        ac->wbuf.start += (size_t) ret;
+        return ACONN_WSTEP_PROGRESS;
+    }
+    err = SSL_get_error(ac->ssl, ret);
+    if (err == SSL_ERROR_WANT_WRITE) {
+        return ACONN_WSTEP_BLOCKED;              /* re-armed via EPOLLOUT */
+    }
+    if (err == SSL_ERROR_WANT_READ) {
+        ac->tls_want_read_on_write = 1;          /* retry on EPOLLIN */
+        return ACONN_WSTEP_BLOCKED;
+    }
+    {
+        brix_status st;
+        brix_status_set(&st, XRDC_ESOCK, 0, "TLS write failed (ssl err %d)", err);
+        aconn_on_transport_error(ac, &st);
+    }
+    return ACONN_WSTEP_ERROR;
+}
+
+static int
+aconn_write_plain_step(brix_aconn *ac, uint8_t *p, size_t n)
+{
+    ssize_t  w;
+
+    w = send(ac->fd, p, n, MSG_NOSIGNAL);   /* MSG_NOSIGNAL: a dead peer is an
+                                             * EPIPE return, never a signal */
+    if (w > 0) {
+        ac->wbuf.start += (size_t) w;
+        return ACONN_WSTEP_PROGRESS;
+    }
+    if (w < 0 && errno == EINTR) {
+        return ACONN_WSTEP_PROGRESS;             /* retry the same chunk */
+    }
+    if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        return ACONN_WSTEP_BLOCKED;              /* re-armed via EPOLLOUT */
+    }
+    {
+        brix_status st;
+        brix_status_set(&st, XRDC_ESOCK, errno, "write: %s", strerror(errno));
+        aconn_on_transport_error(ac, &st);
+    }
+    return ACONN_WSTEP_ERROR;
+}
+
 void
 aconn_do_write(brix_aconn *ac)
 {
     ac->tls_want_read_on_write = 0;
 
+    /* P44-C (ii-b): cleartext conns on the rxtx engine flush via one-shot
+     * IORING_OP_SEND — the CQE advances wbuf.start exactly as send(2) would
+     * here.  A refused submit (ring full / no slot) means nothing is in
+     * flight, so falling through to the syscall loop below stays ordered. */
+    if (aconn_is_rxtx(ac)
+        && uring_rxtx_send_submit(ac->loop, ac) == 0) {
+        return;
+    }
+
     while (ac->wbuf.start < ac->wbuf.len) {
         size_t   n = ac->wbuf.len - ac->wbuf.start;
         uint8_t *p = ac->wbuf.buf + ac->wbuf.start;
-        ssize_t  w;
+        int      r = ac->ssl != NULL ? aconn_write_ssl_step(ac, p, n)
+                                     : aconn_write_plain_step(ac, p, n);
 
-        if (ac->ssl != NULL) {
-            ERR_clear_error();
-            int ret = SSL_write(ac->ssl, p, (int) (n > INT32_MAX ? INT32_MAX : n));
-            if (ret > 0) {
-                ac->wbuf.start += (size_t) ret;
-                continue;
-            }
-            int err = SSL_get_error(ac->ssl, ret);
-            if (err == SSL_ERROR_WANT_WRITE) {
-                break;                       /* re-armed via EPOLLOUT */
-            }
-            if (err == SSL_ERROR_WANT_READ) {
-                ac->tls_want_read_on_write = 1;  /* retry on EPOLLIN */
-                break;
-            }
-            {
-                brix_status st;
-                brix_status_set(&st, XRDC_ESOCK, 0, "TLS write failed (ssl err %d)", err);
-                aconn_on_transport_error(ac, &st);
-            }
-            return;
-        }
-
-        w = send(ac->fd, p, n, MSG_NOSIGNAL);   /* MSG_NOSIGNAL: a dead peer is an
-                                                  * EPIPE return, never a signal */
-        if (w > 0) {
-            ac->wbuf.start += (size_t) w;
+        if (r == ACONN_WSTEP_PROGRESS) {
             continue;
         }
-        if (w < 0 && (errno == EINTR)) {
-            continue;
+        if (r == ACONN_WSTEP_BLOCKED) {
+            break;
         }
-        if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            break;                           /* re-armed via EPOLLOUT */
-        }
-        {
-            brix_status st;
-            brix_status_set(&st, XRDC_ESOCK, errno, "write: %s", strerror(errno));
-            aconn_on_transport_error(ac, &st);
-        }
-        return;
+        return;                                  /* r == ACONN_WSTEP_ERROR */
     }
 
     if (ac->wbuf.start >= ac->wbuf.len) {
@@ -404,6 +438,13 @@ void
 aconn_do_read(brix_aconn *ac)
 {
     ac->tls_want_write_on_read = 0;
+
+    /* P44-C (ii-b): on the rxtx engine the multishot RECV owns the socket's
+     * byte stream — a read(2) here would race the kernel for it.  Bytes land
+     * in rbuf (and are parsed) by the engine's RECV-CQE handler instead. */
+    if (aconn_is_rxtx(ac)) {
+        return;
+    }
 
     for (;;) {
         if (xbuf_reserve(&ac->rbuf, AIO_READ_CHUNK) != 0) {

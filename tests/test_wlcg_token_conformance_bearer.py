@@ -7,9 +7,9 @@ WHAT: Thirteen wire cases covering RFC 6750 Bearer token transport methods,
       HTTP-observable Bearer semantics (response headers + status codes) are
       fully enforced.
 WHY:  Documents and regression-guards the server's RFC 6750 conformance level.
-      Cases where the server diverges from a MUST/SHOULD requirement are marked
-      xfail(strict=True) with the rule number so the suite stays GREEN and the
-      divergences form a precise fix-candidate list.
+      The RFC-6750 transport/error-response MUSTs (BEAR-04/-06/-09/-10) landed in
+      phase-92 (src/protocols/webdav/access_auth.c + auth_token.c); the former
+      xfail markers are gone and those cases now assert the conformant behaviour.
 HOW:  Uses requests directly (verify=False, test PKI self-signed CA) so the
       full response — status code AND response headers — is available for
       assertion.  TokenForge mints valid/hostile tokens from TOKENS_DIR.  Data
@@ -19,13 +19,13 @@ Cases (rule references = docs/10-reference/wlcg-token-rfc-rules.md):
   BEAR-01  header Authorization: Bearer <valid>          → 200        (rule 80)
   BEAR-02  case-insensitive scheme: bearer <valid>        → 200/xfail  (rule 81)
   BEAR-03  uppercase scheme: BEARER <valid>               → 200        (rule 81)
-  BEAR-04  dual transport (header+query)                  → 400/xfail  (rule 79 SEC)
+  BEAR-04  dual transport (header+query)                  → 400        (rule 79 SEC)
   BEAR-05  query ?access_token=<valid>                    → 200        (rule 84)
-  BEAR-06  query no-store Cache-Control                   → present/xfail (rule 85 SEC)
+  BEAR-06  query no-store Cache-Control                   → present    (rule 85 SEC)
   BEAR-07  malformed: no token after Bearer               → not 200    (rule 82)
   BEAR-08  malformed: extra token after Bearer            → not 200    (rule 82)
   BEAR-09  no credential → 401 + WWW-Authenticate: Bearer (rules 86/87)
-  BEAR-10  invalid_token → 401 + WWW-Authenticate         → xfail if 403 (rule 90)
+  BEAR-10  invalid_token → 401 + WWW-Authenticate         → 401        (rule 90)
   BEAR-11  insufficient_scope → 403                       (rule 91)
   BEAR-12  WWW-Authenticate scope attribute on BEAR-11    (rule 91 SHOULD)
   BEAR-13  TLS: https:// connection works (informational) (rule 94)
@@ -182,28 +182,19 @@ def test_bear_03_uppercase_bearer_scheme(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BEAR-04 [rule 79, RFC 6750 §2 SEC MUST]: exactly one transport per "
-        "request; simultaneous header + query token MUST return "
-        "400 invalid_request.  Server currently honours the header and returns "
-        "200 (header-wins behaviour) instead of rejecting."
-    ),
-)
 @pytest.mark.registry_server("webdav-token")
 def test_bear_04_dual_transport_must_400(forge):
-    """BEAR-04: valid token in header AND ?authz=<valid> → RFC-correct 400.
+    """BEAR-04: valid token in header AND ?authz=<valid> → 400 invalid_request.
 
     WHAT: RFC 6750 §2 is explicit: sending the access token in more than one
           place MUST be rejected with 400 invalid_request.  This is a security
           requirement — it prevents confused-deputy attacks where a proxy strips
           one transport but not the other.
-    WHY:  The server currently selects the header and returns 200, ignoring the
-          collision.  Documented as a MUST divergence.
+    WHY:  Phase-92 conformance (access_authenticate + wt_parse_header): a header
+          Bearer that ALSO carries a query token short-circuits to
+          400 invalid_request + WWW-Authenticate: Bearer, error="invalid_request".
     HOW:  Sends the same valid token in both Authorization header and ?authz=
-          query parameter; asserts 400.  Marked xfail(strict=True) because the
-          current behaviour is 200 (header-wins).
+          query parameter; asserts 400.
     Rule: 79 (RFC 6750 §2 — multiple transports MUST → 400 invalid_request).
     """
     token = forge.generate(scope="storage.read:/")
@@ -247,15 +238,6 @@ def test_bear_05_query_access_token_200(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BEAR-06 [rule 85, RFC 6750 §2.3 SEC MUST]: responses to query-token "
-        "requests MUST carry Cache-Control: no-store to prevent the token "
-        "leaking into caches.  The server does not add this header on "
-        "?access_token= responses."
-    ),
-)
 @pytest.mark.registry_server("webdav-token")
 def test_bear_06_query_nostore_cache_control(forge):
     """BEAR-06: ?access_token= response MUST include Cache-Control: no-store.
@@ -266,8 +248,9 @@ def test_bear_06_query_nostore_cache_control(forge):
     WHY:  Without this header a caching proxy may serve the URL (including the
           embedded token) to other clients, constituting a token-theft vector.
     HOW:  Issues GET with ?access_token=<valid>; asserts "no-store" appears in
-          the Cache-Control response header.  Marked xfail(strict=True) because
-          the server does not currently emit this header.
+          the Cache-Control response header.  Phase-92 conformance:
+          wt_parse_header calls webdav_add_nostore() on any query-transported
+          bearer.
     Rule: 85 (RFC 6750 §2.3 SEC — Cache-Control: no-store on query responses).
     """
     token = forge.generate(scope="storage.read:/")
@@ -334,15 +317,6 @@ def test_bear_08_bearer_extra_token_rejected(forge):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BEAR-09 [rules 86+87, RFC 6750 §2+§3 MUST]: no credential on a "
-        "protected resource MUST return 401 + WWW-Authenticate: Bearer.  "
-        "Server currently returns 403 (Forbidden) instead of 401 "
-        "(Unauthorized) and does not emit WWW-Authenticate."
-    ),
-)
 @pytest.mark.registry_server("webdav-token")
 def test_bear_09_no_credential_401_www_authenticate(forge):  # noqa: ARG001
     """BEAR-09: unauthenticated request to protected resource → 401 + WWW-Authenticate: Bearer.
@@ -356,8 +330,9 @@ def test_bear_09_no_credential_401_www_authenticate(forge):  # noqa: ARG001
           but lacks permission, not that authentication is required.
     HOW:  Issues GET /test.txt with no Authorization header on port 8446
           (brix_webdav_auth=required); asserts status==401 AND the header
-          starts with "bearer" (case-insensitive).  Marked xfail(strict=True)
-          because the server currently returns 403 with no WWW-Authenticate.
+          starts with "bearer" (case-insensitive).  Phase-92 conformance:
+          access_authenticate emits access_bearer_challenge(401) on any
+          bearer-enabled export (webdav_bearer_enabled).
     Rules: 86 (no credential → 401 MUST), 87 (WWW-Authenticate: Bearer MUST).
     """
     resp = _get()
@@ -377,14 +352,6 @@ def test_bear_09_no_credential_401_www_authenticate(forge):  # noqa: ARG001
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BEAR-10 [rule 90, RFC 6750 §3.1 SEC MUST]: invalid/expired tokens "
-        "MUST return 401 invalid_token, not 403.  The server currently returns "
-        "403 for all token validation failures (sig-invalid, alg:none, etc.)."
-    ),
-)
 @pytest.mark.registry_server("webdav-token")
 def test_bear_10_invalid_token_401(forge):
     """BEAR-10: invalid token (alg:none) → 401 + WWW-Authenticate: Bearer.
@@ -396,8 +363,9 @@ def test_bear_10_invalid_token_401(forge):
           refresh the token); 403 tells them the identity is known but lacks
           permission.  The wrong status code breaks the OIDC token-refresh loop.
     HOW:  Sends an alg:none token (structurally complete but unsigned — rule 19
-          says it MUST be rejected); asserts status 401.  Marked xfail(strict=True)
-          because the server currently returns 403.
+          says it MUST be rejected); asserts status 401.  Phase-92 conformance:
+          a presented-but-invalid bearer (token_rc == 401) yields
+          access_bearer_challenge(401, "invalid_token").
     Rule: 90 (RFC 6750 §3.1 SEC — invalid_token → HTTP 401).
     """
     token = forge.alg_none()

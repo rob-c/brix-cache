@@ -90,6 +90,7 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
     if (ctx->vnid[0] != '\0') {
         brix_srv_set_vnid(ctx->host, ctx->port, ctx->vnid);
     }
+    brix_srv_set_role(ctx->host, ctx->port, ctx->node_role);
     ctx->logged_in = 1;
     cms_srv_log_registration(ctx);
 
@@ -125,10 +126,11 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
      * returns), but match the ctx->c guards above for consistency. */
     if (ctx->c != NULL) {
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
-                      "brix: CMS server: registered %s:%d paths=[%s] "
+                      "brix: CMS server: registered %s:%d role=%s paths=[%s] "
                       "free_mb=%uD util_pct=%uD",
-                      ctx->host, (int) ctx->port, ctx->paths,
-                      ctx->free_mb, ctx->util_pct);
+                      ctx->host, (int) ctx->port,
+                      ctx->node_role != NULL ? ctx->node_role : "S",
+                      ctx->paths, ctx->free_mb, ctx->util_pct);
     }
 }
 
@@ -142,9 +144,9 @@ typedef void (*cms_srv_frame_pt)(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
 
 /*
  * cms_srv_frame_unknown — default: consult the manager routing table so the
- * log distinguishes a valid manager opcode we have not wired yet (e.g.
- * usage/stats/statfs) from a truly unroutable code.  Either way we drop it —
- * matching cmsd's tolerance of frames it does not act on.
+ * log distinguishes a valid manager opcode with no cms_srv_frame_routes[] row
+ * from a truly unroutable code.  Either way we drop it — matching cmsd's
+ * tolerance of frames it does not act on.
  */
 static void
 cms_srv_frame_unknown(brix_cms_srv_ctx_t *ctx, u_char code)

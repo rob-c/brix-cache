@@ -326,7 +326,14 @@ def test_knob_on_body_corruption_is_rejected(node):
     """ERROR / the guarantee: knob ON, one body byte flipped in flight — the origin
     re-computes CRC-32 over the received body, it disagrees with the signed
     x-amz-checksum-crc32, and it answers 400 BadDigest.  The node's commit FAILS
-    (not kXR_ok) and NO poison object is left behind."""
+    (not kXR_ok) and NO poison object is left behind.
+
+    REGRESSION (double-free): the 400 must surface as a clean kXR_error, not a
+    worker crash.  sd_remote_staged_commit used to free the staged handle
+    (ss->s3/ss/h) even on commit failure, but stage_engine_move always
+    staged_abort()s a failed commit — so the abort ran on freed memory
+    (use-after-free + double-free, seen as free(put_buf==0x1)).  A dropped
+    connection here (socket closed 0/8) is that crash recurring."""
     proxy = node["proxy"]
     before = _store_objects(node)
 

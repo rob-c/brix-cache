@@ -5,6 +5,7 @@
 #include "auth/crypto/gsi_verify.h"
 #include <openssl/err.h>
 #include <openssl/pem.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * gsi_promote_fullproxy — validate an OPTIONAL client-pushed full proxy
@@ -61,13 +62,13 @@ gsi_promote_fullproxy(brix_ctx_t *ctx, ngx_connection_t *c)
     BIO_free(bio);
     if (leaf == NULL || key == NULL) {
         X509_free(leaf);
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI full-proxy passthrough rejected: "
                       "PEM missing cert chain or private key");
         return NGX_ERROR;
     }
-    EVP_PKEY_free(key);                         /* only presence is checked here */
+    brix_evp_pkey_free(key);                         /* only presence is checked here */
 
     /* (3) Identity gate: the authenticated proxy DN must sit beneath the
      * supplied leaf/EEC subject — the user may only pass through a proxy for
@@ -189,6 +190,14 @@ gsi_cert_capture_dn(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_cpystrn((u_char *) ctx->login.dn,
                 (u_char *) verify_res->dn_buf,
                 sizeof(ctx->login.dn));
+
+    /* P80.11: stash the stable EEC DN (proxy serial stripped) as the
+     * authorization identity. login.dn keeps the literal proxy-leaf DN for the
+     * delegation "beneath-my-identity" binding check; the authz/ucred identity
+     * is derived from eec_dn in brix_gsi_complete_auth. */
+    ngx_cpystrn((u_char *) ctx->login.eec_dn,
+                (u_char *) verify_res->eec_buf,
+                sizeof(ctx->login.eec_dn));
 }
 
 /*
@@ -256,7 +265,7 @@ gsi_auth_step_cert(brix_ctx_t *ctx, ngx_connection_t *c,
     chain = brix_gsi_parse_x509(ctx, c);
 
     if (ctx->gsi.dh_key) {
-        EVP_PKEY_free(ctx->gsi.dh_key);
+        brix_evp_pkey_free(ctx->gsi.dh_key);
         ctx->gsi.dh_key = NULL;
     }
 

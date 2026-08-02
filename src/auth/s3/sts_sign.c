@@ -174,3 +174,143 @@ sts_build_action_qs(const sts_req_t *req, char *out, size_t outsz)
     }
     return NGX_OK;
 }
+
+
+/* ------------------------------------------------------------------------- *
+ * MinIO dialect — header-auth AssumeRole POST (phase-70 §5.5)               *
+ * ------------------------------------------------------------------------- */
+
+/*
+ * sts_form_encode — percent-encode `in` into `out` for an application/x-www-
+ * form-urlencoded value, leaving only the RFC-3986 unreserved set verbatim.
+ * WHY: an AssumeRole RoleArn/RoleSessionName may carry ':' '/' '+' '=' which are
+ *      form delimiters or decode to space; the SigV4 signature is over the raw
+ *      body bytes, so a mis-parsed value would still verify but AssumeRole would
+ *      then reject it. Returns the written length, or -1 on overflow.
+ */
+static int
+sts_form_encode(const u_char *in, size_t inlen, char *out, size_t outsz)
+{
+    static const char hx[] = "0123456789ABCDEF";
+    size_t i, o = 0;
+
+    for (i = 0; i < inlen; i++) {
+        u_char c = in[i];
+        int    unreserved = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                            || (c >= '0' && c <= '9')
+                            || c == '-' || c == '.' || c == '_' || c == '~';
+        if (unreserved) {
+            if (o + 1 >= outsz) { return -1; }
+            out[o++] = (char) c;
+        } else {
+            if (o + 3 >= outsz) { return -1; }
+            out[o++] = '%';
+            out[o++] = hx[(c >> 4) & 0xf];
+            out[o++] = hx[c & 0xf];
+        }
+    }
+    if (o >= outsz) { return -1; }
+    out[o] = '\0';
+    return (int) o;
+}
+
+
+/*
+ * sts_build_post — build the MinIO-dialect AssumeRole POST (see header). The
+ * signed headers are content-type;host;x-amz-content-sha256;x-amz-date and the
+ * credential scope uses literal '/' (header-auth), unlike the %2F query form.
+ */
+ngx_int_t
+sts_build_post(const sts_req_t *req, sts_post_t *pd)
+{
+    const brix_s3_sts_conf_t *cf = req->cf;
+    char     rsn_enc[200];
+    char     arn_enc[512];
+    char     canonical[4096];
+    char     scope[128];
+    char     to_sign[512];
+    char     canon_hex[65];
+    char     sig_hex[65];
+    uint8_t  body_hash[32];
+    uint8_t  canon_hash[32];
+    uint8_t  key[32];
+    uint8_t  sig[32];
+    int      n;
+
+    ngx_memcpy(pd->amzdate, req->amzdate, sizeof(pd->amzdate));
+
+    if (sts_form_encode((const u_char *) req->rsn, ngx_strlen(req->rsn),
+            rsn_enc, sizeof(rsn_enc)) < 0) {
+        return NGX_ERROR;
+    }
+
+    if (cf->role_arn.len > 0) {
+        if (sts_form_encode(cf->role_arn.data, cf->role_arn.len,
+                arn_enc, sizeof(arn_enc)) < 0) {
+            return NGX_ERROR;
+        }
+        n = ngx_snprintf((u_char *) pd->body, sizeof(pd->body),
+                "Action=AssumeRole&DurationSeconds=%d&RoleArn=%s"
+                "&RoleSessionName=%s&Version=2011-06-15",
+                req->ttl, arn_enc, rsn_enc) - (u_char *) pd->body;
+    } else {
+        n = ngx_snprintf((u_char *) pd->body, sizeof(pd->body),
+                "Action=AssumeRole&DurationSeconds=%d"
+                "&RoleSessionName=%s&Version=2011-06-15",
+                req->ttl, rsn_enc) - (u_char *) pd->body;
+    }
+    if (n <= 0 || (size_t) n >= sizeof(pd->body)) {
+        return NGX_ERROR;
+    }
+
+    if (!brix_sha256((const uint8_t *) pd->body, (size_t) n, body_hash)) {
+        return NGX_ERROR;
+    }
+    sts_hex(body_hash, 32, pd->content_sha256);
+
+    /* Canonical request: POST, empty query, four sorted signed headers, body
+     * hash as the payload hash. Header names are already canonical (lowercase). */
+    n = ngx_snprintf((u_char *) canonical, sizeof(canonical),
+            "POST\n/\n\n"
+            "content-type:%s\nhost:%s\nx-amz-content-sha256:%s\n"
+            "x-amz-date:%s\n\n"
+            "content-type;host;x-amz-content-sha256;x-amz-date\n%s",
+            BRIX_STS_POST_CTYPE, req->host, pd->content_sha256,
+            req->amzdate, pd->content_sha256) - (u_char *) canonical;
+    if (n <= 0 || (size_t) n >= sizeof(canonical)) {
+        return NGX_ERROR;
+    }
+    if (!brix_sha256((const uint8_t *) canonical, (size_t) n, canon_hash)) {
+        return NGX_ERROR;
+    }
+    sts_hex(canon_hash, 32, canon_hex);
+
+    ngx_snprintf((u_char *) scope, sizeof(scope), "%s/%V/sts/aws4_request%Z",
+        req->datestamp, &cf->region);
+
+    n = ngx_snprintf((u_char *) to_sign, sizeof(to_sign),
+            "AWS4-HMAC-SHA256\n%s\n%s\n%s",
+            req->amzdate, scope, canon_hex) - (u_char *) to_sign;
+    if (n <= 0 || (size_t) n >= sizeof(to_sign)) {
+        return NGX_ERROR;
+    }
+
+    if (!brix_sigv4_signing_key(cf->svc_sk.data, cf->svc_sk.len,
+            req->datestamp, (const char *) cf->region.data, "sts", key)) {
+        return NGX_ERROR;
+    }
+    if (!brix_hmac_sha256(key, 32, (const uint8_t *) to_sign, (size_t) n, sig)) {
+        return NGX_ERROR;
+    }
+    sts_hex(sig, 32, sig_hex);
+
+    n = ngx_snprintf((u_char *) pd->authorization, sizeof(pd->authorization),
+            "AWS4-HMAC-SHA256 Credential=%V/%s, "
+            "SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, "
+            "Signature=%s", &cf->svc_ak, scope, sig_hex)
+        - (u_char *) pd->authorization;
+    if (n <= 0 || (size_t) n >= sizeof(pd->authorization)) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}

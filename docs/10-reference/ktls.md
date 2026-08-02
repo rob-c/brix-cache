@@ -16,13 +16,19 @@ One unified directive across every TLS surface:
 | WebDAV `https://`/`davs://` | `http { server { … } }` | webdav `common.ktls` |
 | S3 `https://` | `http { server { … } }` | (enabled via the shared webdav server-level conf) |
 
-**Default: ON.** `SSL_OP_ENABLE_KTLS` is a *transparent no-op* when the
-negotiated cipher or the running kernel cannot offload — OpenSSL falls back to
-userspace TLS with byte-identical results. On the HTTP plane the flag is read
-from the **server-level** webdav conf, so it applies to every `listen … ssl`
-brix server (WebDAV and S3) unless overridden.
+**Default: OFF (opt-in, HW-offload-only — phase-33 P5).** Software-only kTLS
+regresses versus OpenSSL's userspace AES-GCM on AES-NI CPUs (you lose OpenSSL's
+write batching) and is broken on some kernels (WSL2), so kTLS is **not** enabled
+by default; turn it on only where NIC TLS offload is verified
+(`ethtool -k <dev> | grep tls` → `tx-tls-offload: on`). `SSL_OP_ENABLE_KTLS` is
+a *transparent no-op* when the negotiated cipher or the running kernel cannot
+offload — OpenSSL falls back to userspace TLS with byte-identical results, so
+flipping the default is behaviour-preserving on any host without offload. On the
+HTTP plane the flag is read from the **server-level** webdav conf, so
+`brix_ktls on` applies to every `listen … ssl` brix server (WebDAV and S3)
+unless overridden.
 
-Disable per server: `brix_ktls off;`
+Enable per server (HW-offload hosts only): `brix_ktls on;`
 
 ## When it helps vs hurts
 
@@ -48,6 +54,18 @@ echo "kTLS TX sessions: $((after-before))"   # >0 == engaged (software kTLS)
 
 `TlsTxSw`/`TlsRxSw` count software-kTLS sessions; `TlsTxDevice`/`TlsRxDevice`
 count HW-offloaded ones. Requires `CONFIG_TLS` (`modprobe tls`).
+
+## Tests
+
+The **default-OFF** guarantee is regression-guarded so a future merge cannot
+silently re-enable kTLS:
+
+- `tests/test_ktls_default.py` (stream/root:// plane, parse-tier) — asserts the
+  `SSL_OP_ENABLE_KTLS` config-parse NOTICE fires **only** with `brix_ktls on`,
+  is absent by default and under `brix_ktls off`, and that a bogus value is
+  refused by `nginx -t`.
+- `tests/cmdscripts/system_live_ports.py` kTLS scenario (HTTP/WebDAV/S3 plane,
+  runtime) — with no directive, the `TlsTxSw` counter stays flat.
 
 ## Requirements & known limits
 

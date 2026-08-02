@@ -233,10 +233,15 @@ webdav_put_try_threaded(ngx_http_request_t *r,
 {
     ngx_thread_task_t *task;
     webdav_put_aio_t  *t;
+    ngx_thread_pool_t *pool;
 
+    /* Lazily resolve the pool: per-location brix_webdav is left NULL by
+     * postconfig, so without this a location-scoped PUT would always spool its
+     * body synchronously on the event loop even with a "default" pool present. */
+    pool = brix_shared_thread_pool(&conf->common);
     if (bctx->body_summary.has_spooled || bctx->body_summary.bytes == 0
         || bctx->put_codec != BRIX_CODEC_IDENTITY
-        || conf->common.thread_pool == NULL)
+        || pool == NULL)
     {
         return WEBDAV_PUT_CONTINUE;
     }
@@ -265,7 +270,7 @@ webdav_put_try_threaded(ngx_http_request_t *r,
 
     brix_task_bind(task, webdav_put_aio_thread, webdav_put_aio_done);
 
-    if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
+    if (ngx_thread_task_post(pool, task) != NGX_OK) {
         brix_dashboard_http_error(r, "webdav PUT task post failed");
         brix_dashboard_http_finish(r);
         brix_vfs_writer_abort(t->writer);
@@ -348,8 +353,8 @@ webdav_put_select_codec(ngx_http_request_t *r, webdav_put_body_ctx_t *bctx)
  *   target — decode-to-fd for a coded body, staged-driver stream for object
  *   backends, or write-to-fd for a POSIX temp — and accounts the bytes.
  *   Returns WEBDAV_PUT_CONTINUE on success, or WEBDAV_PUT_DONE after aborting
- *   the staged temp and finalizing the precise failure status (415/413/400/501/
- *   500) on a write error.
+ *   the staged temp and finalizing the precise failure status (415/413/400/500)
+ *   on a write error.
  *
  * WHY: Confines the three-way write dispatch and its abort-on-failure invariant
  *   (a failed write must never leave a readable partial at the final path) to
@@ -357,8 +362,9 @@ webdav_put_select_codec(ngx_http_request_t *r, webdav_put_body_ctx_t *bctx)
  *
  * HOW:
  *   1. Increment the SPOOLED/MEMORY/EMPTY body-shape metric.
- *   2. Coded body: NOSYS/501 on a driver target (no kernel fd), else
- *      brix_http_body_decode_to_fd (reports its own precise status).
+ *   2. Coded body: brix_http_body_decode_to_writer streams the decoded bytes
+ *      through the writer session (fd or driver-backed object; reports its own
+ *      precise status).
  *   3. Identity body: staged-driver stream or write-to-fd.
  *   4. On write failure abort staged, finalize the reported status, return DONE.
  *   5. On success account the bytes via brix_dashboard_http_add, return CONTINUE.
@@ -378,25 +384,17 @@ webdav_put_write_sync(ngx_http_request_t *r, webdav_put_body_ctx_t *bctx)
     }
 
     if (bctx->put_codec != BRIX_CODEC_IDENTITY) {
-        /* A Content-Encoding decode writes plaintext straight to the session's
-         * kernel temp fd (the decode engine owns the streaming + bomb guard);
-         * a driver-backed object exposes no fd (NGX_INVALID_FILE) →
-         * decode-to-object is a follow-up. These bytes bypass the writer's CRC
-         * accumulator, so a verifying session leaves them unverified (its commit
-         * read-back is a no-op when nothing went through the accumulator) —
-         * verify-on-write does not cover coded bodies. */
-        ngx_fd_t wfd = brix_vfs_writer_fd(bctx->writer);
-        if (wfd == NGX_INVALID_FILE) {
-            errno = ENOSYS;
-            wrc = NGX_ERROR;
-            decode_status = NGX_HTTP_NOT_IMPLEMENTED;
-        } else {
-            wrc = brix_http_body_decode_to_fd(r, wfd, bctx->path,
+        /* A Content-Encoding decode streams plaintext through the writer session
+         * (the decode engine owns the streaming + bomb guard). Routing the output
+         * through brix_vfs_writer_write — rather than the raw temp fd — means a
+         * driver-backed object session (S3, Ceph) with no kernel fd is written
+         * exactly like a POSIX temp, and every decoded byte passes through the
+         * writer's CRC accumulator so verify-on-write now covers coded bodies. */
+        wrc = brix_http_body_decode_to_writer(r, bctx->writer, bctx->path,
                                                 bctx->put_codec,
                                                 BRIX_DECODE_MAX_OUTPUT,
                                                 &bctx->body_summary,
                                                 &decode_status);
-        }
     } else {
         /* Identity body: one common verified-write call — the writer dispatches
          * memory bufs, spooled temp-fd bufs, and driver-object targets. */

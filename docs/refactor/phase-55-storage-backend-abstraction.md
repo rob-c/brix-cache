@@ -1,7 +1,14 @@
 # Phase 55 — Storage-Backend Abstraction (Pluggable Storage Driver below the VFS)
 
 **Date:** 2026-06-24
-**Status:** PLAN — not yet implemented
+**Status:** SUPERSEDED — substantially LANDED (see the note below)
+
+> SUPERSEDED (2026-07-25): SUBSTANTIALLY LANDED as the `brix_sd_*` seam
+> (`src/fs/sd/` + `src/fs/backend/` drivers) — and exceeded: the §3.6 two-store
+> `posix|s3|same` design was superseded by the phase-63/64 composable decorator
+> stack. The one open remainder is §6.1 (`brix_vfs_file_fd` retirement), now a
+> retire-or-rule *decision* — see `phase-90-plan-phase-remainder-register.md`
+> §6.1 for the ruling.
 **Depends on:** Phase 8 (openat2 confinement), Phase 54 (thread-safe VFS I/O core), the
 unified VFS (`src/fs/`). This is the natural successor to Phase 54: now that *all*
 disk I/O — event-loop and worker-thread alike — funnels through one VFS surface, we

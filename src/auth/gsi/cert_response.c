@@ -2,6 +2,7 @@
 #include "gsi_core.h"
 #include "keypool.h"
 #include "core/compat/alloc_guard.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * cert_response.c — GSI round 1: reply to kXGC_certreq with kXGS_cert.
@@ -230,20 +231,20 @@ gsi_build_dh_public(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (!EVP_PKEY_get_bn_param(dhkey, "pub", &pub_bn)) {
-        EVP_PKEY_free(dhkey);
+        brix_evp_pkey_free(dhkey);
         return NGX_ERROR;
     }
     pub_hex = BN_bn2hex(pub_bn);
     BN_free(pub_bn);
     if (pub_hex == NULL) {
-        EVP_PKEY_free(dhkey);
+        brix_evp_pkey_free(dhkey);
         return NGX_ERROR;
     }
 
     bio = BIO_new(BIO_s_mem());
     if (bio == NULL) {
         OPENSSL_free(pub_hex);
-        EVP_PKEY_free(dhkey);
+        brix_evp_pkey_free(dhkey);
         return NGX_ERROR;
     }
     PEM_write_bio_Parameters(bio, dhkey);
@@ -354,7 +355,7 @@ gsi_sign_client_rtag(brix_ctx_t *ctx, ngx_connection_t *c,
                 *rtag_out = signed_rtag;
                 *rtag_len_out = slen;
             }
-            EVP_PKEY_CTX_free(sctx);
+            brix_evp_pkey_ctx_free(sctx);
         }
     }
 }

@@ -38,7 +38,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
-from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
+from conformance_common import BRIXMOUNT, PortBlock, _unmount, _wait_mounted  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from settings import BIND_HOST, HOST
 
@@ -49,25 +49,30 @@ _FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is no
                and os.path.exists(BRIXMOUNT))
 pytestmark = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 
-# ---- port block 13400-13419 (design doc §"Port blocks") --------------------
-P_TTL = 13400
-P_DOWN = 13401
-P_TAMPER = 13402
-P_DOWNGRADE = 13403
-P_MIDREF = 13404
-P_FO_A_DEAD, P_FO_A_LIVE = 13405, 13406
-P_FO_B_PRI, P_FO_B_SEC = 13407, 13408
-P_FO_C_PRI, P_FO_C_SEC = 13409, 13410
-P_FO_D_PRI, P_FO_D_SEC = 13411, 13412
-P_SYN_LIVE, P_SYN_DEAD = 13413, 13414
-P_RETRY = 13415
-P_RESUME = 13416
-P_BLIND = 13417
-P_PROXY_ORIGIN, P_PROXY_A = 13418, 13419
-P_PROXY_B = 13405          # reused after the failover classes have torn down
-P_OPTS = 13406             # reused after the failover classes have torn down
-P_REDIR = 13420
-P_REDIR_MIRROR = 13421
+# ---- port block: session tile of "fuse_refresh_failover" -------------------
+# Slots are fixed offsets into the session-shifted tile (PortBlock.base), so
+# a standing fleet on the canonical range can never collide.  Slots 20/21
+# spill into the next tile (fuse_trust) exactly as the canonical layout did —
+# safe because fuse suites never share a session concurrently.
+_BASE = PortBlock("fuse_refresh_failover").base
+P_TTL = _BASE + 0
+P_DOWN = _BASE + 1
+P_TAMPER = _BASE + 2
+P_DOWNGRADE = _BASE + 3
+P_MIDREF = _BASE + 4
+P_FO_A_DEAD, P_FO_A_LIVE = _BASE + 5, _BASE + 6
+P_FO_B_PRI, P_FO_B_SEC = _BASE + 7, _BASE + 8
+P_FO_C_PRI, P_FO_C_SEC = _BASE + 9, _BASE + 10
+P_FO_D_PRI, P_FO_D_SEC = _BASE + 11, _BASE + 12
+P_SYN_LIVE, P_SYN_DEAD = _BASE + 13, _BASE + 14
+P_RETRY = _BASE + 15
+P_RESUME = _BASE + 16
+P_BLIND = _BASE + 17
+P_PROXY_ORIGIN, P_PROXY_A = _BASE + 18, _BASE + 19
+P_PROXY_B = _BASE + 5      # reused after the failover classes have torn down
+P_OPTS = _BASE + 6         # reused after the failover classes have torn down
+P_REDIR = _BASE + 20
+P_REDIR_MIRROR = _BASE + 21
 
 _PROXY_VARS = ("http_proxy", "https_proxy", "all_proxy", "no_proxy",
                "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")

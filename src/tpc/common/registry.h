@@ -61,6 +61,13 @@ uint64_t brix_tpc_registry_add(const brix_tpc_transfer_t *transfer,
 ngx_int_t brix_tpc_registry_update(uint64_t id, off_t bytes_done,
     ngx_uint_t state, ngx_log_t *log);
 
+/* As brix_tpc_registry_update, but also refresh bytes_total when it is positive
+ * (0 leaves the existing total unchanged). For transports that only learn the
+ * total size mid-flight (e.g. an HTTP Content-Length seen by the curl progress
+ * callback), so the dashboard's bytes_total reflects reality. Takes the lock. */
+ngx_int_t brix_tpc_registry_update_progress(uint64_t id, off_t bytes_done,
+    off_t bytes_total, ngx_uint_t state, ngx_log_t *log);
+
 /* Free the slot holding the transfer with the given id (zeroed for reuse).
  * id == 0 is a no-op returning NGX_OK. Returns NGX_OK on success, NGX_DECLINED
  * if the registry is unavailable or id is not found. log is currently unused.
@@ -81,9 +88,9 @@ const brix_tpc_transfer_t *brix_tpc_registry_find(uint64_t id);
 ngx_uint_t brix_tpc_registry_snapshot(brix_tpc_transfer_snapshot_t *out,
     ngx_uint_t max_transfers);
 
-/* Progress-reporting shim: forwards bytes_done and state to
- * brix_tpc_registry_update() for transfer id and returns its result.
- * bytes_total is accepted for forward compatibility but currently ignored. */
+/* Progress-reporting shim: forwards bytes_done, bytes_total and state to
+ * brix_tpc_registry_update_progress() for transfer id and returns its result. A
+ * positive bytes_total refreshes the registry's total; 0 leaves it unchanged. */
 ngx_int_t brix_tpc_progress_emit(uint64_t id, off_t bytes_done,
     off_t bytes_total, ngx_uint_t state, ngx_log_t *log);
 

@@ -305,6 +305,9 @@ brix_cache_fill_body(brix_cache_fill_t *t, brix_sd_instance_t *source,
     brix_cache_src_close(source, src);
 
     if (cache_inst->driver->staged_commit(staged, 0) != NGX_OK) {
+        /* Contract: a failed commit leaves the handle valid — abort to release
+         * it (the driver frees on success only). */
+        cache_inst->driver->staged_abort(staged);
         brix_cache_set_error(t, kXR_IOError, 0, "cache staged commit failed");
         return -1;
     }

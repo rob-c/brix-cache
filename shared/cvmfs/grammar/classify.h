@@ -1,8 +1,8 @@
 /* classify.h — CVMFS URL classifier (pure C, no ngx deps).
  *
- * WHAT: types + entry point mapping a request path onto the four CVMFS
+ * WHAT: types + entry point mapping a request path onto the five CVMFS
  *       traffic classes (immutable CAS object / mutable signed metadata /
- *       geo API / reject).
+ *       geo API / bundle batch-fetch / reject).
  * WHY:  the whole cache policy — TTL, verification, pass-through, guard —
  *       keys off the class; one pure classifier keeps policy testable
  *       without nginx and reusable from dispatch AND the fill verifier AND
@@ -19,7 +19,9 @@ typedef enum {
     CVMFS_URL_CAS = 0,      /* /cvmfs/<repo>/data/<2hex>/<hex36+>[suffix]     */
     CVMFS_URL_MANIFEST,     /* .cvmfspublished / .cvmfswhitelist / .cvmfsreflog */
     CVMFS_URL_GEO,          /* /cvmfs/<repo>/api/v1.0/geo/...                  */
-    CVMFS_URL_REJECT        /* anything else                                   */
+    CVMFS_URL_BUNDLE,       /* /cvmfs/<repo>/.cvmfs-bundle (phase-87 G2)       */
+    CVMFS_URL_DICT,         /* /cvmfs/<repo>/.cvmfs-dict/<id> (phase-87 G3)    */
+    CVMFS_URL_REJECT        /* anything else — MUST stay last (range guards)   */
 } cvmfs_url_class_e;
 
 typedef struct {

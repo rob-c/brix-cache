@@ -6,6 +6,7 @@
 #include <openssl/crypto.h>
 #include <string.h>
 #include "core/compat/alloc_guard.h"
+#include "sss_framing.h"
 
 /*
  * sss_cred_t — outputs of a successful SSS credential decode.
@@ -28,45 +29,9 @@ typedef struct {
     size_t                hdr_len;    /* outer-header length (== cipher offset) */
 } sss_cred_t;
 
-/*
- * sss_header_framing_ok — pure predicate for the SSS outer-header framing.
- *
- * WHAT: validates the fixed magic ("sss\0"+BF32), the key-name-size field, and
- * the header-length/NUL-termination against the received datagram length.
- * WHY: bundling the several untrusted-framing bounds checks into one pure test
- * keeps the parse helper flat and the deny condition auditable.
- * HOW: pure — reads the payload and the datagram length, writes the computed
- * header length via *hdr_len; returns 1 when every check passes, else 0.
- */
-static int
-sss_header_framing_ok(const u_char *payload, size_t dlen, size_t *hdr_len)
-{
-    uint8_t kn_size;
-
-    if (payload == NULL
-        || dlen < BRIX_SSS_HDR_LEN + BRIX_SSS_DATA_HDR_LEN + 4)
-    {
-        return 0;
-    }
-
-    if (payload[0] != 's' || payload[1] != 's' || payload[2] != 's'
-        || payload[3] != '\0' || payload[7] != BRIX_SSS_ENC_BF32)
-    {
-        return 0;
-    }
-
-    kn_size = payload[6];
-    if (kn_size != 0 && (kn_size > BRIX_SSS_NAME_MAX || (kn_size & 0x07))) {
-        return 0;
-    }
-
-    *hdr_len = BRIX_SSS_HDR_LEN + kn_size;
-    if (*hdr_len >= dlen || (kn_size && payload[*hdr_len - 1] != '\0')) {
-        return 0;
-    }
-
-    return 1;
-}
+/* sss_header_framing_ok — the pure SSS outer-header framing predicate — now
+ * lives in sss_framing.c (as brix_sss_header_framing_ok) so it can be fuzzed
+ * standalone (hyper-hardening C-1 target 3); see sss_framing.h. */
 
 /*
  * sss_deny — funnel every SSS verify-chain rejection through one exit.
@@ -111,7 +76,7 @@ sss_parse_header(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t        hdr_len = 0;
     int64_t       key_id;
 
-    if (!sss_header_framing_ok(payload, ctx->recv.cur_dlen, &hdr_len)) {
+    if (!brix_sss_header_framing_ok(payload, ctx->recv.cur_dlen, &hdr_len)) {
         return sss_deny(ctx, c, out);
     }
 

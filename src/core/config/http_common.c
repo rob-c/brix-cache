@@ -6,11 +6,14 @@
 #include "protocols/root/stream/module_enums.h" /* brix_seccomp_modes */
 #include "fs/cache/verify.h"               /* brix_cache_verify_mode_e */
 #include "fs/backend/sd.h"                 /* BRIX_CRED_* (phase-70 §4) */
+#include "auth/s3/sts.h"                   /* BRIX_STS_FLAVOR_* (phase-70 §5.5) */
+#include "core/config/config.h"            /* brix_conf_set_backend_sss_keytab */
 
 #include <stdio.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/evp.h>                   /* phase-2 T9 mint-CA config-time validation */
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 static void *brix_http_common_create_loc_conf(ngx_conf_t *cf);
 static char *brix_http_common_merge_loc_conf(ngx_conf_t *cf,
@@ -31,6 +34,13 @@ static ngx_conf_enum_t  brix_backend_delegation_enum[] = {
     { ngx_string("delegate"),    BRIX_CRED_DELEGATE },
     { ngx_string("mint"),        BRIX_CRED_MINT },
     { ngx_string("auto"),        BRIX_CRED_AUTO },
+    { ngx_null_string, 0 }
+};
+
+/* STS wire dialect for brix_backend_s3_sts_flavor (phase-70 §5.5). */
+static ngx_conf_enum_t  brix_sts_flavor_enum[] = {
+    { ngx_string("aws"),   BRIX_STS_FLAVOR_AWS },
+    { ngx_string("minio"), BRIX_STS_FLAVOR_MINIO },
     { ngx_null_string, 0 }
 };
 
@@ -79,7 +89,7 @@ brix_conf_set_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             &value[2]);
         return NGX_CONF_ERROR;
     }
-    EVP_PKEY_free(key);
+    brix_evp_pkey_free(key);
 
     c->common.storage_credential_mint_ca_cert = value[1];
     c->common.storage_credential_mint_ca_key  = value[2];
@@ -121,6 +131,53 @@ brix_conf_set_peers(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         *slot = value[i];
+    }
+    return NGX_CONF_OK;
+}
+
+/*
+ * brix_conf_set_backend_tx_endpoint — setter for
+ * "brix_backend_token_exchange_endpoint <url>" (P90-70.8 slice of the phase-70
+ * §6 invariant: trust config is validated at LOAD, not first use).  The
+ * runtime exchange client (auth/token/exchange.c brix_tx_http_post) pins
+ * libcurl to HTTPS-only — a subject token and the client secret ride every
+ * request — so a non-https endpoint can never succeed; without this check it
+ * would only surface as every EXCHANGE delegation failing (fail-closed deny)
+ * at first use.  Reject it at nginx -t time instead: https:// scheme, a
+ * non-empty host, and no whitespace/control bytes (the value is handed to
+ * CURLOPT_URL verbatim).
+ */
+static char *
+brix_conf_set_backend_tx_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    char       *rv;
+    ngx_str_t  *ep;
+    ngx_uint_t  i;
+
+    rv = ngx_conf_set_str_slot(cf, cmd, conf);
+    if (rv != NGX_CONF_OK) {
+        return rv;
+    }
+    ep = (ngx_str_t *) ((char *) conf + cmd->offset);
+
+    if (ep->len <= sizeof("https://") - 1
+        || ngx_strncasecmp(ep->data, (u_char *) "https://", 8) != 0
+        || ep->data[8] == '/') {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_backend_token_exchange_endpoint: \"%V\" is not an https:// "
+            "URL with a host — the exchange client is HTTPS-only (a subject "
+            "token and the client secret ride every request), so this "
+            "endpoint could never be reached", ep);
+        return NGX_CONF_ERROR;
+    }
+    for (i = 0; i < ep->len; i++) {
+        if (ep->data[i] <= ' ' || ep->data[i] == 0x7f) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_backend_token_exchange_endpoint: whitespace or control "
+                "byte at offset %ui", i);
+            return NGX_CONF_ERROR;
+        }
     }
     return NGX_CONF_OK;
 }
@@ -239,7 +296,7 @@ static ngx_command_t  brix_http_common_commands[] = {
 
     { ngx_string("brix_backend_token_exchange_endpoint"),
       BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+      brix_conf_set_backend_tx_endpoint,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.backend_tx_endpoint),
       NULL },
@@ -260,7 +317,7 @@ static ngx_command_t  brix_http_common_commands[] = {
 
     { ngx_string("brix_backend_s3_sts_endpoint"),
       BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+      brix_conf_set_backend_sts_endpoint,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.backend_sts_endpoint),
       NULL },
@@ -271,6 +328,41 @@ static ngx_command_t  brix_http_common_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.backend_sts_role),
       NULL },
+
+    { ngx_string("brix_backend_s3_sts_access_key"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sts_access_key),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_secret_key"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sts_secret_key),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_region"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sts_region),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_ttl"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sts_ttl),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_flavor"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sts_flavor),
+      &brix_sts_flavor_enum },
 
     { ngx_string("brix_backend_krb5_forwardable"),
       BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
@@ -284,6 +376,17 @@ static ngx_command_t  brix_http_common_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.backend_passthrough_persist),
+      NULL },
+
+    /* Phase-70 §5.6 / P90-70.3: SSS identity-injection keytab — the delegation
+     * gate re-issues an SSS credential asserting the CALLER's principal to the
+     * origin, signed with this keytab (never the keytab's own principal).
+     * Load-validated at config time by the setter. */
+    { ngx_string("brix_backend_sss_keytab"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      brix_conf_set_backend_sss_keytab,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sss_keytab),
       NULL },
 
     { ngx_string("brix_allow_write"),
@@ -361,10 +464,11 @@ static ngx_command_t  brix_http_common_commands[] = {
       offsetof(ngx_http_brix_common_conf_t, common.cache_verify_mode),
       &brix_http_cache_verify_enum },
 
-    /* The 11 tier directives: brix_cache_store, brix_cache_cold_store,
+    /* The 12 tier directives: brix_cache_store, brix_cache_cold_store,
      * brix_stage, brix_stage_store, brix_stage_flush, brix_cache_max_object,
      * brix_cache_evict_at, brix_cache_evict_to, brix_cache_index_cache,
-     * brix_cache_meta, brix_cache_slice_size. */
+     * brix_cache_meta, brix_cache_slice_size, brix_cache_global_cas,
+     * brix_cache_passthrough, brix_cache_passthrough_max. */
     BRIX_TIER_DIRECTIVES("brix_", ngx_http_brix_common_conf_t,
                          BRIX_HTTP_ALL_CONF, NGX_HTTP_LOC_CONF_OFFSET),
 
@@ -454,6 +558,10 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(backend_tx_client_secret);
     BRIX_ADOPT_STR(backend_sts_endpoint);
     BRIX_ADOPT_STR(backend_sts_role);
+    BRIX_ADOPT_STR(backend_sts_access_key);
+    BRIX_ADOPT_STR(backend_sts_secret_key);
+    BRIX_ADOPT_STR(backend_sts_region);
+    BRIX_ADOPT_VAL(backend_sts_ttl, NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(backend_krb5_forwardable, NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(backend_passthrough_persist, NGX_CONF_UNSET);
     BRIX_ADOPT_STR(thread_pool_name);
@@ -482,6 +590,9 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(cache_meta_mode,   NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(cache_slice_size,  (size_t) NGX_CONF_UNSET_SIZE);
     BRIX_ADOPT_VAL(cache_verify_mode, NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_VAL(cache_global_cas,  NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(cache_passthrough, NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(cache_passthrough_max, NGX_CONF_UNSET);      /* off_t */
 }
 
 void

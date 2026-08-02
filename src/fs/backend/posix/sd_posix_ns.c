@@ -255,6 +255,9 @@ sd_posix_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
         }
         ngx_cpystrn((u_char *) out->name, (u_char *) de->d_name,
                     sizeof(out->name));
+        /* The kernel's own classification, DT_UNKNOWN on filesystems that
+         * don't fill it — never guessed here (consumers stat on UNKNOWN). */
+        out->d_type = de->d_type;
         return NGX_OK;
     }
 }
@@ -441,10 +444,16 @@ sd_posix_staged_commit(brix_sd_staged_t *st, int noreplace)
                                     &ps->staged, ps->final_path)
         : brix_staged_commit(st->inst->log, inst_st->root_canon,
                                &ps->staged, ps->final_path);
-    /* Terminal op — release the heap-allocated handle (see staged_open). */
+    /* Ownership contract (brix_vfs_staged_commit / sd_remote_staged_commit):
+     * free the heap-allocated handle ONLY on success. On failure the handle
+     * stays valid and the caller (stage_engine / brix_vfs) invokes
+     * staged_abort to release it — freeing here would double-free. */
+    if (rc != NGX_OK) {
+        return rc;
+    }
     ngx_free(ps);
     ngx_free(st);
-    return rc;
+    return NGX_OK;
 }
 
 void

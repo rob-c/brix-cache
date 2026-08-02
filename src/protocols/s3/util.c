@@ -3,6 +3,7 @@
  */
 
 #include "s3.h"
+#include "protocols/shared/deleg_wire.h"
 #include "core/http/etag.h"
 #include "core/http/http_headers.h"
 #include "core/http/http_xml.h"
@@ -66,23 +67,33 @@ s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
  *
  * HOW:  Reads cf->common.backend_delegation as the mode and the req ctx's
  *       bearer_token / deleg_proxy_pem as the bytes; brix_vfs_deleg_bind is a
- *       no-op for SELECT mode or when nothing was captured. */
+ *       no-op for SELECT mode or when nothing was captured. Mirrors
+ *       webdav_vfs_bind_deleg: a bearer forwarded VERBATIM (anything except
+ *       EXCHANGE-with-endpoint) must pass the backend audience gate first
+ *       (phase-70 §5.2 / P90-70.9), and EXCHANGE conf + the per-conf
+ *       minted-token cache slot are stamped after the bind. */
 void
 s3_vfs_bind_deleg(ngx_http_request_t *r,
     ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
 {
     ngx_http_s3_req_ctx_t *s3ctx;
+    const ngx_str_t       *bearer;
 
     if (cf->common.backend_delegation == BRIX_CRED_SELECT) {
         return;
     }
 
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    s3ctx  = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    bearer = brix_proto_deleg_gate_bearer(
+        (s3ctx != NULL) ? &s3ctx->bearer_token : NULL,
+        &cf->common, r->connection->log);
 
     (void) brix_vfs_deleg_bind(r->pool, vctx,
         (enum brix_cred_mode) cf->common.backend_delegation,
-        (s3ctx != NULL) ? &s3ctx->bearer_token : NULL,
+        bearer,
         (s3ctx != NULL) ? &s3ctx->deleg_proxy_pem : NULL);
+
+    brix_proto_deleg_stamp_conf(vctx, &cf->common);
 }
 
 /*

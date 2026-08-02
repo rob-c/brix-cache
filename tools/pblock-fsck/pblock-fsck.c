@@ -14,6 +14,9 @@
  *                                    a recompute (--verify-usage only; F5)
  *         REFS <blob> refcount=R referrers=N — tracked refcount disagrees with
  *                                    the referring-row count (--verify-refs; F10)
+ *         REPLAY-DIFF <path> <why>  — --replay only (F17): the namespace state
+ *                                    re-derived from a source catalog's oplog
+ *                                    diverges from that catalog's objects table
  *       Exit status is the finding-count class so pytest can assert on it:
  *         0 clean · 1 findings present · 2 usage/IO error · 3 refused (schema).
  *
@@ -59,6 +62,8 @@ struct opts {
     int         list_trash;         /* F11 — list the trash ledger then exit    */
     const char *undelete;           /* F11 — pop a path out of the trash        */
     long long   trash_ttl;          /* F11 — --gc purge age in secs; -1 = off   */
+    const char *replay;             /* F17 — source catalog whose oplog to
+                                     * re-execute against this fresh export     */
 };
 
 static int g_findings;              /* total divergences reported this run */
@@ -1001,6 +1006,356 @@ trash_purge(sqlite3 *db, long long ttl)
     return snap_recount(db) == 0 ? 0 : 2;
 }
 
+/* ---- F17 --replay: re-execute an oplog against a fresh export ------------ */
+
+/* replay_parent_of — parent path math, mirroring the driver's parent_of()
+ * (sd_pblock_catalog.c): the root's parent is "" (never its own child), a
+ * direct child of the root has parent "/". Re-derived here like the blob
+ * fan-out math so the tool stays single-file self-contained. */
+static void
+replay_parent_of(const char *path, char *out, size_t cap)
+{
+    const char *slash = strrchr(path, '/');
+    size_t      len;
+
+    if (path[0] == '/' && path[1] == '\0') {
+        out[0] = '\0';
+        return;
+    }
+    if (slash == NULL || slash == path) {
+        snprintf(out, cap, "/");
+        return;
+    }
+    len = (size_t) (slash - path);
+    if (len >= cap) {
+        len = cap - 1;
+    }
+    memcpy(out, path, len);
+    out[len] = '\0';
+}
+
+/* aux_ll — value of `key=` ("w=", "flags=", ...) in an oplog aux string, or
+ * `absent` when the key is not present. Keys never appear as a suffix of
+ * another key in the audit vocabulary (w= / r= / mb= / cow= / flags=), so a
+ * token-boundary check on the left is all that is needed. */
+static long long
+aux_ll(const char *aux, const char *key, long long absent)
+{
+    const char *p = aux;
+    size_t      klen = strlen(key);
+
+    while ((p = strstr(p, key)) != NULL) {
+        if (p == aux || p[-1] == ' ') {
+            return strtoll(p + klen, NULL, 10);
+        }
+        p += klen;
+    }
+    return absent;
+}
+
+/* replay_put — INSERT OR REPLACE a namespace row the way the driver's
+ * pblock_catalog_put binds it. blob_id stays '' and mode 0: neither is in the
+ * oplog (documented non-goals of the replay projection). */
+static int
+replay_put(sqlite3 *db, const char *path, int is_dir, long long size,
+    long long uid, long long gid, long long ts, int keep_existing)
+{
+    char          parent[1024];
+    sqlite3_stmt *st;
+    int           rc;
+
+    replay_parent_of(path, parent, sizeof(parent));
+    st = NULL;
+    if (sqlite3_prepare_v2(db,
+            keep_existing
+                ? "INSERT OR IGNORE INTO objects"
+                  "  (path, parent, is_dir, size, mtime, ctime, uid, gid)"
+                  "  VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7);"
+                : "INSERT OR REPLACE INTO objects"
+                  "  (path, parent, is_dir, size, mtime, ctime, uid, gid)"
+                  "  VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7);",
+            -1, &st, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    sqlite3_bind_text(st, 1, path, -1, SQLITE_STATIC);
+    sqlite3_bind_text(st, 2, parent, -1, SQLITE_STATIC);
+    sqlite3_bind_int(st, 3, is_dir);
+    sqlite3_bind_int64(st, 4, size);
+    sqlite3_bind_int64(st, 5, ts);
+    sqlite3_bind_int64(st, 6, uid);
+    sqlite3_bind_int64(st, 7, gid);
+    rc = sqlite3_step(st);
+    sqlite3_finalize(st);
+    return rc == SQLITE_DONE ? 0 : -1;
+}
+
+/* replay_rename — subtree reparent, mirroring the driver's collect-then-move
+ * (sd_pblock_catalog_ns.c): gather the row + every descendant first, then
+ * rewrite each path with its parent recomputed — never UPDATE while the
+ * SELECT cursor is live. */
+static int
+replay_rename(sqlite3 *db, const char *src, const char *dst)
+{
+    sqlite3_stmt *sel, *upd;
+    char        (*paths)[1024] = NULL;
+    size_t        n = 0, cap = 0, i;
+    size_t        srclen = strlen(src);
+    int           rc = 0;
+
+    if (sqlite3_prepare_v2(db,
+            "SELECT path FROM objects WHERE path = ?1 OR path LIKE ?1 || '/%';",
+            -1, &sel, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    sqlite3_bind_text(sel, 1, src, -1, SQLITE_STATIC);
+    while (sqlite3_step(sel) == SQLITE_ROW) {
+        const char *p = (const char *) sqlite3_column_text(sel, 0);
+
+        if (n == cap) {
+            size_t ncap = cap ? cap * 2 : 16;
+            void  *np = realloc(paths, ncap * sizeof(paths[0]));
+
+            if (np == NULL) {
+                rc = -1;
+                break;
+            }
+            paths = np;
+            cap = ncap;
+        }
+        snprintf(paths[n++], sizeof(paths[0]), "%s", p ? p : "");
+    }
+    sqlite3_finalize(sel);
+
+    for (i = 0; rc == 0 && i < n; i++) {
+        char newpath[1024], parent[1024];
+
+        snprintf(newpath, sizeof(newpath), "%s%s", dst, paths[i] + srclen);
+        replay_parent_of(newpath, parent, sizeof(parent));
+        if (sqlite3_prepare_v2(db,
+                "UPDATE objects SET path = ?2, parent = ?3 WHERE path = ?1;",
+                -1, &upd, NULL) != SQLITE_OK) {
+            rc = -1;
+            break;
+        }
+        sqlite3_bind_text(upd, 1, paths[i], -1, SQLITE_STATIC);
+        sqlite3_bind_text(upd, 2, newpath, -1, SQLITE_STATIC);
+        sqlite3_bind_text(upd, 3, parent, -1, SQLITE_STATIC);
+        rc = sqlite3_step(upd) == SQLITE_DONE ? 0 : -1;
+        sqlite3_finalize(upd);
+    }
+    free(paths);
+    return rc;
+}
+
+/* replay_diff — compare the replayed namespace against the source catalog's
+ * own objects table on the reproducible projection (path, is_dir, size, uid,
+ * gid; NOT blob_id/mode/xattrs — those are store-random or never logged).
+ * Each divergence is a REPLAY-DIFF finding. On a healthy trace the diff is
+ * empty; on a crash-truncated catalog the diff IS the forensic signal — the
+ * rows the crashed store lost or half-applied. */
+static void
+replay_diff(sqlite3 *tgt, const char *label)
+{
+    sqlite3_stmt *st;
+
+    /* Rows differing or present on one side only, both directions. */
+    if (sqlite3_prepare_v2(tgt,
+            "SELECT COALESCE(a.path, b.path),"
+            "       a.path IS NULL, b.path IS NULL"
+            "  FROM main.objects a FULL OUTER JOIN src.objects b"
+            "    ON a.path = b.path"
+            " WHERE a.path IS NULL OR b.path IS NULL"
+            "    OR a.is_dir <> b.is_dir OR a.size <> b.size"
+            "    OR a.uid <> b.uid OR a.gid <> b.gid"
+            " ORDER BY 1;", -1, &st, NULL) != SQLITE_OK) {
+        /* FULL OUTER JOIN needs sqlite >= 3.39; fall back to two anti-join
+         * passes plus a column compare so old sqlites still diff. */
+        if (sqlite3_prepare_v2(tgt,
+                "SELECT path, 0, 1 FROM main.objects"
+                " WHERE path NOT IN (SELECT path FROM src.objects)"
+                " UNION ALL "
+                "SELECT path, 1, 0 FROM src.objects"
+                " WHERE path NOT IN (SELECT path FROM main.objects)"
+                " UNION ALL "
+                "SELECT a.path, 0, 0 FROM main.objects a, src.objects b"
+                " WHERE a.path = b.path AND (a.is_dir <> b.is_dir"
+                "    OR a.size <> b.size OR a.uid <> b.uid OR a.gid <> b.gid)"
+                " ORDER BY 1;", -1, &st, NULL) != SQLITE_OK) {
+            fprintf(stderr, "pblock-fsck: replay diff query failed\n");
+            g_findings++;
+            return;
+        }
+    }
+    while (sqlite3_step(st) == SQLITE_ROW) {
+        const char *path = (const char *) sqlite3_column_text(st, 0);
+        int         only_src = sqlite3_column_int(st, 1);
+        int         only_tgt = sqlite3_column_int(st, 2);
+
+        printf("REPLAY-DIFF %s %s\n", path ? path : "?",
+               only_src ? "missing-after-replay"
+                        : only_tgt ? (label ? label : "absent-in-source")
+                                   : "row-mismatch");
+        g_findings++;
+    }
+    sqlite3_finalize(st);
+}
+
+/* do_replay — `--replay <source-catalog.db>` (F17, the deferred half):
+ * re-execute the source oplog's namespace op sequence, in seq order, against
+ * THIS (fresh) export's catalog, then diff the result against the source's
+ * objects table. Reproducibility contract and its documented approximations:
+ *   - only result=0 rows replay (a failed op changed nothing);
+ *   - open/staged_open are catalog no-ops (their effects land at close/commit);
+ *   - close upserts the row with size = its folded w= total — exact for the
+ *     sequential-write traces the lab produces; a pure-read close (w=0) only
+ *     materialises a missing row, never shrinks an existing one;
+ *   - commit/copy carry the exact final size (w=) and upsert;
+ *   - blob_id/mode/xattrs are not in the oplog and are not reproduced.
+ * Fail-closed: refuses a target that already has namespace rows (the contract
+ * is a FRESH export), refuses a source without an oplog table, and counts any
+ * unknown op verb as a finding (an oplog from a newer driver than this tool).
+ * Exit: 0 end-state reproduced, 1 REPLAY-DIFF/unknown-op findings, 2 error. */
+static int
+do_replay(sqlite3 *db, const char *srcdb)
+{
+    sqlite3_stmt *st;
+    char          attach[PATH_MAX + 64];
+    int           applied = 0, noop = 0, skipped = 0, unknown = 0;
+    int           rc = 0;
+
+    if (strchr(srcdb, '\'') != NULL) {     /* path is spliced into ATTACH */
+        fprintf(stderr, "pblock-fsck: source path must not contain '\n");
+        return 2;
+    }
+    /* Prefer a read-only URI attach; fall back to a plain-path attach when
+     * this sqlite build has URI filenames disabled (we never write to src). */
+    snprintf(attach, sizeof(attach),
+             "ATTACH DATABASE 'file:%s?mode=ro' AS src;", srcdb);
+    if (sqlite3_exec(db, attach, NULL, NULL, NULL) != SQLITE_OK) {
+        snprintf(attach, sizeof(attach),
+                 "ATTACH DATABASE '%s' AS src;", srcdb);
+        if (sqlite3_exec(db, attach, NULL, NULL, NULL) != SQLITE_OK) {
+            fprintf(stderr, "pblock-fsck: cannot attach source %s: %s\n",
+                    srcdb, sqlite3_errmsg(db));
+            return 2;
+        }
+    }
+    if (sqlite3_prepare_v2(db, "SELECT 1 FROM src.oplog LIMIT 1;", -1, &st,
+                           NULL) != SQLITE_OK) {
+        fprintf(stderr, "pblock-fsck: source catalog has no oplog table "
+                        "(driver ran without audit=1)\n");
+        return 2;
+    }
+    sqlite3_finalize(st);
+
+    /* Fresh-export contract: replay never merges into existing namespace. */
+    if (table_present(db, "objects")) {
+        int have = 0;
+
+        if (sqlite3_prepare_v2(db, "SELECT 1 FROM main.objects LIMIT 1;", -1,
+                               &st, NULL) == SQLITE_OK) {
+            have = sqlite3_step(st) == SQLITE_ROW;
+            sqlite3_finalize(st);
+        }
+        if (have) {
+            fprintf(stderr, "pblock-fsck: refusing --replay into a non-empty "
+                            "catalog (target must be a fresh export)\n");
+            return 3;
+        }
+    }
+    if (sqlite3_exec(db,
+            "CREATE TABLE IF NOT EXISTS objects("
+            "  path TEXT PRIMARY KEY,"
+            "  parent TEXT NOT NULL,"
+            "  is_dir INTEGER NOT NULL,"
+            "  blob_id TEXT NOT NULL DEFAULT '',"
+            "  size INTEGER NOT NULL DEFAULT 0,"
+            "  block_size INTEGER NOT NULL DEFAULT 0,"
+            "  mtime INTEGER NOT NULL DEFAULT 0,"
+            "  ctime INTEGER NOT NULL DEFAULT 0,"
+            "  mode INTEGER NOT NULL DEFAULT 0,"
+            "  uid INTEGER NOT NULL DEFAULT 0,"
+            "  gid INTEGER NOT NULL DEFAULT 0,"
+            "  xform TEXT NOT NULL DEFAULT '');"
+            "CREATE INDEX IF NOT EXISTS objects_parent ON objects(parent);",
+            NULL, NULL, NULL) != SQLITE_OK) {
+        fprintf(stderr, "pblock-fsck: cannot create target schema: %s\n",
+                sqlite3_errmsg(db));
+        return 2;
+    }
+
+    if (sqlite3_prepare_v2(db,
+            "SELECT seq, op, path, aux, uid, gid, result, errno"
+            "  FROM src.oplog ORDER BY seq;", -1, &st, NULL) != SQLITE_OK) {
+        return 2;
+    }
+    while (rc == 0 && sqlite3_step(st) == SQLITE_ROW) {
+        const char *op   = (const char *) sqlite3_column_text(st, 1);
+        const char *path = (const char *) sqlite3_column_text(st, 2);
+        const char *aux  = (const char *) sqlite3_column_text(st, 3);
+        long long   uid  = sqlite3_column_int64(st, 4);
+        long long   gid  = sqlite3_column_int64(st, 5);
+        long long   ts   = sqlite3_column_int64(st, 0);   /* seq: monotone */
+        long long   w;
+
+        if (op == NULL || path == NULL) {
+            continue;
+        }
+        aux = aux ? aux : "";
+        if (sqlite3_column_int(st, 6) != 0) {
+            skipped++;                       /* failed op: changed nothing */
+            continue;
+        }
+        if (strcmp(op, "open") == 0 || strcmp(op, "staged_open") == 0) {
+            noop++;                          /* effects land at close/commit */
+        } else if (strcmp(op, "mkdir") == 0) {
+            rc = replay_put(db, path, 1, 0, uid, gid, ts, 0) ? 2 : 0;
+            applied++;
+        } else if (strcmp(op, "unlink") == 0 || strcmp(op, "rmdir") == 0) {
+            sqlite3_stmt *del;
+
+            if (sqlite3_prepare_v2(db,
+                    "DELETE FROM main.objects WHERE path = ?1;", -1, &del,
+                    NULL) != SQLITE_OK) {
+                rc = 2;
+            } else {
+                sqlite3_bind_text(del, 1, path, -1, SQLITE_STATIC);
+                rc = sqlite3_step(del) == SQLITE_DONE ? 0 : 2;
+                sqlite3_finalize(del);
+                applied++;
+            }
+        } else if (strcmp(op, "rename") == 0) {
+            rc = replay_rename(db, path, aux) ? 2 : 0;   /* aux = dst path */
+            applied++;
+        } else if (strcmp(op, "close") == 0) {
+            w = aux_ll(aux, "w=", 0);
+            rc = replay_put(db, path, 0, w, uid, gid, ts, w == 0) ? 2 : 0;
+            applied++;
+        } else if (strcmp(op, "commit") == 0 || strcmp(op, "copy") == 0) {
+            w = aux_ll(aux, "w=", 0);
+            rc = replay_put(db, path, 0, w, uid, gid, ts, 0) ? 2 : 0;
+            applied++;
+        } else {
+            printf("REPLAY-UNKNOWN-OP %s seq=%lld\n", op,
+                   (long long) sqlite3_column_int64(st, 0));
+            unknown++;
+            g_findings++;
+        }
+    }
+    sqlite3_finalize(st);
+    if (rc != 0) {
+        fprintf(stderr, "pblock-fsck: replay write failed: %s\n",
+                sqlite3_errmsg(db));
+        return 2;
+    }
+
+    replay_diff(db, NULL);
+    printf("REPLAY applied=%d noop=%d skipped=%d unknown=%d\n",
+           applied, noop, skipped, unknown);
+    printf("FINDINGS %d\n", g_findings);
+    return g_findings > 0 ? 1 : 0;
+}
+
 static void
 usage(void)
 {
@@ -1010,8 +1365,10 @@ usage(void)
         "       pblock-fsck <export-root> --snapshot <name> | --restore <name>\n"
         "       pblock-fsck <export-root> --list-versions <path> | --list-trash"
         " | --undelete <path>\n"
+        "       pblock-fsck <fresh-export-root> --replay <source-catalog.db>\n"
         "  cross-check catalog.db against the block store, take/restore an F6"
-        " snapshot, or inspect/recover F11 versions + trash.\n"
+        " snapshot, inspect/recover F11 versions + trash, or re-execute a"
+        " source oplog (F17) against a fresh export and diff the end-state.\n"
         "  --gc --trash-ttl <secs> also purges trash entries older than <secs>"
         " (0 = all).\n"
         "  exit: 0 clean, 1 findings, 2 error, 3 refused (unknown schema/name)\n");
@@ -1053,6 +1410,8 @@ main(int argc, char **argv)
             o.undelete = argv[++i];
         } else if (strcmp(argv[i], "--trash-ttl") == 0 && i + 1 < argc) {
             o.trash_ttl = strtoll(argv[++i], NULL, 10);
+        } else if (strcmp(argv[i], "--replay") == 0 && i + 1 < argc) {
+            o.replay = argv[++i];
         } else {
             usage();
             return 2;
@@ -1072,7 +1431,7 @@ main(int argc, char **argv)
     }
     sqlite3_busy_timeout(db, 5000);
 
-    if ((o.gc || o.repair || o.snapshot || o.restore || o.undelete)
+    if ((o.gc || o.repair || o.snapshot || o.restore || o.undelete || o.replay)
         && !schema_known(db))
     {
         fprintf(stderr, "pblock-fsck: refusing a mutating op on an unknown "
@@ -1083,6 +1442,11 @@ main(int argc, char **argv)
     /* F6/F11: snapshot / restore / list / undelete short-circuit — they replace,
      * extend or report state and exit; the consistency passes below are the
      * read-only default. */
+    if (o.replay != NULL) {
+        rc = do_replay(db, o.replay);
+        sqlite3_close(db);
+        return rc;
+    }
     if (o.snapshot != NULL) {
         rc = do_snapshot(db, o.snapshot);
         sqlite3_close(db);

@@ -50,8 +50,9 @@ sd_xroot_errno(const brix_cache_fill_t *t)
  *       so it lives in one place to prevent divergence.
  * HOW:  1) return early on NULL cred (the fill task was calloc-zeroed, so the
  *       bootstrap sees the service credential / anonymous). 2) Exactly one of
- *       {x509_proxy, bearer} is non-NULL for a credential-scoped open (mutually
- *       exclusive); copy whichever is present. 3) Copy principal when present. */
+ *       {x509_proxy, bearer, sss_keytab} is non-NULL for a credential-scoped
+ *       open (mutually exclusive); copy whichever is present. 3) Copy principal
+ *       when present (sss_keytab REQUIRES it — the asserted identity). */
 void
 sd_xroot_copy_cred_into_task(brix_cache_fill_t *t, const brix_sd_cred_t *cred)
 {
@@ -69,6 +70,21 @@ sd_xroot_copy_cred_into_task(brix_cache_fill_t *t, const brix_sd_cred_t *cred)
     if (cred->principal != NULL) {
         ngx_cpystrn((u_char *) t->cred_principal, (u_char *) cred->principal,
                     sizeof(t->cred_principal));
+    }
+    if (cred->sss_keytab != NULL && cred->sss_keytab[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_sss_keytab,
+                    (u_char *) cred->sss_keytab, sizeof(t->cred_sss_keytab));
+    }
+    /* krb5 delegation carry (phase-70 §5.7): the FILE-ccache PATH holding the
+     * delegated TGT plus the origin service principal to authenticate against.
+     * Both are set together by the vfs_deleg krb5 gate (brix_vfs_deleg_krb5). */
+    if (cred->krb5_ccache != NULL && cred->krb5_ccache[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_krb5_ccache,
+                    (u_char *) cred->krb5_ccache, sizeof(t->cred_krb5_ccache));
+    }
+    if (cred->krb5_princ != NULL && cred->krb5_princ[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_krb5_princ,
+                    (u_char *) cred->krb5_princ, sizeof(t->cred_krb5_princ));
     }
 }
 
@@ -197,7 +213,8 @@ static const brix_sd_driver_t brix_sd_xroot_driver = {
                  | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY
                  | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE
                  | BRIX_SD_CAP_MEMFILE,
-    .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM,
+    .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM
+                 | BRIX_SD_CRED_SSS | BRIX_SD_CRED_GSS_KRB5,
     .open          = sd_xroot_open,
     .close         = sd_xroot_close,
     .pread         = sd_xroot_pread,

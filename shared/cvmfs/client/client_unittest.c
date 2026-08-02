@@ -278,6 +278,53 @@ int main(void) {
     CHECK(cvmfs_client_refresh(cl, now + 300) == 0,
           "refresh due past TTL re-verifies, same revision → 0");
 
+    /* ---- G1 negative-lookup filter (phase-87) ---- */
+    CHECK(cvmfs_client_negfilter_build(cl, now) == 0,
+          "negfilter builds from verified paths walk");
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
+          "negfilter passes member path through");
+    CHECK(cvmfs_client_resolve(cl, "/nope", &e, now) == 0,
+          "negfilter absent path → 0");
+
+    /* Prove resolve consults the filter BEFORE the catalog: adopt a decoy
+     * filter (member set {"/decoy"} only) bound to the served root — /hello is
+     * in the catalog but must now short-circuit to absent. (Deterministic:
+     * fixed seeds, and the build check asserts /hello is not a false positive
+     * of the decoy.) */
+    cvmfs_hash_t nfroot;
+    CHECK(cvmfs_client_negfilter(cl, &nfroot) != NULL, "active filter exposed");
+    uint64_t dk = cvmfs_xorf_key("/decoy");
+    cvmfs_xorf_t decoy;
+    CHECK(cvmfs_xorf_build(&decoy, &dk, 1) == 0
+          && cvmfs_xorf_query(&decoy, cvmfs_xorf_key("/hello")) == 0,
+          "decoy filter builds, /hello outside it");
+    CHECK(cvmfs_client_negfilter_adopt(cl, &decoy, &nfroot) == 0,
+          "adopt accepts filter bound to served root");
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 0,
+          "filter short-circuit answers ahead of the catalog");
+
+    /* Revision advance ⇒ auto-deactivation: once the served root differs from
+     * the filter's bound root the stale filter must stop answering — a stale
+     * filter may never fabricate ENOENT for a path the new revision has. */
+    cl->manifest.root_catalog.bytes[0] ^= 0xff;
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
+          "stale filter auto-deactivates on revision change");
+    cl->manifest.root_catalog.bytes[0] ^= 0xff;
+
+    /* security-neg: a filter bound to a DIFFERENT revision is refused */
+    uint64_t hk = cvmfs_xorf_key("/hello");
+    cvmfs_xorf_t wrongrev;
+    CHECK(cvmfs_xorf_build(&wrongrev, &hk, 1) == 0, "wrong-rev filter builds");
+    cvmfs_hash_t other = nfroot;
+    other.bytes[0] ^= 0xff;
+    CHECK(cvmfs_client_negfilter_adopt(cl, &wrongrev, &other) == -1,
+          "adopt refuses filter bound to another revision");
+    cvmfs_xorf_reset(&wrongrev);
+
+    cvmfs_client_negfilter_clear(cl);
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
+          "clear restores live lookups");
+
     /* ---- tamper negative: forge the manifest signature, mount must fail ---- */
     manifest[mn - 1] ^= 0xff;
     cvmfs_client_t *cl2 = calloc(1, sizeof(*cl2));

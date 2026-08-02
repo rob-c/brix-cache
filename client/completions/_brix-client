@@ -67,6 +67,7 @@ _brix_xrdcp() {
         '--proxy=[X.509 proxy certificate path, overrides X509_USER_PROXY]:file:_files' \
         '--pgrw[use paged I/O (kXR_pgread/kXR_pgwrite) with per-page CRC32c]' \
         '--io-uring=[local-disk io_uring overlap ring mode]:mode:(on off auto)' \
+        '--io-uring-direct[engage the O_DIRECT tier on the local-disk ring]' \
         '--cksum=[verify checksum type after transfer]:type:(adler32 crc32c md5)' \
         '--compress=[enable inline compression on root:// transfers]:codec:(gzip deflate zstd br xz bzip2)' \
         '--zip[store local source in a STORE ZIP archive member]' \

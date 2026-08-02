@@ -76,6 +76,16 @@ ngx_int_t brix_gssapi_srv_peer(brix_gssapi_srv_t *g,
 ngx_int_t brix_gssapi_srv_peer_cert_pem(brix_gssapi_srv_t *g, ngx_str_t *out);
 
 /*
+ * brix_gssapi_srv_peer_x509 — after COMPLETE, hand back the verified client leaf
+ * certificate (the proxy it authenticated with, +1 ref → caller X509_free) and
+ * the borrowed peer chain (do NOT free), so a caller can parse a VOMS Attribute
+ * Certificate off the proxy exactly as the HTTPS plane does from an SSL session.
+ * NGX_OK when a leaf is present, NGX_ERROR otherwise (*leaf left NULL).
+ */
+ngx_int_t brix_gssapi_srv_peer_x509(brix_gssapi_srv_t *g, X509 **leaf,
+    STACK_OF(X509) **chain);
+
+/*
  * brix_gssapi_wrap / _unwrap — post-auth confidentiality layer.  wrap encrypts
  * `in` into a protected token (SSL_write → drain); unwrap decrypts a received
  * token (feed → SSL_read) into plaintext.  `out` is pool-allocated.  NGX_OK/ERR.

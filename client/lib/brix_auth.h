@@ -67,6 +67,15 @@ void brix_cred_hint_for_status_url(const brix_status *st, int want_write,
 int  brix_cred_autorefresh(int want_write, const char *oidc_account,
                            int verbose, FILE *out);
 
+/* Phase-92 C2(a): per-kind refresh entry points the credential-store handlers
+ * (cred_bearer.c / cred_x509.c) invoke from their (cfg, st) refresh callbacks,
+ * so `--auto-refresh` actually re-mints the near-expiry credential through the
+ * same engine as the pre-transfer sweep. Each returns 1 if it (re)acquired,
+ * else 0; both are best-effort / fail-soft. brix_cred_refresh_bearer resolves a
+ * NULL/empty account from $OIDC_ACCOUNT. (credrefresh.c) */
+int  brix_cred_refresh_bearer(const char *oidc_account, int verbose, FILE *out);
+int  brix_cred_refresh_gsi(int verbose, FILE *out);
+
 /* ---- proxy.c (xrdgsiproxy: RFC-3820 X.509 proxy create/info/destroy) ---- */
 /* If the session has a signing key and the server's security level requires it
  * for this opcode, send a kXR_sigver frame covering hdr24(+payload) and consume
