@@ -93,4 +93,37 @@ brix_apply_tcp_congestion(ngx_socket_t fd, ngx_str_t algo)
 #endif
 }
 
+/*
+ * Size the socket send/receive buffers on fd (SO_SNDBUF / SO_RCVBUF).
+ *   sndbuf — send-buffer bytes; 0 leaves the kernel default (autotuning) intact.
+ *   rcvbuf — receive-buffer bytes; 0 leaves the kernel default intact.
+ * Phase-33 P3-B3: on a high bandwidth-delay-product link the kernel's send
+ * autotuning can lag the true BDP, capping single-stream download throughput
+ * below line rate.  Pinning SO_SNDBUF to the deployment BDP lets the download
+ * (server->client, the dominant read direction) keep the pipe full; SO_RCVBUF
+ * is the symmetric knob for the upload/PUT direction.  Per-socket and
+ * best-effort: setting either clears the kernel's autotuning for that direction,
+ * so leave them 0 unless the operator has measured the BDP.  A setsockopt
+ * failure (e.g. value above net.core.{w,r}mem_max) leaves the default and the
+ * connection proceeds — never a hard error.
+ *
+ * Note: the kernel doubles the requested value (bookkeeping overhead) and clamps
+ * it to net.core.{w,r}mem_max, so a getsockopt read-back returns roughly
+ * 2*requested (capped) — verified against, not asserted equal, in the tests.
+ */
+static ngx_inline void
+brix_apply_socket_buffers(ngx_socket_t fd, size_t sndbuf, size_t rcvbuf)
+{
+    if (sndbuf > 0) {
+        int v = (int) sndbuf;
+        (void) setsockopt(fd, SOL_SOCKET, SO_SNDBUF,
+                          (const void *) &v, sizeof(v));
+    }
+    if (rcvbuf > 0) {
+        int v = (int) rcvbuf;
+        (void) setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
+                          (const void *) &v, sizeof(v));
+    }
+}
+
 #endif /* NGX_BRIX_CONNECTION_NETOPT_H */

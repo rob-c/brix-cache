@@ -5,6 +5,7 @@
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * gsi_mech.c — the mem-BIO GSI GSSAPI accept engine declared in gsi_mech.h.
@@ -66,7 +67,7 @@ gss_cleanup(void *data)
         g->ssl = NULL;
     }
     if (g->req_key != NULL) {
-        EVP_PKEY_free(g->req_key);
+        brix_evp_pkey_free(g->req_key);
         g->req_key = NULL;
     }
 }
@@ -505,6 +506,32 @@ brix_gssapi_srv_peer_cert_pem(brix_gssapi_srv_t *g, ngx_str_t *out)
     rc = gss_x509_pem(g, leaf, out);
     X509_free(leaf);
     return rc;
+}
+
+
+ngx_int_t
+brix_gssapi_srv_peer_x509(brix_gssapi_srv_t *g, X509 **leaf,
+    STACK_OF(X509) **chain)
+{
+    if (leaf != NULL) {
+        *leaf = NULL;
+    }
+    if (chain != NULL) {
+        *chain = NULL;
+    }
+    if (g->ssl == NULL || !g->verified) {
+        return NGX_ERROR;
+    }
+    if (leaf != NULL) {
+        *leaf = SSL_get_peer_certificate(g->ssl);   /* +1 ref → caller frees */
+        if (*leaf == NULL) {
+            return NGX_ERROR;
+        }
+    }
+    if (chain != NULL) {
+        *chain = SSL_get_peer_cert_chain(g->ssl);    /* borrowed */
+    }
+    return NGX_OK;
 }
 
 

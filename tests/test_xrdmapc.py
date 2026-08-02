@@ -121,7 +121,10 @@ def test_map_verify_only_advertised(anon):
 # cluster redirector (optional — skips when the fleet is down)
 # --------------------------------------------------------------------------
 
-@pytest.mark.registry_server("cluster-redir")
+# Declare the data server too: it `requires` (subscribes to) cluster-redir, so
+# the closure brings the redirector up with a live holder — a lone redirector
+# locates `/` to nobody (kXR NotFound → rc 54), which is not what this exercises.
+@pytest.mark.registry_server("cluster-redir", "cluster-ds")
 def test_map_cluster_redirector(anon):
     if not _port_up(SERVER_HOST, CLUSTER_REDIR_PORT):
         pytest.skip("cluster redirector not running")

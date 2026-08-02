@@ -118,7 +118,7 @@ brix_build_single_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
  * WHY: Non-TLS connections can use the kernel-level zero-copy path for superior
  * throughput. TLS connections automatically fall back to read+write because
  * nginx's SSL layer cannot wrap sendfile — no explicit handling needed here.
- * Multi-chunk support handles reads exceeding BRIX_READ_CHUNK_MAX (16 MiB).
+ * Multi-chunk support handles reads exceeding BRIX_READ_CHUNK_MAX (32 MiB).
  *
  * HOW: Delegates to brix_build_single_sendfile_chain for small responses.
  * For large responses, iterates over n_chunks allocating one ngx_file_t per

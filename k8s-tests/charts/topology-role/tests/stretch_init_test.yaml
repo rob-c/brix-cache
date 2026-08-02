@@ -1,0 +1,142 @@
+suite: role stretch init containers (phase-80 P80.14/P80.25)
+templates:
+  - templates/deployment.yaml
+release:
+  name: brix-stretch
+tests:
+  # ----------------------------------------------------------------------
+  # voms-lsc-init (P80.14): a flat per-VO LSC secret is materialised into a
+  # <vo>/*.lsc subdir tree the main container mounts as the VOMS trust store.
+  # ----------------------------------------------------------------------
+  - it: builds the VOMS trust store from a flat secret when auth.vomsLsc is set
+    set:
+      role:
+        name: s3voms
+        ports: [{ name: xrootd, port: 1097 }]
+        auth:
+          vomsLsc: sv-voms-lsc
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          any: true
+          content: { name: voms-lsc-init }
+      - matchRegex:
+          path: spec.template.spec.initContainers[?(@.name=="voms-lsc-init")].args[0]
+          pattern: 'cp "\$f" "/vomsdir/\$vo/voms\.test\.local\.lsc"'
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content: { name: voms-lsc-src, secret: { secretName: sv-voms-lsc } }
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content: { name: vomsdir-built, emptyDir: {} }
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          any: true
+          content: { name: vomsdir-built, mountPath: /etc/grid-security/vomsdir, readOnly: true }
+
+  - it: uses a plain configMap vomsdir and NO builder when auth.vomsdir is set instead
+    set:
+      role:
+        name: fleet
+        ports: [{ name: xrootd, port: 11095 }]
+        auth:
+          vomsdir: brix-fleet-vomsdir
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers
+          any: true
+          content: { name: voms-lsc-init }
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content: { name: vomsdir, configMap: { name: brix-fleet-vomsdir } }
+
+  # ----------------------------------------------------------------------
+  # nss-init (P80.25): passwd/group fragments merged over the image NSS files
+  # into an emptyDir the main container mounts back via subPath.
+  # ----------------------------------------------------------------------
+  - it: merges NSS fragments and mounts them back via subPath when auth.nssSecret is set
+    set:
+      role:
+        name: pbgsi
+        ports: [{ name: xrootd, port: 1096 }]
+        auth:
+          nssSecret: pb-nss
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          any: true
+          content: { name: nss-init }
+      - matchRegex:
+          path: spec.template.spec.initContainers[?(@.name=="nss-init")].args[0]
+          pattern: 'passwd\.frag.*>> /nss/passwd'
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          any: true
+          content: { name: nss, mountPath: /etc/passwd, subPath: passwd, readOnly: true }
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          any: true
+          content: { name: nss, mountPath: /etc/group, subPath: group, readOnly: true }
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content: { name: nss-src, secret: { secretName: pb-nss } }
+
+  - it: does not mount NSS subPaths when auth.nssSecret is unset
+    set:
+      role:
+        name: plain
+        ports: [{ name: xrootd, port: 1094 }]
+        auth:
+          caBundle: brix-fleet-ca-bundle
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers
+          any: true
+          content: { name: nss-init }
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          any: true
+          content: { name: nss, mountPath: /etc/passwd, subPath: passwd, readOnly: true }
+
+  # ----------------------------------------------------------------------
+  # data-seed (P80.25): pre-seeds the pblock catalog governed prefixes world-
+  # writable (mode 0o40000|0o777) so the pblock POSIX layer is permissive and
+  # the authdb g-rule gate is the sole differentiator.
+  # ----------------------------------------------------------------------
+  - it: seeds governed prefixes world-writable when role.dataSeed.enabled
+    set:
+      role:
+        name: pbgsi
+        ports: [{ name: xrootd, port: 1096 }]
+        data: { root: /data/xrootd }
+        dataSeed:
+          enabled: true
+          image: brix-server:dev
+          dirs: "/phys /eng"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          any: true
+          content: { name: data-seed, image: "brix-server:dev" }
+      - matchRegex:
+          path: spec.template.spec.initContainers[?(@.name=="data-seed")].args[0]
+          pattern: '0o40000 \| 0o777'
+      - matchRegex:
+          path: spec.template.spec.initContainers[?(@.name=="data-seed")].args[0]
+          pattern: '"/phys /eng"\.split\(\)'
+      - contains:
+          path: spec.template.spec.initContainers[?(@.name=="data-seed")].volumeMounts
+          content: { name: data, mountPath: /data/xrootd }
+
+  - it: omits the initContainers block entirely for a bare role
+    set:
+      role:
+        name: bare
+        ports: [{ name: xrootd, port: 1094 }]
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers

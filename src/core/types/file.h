@@ -305,6 +305,12 @@ typedef struct {
     brix_vfs_writer_t *writer;             /* non-NULL = whole-object staged write */
     unsigned           staged_committed:1;  /* 1 = object already committed (sync/close) */
 
+    /* phase-92: XrdBwm-style bandwidth reservation (net/ratelimit/reservation.c).
+     * Bytes this handle reserved against the configured brix_throttle_bandwidth_zone
+     * at open (0 = none held). Released by the exact amount at close/disconnect so
+     * concurrent reads free their own budget. */
+    uint64_t           bwm_reserved;
+
 } brix_file_t;
 
 #endif /* BRIX_TYPES_FILE_H */

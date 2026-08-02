@@ -13,9 +13,12 @@
 # because its baseline is GCC-version-sensitive). Each harness runs the fast
 # FUZZ_TIME the runner honours; the nightly cron runs the same targets longer.
 #
-# Corpus growth (minimized corpora committed back to compound coverage) and the
-# planned C-1/C-2 wire/auth-parser harnesses attach to this same lane as they
-# land — see docs/07-security/hyper-hardening-plan.md B-3/C-1/C-2.
+# Corpus growth is now realised: the `corpus-writeback` job below runs the
+# nightly `-merge=1` minimization and commits the coverage-minimal corpora back
+# (hyper-hardening B-3 Fix 2). The C-1/C-2 auth/wire-framing harnesses
+# (fuzz_gsi_bucket, fuzz_sss_frame, fuzz_macaroon_frame, fuzz_sigv4_canonical,
+# fuzz_root_frame) attach to this same lane via cmdscripts.fuzz_all — see
+# docs/07-security/hyper-hardening-plan.md B-3/C-1/C-2.
 name: fuzz
 on:
   pull_request:
@@ -32,6 +35,8 @@ jobs:
       - name: Install build deps
         run: |
           sudo apt-get update
+          # libssl-dev provides -lcrypto for fuzz_gsi_bucket; libjansson-dev for
+          # fuzz_jwt_json; zlib1g-dev for fuzz_zip_dir.
           sudo apt-get install -y --no-install-recommends \
             clang zlib1g-dev libssl-dev libjansson-dev
       - name: Run libFuzzer harnesses
@@ -40,3 +45,25 @@ jobs:
           # Longer soak on the nightly cron; fast smoke on PR/push.
           FUZZ_TIME: ${{ github.event_name == 'schedule' && '600' || '60' }}
         run: python3 -m cmdscripts.fuzz_all
+
+  # Nightly (and manual) corpus write-back — the git-write half of B-3.
+  # NEVER runs on pull_request: an untrusted PR must not be able to push. It
+  # minimizes every harness corpus with `-merge=1` and commits ONLY the reduced
+  # tests/fuzz/corpus_* dirs back to main so coverage compounds across nights.
+  corpus-writeback:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A full checkout with push credentials so the bot can commit back.
+          persist-credentials: true
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang zlib1g-dev libssl-dev libjansson-dev
+      - name: Minimize corpora and commit back
+        run: python3 tools/ci/fuzz_corpus_writeback.py --commit

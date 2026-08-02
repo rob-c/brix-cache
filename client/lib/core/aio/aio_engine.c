@@ -65,8 +65,133 @@ uring_poll_submit(brix_loop *l, brix_aconn *ac, int want)
         return -1;
     }
     io_uring_prep_poll_multishot(sqe, ac->fd, uring_pollmask(want));
-    io_uring_sqe_set_data64(sqe, ((uint64_t) l->uslots[slot].gen << 32) | slot);
+    io_uring_sqe_set_data64(sqe,
+        AIO_URING_UD(AIO_UD_POLL, l->uslots[slot].gen, slot));
     return io_uring_submit(&l->uring) < 0 ? -1 : 0;
+}
+
+
+/* ---- P44-C (ii-b): cleartext RECV/SEND multishot tier ---- */
+
+/* Return one provided buffer to the RX ring (kernel may refill it after this —
+ * always copy out of it first). */
+void
+uring_rxtx_recycle(brix_loop *l, struct io_uring_cqe *cqe)
+{
+    uint16_t bid;
+
+    if (!(cqe->flags & IORING_CQE_F_BUFFER)) {
+        return;
+    }
+    bid = (uint16_t) (cqe->flags >> IORING_CQE_BUFFER_SHIFT);
+    io_uring_buf_ring_add(l->brx,
+        l->brx_pool + (size_t) bid * AIO_URING_RXBUF_SZ,
+        AIO_URING_RXBUF_SZ, bid,
+        io_uring_buf_ring_mask(AIO_URING_RXBUFS), 0);
+    io_uring_buf_ring_advance(l->brx, 1);
+}
+
+
+/* Arm (or re-arm) the persistent multishot RECV for a cleartext conn.  Buffers
+ * are kernel-selected from the BGID_RX provided ring. */
+int
+uring_recv_submit(brix_loop *l, brix_aconn *ac)
+{
+    struct io_uring_sqe *sqe  = io_uring_get_sqe(&l->uring);
+    uint32_t             slot = (uint32_t) ac->uring_slot;
+
+    if (sqe == NULL) {
+        return -1;
+    }
+    io_uring_prep_recv_multishot(sqe, ac->fd, NULL, 0, 0);
+    sqe->flags    |= IOSQE_BUFFER_SELECT;
+    sqe->buf_group = AIO_URING_BGID_RX;
+    io_uring_sqe_set_data64(sqe,
+        AIO_URING_UD(AIO_UD_RECV, l->uslots[slot].gen, slot));
+    if (io_uring_submit(&l->uring) < 0) {
+        return -1;
+    }
+    l->uslots[slot].recv_armed = 1;
+    return 0;
+}
+
+
+/* Stage + submit one one-shot SEND for the current wbuf tail.  The bytes are
+ * copied into the slot's staging slice first: wbuf may be realloc'd by new
+ * frames while the kernel still reads the send buffer, so the SQE must never
+ * point into wbuf itself.  Returns 0 with the SEND in flight (or nothing to
+ * do), -1 when the ring can't take it (caller may fall back to send(2) —
+ * safe, as nothing is in flight then). */
+int
+uring_rxtx_send_submit(brix_loop *l, brix_aconn *ac)
+{
+    struct io_uring_sqe   *sqe;
+    struct brix_poll_slot *s;
+    size_t                 avail;
+    uint32_t               n;
+
+    if (ac->uring_slot < 0 && io_engine_arm(l, ac, EPOLLIN) != 0) {
+        return -1;
+    }
+    s = &l->uslots[ac->uring_slot];
+
+    if (s->send_inflight || ac->wbuf.start >= ac->wbuf.len) {
+        return 0;
+    }
+    if (s->stage == NULL) {
+        s->stage = (uint8_t *) malloc(AIO_URING_STAGE_SZ);
+        if (s->stage == NULL) {
+            return -1;
+        }
+    }
+    avail = ac->wbuf.len - ac->wbuf.start;
+    n = (uint32_t) (avail > AIO_URING_STAGE_SZ ? AIO_URING_STAGE_SZ : avail);
+    memcpy(s->stage, ac->wbuf.buf + ac->wbuf.start, n);
+
+    sqe = io_uring_get_sqe(&l->uring);
+    if (sqe == NULL) {
+        return -1;
+    }
+    io_uring_prep_send(sqe, ac->fd, s->stage, n, MSG_NOSIGNAL);
+    io_uring_sqe_set_data64(sqe,
+        AIO_URING_UD(AIO_UD_SEND, s->gen, (uint32_t) ac->uring_slot));
+    if (io_uring_submit(&l->uring) < 0) {
+        return -1;
+    }
+    s->send_inflight = 1;
+    s->stage_len     = n;
+    return 0;
+}
+
+
+/* Cancel every outstanding rxtx op on ac's fd (multishot RECV + any SEND) and
+ * invalidate their CQEs via the generation bump.  The cancel acks come back
+ * with AIO_URING_IGNORE_UD-free cookies but stale gens, so they are dropped. */
+static void
+uring_rxtx_cancel(brix_loop *l, brix_aconn *ac, int freeing)
+{
+    uint32_t               slot = (uint32_t) ac->uring_slot;
+    struct brix_poll_slot *s    = &l->uslots[slot];
+    struct io_uring_sqe   *sqe;
+
+    sqe = io_uring_get_sqe(&l->uring);
+    if (sqe != NULL) {
+        io_uring_prep_cancel_fd(sqe, ac->fd, IORING_ASYNC_CANCEL_ALL);
+        io_uring_sqe_set_data64(sqe, AIO_URING_IGNORE_UD);
+        (void) io_uring_submit(&l->uring);
+    }
+    s->gen++;                       /* stale CQEs (incl. in-flight SEND) drop */
+    s->recv_armed    = 0;
+    s->send_inflight = 0;
+    s->stage_len     = 0;
+    if (freeing) {
+        free(s->stage);
+        s->stage   = NULL;
+        s->in_use  = 0;
+        s->ac      = NULL;
+        s->rxtx    = 0;
+        ac->uring_slot = -1;
+    }
 }
 
 
@@ -120,6 +245,34 @@ io_engine_setup(brix_loop *l, brix_status *st)
             return -1;
         }
         l->uring_ok = 1;
+
+        if (l->use_rxtx) {
+            /* P44-C: provided-buffer ring for the cleartext RECV tier.
+             * Best-effort — on an old kernel (needs 5.19+) degrade to the
+             * POLL_ADD-only engine instead of failing the loop. */
+            int rr = 0;
+            l->brx_pool = (uint8_t *)
+                malloc((size_t) AIO_URING_RXBUFS * AIO_URING_RXBUF_SZ);
+            if (l->brx_pool != NULL) {
+                l->brx = io_uring_setup_buf_ring(&l->uring, AIO_URING_RXBUFS,
+                                                 AIO_URING_BGID_RX, 0, &rr);
+            }
+            if (l->brx != NULL) {
+                unsigned i;
+                for (i = 0; i < AIO_URING_RXBUFS; i++) {
+                    io_uring_buf_ring_add(l->brx,
+                        l->brx_pool + (size_t) i * AIO_URING_RXBUF_SZ,
+                        AIO_URING_RXBUF_SZ, (unsigned short) i,
+                        io_uring_buf_ring_mask(AIO_URING_RXBUFS), (int) i);
+                }
+                io_uring_buf_ring_advance(l->brx, AIO_URING_RXBUFS);
+            } else {
+                free(l->brx_pool);
+                l->brx_pool = NULL;
+                l->use_rxtx = 0;
+            }
+        }
+
         sqe = io_uring_get_sqe(&l->uring);     /* multishot poll on the evfd */
         if (sqe == NULL) {
             brix_status_set(st, XRDC_ESOCK, 0, "io_uring evfd arm");
@@ -162,6 +315,18 @@ io_engine_teardown(brix_loop *l)
 #if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
         if (l->uring_ok) {
+            unsigned i;
+            for (i = 0; i < AIO_URING_SLOTS; i++) {   /* rxtx send stages */
+                free(l->uslots[i].stage);
+                l->uslots[i].stage = NULL;
+            }
+            if (l->brx != NULL) {
+                io_uring_free_buf_ring(&l->uring, l->brx, AIO_URING_RXBUFS,
+                                       AIO_URING_BGID_RX);
+                l->brx = NULL;
+            }
+            free(l->brx_pool);
+            l->brx_pool = NULL;
             io_uring_queue_exit(&l->uring);
             l->uring_ok = 0;
         }
@@ -183,9 +348,29 @@ io_engine_arm(brix_loop *l, brix_aconn *ac, int want)
     if (l->use_uring) {
         if (ac->uring_slot < 0) {
             if (uring_slot_alloc(l, ac) != 0) { return -1; }
-        } else {
+            l->uslots[ac->uring_slot].rxtx = aconn_is_rxtx(ac) ? 1 : 0;
+        }
+
+        if (l->uslots[ac->uring_slot].rxtx) {
+            /* P44-C: the multishot RECV is the only persistent op — POLLOUT
+             * interest is meaningless (SENDs are submitted directly by
+             * aconn_do_write), so mask changes are no-ops once armed. */
+            if (!l->uslots[ac->uring_slot].recv_armed) {
+                ac->fd_gen++;
+                if (uring_recv_submit(l, ac) != 0) {
+                    l->uslots[ac->uring_slot].rxtx = 0;  /* degrade to poll */
+                } else {
+                    ac->epoll_events = want;
+                    return 0;
+                }
+            } else {
+                ac->epoll_events = want;
+                return 0;
+            }
+        } else if (ac->epoll_events != 0) {
             uring_poll_cancel(l, ac, 0);   /* drop the old mask's poll, keep slot */
         }
+
         ac->fd_gen++;
         if (uring_poll_submit(l, ac, want) != 0) { return -1; }
         ac->epoll_events = want;
@@ -212,7 +397,11 @@ io_engine_del(brix_loop *l, brix_aconn *ac)
 {
 #if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
-        uring_poll_cancel(l, ac, 1);       /* cancel + free the slot */
+        if (ac->uring_slot >= 0 && l->uslots[ac->uring_slot].rxtx) {
+            uring_rxtx_cancel(l, ac, 1);   /* cancel RECV/SEND + free the slot */
+        } else {
+            uring_poll_cancel(l, ac, 1);   /* cancel + free the slot */
+        }
         ac->epoll_events = 0;
         return;
     }
@@ -221,154 +410,4 @@ io_engine_del(brix_loop *l, brix_aconn *ac)
         epoll_ctl(l->epfd, EPOLL_CTL_DEL, ac->fd, NULL);
     }
     ac->epoll_events = 0;
-}
-
-
-#if (BRIX_HAVE_LIBURING)
-
-/* ---- Translate one slot-poll CQE into a readiness event ----
- *
- * WHAT: Given a poll CQE whose user_data is `ud` (slot-generation in the high
- * 32 bits, slot index in the low 32), validate it against the live slot table
- * and, if current, fill *ev with the aconn pointer + EPOLL* mask and re-arm the
- * multishot poll if it auto-disarmed.  Returns 1 if *ev was written, 0 if the
- * CQE was stale/cancelled and dropped.  Does NOT mark the CQE seen (caller does).
- *
- * WHY: Preserves the UAF discipline shared with the server ring — a poll that
- * completes after its aconn was reconnected or freed carries an outdated
- * generation and must be dropped.  Isolating the guard + translation keeps the
- * wait loop within complexity limits without altering the drop semantics.
- *
- * HOW:
- *   1. Split `ud` into slot index and generation.
- *   2. Drop (return 0) unless the slot is in range, in use, generation-matched,
- *      still bound to an aconn, and the CQE result is non-negative.
- *   3. Map poll bits to EPOLL* bits: POLLIN|POLLHUP|POLLERR -> EPOLLIN,
- *      POLLOUT -> EPOLLOUT; write aconn pointer + mask into *ev.
- *   4. If the multishot auto-disarmed (no IORING_CQE_F_MORE), re-arm it.
- *   5. Return 1.
- */
-static int
-uring_translate_slot_cqe(brix_loop *l, struct io_uring_cqe *cqe,
-    struct epoll_event *ev, uint64_t ud)
-{
-    uint32_t    slot = (uint32_t) (ud & 0xffffffffULL);
-    uint32_t    gen  = (uint32_t) (ud >> 32);
-    brix_aconn *ac;
-    uint32_t    ev_mask = 0;
-
-    if (!(slot < AIO_URING_SLOTS && l->uslots[slot].in_use
-          && l->uslots[slot].gen == gen
-          && l->uslots[slot].ac != NULL && cqe->res >= 0)) {
-        return 0;   /* stale/cancelled CQE for a recycled slot — dropped. */
-    }
-
-    ac = l->uslots[slot].ac;
-    if (cqe->res & (POLLIN | POLLHUP | POLLERR)) { ev_mask |= EPOLLIN; }
-    if (cqe->res & POLLOUT)                      { ev_mask |= EPOLLOUT; }
-    ev->data.ptr = ac;
-    ev->events   = ev_mask;
-    /* Re-arm if the multishot auto-disarmed (no F_MORE). */
-    if (!(cqe->flags & IORING_CQE_F_MORE)) {
-        (void) uring_poll_submit(l, ac, ac->epoll_events);
-    }
-    return 1;
-}
-
-
-/* ---- Translate one CQE into at most one readiness event ----
- *
- * WHAT: Classify a single CQE by its user_data and, for the evfd wake and live
- * slot polls, fill *ev with the corresponding readiness event.  Returns 1 if
- * *ev was written, 0 otherwise.  Always marks the CQE seen before returning.
- *
- * WHY: Factors the three-way user_data classification (ignore / evfd / slot)
- * out of the wait loop so each case is a single linear path; the loop then just
- * accumulates the return count.  The seen-marking is centralised here so every
- * consumed CQE is retired exactly once regardless of classification.
- *
- * HOW:
- *   1. Read the CQE's user_data.
- *   2. AIO_URING_IGNORE_UD (a cancel echo): mark seen, return 0.
- *   3. AIO_URING_EVFD_UD (cross-thread wake): write a loop-tagged EPOLLIN event,
- *      mark seen, return 1.
- *   4. Otherwise treat it as a slot poll via uring_translate_slot_cqe, mark
- *      seen, and return its result.
- */
-static int
-uring_translate_cqe(brix_loop *l, struct io_uring_cqe *cqe,
-    struct epoll_event *ev)
-{
-    uint64_t ud = io_uring_cqe_get_data64(cqe);
-    int      produced;
-
-    if (ud == AIO_URING_IGNORE_UD) {
-        io_uring_cqe_seen(&l->uring, cqe);
-        return 0;
-    }
-    if (ud == AIO_URING_EVFD_UD) {
-        ev->data.ptr = l;
-        ev->events   = EPOLLIN;
-        io_uring_cqe_seen(&l->uring, cqe);
-        return 1;
-    }
-
-    produced = uring_translate_slot_cqe(l, cqe, ev, ud);
-    io_uring_cqe_seen(&l->uring, cqe);
-    return produced;
-}
-
-
-/* ---- Drain ready io_uring poll CQEs into evs[] ----
- *
- * WHAT: Block up to `timeout_ms` for at least one CQE, then peek and translate
- * up to `max` CQEs into evs[], returning the number of readiness events written
- * (never negative — a timeout yields 0).
- *
- * WHY: Mirrors epoll_wait's contract for the io_uring engine so io_engine_wait
- * can select an engine and return, staying a flat two-branch function.
- *
- * HOW:
- *   1. Convert timeout_ms to a __kernel_timespec and wait for one CQE; on any
- *      wait error (timeout / -ETIME / -EINTR) return 0.
- *   2. While there is room (n < max) and a CQE can be peeked, translate it and
- *      add its 0/1 event contribution to n.
- *   3. Return n.
- */
-static int
-uring_drain_cqes(brix_loop *l, struct epoll_event *evs, int max, int timeout_ms)
-{
-    struct io_uring_cqe     *cqe;
-    struct __kernel_timespec ts;
-    int                      n = 0;
-
-    ts.tv_sec  = timeout_ms / 1000;
-    ts.tv_nsec = (long) (timeout_ms % 1000) * 1000000L;
-
-    /* Block until at least one CQE or the timeout. */
-    if (io_uring_wait_cqe_timeout(&l->uring, &cqe, &ts) < 0) {
-        return 0;   /* timeout / -ETIME / -EINTR: no events this tick */
-    }
-
-    while (n < max && io_uring_peek_cqe(&l->uring, &cqe) == 0) {
-        n += uring_translate_cqe(l, cqe, &evs[n]);
-    }
-    return n;
-}
-
-#endif /* BRIX_HAVE_LIBURING */
-
-
-/* Fill evs[] with up to `max` readiness events (data.ptr + EPOLL* mask) and
- * return the count, or -1 on a hard wait error.  For io_uring, translate poll
- * CQEs (generation-guarded) and re-arm any multishot that auto-disarmed. */
-int
-io_engine_wait(brix_loop *l, struct epoll_event *evs, int max, int timeout_ms)
-{
-#if (BRIX_HAVE_LIBURING)
-    if (l->use_uring) {
-        return uring_drain_cqes(l, evs, max, timeout_ms);
-    }
-#endif
-    return epoll_wait(l->epfd, evs, max, timeout_ms);
 }

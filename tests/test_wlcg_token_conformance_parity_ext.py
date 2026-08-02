@@ -694,14 +694,6 @@ def test_ext_extra_04_scope_unnormalized_reject(proto):
     assert probe(proto, tok) == "reject"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RFC 7519 §4.1.2 rules 4/6: sub type not enforced — "
-        "validate.c reads sub via json_string (returns NULL for array) but does "
-        "not reject on NULL sub; remaining claims pass → server accepts"
-    ),
-)
 @pytest.mark.tokenconf
 @pytest.mark.parametrize("proto", ["webdav", "s3"])
 @pytest.mark.registry_servers("s3-token", "webdav-token")
@@ -710,10 +702,10 @@ def test_ext_extra_05_sub_non_string_reject(proto):
 
     WHAT: The sub claim is a JSON array rather than a StringOrURI scalar.
     WHY:  RFC 7519 §4.1.2 / rules 4/6 — the sub claim MUST be a StringOrURI;
-          an array value violates the type constraint.  Our implementation reads
-          sub via json_string() (which returns NULL for a non-string) but does not
-          enforce a non-NULL sub → remaining claims all pass → server accepts.
-    XFAIL: sub type not enforced; uniform across webdav and s3.
+          an array value violates the type constraint.  token_extract_claims()
+          now rejects a present-but-non-string "sub" (json_get_string fails on
+          an array while json_has_member confirms presence) → reject, uniform
+          across webdav and s3. (phase-92: was XFAIL; hardening landed.)
     """
     tok = _forge().sub_non_string()
     assert probe(proto, tok) == "reject"

@@ -66,6 +66,19 @@ typedef struct {
     brix_rl_rule_t  admin_rl_write;     /* per-IP leaky-bucket rule (writes)    */
     brix_rl_rule_t  admin_rl_read;      /* per-IP leaky-bucket rule (reads)     */
 
+    /* ---- E1 tamper-evident admin audit chain (P90-28.2) ----
+     * Rolling hash chain over admin_audit() lines: each line carries seq=
+     * and chain=<32 hex>, where chain_n = SHA-256(chain_{n-1} || canonical
+     * line text) and chain_{-1} is 32 zero bytes.  The state lives in this
+     * per-process (copy-on-write) conf copy, so chains are per
+     * worker × location: the error log's pid prefix partitions them for a
+     * verifier, and seq=0 marks each chain's genesis (worker start or
+     * reload).  Deleting, reordering, or editing any logged line breaks
+     * every chain value after it — an attacker who scrubs the log cannot
+     * mint a valid continuation without the point-of-tamper digest. */
+    uint8_t     audit_chain[32];
+    uint64_t    audit_seq;
+
     /* ---- admin file browser (/xrootd/api/v1/files + /download) ---- */
     ngx_str_t   browse_root;        /* [brix_dashboard_browse_root <path>] — root the
                                      * admin file viewer may list/download from.  Empty

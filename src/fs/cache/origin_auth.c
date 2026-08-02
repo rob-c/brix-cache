@@ -229,11 +229,17 @@ cache_origin_load_sss_key(const char *path, brix_sss_key_t *out)
 /* brix_cache_origin_auth_sss — present an SSS (Simple Shared Secret) credential to
  * the origin via the XrdSecsss protocol after a login advertised "&P=sss". Mints the
  * SAME kXR_auth blob the proxy path sends (brix_sss_build_proxy_credential): a
- * Blowfish-CFB block over a nonce + gen-time + the keytab user, keyed by the shared
- * secret. Single-round: expect kXR_ok. Returns 0, or -1 (t error set). §14. */
+ * Blowfish-CFB block over a nonce + gen-time + an asserted username, keyed by the
+ * shared secret. as_user == NULL asserts the keytab's own principal (the static
+ * service leg); non-NULL is identity injection (phase-70 §5.6 / P90-70.3): assert
+ * the CALLER, failing closed on an empty or over-long principal — the credential
+ * builder would otherwise silently substitute "xrd" or truncate to the 63-byte
+ * NAME TLV bound, either of which changes WHO reaches the origin. Single-round:
+ * expect kXR_ok. Returns 0, or -1 (t error set). §14. */
 int
 brix_cache_origin_auth_sss(brix_cache_fill_t *t,
-    brix_cache_origin_conn_t *oc, const char *keytab_path)
+    brix_cache_origin_conn_t *oc, const char *keytab_path,
+    const char *as_user)
 {
     brix_sss_key_t  key;
     u_char            cred[2048];
@@ -241,13 +247,25 @@ brix_cache_origin_auth_sss(brix_cache_fill_t *t,
     uint16_t          status;
     uint32_t          dlen;
     u_char           *body = NULL;
+    const char       *assert_user;
+
+    if (as_user != NULL
+        && (as_user[0] == '\0' || ngx_strlen(as_user) > 63))
+    {
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin SSS identity injection: caller principal is "
+            "missing or exceeds the SSS name bound - refusing to assert "
+            "a substituted or truncated identity");
+        return -1;
+    }
 
     if (cache_origin_load_sss_key(keytab_path, &key) != 0) {
         brix_cache_set_error(t, kXR_AuthFailed, 0,
             "cache origin SSS keytab unreadable or has no usable key");
         return -1;
     }
-    if (brix_sss_build_proxy_credential(&key, key.user, cred, sizeof(cred),
+    assert_user = (as_user != NULL) ? as_user : key.user;
+    if (brix_sss_build_proxy_credential(&key, assert_user, cred, sizeof(cred),
                                           &cred_len) != NGX_OK)
     {
         brix_cache_set_error(t, kXR_AuthFailed, 0,
@@ -276,3 +294,175 @@ brix_cache_origin_auth_sss(brix_cache_fill_t *t,
     }
     return 0;
 }
+
+
+#if (BRIX_HAVE_KRB5)
+#include "auth/krb5/forward.h"     /* brix_krb5_deleg_negotiate / _available */
+#include "auth/krb5/kxr_wire.h"    /* brix_krb5_kxr_wire codec */
+#include "auth/krb5/apreq.h"       /* brix_krb5_apreq_from_ccache (raw leg) */
+
+/* The kXR krb5 codec's byte transport over the origin connection: adapt the
+ * cache I/O helpers (which return 0 / -1) to the codec's NGX_OK / NGX_ERROR. */
+static ngx_int_t
+cache_origin_krb5_send(void *io, const void *buf, size_t len)
+{
+    return brix_cache_io_send((brix_cache_origin_conn_t *) io, buf, len) == 0
+         ? NGX_OK : NGX_ERROR;
+}
+
+static ngx_int_t
+cache_origin_krb5_recv(void *io, void *buf, size_t len)
+{
+    return brix_cache_io_recv_exact((brix_cache_origin_conn_t *) io, buf, len) == 0
+         ? NGX_OK : NGX_ERROR;
+}
+
+/* brix_cache_origin_auth_krb5 — re-authenticate to the origin AS the inbound
+ * user over GSSAPI/krb5 after a kXR_login advertised "&P=krb5" (phase-70 §5.7).
+ * Drives the production multi-leg engine brix_krb5_deleg_negotiate(): every
+ * initiator token is framed as a kXR_auth(credtype "krb5") request and the
+ * origin's kXR_authmore reply is fed back through gss_init_sec_context() until
+ * the context completes (kXR_ok) with mutual auth. deleg_gss_cred is the
+ * captured gss_cred_id_t (NULL ⇒ the process default cred); origin_service_princ
+ * is "host/<fqdn>@REALM" (see brix_krb5_origin_princ_from_host). Returns 0 on a
+ * completed exchange, -1 otherwise (t error set).
+ *
+ * The kXR frame codec (brix_krb5_kxr_wire) and the engine are exercised live
+ * over real GSS bytes by tests/test_krb5_forward_live.py (mode "kxrwire", a real
+ * KDC + a kXR-framed acceptor over a socket).
+ *
+ * RETAINED REFERENCE DIALECT — SUPERSEDED, not on the production path. The live
+ * krb5 origin leg is brix_cache_origin_auth_krb5_raw() below (dispatched from
+ * origin_protocol_bootstrap.c), a RAW AP-REQ exchange — stock XRootD krb5 speaks
+ * raw krb5_rd_req, NOT this GSSAPI gss_init_sec_context init-token negotiation
+ * (phase-88 UPDATE (iv); phase-92 §5). This GSSAPI variant has zero production
+ * callers and is kept only as a reference implementation of the GSSAPI dialect,
+ * with its live-wire unit. Its lack of a caller is deliberate, NOT infra-blocked. */
+int
+brix_cache_origin_auth_krb5(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    void *deleg_gss_cred, const char *origin_service_princ)
+{
+    brix_krb5_kxr_wire_t  w;
+    ngx_pool_t           *pool;
+    ngx_int_t             rc;
+
+    if (!brix_krb5_forward_available()) {
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin krb5 auth unavailable (no krb5/GSSAPI support)");
+        return -1;
+    }
+
+    /* A private pool for the transient token copies the engine hands to the
+     * codec — thread-safe (a fresh malloc-backed pool, no shared nginx state). */
+    pool = ngx_create_pool(NGX_DEFAULT_POOL_SIZE, t->c->log);
+    if (pool == NULL) {
+        brix_cache_set_error(t, kXR_NoMemory, 0,
+            "cache origin krb5 pool allocation failed");
+        return -1;
+    }
+
+    ngx_memzero(&w, sizeof w);
+    w.send     = cache_origin_krb5_send;
+    w.recv     = cache_origin_krb5_recv;
+    w.io       = oc;
+    w.max_body = 1 << 16;   /* a GSS/SPNEGO token is a few KiB; 64K is generous */
+
+    rc = brix_krb5_deleg_negotiate(pool, deleg_gss_cred, origin_service_princ,
+                                   brix_krb5_kxr_wire, &w, t->c->log);
+
+    if (w.reply != NULL) {      /* free the final leg's borrowed reply token */
+        free(w.reply);
+        w.reply = NULL;
+    }
+    ngx_destroy_pool(pool);
+
+    if (rc != NGX_OK) {
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin krb5 negotiation failed");
+        return -1;
+    }
+    return 0;
+}
+
+/* brix_cache_origin_auth_krb5_raw — re-authenticate to the origin AS the inbound
+ * user with a RAW krb5 AP-REQ (phase-70 §5.7). This is the dialect stock XRootD
+ * (libXrdSeckrb5) and brix's own acceptor (src/auth/krb5/auth.c) actually speak —
+ * krb5_rd_req over an AP-REQ — as opposed to the GSSAPI init-context tokens the
+ * multi-leg engine above emits, which no real "&P=krb5" origin can consume.
+ *
+ * The delegated user's TGT is already carried onto the fill task as a ccache PATH
+ * (ccache_path), so brix_krb5_apreq_from_ccache builds the "krb5\0"+AP-REQ payload
+ * — byte-for-byte the native client's wire — directly, with no GSS re-import.
+ * origin_spn is the origin's advertised service principal ("&P=krb5,<princ>").
+ *
+ * A single leg suffices: the AP-REQ is self-contained, so a correct origin answers
+ * kXR_ok. A kXR_authmore ("fwdtgt") — the origin asking us to chain-delegate onward
+ * to ITS backend — is not chained here and fails closed. Returns 0 on kXR_ok, -1
+ * otherwise (t error set). Per-user only: never falls back to a service credential.
+ * Live-verified against a real KDC by tests/test_krb5_forward_live.py mode "apreq"
+ * (the produced AP-REQ is accepted by krb5_rd_req against the origin keytab). */
+int
+brix_cache_origin_auth_krb5_raw(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *ccache_path,
+    const char *origin_spn)
+{
+    brix_krb5_kxr_wire_t  w;
+    ngx_pool_t           *pool;
+    ngx_str_t             payload;
+    ngx_str_t             in_token;
+    int                   done = 0;
+    ngx_int_t             rc;
+    /* The bespoke-origin fill path carries a real ngx_connection_t (t->c) whose
+     * ->log is the worker request log; the sd_xroot SOURCE-backend path
+     * (sd_xroot_session) hands us a calloc'd task with t->c == NULL and manages
+     * its own socket via oc, so fall back to the worker cycle log there — never
+     * dereference t->c->log unguarded (it segfaults the fill worker). */
+    ngx_log_t            *log = (t->c != NULL) ? t->c->log : ngx_cycle->log;
+
+    if (origin_spn == NULL || origin_spn[0] == '\0') {
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin krb5: origin advertised no service principal");
+        return -1;
+    }
+
+    /* A private pool for the transient AP-REQ payload — a fresh malloc-backed
+     * pool, no shared nginx state (thread-safe on the async fill worker). */
+    pool = ngx_create_pool(NGX_DEFAULT_POOL_SIZE, log);
+    if (pool == NULL) {
+        brix_cache_set_error(t, kXR_NoMemory, 0,
+            "cache origin krb5 pool allocation failed");
+        return -1;
+    }
+
+    if (brix_krb5_apreq_from_ccache(pool, ccache_path, origin_spn, &payload,
+                                    log) != NGX_OK)
+    {
+        ngx_destroy_pool(pool);
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin krb5 delegated AP-REQ build failed");
+        return -1;
+    }
+
+    ngx_memzero(&w, sizeof w);
+    w.send     = cache_origin_krb5_send;
+    w.recv     = cache_origin_krb5_recv;
+    w.io       = oc;
+    w.max_body = 1 << 16;   /* a kXR_ok/AP-REP reply body is small; 64K is generous */
+
+    /* The frame codec sends the "krb5" credtype header + our "krb5\0"+AP-REQ
+     * payload and reads one ServerResponseHeader; done ⇔ kXR_ok. */
+    rc = brix_krb5_kxr_wire(&w, &payload, &in_token, &done, log);
+    if (w.reply != NULL) {
+        free(w.reply);
+        w.reply = NULL;
+    }
+    ngx_destroy_pool(pool);
+
+    if (rc != NGX_OK || !done) {
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
+            "cache origin krb5 AP-REQ rejected by origin");
+        return -1;
+    }
+    return 0;
+}
+#endif /* BRIX_HAVE_KRB5 */

@@ -2,6 +2,7 @@
 #include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "core/compat/host_format.h"  /* brix_format_host_port — IPv6 bracketing */
 #include "observability/sesslog/sesslog_ngx.h"
+#include "observability/metrics/unified.h"  /* brix_metric_tpc_gsi_deleg (§5.8) */
 /* File: launch.c — TPC pull launch/hand-off + transfer-registry for native root:// third-party copy
  * WHAT: The launch (start) side of the TPC pull pipeline on the event thread —
  * the destination-side preparation half lives in launch_prepare.c (split out
@@ -261,13 +262,17 @@ tpc_pull_capture_passthrough_token(brix_tpc_pull_t *t, brix_ctx_t *ctx)
  * during inbound GSI login; the scope is copied only when configured. The
  * passthrough capture (phase-70) snapshots ctx->bearer_token into the task on the
  * event loop so the worker never touches ctx.
- * HOW: on delegate+captured-proxy, malloc + memcpy the PEM and set deleg_cred_len
- * (malloc failure leaves deleg_cred_pem NULL → fall back to the gateway cert);
- * tpc_pull_capture_passthrough_token for the inbound-token snapshot; token_scope
- * defaults to empty then filled from conf->tpc_outbound_scope. */
-static void
+ * HOW: on delegate+captured-proxy, first refuse an EXPIRED proxy (§5.9 T5 — never
+ * silently downgrade to the gateway identity → NGX_DECLINED), else malloc + memcpy
+ * the PEM and set deleg_cred_len (malloc failure leaves deleg_cred_pem NULL → fall
+ * back to the gateway cert); a delegate-on pull with nothing captured records the
+ * ABSENT outcome; tpc_pull_capture_passthrough_token for the inbound-token
+ * snapshot; token_scope defaults to empty then filled from conf->tpc_outbound_scope.
+ * Returns NGX_OK (pull may proceed) or NGX_DECLINED (expired proxy — caller must
+ * refuse the pull). */
+static ngx_int_t
 tpc_pull_attach_creds(brix_tpc_pull_t *t, brix_ctx_t *ctx,
-    ngx_stream_brix_srv_conf_t *conf)
+    ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf)
 {
     /*
      * §F6: if proxy delegation captured the user's proxy during the inbound GSI
@@ -277,12 +282,30 @@ tpc_pull_attach_creds(brix_tpc_pull_t *t, brix_ctx_t *ctx,
      */
     if (conf->tpc_delegate && ctx->gsi.deleg_proxy_pem != NULL
         && ctx->gsi.deleg_proxy_len > 0) {
+        /*
+         * §5.8/§5.9 T5: check the captured proxy's lifetime BEFORE launching the
+         * pull. An expired proxy must not fall through to the gateway credential
+         * (a silent identity downgrade) — refuse the pull instead.
+         */
+        if (brix_tpc_proxy_pem_expired(ctx->gsi.deleg_proxy_pem,
+                                        ctx->gsi.deleg_proxy_len, c->log) == 1) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                          "brix: TPC delegated proxy expired; refusing pull "
+                          "(dn=\"%s\")", ctx->login.dn);
+            brix_metric_tpc_gsi_deleg(BRIX_TPC_DELEG_EXPIRED);
+            return NGX_DECLINED;
+        }
         t->deleg_cred_pem = malloc(ctx->gsi.deleg_proxy_len);
         if (t->deleg_cred_pem != NULL) {
             ngx_memcpy(t->deleg_cred_pem, ctx->gsi.deleg_proxy_pem,
                        ctx->gsi.deleg_proxy_len);
             t->deleg_cred_len = ctx->gsi.deleg_proxy_len;
+            brix_metric_tpc_gsi_deleg(BRIX_TPC_DELEG_OK);
         }
+    } else if (conf->tpc_delegate) {
+        /* Delegation configured but nothing captured on the inbound login: the
+         * pull falls back to the gateway cert (existing behaviour) — record it. */
+        brix_metric_tpc_gsi_deleg(BRIX_TPC_DELEG_ABSENT);
     }
 
     tpc_pull_capture_passthrough_token(t, ctx);
@@ -292,6 +315,8 @@ tpc_pull_attach_creds(brix_tpc_pull_t *t, brix_ctx_t *ctx,
         (void) brix_str_cbuf(t->token_scope, sizeof(t->token_scope),
                              &conf->tpc_outbound_scope);
     }
+
+    return NGX_OK;
 }
 
 /* WHAT: Resolve the SciTags (experiment, activity) codes for this pull on the
@@ -380,7 +405,16 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     t = task->ctx;
     tpc_populate_pull_task(t, ctx, c, conf, file);
     t->fhandle_idx = fhandle_idx;
-    tpc_pull_attach_creds(t, ctx, conf);
+    if (tpc_pull_attach_creds(t, ctx, c, conf) != NGX_OK) {
+        /* Expired delegated proxy (§5.9 T5): refuse rather than downgrade to the
+         * gateway identity. The worker was never posted, so just unwind the
+         * registry reservation and deny the client's TPC sync. */
+        (void) brix_tpc_registry_remove(file->tpc_transfer_id, c->log);
+        file->tpc_transfer_id = 0;
+        BRIX_OP_ERR(ctx, BRIX_OP_SYNC);
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+                                 "delegated proxy expired");
+    }
     tpc_sess_begin_pull(t);
     tpc_pull_resolve_pmark(t, ctx, c, conf);
 

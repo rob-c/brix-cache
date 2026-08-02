@@ -102,9 +102,14 @@ metrics_emit_registry_health(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         "# HELP brix_session_evict_total "
             "Idle sessions reaped (LRU) to admit a new login under table pressure.\n"
         "# TYPE brix_session_evict_total counter\n"
-        "brix_session_evict_total %lu\n",
+        "brix_session_evict_total %lu\n"
+        "# HELP brix_session_src_cap_evict_total "
+            "Own-LRU sessions recycled because one identity hit the per-source soft cap.\n"
+        "# TYPE brix_session_src_cap_evict_total counter\n"
+        "brix_session_src_cap_evict_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(&shm->session_registry_full_total, 0),
-        (unsigned long) ngx_atomic_fetch_add(&shm->session_evict_total, 0));
+        (unsigned long) ngx_atomic_fetch_add(&shm->session_evict_total, 0),
+        (unsigned long) ngx_atomic_fetch_add(&shm->session_src_cap_evict_total, 0));
 }
 
 /*
@@ -222,6 +227,7 @@ brix_export_prometheus_metrics(metrics_writer_t *mw,
     brix_export_stream_cache_metrics(mw, shm);
 
     metrics_emit_path_depth(mw, shm);
+    metrics_emit_csi_scrub(mw, shm);       /* phase-59 W2b at-rest scrub */
     metrics_emit_ssi(mw, shm);
     metrics_emit_registry_health(mw, shm);
     metrics_emit_request_ops(mw, shm);

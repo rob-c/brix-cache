@@ -109,19 +109,16 @@ ev_cmd_dcau(ftp_ev_t *fc, const char *arg)
 }
 
 
-/* OPTS: only Parallelism=<n> is honoured (clamped 1..64); everything else is a
- * lenient 200 so a client's capability probe never fails the session. */
+/* OPTS: a lenient 200 for every option so a client's capability probe never
+ * fails the session. RETR `Parallelism=<n>` is accepted for wire-compatibility
+ * but NOT honoured — RETR is always single-stream (a protocol-valid choice; MODE
+ * E emits `Total Stripe Count: 1`), so there is no parallelism state to keep. A
+ * lenient ACK preserves the historical wire behaviour without pretending to a
+ * multi-stripe RETR the sender would then wait for. */
 static ngx_int_t
 ev_cmd_opts(ftp_ev_t *fc, const char *arg)
 {
-    const char *par = strcasestr(arg, "Parallelism=");
-
-    if (par != NULL) {
-        int n = atoi(par + 12);
-        if (n < 1)  { n = 1; }
-        if (n > 64) { n = 64; }
-        fc->parallelism = n;
-    }
+    (void) arg;
     return brix_ftp_ev_reply(fc, "200 OK\r\n");
 }
 

@@ -67,7 +67,8 @@ ngx_int_t
 brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     brix_sd_instance_t *inst, const char *key,
     ngx_http_brix_shared_conf_t *common,
-    brix_http_cache_reenter_pt reenter, void *reenter_data)
+    brix_http_cache_reenter_pt reenter, void *reenter_data,
+    brix_http_fill_fail_pt on_fail)
 {
     ngx_thread_task_t            *task;
     brix_http_cache_fill_ctx_t *t;
@@ -84,7 +85,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
      * (N concurrent cold reads) is exactly ONE origin fetch. */
     t = brix_http_fill_find(inst, key);
     if (t != NULL) {
-        return brix_http_fill_attach(t, r, reenter, reenter_data);
+        return brix_http_fill_attach(t, r, reenter, reenter_data, on_fail);
     }
 
     pool = brix_http_cache_fill_pool(common);
@@ -128,7 +129,9 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
                      brix_http_cache_fill_done);
     task->event.log = r->connection->log;
 
-    if (brix_http_fill_attach(t, r, reenter, reenter_data) != NGX_DONE) {
+    if (brix_http_fill_attach(t, r, reenter, reenter_data, on_fail)
+        != NGX_DONE)
+    {
         brix_sess_end(t->sess, BRIX_SESS_END_ERROR);
         free(block);
         return NGX_ERROR;
@@ -159,7 +162,8 @@ ngx_int_t
 brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     brix_sd_instance_t *inst, const char *key,
     ngx_http_brix_shared_conf_t *common,
-    brix_http_cache_reenter_pt reenter, void *reenter_data)
+    brix_http_cache_reenter_pt reenter, void *reenter_data,
+    brix_http_fill_fail_pt on_fail)
 {
     (void) r;
     (void) inst;
@@ -167,6 +171,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     (void) common;
     (void) reenter;
     (void) reenter_data;
+    (void) on_fail;
     return NGX_DECLINED;
 }
 

@@ -77,8 +77,9 @@ The strongest replacement story is therefore: sites with POSIX-backed or
 operator-staged storage that need modern HTTPS/S3/metrics/operability can use
 this module as a practical replacement candidate. Sites that depend on the
 historical XRootD plugin ecosystem, complex `XrdAcc` files, XrdMon UDP feeds,
-Ceph/PSS/PFC backends, or full FRM daemon workflows still need explicit
-migration work.
+PSS/PFC backends, or full FRM daemon workflows still need explicit
+migration work. (Ceph/RADOS sites are now covered by the striper-interop
+`sd_ceph` driver — phase-60/89 — modulo per-site namelib rules.)
 
 ## Reviewer Attention: Documentation Corrections
 
@@ -134,7 +135,7 @@ Source anchors:
 | POSC | Upstream supports `kXR_posc` and `kXR_supposc`. | `src/protocols/root/read/open.c`, `src/protocols/root/connection/fd_table.c`, protocol advertises `kXR_supposc`. | Parity | Cleanup on failed/abandoned POSC is wired through handle free logic. |
 | Namespace mutation: mkdir, rm, rmdir, mv, chmod, truncate | Upstream dispatches these in `XrdXrootdProtocol.cc`. | `src/mkdir.c`, `src/rm.c`, `src/protocols/root/write/mv.c`, `src/chmod.c`, `src/truncate.c`. | Parity | Module gates writes through global `allow_write` plus auth/token/ACL checks. |
 | Extended attributes (`kXR_fattr`) | Upstream `do_FAttr`. | `src/protocols/root/fattr/`; read dispatcher routes `kXR_fattr`. | Parity | Module maps user-facing attrs through local xattrs and includes auth gating. |
-| Locate / manager redirects | Upstream XrdCms/XrdXrootd integration. | `src/protocols/root/read/locate.c`, `src/net/manager/`, `src/net/cms/`, `src/net/upstream/`. | Partial | Practical redirector behavior exists; full upstream CMS admin/tooling is broader. |
+| Locate / manager redirects | Upstream XrdCms/XrdXrootd integration. | `src/protocols/root/read/locate.c`, `src/net/manager/`, `src/net/cms/`, `src/net/upstream/`. | Partial / near-parity | Phase-89 CMS parity (PR-1…PR-8) added load-weighted selection, a dynamic file-location cache, `kYR_prepadd/prepdel` staging forward, rm/rmdir fan-out, file-driven blacklist, and vnid/affinity metadata. Multi-tier sub-manager chaining (W7) and upstream CMS admin/tooling remain broader. |
 | Query subtypes | Upstream `do_Query` and plugin hooks. | `src/protocols/root/query/` including checksum, config, space, prep, opaque. | Partial | Common operational queries are present. Full opaque/plugin semantics are narrower. |
 | Prepare/stage (`kXR_prepare`, `kXR_QPrep`) | Upstream `do_Prepare` plus full `XrdFrm` ecosystem. | `src/protocols/root/query/prepare.c`, `src/fs/xfer/`, `src/protocols/webdav/tape_rest.c`. | Partial | This module now has a real durable queue and tape gateway, but not full upstream FRM daemon/admin/migrate/purge parity. |
 | Checkpoint (`kXR_chkpoint`) | Upstream handle dispatch includes checkpoint. | `src/protocols/root/write/chkpoint.c`. | Parity | Write dispatcher routes checkpoint with write gate. |
@@ -225,7 +226,7 @@ Source anchors:
 | Path confinement and symlink escape defense | Upstream has its own namespace and auth mechanisms. | `src/fs/path/`, `src/core/compat/namespace_ops.c`, `ngx_http_brix_webdav_resolve_path()`, `brix_open_confined_canon()`. | nginx+ | All wire paths should resolve before syscall; this is a major auditability advantage. |
 | Read-through cache / XCache-style role | Upstream `XrdPfc`, `XrdRmc`, cache plugins. | `src/fs/cache/`, `src/open_cache.c`, protocol `kXR_attrCache`. | Partial | Practical cache mode exists. Upstream `XrdPfc` has much broader policy, purge, snapshot, and resource-monitoring machinery. |
 | Parallel Storage Service | `XrdPss` plugin. | No comparable PSS backend found. | Missing | Important for sites using remote federation/cache-fill as their storage layer. |
-| Ceph/RADOS backend | `XrdCeph` plugin. | No comparable Ceph OSS backend found. | Missing | Could be handled through POSIX/CephFS externally, but not through an XRootD-style Ceph plugin. |
+| Ceph/RADOS backend | `XrdCeph` plugin. | `src/fs/backend/rados/` — `sd_ceph` driver with libradosstriper stock-stripe-format interop, directory listing (stripe-collapse, synthetic dirs), copy+delete rename, xattr, staged commit; read-only `cephfsro` CephFS-rescue driver. Phase-60 closed by phase-89 §B (live-verified 2026-07-27). | Parity / Partial | Reads/writes stock-XrdCeph on-RADOS data byte-for-byte. Namelib (site lfn2pfn) rules and full plugin-config surface remain narrower. |
 | Checksum/tagstore storage | `XrdOssCsi` page checksum/tagstore implementation. | File-level checksum helpers and xattr-cached integrity; no comparable `XrdOssCsi` tagstore found. | Missing / Partial | Paged wire CRC exists; persistent checksum-index/tagstore parity does not. |
 | XrdFrm | Full `XrdFrm` static library plus `frm_admin`, `frm_purged`, `frm_xfrd`, `frm_xfragent`, migrate, purge, transfer queue. | `src/fs/xfer/` durable queue/engine + `src/fs/backend/frm/` residency/recall driver, metrics, Tape REST, async/wait paths (the former `src/frm/` subsystem, dissolved in phase-64). | Partial | This module has a serious tape gateway, not the whole upstream FRM daemon/admin ecosystem. |
 | WLCG Tape REST | Not a core XRootD daemon feature in the reviewed source tree. | `src/protocols/webdav/tape_rest.c`. | nginx+ | Gives FTS/gfal2-friendly HTTP tape operations tied to the same durable FRM queue. |
@@ -241,7 +242,7 @@ Source anchors:
 | Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | Data server role | Core XrdXrootd. | `kXR_isServer` always set. | Parity | Module is a data server by default. |
-| Manager / redirector | `XrdCms`, XrdXrootd manager integration. | `src/net/manager/`, `src/net/cms/`, `src/protocols/root/read/locate.c`, `src/net/upstream/`. | Partial | Practical locate/redirect and manager mode exist. Upstream CMS has broader tooling and battle-tested semantics. |
+| Manager / redirector | `XrdCms`, XrdXrootd manager integration. | `src/net/manager/`, `src/net/cms/`, `src/protocols/root/read/locate.c`, `src/net/upstream/`. | Partial / near-parity | Practical locate/redirect and manager mode exist; phase-89 flipped the remaining phase-61 opcode-matrix cells (load meter, locate cache, staging forward, fan-out, blacklist file — all flag-gated). Multi-tier chaining (W7) and upstream CMS admin tooling remain broader. |
 | Supervisor/meta manager role | Upstream flags/roles. | `brix_supervisor`, `kXR_attrSuper`, tests. | Parity / Partial | Flagging exists; ensure topology behavior matches target deployment before marketing full CMS parity. |
 | Virtual redirector | Upstream protocol clients understand `kXR_attrVirtRdr`. | `brix_virtual_redirector` and auto-detection for static manager maps. | nginx+ / Partial | Useful nginx-specific static map deployment mode. |
 | Collapse redirects | Upstream has client/server redirect mechanics. | `src/net/manager/redir_cache.c`; `kXR_collapseRedir` when configured. | nginx+ / Partial | Implemented as SHM redirect-target cache. |
@@ -298,11 +299,11 @@ UDP monitoring.
 | Full `XrdFrm` daemon/admin ecosystem | `/tmp/brix-src/src/XrdFrm` | `src/fs/xfer/` + `src/fs/backend/frm/` plus Tape REST; no in-process migrate/purge. | Tape sites with upstream FRM operational workflows are not drop-in. | Present as functional tape gateway, not complete FRM clone. |
 | PSS backend | `/tmp/brix-src/src/XrdPss` | No comparable implementation found. | Sites using PSS for remote storage access need another architecture. | Use proxy/cache/gateway patterns where possible; do not claim parity. |
 | PFC/XCache full policy cache | `/tmp/brix-src/src/XrdPfc` | `src/fs/cache/` is narrower. | Sites relying on PFC purge/snapshot/policy internals need review. | Claim cache support, not full PFC parity. |
-| Ceph plugin | `/tmp/brix-src/src/XrdCeph` | No plugin-level Ceph backend. | Ceph/RADOS-backed XRootD sites need POSIX/CephFS or a new backend. | Out of scope unless a target site requires it. |
+| Ceph plugin | `/tmp/brix-src/src/XrdCeph` | `src/fs/backend/rados/` striper-interop `sd_ceph` driver + read-only `cephfsro` (phase-60/89). | Stock on-RADOS data readable byte-for-byte; site namelib (lfn2pfn) rules must be supplied before touching production pools. | Mostly closed; validate per-site namelib + pool config. |
 | XrdOssCsi tagstore/checksum store | `/tmp/brix-src/src/XrdOssCsi` | No comparable tagstore. | Persistent checksum/page-integrity workflows may differ. | Treat as storage-plugin gap. |
 | Checksum plugin framework breadth | `/tmp/brix-src/src/XrdCks`, `XrdVersionPlugin.hh` | Fixed local checksum set with CRC64/CRC64NVME included. | Compatibility gap only for uncommon site-specific checksum plugins. | Add plugins only if needed by site validation. |
 | ZIP virtual filesystem | `/tmp/brix-src/src/XrdZip` | **Partially implemented** — `src/protocols/root/zip/` (central-dir reader + HTTP member serving). | ZIP-member access over HTTP exists; full cross-protocol parity does not. | Mostly closed; validate breadth if a site needs full ZIP-member semantics. |
-| CMS admin/tooling completeness | `/tmp/brix-src/src/XrdCms` | `src/net/cms/`, `src/net/manager/` implement practical manager behavior. | Complex multi-tier production clusters may need careful conformance testing. | Claim manager/redirector support with caveats. |
+| CMS admin/tooling completeness | `/tmp/brix-src/src/XrdCms` | `src/net/cms/`, `src/net/manager/` implement practical manager behavior; phase-89 closed the phase-61 opcode matrix (load meter, locate cache, staging forward, fan-out, blacklist file). | Multi-tier sub-manager chaining (W7) and upstream admin tooling still need conformance review. | Claim manager/redirector support; caveat only W7/multi-tier and admin tooling. |
 | Proxy async `kXR_waitresp`/`kXR_attn` relay | Upstream client/server supports async responses. | `src/net/upstream/response.c` forwards `kXR_waitresp`; no complete unsolicited upstream `kXR_attn` path was verified in this pass. | Could affect proxying to backends that park operations. | Keep as serious proxy-mode gap until source/test proves closure. |
 | Proxy `kXR_prepare` path-list rewrite | Upstream prepare supports path lists. | Existing proxy docs flag whole-payload rewrite behavior. | Path mapping proxy deployments may mishandle multi-path prepare. | Keep as serious gap unless tests/source show per-entry rewrite. |
 | Erasure-coded redirects (`kXR_ecRedir`) | Protocol flag and client handling exist upstream. | Defined, never set. | EC storage redirect semantics not present. | Out of scope without EC backend. |
@@ -333,8 +334,9 @@ Claims to avoid or qualify:
 - Do not claim upstream XRootD lacks HTTP-TPC.
 - Do not claim this module has full `XrdFrm` parity; say it has a durable
   FRM-style staging queue and WLCG Tape REST gateway.
-- Do not claim full `XrdAcc`, `XrdPfc`, `XrdPss`, `XrdCeph`, or `XrdOssCsi`
-  parity.
+- Do not claim full `XrdAcc`, `XrdPfc`, `XrdPss`, or `XrdOssCsi` parity.
+  (`XrdCeph` on-RADOS data compatibility is implemented — phase-60/89 — but
+  per-site namelib rules and the plugin-config surface still differ.)
 - Do not list `krb5`, `unix`, XrdHttp, rate limiting, protocol role flags, or
   macaroon delegation as missing without re-checking current source.
 - Do not count UDP monitoring as a missing feature in this review; it is an
@@ -349,9 +351,10 @@ fit:
    and wants Prometheus/S3/dashboard/rate-limit/TLS/nginx operations, this
    module offers a strong replacement candidate with additional modern surfaces.
 2. If the site depends on historical XRootD plugin ecosystems, especially PSS,
-   PFC, Ceph, full FRM daemons, UDP monitoring, complex `XrdAcc`, or legacy
+   PFC, full FRM daemons, UDP monitoring, complex `XrdAcc`, or legacy
    `pwd`/`host` auth, migration requires either explicit compatibility work or
-   an architecture change.
+   an architecture change. (Ceph/RADOS sites: the striper-interop `sd_ceph`
+   driver reads stock on-RADOS data; supply the site namelib rule first.)
 3. The correct proof point is not "feature list says yes"; it is a site-specific
    conformance matrix with three tests per changed or critical feature:
    success, error, and security-negative.

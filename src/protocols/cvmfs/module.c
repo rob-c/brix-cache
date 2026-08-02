@@ -91,10 +91,23 @@ ngx_http_brix_cvmfs_create_loc_conf(ngx_conf_t *cf)
     c->cvmfs.geo_answer             = NGX_CONF_UNSET_UINT;
     c->cvmfs.geo_cache_ttl          = NGX_CONF_UNSET;
     c->cvmfs.geo_max_servers        = NGX_CONF_UNSET_UINT;
+    c->cvmfs.bundle                 = NGX_CONF_UNSET;
+    c->cvmfs.dict                   = NGX_CONF_UNSET;
+    c->cvmfs.scrub                  = NGX_CONF_UNSET;
+    c->cvmfs.scrub_interval         = NGX_CONF_UNSET;
+    c->cvmfs.scrub_rate             = NGX_CONF_UNSET_UINT;
+    c->cvmfs.delta                  = NGX_CONF_UNSET;
+    c->cvmfs.learn                  = NGX_CONF_UNSET;
+    c->cvmfs.swarm                  = NGX_CONF_UNSET;
+    c->cvmfs.swarm_interval         = NGX_CONF_UNSET;
     c->scvmfs               = NGX_CONF_UNSET;
     c->scvmfs_authz         = NGX_CONF_UNSET_UINT;
+    c->scvmfs_x509_dn       = NGX_CONF_UNSET_PTR;
+    c->scvmfs_voms          = NGX_CONF_UNSET_PTR;
     c->repo_authz           = NGX_CONF_UNSET_PTR;
     c->qos                  = NGX_CONF_UNSET_PTR;
+    c->virtual_repos        = NGX_CONF_UNSET_PTR;
+    c->attest_pkey          = NGX_CONF_UNSET_PTR;
 
     return c;
 }
@@ -129,7 +142,8 @@ cvmfs_var_class(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 {
     ngx_http_brix_cvmfs_ctx_t *ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
-    static const char *names[] = { "cas", "manifest", "geo", "reject" };
+    static const char *names[] = { "cas", "manifest", "geo", "bundle",
+                                   "reject" };
 
     (void) data;
     if (ctx == NULL || ctx->url.cls > CVMFS_URL_REJECT) {
@@ -238,6 +252,15 @@ ngx_http_brix_cvmfs_postconfiguration(ngx_conf_t *cf)
     for (s = 0; s < cmcf->servers.nelts; s++) {
         ngx_http_conf_ctx_t *ctx = cscfp[s]->ctx;
 
+        /* scvmfs x509/voms: let this server's TLS verify accept client GSI
+         * proxy chains (nginx core rejects proxy certs otherwise). Runs for
+         * EVERY server (before the cvmfs.enable gate) because scvmfs_authz is a
+         * location directive — a server may enable cvmfs only in a nested
+         * location, and the hook walks the location tree itself. */
+        if (brix_scvmfs_postconf_proxy_certs(cf, cscfp[s]) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
         lcf = ctx->loc_conf[ngx_http_brix_cvmfs_module.ctx_index];
         if (lcf == NULL || !lcf->cvmfs.enable) {
             continue;
@@ -300,6 +323,8 @@ ngx_http_brix_cvmfs_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static ngx_conf_enum_t  brix_scvmfs_authz_enum[] = {
     { ngx_string("none"),   BRIX_SCVMFS_AUTHZ_NONE },
     { ngx_string("bearer"), BRIX_SCVMFS_AUTHZ_BEARER },
+    { ngx_string("x509"),   BRIX_SCVMFS_AUTHZ_X509 },
+    { ngx_string("voms"),   BRIX_SCVMFS_AUTHZ_VOMS },
     { ngx_null_string, 0 }
 };
 
@@ -341,11 +366,22 @@ static ngx_command_t ngx_http_brix_cvmfs_commands[] = {
     ngx_null_command
 };
 
-/* Worker init: arm the T19 RTT probe timers for every registered export. */
+/* Worker init: arm the T19 RTT probe timers, the G17 scrub timer (worker
+ * 0 only — scrub.c gates internally), the G11 learn model/task and the G12
+ * swarm gossip timer (both every worker) for every registered export. */
 static ngx_int_t
 ngx_http_brix_cvmfs_init_process(ngx_cycle_t *cycle)
 {
-    return brix_cvmfs_rtt_init_worker(cycle);
+    if (brix_cvmfs_rtt_init_worker(cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (brix_cvmfs_scrub_init_worker(cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (brix_cvmfs_learn_init_worker(cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    return brix_cvmfs_swarm_init_worker(cycle);
 }
 
 ngx_module_t ngx_http_brix_cvmfs_module = {

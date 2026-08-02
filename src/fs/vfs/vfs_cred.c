@@ -162,6 +162,11 @@ vfs_cred_maybe_mint(brix_vfs_ctx_t *ctx, int cap_ok, brix_sd_ucred_t *store,
                 (int) ctx->storage_cred_mint_ttl, ctx->log) == NGX_OK) {
             rc = brix_sd_ucred_resolve(ctx->storage_cred_dir, store->key,
                 store);
+            if (rc == NGX_OK) {
+                brix_metric_cred_deleg(brix_vfs_metrics_proto(ctx),
+                    (ngx_uint_t) brix_vfs_backend_mode(ctx),
+                    BRIX_CRED_OUTCOME_USER);
+            }
         }
     }
 
@@ -238,6 +243,14 @@ vfs_cred_fill_user(brix_vfs_ctx_t *ctx, brix_sd_ucred_t *store,
     cred->cred_dir      = ctx->storage_cred_dir;
     cred->fallback_deny = ctx->storage_cred_deny;
     *use_cred = 1;
+    /* P80.12: record which tier the credential came from — a per-user key or
+     * the shared vo-<primary_vo> group key.  The USER metric covers both (both
+     * are "a per-user backend credential was used"); the tier lives in the log
+     * so an operator can see a member riding the group credential.  ("static"
+     * is the service-credential fallback, logged separately by the miss path.) */
+    ngx_log_error(NGX_LOG_DEBUG, ctx->log, 0,
+        "brix: backend credential selected principal=\"%s\" key=%s tier=%s",
+        store->principal, store->key, store->is_vo_tier ? "vo" : "user");
     brix_metric_cred_result(brix_vfs_metrics_proto(ctx),
                             BRIX_CRED_OUTCOME_USER);
 }

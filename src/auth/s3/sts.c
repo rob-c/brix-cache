@@ -244,15 +244,17 @@ sts_validate(ngx_pool_t *pool, const brix_s3_sts_conf_t *cf,
  *       original error string; then sts_build_action_qs → sts_sign_query →
  *       url. NGX_OK / NGX_ERROR.
  */
+/*
+ * sts_prep_common — the dialect-independent prepare steps: clamp the TTL, read
+ * the clock, resolve the SigV4 host authority, and derive the RoleSessionName.
+ * Shared by the AWS (GET/query) and MinIO (POST/form) request builders so both
+ * see identical timestamps/host/identity. NGX_OK / NGX_ERROR (logged).
+ */
 static ngx_int_t
-sts_prepare(ngx_pool_t *pool, sts_req_t *req, char *url, size_t urlsz,
-    ngx_log_t *log)
+sts_prep_common(ngx_pool_t *pool, sts_req_t *req, ngx_log_t *log)
 {
     const brix_s3_sts_conf_t *cf = req->cf;
-    char  action_qs[2048];
-    char  signed_qs[2560];
     char *host = NULL;
-    int   n;
 
     req->ttl = sts_clamp_ttl(cf->ttl_secs);
 
@@ -268,6 +270,22 @@ sts_prepare(ngx_pool_t *pool, sts_req_t *req, char *url, size_t urlsz,
     req->host = host;
 
     sts_role_session_name(req->id, req->rsn);
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+sts_prepare(ngx_pool_t *pool, sts_req_t *req, char *url, size_t urlsz,
+    ngx_log_t *log)
+{
+    const brix_s3_sts_conf_t *cf = req->cf;
+    char  action_qs[2048];
+    char  signed_qs[2560];
+    int   n;
+
+    if (sts_prep_common(pool, req, log) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     /* X-Amz-Credential value with the scope slashes percent-encoded (%2F). */
     n = ngx_snprintf((u_char *) req->credential, sizeof(req->credential),
@@ -336,6 +354,62 @@ sts_perform(ngx_pool_t *pool, const char *url, const char *rsn,
 
 
 /*
+ * sts_prepare_minio — build the MinIO-dialect AssumeRole POST into `pd`.
+ * WHAT: shared prep (TTL/clock/host/rsn) then sts_build_post (form body +
+ *       header-auth SigV4). WHY: MinIO speaks only POST/form/header-auth
+ *       AssumeRole, so it cannot reuse the AWS query builder. HOW: two calls,
+ *       each fail-closing with a specific message. NGX_OK / NGX_ERROR.
+ */
+static ngx_int_t
+sts_prepare_minio(ngx_pool_t *pool, sts_req_t *req, sts_post_t *pd,
+    ngx_log_t *log)
+{
+    if (sts_prep_common(pool, req, log) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (sts_build_post(req, pd) != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, log, 0, "brix_sts: POST build/sign failed");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+
+/*
+ * sts_perform_post — POST the MinIO AssumeRole request and require HTTP 200.
+ * Mirrors sts_perform for the GET path: pre-size the bounded response buffer,
+ * send, and fail closed on transport error or non-200 (same log string). `url`
+ * is the full STS endpoint (scheme+authority, e.g. "https://minio:9000") — the
+ * action rides in the form body, so MinIO's STS lives at the endpoint root and
+ * the URL carries no query string. `host` is the SigV4 authority (Host header).
+ */
+static ngx_int_t
+sts_perform_post(ngx_pool_t *pool, const char *url, const char *host,
+    const sts_post_t *pd, const char *rsn, sts_resp_t *resp, ngx_log_t *log)
+{
+    long http_status = 0;
+
+    resp->buf = ngx_pnalloc(pool, BRIX_STS_RESP_MAX);
+    if (resp->buf == NULL) {
+        return NGX_ERROR;
+    }
+    resp->len = 0;
+    resp->cap = BRIX_STS_RESP_MAX;
+
+    if (sts_http_post(url, host, pd, resp, &http_status, log) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (http_status != 200) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+            "brix_sts: STS AssumeRole for \"%s\" returned HTTP %l",
+            rsn, http_status);
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+
+/*
  * sts_finish — parse the STS XML body and pool-copy the credentials out.
  *
  * WHAT: extract AccessKeyId/SecretAccessKey/SessionToken and copy each into the
@@ -385,11 +459,27 @@ brix_s3_sts_assume(ngx_pool_t *pool, const brix_identity_t *id,
     req.cf = cf;
     req.id = id;
 
-    if (sts_prepare(pool, &req, url, sizeof(url), log) != NGX_OK) {
-        return NGX_ERROR;
-    }
-    if (sts_perform(pool, url, req.rsn, &resp, log) != NGX_OK) {
-        return NGX_ERROR;
+    if (cf->flavor == BRIX_STS_FLAVOR_MINIO) {
+        sts_post_t pd = { 0 };
+
+        if (sts_prepare_minio(pool, &req, &pd, log) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        /* MinIO serves STS at the endpoint root; the action is in the body, so
+         * POST to the bare endpoint (NUL-terminate cf->endpoint for libcurl). */
+        ngx_snprintf((u_char *) url, sizeof(url), "%V%Z", &cf->endpoint);
+        if (sts_perform_post(pool, url, req.host, &pd, req.rsn, &resp, log)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    } else {
+        if (sts_prepare(pool, &req, url, sizeof(url), log) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        if (sts_perform(pool, url, req.rsn, &resp, log) != NGX_OK) {
+            return NGX_ERROR;
+        }
     }
     if (sts_finish(pool, &resp, out, log) != NGX_OK) {
         return NGX_ERROR;

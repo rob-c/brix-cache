@@ -15,3 +15,8 @@ clientPki:
   enabled: false
   pkiSecret: ""        # the <rel>-pki Secret (ca.pem, usercert/key, signing_key)
   jwksConfigMap: ""    # the <rel>-jwks ConfigMap (jwks.json)
+  # Optional: a ready-made GSI CA trust dir (hash-linked ca .0 + .signing_policy),
+  # e.g. the gridftp lab's <rel>-ca-bundle ConfigMap. Mounted at /auth/cabundle;
+  # point X509_CERT_DIR there so globus/gfal find the issuer signing policy (which
+  # client-pki-init.sh's ca.pem+hash-link rebuild does not synthesize).
+  caBundleConfigMap: ""

@@ -2,9 +2,10 @@
  * tier_directives.h — X-macro for the phase-64 composable tier grammar
  * directive table (<pfx>{cache_store,cache_cold_store,stage,stage_store,
  * stage_flush,cache_max_object,cache_evict_at,cache_evict_to,
- * cache_index_cache,cache_meta,cache_slice_size}).
+ * cache_index_cache,cache_meta,cache_slice_size,cache_global_cas,
+ * cache_passthrough,cache_passthrough_max}).
  *
- * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the eleven
+ * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the twelve
  *       ngx_command_t initializers every protocol module declares for its
  *       tier grammar, all writing into the embedded
  *       ngx_http_brix_shared_conf_t `common` preamble.
@@ -108,6 +109,29 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       ngx_conf_set_size_slot,                                                 \
       conf_off,                                                               \
       offsetof(conf_t, common.cache_slice_size),                              \
+      NULL },                                                                 \
+    { ngx_string(pfx "cache_global_cas"), /* on|off: phase-87 G13 cross-repo  \
+                                           * hardlink dedup of verified CAS */ \
+      (ctx) | NGX_CONF_FLAG,                                                  \
+      ngx_conf_set_flag_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_global_cas),                              \
+      NULL },                                                                 \
+    { ngx_string(pfx "cache_passthrough"), /* on|off: phase-92 store-then-    \
+                                            * evict of admission-declined     \
+                                            * remote objects */               \
+      (ctx) | NGX_CONF_FLAG,                                                  \
+      ngx_conf_set_flag_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_passthrough),                             \
+      NULL },                                                                 \
+    { ngx_string(pfx "cache_passthrough_max"), /* <size>: spool cap for a     \
+                                                * passthrough fill (0 = the   \
+                                                * cache_max_object cap) */     \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_off_slot,                                                  \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_passthrough_max),                         \
       NULL }
 
 /*

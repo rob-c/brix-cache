@@ -19,11 +19,15 @@
 #include <stdint.h>
 #include "cvmfs/grammar/hash.h"
 #include "cvmfs/fetch/fetch.h"
+#include "cvmfs/catalog/catalog.h"
 
 typedef enum {
     CVMFS_WALK_CATALOG = 0,   /* a catalog object ('C') — root and nested */
     CVMFS_WALK_FILE,          /* a whole-file content object (no suffix) */
-    CVMFS_WALK_CHUNK          /* a partial-file chunk ('P') */
+    CVMFS_WALK_CHUNK,         /* a partial-file chunk ('P') */
+    CVMFS_WALK_DENT           /* a named entry (paths mode only): any dirent —
+                               * file, dir, symlink, mountpoint. hash/suffix are
+                               * meaningless (zeroed); only `path` matters. */
 } cvmfs_walk_kind_e;
 
 typedef struct {
@@ -32,6 +36,9 @@ typedef struct {
     char              suffix;   /* 'C' / 0 / 'P' — ready for cvmfs_fetch_object */
     uint64_t          size;     /* plaintext size where the catalog records one, else 0 */
     const char       *path;     /* repo-root-relative path of the owning entry ("" = root) */
+    const cvmfs_dirent_t *dent; /* full catalog dirent — CVMFS_WALK_DENT (paths mode)
+                                 * only, NULL otherwise; borrowed for the callback's
+                                 * duration (G6 index builder consumes it). */
 } cvmfs_walk_item_t;
 
 /* Return 0 to continue, nonzero to stop the walk early. */
@@ -57,6 +64,17 @@ int cvmfs_walk_catalog(cvmfs_fetch_ctx_t *fx, const cvmfs_hash_t *root,
 int cvmfs_walk_subtree(cvmfs_fetch_ctx_t *fx, const cvmfs_hash_t *root,
                        const char *tmp_dir, const char *path, int max_depth,
                        cvmfs_walk_cb cb, void *ud, long now);
+
+/* Path-set walk (phase-87 G1): enumerate the PATH of every named entry the
+ * snapshot reaches — files, directories, symlinks, and nested-catalog
+ * mountpoints — as CVMFS_WALK_DENT items (no CAS references are emitted).
+ * This is the negative-lookup filter's key source: a path NOT emitted here is
+ * guaranteed absent from the snapshot. Nested catalogs are descended (each hop
+ * hash-verified) down to `max_depth` levels. Same return codes as
+ * cvmfs_walk_catalog. */
+int cvmfs_walk_paths(cvmfs_fetch_ctx_t *fx, const cvmfs_hash_t *root,
+                     const char *tmp_dir, int max_depth,
+                     cvmfs_walk_cb cb, void *ud, long now);
 
 /* Verify one STORED CAS object (bytes as served: zlib-compressed or plain) and
  * decode it: the stored bytes must hash to `expected` (CVMFS object identity is

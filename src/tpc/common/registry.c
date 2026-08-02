@@ -336,13 +336,18 @@ brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log)
 }
 
 /*
- * Update the bytes_done (and, if non-zero, the state) of the transfer with the
- * given id, refreshing updated_at. id == 0 is a no-op returning NGX_OK; returns
- * NGX_DECLINED if the registry is unavailable or the id is not found.
+ * Shared core for the two update entry points: set bytes_done (and, when state is
+ * non-zero, state) on the transfer with the given id, refreshing updated_at. When
+ * set_total is non-zero AND bytes_total is positive the transfer's bytes_total is
+ * refreshed too — this lets a transport whose total size only becomes known
+ * mid-flight (an HTTP Content-Length discovered by the curl progress callback)
+ * publish an accurate total without clobbering a total already stamped at add time
+ * with a stale 0. id == 0 is a no-op returning NGX_OK; NGX_DECLINED if the
+ * registry is unavailable or the id is not found.
  */
-ngx_int_t
-brix_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
-    ngx_log_t *log)
+static ngx_int_t
+brix_tpc_registry_update_core(uint64_t id, off_t bytes_done, off_t bytes_total,
+    ngx_uint_t set_total, ngx_uint_t state, ngx_log_t *log)
 {
     brix_tpc_registry_table_t *tbl;
     brix_tpc_registry_entry_t *entry;
@@ -363,6 +368,9 @@ brix_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
         entry = &tbl->slots[i];
         if (entry->in_use && entry->transfer.id == id) {
             entry->transfer.bytes_done = bytes_done;
+            if (set_total && bytes_total > 0) {
+                entry->transfer.bytes_total = bytes_total;
+            }
             if (state != 0) {
                 entry->transfer.state = state;
             }
@@ -379,6 +387,31 @@ brix_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
                        id);
     }
     return NGX_DECLINED;
+}
+
+/*
+ * Update the bytes_done (and, if non-zero, the state) of the transfer with the
+ * given id, refreshing updated_at. id == 0 is a no-op returning NGX_OK; returns
+ * NGX_DECLINED if the registry is unavailable or the id is not found.
+ */
+ngx_int_t
+brix_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
+    ngx_log_t *log)
+{
+    return brix_tpc_registry_update_core(id, bytes_done, 0, 0, state, log);
+}
+
+/*
+ * As brix_tpc_registry_update, but also refresh bytes_total when it is positive
+ * (a 0 leaves any existing total untouched). Used by the progress-emit shim so a
+ * mid-flight-discovered total reaches the dashboard.
+ */
+ngx_int_t
+brix_tpc_registry_update_progress(uint64_t id, off_t bytes_done,
+    off_t bytes_total, ngx_uint_t state, ngx_log_t *log)
+{
+    return brix_tpc_registry_update_core(id, bytes_done, bytes_total, 1, state,
+                                          log);
 }
 
 /*

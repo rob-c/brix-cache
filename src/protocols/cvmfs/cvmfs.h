@@ -124,6 +124,80 @@ typedef struct {
     ngx_uint_t   geo_answer;       /* off|rtt (default off = passthrough)      */
     time_t       geo_cache_ttl;    /* per-host RTT cache TTL s (default 60)     */
     ngx_uint_t   geo_max_servers;  /* probed-list cap (default 16)             */
+
+    /* chunk-bundle batch fetch (phase-87 G2) */
+    ngx_flag_t   bundle;           /* brix_cvmfs_bundle on|off (default off):
+                                      POST /cvmfs/<repo>/.cvmfs-bundle accepts
+                                      a want-list of CAS paths and streams the
+                                      CACHE-RESIDENT members back in one framed
+                                      response (misses get markers; the client
+                                      falls back to single GETs, which fill the
+                                      cache). Never fills from the origin, so
+                                      the response is bounded and synchronous. */
+
+    /* trained shared-dictionary transfer coding (phase-87 G3) */
+    ngx_flag_t   dict;             /* brix_cvmfs_dict on|off (default off):
+                                      GET /cvmfs/<repo>/.cvmfs-dict/current
+                                      trains (lazily, per worker, from resident
+                                      CAS samples) and serves a zstd dictionary;
+                                      CAS GETs carrying a matching X-Brix-Dict
+                                      header may be answered dict-coded
+                                      (Content-Encoding: zstd-dict). The coding
+                                      is a reversible wire transform of the
+                                      STORED bytes — client-side CAS verify is
+                                      untouched, so a wrong dictionary can only
+                                      fail decode, never poison data.          */
+    void        *dict_state;       /* per-worker lazily-trained dictionary
+                                      cache (dict.c owns; COW after fork, so
+                                      each worker trains its own — no SHM, no
+                                      new globals). NULL until first use.      */
+
+    /* background CAS integrity scrubbing (phase-87 G17) */
+    ngx_flag_t   scrub;            /* brix_cvmfs_scrub on|off (default off):
+                                      worker-0 timer re-verifies resident CAS
+                                      objects against their content address in
+                                      bounded windows; a mismatch (local disk
+                                      bitrot — never an origin event, no
+                                      tamper signal) is evicted so the next
+                                      access re-fills verified.               */
+    time_t       scrub_interval;   /* brix_cvmfs_scrub_interval (default 60s):
+                                      pause between scrub passes              */
+    ngx_uint_t   scrub_rate;       /* brix_cvmfs_scrub_rate (default 20, max
+                                      256): CAS objects hashed per pass       */
+
+    /* cross-revision delta transfer (phase-87 G10) */
+    ngx_flag_t   delta;            /* brix_cvmfs_delta on|off (default off):
+                                      a CAS GET carrying X-Brix-Delta-Base
+                                      <40-hex> may be answered as a zstd delta
+                                      against that base object when the base
+                                      is cache-RESIDENT (never an origin
+                                      fetch) and the delta is strictly
+                                      smaller; the client reconstructs and
+                                      CAS-verifies, falling back to a whole-
+                                      object refetch on any mismatch.        */
+
+    /* workload-learned predictive prewarm (phase-87 G11) */
+    ngx_flag_t   learn;            /* brix_cvmfs_learn on|off (default off):
+                                      passively learn per-connection CAS
+                                      access sequences (fixed-size Markov
+                                      successor table, learn.c) and prewarm
+                                      predicted next objects through the
+                                      cache-fill seam on the thread pool.
+                                      Advisory: never touches the serve that
+                                      triggered it, and holds no per-user or
+                                      token content (INVARIANT #8).          */
+
+    /* P2P swarm cold-start (phase-87 G12) */
+    ngx_flag_t   swarm;            /* brix_cvmfs_swarm on|off (default off):
+                                      gossip-maintained dynamic mesh
+                                      membership (swarm.c) seeded from the
+                                      static brix_cache_peers ring; serves
+                                      /cvmfs/.swarm/roster and republishes
+                                      the live rendezvous ring into the
+                                      cache fill spine. Requires
+                                      brix_cache_peers.                      */
+    time_t       swarm_interval;   /* brix_cvmfs_swarm_interval <sec>
+                                      (default 3): gossip probe cadence.    */
 } brix_cvmfs_conf_t;
 
 /* One brix_cvmfs_repo_authz entry (phase-85 F3): the named repo (or "*") is
@@ -133,6 +207,16 @@ typedef struct {
     ngx_str_t    issuers;          /* scitokens.cfg path                     */
     void        *registry;         /* brix_token_registry_t*, built at merge */
 } brix_cvmfs_repo_authz_t;
+
+/* One brix_cvmfs_virtual_repo entry (phase-87 G16): requests naming the
+ * virtual fqrn are rewritten to (and served as) the first member repo that
+ * has the object — declaration order is the precedence, and only a
+ * definitive 404 advances to the next member. */
+typedef struct {
+    ngx_str_t     fqrn;            /* the virtual (client-facing) repo name  */
+    ngx_array_t  *members;         /* ngx_str_t member fqrns, precedence
+                                      order                                  */
+} brix_cvmfs_virtual_t;
 
 /* One brix_cvmfs_qos class (phase-85 F9): token-subject → fill-rate class.
  * `fills` bounds ORIGIN FILLS per second (token bucket, burst = fills; 0 =
@@ -164,6 +248,17 @@ typedef struct {
     ngx_str_t    scvmfs_token_issuers; /* scitokens.cfg path (bearer mode)   */
     void        *scvmfs_registry;      /* brix_token_registry_t*, built at
                                           merge when bearer mode is on       */
+    ngx_array_t *scvmfs_x509_dn;       /* ngx_str_t[] EEC-DN allow-globs
+                                          (x509 mode); NULL/empty = accept
+                                          any verified client cert           */
+
+    /* voms mode: x509 verification PLUS a VOMS-FQAN gate. vomsdir (per-VO LSC)
+     * and voms_cert_dir (VOMS signing-CA trust) verify+lift the proxy's VOMS
+     * VOs; scvmfs_voms is the allow-glob of VO names (NULL/empty = accept any
+     * verified client carrying at least one VO). */
+    ngx_str_t    scvmfs_vomsdir;       /* brix_scvmfs_vomsdir <dir>          */
+    ngx_str_t    scvmfs_voms_cert_dir; /* brix_scvmfs_voms_cert_dir <dir>    */
+    ngx_array_t *scvmfs_voms;          /* ngx_str_t[] VO-name allow-globs    */
 
     /* ---- token-gated repos (phase-85 F3) ---- */
     ngx_array_t *repo_authz;           /* brix_cvmfs_repo_authz_t entries;
@@ -172,13 +267,27 @@ typedef struct {
     /* ---- per-VO/per-job QoS fill throttling (phase-85 F9) ---- */
     ngx_array_t *qos;                  /* brix_cvmfs_qos_t classes;
                                           NULL = no throttling               */
+
+    /* ---- virtual / composed repos (phase-87 G16) ---- */
+    ngx_array_t *virtual_repos;        /* brix_cvmfs_virtual_t entries;
+                                          NULL = none                        */
+
+    /* ---- runtime provenance attestation (phase-87 G15) ---- */
+    void        *attest_pkey;          /* EVP_PKEY* signing key, loaded at
+                                          config time; NULL = attest off     */
 } ngx_http_brix_cvmfs_loc_conf_t;
 
-/* scvmfs client-authz modes (VOMS/GSI client-cert mode is future work —
- * the WebDAV auth_cert machinery needs a conf-independent seam first). */
+/* scvmfs client-authz modes. x509 authenticates the TLS-verified peer by its
+ * end-entity (EEC) subject DN — RFC 3820 proxy certs are skipped so a GSI proxy
+ * authenticates as its issuing EEC — against an optional DN allow-glob list.
+ * voms rides on top of x509: it additionally lifts+verifies the proxy's VOMS
+ * VO(s) (per-VO LSC vomsdir + VOMS signing-CA voms_cert_dir) and gates them by
+ * the brix_scvmfs_voms allow-glob; a proxy with no VOMS AC fails closed. */
 typedef enum {
     BRIX_SCVMFS_AUTHZ_NONE = 0,     /* TLS transport only, no client auth */
-    BRIX_SCVMFS_AUTHZ_BEARER        /* Authorization: Bearer + read scope */
+    BRIX_SCVMFS_AUTHZ_BEARER,       /* Authorization: Bearer + read scope */
+    BRIX_SCVMFS_AUTHZ_X509,         /* verified client cert; EEC DN allow-glob */
+    BRIX_SCVMFS_AUTHZ_VOMS          /* x509 + VOMS-VO allow-glob gate */
 } brix_scvmfs_authz_e;
 
 /* Per-request ctx set by the handler on entry (convention #2 of the phase-68
@@ -198,6 +307,17 @@ typedef struct {
     char                  token_sub[256];  /* validated bearer subject (F3/
                                               scvmfs paths); "" = anonymous —
                                               the F9 QoS classification key  */
+    /* virtual repo composition (phase-87 G16): set by the gate when the
+     * request named a virtual fqrn; virt_uri/virt_off preserve the original
+     * (virtual-name) uri + the fqrn span so each member attempt rewrites
+     * from the same anchor. NULL virt = a direct (non-composed) request. */
+    brix_cvmfs_virtual_t *virt;          /* matched entry (conf memory)    */
+    ngx_uint_t            virt_idx;      /* member currently being tried   */
+    ngx_str_t             virt_uri;      /* original virtual-name uri      */
+    size_t                virt_off;      /* fqrn offset within virt_uri    */
+    ngx_str_t             attest_label;  /* validated X-Brix-Attest session
+                                            label, r->pool copy; len 0 =
+                                            untagged request (G15)         */
     unsigned              sess_attempt_logged:1;
     unsigned              sess_xfer_started:1;
     unsigned              secure:1;        /* scvmfs (T22)                   */
@@ -254,6 +374,15 @@ void brix_cvmfs_notify_status(ngx_http_request_t *r,
 ngx_int_t brix_scvmfs_preamble(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf);
 
+/* postconfig hook: for an scvmfs x509/voms server, set
+ * X509_V_FLAG_ALLOW_PROXY_CERTS on its TLS context so a client GSI proxy chain
+ * verifies (nginx core rejects proxy certs otherwise). No-op when scvmfs is off,
+ * authz is not x509/voms, or the server has no TLS context. cscf is an
+ * ngx_http_core_srv_conf_t *; the hook walks the server's location tree for any
+ * scvmfs x509/voms location. Keeps the openssl/ssl-module coupling in secure.c
+ * (module.c has no SSL includes). */
+ngx_int_t brix_scvmfs_postconf_proxy_certs(ngx_conf_t *cf, void *cscf);
+
 /* Token-gated repos (phase-85 F3): evaluate brix_cvmfs_repo_authz for the
  * classified repo. NGX_DECLINED = not gated, or gated and a valid READ-scope
  * bearer was presented — proceed; NGX_HTTP_BAD_REQUEST = gated repo on a
@@ -262,6 +391,34 @@ ngx_int_t brix_scvmfs_preamble(ngx_http_request_t *r,
  * (needs ctx->url.repo), covers every class: CAS, metadata, geo. */
 ngx_int_t brix_cvmfs_repo_authz_eval(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf);
+
+/* Pure gate lookup: non-zero iff `repo` matches a brix_cvmfs_repo_authz
+ * entry (exact or "*") in this location. No token evaluation. */
+ngx_uint_t brix_cvmfs_repo_authz_gated(ngx_http_brix_cvmfs_loc_conf_t *lcf,
+    const char *repo, size_t repo_len);
+
+/* Virtual / composed repos (phase-87 G16). enter: called by the gate right
+ * after classification — a uri naming a configured virtual fqrn is rewritten
+ * in place to member[0] and re-classified (NGX_DECLINED = proceed with the
+ * gate, whether or not a rewrite happened; 500 only on alloc failure).
+ * advance: called on a definitive 404 — rewrites to the next member and
+ * returns NGX_OK (re-run the handler), or NGX_DECLINED when the request is
+ * not composed / the member list is exhausted (the 404 stands). */
+ngx_int_t brix_cvmfs_virtual_enter(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
+ngx_int_t brix_cvmfs_virtual_advance(ngx_http_request_t *r);
+
+/* Runtime provenance attestation (phase-87 G15, attest.c). gate: intercepts
+ * GET <loc>/.cvmfs-attest?session=<label> (the signed consumed-hash record;
+ * pre-classification, like the swarm roster) and captures a data request's
+ * X-Brix-Attest session label into ctx. NGX_DECLINED = not the endpoint —
+ * proceed with normal gating. observe: request-finalization hook — records
+ * the served CAS hash under the tagged session (per-worker table). */
+ngx_int_t brix_cvmfs_attest_gate(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
+void brix_cvmfs_attest_observe(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx,
+    ngx_uint_t status);
 
 /* Per-VO QoS (phase-85 F9): charge one ORIGIN FILL against the request's
  * class bucket (ctx->token_sub → class, else the `default` class). Called
@@ -272,11 +429,80 @@ ngx_int_t brix_cvmfs_repo_authz_eval(ngx_http_request_t *r,
 ngx_int_t brix_cvmfs_qos_check(ngx_http_request_t *r,
     ngx_http_brix_cvmfs_loc_conf_t *lcf);
 
+/* Chunk-bundle batch fetch (phase-87 G2, bundle.c): read the POSTed
+ * want-list, then stream every cache-resident member back in one framed
+ * response (shared/cvmfs/bundle/ wire format). Runs only behind the gate's
+ * CVMFS_URL_BUNDLE + brix_cvmfs_bundle-on + POST checks. Returns NGX_DONE
+ * (body read parked / response sent by the body callback) or a status. */
+ngx_int_t brix_cvmfs_bundle_handle(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
+
+/* Shared-dictionary endpoint (phase-87 G3, dict.c): GET/HEAD
+ * /cvmfs/<repo>/.cvmfs-dict/(current|<40-hex id>) — train the per-worker
+ * dictionary from resident CAS samples on first hit, then serve the dict
+ * bytes with X-Brix-Dict-Id. Runs only behind the gate's CVMFS_URL_DICT +
+ * brix_cvmfs_dict-on checks. Returns a status or the send rc. */
+ngx_int_t brix_cvmfs_dict_handle(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
+
+/* Dict-coded CAS serve attempt (phase-87 G3, dict.c): called from the tier
+ * open/respond HIT tail with the object already open. When the request opts
+ * in (X-Brix-Dict matching this worker's trained dict id) and the object
+ * qualifies (GET, CAS class, no Range, small), respond with the
+ * zstd-dict-coded bytes (Content-Encoding: zstd-dict + X-Brix-Dict-Id) and
+ * return the send rc — fh is closed. Otherwise returns NGX_DECLINED with fh
+ * STILL OPEN and no response state touched; the caller serves identity.
+ * (brix_vfs_file_t forward-declared to keep this header vfs.h-free.) */
+typedef struct brix_vfs_file_s brix_vfs_file_t;
+ngx_int_t brix_cvmfs_dict_try_serve(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx,
+    brix_vfs_file_t *fh);
+
+/* Delta-coded CAS serve attempt (phase-87 G10, delta.c): same contract as
+ * brix_cvmfs_dict_try_serve — when the request opts in (X-Brix-Delta-Base
+ * naming a cache-resident COMPLETE base object) and the delta is strictly
+ * smaller than identity, respond zstd-delta-coded (base bytes as the raw
+ * zstd dictionary) and return the send rc with fh closed; otherwise
+ * NGX_DECLINED with fh still open and no response state touched. */
+ngx_int_t brix_cvmfs_delta_try_serve(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx,
+    brix_vfs_file_t *fh);
+
 /* T19 rtt mode: record (at config time) that the export at `root_canon` runs
  * the per-worker RTT probe; arm the probe timers at worker init. */
 void      brix_cvmfs_rtt_register(const char *root_canon, time_t interval,
     const ngx_str_t *pool_name);
 ngx_int_t brix_cvmfs_rtt_init_worker(ngx_cycle_t *cycle);
+
+/* Phase-87 G17 background scrub: record (at config time) that the export at
+ * `root_canon` re-verifies resident CAS objects on a schedule; arm the
+ * worker-0 scrub timer at worker init (scrub.c). */
+void      brix_cvmfs_scrub_register(const char *root_canon, time_t interval,
+    ngx_uint_t rate, const ngx_str_t *pool_name);
+ngx_int_t brix_cvmfs_scrub_init_worker(ngx_cycle_t *cycle);
+
+/* Phase-87 G11 predictive prewarm (learn.c): config-time export
+ * registration, a per-worker model + fill task at worker init, and the
+ * passive request-path hook — learn the connection's previous-key → key
+ * transition, then prewarm the confident successors via the thread pool.
+ * Advisory by contract: every miss condition is a silent no-op. */
+void      brix_cvmfs_learn_register(const char *root_canon,
+    const ngx_str_t *pool_name);
+ngx_int_t brix_cvmfs_learn_init_worker(ngx_cycle_t *cycle);
+void      brix_cvmfs_learn_note(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx,
+    brix_sd_instance_t *sd, const char *key);
+
+/* Phase-87 G12 P2P swarm (swarm.c): config-time export registration, a
+ * per-worker gossip timer + probe task at worker init (EVERY worker — the
+ * published ring is per-worker registry state), and the roster endpoint the
+ * gate intercepts pre-classification (GET <root>/.swarm/roster; NGX_DECLINED
+ * for any other request). */
+void      brix_cvmfs_swarm_register(const char *root_canon, time_t interval,
+    const ngx_str_t *pool_name);
+ngx_int_t brix_cvmfs_swarm_init_worker(ngx_cycle_t *cycle);
+ngx_int_t brix_cvmfs_swarm_roster_serve(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
 
 /* $cvmfs_cache dispositions (request ctx cache_status; 0 = not applicable). */
 #define BRIX_CVMFS_CACHE_NONE  0u

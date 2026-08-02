@@ -271,6 +271,8 @@ ns_copy_finalize(ngx_log_t *log, const char *root_canon, const char *src,
 
     res->status  = BRIX_NS_OK;
     res->created = 1;
+    res->bytes   = ssb->st_size;   /* exactly what brix_copy_range moved — the
+                                    * caller's metric needs no post-copy stat */
 }
 
 brix_ns_result_t

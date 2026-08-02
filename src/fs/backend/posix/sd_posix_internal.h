@@ -57,6 +57,8 @@ ngx_fd_t sd_posix_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
 ngx_int_t sd_posix_ftruncate(brix_sd_obj_t *obj, off_t len);
 ngx_int_t sd_posix_fsync(brix_sd_obj_t *obj);
 ngx_int_t sd_posix_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out);
+ngx_int_t sd_posix_read_advise(brix_sd_obj_t *obj, off_t off, size_t len,
+    int advice);
 
 #ifndef XRDPROTO_NO_NGX   /* namespace/dir/xattr/staged: module-only (sd_posix_ns.c) */
 ngx_int_t sd_posix_stat(brix_sd_instance_t *inst, const char *path,

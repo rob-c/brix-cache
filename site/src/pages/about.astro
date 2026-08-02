@@ -25,11 +25,11 @@ const stats = [
 // whose full container-fleet or live-cluster verification is infra-blocked.
 const recent = [
   {
-    t: 'A GridFTP door',
+    t: 'GridFTP, a full peer protocol',
     tint: 'var(--ftp)',
     status: 'Landed · native-interop tested',
-    d: 'A full gsiftp:// GridFTP server: GSI / X.509 control-channel auth, parallel MODE E data streams, encrypted (PROT P) data channels, and server-to-server third-party copy — every transfer bridged onto the same POSIX tree, or delegated onward to a root:// origin as the user.',
-    cite: 'src/protocols/gridftp/ev/ · tests/test_gridftp_gsiftp_ev.py',
+    d: 'A full gsiftp:// GridFTP server — GSI / X.509 control-channel auth, parallel MODE E data streams, encrypted (PROT P) data channels, third-party copy — terminating on the same shared VFS as root/WebDAV/S3. It is bidirectional: a front-end for globus-url-copy / gfal2 / FTS, and a back-end translation onto any storage the VFS drives (POSIX, S3, Ceph, block store). A byte written over gsiftp reads back byte-identical over WebDAV or root, and vice versa.',
+    cite: 'src/protocols/gridftp/ev/ · tests/test_gridftp_translation.py',
   },
   {
     t: 'Identity survives the hop',
@@ -100,8 +100,9 @@ const backends = [
     <h1 class="display hero-head">One binary.<br />Four protocols.<br />One path to disk.</h1>
     <p class="lede">
       BriX-Cache is a single nginx module that speaks <span class="mono">root://</span> (XRootD),
-      WebDAV, and S3 off the same POSIX tree — and now terminates a full <span class="mono">gsiftp://</span>
-      GridFTP server besides. Every request enters nginx's event loop, passes one shared core that
+      WebDAV, S3, and a full <span class="mono">gsiftp://</span> GridFTP server as four co-equal peers
+      off the same VFS — write through any one and read back byte-identical through the others. Every
+      request enters nginx's event loop, passes one shared core that
       decides auth and handles caching &amp; metrics, then reaches storage through a VFS where all raw
       file I/O lives in exactly one place.
     </p>

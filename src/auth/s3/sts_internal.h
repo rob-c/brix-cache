@@ -109,6 +109,33 @@ typedef struct {
 } sts_creds_buf_t;
 
 
+/*
+ * sts_post_t — the fully-built MinIO-dialect POST request (phase-70 §5.5).
+ *
+ * WHAT: the form-encoded body and the header values a MinIO AssumeRole exchange
+ *       sends — a header-auth SigV4 POST (MinIO rejects the AWS GET/presigned
+ *       form). content_type is constant; host/amzdate are read from sts_req_t.
+ * WHY:  MinIO implements only AssumeRole over a POST + form body + header-auth
+ *       SigV4, so its request cannot reuse the GET/query builder. This struct
+ *       owns the built bytes across the prepare→perform phases (its buffers are
+ *       stack storage in brix_s3_sts_assume). The service secret is never here;
+ *       only the derived Authorization signature.
+ * HOW:  sts_build_post fills it; sts_http_post sends body with the four headers.
+ *
+ *   amzdate        — "YYYYMMDDTHHMMSSZ" (a signed header — must ride on the wire)
+ *   content_sha256 — lowercase-hex SHA-256 of the form body (x-amz-content-sha256)
+ *   body           — "Action=AssumeRole&DurationSeconds=..&Version=2011-06-15"
+ *   authorization  — the full "AWS4-HMAC-SHA256 Credential=.., SignedHeaders=..,
+ *                    Signature=.." header value
+ */
+typedef struct {
+    char amzdate[17];
+    char content_sha256[65];
+    char body[1024];
+    char authorization[1024];
+} sts_post_t;
+
+
 /* ---- Request builder (sts_sign.c) ---------------------------------------- */
 
 /*
@@ -124,6 +151,18 @@ ngx_int_t sts_build_action_qs(const sts_req_t *req, char *out, size_t outsz);
 ngx_int_t sts_sign_query(const sts_req_t *req, const char *action_qs,
     char *out, size_t outsz);
 
+/*
+ * sts_build_post — build the MinIO-dialect AssumeRole POST: the form body, its
+ * content hash, and the header-auth SigV4 Authorization value, all over the
+ * "sts" service. Reads host/amzdate/datestamp/credential inputs from `req`.
+ * NGX_OK / NGX_ERROR (overflow or crypto failure).
+ */
+ngx_int_t sts_build_post(const sts_req_t *req, sts_post_t *pd);
+
+/* Constant Content-Type for the MinIO AssumeRole form POST — shared by the
+ * builder (signs it) and the transport (sends it) so they never diverge. */
+#define BRIX_STS_POST_CTYPE  "application/x-www-form-urlencoded"
+
 
 /* ---- Transport + response parsing (sts_http.c) --------------------------- */
 
@@ -133,6 +172,15 @@ ngx_int_t sts_sign_query(const sts_req_t *req, const char *action_qs,
  */
 ngx_int_t sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
     ngx_log_t *log);
+
+/*
+ * sts_http_post — POST the MinIO-dialect AssumeRole request (`pd`) to `url` with
+ * header-auth SigV4 and capture the response body into `resp`, returning the
+ * HTTP status in *http_status. `host` is the SigV4 authority (Host header, must
+ * match the signed value). NGX_OK / NGX_ERROR.
+ */
+ngx_int_t sts_http_post(const char *url, const char *host, const sts_post_t *pd,
+    sts_resp_t *resp, long *http_status, ngx_log_t *log);
 
 /*
  * sts_parse_response — extract AccessKeyId / SecretAccessKey / SessionToken from

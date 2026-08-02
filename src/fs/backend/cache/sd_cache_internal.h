@@ -31,6 +31,12 @@ typedef struct {
     brix_sd_cache_peer_t peers[BRIX_SD_CACHE_MAX_PEERS];
     int                   n_peers;
     int                   peer_self;
+    /* phase-87 G12 dynamic swarm ring: when non-NULL this immutable ring
+     * REPLACES the static ring above in the fill spine. Published on the
+     * event loop with a barrier, read once per fill on worker threads;
+     * `volatile` keeps the compiler from caching the pointer. A published
+     * ring is never freed (see brix_sd_cache_ring_swap). */
+    const brix_sd_cache_ring_t *volatile dyn_ring;
     brix_cstore_t        cstore;
     brix_cache_policy_t  policy;
     ngx_log_t             *log;
@@ -53,9 +59,16 @@ typedef struct {
 /* Fill `key` from the source into the cache store and record its cinfo. NGX_OK
  * (cached or stale-served), NGX_DECLINED (admission), NGX_ERROR. `cred` may be
  * NULL (service-credential path). Called by the interposed read-open miss path
- * and the async fill-key entrypoint in sd_cache.c. */
+ * and the async fill-key entrypoint in sd_cache.c.
+ *
+ * `allow_pt` opts this fill into the phase-92 store-then-evict passthrough: an
+ * admission-declined object within the passthrough cap is filled anyway and the
+ * call returns NGX_OK with *out_pt=1, signalling the caller to evict the key
+ * once it has served the object as a transient hit. When `allow_pt` is 0 (or
+ * the policy has passthrough off / the object exceeds the cap) an admission
+ * decline still returns NGX_DECLINED. `out_pt` may be NULL. */
 ngx_int_t sd_cache_fill(sd_cache_inst_state *st, const char *key,
-    const brix_sd_cred_t *cred);
+    const brix_sd_cred_t *cred, int allow_pt, int *out_pt);
 
 /* Emit the unified guard-core audit line (signal=cvmfs_tamper) for a fill whose
  * bytes failed CVMFS integrity verification. `actor` is the fill SOURCE that

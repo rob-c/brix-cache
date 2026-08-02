@@ -109,6 +109,50 @@ the service identity in deny mode. If a user reports 3010 on an S3-backed
 server in deny mode, check their `.s3` file exists, is 0600-readable by the
 worker, and has non-empty key lines before suspecting the bucket policy.
 
+### 3.4 VO group credential tier — zero per-user provisioning
+
+When an authenticated principal carries a VO / group membership (a VOMS FQAN on
+a GSI proxy, or a token `groups`/`wlcg.groups` claim), the credential search adds
+one more tier **after** both per-user candidates miss:
+
+```
+<stem>.{pem,token,s3,keyring}          # per-user (literal or x5h- hash)
+vo-<primary_vo>.{pem,token,s3,keyring} # the VO GROUP credential  ← the new tier
+static service credential              # fallback policy (§3.3)
+```
+
+`<primary_vo>` is the **first** VO name in the identity (the parsed VOMS VO, e.g.
+`atlas` from `/atlas/Role=production`; token groups are used when no VOMS AC is
+present). A member of `atlas` with **no** personal file selects `vo-atlas.s3` —
+so an operator provisions **one** credential per VO instead of one per user, and
+a never-before-seen `atlas` member works immediately with no per-user file and
+no config reload.
+
+```
+brix_storage_credential_dir /etc/brix/creds;
+# /etc/brix/creds/vo-atlas.s3   (one file, serves every atlas member)
+# /etc/brix/creds/vo-cms.s3     (one file, serves every cms member)
+```
+
+Rules and guarantees:
+
+- The `vo-` prefix keeps the group namespace from colliding with a user token
+  named like a VO.
+- The tier is tried **only when the derived `vo-<name>` key is filesystem-safe
+  verbatim** — a VO string containing `/`, `=`, or other non-`[A-Za-z0-9@._-]`
+  bytes (e.g. a raw FQAN) is **skipped**, never hashed and never used to build a
+  path. This is a hard boundary: an attacker-influenced VO cannot traverse out
+  of the credential directory or alias another VO's file.
+- The **expired-`.pem` hard-stop is per key**: an expired per-user `.pem` stops
+  fallthrough to that user's `.token`/`.s3`, but the search still advances to
+  the VO tier (the group credential is not suppressed by a stale personal proxy).
+- Precedence inside the VO key is identical to §3.2 (`.pem` > `.token` > `.s3` >
+  `.keyring`).
+- Attribution is unchanged: the log/audit `principal` stays the human's
+  identity; only the credential comes from the group. The access log's
+  credential line carries `tier=vo` (vs `tier=user`) at debug level so an
+  operator can see who is riding the group credential.
+
 ## 4. Kubernetes: secret mounts and `O_NOFOLLOW`
 
 Credential files are opened with `O_NOFOLLOW` (deliberate hardening — do not

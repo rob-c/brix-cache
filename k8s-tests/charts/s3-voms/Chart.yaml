@@ -1,0 +1,20 @@
+apiVersion: v2
+name: s3-voms
+description: >-
+  root://+GSI+VOMS zero-provisioning gateway backed by MinIO S3 — VO-derived
+  backend credentials (vo-atlas.s3 / vo-cms.s3, P80.12) selected from a live
+  VOMS AC, with org-scoped authz (o atlas /atlas / o cms /cms) and
+  brix_require_vo.  A never-seen user cert bearing a valid atlas VOMS AC works
+  with NO gridmap, NO per-user file and NO reload (P80.14 zero-provisioning).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: brix-common
+    version: 0.1.0
+    repository: file://../brix-common
+  - name: topology-role
+    version: 0.1.0
+    repository: file://../topology-role
+    alias: s3voms
+    condition: s3voms.enabled

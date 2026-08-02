@@ -57,6 +57,17 @@ extern const brix_sd_driver_t brix_sd_block_driver;
  * Returns an fd, or -1 with errno set. (Defined in sd_block.c.) */
 int brix_sd_block_open_unconfined(const char *path, int sd_flags, mode_t mode);
 
+/* driver_conf for brix_sd_block_driver.init() (server plane): the block device
+ * (or a regular file used as one) and the per-extent size in bytes. The device
+ * capacity (BLKGETSIZE64 for a real device, st_size for a file) is divided into
+ * equal extents, each a logical object "/0".."/N-1" the export serves. An
+ * extent_size of 0 makes the whole device a single extent "/0" — the default,
+ * since brix_storage_backend carries no block_size argument. */
+typedef struct {
+    const char *device;
+    int64_t     extent_size;
+} brix_sd_block_conf_t;
+
 /* The driver used for an export that selects no explicit backend (today: POSIX).
  * Lets the VFS resolve "the default backend" without naming a concrete driver. */
 const brix_sd_driver_t *brix_sd_default_driver(void);

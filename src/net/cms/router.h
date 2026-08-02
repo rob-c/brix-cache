@@ -24,7 +24,12 @@
 
 typedef enum {
     XRDCMS_ROLE_MANAGER = 0,   /* this node accepts frames as a manager */
-    XRDCMS_ROLE_NODE    = 1    /* this node accepts frames as a data server */
+    XRDCMS_ROLE_NODE    = 1,   /* this node accepts frames as a data server */
+    XRDCMS_ROLE_SUBMAN  = 2,   /* manager <- meta-manager leg (manVOps): only
+                                  non-destructive ops — stock cmsd prohibits a
+                                  meta-manager from destructive actions */
+    XRDCMS_ROLE_SUPER   = 3    /* supervisor <- manager leg (supVOps): namespace
+                                  ops carry FORWARD (pushed down, not local) */
 } brix_cms_role_t;
 
 typedef struct {

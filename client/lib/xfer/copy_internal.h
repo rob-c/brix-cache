@@ -67,9 +67,27 @@ typedef struct { brix_conn *c; brix_file *f; uint64_t off; brix_status *st; } zi
 void copy_signal_handler(int sig);
 
 /* copy_local.c */
+/*
+ * The invariant inputs of one resilient-open retry loop — the connection, the
+ * path being opened, the compress opaque (NULL if none), and the stall
+ * deadline. Shared by the Phase-38 download (copy_local.c) and upload
+ * (copy_upload.c) split siblings; consumed by csctx_reopen_home / the
+ * direction-specific open helpers.
+ */
+typedef struct {
+    brix_conn  *c;
+    const char *path;
+    const char *opaque;      /* compress opaque or NULL */
+    uint64_t    deadline_ns; /* absolute retry cutoff (brix_mono_ns scale) */
+} copy_stream_ctx_t;
+
 int make_temp_path(const char *dst, char *out, size_t outsz);
 int open_download_temp(const char *dst, char *tmp, size_t tmpsz, brix_status *st);
 int atomic_dest_finish(const char *tmp, const char *dest, int rc, brix_status *st);
+/* resilient reopen/retry helpers (copy_local.c); shared with the Phase-38
+ * upload split sibling (copy_upload.c). */
+void csctx_reopen_home(brix_conn *c, brix_status *st);
+int csctx_retry_gate(const brix_status *st, uint64_t deadline_ns, unsigned *attempt);
 
 /* copy_pump.c */
 int write_all(int fd, const uint8_t *buf, size_t n, brix_status *st);
@@ -211,6 +229,15 @@ typedef struct {
 
 int copy_tree_download(const copy_walk_ctx *w);
 int copy_tree_upload(const copy_walk_ctx *w);
+/* shared recursive-walk helpers (copy_recursive.c); used across the Phase-38
+ * download/upload split siblings (copy_recursive_ul.c). */
+int dirent_is_dot(const char *name);
+int rel_join(const char *rel, const char *name, char *out, size_t outsz);
+int path_join(const char *dir, const char *name, char *out, size_t outsz);
+int sync_cksum_match(brix_conn *c, const char *rpath, const char *lpath,
+                     const brix_copy_opts *o);
+void mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
+                          const char *rel, const brix_copy_opts *o);
 int recursive_dest_root(const char *dstdir, const char *srcpath, char *out, size_t outsz);
 int copy_recursive(const copy_recurse_req *rq, brix_status *st);
 int web_auth_headers(const web_auth_ctx *a, char *hdrs, size_t hdrsz);

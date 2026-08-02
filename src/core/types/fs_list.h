@@ -98,6 +98,7 @@
  * this table is only the scheme→driver dispatch (fs/tier/tier_config.c). */
 #define BRIX_FS_SCHEME_LIST(S)                                              \
     S("posix",  "posix",  0, 0)                                               \
+    S("block",  "block",  0, 0)                                               \
     S("pblock", "pblock", 0, 0)                                               \
     S("root",   "xroot",  0, 0)                                               \
     S("roots",  "xroot",  1, 0)                                               \

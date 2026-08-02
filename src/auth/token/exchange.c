@@ -199,8 +199,12 @@ brix_tx_build_body(CURL *curl, ngx_pool_t *pool,
  * WHAT: extract access_token from the JSON reply into a pool copy.
  * WHY:  a successful RFC 8693 response is a JSON object with a string
  *       `access_token`; anything else is a failure we must not treat as a token.
+ *
+ * Non-static (declared in exchange.h) so the JSON success/error branches
+ * unit-test deterministically against synthetic response bodies, without
+ * standing up a live TLS OIDC endpoint (coverage plan W3.8 happy path).
  */
-static ngx_int_t
+ngx_int_t
 brix_tx_parse_response(ngx_pool_t *pool, const u_char *doc, size_t len,
     ngx_str_t *out_token, ngx_log_t *log)
 {

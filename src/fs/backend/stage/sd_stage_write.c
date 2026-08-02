@@ -487,13 +487,12 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
 
     /* 1. publish the buffered object on the stage store. */
     if (store->driver->staged_commit(ss->inner, noreplace) != NGX_OK) {
-        int e = errno;
-        if (store->driver->staged_abort != NULL) {
-            store->driver->staged_abort(ss->inner);
-        }
-        free(ss);
-        free(st);
-        errno = e ? e : EIO;
+        /* Ownership contract (brix_vfs_staged_commit): a failed commit leaves
+         * the whole handle valid — the inner store's commit did not free
+         * ss->inner, so DON'T abort/free here. The caller invokes staged_abort
+         * (sd_stage_staged_abort), which aborts ss->inner and frees ss+st
+         * exactly once. Doing it here too would double-free. errno is already
+         * set by the inner commit. */
         return NGX_ERROR;
     }
     /* ss->inner is consumed by the commit above. */

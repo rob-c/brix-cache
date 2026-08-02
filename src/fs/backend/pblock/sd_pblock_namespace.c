@@ -104,6 +104,75 @@ sd_pblock_stat(brix_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
+/* Type/emptiness gate for an unlink target: rmdir must hit a directory (ENOTDIR)
+ * that is empty (ENOTEMPTY); unlink must not hit a directory (EISDIR). Returns
+ * NGX_OK when the target may be removed, NGX_ERROR (errno set) otherwise. */
+static ngx_int_t
+pblock_unlink_check_target(pblock_state_t *st, const char *path, int is_dir,
+    const pblock_meta *meta)
+{
+    if (is_dir) {
+        int children;
+
+        if (!meta->is_dir) {
+            errno = ENOTDIR;
+            return NGX_ERROR;
+        }
+        children = pblock_catalog_child_count(st->cat, path);
+        if (children < 0) {
+            return NGX_ERROR;
+        }
+        if (children > 0) {
+            errno = ENOTEMPTY;
+            return NGX_ERROR;
+        }
+    } else if (meta->is_dir) {
+        errno = EISDIR;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/* Detach a file object's side records before its catalog row is removed. Order
+ * matters: trash-push (F11) holds the blob so the F10 release below only
+ * decrements; residency (F4), event history (F9) and lock rows (F15) then die
+ * with the file; the F7 crash point leaves a dangling row for pblock-fsck. */
+static void
+pblock_unlink_release_file(pblock_state_t *st, const char *path,
+    const pblock_meta *meta)
+{
+    if (st->trash) {
+        (void) pblock_hist_trash_push(st, path, meta);
+    }
+    pblock_refs_release(st, meta->blob_id, meta->size, meta->block_size);
+    if (st->nearline) {                      /* F4 */
+        pblock_nearline_drop(st, path);
+    }
+    if (st->lab != NULL) {                   /* F9 */
+        pblock_anomaly_drop(st, path);
+    }
+    if (st->locks) {                         /* F15 */
+        pblock_locks_drop(st, path);
+    }
+    pblock_lab_crash(st->lab, "before_unlink_row");
+}
+
+/* Remove the catalog row and, when auditing (F17), log the outcome. */
+static ngx_int_t
+pblock_unlink_commit(pblock_state_t *st, const char *path, int is_dir,
+    const pblock_meta *meta)
+{
+    ngx_int_t rc = pblock_catalog_remove(st->cat, path) == 0
+                       ? NGX_OK : NGX_ERROR;
+
+    if (st->audit) {
+        pblock_audit_log(st->cat, is_dir ? "rmdir" : "unlink", path, "",
+                         meta->uid, meta->gid, rc == NGX_OK ? 0 : -1,
+                         rc == NGX_OK ? 0 : errno);
+    }
+    return rc;
+}
+
 ngx_int_t
 sd_pblock_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
@@ -133,62 +202,42 @@ sd_pblock_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
         return NGX_ERROR;
     }
 
-    if (is_dir) {
-        int children;
-
-        if (!meta.is_dir) {
-            errno = ENOTDIR;
-            return NGX_ERROR;
-        }
-        children = pblock_catalog_child_count(st->cat, path);
-        if (children < 0) {
-            return NGX_ERROR;
-        }
-        if (children > 0) {
-            errno = ENOTEMPTY;
-            return NGX_ERROR;
-        }
-    } else if (meta.is_dir) {
-        errno = EISDIR;
+    if (pblock_unlink_check_target(st, path, is_dir, &meta) != NGX_OK) {
         return NGX_ERROR;
     }
 
     if (!meta.is_dir) {
-        /* F11: move the object into the trash BEFORE releasing it. trash_push
-         * holds its blob, so the release below only decrements (a copy-on-write
-         * transfer of the reference to the trash row). A failed push is
-         * fail-open — the unlink just frees the blob as usual, no trash entry. */
-        if (st->trash) {
-            (void) pblock_hist_trash_push(st, path, &meta);
-        }
-        /* F10-aware release: the last reference removes blocks + csi rows
-         * (byte-identical to the pre-F10 path with refs off); a still-shared
-         * blob just loses one reference. */
-        pblock_refs_release(st, meta.blob_id, meta.size, meta.block_size);
-        if (st->nearline) {                  /* F4: residency dies with the file */
-            pblock_nearline_drop(st, path);
-        }
-        if (st->lab != NULL) {               /* F9: event history dies with it */
-            pblock_anomaly_drop(st, path);
-        }
-        if (st->locks) {                     /* F15: stale/own rows die with it */
-            pblock_locks_drop(st, path);
-        }
-        /* F7: blocks are gone but the row still points at them — a crash here
-         * leaves a dangling catalog row for pblock-fsck to flag and --gc. */
-        pblock_lab_crash(st->lab, "before_unlink_row");
+        pblock_unlink_release_file(st, path, &meta);
     }
-    {
-        ngx_int_t rc2 = pblock_catalog_remove(st->cat, path) == 0
-                            ? NGX_OK : NGX_ERROR;
+    return pblock_unlink_commit(st, path, is_dir, &meta);
+}
 
-        if (st->audit) {                                 /* F17 */
-            pblock_audit_log(st->cat, is_dir ? "rmdir" : "unlink", path, "",
-                             meta.uid, meta.gid, rc2 == NGX_OK ? 0 : -1,
-                             rc2 == NGX_OK ? 0 : errno);
-        }
-        return rc2;
+/* pblock_path_canon — copy `in` into out[cap] with any trailing slash(es)
+ * stripped (a lone root "/" is preserved). Returns 0, or -1 with errno
+ * ENAMETOOLONG when `in` does not fit.
+ *
+ * WHY: the catalog keys directories WITHOUT a trailing slash, but a GridFTP
+ *      `-cd` MKD (globus-url-copy) arrives as "/interop/". Left as-is,
+ *      parent_of("/interop/") splits into the non-existent parent "/interop"
+ *      plus an empty leaf, so the parent gate / parent-permission check fails
+ *      with a spurious ENOENT. This is the pblock-side analogue of the POSIX
+ *      normalisation in brix_mkdir_beneath(). Shared by the plain (mkdir_as)
+ *      and per-user (mkdir_cred, sd_pblock_cred.c) mkdir slots — the cred slot
+ *      must canonicalise BEFORE its W+X parent check, not only at insert. */
+int
+pblock_path_canon(const char *in, char *out, size_t cap)
+{
+    size_t len = strlen(in != NULL ? in : "");
+
+    if (len >= cap) {
+        errno = ENAMETOOLONG;
+        return -1;
     }
+    memcpy(out, in != NULL ? in : "", len + 1);
+    while (len > 1 && out[len - 1] == '/') {
+        out[--len] = '\0';
+    }
+    return 0;
 }
 
 /* sd_pblock_mkdir_as — mkdir recording (uid, gid) as the new directory's
@@ -200,6 +249,14 @@ sd_pblock_mkdir_as(brix_sd_instance_t *inst, const char *path, mode_t mode,
 {
     pblock_state_t *st = inst->state;
     pblock_meta     meta;
+    char            canon[PATH_MAX];
+
+    /* Canonicalise a trailing-slash MKD (see pblock_path_canon) so the quota,
+     * audit and catalog rows all key the directory without the slash. */
+    if (pblock_path_canon(path, canon, sizeof(canon)) != 0) {
+        return NGX_ERROR;
+    }
+    path = canon;
 
     /* F11: mkdir /.pblock/undelete/<path> pops <path> out of the trash — handled
      * before any real catalog work, and before the F6 dispatch since it owns a

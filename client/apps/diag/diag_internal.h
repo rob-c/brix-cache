@@ -32,8 +32,9 @@ typedef struct {
     int         authorized;    
     int         probe_timeout_ms; 
     const char *playback_url;  
-    const char *davs;          
-    int         sweep;         
+    const char *davs;
+    const char *davs_tls;      /* --davs-tls host:port: HTTPS WebDAV compare plane */
+    int         sweep;
     int         json;          
     int         dashboard_port;
     int         allow_write;   

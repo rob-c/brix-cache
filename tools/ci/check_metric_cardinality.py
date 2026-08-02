@@ -49,6 +49,7 @@ APPROVED = (
     "proto op status status_class method direction class le "  # ENUM
     "auth plane action source result state surface "           # ENUM
     "reason staging "                                          # ENUM (reap reason; 0/1 staging flag)
+    "mode outcome "                                            # ENUM (cred-deleg gate: 6 fixed modes × 3 fixed outcomes, unified.c name tables)
     "export backend origin upstream zone repo vo "             # CONFIG-N (named resources)
     "server port"                                              # CONFIG-N (cluster member host:port / listen port)
 )

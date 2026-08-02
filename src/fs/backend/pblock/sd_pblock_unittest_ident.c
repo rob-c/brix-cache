@@ -147,6 +147,15 @@ test_ident_vo_dir(brix_sd_instance_t *inst)
     CHECK(D->stat(inst, "/atlas/carol", &sub) == NGX_OK
           && sub.uid != st.uid, "subdir not owned by carol");
 
+    /* A GridFTP `-cd` MKD arrives with a trailing slash. The cred slot must
+     * canonicalise BEFORE its W+X parent check — otherwise "/atlas/tsc/" fails
+     * with a spurious ENOENT (parent resolved to the missing "/atlas/tsc"). The
+     * stored key must be canonical so the child is reachable. */
+    CHECK(D->mkdir_cred(inst, "/atlas/tsc/", 0770, &CRED_CAROL) == NGX_OK,
+          "same-VO trailing-slash mkdir: %s", strerror(errno));
+    CHECK(D->stat(inst, "/atlas/tsc", &sub) == NGX_OK && sub.is_dir,
+          "canonical key /atlas/tsc is a directory");
+
     errno = 0;
     CHECK(D->mkdir_cred(inst, "/atlas/bob", 0770, &CRED_BOB) == NGX_ERROR
           && errno == EACCES, "foreign-VO mkdir allowed (errno %d)", errno);

@@ -144,5 +144,6 @@ int xfs_listxattr(const char *path, char *list, size_t size);
 /* xrootdfs.c */
 void * xfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg);
 void usage(void);
+void usage_fp(FILE *out);   /* xrootdfs_usage.c */
 
 #endif /* BRIX_XROOTDFS_INTERNAL_H */

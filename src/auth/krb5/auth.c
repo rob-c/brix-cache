@@ -1,6 +1,7 @@
 #include "core/ngx_brix_module.h"
 #include "observability/metrics/unified.h"
 #include "protocols/root/session/registry.h"
+#include "auth/krb5/deleg_capture.h"   /* phase-70 §5.7 fwdtgt capture state machine */
 
 #include <string.h>
 
@@ -328,6 +329,53 @@ brix_krb5_verify_req(brix_krb5_req_t *rq, krb5_auth_context *auth_ctx,
  *      auth_ctx, finalizes the session, sets *out to the OK send result and
  *      returns NGX_DONE (the handler has nothing left to do either way).
  */
+/*
+ * WHAT: Grant the session to an authenticated krb5 client whose local name is
+ *       already mapped (cname): mark auth_done, record login.dn, populate the
+ *       identity, register the session, track metrics, send kXR_ok.
+ *
+ * WHY:  Shared by the single-round finalize and the two-round delegation-capture
+ *       finish so the success-side bookkeeping stays identical regardless of
+ *       whether a forwarded TGT was captured.
+ *
+ * HOW:  Returns the brix_send_ok / brix_send_error result directly (no ticket or
+ *       auth_ctx to free here — the caller has released them).
+ */
+static ngx_int_t
+brix_krb5_session_grant(brix_krb5_req_t *rq, const char *cname)
+{
+    brix_ctx_t       *ctx = rq->ctx;
+    ngx_connection_t *c = rq->c;
+    char              safe_cname[1024];
+
+    ctx->login.auth_done = 1;
+    ctx->token.auth = 0;
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) cname,
+                sizeof(ctx->login.dn));
+
+    if (ctx->identity != NULL) {
+        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
+                                   BRIX_AUTHN_KRB5) != NGX_OK)
+        {
+            return brix_send_error(ctx, c, kXR_NoMemory,
+                                     "identity allocation failed");
+        }
+    }
+
+    brix_session_register(ctx->login.sessid, ctx->login.dn,
+                            ctx->login.vo_list, 0);
+    brix_krb5_track_identity(ctx);
+
+    brix_sanitize_log_string((char *) cname, safe_cname, sizeof(safe_cname));
+    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                  "brix: krb5 auth OK principal=\"%s\"", safe_cname);
+
+    brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 1);
+    brix_log_access(ctx, c, "AUTH", "-", "krb5", 1, kXR_ok, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_AUTH);
+    return brix_send_ok(ctx, c, NULL, 0);
+}
+
 static ngx_int_t
 brix_krb5_finalize(brix_krb5_req_t *rq, krb5_auth_context auth_ctx,
     krb5_ticket *ticket, ngx_int_t *out)
@@ -336,7 +384,6 @@ brix_krb5_finalize(brix_krb5_req_t *rq, krb5_auth_context auth_ctx,
     ngx_connection_t           *c = rq->c;
     ngx_stream_brix_srv_conf_t *conf = rq->conf;
     char                        cname[512];
-    char                        safe_cname[1024];
 
     if (brix_krb5_client_name(conf, ticket, cname, sizeof(cname)) != NGX_OK) {
         krb5_free_ticket(conf->krb5.context, ticket);
@@ -353,34 +400,83 @@ brix_krb5_finalize(brix_krb5_req_t *rq, krb5_auth_context auth_ctx,
     krb5_free_ticket(conf->krb5.context, ticket);
     krb5_auth_con_free(conf->krb5.context, auth_ctx);
 
-    ctx->login.auth_done = 1;
-    ctx->token.auth = 0;
-    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) cname,
-                sizeof(ctx->login.dn));
+    *out = brix_krb5_session_grant(rq, cname);
+    return NGX_DONE;
+}
 
-    if (ctx->identity != NULL) {
-        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
-                                   BRIX_AUTHN_KRB5) != NGX_OK)
-        {
-            *out = brix_send_error(ctx, c, kXR_NoMemory,
-                                     "identity allocation failed");
-            return NGX_DONE;
-        }
+/*
+ * WHAT: Round 1, delegation path — after a verified AP_REQ, request the client
+ *       forward its TGT instead of finalizing. Maps the client name, parks the
+ *       session subkey + client principal on ctx->krb5, frees the ticket (its
+ *       job is done), and sends the kXR_authmore "fwdtgt" continuation.
+ *
+ * WHY:  Only reached when brix_krb5_delegate is on. The parked auth context holds
+ *       the session subkey that the forwarded KRB_CRED (round 2) is encrypted
+ *       under; without it round 2 cannot decrypt the delegated credential.
+ *
+ * HOW:  On any setup failure it frees ticket + auth_ctx and denies; on success
+ *       ownership of auth_ctx passes to ctx->krb5 (released at round 2 / close),
+ *       so it is NOT freed here. Returns the send result.
+ */
+static ngx_int_t
+brix_krb5_begin_delegation(brix_krb5_req_t *rq, krb5_auth_context auth_ctx,
+    krb5_ticket *ticket)
+{
+    brix_ctx_t                 *ctx = rq->ctx;
+    ngx_connection_t           *c = rq->c;
+    ngx_stream_brix_srv_conf_t *conf = rq->conf;
+    char                        cname[512];
+
+    if (brix_krb5_client_name(conf, ticket, cname, sizeof(cname)) != NGX_OK
+        || brix_krb5_deleg_park(ctx, c, conf->krb5.context, auth_ctx,
+                                ticket->enc_part2->client, cname) != NGX_OK)
+    {
+        krb5_free_ticket(conf->krb5.context, ticket);
+        krb5_auth_con_free(conf->krb5.context, auth_ctx);
+        brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 0);
+        brix_log_access(ctx, c, "AUTH", "-", "krb5", 0, kXR_NotAuthorized,
+                          "krb5 delegation setup failed", 0);
+        BRIX_OP_ERR(ctx, BRIX_OP_AUTH);
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+                                 "krb5 authentication failed");
     }
 
-    brix_session_register(ctx->login.sessid, ctx->login.dn,
-                            ctx->login.vo_list, 0);
-    brix_krb5_track_identity(ctx);
+    /* auth_ctx now owned by ctx->krb5; the ticket yielded the client-principal
+     * copy + mapped name, so free it before the round-trip. */
+    krb5_free_ticket(conf->krb5.context, ticket);
 
-    brix_sanitize_log_string(cname, safe_cname, sizeof(safe_cname));
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "brix: krb5 auth OK principal=\"%s\"", safe_cname);
+    return brix_krb5_send_fwdtgt(ctx, c);
+}
 
-    brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 1);
-    brix_log_access(ctx, c, "AUTH", "-", "krb5", 1, kXR_ok, NULL, 0);
-    BRIX_OP_OK(ctx, BRIX_OP_AUTH);
-    *out = brix_send_ok(ctx, c, NULL, 0);
-    return NGX_DONE;
+/*
+ * WHAT: Round 2, delegation path — capture the client's forwarded KRB_CRED into a
+ *       0600 FILE ccache and, on success, grant the session with the name mapped
+ *       in round 1.
+ *
+ * WHY:  Completes the two-round exchange. The captured ccache is later bound to
+ *       the VFS delegation so the origin leg re-authenticates AS the user.
+ *
+ * HOW:  On capture failure it denies (the round state is already torn down by
+ *       brix_krb5_deleg_capture, fail closed); on success it grants using the
+ *       parked cname. Returns the send result.
+ */
+static ngx_int_t
+brix_krb5_finish_delegation(brix_krb5_req_t *rq)
+{
+    brix_ctx_t                 *ctx = rq->ctx;
+    ngx_connection_t           *c = rq->c;
+    ngx_stream_brix_srv_conf_t *conf = rq->conf;
+
+    if (brix_krb5_deleg_capture(ctx, c, conf) != NGX_OK) {
+        brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 0);
+        brix_log_access(ctx, c, "AUTH", "-", "krb5", 0, kXR_NotAuthorized,
+                          "krb5 forwarded credential capture failed", 0);
+        BRIX_OP_ERR(ctx, BRIX_OP_AUTH);
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+                                 "krb5 authentication failed");
+    }
+
+    return brix_krb5_session_grant(rq, ctx->krb5.cname);
 }
 #endif
 
@@ -430,6 +526,13 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         return out;
     }
 
+    /* Round 2 of the delegation exchange: a "krb5"-prefixed message arriving on a
+     * connection that already sent the fwdtgt challenge carries the forwarded
+     * KRB_CRED, not a fresh AP_REQ. Capture it and finalize. */
+    if (ctx->krb5.round == 1) {
+        return brix_krb5_finish_delegation(&rq);
+    }
+
     auth_ctx = NULL;
     ticket = NULL;
 
@@ -452,6 +555,12 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (brix_krb5_verify_req(&rq, &auth_ctx, &ticket, &out) == NGX_DONE) {
         return out;
+    }
+
+    /* Round 1 with delegation on: request a forwarded TGT (kXR_authmore fwdtgt)
+     * instead of finalizing; auth_ctx + ticket are consumed there. */
+    if (brix_krb5_deleg_wanted(conf)) {
+        return brix_krb5_begin_delegation(&rq, auth_ctx, ticket);
     }
 
     brix_krb5_finalize(&rq, auth_ctx, ticket, &out);

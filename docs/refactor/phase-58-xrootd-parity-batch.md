@@ -129,7 +129,7 @@ a real XRootD SSI peer (per ADR-2).
 | 3 | XrdDig (HTTP surface) | **DONE** | `src/protocols/dig/{dig.c,dig.h}`; WebDAV dispatch hook; directives `xrootd_webdav_dig` / `_dig_export <name> <dir>` (realpath anchor) / `_dig_auth <allowfile>`; RESOLVE_BENEATH confinement + fail-closed principal→export allow-file + GET/HEAD-only; `tests/test_dig.py` 7/7 (authorized read, unlisted→403, anon→403, **symlink-escape blocked**, unknown-export→404, write→405, disabled→fall-through). Follow-up: root:// surface + dirlist |
 | 4A | OssArc zip member read | **DONE (pre-existing)** | already in tree: `zip_member.c`/`zip_http.c`; `webdav/get.c` `zip_access`; root:// `xrdcl.unzip=` in `open_request.c`. Doc §4A was stale |
 | 5 | GSI delegation | **DONE (pre-existing)** | already in tree+build: `src/auth/gsi/delegation.c` (begin_delegation→`kXGS_pxyreq`, `handle_sigpxy`), `src/auth/gsi/proxy_req.c` (X509_REQ CSR + unittest), session-cipher encrypt, auth.c branches, TPC `tpc_delegate` consumption. `native_tpc_gsi_broken` memory was stale. Doc §5 was a stale TODO |
-| 6 | CNS (minimal) | **DONE** | `src/net/cms/cns.{c,h}` event codec + per-worker inventory; `CMS_RR_CNS` frame; data-server emit on closew (`close.c`); manager apply (`server_recv.c`, gated by global collect flag); manager **global stat from inventory** (`stat.c` manager_mode); `xrootd_cns off\|emit\|collect`; `tests/test_cns.py` 2/2 on a real **2-node cluster** (manager stats a DS-written file from CNS w/ correct size; unknown path not fabricated). v1: in-memory per-worker (single-worker manager); SHM-multi-worker + unlink/mkdir/mv emit are follow-ups |
+| 6 | CNS (minimal) | **DONE** | `src/net/cms/cns.{c,h}` event codec + per-worker inventory; `CMS_RR_CNS` frame; data-server emit on closew (`close.c`); manager apply (`server_recv.c`, gated by global collect flag); manager **global stat from inventory** (`stat.c` manager_mode); `xrootd_cns off\|emit\|collect`; `tests/test_cns.py` **4/4** on a real **2-node cluster** (manager stats a DS-written file from CNS w/ correct size; unknown path not fabricated; **rm→DEL removes it; mkdir→MKDIR then rmdir→RMDIR round-trips**). **Emit wrappers COMPLETE (2026-07-30):** the ADD-on-close inline emit was extracted to a shared `src/net/cms/cns_emit.{c,h}::brix_cns_emit` seam and the remaining namespace-mutation wire wrappers landed — `rm`→`BRIX_CNS_DEL` + `rmdir`→`BRIX_CNS_RMDIR` (in `op_table.c` after the exec succeeds), `mkdir`→`BRIX_CNS_MKDIR` (in `mkdir.c` after a successful create). The receive/apply side (`brix_cns_apply`) already handled all four ops; only emit was partial. v1: in-memory per-worker (single-worker manager). **Async-queue emit COMPLETE (2026-07-30):** the `brix_backend_async` durable-queue RM/RMDIR path used to return from `op_table.c` before the inline emit; it now emits its own **late** CNS event (`BRIX_CNS_DEL` / `BRIX_CNS_RMDIR`) from the queue waker `baq_root_done` (`backend_async_root.c`) once the durable removal actually runs — on success only, RENAME/MV excluded (outside the v1 op set). The park record carries `conf` for the emit. `tests/test_cns.py` **6/6** — two new (`test_manager_reflects_async_backend_rm_delete`/`_rmdir`) drive a full 2-node cluster with `brix_backend_async on` (`nginx_cns_data_async.conf`, fixed port `lc-cns-data-async` 30427) and assert the manager inventory converges via the async path. Remaining follow-up: SHM-multi-worker inventory (single-worker manager still v1); MV/TRUNC stay outside the trimmed v1 op set (ADD/DEL/MKDIR/RMDIR only) |
 | 7 | SSI (minimal unary) | **DONE** | `src/protocols/ssi/{ssi.c,ssi.h}` echo over `/.ssi/<service>`; `xrootd_file_t.ssi` + clean early-return hooks in open/read/write; `xrootd_ssi` stream directive (in `module.c` — the LIVE table; `module_core_directives.c` is dead/not in `./config`); `tests/test_ssi.py` 4/4 raw-wire vs real instance. **Also fixed a pre-existing remote crash**: `kXR_chkpoint` on a path-less handle did `strlen(NULL)`→SIGSEGV (now guarded; 30 chkpoint tests pass) |
 
 New build-list addition so far: `src/core/compat/json_min.c` (for §2) — registered in
@@ -765,16 +765,43 @@ Set the delegation opt bit in the server's emitted GSI opts (`session/login.c` G
 parms and/or the round-1 `kXGS_cert` opts), gated by `conf->gsi_delegation`. A
 `require` server that gets no `kXGC_sigpxy` fails the auth.
 
-### 5.8 Phase 2 — consume (GATED, ADR-3)
-**Blocker:** the outbound native-GSI client is broken (`native_tpc_gsi_broken`:
-dest never triggers pull; round-2 `exchange()` dead). **Fix/validate that first**, then
-add a GSI-proxy mode to `src/tpc/` outbound (today OIDC/token only): present the stored
-delegated proxy as the client credential to the GSI source.
+### 5.8 Phase 2 — consume (LANDED — ADR-3 gate lifted)
+**Original blocker (cleared):** the outbound native-GSI client was believed broken
+(`native_tpc_gsi_broken`). That was resolved 2026-07-19 (a `tpc.org` host-string
+mismatch, `f36eb208`, not a protocol dead-end); the outbound GSI handshake and the
+delegated-proxy consume path (capture in `delegation.c` → attach in
+`tpc/engine/launch.c` → present in `gsi_outbound_certreq.c`) are live-verified by
+`tests/test_tpc_delegation.py::test_dest_pulls_as_user_via_delegation` (the 5g
+scenario — the pull authenticates as the USER, not the gateway DN, and lands bytes
+byte-exact). See [[native_tpc_gsi_broken]] and history-security-and-credentials.md.
 
-Phase-2 sub-tasks (do after the outbound-GSI fix):
-1. `tpc/source.c` + `bootstrap.c`: credential selection → delegated proxy.
-2. Proxy lifetime check before launch; refuse if expired.
-3. metrics: `tpc_gsi_delegated_total{result}`.
+Phase-2 sub-tasks — **all landed:**
+1. **Credential selection → delegated proxy** — DONE. `tpc_pull_attach_creds()`
+   (`src/tpc/engine/launch.c`) attaches `ctx->gsi.deleg_proxy_pem` to the
+   thread-owned `t->deleg_cred_pem` when `brix_tpc_delegate` is set and a proxy was
+   captured on the inbound login; otherwise the pull falls back to the gateway
+   `brix_certificate`.
+2. **Proxy lifetime check before launch; refuse if expired** — DONE.
+   `brix_tpc_proxy_pem_expired()` (`src/tpc/common/credential.{c,h}`) parses the
+   captured PEM leaf and compares `X509_get0_notAfter` to now via `X509_cmp_time`.
+   `tpc_pull_attach_creds()` runs it on the event loop *before* posting the worker:
+   an expired proxy makes the pull return `kXR_NotAuthorized` ("delegated proxy
+   expired") rather than silently downgrading to the gateway identity (§5.9 T5). A
+   parse failure (`-1`) is treated as "not the fatal expiry case" and does not by
+   itself refuse — the downstream handshake still validates the chain. Unit test:
+   `tests/c/tpc_proxy_expiry_test.c` (runner `tpc_proxy_expiry` in
+   `tests/cmdscripts/c_auth_units.py`) links the real `credential.o` and asserts
+   expired→1 / valid→0 / garbage→−1 / NULL→−1, using x509forge's fixed 2026-01-01
+   epoch to mint a robustly-expired proxy (immune to WSL2 clock steps).
+3. **metrics `tpc_gsi_delegated_total{result}`** — DONE, exported as
+   `brix_tpc_gsi_delegated_total{result="ok|expired|absent"}` (SHM counter array in
+   `metrics.h`, names table in `unified.c`, recorder `brix_metric_tpc_gsi_deleg()`
+   in `unified_record.c`, emitter `unified_emit_tpc_gsi_deleg()` in
+   `unified_export.c`). `ok` = captured proxy valid and attached; `expired` = past
+   NotAfter, pull refused; `absent` = delegation enabled but nothing captured
+   (closed low-cardinality enum, INVARIANT #8). Export-presence test:
+   `tests/test_tpc_gsi_deleg_metrics.py` scrapes `/metrics` and asserts the
+   HELP/TYPE headers plus exactly the three result series.
 
 ### 5.9 Security threat model
 - **T1 forged proxy** — verify full chain to the authenticated EEC; reject otherwise.
@@ -804,7 +831,7 @@ xrootd_gsi_delegation_dir <dir>;             # when store=file
 | 5d | 1 | key/CSR mismatch | rejected |
 | 5e | 1 | expired delegated proxy | rejected at store or use |
 | 5f | 1 | store=file → perms | 0600, no symlink |
-| 5g | 2 | TPC pull from GSI source using delegated proxy | byte-exact (after outbound fix) |
+| 5g | 2 | TPC pull from GSI source using delegated proxy | byte-exact — LANDED (`test_tpc_delegation.py::test_dest_pulls_as_user_via_delegation`); expiry-refuse gate + `brix_tpc_gsi_delegated_total{result}` metric added (§5.8 sub-tasks 2–3) |
 
 **Effort:** Phase 1 M (~1.5 wk); Phase 2 M after the outbound-GSI fix (separate).
 
@@ -1238,11 +1265,16 @@ acceptance on interop with a real XRootD SSI peer** stood up from `/tmp/xrootd-s
 instance/cluster. *Consequence:* a stock SSI cluster is part of the test fixture;
 streaming/alerts/mux explicitly excluded.
 
-### ADR-3 — GSI delegation Phase 2 gated on outbound-GSI fix
+### ADR-3 — GSI delegation Phase 2 gated on outbound-GSI fix — GATE LIFTED
 *Decision:* ship Phase 1 (receive+verify+store) first; **fix the broken outbound
 native-GSI client (`native_tpc_gsi_broken`) before** Phase 2 (TPC consume).
 *Rationale:* OP prioritized fixing outbound GSI first. *Consequence:* §5 splits cleanly;
 5g is the only test deferred.
+*Update (2026-07-30):* the outbound-GSI blocker was cleared 2026-07-19 (`f36eb208`,
+a `tpc.org` host-string mismatch — [[native_tpc_gsi_broken]]), so the gate no longer
+applies. Phase-2 consume is LANDED: 5g is live-verified, and the two remaining §5.8
+sub-tasks (expiry-refuse gate + `brix_tpc_gsi_delegated_total{result}` metric) are
+implemented and tested — see §5.8.
 
 ### ADR-4 — Checksum xattr stored host-order
 *Decision:* encode `XrdCksData` in **host byte order**, matching stock xrootd

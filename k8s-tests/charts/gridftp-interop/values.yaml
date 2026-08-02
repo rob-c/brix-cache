@@ -1,11 +1,37 @@
 # gridftp-interop — a brix GridFTP gateway fronting a posix export, exercised by
-# the globus-url-copy / gfal2 interop matrix (remote-suite/tests/test_gridftp_interop.py).
+# the globus-url-copy / gfal2 / VOMS interop matrix + the FTS bulk lane
+# (remote-suite/tests/test_gridftp_interop.py; scenario `xrd-lab test gridftp`).
 #
 # The gateway serves the SAME export on two listeners: a GSI-secured gsiftp port
 # and a cleartext ftp port (see topology-role/configs/gridftp_gateway.conf). The
 # GSI leg needs the standard grid-security host credential + trust anchors
-# mounted at /etc/grid-security (provided by the auth-authority chart in the lab
-# release, exactly as the gsi/token roles consume them).
+# mounted at /etc/grid-security — this chart is SELF-CONTAINED (like pb-gsi /
+# s3-voms): its own pre-install pki-bootstrap Job (templates/pki-bootstrap-job.
+# yaml) mints the CA/host material and TWO client proxies, then publishes them
+# as release-independent objects the gateway and the test-runner consume:
+#   Secret    gridftp-pki        (CA, host cert/key, user cert/key, user_proxy.pem
+#                                 = plain RFC-3820 proxy, vuser_proxy.pem
+#                                 = VOMS-AC (vo=atlas) proxy, signing_key.pem)
+#   ConfigMap gridftp-ca-bundle  (hashed CA dir -> /etc/grid-security/certificates)
+#   ConfigMap gridftp-jwks       (jwks.json — only to satisfy client-pki-init)
+#
+# The gateway itself is VOMS-*tolerant*, not VOMS-*authorizing*: the gsiftp GSI
+# control channel must accept a proxy whose chain carries an embedded VOMS AC
+# (an extra, out-of-issuer-order cert) and still round-trip. VO-based ACL on the
+# gsiftp plane is future gateway work — the driver marks that cell xfail, not the
+# AC-tolerance cell this lab actually proves.
+
+pki:
+  image: brix-authority:dev
+  pullPolicy: Never
+
+# The VO (and FQAN) the bootstrap stamps into vuser's VOMS AC. The gateway does
+# not authorize on it today; the test asserts the AC-bearing proxy is accepted.
+voms:
+  vo: atlas
+  fqan: /atlas/Role=NULL/Capability=NULL
+  uri: voms.test.local:15000
+
 gridftp:
   enabled: true
   role:
@@ -17,3 +43,8 @@ gridftp:
     data: { root: /data/xrootd }
     gridftp:
       allowWrite: "on"
+    # Host credential + trust anchors for the GSI listener, from the objects the
+    # pki-bootstrap Job publishes above.
+    auth:
+      caBundle: gridftp-ca-bundle
+      hostCertSecret: gridftp-pki

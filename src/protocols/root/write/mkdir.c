@@ -7,6 +7,8 @@
 #include "fs/vfs/vfs.h"   /* mkdir via the VFS seam */
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
 #include "fs/vfs/vfs_backend_registry.h"   /* POSIX-vs-driver export check for group policy */
+#include "net/cms/cns.h"                    /* BRIX_CNS_MKDIR                    */
+#include "net/cms/cns_emit.h"              /* brix_cns_emit (§6 wire wrappers)  */
 
 /*
  * brix_handle_mkdir â create a directory within the export root.
@@ -96,6 +98,12 @@ brix_handle_mkdir(brix_ctx_t *ctx, ngx_connection_t *c,
 			brix_apply_parent_group_policy_path(c->log, resolved,
 			                                      conf->group_rules);
 		}
+
+		/* §6 CNS: report the new directory to the manager (best-effort no-op
+		 * unless `brix_cns emit` + a live manager link). rc==NGX_OK means the
+		 * directory now exists; size/mtime are 0 for a directory record (the
+		 * manager inventory does not key on a dir's mtime). */
+		brix_cns_emit(conf, BRIX_CNS_MKDIR, resolved, 0, 0);
 	}
 
 	BRIX_RETURN_OK(ctx, c, BRIX_OP_MKDIR, "MKDIR", resolved, "-", 0);

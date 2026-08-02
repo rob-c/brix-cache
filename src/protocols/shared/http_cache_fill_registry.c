@@ -260,7 +260,7 @@ brix_http_fill_client_read(ngx_http_request_t *r)
 ngx_int_t
 brix_http_fill_attach(brix_http_cache_fill_ctx_t *t,
     ngx_http_request_t *r, brix_http_cache_reenter_pt reenter,
-    void *reenter_data)
+    void *reenter_data, brix_http_fill_fail_pt on_fail)
 {
     /* padded to ngx_connection_t: with --with-debug, ngx_add_timer's debug
      * line casts ev->data (== w, via w->hold) to a connection to read ->fd;
@@ -282,6 +282,7 @@ brix_http_fill_attach(brix_http_cache_fill_ctx_t *t,
     w->r            = r;
     w->reenter      = reenter;
     w->reenter_data = reenter_data;
+    w->on_fail      = on_fail;
     w->parked_ms    = ngx_current_msec;
     w->owner        = t;
     w->next         = t->waiters;

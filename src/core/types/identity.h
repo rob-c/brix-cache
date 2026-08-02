@@ -60,6 +60,16 @@ typedef struct {
     unsigned     is_admin:1;
     unsigned     has_write_scope:1;
     unsigned     has_read_scope:1;
+
+    /*
+     * P80.21: grid-mapfile local username for the authz gate.  Resolved once
+     * (lazily, at the first gate check) from the DN via brix_idmap_gate_*, then
+     * cached here for the connection.  mapped_resolved records that the attempt
+     * was made; an empty mapped_user after a resolve = "no mapping, use the DN".
+     * Bounded fixed buffer — no pool needed; the whole identity is zero-init.
+     */
+    char         mapped_user[256];   /* "" once resolved = unmapped */
+    unsigned     mapped_resolved:1;  /* gate mapping already attempted */
 } brix_identity_t;
 
 /*

@@ -44,6 +44,7 @@ typedef struct {
     ngx_event_handler_pt  done_fn;    /* brix_*_aio_done                      */
     void                 *owner;      /* ngx_connection_t* whose pool holds task*/
     uint32_t              generation; /* bumped on free -> detects a stale CQE  */
+    ngx_thread_pool_t    *pool;       /* PGREAD only: pool for the CRC hop (P44-B)*/
     uint8_t               op_kind;    /* brix_uring_op_e; selects OUT xlation */
     uint8_t               in_use;     /* 1 = claimed & submitted, 0 = free      */
     uint8_t               orphaned;   /* 1 = owner torn down; drop CQE unseen   */
@@ -81,6 +82,7 @@ typedef enum {
     XRD_URING_OP_WRITE,      /* IORING_OP_WRITE  -> brix_write_aio_t          */
     XRD_URING_OP_READV,      /* IORING_OP_READV  -> brix_readv_aio_t          */
     XRD_URING_OP_WRITEV,     /* IORING_OP_WRITEV -> brix_writev_aio_t (+FSYNC)*/
+    XRD_URING_OP_PGREAD,     /* IORING_OP_READV scatter -> pool CRC32c (P44-B)*/
     XRD_URING_OP_NONE        /* not mapped; selector falls back to the pool     */
 } brix_uring_op_e;
 
@@ -131,6 +133,15 @@ ngx_int_t     brix_uring_killswitch_get(void);
 /* Arm a per-worker poll timer that mirrors the existence of `path` into the
  * disable flag (the "drop a file at 2 a.m." switch).  No-op for an empty path. */
 ngx_int_t     brix_uring_panicfile_arm(ngx_cycle_t *cycle, ngx_str_t *path);
+/* Arm the per-worker maintenance timer (idempotent; shared with the panic-file
+ * mirror).  Every tick runs brix_uring_quiesce_tick, so a ring-owning worker
+ * arms it even without a panic path (brix_uring_init_worker). */
+ngx_int_t     brix_uring_maint_arm(ngx_cycle_t *cycle);
+/* P44-A quiesce (§36): while the kill switch is set, tear the drained ring +
+ * eventfd down so the fds leave the process; when it clears, re-create the
+ * ring from the saved bring-up conf (full self-test ladder re-run; failure is
+ * logged and retried, never fatal at runtime).  Stub no-op without liburing. */
+void          brix_uring_quiesce_tick(void);
 /* Whether `brix_io_uring_admin on` exposed the admin endpoint (set at config
  * time; read by the dashboard handler). */
 void          brix_uring_admin_set_enabled(ngx_uint_t on);
@@ -186,9 +197,12 @@ brix_uring_op_e brix_uring_op_for(ngx_thread_task_t *task);
  * task.  Sets *posted = 1 on success (the CQE will drive the task's existing
  * done-callback via the reaper); leaves *posted = 0 on any prep/submit failure
  * so the caller falls through to the thread pool.  Always returns NGX_OK.
+ * `pool` is the caller's thread pool, retained in the slot for the PGREAD
+ * hybrid's reap-time CRC hop (P44-B); PGREAD is declined when it is NULL.
  */
 ngx_int_t brix_uring_submit(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_thread_task_t *task, brix_uring_op_e op, ngx_flag_t *posted);
+    ngx_thread_pool_t *pool, ngx_thread_task_t *task, brix_uring_op_e op,
+    ngx_flag_t *posted);
 
 /*
  * brix_uring_orphan_owner — sever every in-flight uring op owned by a dying

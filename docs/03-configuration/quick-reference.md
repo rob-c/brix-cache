@@ -49,6 +49,8 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_access_log <path>\|off` | `server`, HTTP `main/server/location` | `off` | No |
 | `brix_session_log on\|off` | `server`, HTTP `main/server/location` | `on` | No |
 | `brix_thread_pool <name>` | `server` | `default` | No |
+| `brix_socket_sndbuf <size>` | `stream`, `server` | `0` (kernel autotuning) | No — pin `SO_SNDBUF` to the deployment BDP for high-RTT WAN downloads; best-effort, clamped to `net.core.wmem_max` (phase-33 P3-B3) |
+| `brix_socket_rcvbuf <size>` | `stream`, `server` | `0` (kernel autotuning) | No — symmetric `SO_RCVBUF` knob for the upload/PUT direction (phase-33 P3-B3) |
 | `brix_ckscan_depth <n>` | `server` | `32` | Maximum recursive depth for `kXR_Qckscan` |
 | `brix_ckscan_max_files <n>` | `server` | `100000` | Maximum regular files returned by one `kXR_Qckscan` |
 | `brix_manager_map /prefix host:port` | `server` | — | No |
@@ -62,8 +64,17 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_cms_manager host:port` | `server` | — | No |
 | `brix_cms_paths <string>` | `server` | `brix_export` | No |
 | `brix_cms_interval <time>` | `server` | `30s` | No |
+| `brix_cms_vnid <string>` | `server` | — | Virtual network id carried in the CMS login envCGI (phase-89) |
 | `brix_manager_mode on\|off` | `server` | `off` | No |
 | `brix_cms_server on\|off` | `server` | `off` | No |
+| `brix_cms_blacklist_file <path>` | `server` (CMS-server block) | — | Operator blacklist file: `host`, `host:port`, or IPv4 CIDR per line; mtime-polled, wins over `undrain` (phase-89) |
+| `brix_cms_load_weight <0–100>` | `server` | `0` | Blend heartbeat machine load into manager selection scoring; `0` = space/util-only (phase-89) |
+| `brix_cms_locate_window <time>` | `server` | `0` | Dynamic location: park locate, `kYR_state`-probe nodes, first `kYR_have` wins; `0` = static selection only (phase-89) |
+| `brix_cms_state_fanout <n>` | `server` | `8` | Max node connections probed per dynamic locate window (phase-89) |
+| `brix_cms_affinity on\|off` | `server` | `off` | Pin repeat selections of a path to one fresh-tier server (drained/blacklisted never sticky) (phase-89) |
+| `brix_cms_locate_multi on\|off` | `server` | `off` | `kXR_locate` answers `kXR_ok` with the full live server set instead of one redirect (phase-89) |
+| `brix_cms_fanout on\|off` | `server` | `off` | Fan `kXR_rm`/`kXR_rmdir` out to every holder instead of redirecting (phase-89) |
+| `brix_cms_fanout_window <time>` | `server` | `500ms` | Fan-out reply-aggregation deadline; msec slot — write `600ms`, a bare number parses as seconds |
 
 ---
 
@@ -234,3 +245,9 @@ here exactly as they do to WebDAV/S3. Only cvmfs-specific knobs are listed below
 | `brix_scvmfs on\|off` | `location` | `off` | Require TLS + bearer auth on this cvmfs location |
 | `brix_scvmfs_authz none\|bearer` | `location` | `none` | `bearer` gates on WLCG/SciTokens read scope |
 | `brix_scvmfs_token_issuers <path>` | `location` | — | SciTokens config for `bearer` mode |
+
+### Backend credential delegation
+
+| Directive | Context | Default | Notes |
+|---|---|---|---|
+| `brix_backend_krb5_forwardable on\|off` | `http`/`stream` `server`, `location` | `off` | Re-delegate a client's forwardable krb5 TGT to a Kerberised origin (`host/<backend>@<REALM>`); phase-70 §5.7 |

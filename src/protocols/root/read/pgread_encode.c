@@ -236,3 +236,76 @@ brix_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
     return xrdp_pg_encode((const uint8_t *) src, len, (int64_t) offset,
                           (uint8_t *) dst);
 }
+
+/*
+ * brix_pgread_layout_iov — export the gapped-page scatter layout (P44-B).
+ *
+ * WHAT: Fills iov[] with the scatter targets a single vectored read needs to
+ *       land an rlen-byte read at `offset` DIRECTLY into the gapped wire
+ *       buffer `out` (each page's data just past its 4-byte CRC gap), exactly
+ *       as brix_pgread_read_encode_inplace lays it out.  Returns the page
+ *       count, or -1 when the read does not fit one scatter batch
+ *       (> BRIX_PGREAD_MAXIOV pages) — the caller must then use the batched
+ *       thread-pool path.
+ *
+ * WHY: The hybrid io_uring pgread (uring_submit.c) preps one IORING_OP_READV
+ *      into the same layout the CRC pass will later walk; keeping the layout
+ *      math HERE (one truth, next to the batcher it mirrors) is what
+ *      guarantees the ring path stays byte-identical to the pool path
+ *      (Invariant #1).
+ */
+ngx_int_t
+brix_pgread_layout_iov(off_t offset, size_t rlen, u_char *out,
+    struct iovec *iov, ngx_uint_t max_iov)
+{
+    brix_pgread_batch_t  b;
+
+    (void) brix_pgread_layout_batch(offset, rlen, rlen, out, &b);
+    if (b.bytes != rlen || (ngx_uint_t) b.k > max_iov) {
+        return -1;      /* needs more than one batch / caller's iov too small */
+    }
+
+    ngx_memcpy(iov, b.iov, (size_t) b.k * sizeof(struct iovec));
+    return b.k;
+}
+
+/*
+ * brix_pgread_crc_encode_delivered — CRC-only pass over delivered bytes (P44-B).
+ *
+ * WHAT: Given a gapped wire buffer `out` whose data positions were already
+ *       filled by a vectored read that returned `delivered` file bytes (the
+ *       brix_pgread_layout_iov layout), computes each page's CRC32c in place
+ *       and returns the encoded byte count — precisely what
+ *       brix_pgread_read_encode_inplace would have returned for the same
+ *       (offset, rlen, delivered) outcome, including the short-page EOF cut.
+ *
+ * WHY: The io_uring hybrid pgread splits read and checksum: the ring does the
+ *      scatter read, then this pass runs ON A POOL THREAD (R-07: CRC32c never
+ *      on the event thread).  Reusing the batch layout + CRC helpers keeps the
+ *      wire bytes identical to the pool path's single-pass encode.
+ */
+size_t
+brix_pgread_crc_encode_delivered(off_t offset, size_t rlen, u_char *out,
+    size_t delivered)
+{
+    u_char  *o = out;
+    size_t   remaining = rlen;
+    size_t   got = delivered;
+    size_t   out_size = 0;
+
+    while (remaining > 0 && got > 0) {
+        brix_pgread_batch_t  b;
+        size_t               use;
+
+        o = brix_pgread_layout_batch(offset, rlen, remaining, o, &b);
+        remaining -= b.bytes;
+
+        use = (got < b.bytes) ? got : b.bytes;
+        if (brix_pgread_crc_batch(&b, use, &out_size)) {
+            break;      /* short page => EOF; nothing follows */
+        }
+        got -= use;
+    }
+
+    return out_size;
+}

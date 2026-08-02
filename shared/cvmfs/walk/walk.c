@@ -20,12 +20,14 @@ typedef struct {
     long               now;
     int                stopped;   /* callback asked to stop */
     int                err;       /* fetch/open failure — walk aborted */
+    int                paths_mode; /* G1: emit every dirent PATH, no CAS refs */
 } walk_ctx_t;
 
 static void emit(walk_ctx_t *w, cvmfs_walk_kind_e kind, const cvmfs_hash_t *h,
-                 char suffix, uint64_t size, const char *path) {
+                 char suffix, uint64_t size, const char *path,
+                 const cvmfs_dirent_t *dent) {
     if (w->stopped || w->err) return;
-    cvmfs_walk_item_t it = { kind, *h, suffix, size, path };
+    cvmfs_walk_item_t it = { kind, *h, suffix, size, path, dent };
     if (w->cb(&it, w->ud) != 0) w->stopped = 1;
 }
 
@@ -38,7 +40,7 @@ typedef struct { walk_ctx_t *w; const char *path; } chunk_ud_t;
 static void chunk_emit(uint64_t offset, uint64_t size, const cvmfs_hash_t *hash, void *ud) {
     (void) offset;
     chunk_ud_t *c = ud;
-    emit(c->w, CVMFS_WALK_CHUNK, hash, 'P', size, c->path);
+    emit(c->w, CVMFS_WALK_CHUNK, hash, 'P', size, c->path, NULL);
 }
 
 /* per-child handler: emit content references, recurse into directories */
@@ -58,19 +60,27 @@ static void child_visit(const cvmfs_dirent_t *e, void *ud) {
     int n = snprintf(cpath, sizeof(cpath), "%s/%s", d->parent, e->name);
     if (n < 0 || (size_t) n >= sizeof(cpath)) return;      /* over-long path: skip subtree */
 
+    if (w->paths_mode) {   /* G1: every named entry IS the item; no CAS refs */
+        cvmfs_hash_t zero;
+        memset(&zero, 0, sizeof(zero));
+        emit(w, CVMFS_WALK_DENT, &zero, 0, e->size, cpath, e);
+    }
+
     if (e->flags & CVMFS_FLAG_FILE) {
+        if (w->paths_mode) return;
         if (e->flags & CVMFS_FLAG_FILE_CHUNK) {
             chunk_ud_t c = { w, cpath };
             cvmfs_catalog_chunks(d->cat, cpath, chunk_emit, &c);
         } else if (e->has_hash) {
-            emit(w, CVMFS_WALK_FILE, &e->hash, 0, e->size, cpath);
+            emit(w, CVMFS_WALK_FILE, &e->hash, 0, e->size, cpath, NULL);
         }
         return;
     }
     if (e->flags & CVMFS_FLAG_DIR) {
         cvmfs_hash_t nh; uint64_t nsz = 0;
         if (cvmfs_catalog_nested(d->cat, cpath, &nh, &nsz) == 1) {
-            emit(w, CVMFS_WALK_CATALOG, &nh, 'C', nsz, cpath);
+            if (!w->paths_mode)
+                emit(w, CVMFS_WALK_CATALOG, &nh, 'C', nsz, cpath, NULL);
             if (d->depth > 0) open_and_walk(w, &nh, cpath, d->depth - 1);
             return;   /* the subtree's rows live in the nested catalog */
         }
@@ -127,9 +137,18 @@ static void open_and_walk(walk_ctx_t *w, const cvmfs_hash_t *h, const char *path
 int cvmfs_walk_catalog(cvmfs_fetch_ctx_t *fx, const cvmfs_hash_t *root,
                        const char *tmp_dir, int max_depth,
                        cvmfs_walk_cb cb, void *ud, long now) {
-    walk_ctx_t w = { fx, tmp_dir, cb, ud, now, 0, 0 };
-    emit(&w, CVMFS_WALK_CATALOG, root, 'C', 0, "");
+    walk_ctx_t w = { fx, tmp_dir, cb, ud, now, 0, 0, 0 };
+    emit(&w, CVMFS_WALK_CATALOG, root, 'C', 0, "", NULL);
     open_and_walk(&w, root, "", max_depth);
+    if (w.err) return -1;
+    return w.stopped ? 1 : 0;
+}
+
+int cvmfs_walk_paths(cvmfs_fetch_ctx_t *fx, const cvmfs_hash_t *root,
+                     const char *tmp_dir, int max_depth,
+                     cvmfs_walk_cb cb, void *ud, long now) {
+    walk_ctx_t w = { fx, tmp_dir, cb, ud, now, 0, 0, 1 };
+    open_and_walk(&w, root, "", max_depth);   /* the root "" is not a named entry */
     if (w.err) return -1;
     return w.stopped ? 1 : 0;
 }
@@ -140,7 +159,7 @@ int cvmfs_walk_subtree(cvmfs_fetch_ctx_t *fx, const cvmfs_hash_t *root,
     if (path == NULL || path[0] == '\0')
         return cvmfs_walk_catalog(fx, root, tmp_dir, max_depth, cb, ud, now);
 
-    walk_ctx_t w = { fx, tmp_dir, cb, ud, now, 0, 0 };
+    walk_ctx_t w = { fx, tmp_dir, cb, ud, now, 0, 0, 0 };
     char tmp[512];
     cvmfs_catalog_t *cat = open_cat(&w, root, tmp, sizeof(tmp));
     if (cat == NULL) return -1;

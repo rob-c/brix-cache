@@ -181,13 +181,17 @@ sd_stage_removexattr(brix_sd_instance_t *inst, const char *path,
 
 /* The decorator advertises the writable-remote slot set; read byte-I/O is never
  * reached here (open returns source objects). The write-back and staged methods
- * live in sd_stage_write.c (declared in sd_stage_internal.h). */
+ * live in sd_stage_write.c (declared in sd_stage_internal.h). CAP_DIRS[_WRITE]
+ * are advertised (as on the cache decorator) so the namespace-mutation gate in
+ * vfs_{mkdir,rename,unlink} passes and defers the actual op to the wrapped leaf
+ * (which enforces its real capability — ENOTSUP/EPERM if it lacks one). */
 const brix_sd_driver_t brix_sd_stage_driver = {
     .name        = "stage",
     .caps        = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE
                  | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_XATTR
                  | BRIX_SD_CAP_XATTR_WRITE
-                 | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY,
+                 | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY
+                 | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE,
     .open        = sd_stage_open,
     .open_cred   = sd_stage_open_cred,
     /* write-back byte-I/O (only dispatched for objects opened for write — a read

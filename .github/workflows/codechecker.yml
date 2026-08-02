@@ -1,31 +1,44 @@
-# Weekly CodeChecker ratchet — Clang Static Analyzer + clang-tidy findings vs
-# tools/ci/codechecker_baseline.txt. NON-BLOCKING (continue-on-error) until the
-# baseline is proven stable across the CI clang version: the baseline is keyed by
-# CodeChecker's content-based report_hash, but a different clang/clang-tidy version
-# on the runner will surface a different checker set than the local dev clang (21.x),
-# so expect version-drift findings until the CI toolchain is pinned to match. Local
-# runs against the dev build remain the authoritative gate — see tools/ci/README.md.
-# Complements fanalyzer.yml (GCC -fanalyzer); the two engines catch different bugs.
-# Never --regen the baseline from CI output.
+# CodeChecker ratchet — Clang Static Analyzer + clang-tidy — BLOCKING, per-PR
+# (hyper-hardening B-1). Findings are gated against tools/ci/codechecker_baseline.txt,
+# keyed by CodeChecker's content-based report_hash: only a NEW finding fails.
+#
+# WHY THIS IS NOW BLOCKING (was advisory / weekly-cron-only).  report_hash is
+# stable but the CHECKER SET a given clang/clang-tidy version emits is not: a
+# different clang than the one that produced the baseline surfaces a different
+# finding set, which is exactly why this gate used to be continue-on-error. The
+# baseline was generated on the dev box (AlmaLinux 9, clang 21.1.8); this job now
+# runs inside `container: almalinux:9` — the dev distro — so the runner's clang IS
+# that clang, the findings reproduce, and the ratchet is stable enough to block.
+# That is the "pin clang 21.x to match dev" step B-1 called for. If the el9 clang
+# package is bumped, regenerate the baseline on the new toolchain
+# (tools/ci/run_codechecker.py --regen, reviewed) — NEVER --regen from CI output.
+#
+# Complements fanalyzer.yml (GCC -fanalyzer, same container discipline); the two
+# engines catch different bugs.
 name: codechecker
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '0 4 * * 1'   # Mondays 04:00, an hour after fanalyzer
 jobs:
   codechecker:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    # Pin the toolchain to the dev distro so the Clang SA / clang-tidy finding set
+    # reproduces the frozen baseline exactly — the prerequisite for blocking.
+    container: almalinux:9
     steps:
-      - uses: actions/checkout@v4
-      - name: Install build deps + clang toolchain
+      - name: Install build deps + pinned clang toolchain
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential \
-            clang clang-tidy \
-            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
-            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
-            libjansson-dev libxml2-dev librados-dev
+          dnf -y install git gcc make python3 python3-pip tar \
+            clang clang-tools-extra \
+            openssl-devel zlib-devel pcre2-devel \
+            libcurl-devel sqlite-devel krb5-devel \
+            jansson-devel libxml2-devel librados2-devel
+          clang --version
+      - uses: actions/checkout@v4
       - name: Install CodeChecker
         run: pip install --user codechecker
       - name: Fetch and configure nginx with the module
@@ -35,7 +48,7 @@ jobs:
           ./configure --with-stream --with-stream_ssl_module \
             --with-http_ssl_module --with-http_dav_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
-      - name: Run CodeChecker ratchet
+      - name: Run CodeChecker ratchet (blocking on new findings vs baseline)
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           NGX_BUILD=/tmp/nginx-1.28.3 \

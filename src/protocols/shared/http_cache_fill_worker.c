@@ -42,7 +42,14 @@ brix_http_cache_fill_thread(void *data, ngx_log_t *log)
     for ( ;; ) {
         errno = 0;
         t->attempts++;
-        t->result = brix_sd_cache_fill_key(t->inst, t->key);
+        /* HTTP cache fill uses the export's service credential only — no
+         * per-user delegation is carried on this path (NULL cred). phase-92:
+         * opt into store-then-evict passthrough (allow_pt=1) so a remote object
+         * the admission policy declines but that fits the passthrough spool cap
+         * is filled, served to every coalesced waiter as a transient hit, and
+         * evicted by brix_http_cache_fill_done once all fds are open. */
+        t->result = brix_sd_cache_fill_key_ex(t->inst, t->key, NULL, 1,
+                                              &t->passthrough);
         t->err = errno;
         switch (brix_fill_classify(t->result, t->err, &rs)) {
         case BRIX_FILL_OK:
@@ -94,8 +101,9 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
         rc = w->reenter(r, w->reenter_data);    /* hit -> serve (zero-copy) */
     } else if (t->result == NGX_DECLINED) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-            "brix: cache fill declined for \"%s\" (object not cacheable and "
-            "remote-source streaming is not yet supported) - returning 502",
+            "brix: cache fill declined for \"%s\" (object not cacheable — "
+            "path-filtered, over the caching cap and the passthrough spool cap, "
+            "or a size-unknown origin) - returning 502",
             t->key);
         rc = NGX_HTTP_BAD_GATEWAY;
     } else if (t->err == ENOENT || t->err == ENOTDIR) {
@@ -116,6 +124,15 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
             "xrootd-fill: resolving waiter with 502 (key \"%s\", err %d)",
             t->key, t->err);
         rc = NGX_HTTP_BAD_GATEWAY;
+    }
+
+    /* Opt-in failure interceptor (phase-87 G16): a definitive failure may
+     * re-drive the request against another source — the callback returns
+     * the rc to finalize with (a fresh NGX_DONE park holds its own
+     * reference; finalize(NGX_DONE) below balances THIS park's). Success
+     * rcs from the reenter path never route through here. */
+    if (rc >= NGX_HTTP_BAD_REQUEST && w->on_fail != NULL) {
+        rc = w->on_fail(r, w->reenter_data, rc);
     }
 
     ngx_http_finalize_request(r, rc);
@@ -199,6 +216,20 @@ brix_http_cache_fill_done(ngx_event_t *ev)
         brix_http_fill_detach(w);              /* unlink + stop the hold */
         brix_http_fill_resolve_waiter(t, w);
     }
+
+    /* phase-92 store-then-evict: a passthrough object was filled ONLY to serve
+     * these waiters (the admission policy declined it for retention). Every
+     * waiter's reenter has already opened its serve fd above, so unlinking the
+     * store object now is safe — Linux keeps the open fds valid until the last
+     * one closes — and prevents the un-admissible object from lingering in the
+     * cache. Best-effort: a residual copy is simply re-served-and-re-evicted. */
+    if (ok && t->passthrough) {
+        brix_sd_cache_evict(t->inst, t->key);
+        ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+            "xrootd-fill: event=passthrough-evict key=\"%s\" — served an "
+            "un-admissible object then dropped it from the cache", t->key);
+    }
+
     free(t->task);           /* the calloc'd task+ctx block (task is first) */
 }
 

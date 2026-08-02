@@ -43,6 +43,17 @@
 typedef ngx_int_t (*brix_http_cache_reenter_pt)(ngx_http_request_t *r,
     void *data);
 
+/* Optional failure interceptor (phase-87 G16), invoked on the event loop when
+ * the fill this waiter parked on resolves with a DEFINITIVE failure status
+ * (404/403/502 — never the T20 hold/timeout 504: an unreachable origin is not
+ * a definitive answer). Returns the rc to finalize the request with: `status`
+ * unchanged keeps today's behavior; a handler rc (including a fresh NGX_DONE
+ * park, which holds its own reference) after re-driving the request against
+ * another source. `data` is the same opaque pointer the reenter callback
+ * receives. NULL = no interception. */
+typedef ngx_int_t (*brix_http_fill_fail_pt)(ngx_http_request_t *r,
+    void *data, ngx_int_t status);
+
 /*
  * If a read-open of `key` on `inst` (the composed storage instance) would block
  * the event loop on a remote cache-miss fill, offload the fill to the shared
@@ -59,6 +70,7 @@ typedef ngx_int_t (*brix_http_cache_reenter_pt)(ngx_http_request_t *r,
 ngx_int_t brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     brix_sd_instance_t *inst, const char *key,
     ngx_http_brix_shared_conf_t *common,
-    brix_http_cache_reenter_pt reenter, void *reenter_data);
+    brix_http_cache_reenter_pt reenter, void *reenter_data,
+    brix_http_fill_fail_pt on_fail);
 
 #endif /* BRIX_HTTP_CACHE_FILL_H */

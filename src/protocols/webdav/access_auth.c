@@ -136,6 +136,65 @@ access_basic_challenge(ngx_http_request_t *r)
 }
 
 /*
+ * webdav_bearer_enabled — does this export accept bearer tokens?
+ *
+ * WHAT: true when JWKS keys, a macaroon secret, or a token registry is
+ * configured on the location.
+ * WHY: RFC 6750 challenge semantics (401 + WWW-Authenticate: Bearer) apply only
+ * on a bearer-protected resource; a cert-only export keeps its historical 403.
+ * HOW: mirrors the DECLINED guard in webdav_verify_bearer_token.
+ */
+static int
+webdav_bearer_enabled(ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    return conf->jwks_key_count > 0
+           || conf->token_macaroon_secret.len > 0
+           || conf->token_registry != NULL;
+}
+
+/*
+ * access_bearer_challenge — RFC 6750 §3 Bearer challenge / error response.
+ *
+ * WHAT: attaches `WWW-Authenticate: Bearer realm="brix"` (optionally with an
+ * `error="..."` attribute) and returns the given HTTP status.
+ * WHY: RFC 6750 §3 requires an unauthenticated/invalid-token request on a
+ * bearer-protected resource to return 401 + WWW-Authenticate: Bearer (not 403,
+ * which means insufficient_scope); a dual-transport request returns
+ * 400 invalid_request.  The header lets a client discover the scheme and, for
+ * invalid_token, know it should refresh rather than escalate.
+ * HOW: same headers_out wiring nginx's auth_basic uses — push the header and
+ * point headers_out.www_authenticate at it so the special-response path emits it.
+ */
+static ngx_int_t
+access_bearer_challenge(ngx_http_request_t *r, ngx_int_t status,
+                        const char *error)
+{
+    ngx_table_elt_t *h = ngx_list_push(&r->headers_out.headers);
+
+    if (h == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    h->hash = 1;
+#if (nginx_version >= 1023000)
+    h->next = NULL;
+#endif
+    ngx_str_set(&h->key, "WWW-Authenticate");
+    if (error != NULL) {
+        h->value.data = ngx_pnalloc(r->pool,
+            sizeof("Bearer realm=\"brix\", error=\"\"") - 1 + ngx_strlen(error));
+        if (h->value.data == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        h->value.len = ngx_sprintf(h->value.data,
+            "Bearer realm=\"brix\", error=\"%s\"", error) - h->value.data;
+    } else {
+        ngx_str_set(&h->value, "Bearer realm=\"brix\"");
+    }
+    r->headers_out.www_authenticate = h;
+    return status;
+}
+
+/*
  * access_authenticate — the authentication gate.
  *
  * WHAT: Runs the credential sources in order (GSI proxy cert, bearer token,
@@ -155,6 +214,7 @@ access_authenticate(ngx_http_request_t *r,
                     ngx_http_brix_webdav_loc_conf_t *conf)
 {
     ngx_int_t auth_rc;
+    ngx_int_t token_rc = NGX_DECLINED;
 
     if (conf->auth == WEBDAV_AUTH_NONE) {
         BRIX_WEBDAV_METRIC_INC(
@@ -165,8 +225,20 @@ access_authenticate(ngx_http_request_t *r,
 
     auth_rc = access_try_cert(r, conf);
     if (auth_rc != NGX_OK) {
-        auth_rc = access_try_token(r, conf);
+        token_rc = access_try_token(r, conf);
+        auth_rc = token_rc;
     }
+
+    /* RFC 6750 §2 (SEC MUST): a dual-transport bearer token (header + query) is a
+     * hard 400 invalid_request — it must NOT fall through to Basic/anonymous. */
+    if (token_rc == NGX_HTTP_BAD_REQUEST) {
+        BRIX_WEBDAV_METRIC_INC(
+            auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED]);
+        brix_metric_auth(BRIX_PROTO_WEBDAV, BRIX_AUTHN_NONE, 0);
+        return webdav_metrics_return(r,
+            access_bearer_challenge(r, NGX_HTTP_BAD_REQUEST, "invalid_request"));
+    }
+
     if (auth_rc != NGX_OK) {
         auth_rc = access_try_basic(r, conf);
     }
@@ -180,6 +252,18 @@ access_authenticate(ngx_http_request_t *r,
                       " (auth=required)");
         if (conf->pwd_file.len > 0) {
             return webdav_metrics_return(r, access_basic_challenge(r));
+        }
+        /* RFC 6750 §3 (MUST): on a bearer-protected export, no/invalid credential
+         * → 401 + WWW-Authenticate: Bearer (403 = insufficient_scope, emitted by
+         * the authz tier for a valid-but-unscoped token). Attribute
+         * error="invalid_token" only when a bearer was actually presented but
+         * failed validation (token_rc == 401); a missing credential gets the bare
+         * challenge. Cert-only exports keep the historical 403. */
+        if (webdav_bearer_enabled(conf)) {
+            const char *err =
+                (token_rc == NGX_HTTP_UNAUTHORIZED) ? "invalid_token" : NULL;
+            return webdav_metrics_return(r,
+                access_bearer_challenge(r, NGX_HTTP_UNAUTHORIZED, err));
         }
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }

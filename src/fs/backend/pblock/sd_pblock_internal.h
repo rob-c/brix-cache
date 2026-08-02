@@ -162,6 +162,9 @@ brix_sd_obj_t *sd_pblock_open_as(brix_sd_instance_t *inst, const char *path,
     int sd_flags, mode_t mode, uint32_t uid, uint32_t gid, int *err_out);
 ngx_int_t sd_pblock_mkdir_as(brix_sd_instance_t *inst, const char *path,
     mode_t mode, uint32_t uid, uint32_t gid);
+/* Strip a trailing slash from a mkdir path (see sd_pblock_namespace.c). Shared
+ * by the plain and per-user (cred) mkdir slots so both key the canonical dir. */
+int pblock_path_canon(const char *in, char *out, size_t cap);
 ngx_int_t sd_pblock_server_copy_as(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out, uint32_t uid, uint32_t gid);
 brix_sd_staged_t *sd_pblock_staged_open_as(brix_sd_instance_t *inst,

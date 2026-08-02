@@ -115,6 +115,40 @@ ngx_int_t brix_idmap_resolve(const brix_idmap_conf_t *conf,
                                const char *principal,
                                brix_idmap_creds_t *out, ngx_log_t *log);
 
+/* ------------------------------------------------------------------ */
+/* Worker-side authz-gate mapping (P80.21) — broker-independent        */
+/* ------------------------------------------------------------------ */
+/*
+ * Load the grid-mapfile at `path` into THIS process for authorization-gate
+ * identity mapping, independent of the impersonation broker.  Every worker
+ * calls this at init when brix_gridmap is configured, regardless of the
+ * brix_impersonation mode (off|single|map) — DN->local-username mapping for
+ * authorization must not require the privileged broker.  Idempotent-reloadable
+ * (drops any previous table); a NULL/"" path clears it.  Returns NGX_OK (incl.
+ * the "no path" case) or NGX_ERROR on an IO/parse error.  Shares the same
+ * grid-mapfile table as brix_idmap_init(), so a process that runs both (never
+ * the case today — broker vs worker are distinct processes) sees one table.
+ */
+ngx_int_t brix_idmap_gate_init(const char *path, ngx_log_t *log);
+
+/*
+ * True once brix_idmap_gate_init() has loaded a non-empty grid-mapfile in this
+ * process — the authz gate consults it to decide whether to attempt mapping.
+ */
+int brix_idmap_gate_enabled(void);
+
+/*
+ * Map `principal` (a GSI DN etc.) to a local username via the grid-mapfile
+ * ONLY: no getpwnam literal fallback and no default_user squash — those are the
+ * impersonation broker's semantics, not the authz gate's, and squashing an
+ * unmapped DN would silently change verdicts for existing DN-keyed authdbs.  On
+ * an explicit grid-mapfile hit copies the mapped username into out[0..outlen)
+ * and returns 1; on no mapping returns 0 (out untouched) so the caller keeps the
+ * DN, preserving DN-keyed `u` rules and default-deny bit-for-bit.  Pure lookup
+ * over the table loaded by brix_idmap_gate_init().
+ */
+int brix_idmap_gate_username(const char *principal, char *out, size_t outlen);
+
 /* Default reserved-uid floor when conf->min_uid is 0 (refuse system accounts). */
 #define BRIX_IDMAP_DEFAULT_MIN_UID  1000
 /* Default resolution-cache TTL (seconds) when conf->cache_ttl <= 0. */

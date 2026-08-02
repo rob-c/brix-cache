@@ -34,6 +34,18 @@
  *       c->single_slash_path for the double-slash hint (WS-3).  Both hints are
  *       TTY-gated and fire at most once per process (brix_cli_hint_once).
  */
+/* Minimal brix_url snapshot of a live connection — enough for the WS-3
+ * double-slash gate (single_slash_path) and the WS-7 endpoint (host:port). */
+static inline void
+xrdfs_url_snap(const brix_conn *c, brix_url *snap)
+{
+    memset(snap, 0, sizeof(*snap));
+    snap->scheme            = XRDC_SCHEME_ROOT;
+    snprintf(snap->host, sizeof(snap->host), "%s", c->host);
+    snap->port              = c->port;
+    snap->single_slash_path = c->single_slash_path;
+}
+
 static inline void
 xrdfs_op_hints(const brix_status *st, int want_write, const brix_conn *c)
 {
@@ -48,13 +60,29 @@ xrdfs_op_hints(const brix_status *st, int want_write, const brix_conn *c)
     }
     brix_cred_hint_for_status_url(st, want_write, stderr, epbuf);
 
-    /* Build a minimal URL snapshot for the double-slash hint (WS-3). */
-    memset(&snap, 0, sizeof(snap));
-    snap.scheme            = XRDC_SCHEME_ROOT;
-    snprintf(snap.host, sizeof(snap.host), "%s", c->host);
-    snap.port              = c->port;
-    snap.single_slash_path = c->single_slash_path;
+    xrdfs_url_snap(c, &snap);
     brix_hint_url_double_slash(st, &snap);
+}
+
+/*
+ * WHAT: the xrdfs single-path op-error idiom — "xrdfs: <op> <path>: <msg>" +
+ *       WS-3/WS-7 hints + mapped shell code — as one call.
+ * WHY:  phase-49 W1 tail: routes every single-path handler error through the
+ *       shared brix_report_err instead of ~45 hand-rolled fprintf blocks.
+ *       Two-path formats (mv/ln, xattr name brackets) keep their own fprintf
+ *       followed by xrdfs_op_hints — they don't fit the single-path shape.
+ * HOW:  wraps brix_report_err over a URL snapshot of the live connection so
+ *       the message text, hint chain and exit code are byte-identical to the
+ *       historical inline blocks.
+ */
+static inline int
+xrdfs_report_err(const char *op, const char *path, const brix_status *st,
+                 int want_write, const brix_conn *c)
+{
+    brix_url snap;
+
+    xrdfs_url_snap(c, &snap);
+    return brix_report_err(stderr, "xrdfs", op, path, st, want_write, &snap);
 }
 
 typedef struct {
@@ -76,6 +104,19 @@ xrdfs_web_hints(const brix_status *st, int want_write, const web_ctx *w)
 {
     brix_cred_hint_for_status_url(st, want_write, stderr, w->u->host);
     /* double-slash hint not applicable to WebDAV endpoints */
+}
+
+/* WebDAV twin of xrdfs_report_err: host-only endpoint (no port, matching the
+ * historical xrdfs_web_hints), single_slash_path never set so WS-3 stays off. */
+static inline int
+xrdfs_web_report_err(const char *op, const char *path, const brix_status *st,
+                     int want_write, const web_ctx *w)
+{
+    brix_url snap;
+
+    memset(&snap, 0, sizeof(snap));
+    snprintf(snap.host, sizeof(snap.host), "%s", w->u->host);
+    return brix_report_err(stderr, "xrdfs", op, path, st, want_write, &snap);
 }
 
 extern volatile sig_atomic_t tail_stop;

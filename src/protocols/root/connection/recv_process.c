@@ -1,4 +1,5 @@
 #include "recv_frame.h"
+#include "recv_frame_bounds.h"   /* brix_max_payload_for_request — carved pure (C-2) */
 #include "disconnect.h"
 #include "fd_table.h"
 #include "tls.h"
@@ -18,34 +19,10 @@
  * read-side helpers stay in recv_frame.c.
  */
 
-/* brix_max_payload_for_request — per-opcode payload size limit, checked BEFORE
- * any allocation so an oversized dlen is rejected without allocating. */
-static uint32_t
-brix_max_payload_for_request(uint16_t reqid)
-{
-    if (reqid == kXR_pgwrite || reqid == kXR_write || reqid == kXR_writev
-        || reqid == kXR_chkpoint) {
-        return BRIX_MAX_WRITE_PAYLOAD;
-    }
-
-    if (reqid == kXR_readv) {
-        /* Each segment is BRIX_READV_SEGSIZE (16) bytes. */
-        return BRIX_READV_MAXSEGS * BRIX_READV_SEGSIZE;
-    }
-
-    if (reqid == kXR_auth) {
-        return BRIX_MAX_AUTH_PAYLOAD;
-    }
-
-    if (reqid == kXR_prepare) {
-        return BRIX_MAX_PREPARE_PAYLOAD;
-    }
-
-    /* All other requests carry only a path (BRIX_MAX_PATH) plus a small
-     * fixed-size body.  The +64 covers opcode-specific extras (e.g. the
-     * kXR_login info field that follows the username in the payload). */
-    return BRIX_MAX_PATH + 64;
-}
+/* brix_max_payload_for_request — the per-opcode payload cap — now lives in
+ * recv_frame_bounds.c so the "reject an oversized dlen before allocation"
+ * invariant can be fuzzed standalone (hyper-hardening C-2); see
+ * recv_frame_bounds.h. Behaviour and the call site below are unchanged. */
 
 /* brix_ensure_payload_buffer: ensure payload_buf holds dlen (+1 NUL) bytes at
  * request start (free-then-alloc on resize — the buffer is empty here). */
@@ -129,11 +106,17 @@ brix_grow_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
  * the connection quiescent (a kXR_close could free a handle an in-flight
  * sendfile chain or pwrite still references).  kXR_read and kXR_write both
  * pipeline and are never deferred.
+ *
+ * phase-32 WS3: a cold kXR_read now stays in flight on a worker thread
+ * (rd.aio_inflight) with recv still receiving — a following kXR_close would
+ * otherwise retire the very handle that read's pread is using.  Defer on
+ * rd.aio_inflight too so the barrier waits for the read worker to finish.
  */
 static ngx_flag_t
 brix_recv_should_defer(brix_ctx_t *ctx)
 {
-    return (ctx->out.count > 0 || ctx->out.wr_inflight > 0)
+    return (ctx->out.count > 0 || ctx->out.wr_inflight > 0
+            || ctx->rd.aio_inflight > 0)
         && ctx->recv.cur_reqid != kXR_read
         && ctx->recv.cur_reqid != kXR_write;
 }
@@ -310,6 +293,22 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
     }
 
     if (ctx->state == XRD_ST_AIO) {
+        /*
+         * phase-32 WS3 (concurrent read-AIO): a cold kXR_read just posted its
+         * pread to the thread pool (rd.aio_inflight bumped in read_post_aio).
+         * Instead of suspending until it completes — which serializes the next
+         * read's network receive behind this read's disk I/O — keep receiving
+         * into a different pool buffer, exactly as the pipelined write path does.
+         * !win_active excludes a windowed read (which self-serializes across its
+         * windows); header_prep's backpressure gate caps the in-flight depth.
+         */
+        if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
+            && !ctx->rd.win_active)
+        {
+            ctx->state = XRD_ST_REQ_HEADER;
+            ctx->recv.hdr_pos = 0;
+            return BRIX_RECV_STEP_CONTINUE;
+        }
         if (ngx_handle_read_event(rev, 0) != NGX_OK) {
             return BRIX_RECV_STEP_BREAK;
         }
@@ -395,6 +394,18 @@ brix_recv_after_payload(ngx_stream_session_t *s, ngx_connection_t *c,
          * the ack asynchronously.  Every other AIO op still suspends.
          */
         if (ctx->recv.cur_reqid == kXR_write && ctx->out.wr_inflight > 0) {
+            ctx->state = XRD_ST_REQ_HEADER;
+            ctx->recv.hdr_pos = 0;
+            return BRIX_RECV_STEP_CONTINUE;
+        }
+        /*
+         * phase-32 WS3: a payload-bearing kXR_read (read-ahead list) whose cold
+         * pread just posted — pipeline it exactly like the dlen==0 read path in
+         * brix_recv_after_header rather than suspending on its AIO.
+         */
+        if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
+            && !ctx->rd.win_active)
+        {
             ctx->state = XRD_ST_REQ_HEADER;
             ctx->recv.hdr_pos = 0;
             return BRIX_RECV_STEP_CONTINUE;

@@ -3,6 +3,9 @@
 
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export storage-backend register */
 #include "core/config/credential_block.h"  /* s3:// backend SigV4 credential      */
+#include "fs/path/path.h"                  /* brix_normalize_policy_path,
+                                            * brix_finalize_vo_rules, brix_vo_rule_t */
+#include "core/config/config.h"            /* brix_copy_conf_string               */
 
 #include <stdlib.h>   /* realpath */
 
@@ -108,10 +111,41 @@ brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->certificate,     prev->certificate,     "");
     ngx_conf_merge_str_value(conf->certificate_key, prev->certificate_key, "");
     ngx_conf_merge_str_value(conf->trusted_ca,      prev->trusted_ca,      "");
+    ngx_conf_merge_str_value(conf->vomsdir,         prev->vomsdir,         "");
+    ngx_conf_merge_str_value(conf->voms_cert_dir,   prev->voms_cert_dir,   "");
 
     if (conf->root_canon[0] == '\0' && prev->root_canon[0] != '\0') {
         ngx_memcpy(conf->root_canon, prev->root_canon,
                    sizeof(conf->root_canon));
+    }
+
+    /* Merge parent+child VO rules into a fresh per-block array (child entries
+     * shadow parent — the same deep-merge the core module uses, so a shared
+     * parent array is never finalized twice against differing roots), then
+     * realpath()-canonicalise every rule's .path into .resolved against this
+     * export's root so the request-time gate matches confined resolve output. */
+    {
+        ngx_array_t *child_vo_rules = conf->vo_rules;
+        conf->vo_rules = brix_merge_arrays(cf, prev->vo_rules, child_vo_rules,
+                                           sizeof(brix_vo_rule_t));
+        if (conf->vo_rules == NULL
+            && (prev->vo_rules != NULL || child_vo_rules != NULL))
+        {
+            return NGX_CONF_ERROR;
+        }
+    }
+    if (conf->vo_rules != NULL && conf->vo_rules->nelts > 0
+        && conf->root_canon[0] != '\0')
+    {
+        ngx_str_t root;
+        root.data = (u_char *) conf->root_canon;
+        root.len  = ngx_strlen(conf->root_canon);
+        if (brix_finalize_vo_rules(cf->log, &root, conf->vo_rules) != NGX_OK) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_gridftp_require_vo: cannot finalize VO rules for "
+                "export \"%s\"", conf->root_canon);
+            return NGX_CONF_ERROR;
+        }
     }
 
     if (conf->enable && conf->root_canon[0] == '\0') {
@@ -279,6 +313,47 @@ brix_ftp_set_pasv_range(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 }
 
 
+/* brix_ftp_set_require_vo — `brix_gridftp_require_vo <path> <vo>`: append a
+ * longest-prefix VO ACL rule to the gateway conf's vo_rules, mirroring the core
+ * `brix_require_vo` handler (policy.c) but targeting the gridftp srv conf. The
+ * rule path is normalised now and realpath()-canonicalised into .resolved at
+ * merge (brix_finalize_vo_rules against root_canon), so the request-time gate
+ * matches against a path in the same space as the confined resolve output. */
+static char *
+brix_ftp_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
+{
+    ngx_stream_brix_ftp_srv_conf_t *conf = conf_ptr;
+    ngx_str_t                      *value = cf->args->elts;
+    brix_vo_rule_t                 *rule;
+
+    (void) cmd;
+
+    if (conf->vo_rules == NULL) {
+        conf->vo_rules = ngx_array_create(cf->pool, 2, sizeof(brix_vo_rule_t));
+        if (conf->vo_rules == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    rule = ngx_array_push(conf->vo_rules);
+    if (rule == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    ngx_memzero(rule, sizeof(*rule));
+
+    if (brix_normalize_policy_path(cf->pool, &value[1], &rule->path) != NGX_OK) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_gridftp_require_vo: invalid path \"%V\"", &value[1]);
+        return NGX_CONF_ERROR;
+    }
+    if (brix_copy_conf_string(cf, &value[2], &rule->vo) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
+
 static ngx_command_t  brix_ftp_commands[] = {
 
     { ngx_string("brix_gridftp"),
@@ -385,6 +460,34 @@ static ngx_command_t  brix_ftp_commands[] = {
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_ftp_srv_conf_t, trusted_ca),
+      NULL },
+
+    /* VOMS attribute carry: LSC (per-VO) + VOMS signing-CA trust dirs used to
+     * verify and lift the FQANs off a GSI proxy into the session identity, so an
+     * authorized VO can satisfy a require_vo rule. Mirror brix_webdav_vomsdir /
+     * brix_webdav_voms_cert_dir. */
+    { ngx_string("brix_gridftp_vomsdir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_ftp_srv_conf_t, vomsdir),
+      NULL },
+
+    { ngx_string("brix_gridftp_voms_cert_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_ftp_srv_conf_t, voms_cert_dir),
+      NULL },
+
+    /* VO authorization: gate every namespace/transfer verb whose resolved path
+     * is covered by a rule on the client's VOMS VO membership. TAKE2 <path> <vo>;
+     * longest-prefix, same matcher as the HTTP/root planes. */
+    { ngx_string("brix_gridftp_require_vo"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_ftp_set_require_vo,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
       NULL },
 
     ngx_null_command

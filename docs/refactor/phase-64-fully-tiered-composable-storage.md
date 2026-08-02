@@ -10,17 +10,27 @@
 > `frm://`) is a tier scheme, and both the root:// open stage gate and the
 > WLCG tape REST API drive the engine.
 >
-> **One divergence from the plan:** §13c step 4 (delete the `brix_frm_*`
-> directives) was **not** executed as written — the directives survive in
+> **One divergence from the plan — RESOLVED (ADR-3 RATIFIED 2026-07-27):**
+> §13c step 4 (delete the `brix_frm_*` directives) was **not** executed as
+> written — the directives survive in
 > `src/protocols/root/stream/directives_net.inc` as the engine/adapter knobs
-> (`brix_frm`, `brix_frm_queue_path`, `brix_frm_stagecmd`,
-> `brix_frm_stage_ttl`, …) and live code gates on `conf->frm.*`. Resolving
-> that divergence (ratify-as-engine-knobs vs. finish the migration —
-> **ADR-3 recommendation: ratify**, per phase-89 §D.1; the surviving 21-knob
-> grammar is now frozen by `tests/test_frm_directive_pin.py` [2026-07-21]
-> until the OP confirms, so either outcome trips a deliberate red test rather
-> than silent drift) plus the
-> remaining long tail (HPSS/CTA native MSS adapters — infra-blocked;
+> and live code gates on `conf->frm.*`. Per phase-89 §D.1 option (a), this is
+> now **ratified**: §13c step 4 is amended to "directives retained as
+> engine/adapter knobs". P2's "no legacy" was aimed at the *cache* grammar
+> (which WAS deleted, §14); the `brix_frm_*` knobs configure the stage engine
+> and MSS adapter, which survived the dissolution as first-class subsystems.
+> The 21-knob grammar is frozen by `tests/test_frm_directive_pin.py`
+> (3 green, re-verified 2026-07-27). Knob ownership after the dissolution:
+>
+> | Directive | Owner |
+> |---|---|
+> | `brix_frm` | engine enable (gates `conf->frm.enable` consumers, e.g. `open_request.c`, `tape_rest.c`) |
+> | `brix_frm_queue_path` | engine durable-journal dir |
+> | `brix_frm_max_inflight` / `_max_per_source` | engine scheduler bounds |
+> | `brix_frm_stagecmd` / `_copycmd` / `_copymax` | exec MSS adapter (`sd_frm_exec.c`) |
+> | `brix_frm_stage_ttl` / `_xfrhold` / `_stage_wait` | engine park/reap timing (`open_request.c`) |
+>
+> The remaining long tail (HPSS/CTA native MSS adapters — infra-blocked;
 > object-store eviction scan; serve off-load beyond `xroot`; the §21 open
 > questions) is tracked in `phase-89-design-backlog-burndown.md` §D. The
 > companion `phase-64-generic-slice-fill.md` backlog is **DONE** (see its

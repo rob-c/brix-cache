@@ -113,7 +113,7 @@ cms_srv_login_scalars(brix_cms_srv_ctx_t *ctx,
     const u_char **p, const u_char *end)
 {
     /* version */   (void) tlv_read_next(p, end);
-    /* mode    */   (void) tlv_read_next(p, end);
+    ctx->login_mode = tlv_read_next(p, end);   /* Mode (kYR_* role bits) */
     /* holdtime */  (void) tlv_read_next(p, end);
     /* tSpace  */   (void) tlv_read_next(p, end);
     ctx->free_mb  = tlv_read_next(p, end);     /* fSpace  */
@@ -295,6 +295,18 @@ cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
     /* Default XRootD port if the data server didn't advertise one. */
     if (ctx->port == 0) {
         ctx->port = BRIX_DEFAULT_PORT;
+    }
+
+    /*
+     * Phase-61 W7 Admit parity: classify the node by its Mode role bits the
+     * way stock XrdCmsProtocol::Admit does — manager+server is a supervisor
+     * ("R"), manager or sub-manager alone is a manager ("M"), anything else
+     * is a plain data server ("S").
+     */
+    if (ctx->login_mode & (CMS_LOGIN_MODE_MANAGER | CMS_LOGIN_MODE_SUBMAN)) {
+        ctx->node_role = (ctx->login_mode & CMS_LOGIN_MODE) ? "R" : "M";
+    } else {
+        ctx->node_role = "S";
     }
 
     return 1;

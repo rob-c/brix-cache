@@ -152,6 +152,35 @@ def test_mode_and_stru(gateway):
         ftp.quit()
 
 
+def test_opts_parallelism_accepted_but_single_stream(gateway):
+    """OPTS RETR ``Parallelism=<n>`` is a dead field (phase-92 removal): it is
+    accepted for wire-compatibility with a lenient 200, but never honoured —
+    RETR is always single-stream. This exercises the rewritten ``ev_cmd_opts``:
+
+      * success       — ``Parallelism=4`` still returns 200 (the capability probe
+                        a client sends before a MODE E RETR must not fail);
+      * robustness    — a value that formerly hit the 1..64 clamp is now simply
+                        ignored, still 200, and an unrelated OPTS token is equally
+                        lenient (garbage never fails the session);
+      * behaviour-neg — the parameter changes nothing: a plain RETR after the
+                        probe returns the whole object byte-for-byte over a single
+                        stream (no striping, no truncation), proving the removed
+                        field never gated the transfer.
+    """
+    payload = os.urandom(4096)
+    _seed(gateway, "opts.bin", payload)
+    ftp = _connect(gateway)
+    try:
+        assert ftp.sendcmd("OPTS RETR Parallelism=4").startswith("200")
+        assert ftp.sendcmd("OPTS RETR Parallelism=999").startswith("200")
+        assert ftp.sendcmd("OPTS MLST type;size;").startswith("200")
+        chunks = []
+        ftp.retrbinary("RETR opts.bin", chunks.append)
+        assert b"".join(chunks) == payload
+    finally:
+        ftp.quit()
+
+
 # ---- SIZE / REST + resumed RETR --------------------------------------------
 
 def test_size_and_rest_resume(gateway, tmp_path):
@@ -185,6 +214,47 @@ def test_appe_extends_in_place(gateway, tmp_path):
         ftp.quit()
     with open(os.path.join(gateway.export, "log.bin"), "rb") as fh:
         assert fh.read() == b"HEADTAIL"
+
+
+# ---- MKD (directory creation, incl. the trailing-slash interop contract) ---
+
+def test_mkd_trailing_slash_and_confinement(gateway, tmp_path):
+    """MKD must create the directory whether or not the client appends a trailing
+    slash.  globus-url-copy's ``-cd`` issues ``MKD interop/`` (trailing '/'); before
+    the beneath.c fix the parent/leaf split produced an empty leaf and the create
+    failed ENOENT, so every ``-cd`` PUT into a fresh subdir 550'd.  A bare ``MKD
+    dir`` is the control, EEXIST stays an error, and a traversal target stays
+    confined (security-negative)."""
+    ftp = _connect(gateway)
+    try:
+        # success (bare name): plain MKD creates the directory.
+        assert ftp.sendcmd("MKD plaindir").startswith("257")
+        assert os.path.isdir(os.path.join(gateway.export, "plaindir"))
+
+        # regression: a lone trailing slash denotes the same directory, so
+        # `MKD slashdir/` must also create it, and a STOR into the just-created
+        # nested dir must land (the exact globus-url-copy -cd path).
+        assert ftp.sendcmd("MKD slashdir/").startswith("257")
+        assert os.path.isdir(os.path.join(gateway.export, "slashdir"))
+        payload = os.urandom(2048)
+        src = tmp_path / "mkd-in.bin"
+        src.write_bytes(payload)
+        with open(src, "rb") as fh:
+            ftp.storbinary("STOR slashdir/obj.bin", fh)
+        with open(os.path.join(gateway.export, "slashdir", "obj.bin"), "rb") as fh:
+            assert fh.read() == payload
+
+        # error: re-creating an existing directory is refused, not silently ok
+        # (proves the trailing-slash normalisation did not mask EEXIST).
+        with pytest.raises(ftplib.error_perm):
+            ftp.sendcmd("MKD slashdir/")
+
+        # security-negative: a traversal target can never escape the export.
+        with pytest.raises(ftplib.error_perm):
+            ftp.sendcmd("MKD ../../../../tmp/brix-mkd-escape/")
+        assert not os.path.exists("/tmp/brix-mkd-escape")
+    finally:
+        ftp.quit()
 
 
 # ---- RNFR / RNTO -----------------------------------------------------------

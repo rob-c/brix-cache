@@ -7,6 +7,7 @@
 #include "core/ngx_brix_module.h"
 #include "fs/backend/csi_tagstore.h"
 #include "net/ratelimit/throttle_compat.h"  /* phase-59 W3a: open-files cap */
+#include "net/ratelimit/reservation.h"      /* phase-92: XrdBwm bandwidth reservation */
 #include "protocols/root/response/async.h"
 #include "net/mirror/stream_wmirror.h"
 #include "protocols/root/write/wrts_journal.h"
@@ -136,6 +137,43 @@ brix_open_apply_throttle(brix_open_args_t *a)
 			    kXR_Overloaded, "too many open files for this user");
 		}
 		ctx->throttle.open_held++;
+	}
+
+	/* phase-92: XrdBwm-style read-bandwidth reservation. A read open reserves its
+	 * file size against the configured per-worker byte budget; when the aggregate
+	 * is exhausted the open is refused (kXR_Overloaded), mirroring the open-files
+	 * cap above. Write opens have no size to reserve yet, so they are exempt.
+	 * On refusal the open-files slot acquired just above (if any) is returned. */
+	if (!is_write && conf->throttle.bwm_budget > 0
+	    && conf->throttle.bwm_zone_name.len > 0
+	    && ctx->files[idx].cached_size > 0)
+	{
+		brix_resv_zone_t *z = brix_resv_zone_create(NULL,
+		    (const char *) conf->throttle.bwm_zone_name.data,
+		    (uint64_t) conf->throttle.bwm_budget);
+		uint64_t need = (uint64_t) ctx->files[idx].cached_size;
+
+		if (z != NULL && brix_resv_schedule(z, need) == 0) {
+			if (conf->throttle.zone != NULL
+			    && conf->throttle.max_open_files > 0)
+			{
+				const char *tuser = ctx->login.dn[0]
+				                    ? ctx->login.dn : "anonymous";
+				brix_throttle_open_dec(conf->throttle.zone, tuser);
+				ctx->throttle.open_held--;
+			}
+			close(fd);
+			ctx->files[idx].fd = -1;
+			if (ctx->files[idx].csi != NULL) {
+				brix_csi_close(ctx->files[idx].csi);
+				ngx_free(ctx->files[idx].csi);
+				ctx->files[idx].csi = NULL;
+			}
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", resolved,
+			    "rd", kXR_Overloaded,
+			    "bandwidth reservation budget exhausted");
+		}
+		ctx->files[idx].bwm_reserved = need;
 	}
 	return NGX_OK;
 }

@@ -16,6 +16,8 @@
 #include "core/ngx_brix_module.h"
 #include "fs/backend/sd.h"   /* brix_sd_obj_t — pgread routes via the SD seam */
 
+#include <sys/uio.h>           /* struct iovec — brix_pgread_layout_iov (P44-B) */
+
 /* ---- Function: brix_handle_read() ----
  * Handles kXR_read opcode — single-segment file read returning raw bytes to client.
  * Validates read handle (idx from fhandle[0]), parses offset/rlen, caps rlen at BRIX_READ_REQUEST_MAX,
@@ -92,5 +94,19 @@ typedef struct {
 size_t brix_pgread_read_encode_inplace(brix_sd_obj_t *obj, off_t offset,
                                          size_t rlen, u_char *out,
                                          brix_pgread_io_t *io);
+
+/* ---- P44-B hybrid io_uring pgread split (pgread_encode.c) ----
+ * layout_iov fills iov[] with the single-batch scatter targets that land an
+ * rlen-byte read at `offset` into the gapped wire buffer `out` (data after
+ * each 4-byte CRC gap); returns the page count or -1 when the read needs more
+ * than one batch (> BRIX_PGREAD_MAXIOV pages — use the thread-pool path).
+ * crc_encode_delivered then CRCs each page in place over the `delivered`
+ * bytes such a read produced and returns the encoded byte count, matching
+ * brix_pgread_read_encode_inplace byte-for-byte (Invariant #1).  The CRC pass
+ * must run on a pool thread, never the event thread (R-07). */
+ngx_int_t brix_pgread_layout_iov(off_t offset, size_t rlen, u_char *out,
+                                   struct iovec *iov, ngx_uint_t max_iov);
+size_t brix_pgread_crc_encode_delivered(off_t offset, size_t rlen,
+                                          u_char *out, size_t delivered);
 
 #endif // BRIX_READ_H

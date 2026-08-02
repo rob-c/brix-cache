@@ -35,12 +35,12 @@
 #include "net/ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "fs/cache/cache_internal.h"
 #include "core/compat/staged_file.h"
+#include "fs/vfs/vfs.h"     /* brix_vfs_neg_stat_forget (phase-56 C-2)        */
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (root:// STAGE) */
 #include "protocols/root/write/wrts_journal.h"
 #include "protocols/root/write/pgw_fob.h"
 #include "net/cms/cns.h"
-#include "net/cms/cms_internal.h"   /* ngx_brix_cms_ctx_t */
-#include "net/cms/frame_io.h"       /* brix_cms_send_frame */
+#include "net/cms/cns_emit.h"       /* brix_cns_emit (shared §6 seam) */
 #include "observability/sesslog/sesslog_ngx.h"
 #include <stdio.h>
 #include <string.h>
@@ -59,18 +59,12 @@ static void
 brix_cns_emit_close(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
     int idx)
 {
-    const char  *fpath, *logical, *root;
-    size_t       rlen;
+    const char  *fpath;
     struct stat  st;
-    uint8_t      buf[BRIX_CNS_HDR_LEN + BRIX_CNS_PATH_MAX];
-    size_t       n;
 
+    /* ADD is emitted only for a writable handle whose fd is a regular file;
+     * the mode/link gating + wire send live in the shared brix_cns_emit seam. */
     if (conf->cns_mode != BRIX_CNS_EMIT || !ctx->files[idx].writable) {
-        return;
-    }
-    if (conf->cms.ctx == NULL || conf->cms.ctx->connection == NULL
-        || !conf->cms.ctx->logged_in)
-    {
         return;
     }
 
@@ -85,20 +79,8 @@ brix_cns_emit_close(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
         return;
     }
 
-    root    = conf->common.root_canon;
-    rlen    = ngx_strlen(root);
-    logical = fpath;
-    if (rlen > 0 && ngx_strncmp(fpath, root, rlen) == 0 && fpath[rlen] == '/') {
-        logical = fpath + rlen;   /* keep the leading '/' → client-facing path */
-    }
-
-    n = brix_cns_event_encode(BRIX_CNS_ADD, logical, (uint64_t) st.st_size,
-                                (uint64_t) st.st_mtime, buf, sizeof(buf));
-    if (n == 0) {
-        return;
-    }
-    (void) brix_cms_send_frame(conf->cms.ctx->connection, 0, CMS_RR_CNS,
-                                 CMS_MOD_RAW, buf, n);
+    brix_cns_emit(conf, BRIX_CNS_ADD, fpath, (uint64_t) st.st_size,
+                    (uint64_t) st.st_mtime);
 }
 
 /*
@@ -275,6 +257,14 @@ brix_close_posc_commit(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (stage_tracked) {
         brix_stage_unmark_pending(temp_path);
+    }
+
+    /* C-2 (phase-56): the commit rename just materialised final_path — drop
+     * any per-worker cached negative so a stat racing the publish never sees
+     * a stale ENOENT (the staged temp never went through brix_vfs_open on
+     * this path). */
+    if (conf != NULL) {
+        brix_vfs_neg_stat_forget(conf->common.root_canon, final_path);
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,

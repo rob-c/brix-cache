@@ -236,6 +236,26 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
         return -1;
     }
 
+    /* Max-staleness (phase-28 C3): a signed response is only evidence within
+     * its thisUpdate..nextUpdate window (+clock skew), and a nonce-less
+     * pre-signed response could otherwise be replayed long after the CA
+     * revoked the cert.  A stale/not-yet-valid response proves nothing
+     * CURRENT, so it degrades to UNKNOWN (rc=1 — the soft_fail policy
+     * decides, same as a responder that answered UNKNOWN outright) — except
+     * REVOKED, which is never overridden: even stale evidence of revocation
+     * still denies. */
+    if (!OCSP_check_validity(thisupd, nextupd,
+                             BRIX_OCSP_VALIDITY_SKEW_SEC,
+                             BRIX_OCSP_VALIDITY_MAX_AGE_SEC)
+        && status != V_OCSP_CERTSTATUS_REVOKED)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_ocsp: response outside its validity window "
+                      "(stale or not yet valid) — treating as UNKNOWN");
+        OCSP_BASICRESP_free(bresp);
+        return 1;  /* caller decides based on soft_fail */
+    }
+
     switch (status) {
     case V_OCSP_CERTSTATUS_GOOD:
         rc = 0;

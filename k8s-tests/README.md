@@ -47,6 +47,15 @@ in-cluster test attributes failures to `[backend]` vs `[brix-machinery]`):
     ./xrd-lab test s3fwd          # self-contained: charts/s3-forward + test-runner
     ./xrd-lab deploy s3fwd        # or: keep the topology up for manual poking
 
+Multi-user root://+GSI gateways (phase-80 stretch), each self-contained and
+verified user-side (xrdcp/xrdfs as each principal):
+
+    ./xrd-lab test s3gsi          # per-VO backend creds + per-user authdb isolation
+    ./xrd-lab test s3voms         # ZERO-provisioning: authz + backend cred both from
+                                  #   the client's VOMS AC (no gridmap, no per-user file)
+    ./xrd-lab test pbgsi          # LOCAL pblock:// store, per-UNIX-GROUP r/w isolation
+                                  #   (gate decides, catalog attests)
+
 ## How it fits together
 
 - `charts/brix-common` — a Helm *library* chart holding every shared helper
@@ -61,7 +70,9 @@ in-cluster test attributes failures to `[backend]` vs `[brix-machinery]`):
 
 ## Testing the lab itself
 
-- Chart unit tests (no cluster): `helm unittest charts/smoke charts/brix-test-lab`
+- Chart unit tests (no cluster): `helm unittest charts/smoke charts/brix-test-lab charts/topology-role`
+  (`topology-role` covers the phase-80 stretch init containers: `voms-lsc-init`,
+  `nss-init`, `data-seed`)
 - Lab + klib + config tests (no cluster): `pytest pytests/ -m 'not e2e'`
 - Image + live end-to-end (needs Docker + minikube): `pytest pytests/ -m e2e`
 - Manifest schema validation:

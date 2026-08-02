@@ -122,7 +122,27 @@
  * Online flag a server sets in kYR_have to signal the file is resident.
  */
 #define CMS_MOD_RAW     0x20   /* payload is raw (not Pup-encoded) */
+
+/* CmsStateRequest modifier bits (kYR_state). */
+#define CMS_STATE_METAMAN 0x08 /* kYR_metaman: query originates at a manager
+                                  with no local export (stock cmsd stamps it
+                                  when !Config.asServer() so the receiving
+                                  node cannot be lied to about the sender's
+                                  status) */
 #define CMS_HAVE_ONLINE 0x01   /* kYR_have modifier: file is online/resident */
+
+/*
+ * kYR_stats modifier + Cluster.Stats reply document (byte-exact with stock
+ * v5.9.6 XrdCmsNode::do_Stats / XrdCmsCluster::Stats).  Both reply forms are
+ * kYR_data; the payload always starts with the 4-byte big-endian advertised
+ * buffer size (statsz = sizeof(statfmt1) + 8), and the full form appends the
+ * snprintf'd document (length excludes the NUL).  The role slot takes an
+ * XrdCmsRole::Type string: "MM" meta-manager, "M" manager, "R" supervisor,
+ * "S" server.
+ */
+#define CMS_STATS_SIZE  0x01   /* CmsStatsRequest::kYR_size: size form only */
+#define CMS_STATS_FMT   "<stats id=\"cms\"><role>%s</role></stats>"
+#define CMS_STATS_BUFSZ ((uint32_t) (sizeof(CMS_STATS_FMT) + 8))
 
 /*
  * CMS variable-length encoding type tags.
@@ -159,6 +179,8 @@
  */
 #define CMS_LOGIN_VERSION       3
 #define CMS_LOGIN_MODE          0x00000008  /* kYR_server: this node exports data */
+#define CMS_LOGIN_MODE_SUBMAN   0x00000020  /* kYR_subman: sub-manager pandering
+                                               to a meta-manager (SanList leg) */
 #define CMS_LOGIN_MODE_MANAGER  0x00000002  /* kYR_manager: also manages servers
                                              * (real LoginMode bit; 0x10 is proxy) */
 
@@ -224,6 +246,10 @@ u_char   *ngx_brix_cms_put_int(u_char *p, uint32_t value);
  * parser tells string from scalar by the absence of the 0x80 bit. Copies data
  * (borrows, does not retain). Returns the advanced cursor. */
 u_char   *ngx_brix_cms_put_string(u_char *p, const u_char *data, size_t len);
+/* Render the Cluster.Stats document (CMS_STATS_FMT with `role` substituted)
+ * into buf. Returns the text length (excluding the NUL) or -1 if buflen cannot
+ * hold it — size buf from CMS_STATS_BUFSZ and it always fits. */
+int       ngx_brix_cms_stats_doc(u_char *buf, size_t buflen, const char *role);
 
 /* space.c — filesystem space measurement */
 
@@ -263,6 +289,11 @@ ngx_int_t  ngx_brix_cms_send_status(ngx_brix_cms_ctx_t *ctx);
  * if path_len+1 exceeds the internal path buffer. */
 ngx_int_t  ngx_brix_cms_send_have(ngx_brix_cms_ctx_t *ctx,
                uint32_t streamid, const char *path, size_t path_len);
+/* Reply to a kYR_stats query with kYR_data: [4B BE statsz] alone for the
+ * kYR_size modifier, else followed by the Cluster.Stats document (role from
+ * manager_mode/caps.supervisor), echoing the request's streamid. */
+ngx_int_t  ngx_brix_cms_send_stats(ngx_brix_cms_ctx_t *ctx,
+               uint32_t streamid, u_char mod);
 /* Send a kYR_locate asking the manager which node owns path (NUL-terminated C
  * string, borrowed). streamid correlates the later reply. Returns NGX_ERROR if
  * the path (incl. NUL) overflows the internal buffer. */

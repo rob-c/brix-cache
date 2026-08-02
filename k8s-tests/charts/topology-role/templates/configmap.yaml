@@ -9,5 +9,12 @@ data:
     # Workers run as root so posix storage writes and cache fills (which the
     # cache store creates root-owned) succeed inside the container.
     user root;
+    # The role configs are self-contained and loaded via `nginx -c` (see the
+    # server image entrypoint), so they bypass the stock /etc/nginx/nginx.conf
+    # and must load the dynamic modules themselves: nginx-mod-stream ships the
+    # stream core (ngx_stream_module) and the brix RPM ships the stream + http
+    # brix modules — both live in /usr/share/nginx/modules/*.conf. Without this
+    # every brix_*/stream directive is an "unknown directive" at parse time.
+    include /usr/share/nginx/modules/*.conf;
     {{- $tmpl := printf "configs/%s.conf" .Values.role.configKey -}}
     {{- tpl (.Files.Get $tmpl) . | nindent 4 }}

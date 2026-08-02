@@ -193,8 +193,21 @@ token_extract_claims(const brix_token_validate_args_t *a, const char *pay_json,
 
     json_get_string(pay_json, pay_len, "iss",
                     claims->iss, sizeof(claims->iss));
-    json_get_string(pay_json, pay_len, "sub",
-                    claims->sub, sizeof(claims->sub));
+
+    /* RFC 7519 §4.1.2 (rules 4/6): "sub" MUST be a StringOrURI. It is optional,
+     * so an absent sub is fine; but when present it must be a JSON string —
+     * json_get_string() fails on an array/object/number value. Reject the
+     * present-but-non-string case rather than silently accepting (a token whose
+     * subject cannot be a scalar principal must not authorize). */
+    if (json_get_string(pay_json, pay_len, "sub",
+                        claims->sub, sizeof(claims->sub)) < 0
+        && json_has_member(pay_json, pay_len, "sub"))
+    {
+        ngx_log_error(NGX_LOG_WARN, a->log, 0,
+                      "brix_token: \"sub\" claim present but not a StringOrURI "
+                      "(RFC 7519 rules 4/6)");
+        return -1;
+    }
     if (json_get_string(pay_json, pay_len, "aud",
                         claims->aud, sizeof(claims->aud)) < 0) {
         /* RFC 7519 §4.1.3: "aud" MAY be an array of strings (WLCG/OIDC commonly

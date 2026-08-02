@@ -39,6 +39,21 @@ char *cvmfs_conf_repo_authz(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
  * default fills=<n> fill-rate class entry; multi-occurrence. */
 char *cvmfs_conf_qos(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
+/* Defined in virtual.c ------------------------------------------------------
+ *
+ * brix_cvmfs_virtual_repo setter (phase-87 G16) — appends one
+ * <virtual-fqrn> <member-fqrn>... union entry; multi-occurrence; rejects
+ * duplicate virtual names, duplicate members, and any nesting (a virtual
+ * name appearing as a member). */
+char *cvmfs_conf_virtual_repo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
+/* Defined in attest.c -------------------------------------------------------
+ *
+ * brix_cvmfs_attest setter (phase-87 G15) — loads the PEM signing private
+ * key at config time (fail-fast: an attesting proxy with an unloadable key
+ * must not start); cf->pool cleanup frees it on reload. */
+char *cvmfs_conf_attest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
 /* brix_cvmfs_origin_coords setter — one geographic origin position (multi). */
 char *ngx_http_brix_cvmfs_set_coords(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
@@ -60,5 +75,20 @@ char *cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf);
  * Location merge orchestrator wired into ngx_http_brix_cvmfs_module_ctx. */
 char *ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent,
     void *child);
+
+/* Defined in handler.c -------------------------------------------------------
+ *
+ * Storage-instance resolution (convention #2: the T14 proxy-mode per-upstream
+ * override on the request ctx wins, else the location's registered backend).
+ * Shared with the phase-87 G2 bundle endpoint (bundle.c). */
+brix_sd_instance_t *cvmfs_resolve_sd(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf);
+
+/* Defined in handler_finalize.c ----------------------------------------------
+ *
+ * Request-finalization observer (sesslog close-out, client trace, T16 metric
+ * accounting, G15 attest observe). handler.c registers it as the request's
+ * pool cleanup; ngx_pool_cleanup_pt signature. */
+void cvmfs_finalize_observe(void *data);
 
 #endif /* BRIX_CVMFS_MODULE_INTERNAL_H */

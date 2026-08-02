@@ -19,6 +19,7 @@
 #include "token_internal.h"
 #include "macaroon.h"
 #include "macaroon_internal.h"
+#include "macaroon_frame.h"   /* brix_macaroon_packet_len — carved pure framing (C-1) */
 #include "b64url.h"
 #include "scopes.h"
 #include "core/compat/hex.h"
@@ -29,20 +30,10 @@
 #include <string.h>
 #include <time.h>
 
-int
-brix_macaroon_packet_len(const u_char *p)
-/* WHAT: Parse a 4-character hex-encoded packet length from macaroon binary data.
- * WHY: Macaroon packets are prefixed with a hex-encoded 32-bit length field (8 hex chars → uint32). This helper converts the first 4 hex characters into an integer for bounds checking before reading packet data.
- * HOW: Call brix_hex_from_char() on each of p[0..3], reject if any nibble invalid (<0); combine via bit shifts (v0<<12)|(v1<<8)|(v2<<4)|v3 to form uint32; return value or -1 on invalid nibble. */
-{
-    int v0, v1, v2, v3;
-    v0 = brix_hex_from_char(p[0]);
-    v1 = brix_hex_from_char(p[1]);
-    v2 = brix_hex_from_char(p[2]);
-    v3 = brix_hex_from_char(p[3]);
-    if (v0 < 0 || v1 < 0 || v2 < 0 || v3 < 0) return -1;
-    return (v0 << 12) | (v1 << 8) | (v2 << 4) | v3;
-}
+/* brix_macaroon_packet_len — the 4-hex-char packet length decoder — now lives in
+ * macaroon_frame.c so it can be fuzzed standalone (C-1 target 4); see
+ * macaroon_frame.h. macaroon_internal.h still declares it (u_char signature),
+ * call-compatible with the ngx-free unsigned char definition. */
 
 static ngx_int_t
 macaroon_packet_identifier(brix_macaroon_parse_state_t *state,

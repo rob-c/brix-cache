@@ -44,8 +44,26 @@ reachability before quoting it as open.
 >   capture a real ns timestamp instead of the cached `ngx_current_msec`, so
 >   inline-op latency is no longer reported as 0 µs and the sub-ms band is real
 >   (§7.1). Metrics-only (no client-visible behaviour); the static marker suite held
->   at its baseline. **D-2** (data-plane op-latency in the AIO COMPLETE callbacks)
->   is the remaining half — still planned.
+>   at its baseline.
+> - **D-2 — data-plane op-latency: DONE + live-verified [2026-07-27].** Every root-wire
+>   AIO post site (buffered read window + single-shot, pgread, readv, write
+>   pipelined/serial, writev — 6 sites) stamps `start_ns = brix_phase_now_ns()` in
+>   the task struct; every done callback (5) files ONE histogram sample via
+>   `brix_aio_metric_done()` → new histogram-only recorder
+>   `brix_metric_op_latency()` (`unified_record.c`; `brix_metric_op_done` now
+>   delegates its histogram block to it). **As-built divergence from the §7.2
+>   sketch:** the fix must NOT call `brix_metric_op_done` from the callbacks — the
+>   unified exporter already **folds the legacy per-port stream counters** into
+>   `brix_io_ops_total` / `brix_io_bytes_*{proto="stream"}` at scrape time
+>   (`unified_export_io.c`), so ops/bytes were never blind; calling op_done
+>   double-books them (live-observed: one upload ⇒ ops_total +2). Only the
+>   histogram was blind. Consequence: `brix_io_latency_usec_*{proto="stream"}` is
+>   the **AIO-sampled subset** — warm/cleartext reads complete inline or via
+>   sendfile and are unsampled by design (their ops/bytes still book via the
+>   fold). Live deltas: 1 upload ⇒ ops `+1`/latency-count `+1`; warm read ⇒ ops
+>   `+1`/count `+0`; page-cache-evicted TLS read ⇒ ops `+1`/count `+1`/sum ≈1.5 ms.
+>   Suite: `tests/test_aio_op_latency_metric.py` (17 green: live deltas + done/post
+>   source contract + histogram-only & low-cardinality guards).
 > - **§3 (delete the dead `xrootd_vfs_read`/`write`) — BLOCKED, finding corrected.**
 >   The "dead" code is **pinned by a conformance marker test**
 >   (`tests/test_cross_protocol_shared_helpers.py::test_phase3_vfs_preserves_io_invariants`,
@@ -53,8 +71,15 @@ reachability before quoting it as open.
 >   `vfs_read.c`). So Option B (delete) is **not** a pure build-verified change — it
 >   would break the stock suite and remove that invariant guard. §3 / Appendix A
 >   corrected; deletion now requires migrating the markers to a live path first.
-> - Everything else (B-1, D-2, B-2, C-1…C-5, the Pillar-F migration F1–F7) remains
->   planned and sequenced (§12); each is gated on its §11 measurement.
+> - **2026-07-27 batch — B-2, B-5, C-1, C-4, C-5, C-2 ALL LANDED** (see the
+>   per-item LANDED notes in §5/§6 for as-built divergences from the sketches).
+>   Suites: `tests/test_phase56_perf_migrations.py` (16 green — contract/source
+>   tests incl. the C-2 forget-hook coverage gate) +
+>   `tests/test_neg_stat_cache.py` (5 green — live raw-wire C-2 behaviour; the
+>   doc's planned `test_metadata_stress.py` name was already taken by the
+>   rate-limiter suite). B-1 landed in an earlier batch (register row below now
+>   reflects it). Remaining: **C-3 stays parked behind Phase 44 (io_uring)**;
+>   the Pillar-F migration F1–F7 remains sequenced per §12.
 **Scope:** the unified data-plane stack only — `src/fs/vfs*.{c,h}` (the
 protocol-agnostic VFS), `src/fs/vfs_io_core.{c,h}` (the worker-safe job core),
 and `src/fs/backend/{sd.h,sd_posix.c,sd_registry.c}` (the Storage Driver seam +
@@ -254,16 +279,16 @@ dispatch through `obj->driver`) — see A.1, the basis of the headline finding.
 | # | Lever | Funnel(s) | Effort | Expected gain | Confidence |
 |---|---|---|---|---|---|
 | **A-1** | Drop the SD-vtable indirection from the raw byte loops (`pread_full`/`pwrite_full`/`write_counted`) | **2, 4** + staged write | trivial | Inlines `pread`/`pwrite` on every stream R/W chunk + HTTP `staged_write`; kills an indirect call + 64 B memzero per 64 KB chunk | **VERIFIED (hot)** |
-| **B-1** | Stack-allocate the borrowed POSIX instance (no `pcalloc`) on the hot `root://` open | open path | small | Removes ~3 `pcalloc`/open on the stream open path | **VERIFIED (hot)** |
+| **B-1** | Stack-allocate the borrowed POSIX instance (no `pcalloc`) on the hot `root://` open | open path | small | Removes ~3 `pcalloc`/open on the stream open path | **DONE** (earlier batch) |
 | **D-1** | Latency metrics use cached `ngx_current_msec` → inline metadata ops report **0 µs** | metadata observers | small | Makes the VFS latency histogram measure inline-op latency (use `CLOCK_MONOTONIC`) | **VERIFIED** |
-| **D-2** | The bulk data plane (stream R/W, HTTP sendfile) emits **no** op-latency metric at all | 1, 2, 3, 4 | medium | Closes a histogram blind spot on the busiest ops | **VERIFIED (gap)** |
-| **B-2** | Push the existing `POSIX_FADV_*` read-ahead down into the SD `open` slot | 1, 2 | small | Sequential read-ahead for **all** protocols (root://+S3), not just WebDAV GET | **VERIFIED (gap)** |
-| **C-1** | Expose `d_type` through `xrootd_sd_dirent_t`; skip per-child stat in `fs_walk` tree walks + LIST | metadata | medium | 1 stat→0 per entry on recursive DELETE/COPY + S3 LIST common-prefix; **saves a broker IPC/entry under impersonation** | **AUDIT** |
-| **C-5** | `xrootd_vfs_readdir` stats children by **full path** (`lstat`) not dirfd-relative `fstatat` | metadata | small | O(depth) path-walk → O(1) per child, off-impersonation | **VERIFIED** |
-| **C-2** | Per-worker bounded **negative-stat** cache in front of `vfs_stat` (identity-scoped under impersonation) | metadata | medium | Collapses repeat `ENOENT` probes (xcache fill races, namespace browsing) to 1 syscall/IPC | **AUDIT** |
+| **D-2** | The bulk data plane (stream R/W, HTTP sendfile) emits **no** op-latency metric at all | 1, 2, 3, 4 | medium | Closes a histogram blind spot on the busiest ops | **DONE 2026-07-27** (root-wire AIO; see status header — histogram-only, not op_done) |
+| **B-2** | Push the existing `POSIX_FADV_*` read-ahead down into the SD `open` slot | 1, 2 | small | Sequential read-ahead for **all** protocols (root://+S3), not just WebDAV GET | **DONE 2026-07-27** (§5.2) |
+| **C-1** | Expose `d_type` through `xrootd_sd_dirent_t`; skip per-child stat in `fs_walk` tree walks + LIST | metadata | medium | 1 stat→0 per entry on recursive DELETE/COPY + S3 LIST common-prefix; **saves a broker IPC/entry under impersonation** | **DONE 2026-07-27** (§6.1) |
+| **C-5** | `xrootd_vfs_readdir` stats children by **full path** (`lstat`) not dirfd-relative `fstatat` | metadata | small | O(depth) path-walk → O(1) per child, off-impersonation | **DONE 2026-07-27** (§6.2) |
+| **C-2** | Per-worker bounded **negative-stat** cache in front of `vfs_stat` (identity-scoped under impersonation) | metadata | medium | Collapses repeat `ENOENT` probes (xcache fill races, namespace browsing) to 1 syscall/IPC | **DONE 2026-07-27** (§6.3; opt-in `BRIX_NEG_STAT_CACHE=1`) |
 | **C-3** | `CAP_IOURING`-gated **batched `statx`** for `want_stat` dirlist | metadata | large | O(n) sequential `fstatat` → O(1) submit+wait on big stat'd listings (Phase 44) | **AUDIT** |
-| **B-5** | `staged_commit`/`vfs_copy` re-stat by path for the metric byte count instead of `fstat`-ing the open fd | 3 + COPY | trivial | Removes 1 path-stat (or broker IPC) per upload/copy | **VERIFIED** |
-| **C-4** | dirlist `fstatat` error branch collapses ENOENT and EIO/EACCES identically (silent drop) | metadata | trivial | Surface child I/O/permission errors instead of hiding them | **VERIFIED** |
+| **B-5** | `staged_commit`/`vfs_copy` re-stat by path for the metric byte count instead of `fstat`-ing the open fd | 3 + COPY | trivial | Removes 1 path-stat (or broker IPC) per upload/copy | **DONE 2026-07-27** (§5.5) |
+| **C-4** | dirlist `fstatat` error branch collapses ENOENT and EIO/EACCES identically (silent drop) | metadata | trivial | Surface child I/O/permission errors instead of hiding them | **DONE 2026-07-27** (§6.5) |
 | **B-3** | Open-time `fstat` snapshot reused for stat-after-open (`stat_current`) | 1, 3 | — | already optimal — **guard against regression** | **VERIFIED** |
 | **E-1/2/3** | Wire-or-delete the dead `xrootd_vfs_read`/`write` bodies (path alloc, 64 KB bounce→`copy_file_range`, writethrough pre-scan) | — | medium | unify funnel or delete; sub-opts only matter once wired | **VERIFIED (dead)** |
 | **F-1** | **Seam closure** — migrate ~105 confined-helper bypass sites onto `xrootd_vfs_*` so the VFS is the *sole* data/namespace funnel (§9) | all metadata + open + staged | large (phased) | metrics/log/cache for every op; **all** ops follow a non-POSIX backend (Phase 55) instead of being POSIX-pinned | **VERIFIED (backlog)** |
@@ -600,6 +625,18 @@ fadvise is advisory — zero correctness impact, ignored hints log-and-continue 
 `webdav/io.c:88` already does). **Measure** (§11.3) on cold-cache large sequential
 reads; on a warm page cache it is a no-op.
 
+> **LANDED 2026-07-27 — as-built divergences from the sketch above:**
+> - Constant names are `BRIX_SD_ADV_{SEQUENTIAL,WILLNEED,RANDOM}` (repo prefix),
+>   not `XROOTD_SD_ADV_*`; the slot is `read_advise` on `brix_sd_driver_t`.
+> - `posix_fadvise` returns the error **as its value** (it does not set errno);
+>   the driver does `errno = rc` before the error return so callers/logs see it.
+> - Callers ride the seam via the `brix_vfs_file_read_advise` wrapper: NULL slot
+>   ⇒ `NGX_OK` (advisory), bad advice enum ⇒ `EINVAL`/`NGX_ERROR`.
+> - `brix_prefetch_fd_range` (root-wire windowed WILLNEED) and the WebDAV
+>   whole-file hint both funnel through the slot; the S3 GetObject gap is closed.
+> - Tests: `tests/test_phase56_perf_migrations.py` (B-2 legs: slot presence,
+>   funnel-through-seam source contract, error mapping).
+
 ### 5.3 `[VERIFIED — already optimal, guard against regression]` B-3 — open-time `fstat` snapshot
 
 `adopt_fd` (`vfs_open.c:141`) captures size/mtime/ctime/mode/ino via one
@@ -657,6 +694,14 @@ return value or wire response (both call sites already treat the stat as
 best-effort). **Measure** (§11.5): upload/copy op count under impersonation (broker
 IPC/op should drop by one).
 
+> **LANDED 2026-07-27 — as-built:** `staged_commit` takes the byte count from an
+> `fstat` of the still-open staged fd before the rename; `vfs_copy` plumbs the
+> driver's `bytes_out` back instead of a post-copy path stat. The final-path
+> re-stat helper usage is gone from both sites and the now-dead
+> `brix_vfs_copy_ns_bytes` helper was deleted. No path stat (⇒ no broker IPC
+> under impersonation) remains on either metric path. Tests: B-5 legs in
+> `tests/test_phase56_perf_migrations.py`.
+
 ---
 
 ## 6. Pillar C — metadata & directory plane (syscall/IPC amplification)
@@ -710,6 +755,14 @@ authorization decision — the actual open/delete still goes through
 only cause a fallback stat, never an escape. *Confidence AUDIT:* the per-consumer
 wins need tracing + measurement on real large directories (§11.4).
 
+> **LANDED 2026-07-27 — as-built:** `d_type` flows through `brix_sd_dirent_t`
+> (dirents are memzero'd so a driver that never fills it reads as
+> `DT_UNKNOWN`, which forces the stat fallback — fail-safe by construction).
+> The `fs_walk`/LIST classification consumers take the `d_type` fast path and
+> fall back to the full stat only on `DT_UNKNOWN` or when full metadata is
+> genuinely needed, exactly per the invariant note above. Tests: C-1 legs in
+> `tests/test_phase56_perf_migrations.py`.
+
 ### 6.2 `[VERIFIED]` C-5 — `xrootd_vfs_readdir` stats children by full path, not dirfd-relative
 
 `xrootd_vfs_readdir` with `stat_out != NULL` (`vfs_dir.c:139-158`) builds the full
@@ -739,6 +792,11 @@ one *O(depth)* lstat. *Invariant note:* `fstatat` on the confined directory fd
 cannot escape the directory (the fd is already `RESOLVE_BENEATH`-anchored;
 `AT_SYMLINK_NOFOLLOW` preserves the no-follow semantics). **Measure** (§11.4):
 PROPFIND/LIST syscall count on a deep, wide tree.
+
+> **LANDED 2026-07-27 — as-built:** exactly the fix above — the `fstatat`
+> fast path is gated on `!brix_imp_client_active()`; under impersonation the
+> confined-canon (broker-routed) path is unchanged. Tests: C-5 legs in
+> `tests/test_phase56_perf_migrations.py`.
 
 ### 6.3 `[AUDIT]` C-2 — per-worker bounded negative-stat cache in front of `vfs_stat`
 
@@ -778,8 +836,47 @@ turn a real file into a **false `ENOENT`** if a cross-worker create is not seen.
 Mitigations are mandatory: per-worker only (never cross-worker), short TTL, cleared
 by every same-worker mutator, identity-scoped under impersonation, **default off**,
 and a 3-tests rule including a create-after-negative-probe race test. *Confidence
-AUDIT:* hit-rate is entirely workload-shaped — measure on `test_metadata_stress`
-(§11.4) before trusting it.
+AUDIT:* hit-rate is entirely workload-shaped — measure on
+`tests/test_neg_stat_cache.py` (§11.4) before trusting it.
+
+> **LANDED 2026-07-27 — as-built divergences from the sketch above (read this
+> before touching the cache; two of these were live-verified bugs-in-waiting):**
+> - **Opt-in knob is the env var `BRIX_NEG_STAT_CACHE` compared exactly to
+>   `"1"`** (exported to workers via `env BRIX_NEG_STAT_CACHE;`), not a config
+>   directive. Default off; also hard-off whenever `brix_imp_client_active()`
+>   (the identity-keying variant was not built — imp is simply excluded).
+> - **Per-arm keying, not the sketch's single key:** the follow and nofollow
+>   stat arms are cached under distinct keys — the nofollow key is salted with
+>   `BRIX_NEG_STAT_FOLLOW_SALT` (`0x9e3779b97f4a7c15`). A single shared key is
+>   wrong: the two arms can legitimately disagree (dangling symlink = ENOENT on
+>   follow, present on nofollow). `forget` clears **both** arms.
+> - **Observability trap (cost a debugging round):** on the follow arm — the
+>   root-wire *default* — `stat_symlink_follow_fallback`
+>   (`src/protocols/root/read/stat.c`) re-probes uncached on every ENOENT and
+>   rescues any on-disk file, so a cached follow-arm negative is **never
+>   externally visible** via plain `xrdfs stat`. The only externally observable
+>   surface for cache hits/TTL/forget efficacy is the **nofollow arm**, and this
+>   vendor tree's `kXR_statNoFollow` wire option is **`0x40`**
+>   (`src/protocols/root/protocol/flags.h`), not the widely-assumed `2` (bit 2
+>   is ignored ⇒ silently tests the wrong arm).
+> - **The forget hook lives at 7 sites, not 4.** The VFS mutators
+>   (create/mkdir/rename/staged_commit) alone are NOT enough: three protocol
+>   publish points materialise the final path *outside* `brix_vfs_open`/
+>   `vfs_staged` and each was a live-verified stale-ENOENT gap — (1) root-wire
+>   in-place create-open (`brix_open_posix_dispatch`,
+>   `open_resolved_file_open.c` — opens via `brix_vfs_open_fd_at`), (2) root
+>   POSC commit (`brix_close_posc_commit`, `close.c` — `brix_commit_staged`
+>   direct), (3) WebDAV chunked-PUT final-chunk commit (`put_setup.c`, same).
+>   Any future publish point that materialises a path outside the VFS mutators
+>   MUST call `brix_vfs_neg_stat_forget` (declared in `vfs.h` — public because
+>   protocol layers call it); the coverage gate is
+>   `test_c2_forget_hooks_cover_every_mutator`. The `staged_file_reap.c`
+>   reaper intentionally has no hook (cross-worker case, TTL-bounded).
+> - Suites: `tests/test_neg_stat_cache.py` (5 green, raw-wire nofollow probes;
+>   dedicated single-worker fleet instance `lc-negstat`, ledger port 30455) +
+>   the C-2 contract legs in `tests/test_phase56_perf_migrations.py`. The doc's
+>   planned `test_metadata_stress.py` filename was already taken by the
+>   metadata rate-limiter suite, hence the rename.
 
 ### 6.4 `[AUDIT]` C-3 — `CAP_IOURING`-gated batched `statx` for `want_stat` dirlist
 
@@ -822,6 +919,11 @@ indistinguishable from the benign "entry vanished mid-scan" (`ENOENT`) race.
 non-ENOENT case at `NGX_LOG_ERR` (a permission/IO error on a child is
 operationally interesting and currently invisible) before declining. *Invariant
 note:* listing output unchanged; this only adds a diagnostic.
+
+> **LANDED 2026-07-27 — as-built:** exactly as specified — the benign ENOENT
+> race still skips silently; the non-ENOENT arm logs at `NGX_LOG_ERR` (gated on
+> `errno != ENOENT`) before declining. Listing output unchanged. Tests: C-4
+> legs in `tests/test_phase56_perf_migrations.py`.
 
 ---
 
@@ -896,6 +998,17 @@ per-handle/per-path labels. *Confidence:* the gap is VERIFIED; the *cost* of add
 a histogram increment per data op must be measured (§11.2) — it is one atomic
 bucket bump (`xrootd_metric_op_done` is "lock-free via atomics"), but on the hot
 read/write path even that should be confirmed negligible. Pairs naturally with D-1.
+
+> **[2026-07-27] LANDED — as-built diverges from the sketch above.** Do **not**
+> emit `brix_metric_op_done` from the callbacks: the exporter's legacy per-port
+> fold (`unified_export_io.c`) already books stream ops/bytes, so op_done
+> double-counts (live-observed +2 ops per write). As built: post sites stamp
+> `start_ns` (`brix_phase_now_ns()`), done callbacks call `brix_aio_metric_done()`
+> → histogram-only `brix_metric_op_latency()`. The histogram is the AIO-sampled
+> subset (sendfile/inline paths unsampled by design). HTTP `file_serve.c`
+> post-send sampling was NOT added (sendfile completion gives no per-op span
+> worth a histogram lie). Full record: status header at the top of this doc;
+> tests: `tests/test_aio_op_latency_metric.py`.
 
 ---
 
@@ -1443,7 +1556,7 @@ tests/profile_load.sh --proto s3 --op get --size 4G --reps 5   # S3 had NO hint 
 strace -f -e trace=newfstatat,lstat,statx -c -- \
     <PROPFIND-depth-1 | S3 ListObjects | recursive DELETE on a 10k-entry collection>
 # Repeat under impersonation (xrootd_impersonate on) and count broker round-trips.
-PYTHONPATH=tests pytest tests/test_metadata_stress.py -v     # C-2 hit-rate + race
+PYTHONPATH=tests pytest tests/test_neg_stat_cache.py -v      # C-2 live race + TTL (raw-wire nofollow)
 # Expectation: C-5 → fewer path-walk lstats; C-1 → ~0 stats for type-only walks;
 #              C-2 → repeat ENOENT probes collapse to 1 syscall (default-off flag on).
 ```

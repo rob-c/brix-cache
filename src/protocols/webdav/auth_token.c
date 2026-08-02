@@ -208,27 +208,78 @@ wt_ensure_ctx(ngx_http_request_t *r, ngx_http_brix_webdav_req_ctx_t **out)
 }
 
 /*
+ * wt_redact_query_token — scrub a URL-borne bearer token from every log source.
+ *
+ * WHAT: length-preservingly redacts a ?authz=/?access_token= token from
+ * r->args/unparsed_uri/request_line when a query string is present.
+ * WHY: a URL token must never reach access/error logs; called on both the auth
+ * success path and the dual-transport reject path so neither leaks it. r->uri
+ * (the decoded path used for routing/scope) excludes the query, so this is safe.
+ * HOW: guard on r->args.len then redact all three loggable fields.
+ */
+static void
+wt_redact_query_token(ngx_http_request_t *r)
+{
+    if (r->args.len > 0) {
+        brix_http_redact_query_token(&r->args);
+        brix_http_redact_query_token(&r->unparsed_uri);
+        brix_http_redact_query_token(&r->request_line);
+    }
+}
+
+/*
+ * webdav_add_nostore — attach Cache-Control: no-store to the response.
+ *
+ * WHAT: pushes a Cache-Control: no-store header onto headers_out.
+ * WHY: RFC 6750 §2.3 (SEC MUST) — responses to a query-transported token MUST
+ * carry no-store so the URL (with its embedded token) is never cached by an
+ * intermediary. Applies to the response regardless of the auth outcome.
+ * HOW: best-effort ngx_list_push; a push failure is non-fatal (the response
+ * still goes out, just without the advisory header).
+ */
+static void
+webdav_add_nostore(ngx_http_request_t *r)
+{
+    ngx_table_elt_t *h = ngx_list_push(&r->headers_out.headers);
+
+    if (h == NULL) {
+        return;
+    }
+    h->hash = 1;
+#if (nginx_version >= 1023000)
+    h->next = NULL;
+#endif
+    ngx_str_set(&h->key, "Cache-Control");
+    ngx_str_set(&h->value, "no-store");
+}
+
+/*
  * wt_parse_header — obtain the presented bearer token and scrub it from logs.
  *
  * WHAT: Resolves the request's bearer token from the Authorization header,
- * falling back to the ?authz=/?access_token= query parameter, and — once the
- * token has been consumed for auth — length-preservingly redacts any URL-borne
- * token from every loggable request field.  Returns the token via *bearer.
+ * falling back to the ?authz=/?access_token= query parameter, enforces the
+ * RFC 6750 §2 single-transport MUST, and — once the token has been consumed for
+ * auth — length-preservingly redacts any URL-borne token from every loggable
+ * request field.  Returns the token via *bearer.
  * WHY: WLCG clients present the token either in the header (primary) or the URL
  * (davix/gfal2 redirect + pre-signed flows); both must be accepted with the same
- * precedence XrdHttp uses.  A URL token must never reach access/error logs, so
- * the scrub happens here, immediately after extraction, before any early return
- * that could log the request line.
+ * precedence XrdHttp uses, but NOT both at once (§2 SEC MUST — a header+query
+ * collision is a confused-deputy vector → 400 invalid_request).  A URL token
+ * must never reach access/error logs, so the scrub happens here, immediately
+ * after extraction, before any early return that could log the request line.
  * HOW: no header → query fallback (NGX_DECLINED when absent); header present but
  * not Bearer → query fallback; a malformed Bearer header → NGX_HTTP_UNAUTHORIZED;
- * on success redact r->args/unparsed_uri/request_line when a query string exists
- * (r->uri excludes the query, so routing/scope are unaffected).
+ * a header Bearer token together with a query token → NGX_HTTP_BAD_REQUEST; on a
+ * query-sourced success attach Cache-Control: no-store (§2.3); always redact.
  */
 static ngx_int_t
 wt_parse_header(ngx_http_request_t *r,
                 ngx_http_brix_webdav_loc_conf_t *conf, ngx_str_t *bearer)
 {
     ngx_str_t auth_hdr;
+    ngx_str_t qtok;
+    int       from_query = 0;
+    int       header_bearer = 0;
     int       rc;
 
     if (r->headers_in.authorization == NULL) {
@@ -236,6 +287,7 @@ wt_parse_header(ngx_http_request_t *r,
         if (webdav_bearer_from_query(r, conf, bearer) != NGX_OK) {
             return NGX_DECLINED;
         }
+        from_query = 1;
     } else {
         auth_hdr = r->headers_in.authorization->value;
         rc = brix_http_extract_bearer(&auth_hdr, bearer);
@@ -244,19 +296,34 @@ wt_parse_header(ngx_http_request_t *r,
             if (webdav_bearer_from_query(r, conf, bearer) != NGX_OK) {
                 return NGX_DECLINED;
             }
+            from_query = 1;
         } else if (rc != NGX_OK) {
             return NGX_HTTP_UNAUTHORIZED;
+        } else {
+            header_bearer = 1;
         }
     }
 
-    /* §1: the token has now been consumed for auth. Scrub any ?authz=/?access_token=
-     * value, length-preserving, from every log source (args, unparsed URI, request
-     * line) so a URL-borne bearer token never reaches access/error logs. r->uri (the
-     * decoded path used for routing/scope) excludes the query, so this is safe. */
-    if (r->args.len > 0) {
-        brix_http_redact_query_token(&r->args);
-        brix_http_redact_query_token(&r->unparsed_uri);
-        brix_http_redact_query_token(&r->request_line);
+    /* RFC 6750 §2 (SEC MUST): a token MUST NOT be transmitted via more than one
+     * method. A Bearer Authorization header together with a ?authz=/?access_token=
+     * query token is a dual-transport request → 400 invalid_request. Redact the
+     * URL token before returning so the reject path never leaks it. */
+    if (header_bearer
+        && webdav_bearer_from_query(r, conf, &qtok) == NGX_OK)
+    {
+        wt_redact_query_token(r);
+        return NGX_HTTP_BAD_REQUEST;
+    }
+
+    /* §1: the token has now been consumed for auth — scrub any URL-borne token
+     * from every log source (length-preserving). */
+    wt_redact_query_token(r);
+
+    /* §2.3 (SEC MUST): a query-transported token requires Cache-Control:
+     * no-store on the response, set now since it applies regardless of the
+     * eventual auth outcome. */
+    if (from_query) {
+        webdav_add_nostore(r);
     }
 
     return NGX_OK;

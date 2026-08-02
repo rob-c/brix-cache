@@ -26,14 +26,15 @@
  *       through to the source and evicts the cached copy. The decorator's own
  *       byte/dir slots are never reached (open returns source/store objects).
  *
- *       SP1 ships the decorator with an INLINE fill - correct for the WebDAV / S3
- *       worker-thread context, and not yet on the live root:// event loop (the
- *       config -> tier-grammar -> registry wiring is the deferred migration, and
- *       the non-blocking root:// async-offload + remote-store path is the SP2
- *       "shell -> full" step). The nearline (tape) recall+park branch is wired to
- *       the source's recall slot but only exercised once the frm driver lands
- *       (SP5). See docs/refactor/phase-64-fully-tiered-composable-storage.md
- *       (section 9, 10, 12, Appendix J).
+ *       The decorator is wired from config through the tier grammar
+ *       (fs/tier/tier_build.c composes source + cache_store into this
+ *       decorator per export). The miss-fill runs INLINE on a worker thread
+ *       (WebDAV / S3); the event-loop planes stay non-blocking through the
+ *       async-fill seam (brix_sd_cache_fill_would_block + thread-pool offload,
+ *       see src/protocols/shared/http_cache_fill.c). A NEARLINE source (sd_frm, SP5)
+ *       kicks its async recall on miss and the open fails soft with EAGAIN
+ *       until the object is online. See docs/refactor/phase-64-fully-tiered-
+ *       composable-storage.md (section 9, 10, 12, Appendix J).
  */
 
 #include <ngx_core.h>
@@ -74,8 +75,23 @@ int brix_sd_cache_fill_needs_offload(brix_sd_instance_t *inst,
     const char *key);
 
 /* Fill `key` (source -> store + cinfo) on the calling (worker) thread. NGX_OK /
- * NGX_DECLINED (admission) / NGX_ERROR. */
-ngx_int_t brix_sd_cache_fill_key(brix_sd_instance_t *inst, const char *key);
+ * NGX_DECLINED (admission) / NGX_ERROR. When `cred` is non-NULL it is threaded
+ * into the source open so a remote origin authenticates AS the inbound user
+ * (phase-70 delegation carry) rather than the service credential; NULL opens the
+ * source with the service/anonymous identity. */
+ngx_int_t brix_sd_cache_fill_key(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred);
+
+/* As brix_sd_cache_fill_key, plus the phase-92 store-then-evict passthrough:
+ * with `allow_pt` non-zero and brix_cache_passthrough on, an object the
+ * admission policy would decline (path-filtered or over the caching cap) is
+ * filled anyway when it fits the brix_cache_passthrough_max spool cap; the call
+ * returns NGX_OK and sets *out_pt = 1, and the caller MUST evict `key` after it
+ * has served the object (it is a transient hit, not a retained cache entry).
+ * With `allow_pt` 0, or the policy off, or the object over cap, an admission
+ * decline still returns NGX_DECLINED. `out_pt` may be NULL. */
+ngx_int_t brix_sd_cache_fill_key_ex(brix_sd_instance_t *inst, const char *key,
+    const brix_sd_cred_t *cred, int allow_pt, int *out_pt);
 
 /* The cache STORE instance (served objects live there), or NULL if `inst` is not a
  * cache decorator. Used by the serve-locality predicate. */
@@ -133,5 +149,32 @@ typedef struct {
  * n <= BRIX_SD_CACHE_MAX_PEERS; n == 0 detaches. */
 void brix_sd_cache_set_peers(brix_sd_instance_t *inst,
     const brix_sd_cache_peer_t *peers, int n, int self);
+
+/* ---- phase-87 G12: dynamic (swarm) ring ----------------------------------- */
+
+/* An immutable published ring: the swarm membership plane builds one per
+ * membership change and swaps it in atomically; while attached it takes
+ * precedence over the static brix_cache_peers ring in the fill spine. */
+typedef struct {
+    int                   n;
+    int                   self;
+    brix_sd_cache_peer_t  peers[BRIX_SD_CACHE_MAX_PEERS];
+} brix_sd_cache_ring_t;
+
+/* Publish `ring` as the live rendezvous ring (event loop only; no-op for a
+ * non-cache `inst` or a malformed ring). Worker threads running fills read
+ * the pointer once per fill, so `ring` must be fully built BEFORE the call
+ * and must remain valid for the WORKER'S LIFETIME — the caller never frees
+ * a published ring (membership-churn-bounded, ~4.5 KiB each). NULL detaches
+ * (the static brix_cache_peers ring resumes). */
+void brix_sd_cache_ring_swap(brix_sd_instance_t *inst,
+    const brix_sd_cache_ring_t *ring);
+
+/* Copy the STATIC configured ring (the brix_cache_peers seed list) into
+ * `out` (BRIX_SD_CACHE_MAX_PEERS entries) and set *self to this node's own
+ * slot. Returns the member count, or 0 for a non-cache instance / no ring.
+ * The swarm membership plane seeds from this. */
+int brix_sd_cache_get_peers(const brix_sd_instance_t *inst,
+    brix_sd_cache_peer_t *out, int *self);
 
 #endif /* BRIX_SD_CACHE_H */

@@ -20,6 +20,9 @@
 /* Admission: 1 if `path` (size `size`, -1 if unknown) may be cached. */
 int  sd_cache_admit(const brix_cache_policy_t *pol, const char *path, off_t size);
 
+/* Effective spool cap (bytes) for a phase-92 passthrough fill; 0 = unbounded. */
+off_t sd_cache_passthrough_cap(const brix_cache_policy_t *pol);
+
 /* CVMFS per-repo metrics slot for `key` (NULL if this export is not a repo). */
 ngx_brix_cvmfs_repo_metrics_t *
      sd_cache_repo_metrics(const sd_cache_inst_state *st, const char *key);

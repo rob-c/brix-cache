@@ -439,6 +439,149 @@ test_empty_member(void)
     printf("  ok   empty (0-byte) member stores/reads as 0 bytes\n");
 }
 
+/* (5) ZIP64 append (finding #11): build an archive with > 0xfffe entries — which
+ * forces a ZIP64 EOCD record + locator at finish — then append one more member
+ * in-place through brix_zip_writer_new_append() and confirm both an original
+ * member and the new one survive. This is the exact path copy_zip.c's
+ * zip_read_seed() used to reject with "ZIP64 archives are not supported for
+ * append": the reader promotes the saturated (0xffff) classic EOCD count to the
+ * real 64-bit value, the old central directory is copied verbatim, and finish
+ * re-emits a ZIP64 EOCD because the combined count still needs it. Also asserts
+ * the append entry point stays error-clean (non-zip) and bounds-safe (a corrupted
+ * ZIP64 locator is rejected, not dereferenced out of range). */
+static void
+test_append_zip64_member(const uint8_t *b, size_t blen)
+{
+    membuf           base_arc = {0};
+    membuf           app_arc  = {0};
+    brix_zip_writer *w;
+    int              fd0, fdb, rc;
+    uint64_t         cd_off = 0, cd_size = 0, n = 0;
+    int              z64 = 0;
+    const unsigned   NENT = 65535u;      /* > 0xfffe -> ZIP64 EOCD at finish */
+
+    /* Build a > 0xfffe-entry seed archive; one shared 0-byte source suffices. */
+    fd0 = tmpfd_with(NULL, 0);
+    CHECK(fd0 >= 0, "z64: create 0-byte src fd");
+    if (fd0 < 0) {
+        return;
+    }
+    w = brix_zip_writer_new(membuf_write, &base_arc);
+    CHECK(w != NULL, "z64: base writer_new");
+    if (w == NULL) {
+        close(fd0);
+        free(base_arc.data);
+        return;
+    }
+    for (unsigned i = 0; i < NENT; i++) {
+        char name[16];
+        snprintf(name, sizeof(name), "m%05u", i);
+        if (brix_zip_writer_add_fd(w, name, fd0) != XRDC_ZIP_OK) {
+            CHECK(0, "z64: add member %u failed", i);
+            break;
+        }
+    }
+    rc = brix_zip_writer_finish(w);
+    CHECK(rc == XRDC_ZIP_OK, "z64: base finish rc=%d", rc);
+    brix_zip_writer_free(w);
+    close(fd0);
+
+    rc = brix_zip_read_eocd(membuf_pread, &base_arc, base_arc.len,
+                            &cd_off, &cd_size, &n, &z64);
+    CHECK(rc == XRDC_ZIP_OK, "z64: base read_eocd rc=%d", rc);
+    CHECK(z64 == 1, "z64: base NOT flagged ZIP64");
+    CHECK(n == NENT, "z64: base entry count %llu != %u",
+          (unsigned long long) n, NENT);
+    if (rc != XRDC_ZIP_OK) {
+        free(base_arc.data);
+        return;
+    }
+
+    uint8_t *seed = malloc(cd_size ? (size_t) cd_size : 1);
+    CHECK(seed != NULL, "z64: alloc seed");
+    if (seed == NULL) {
+        free(base_arc.data);
+        return;
+    }
+    ssize_t sr = membuf_pread(&base_arc, cd_off, seed, (size_t) cd_size);
+    CHECK(sr == (ssize_t) cd_size, "z64: read seed CD %zd != %llu",
+          sr, (unsigned long long) cd_size);
+
+    /* Copy up to cd_off; the append writer overwrites the old CD region. */
+    CHECK(membuf_reserve(&app_arc, (size_t) cd_off) == 0, "z64: reserve copy");
+    if (cd_off > 0) {
+        memcpy(app_arc.data, base_arc.data, (size_t) cd_off);
+    }
+    app_arc.len = (size_t) cd_off;
+    app_arc.off = (size_t) cd_off;
+
+    fdb = tmpfd_with(b, blen);
+    CHECK(fdb >= 0, "z64: create appended src fd");
+    if (fdb >= 0) {
+        brix_zip_seed zs = { seed, (size_t) cd_size, (size_t) n };
+        w = brix_zip_writer_new_append(membuf_write, &app_arc, cd_off, &zs);
+        CHECK(w != NULL, "z64: writer_new_append (ZIP64 seed, previously rejected)");
+        if (w != NULL) {
+            rc = brix_zip_writer_add_fd(w, "z64append.dat", fdb);
+            CHECK(rc == XRDC_ZIP_OK, "z64: add appended rc=%d", rc);
+            rc = brix_zip_writer_finish(w);
+            CHECK(rc == XRDC_ZIP_OK, "z64: appended finish rc=%d", rc);
+            brix_zip_writer_free(w);
+        }
+        close(fdb);
+
+        uint64_t o2 = 0, s2 = 0, n2 = 0;
+        int      z2 = 0;
+        rc = brix_zip_read_eocd(membuf_pread, &app_arc, app_arc.len,
+                                &o2, &s2, &n2, &z2);
+        CHECK(rc == XRDC_ZIP_OK && n2 == (uint64_t) NENT + 1,
+              "z64: appended count %llu != %u", (unsigned long long) n2, NENT + 1);
+        CHECK(z2 == 1, "z64: appended archive not ZIP64");
+        expect_member(&app_arc, "m00000",        NULL, 0);   /* an original member */
+        expect_member(&app_arc, "z64append.dat", b, blen);   /* the new member     */
+
+        CHECK(membuf_to_file(&app_arc, zwt_path("z64append.zip")) == 0,
+              "z64: persist z64append.zip");
+        expect_unzip_t_ok(zwt_path("z64append.zip"));
+        expect_unzip_p(zwt_path("z64append.zip"), "z64append.dat", b, blen);
+    }
+    printf("  ok   ZIP64 append: >65534-entry seed + new member both survive\n");
+
+    /* Error: read_eocd over a too-small non-ZIP buffer fails cleanly. */
+    {
+        membuf  junk = {0};
+        uint8_t bytes[8] = { 'P', 'K', 0, 0, 0, 0, 0, 0 };
+        CHECK(membuf_reserve(&junk, sizeof(bytes)) == 0, "z64: reserve junk");
+        memcpy(junk.data, bytes, sizeof(bytes));
+        junk.len = sizeof(bytes);
+        uint64_t jo = 0, js = 0, jn = 0;
+        int      jz = 0;
+        rc = brix_zip_read_eocd(membuf_pread, &junk, junk.len, &jo, &js, &jn, &jz);
+        CHECK(rc != XRDC_ZIP_OK, "z64: read_eocd on non-zip must fail (rc=%d)", rc);
+        free(junk.data);
+    }
+    printf("  ok   ZIP64 append guard: non-ZIP archive rejected\n");
+
+    /* Security-neg: corrupt the ZIP64 locator's z64-EOCD offset (8 bytes at
+     * len-34: sig(4)+disk(4) precede it) to a huge value; the bounds-checked
+     * reader must reject it, never dereference out of range. */
+    if (base_arc.len > 34) {
+        size_t pos = base_arc.len - 34;
+        memset(base_arc.data + pos, 0xFF, 8);
+        uint64_t co = 0, cs = 0, cn = 0;
+        int      cz = 0;
+        rc = brix_zip_read_eocd(membuf_pread, &base_arc, base_arc.len,
+                                &co, &cs, &cn, &cz);
+        CHECK(rc != XRDC_ZIP_OK,
+              "z64: corrupted locator must be rejected (rc=%d)", rc);
+    }
+    printf("  ok   ZIP64 append guard: corrupted locator rejected (bounds-safe)\n");
+
+    free(seed);
+    free(base_arc.data);
+    free(app_arc.data);
+}
+
 int
 main(void)
 {
@@ -457,6 +600,7 @@ main(void)
     test_create_two_members(a, alen, b, blen);
     test_append_member(a, alen, b, blen);
     test_empty_member();
+    test_append_zip64_member(b, blen);
 
     free(a);
     free(b);

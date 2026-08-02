@@ -17,9 +17,20 @@
   memset; xrdmapc uses `xrdc_opts_init`=1) — flipping it would break localhost-cert
   TLS tests. 48 pytest (xrdcp_client_options + native_tools + xrd_frontend + xrddiag
   + xrddiag_capture). `strv` not extracted (single consumer = xrdcp, no cross-app dup).
-  Remaining (deferred, low value): the `xrdfs` per-handler `xrdc_report_err` sweep
-  (~35 sites; `mv`/`cp` two-path formats don't fit the single-path helper; error-
-  string churn against asserting tests). `wait41` keeps its own retry-loop connect.
+  **`xrdfs` per-handler `brix_report_err` sweep DONE 2026-07-27**: all ~46
+  single-path op-error sites across `xrdfs_meta.c`/`xrdfs_data.c`/`xrdfs_walk.c`/
+  `xrdfs_web.c` now route through `xrdfs_report_err()`/`xrdfs_web_report_err()`
+  (thin `xrdfs_internal.h` adapters over `brix_report_err`; the two xfer copy
+  loops call `brix_report_err` with a NULL url — no conn in `xfer_io_t`).
+  Error strings byte-identical; sites that previously lacked hints gained the
+  TTY-gated WS-3/WS-7 chain (uniform coverage, invisible to scripts/tests);
+  the one endpoint-less `brix_cred_hint_for_status` straggler (rm stat) was
+  upgraded. Two-path/no-path formats (`mv`, `ln`, `xattr get/set/rm [name]`,
+  `prepare`/`stage`/`evict`) keep their own fprintf + `xrdfs_op_hints` — they
+  don't fit the single-path shape. Guard:
+  `tests/test_xrdfs_report_err_sweep.py` (5 source-contract tests); behavior
+  verified live: xrdfs_tools/conf/web 98 + clientconf/xrdcp_xrdfs_b 318 green.
+  `wait41` keeps its own retry-loop connect.
 - **W4 (FUSE) — biggest shared engines DONE + tested.** `lib/posix_map.c`
   (`xrdc_statinfo_to_stat` with an allow_symlink flag, `xrdc_parse_qspace`,
   `xrdc_fattr_listxattr_xlate`) and `lib/iobuf.c` (read-ahead/write-back engine
@@ -55,7 +66,7 @@
   (`xrdc_file_pump`/`drain_to_fd`/`slurp`) — xrdfs hand-rolls the remote read loop
   ~9× (cat/head/tail/wc/grep/dd); `lib/walk.c` (one remote-tree walker). **W3
   PENDING** (move xrdcp recursive WebDAV/S3 + web→web relay into copy.c — reorg, not
-  dup). `xrdfs` `report_err` sweep DEFERRED (error-string churn, single-app).
+  dup). `xrdfs` `report_err` sweep DONE 2026-07-27 (see W1 bullet above).
   `strv` SKIPPED (single consumer, no dup).
 
 > SIDE FIX (pre-existing bug, found + fixed during this work): `xrdcp` to a refused

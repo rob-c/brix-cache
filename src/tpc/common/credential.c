@@ -26,6 +26,10 @@
 
 #include <string.h>
 
+#include <openssl/bio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+
 static ngx_int_t
 brix_tpc_copy_credential_str(ngx_str_t *dst, const u_char *data,
     size_t len, ngx_pool_t *pool)
@@ -305,4 +309,44 @@ brix_tpc_credential_validate(const brix_tpc_credential_t *cred,
     }
 
     return NGX_OK;
+}
+
+/*
+ * WHAT: Report whether the leaf certificate of a PEM proxy blob has expired.
+ * WHY:  A captured delegated proxy (phase-58 §F6) may have a very short life;
+ *       the pull launcher must refuse it before spinning up an outbound GSI
+ *       handshake that would only fail confusingly mid-negotiation (§5.9 T5).
+ * HOW:  Read the first X.509 from a memory BIO over [pem,len) and compare its
+ *       NotAfter to the current time with X509_cmp_time (returns <0 when the
+ *       time lies in the past). A parse error yields -1 (caller decides); a
+ *       cmp error (0) is treated as "not expired" so a validly-captured proxy is
+ *       never refused on a clock-parse hiccup.
+ */
+int
+brix_tpc_proxy_pem_expired(const u_char *pem, size_t len, ngx_log_t *log)
+{
+    BIO  *bio;
+    X509 *leaf;
+    int   rc;
+
+    if (pem == NULL || len == 0) {
+        return -1;
+    }
+
+    bio = BIO_new_mem_buf(pem, (int) len);
+    if (bio == NULL) {
+        return -1;
+    }
+
+    leaf = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+    if (leaf == NULL) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_tpc: delegated proxy blob has no parseable leaf");
+        return -1;
+    }
+
+    rc = (X509_cmp_time(X509_get0_notAfter(leaf), NULL) < 0) ? 1 : 0;
+    X509_free(leaf);
+    return rc;
 }

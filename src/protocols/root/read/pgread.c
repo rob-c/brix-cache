@@ -261,6 +261,7 @@ brix_pgread_post_aio(brix_ctx_t *ctx, ngx_connection_t *c,
     t->streamid[0] = ctx->recv.cur_streamid[0];
     t->streamid[1] = ctx->recv.cur_streamid[1];
     t->obj = ctx->files[run->idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
+    t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
 
     brix_task_bind(task, brix_pgread_aio_thread, brix_pgread_aio_done);
 

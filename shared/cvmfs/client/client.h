@@ -21,6 +21,8 @@
 #include "cvmfs/failover/failover.h"
 #include "cvmfs/fetch/fetch.h"
 #include "cvmfs/catalog/catalog.h"
+#include "cvmfs/filter/xorf.h"
+#include "cvmfs/index/pathidx.h"
 #include "cvmfs/signature/manifest.h"
 #include "cache/cas_store.h"
 
@@ -55,6 +57,27 @@ typedef struct {
     int                 pin_set;
     int                 pin_drift;             /* latest verified upstream root != pin */
     char                pin_drift_hex[48];     /* that upstream root's hex */
+
+    /* G1 negative-lookup filter (phase-87): consulted at the top of resolve;
+     * only honoured while negf_root still equals the SERVED root catalog, so a
+     * refresh that installs a new revision silently deactivates it (a stale
+     * filter can never fabricate an ENOENT for a path the new revision has). */
+    cvmfs_xorf_t        negf;
+    cvmfs_hash_t        negf_root;
+    int                 negf_set;
+
+    /* G6 mmap path index (phase-87): resolve/readdir/read fast paths, honoured
+     * only while pidx_root equals the SERVED root (the filter's guard rule);
+     * a failed index-resolved read drops it (fail-safe over-invalidation). */
+    cvmfs_pathidx_t     pidx;
+    cvmfs_hash_t        pidx_root;
+    int                 pidx_set;
+
+    /* Cache-format knobs (phase-87 G4/G5): set via cvmfs_client_cache_config
+     * BEFORE cvmfs_client_mount (the pin_root pattern). Default = flat store. */
+    int                 cache_packed;
+    int                 cache_tiering;
+    long                cache_seg_bytes;   /* <=0 = backend default */
 
     unsigned char       scratch[8u * 1024u * 1024u];   /* transport landing */
 } cvmfs_client_t;
@@ -122,8 +145,52 @@ int cvmfs_client_listxattr(cvmfs_client_t *cl, const char *path,
  * Returns 0, or -1 on an unparsable hash. */
 int cvmfs_client_pin_root(cvmfs_client_t *cl, const char *hex);
 
+/* Select the packed cache backend (phase-87 G4: log-structured segments under
+ * <cache>/pack/) and optionally G5 format tiering (zstd cold packing + hot
+ * promotion). Call BEFORE cvmfs_client_mount. `seg_bytes<=0` = default. */
+void cvmfs_client_cache_config(cvmfs_client_t *cl, int packed, int tiering,
+                               long seg_bytes);
+
 /* Drift probe: returns 1 when the latest VERIFIED upstream manifest advertises
  * a root catalog different from the pin (its hex is written into out), else 0. */
 int cvmfs_client_pin_drift(cvmfs_client_t *cl, char *out, size_t outlen);
+
+/* ---- G1 negative-lookup filter (client_negfilter.c) --------------------- */
+
+/* Build the filter from the client's OWN verified paths walk of the served
+ * root catalog (every hop hash-verified — no trust in a proxy-supplied image)
+ * and activate it. Returns 0 activated, -1 on walk/build failure (filter left
+ * inactive — lookups just stay live). */
+int cvmfs_client_negfilter_build(cvmfs_client_t *cl, long now);
+
+/* Adopt an already-built/deserialized filter bound to `root`. Refused (-1)
+ * unless `root` equals the currently served root catalog — a filter for any
+ * other revision must never answer. On success the filter's heap moves into
+ * the client (`f` is zeroed); the caller must not reset it afterwards. */
+int cvmfs_client_negfilter_adopt(cvmfs_client_t *cl, cvmfs_xorf_t *f,
+                                 const cvmfs_hash_t *root);
+
+/* The active filter + its bound root (for sidecar serialization), or NULL. */
+const cvmfs_xorf_t *cvmfs_client_negfilter(const cvmfs_client_t *cl,
+                                           cvmfs_hash_t *root_out);
+
+void cvmfs_client_negfilter_clear(cvmfs_client_t *cl);
+
+/* ---- G6 mmap path index (client_pathidx.c) ------------------------------ */
+
+/* Build the index from the client's OWN verified paths walk of the served
+ * root catalog, write it as sidecar `name` under directory fd `dfd`
+ * (tmp+rename), mmap it back and activate it. Returns 0 activated, -1 on any
+ * failure (index left inactive — lookups stay on the catalogs). */
+int cvmfs_client_pathidx_build(cvmfs_client_t *cl, int dfd, const char *name,
+                               long now);
+
+/* Adopt an existing sidecar. Refused (-1) unless it validates AND records the
+ * currently served root catalog — an index for any other revision must never
+ * answer. */
+int cvmfs_client_pathidx_load(cvmfs_client_t *cl, int dfd, const char *name);
+
+void cvmfs_client_pathidx_clear(cvmfs_client_t *cl);
+int  cvmfs_client_pathidx_active(const cvmfs_client_t *cl);
 
 #endif /* BRIX_CVMFS_CLIENT_H */

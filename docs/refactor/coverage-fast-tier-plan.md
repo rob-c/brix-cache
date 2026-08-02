@@ -447,6 +447,25 @@ subject_token_type=…access_token&audience=<a>&resource=<a>[&scope=…]`, respo
 *different* implementation (`webdav/tpc_cred.c` subprocess-curl), is `serial` +
 `uses_lifecycle_harness`, and won't move `exchange.c`.
 
+**LANDED (guard + connect-fail tier) — phase-92, 2026-08-02.** Delivered as a direct
+C unit `tests/c/exchange_test.c` (runner `exchange`, `c_auth_units.py`) rather than the
+live pytest — the plan had ruled a C unit out as "Category D (separate binary → won't
+move objs)", but the phase-92 gcda-capture fix (`_coverage_link_flags`) now credits
+`tests/c` gcda in the lcov lane, so a unit linking the **real** `exchange.o` *does* move
+`exchange.c`. `nm` confirmed `exchange.o`'s only non-libc/curl/jansson deps are
+`ngx_pnalloc` + `ngx_log_error_core` (both stubbed; a stack `ngx_log_t{.log_level=0}`
+keeps `ngx_log_error()` from firing / NULL-derefing). Covers: all four entry-guards
+(NULL pool / empty subject / missing endpoint / NULL out slot), the RFC-8693 form-body
+build (with and without the optional `scope`), the `https`-only protocol pin, the curl
+perform against a **closed loopback port** (`https://127.0.0.1:1` → immediate
+ECONNREFUSED, fast+deterministic) and its `NGX_ERROR` error map, and the
+security-negative that a `http://` endpoint is refused by the pin (no cleartext dial) —
+`out` stays empty on every failure (no fabricated token). **Residual — TLS-stub happy
+path** (`brix_tx_parse_response` success branch, ~50%→~70%): still wants a TLS-wrapped
+OIDC stub returning `{"access_token":…}`; deferred to a fleet-tier test (a C unit can't
+cheaply stand up a trusted-CA TLS server). Success+error+security-neg all present at the
+unit tier.
+
 #### W3.6 — STS AssumeRole → `sts.c` 0 % — **DEFERRED, low ROI (document, don't build yet)**
 
 `brix_s3_sts_assume` (`sts.c:373`) is **call-ready but not live-wired**: its only caller
@@ -486,6 +505,20 @@ root/webdav/s3 data paths — no new infra:
 
 These are *branch* wins on lines already counted — target the 46.8 % branch rate, not
 the line rate. Reuse existing data-plane test helpers rather than new fixtures.
+
+> **Status 2026-08-02 — DEFERRED as documented tail (not churned).** Re-assessed
+> against the efficiency mandate and found net-negative to pursue now: (a) every
+> candidate host (`test_conf_io_read.py`, `test_readv.py`, `test_webdav.py`) is a
+> *live-fleet* differential test that self-skips without the stock xrootd toolchain
+> (`L.have_official()`), so the added assertions would not even execute in the
+> fast/toolchain-less tier where the coverage plan is scored; (b) the existing
+> differential READ suite already straddles the read/readv/pgread framing boundaries
+> across the page-boundary edge sizes (`sz_4095/4096/4097 … sz_65536`), so the target
+> functions are already *line*-covered and much of the branch surface is exercised;
+> (c) the residual is pure branch-% on already-line-covered functions, gated behind a
+> live fleet whose flakiness is documented (`live_suite_frozen_nginx`) — a poor
+> return for the churn. Left as the honest remaining coverage tail; revisit only
+> inside a reviewed full-tier fleet run (§6), where the branch numbers actually count.
 
 ### Non-goals (explicitly out of fast-tier scope)
 - Category A/B files. To move those, run a **full-tier** capture (§6) or a privileged

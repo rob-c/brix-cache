@@ -160,4 +160,6 @@ def test_pfs_key_is_single_use():
     # (brix_gsi_keypool_pop) and frees it moved into cert_response.c.
     cresp = _rd("src/auth/gsi/cert_response.c")
     assert "brix_gsi_keypool_pop" in cresp
-    assert "EVP_PKEY_free" in cresp
+    # the raw EVP_PKEY_free is now funnelled through the NULL-safe single-cleanup
+    # wrapper brix_evp_pkey_free (src/auth/crypto/scoped.h) — same key lifecycle.
+    assert "brix_evp_pkey_free" in cresp

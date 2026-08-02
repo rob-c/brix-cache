@@ -65,4 +65,13 @@ ngx_int_t brix_tpc_credential_validate(
 const char *brix_tpc_credential_type_name(
     brix_tpc_credential_type_t type);
 
+/* Inspect the lifetime of a GSI proxy credential blob (leaf cert first, PEM).
+ * Parses the FIRST X.509 certificate — the delegated proxy leaf, whose NotAfter
+ * bounds the whole chain's usable lifetime — and compares it to the current
+ * time. Returns 1 if the leaf has expired (NotAfter <= now), 0 if it is still
+ * valid, and -1 if no certificate could be parsed. Used to refuse a captured
+ * delegated proxy before launching a native-TPC pull (phase-58 §5.8/§5.9 T5).
+ * Read-only; does not touch the filesystem (BIO over the in-memory blob). */
+int brix_tpc_proxy_pem_expired(const u_char *pem, size_t len, ngx_log_t *log);
+
 #endif /* BRIX_TPC_COMMON_CREDENTIAL_H */

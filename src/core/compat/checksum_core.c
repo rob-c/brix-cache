@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <zlib.h>
 #include <openssl/evp.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 #define BRIX_CK_BUFSZ (64 * 1024)
 
@@ -307,7 +308,7 @@ brix_cksum_digest_obj_range(int kind, brix_sd_obj_t *obj, off_t start,
         return -1;
     }
     rc = digest_drive(ctx, md, obj, start, len, out, outlen);
-    EVP_MD_CTX_free(ctx);
+    brix_evp_md_ctx_free(ctx);
     return rc;
 }
 

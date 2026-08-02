@@ -402,6 +402,10 @@ conn_apply_srv_conf(ngx_stream_session_t *s, ngx_connection_t *c,
      * Best-effort — a missing algorithm leaves the default, never aborts. */
     brix_apply_tcp_congestion(c->fd, mconf->tcp_congestion);
 
+    /* Phase-33 P3-B3: BDP-sized socket buffers; 0 = kernel autotuning.
+     * Best-effort — an over-cap value leaves the default, never aborts. */
+    brix_apply_socket_buffers(c->fd, mconf->socket_sndbuf, mconf->socket_rcvbuf);
+
     return conn_register_metrics(s, c, ctx, mconf);
 }
 

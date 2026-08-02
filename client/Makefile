@@ -103,23 +103,23 @@ LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 # phase-69: client/lib reorganized into src-style concept buckets. Paths below are
 # the single source of truth for the build; every .c must be listed (no wildcards).
 LIB_SRCS   := \
-  lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_io.c lib/core/aio/aio_mgr.c lib/core/aio/uring.c \
+  lib/core/aio/aio.c lib/core/aio/aio_timeouts.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mgr.c lib/core/aio/aio_mfile.c lib/core/aio/uring.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
-  lib/net/conn.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
+  lib/net/conn.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
   lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
   lib/auth/sec/sec_gsi.c lib/auth/sec/sec_host.c lib/auth/sec/sec_krb5.c lib/auth/sec/sec_pwd.c lib/auth/sec/sec_sss.c lib/auth/sec/sec_token.c lib/auth/sec/sec_unix.c \
   lib/auth/gsi/proxy.c \
   lib/auth/sss/sss_keytab.c \
-  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/path.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
+  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/overlay_copyup.c lib/fs/path.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
-  lib/protocols/root/frame.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
+  lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
   lib/protocols/s3/s3.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_remote.c lib/xfer/copy_zip.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_upload.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_web_download.c lib/xfer/copy_remote.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_zip.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -252,14 +252,16 @@ COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsipr
 # phase-69: apps regrouped into tool-family subdirs — each CLI's translation units
 # are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
 # entries). The single link rule below expands these via .SECONDEXPANSION.
-xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o
-xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
-xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_doctor.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o
-xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_misc.o \
+xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_recursive_upload.o
+xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_web.o
+xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_usage.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o
+xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_authsuite.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_misc.o \
                      apps/diag/xrdqstats.o apps/diag/wait41.o apps/diag/mpxstats.o
-xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o
+xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o \
+                     apps/scan/storascan_verify.o apps/scan/storascan_bench.o \
+                     apps/scan/storascan_scan.o
 xrdstorascan_LDLIBS := -lm
-xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o apps/cksum/xrdcktree.o
+xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o apps/cksum/xrdcktree.o apps/cksum/xrdckcheck.o
 xrdgsiproxy_OBJS  := apps/auth/xrdgsiproxy.o
 xrdgsitest_OBJS   := apps/auth/xrdgsitest.o
 xrdsssadmin-brix_OBJS := apps/auth/xrdsssadmin.o
@@ -327,16 +329,18 @@ $(BIN_EXES): $(BINDIR)/%: $$($$*_OBJS) $(CLIENT_LIB) | $(BINDIR)
 # symbols but main(), so they co-link cleanly. Needs the libfuse3 headers/libs.
 apps/fs/xrootdfs.o: apps/fs/xrootdfs.c apps/fs/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
-apps/fs/xrootdfs_legacy.o: apps/fs/xrootdfs_legacy.c apps/fs/xrootdfs_drivers.h | proto
+apps/fs/xrootdfs_legacy.o: apps/fs/xrootdfs_legacy.c apps/fs/xrootdfs_drivers.h apps/fs/xrootdfs_legacy_internal.h | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
+apps/fs/xrootdfs_legacy_ext.o: apps/fs/xrootdfs_legacy_ext.c apps/fs/xrootdfs_drivers.h apps/fs/xrootdfs_legacy_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
 apps/fs/xrootdfs_main.o: apps/fs/xrootdfs_main.c apps/fs/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 # Phase-38 split of the async driver: the siblings also need the fuse3 headers.
-XROOTDFS_SPLIT := apps/fs/xrootdfs_meta.o apps/fs/xrootdfs_io.o apps/fs/xrootdfs_xattr.o
+XROOTDFS_SPLIT := apps/fs/xrootdfs_meta.o apps/fs/xrootdfs_io.o apps/fs/xrootdfs_xattr.o apps/fs/xrootdfs_usage.o
 $(XROOTDFS_SPLIT): apps/fs/%.o: apps/fs/%.c apps/fs/xrootdfs_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
-$(BINDIR)/xrootdfs: apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
+$(BINDIR)/xrootdfs: apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o apps/fs/xrootdfs_legacy_ext.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o apps/fs/xrootdfs_legacy_ext.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
 
 # §14.5 brixMount (FUSE) — the umbrella front-end `brixMount <type> <endpoint>
@@ -353,24 +357,47 @@ BRIX_CVMFS_OBJS := \
   $(SHARED_DIR)/cvmfs/config/cvmfs_conf.o \
   $(SHARED_DIR)/cvmfs/failover/failover.o $(SHARED_DIR)/cvmfs/object/object.o \
   $(SHARED_DIR)/cvmfs/fetch/fetch.o       $(SHARED_DIR)/cvmfs/catalog/catalog.o \
-  $(SHARED_DIR)/cvmfs/walk/walk.o \
-  $(SHARED_DIR)/cvmfs/client/client.o     $(SHARED_DIR)/cache/cas_store.o
+  $(SHARED_DIR)/cvmfs/fetch/fetch_bundle.o $(SHARED_DIR)/cvmfs/bundle/bundle.o \
+  $(SHARED_DIR)/cvmfs/dict/dict.o \
+  $(SHARED_DIR)/cvmfs/walk/walk.o         $(SHARED_DIR)/cvmfs/filter/xorf.o \
+  $(SHARED_DIR)/cvmfs/client/client.o     $(SHARED_DIR)/cvmfs/client/client_negfilter.o \
+  $(SHARED_DIR)/cvmfs/client/client_pathidx.o $(SHARED_DIR)/cvmfs/index/pathidx.o \
+  $(SHARED_DIR)/cvmfs/platform/platform.o \
+  $(SHARED_DIR)/cache/cas_store.o         $(SHARED_DIR)/cache/cas_pack.o
 
-# shared cvmfs core: pure C, only needs -I../shared (no client/lib, no ngx).
+# shared cvmfs core: pure C, only needs -I../shared (no client/lib, no ngx)
+# plus -I../src for the compile-time-only FNV-1a constants (core/fnv.h).
 $(BRIX_CVMFS_OBJS): %.o: %.c
-	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -I$(SHARED_DIR) -MMD -MP -c $< -o $@
+	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -I$(SHARED_DIR) -I$(SHARED_DIR)/../src -MMD -MP -c $< -o $@
 
+# brixcvmfs driver — Phase-38 split by concern (front-end + transport/prefetch/
+# ops/mount siblings), all bound through the private brixcvmfs_split.h contract.
 apps/fs/brixcvmfs.o: apps/fs/brixcvmfs.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
-apps/fs/brixcvmfs_rw.o: apps/fs/brixcvmfs_rw.c | proto
+apps/fs/brixcvmfs_transport.o: apps/fs/brixcvmfs_transport.c | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+apps/fs/brixcvmfs_prefetch.o: apps/fs/brixcvmfs_prefetch.c | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+apps/fs/brixcvmfs_ops.o: apps/fs/brixcvmfs_ops.c | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+apps/fs/brixcvmfs_mount.o: apps/fs/brixcvmfs_mount.c | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+apps/fs/brixcvmfs_rw.o: apps/fs/brixcvmfs_rw.c apps/fs/brixcvmfs_rw_internal.h | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+apps/fs/brixcvmfs_rw_ext.o: apps/fs/brixcvmfs_rw_ext.c apps/fs/brixcvmfs_rw_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
 apps/fs/brixmount.o: apps/fs/brixmount.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
-apps/fs/brixautofs.o: apps/fs/brixautofs.c apps/fs/brixautofs.h | proto
+apps/fs/brixautofs.o: apps/fs/brixautofs.c apps/fs/brixautofs.h apps/fs/brixautofs_ext_internal.h | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
+apps/fs/brixautofs_ext.o: apps/fs/brixautofs_ext.c apps/fs/brixautofs.h apps/fs/brixautofs_ext_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 
-BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o \
-                  apps/fs/brixautofs.o \
+BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o \
+                  apps/fs/brixcvmfs_transport.o apps/fs/brixcvmfs_prefetch.o \
+                  apps/fs/brixcvmfs_ops.o apps/fs/brixcvmfs_mount.o \
+                  apps/fs/brixcvmfs_rw.o apps/fs/brixcvmfs_rw_ext.o \
+                  apps/fs/brixautofs.o apps/fs/brixautofs_ext.o \
                   $(BRIX_CVMFS_OBJS) apps/fs/xrootdfs.o $(XROOTDFS_SPLIT)
 $(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
@@ -498,6 +525,15 @@ aio-waitresp: ../tests/c/aio_waitresp.c $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) ../tests/c/aio_waitresp.c $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/aio_waitresp
 	@echo " + built $(BINDIR)/aio_waitresp (no libXrdCl/libXrdSec*)"
 
+# phase-92 io_uring O_DIRECT tier — self-running unit for the direct-tier disk
+# ring (aligned slab, buffered short-tail fallback, EUNSUPPORTED rejection).
+# Driven by tests/test_uring_direct.py; also part of the `test` target.
+.PHONY: uring-direct-unit
+uring-direct-unit: tests/c/uring_direct_unit.c $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) tests/c/uring_direct_unit.c \
+	    $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/uring_direct_unit
+	@echo " + built $(BINDIR)/uring_direct_unit (no libXrdCl/libXrdSec*)"
+
 # M3 file-handle resumption test — read/write survive a mid-transfer bounce.
 .PHONY: aio-mfile brix-fault-proxy
 aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
@@ -508,11 +544,28 @@ aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
 # the resilience suites and field debugging. A first-class shipped tool, but
 # STANDALONE (links no libbrix — pure pthread + sockets), so it gets its own rule
 # rather than riding the BIN_EXES pattern. Compiled with the house hardening
-# flags; pulls only lib/core/version.h for --version. Bare name `make
-# brix-fault-proxy` builds the artifact via the phony alias above.
+# flags; pulls only lib/core/version.h for --version. Split by plane into the
+# CLI/lifecycle core (brix_fault_proxy.c), the data-plane fault engine
+# (brix_fault_proxy_relay.c), the control-plane parser
+# (brix_fault_proxy_control.c), the optional JSON front-end
+# (brix_fault_proxy_json.c), the `ctl` client subcommand
+# (brix_fault_proxy_ctl.c), the JSONL event log (brix_fault_proxy_event.c), the
+# named-toxic table (brix_fault_proxy_toxic.c) and the dynamic multi-route table
+# (brix_fault_proxy_route.c), sharing state via
+# brix_fault_proxy_internal.h; all compile together in one command (no
+# intermediate objects). Bare name `make brix-fault-proxy` builds the artifact
+# via the phony alias above.
+FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c \
+                    apps/diag/brix_fault_proxy_relay.c \
+                    apps/diag/brix_fault_proxy_control.c \
+                    apps/diag/brix_fault_proxy_json.c \
+                    apps/diag/brix_fault_proxy_ctl.c \
+                    apps/diag/brix_fault_proxy_event.c \
+                    apps/diag/brix_fault_proxy_toxic.c \
+                    apps/diag/brix_fault_proxy_route.c
 brix-fault-proxy: $(BINDIR)/brix-fault-proxy
-$(BINDIR)/brix-fault-proxy: apps/diag/brix_fault_proxy.c lib/core/version.h | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/diag/brix_fault_proxy.c -o $@
+$(BINDIR)/brix-fault-proxy: $(FAULT_PROXY_SRCS) apps/diag/brix_fault_proxy_internal.h lib/core/version.h | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(FAULT_PROXY_SRCS) -o $@
 	@echo " + built $@ (standalone; no libbrix)"
 
 # IPv6→IPv4 auto-downgrade test (netpref.c) + its getaddrinfo LD_PRELOAD shim.
@@ -737,7 +790,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_s3_creds_unit vfs_posix_unit vfs_block_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net

@@ -55,7 +55,8 @@ sd_xroot_open_common(brix_sd_instance_t *inst, const char *path, int sd_flags,
      * back to service cred */
     if (cred != NULL && cred->fallback_deny
         && (cred->x509_proxy == NULL || cred->x509_proxy[0] == '\0')
-        && (cred->bearer == NULL || cred->bearer[0] == '\0'))
+        && (cred->bearer == NULL || cred->bearer[0] == '\0')
+        && (cred->sss_keytab == NULL || cred->sss_keytab[0] == '\0'))
     {
         if (err_out) { *err_out = EACCES; }
         errno = EACCES;

@@ -18,6 +18,7 @@ RUN bash /tmp/el-target.sh && \
         gcc-c++ pkgconfig nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
         libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
         libxcrypt-devel fuse3-devel sqlite-devel \
+        liburing-devel libzstd-devel lz4-devel selinux-policy-devel \
         librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
     && dnf clean all
 
@@ -29,7 +30,9 @@ COPY . .
 
 RUN set -euo pipefail && \
     rpmdev-setuptree && \
-    source_name="nginx-xrootd-${VERSION}" && \
+    # Must match the spec's %{upstream_name}-%{version} (upstream_name=brix);
+    # rpmbuild resolves Source0 / %autosetup -n against exactly this name.
+    source_name="brix-${VERSION}" && \
     tar \
         --exclude-vcs \
         --exclude='./.rpmbuild' \

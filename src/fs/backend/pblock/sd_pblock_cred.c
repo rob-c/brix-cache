@@ -39,6 +39,7 @@
 #include "sd_pblock_internal.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <string.h>
 
 #include <sys/stat.h>
@@ -209,10 +210,18 @@ sd_pblock_mkdir_cred(brix_sd_instance_t *inst, const char *path, mode_t mode,
     const brix_sd_cred_t *cred)
 {
     pblock_ids_t ids;
+    char         canon[PATH_MAX];
 
     if (resolve_or_fail(inst, cred, &ids) != NGX_OK) {
         return NGX_ERROR;
     }
+    /* Canonicalise BEFORE the parent-permission check: a `-cd` MKD "/interop/"
+     * would otherwise resolve its parent to the non-existent "/interop" and
+     * fail W+X with a spurious ENOENT (see pblock_path_canon). */
+    if (pblock_path_canon(path, canon, sizeof(canon)) != 0) {
+        return NGX_ERROR;
+    }
+    path = canon;
     if (!ids.service
         && pblock_ident_check_parent(inst->state, path, &ids, W_OK | X_OK,
                                      NULL) != NGX_OK)

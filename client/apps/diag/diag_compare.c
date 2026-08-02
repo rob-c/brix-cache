@@ -46,12 +46,45 @@ remote_md5(brix_conn *c, const char *path, char *hex, size_t hexsz, brix_status 
 }
 
 
+/* http_plane_md5 — fetch `path` over an HTTP(S) plane into a temp file and MD5
+ * it, streaming (any size; handles Content-Length / chunked / close framing via
+ * brix_http_download). `tls` selects https; `verify`/`ca_dir` apply to the peer
+ * cert; `extra_hdrs` carries a SigV4 block for a future S3 plane, or NULL. On a
+ * transport error returns -1 (st set); on an HTTP error returns 0 with *http_out
+ * set to the status and hex left untouched, so the caller can probe the code. */
+static int
+http_plane_md5(const char *host, int port, int tls, const char *path,
+    const char *extra_hdrs, int verify, const char *ca_dir, char *hex,
+    size_t hexsz, int *http_out, brix_status *st)
+{
+    char       tmpl[] = "/tmp/xrddiag-httpc.XXXXXX";
+    int        fd = mkstemp(tmpl);
+    long long  got = 0;
+    int        rc;
+
+    if (fd < 0) {
+        brix_status_set(st, XRDC_ESOCK, 0, "mkstemp failed");
+        return -1;
+    }
+    *http_out = 0;
+    rc = brix_http_download(host, port, tls, path, extra_hdrs, verify, ca_dir,
+                            fd, 5000, http_out, &got, st);
+    if (rc == 0 && *http_out == 200) {
+        rc = brix_cksum_fd(fd, XRDC_CK_MD5, hex, hexsz, st);
+    }
+    close(fd);
+    unlink(tmpl);
+    return rc;
+}
+
+
 /*
  * §15.6 cross-protocol consistency oracle: read the SAME object via root:// and
- * cleartext WebDAV (HTTP GET) and assert size + MD5 agree. The capability no
- * upstream client has — this project unifies the planes over one VFS, so a
- * divergence here is a real cross-protocol bug. S3 (SigV4) and HTTPS-davs
- * (TLS+chunked) planes are deferred — noted, not implemented.
+ * WebDAV and assert size + MD5 agree. The capability no upstream client has —
+ * this project unifies the planes over one VFS, so a divergence here is a real
+ * cross-protocol bug. The cleartext WebDAV plane (--davs) is always compared;
+ * the HTTPS WebDAV plane (--davs-tls, TLS + chunked) is compared when supplied.
+ * The S3 (SigV4) plane remains deferred — noted, not implemented.
  */
 int
 do_compare_davs(const diag_args *a)
@@ -124,7 +157,30 @@ do_compare_davs(const diag_args *a)
 
     probe("davs-md5", strcmp(root_md5, davs_md5) == 0,
           "root=%s davs=%s", root_md5, davs_md5);
-    note("s3 / https-davs", "deferred (needs SigV4 / HTTPS+chunked)");
+
+    /* HTTPS WebDAV plane (TLS + chunked): the same logical path over davs://,
+     * compared against the root:// MD5. Verify follows --no-verify-tls; the
+     * system trust store is used (ca_dir NULL). Only run when --davs-tls given. */
+    if (a->davs_tls != NULL && a->davs_tls[0] != '\0') {
+        char thost[256], tls_md5[64];
+        int  tport, thttp = 0;
+
+        brix_status_clear(&st);
+        parse_http_hostport(a->davs_tls, thost, sizeof(thost), &tport);
+        if (http_plane_md5(thost, tport, 1, ua.path, NULL, a->verify_tls, NULL,
+                           tls_md5, sizeof(tls_md5), &thttp, &st) != 0) {
+            probe("davs-tls", 0, "GET https://%s:%d%s: %s",
+                  thost, tport, ua.path, st.msg);
+        } else if (thttp != 200) {
+            probe("davs-tls", 0, "HTTPS %d for %s", thttp, ua.path);
+        } else {
+            probe("davs-tls", 1, "HTTPS 200 for %s", ua.path);
+            probe("davs-tls-md5", strcmp(root_md5, tls_md5) == 0,
+                  "root=%s davs-tls=%s", root_md5, tls_md5);
+        }
+    }
+
+    note("s3", "deferred (needs SigV4 endpoint + credentials)");
     printf("Result: %d difference(s)\n", g_fails);
     return g_fails ? 1 : 0;
 }

@@ -1,4 +1,5 @@
 #include "core/config/config.h"
+#include "core/compat/crypto.h"   /* brix_secret_page_guard (F3) */
 #include "core/compat/log_diag.h"
 #include "sss_keytab_kernel.h"   /* shared keytab line grammar + mode check */
 
@@ -188,6 +189,16 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "brix: SSS keytab \"%V\" has no usable keys", path);
         return NGX_ERROR;
+    }
+
+    /* F3/P90-28.1: the parsed key array lives for the process lifetime — keep
+     * its pages out of core dumps and off swap.  Best-effort, never fatal. */
+    if (brix_secret_page_guard(keys->elts,
+                               keys->nelts * sizeof(brix_sss_key_t)) != 0)
+    {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+                           "brix: could not fully page-guard SSS keytab keys "
+                           "(madvise/mlock); continuing unguarded");
     }
 
     *out_keys = keys;

@@ -23,6 +23,7 @@
 #include <openssl/bio.h>
 
 #include "proxy_req.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 static int checks = 0, failures = 0;
 #define CHECK(cond, msg) do {                                                  \
@@ -40,7 +41,7 @@ static EVP_PKEY *genkey(void)
         && EVP_PKEY_CTX_set_rsa_keygen_bits(c, 2048) > 0) {
         EVP_PKEY_keygen(c, &k);
     }
-    EVP_PKEY_CTX_free(c);
+    brix_evp_pkey_ctx_free(c);
     return k;
 }
 
@@ -210,7 +211,7 @@ static void test_sign_pxyreq(suite_t *s)
         CHECK(X509_verify(s->pxy, s->eeckey) == 1, "proxy signed by EEC key");
         EVP_PKEY *ppub = X509_get_pubkey(s->pxy);
         CHECK(ppub && EVP_PKEY_eq(ppub, s->reqkey) == 1, "proxy pubkey == request key");
-        EVP_PKEY_free(ppub);
+        brix_evp_pkey_free(ppub);
         int crit_pci = 0, i;
         for (i = 0; i < X509_get_ext_count(s->pxy); i++) {
             X509_EXTENSION *e = X509_get_ext(s->pxy, i);
@@ -261,7 +262,7 @@ static void test_assemble_proxy(suite_t *s)
         CHECK(ck != NULL, "assembled credential holds a private key");
         CHECK(ck != NULL && EVP_PKEY_eq(ck, s->reqkey) == 1,
               "embedded private key == request key");
-        EVP_PKEY_free(ck);
+        brix_evp_pkey_free(ck);
         BIO_free(b);
     }
 
@@ -270,7 +271,7 @@ static void test_assemble_proxy(suite_t *s)
     brix_gsi_buf_t bad_out = { NULL, 0 };
     rc = brix_gsi_assemble_proxy(&pxy_blob, wrong, &eec_blob, &bad_out, s->esink);
     CHECK(rc == -1 && bad_out.data == NULL, "assemble rejects a mismatched key");
-    EVP_PKEY_free(wrong);
+    brix_evp_pkey_free(wrong);
 }
 
 /* WHAT: stage 4 — verify proxy -> EEC -> CA under RFC-3820 rules.
@@ -315,7 +316,7 @@ static void test_two_level_delegation(suite_t *s)
               "proxy2 -> proxy1 -> EEC -> CA verifies");
         X509_free(pxy2);
     }
-    EVP_PKEY_free(rk2); free(rd2); free(pxy2_pem);
+    brix_evp_pkey_free(rk2); free(rd2); free(pxy2_pem);
 }
 
 /* WHAT: stage 6 — negative cases (subject mismatch, garbage, NULL).
@@ -355,7 +356,7 @@ static void test_negatives(suite_t *s)
     r = brix_gsi_build_pxyreq(&null_blob, &k, &d_out, s->esink);
     CHECK(r == -1, "build_pxyreq rejects NULL parent");
 
-    free(e2pem); EVP_PKEY_free(ek2); X509_free(eec2);
+    free(e2pem); brix_evp_pkey_free(ek2); X509_free(eec2);
 }
 
 /* WHAT: release every artifact allocated across the suite.
@@ -365,9 +366,9 @@ static void suite_teardown(suite_t *s)
 {
     X509_REQ_free(s->req);
     X509_free(s->pxy); free(s->pxy_pem); free(s->cred);
-    EVP_PKEY_free(s->reqkey); free(s->reqder);
-    free(s->eec_pem); X509_free(s->eec); EVP_PKEY_free(s->eeckey);
-    X509_free(s->ca); EVP_PKEY_free(s->cakey);
+    brix_evp_pkey_free(s->reqkey); free(s->reqder);
+    free(s->eec_pem); X509_free(s->eec); brix_evp_pkey_free(s->eeckey);
+    X509_free(s->ca); brix_evp_pkey_free(s->cakey);
 }
 
 int main(void)

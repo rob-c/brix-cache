@@ -66,6 +66,19 @@ sd_cache_admit(const brix_cache_policy_t *pol, const char *path, off_t size)
     return 1;
 }
 
+/* Effective spool cap for a phase-92 store-then-evict passthrough fill: the
+ * explicit brix_cache_passthrough_max when set, else the caching max_file_size,
+ * else 0 (unbounded — honour the operator's config). A passthrough fill above
+ * this cap is refused so the caller falls back to the direct 502 slow-path. */
+off_t
+sd_cache_passthrough_cap(const brix_cache_policy_t *pol)
+{
+    if (pol->passthrough_max > 0) {
+        return pol->passthrough_max;
+    }
+    return pol->max_file_size > 0 ? pol->max_file_size : 0;
+}
+
 /* 1 iff this cache instance carries the cvmfs personality (other exports'
  * fills must not feed the cvmfs metric family). */
 static int

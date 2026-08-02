@@ -35,11 +35,6 @@
 #include <string.h>
 #include <unistd.h>
 
-/* Re-flush ONE persisted record. Only a staged-write FLUSH is replayable: its
- * bytes are durable on the stage store and the export anchor lets us rebuild both
- * tiers. An UPLOAD/MULTIPART (client body -> stage) cannot be replayed - the body
- * is gone after a crash, so the client retries; such records are dropped, never
- * silently re-driven wrong. Returns 1 replayed / 0 kept (retry) / -1 dropped. */
 /* Re-flush ONE persisted record.
  *
  * WHAT: Reads the journal record (up to sizeof brix_sreq_t bytes), decodes it

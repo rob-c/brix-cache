@@ -78,6 +78,16 @@ typedef enum {
 #define BRIX_METRIC_TPC_PUSH     1
 #define BRIX_METRIC_TPC_DIRECTION_COUNT 2
 
+/* Outbound native-TPC GSI proxy delegation (phase-58 §5.8): the result of
+ * selecting the captured delegated proxy as the pull credential. Closed,
+ * low-cardinality label set (INVARIANT #8). */
+typedef enum {
+    BRIX_TPC_DELEG_OK      = 0,  /* captured proxy valid → attached to the pull */
+    BRIX_TPC_DELEG_EXPIRED = 1,  /* captured proxy past NotAfter → pull refused */
+    BRIX_TPC_DELEG_ABSENT  = 2,  /* delegation enabled but no proxy was captured */
+    BRIX_TPC_DELEG_RESULT_COUNT = 3,
+} brix_tpc_deleg_result_t;
+
 /* Eight finite buckets plus +Inf, all in microseconds. */
 #define BRIX_IO_LATENCY_BUCKETS  9
 
@@ -125,6 +135,16 @@ ngx_uint_t brix_metric_auth_slot(ngx_uint_t auth_method);
 void brix_metric_op_done(brix_proto_t proto, brix_metric_op_t op,
     size_t bytes, ngx_msec_t latency_usec, brix_err_class_t err);
 /*
+ * Record ONLY the latency histogram (single bucket + count + sum) for one
+ * completed op — no io_ops_total bump, no byte totals.  For completion paths
+ * whose op/byte accounting already reaches the exporter another way (the root://
+ * AIO data plane books ops/bytes via the legacy per-port fold in
+ * unified_export_io.c); calling brix_metric_op_done there would double-count.
+ * Lock-free; no-ops on an out-of-range proto/op or detached SHM.
+ */
+void brix_metric_op_latency(brix_proto_t proto, brix_metric_op_t op,
+    ngx_msec_t latency_usec);
+/*
  * brix_metric_backend_bytes — add a completed data op's byte count to the
  * per-backend storage totals (io_bytes_{read,written}_backend). backend_name
  * is the storage driver's census name (fs_list.h); NULL ⇒ "posix" (the
@@ -170,6 +190,47 @@ typedef enum {
  */
 void brix_metric_cred_result(brix_proto_t proto, brix_cred_outcome_t outcome);
 /*
+ * Phase-70 delegation-mode dimension (P90-70.6).
+ *
+ * BRIX_CRED_MODE_METRIC_COUNT mirrors `enum brix_cred_mode` (fs/backend/sd.h:
+ * SELECT..AUTO) without importing the fs layer into this header; the recorder
+ * takes the mode as ngx_uint_t and vfs_deleg.c carries the compile-time
+ * equality check. Failure reasons are a closed enum (INVARIANT #8 — never a
+ * DN, token, path, or errno string):
+ *
+ * BRIX_CRED_FAIL_MISSING     — bag bound but no usable credential bytes.
+ * BRIX_CRED_FAIL_KIND        — leaf backend's cred_accept mask rejects the kind.
+ * BRIX_CRED_FAIL_PEM         — proxy bytes are not well-formed PEM.
+ * BRIX_CRED_FAIL_CHAIN       — RFC-3820 chain-trust re-verify failed (P90-70.4).
+ * BRIX_CRED_FAIL_MATERIALISE — temp write / allocation failure at the gate.
+ * BRIX_CRED_FAIL_EXCHANGE    — RFC-8693 exchange leg (or STS/krb5 hook) failed.
+ */
+#define BRIX_CRED_MODE_METRIC_COUNT  6
+
+typedef enum {
+    BRIX_CRED_FAIL_MISSING     = 0,
+    BRIX_CRED_FAIL_KIND        = 1,
+    BRIX_CRED_FAIL_PEM         = 2,
+    BRIX_CRED_FAIL_CHAIN       = 3,
+    BRIX_CRED_FAIL_MATERIALISE = 4,
+    BRIX_CRED_FAIL_EXCHANGE    = 5,
+    BRIX_CRED_FAIL_COUNT       = 6
+} brix_cred_fail_t;
+/*
+ * Bump the delegation-gate outcome counter for (proto, mode, outcome) /
+ * the delegation-gate failure-reason counter for (proto, reason).  Same
+ * contract as brix_metric_cred_result: lock-free atomic increment, no-op on
+ * out-of-range indices or detached SHM.  brix_metric_cred_deleg is bumped at
+ * every live-bag terminal (vfs_deleg.c) and at mint success (vfs_cred.c);
+ * brix_metric_cred_fail only on the failure terminals, alongside the DENY or
+ * FALLBACK outcome bump.
+ */
+void brix_metric_cred_deleg(brix_proto_t proto, ngx_uint_t mode,
+    brix_cred_outcome_t outcome);
+void brix_metric_cred_fail(brix_proto_t proto, brix_cred_fail_t reason);
+const char *brix_metric_cred_mode_name(ngx_uint_t mode);
+const char *brix_metric_cred_fail_name(brix_cred_fail_t reason);
+/*
  * Watermark-driven LRU reaper telemetry (connection-less, process-wide):
  *  - cache_usage_ratio publishes cache_root occupancy (ppm) as a gauge each tick;
  *  - cache_watermark_purge accounts one purge run that reclaimed `files`/`bytes`.
@@ -199,5 +260,11 @@ void brix_metric_auth(brix_proto_t proto, ngx_uint_t auth_method,
  */
 void brix_metric_tpc(brix_proto_t proto, unsigned int is_push,
     size_t bytes, brix_err_class_t err);
+/*
+ * Record an outbound native-TPC GSI proxy-delegation credential-selection
+ * result (phase-58 §5.8): bumps tpc_gsi_deleg_total[result]. Lock-free; no-ops
+ * on an out-of-range result or detached SHM.
+ */
+void brix_metric_tpc_gsi_deleg(brix_tpc_deleg_result_t result);
 
 #endif /* BRIX_METRICS_UNIFIED_H */

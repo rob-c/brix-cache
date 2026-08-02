@@ -242,9 +242,12 @@ def ktls(nginx: Path | None = None) -> int:
 
     def mkconf(value: str) -> Path:
         text = generated.read_text()
-        patched = re.sub(r"(brix_webdav\s+on;)", rf"\1\n        brix_ktls {value};", text, count=1)
+        # value == "default" leaves the config untouched (no brix_ktls directive)
+        # so the merged default is exercised; phase-33 P5 requires that to be OFF.
+        if value != "default":
+            text = re.sub(r"(brix_webdav\s+on;)", rf"\1\n        brix_ktls {value};", text, count=1)
         path = Path(f"/tmp/ktls_t_{value}.conf")
-        path.write_text(patched)
+        path.write_text(text)
         return path
 
     def tls_tx_sw() -> int:
@@ -270,7 +273,8 @@ def ktls(nginx: Path | None = None) -> int:
         invalid = subprocess.run([str(nginx_bin), "-t", "-c", str(mkconf("maybe")), "-p", "/tmp/xrd-perf-test"], capture_output=True, text=True)
         invalid_ok = invalid.returncode != 0 and 'must be "on" or "off"' in (invalid.stderr + invalid.stdout)
         checks = [(invalid_ok, "invalid brix_ktls value rejected by nginx -t")]
-        for value, label in (("on", "brix_ktls on"), ("off", "brix_ktls off")):
+        for value, label in (("on", "brix_ktls on"), ("off", "brix_ktls off"),
+                             ("default", "default (no brix_ktls)")):
             out = Path(f"/tmp/ktls_t_{value}_dl.bin")
             started = start(mkconf(value))
             before = tls_tx_sw()
@@ -279,12 +283,19 @@ def ktls(nginx: Path | None = None) -> int:
             checks.append((started and curl.returncode == 0 and out.exists() and out.read_bytes() == source.read_bytes(), f"{label}: HTTPS GET byte-identical"))
             if value == "on":
                 print(f"  info kTLS TX sessions this GET: {after - before}")
+            if value == "default":
+                # phase-33 P5: default is OFF, so software kTLS must NOT engage —
+                # TlsTxSw stays flat across the GET (vacuously true on hosts without
+                # the tls kernel module, meaningful where `brix_ktls on` would bump it).
+                checks.append((after - before == 0,
+                               "default (no brix_ktls): software kTLS off (TlsTxSw flat)"))
         return _checks(checks)
     finally:
         subprocess.run(["pkill", "-9", "-f", "objs/nginx.*xrd-perf-test"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         source.unlink(missing_ok=True)
         Path("/tmp/ktls_t_on_dl.bin").unlink(missing_ok=True)
         Path("/tmp/ktls_t_off_dl.bin").unlink(missing_ok=True)
+        Path("/tmp/ktls_t_default_dl.bin").unlink(missing_ok=True)
 
 
 SCENARIOS = {

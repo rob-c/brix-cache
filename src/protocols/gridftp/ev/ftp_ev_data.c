@@ -142,81 +142,83 @@ ev_do_pasv(ftp_ev_t *fc, int extended)
 }
 
 
-/* PORT/EPRT: arm an active-mode target.  The nominated address is pinned to the
- * control peer (anti FTP-bounce; relaxed only for a DCAU-A TPC leg) and screened
- * through the SSRF policy — identical to the sync ftp_do_port. */
+/* Parse a classic "h1,h2,h3,h4,p1,p2" PORT argument into (addr, port). Returns
+ * NGX_DECLINED on success (fields filled); on a malformed argument it emits the
+ * 501 reply and returns that reply's status for the caller to propagate. */
 static ngx_int_t
-ev_do_port(ftp_ev_t *fc, const char *arg, int extended)
+ev_port_parse_classic(ftp_ev_t *fc, const char *arg, in_addr_t *addr,
+    unsigned *port)
+{
+    unsigned      h[4], p[2];
+    unsigned char b[4];
+
+    if (sscanf(arg, "%u,%u,%u,%u,%u,%u",
+               &h[0], &h[1], &h[2], &h[3], &p[0], &p[1]) != 6
+        || (h[0] | h[1] | h[2] | h[3]) > 255 || (p[0] | p[1]) > 255)
+    {
+        return brix_ftp_ev_reply(fc, "501 Bad PORT argument\r\n");
+    }
+    b[0] = (unsigned char) h[0]; b[1] = (unsigned char) h[1];
+    b[2] = (unsigned char) h[2]; b[3] = (unsigned char) h[3];
+    ngx_memcpy(addr, b, 4);
+    *port = (p[0] << 8) | p[1];
+    return NGX_DECLINED;
+}
+
+/* Parse an "|1|ip|port|" EPRT argument (IPv4 only) into (addr, port). Same
+ * NGX_DECLINED-on-success / reply-status-on-error contract as the classic form. */
+static ngx_int_t
+ev_port_parse_extended(ftp_ev_t *fc, const char *arg, in_addr_t *addr,
+    unsigned *port)
+{
+    char        d = arg[0];
+    const char *fam, *ip, *pt, *end;
+    char        ipbuf[64];
+    size_t      iplen;
+
+    if (d == '\0') { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
+    fam = arg + 1;
+    ip  = strchr(fam, d);
+    if (ip == NULL) { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
+    ip++;
+    pt = strchr(ip, d);
+    if (pt == NULL) { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
+    end = strchr(pt + 1, d);
+    if (end == NULL) { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
+    if (fam[0] != '1') {
+        return brix_ftp_ev_reply(fc, "522 Only IPv4 (|1|) supported\r\n");
+    }
+    iplen = (size_t) (pt - ip);
+    if (iplen == 0 || iplen >= sizeof(ipbuf)) {
+        return brix_ftp_ev_reply(fc, "501 Bad EPRT address\r\n");
+    }
+    ngx_memcpy(ipbuf, ip, iplen);
+    ipbuf[iplen] = '\0';
+    if (inet_pton(AF_INET, ipbuf, addr) != 1) {
+        return brix_ftp_ev_reply(fc, "501 Bad EPRT address\r\n");
+    }
+    *port = (unsigned) strtoul(pt + 1, NULL, 10);
+    return NGX_DECLINED;
+}
+
+/* Anti-bounce pin + SSRF screen for an active-mode target. A plain transfer must
+ * target the control peer; an off-peer target is only allowed as a GSI (DCAU A)
+ * TPC leg. Returns NGX_DECLINED when the target is permitted (fc->active_offpeer
+ * recorded), else the emitted reply's status. */
+static ngx_int_t
+ev_port_screen_target(ftp_ev_t *fc, const struct sockaddr_in *tgt)
 {
     struct sockaddr_in       peer;
     socklen_t                plen = sizeof(peer);
-    struct sockaddr_in       tgt;
     brix_net_target_policy_t pol;
     char                     err[128];
-    unsigned                 h[4], p[2];
-    in_addr_t                addr;
-    unsigned                 port;
 
-    ngx_memzero(&tgt, sizeof(tgt));
-    tgt.sin_family = AF_INET;
-
-    if (!extended) {
-        if (sscanf(arg, "%u,%u,%u,%u,%u,%u",
-                   &h[0], &h[1], &h[2], &h[3], &p[0], &p[1]) != 6
-            || (h[0] | h[1] | h[2] | h[3]) > 255 || (p[0] | p[1]) > 255)
-        {
-            return brix_ftp_ev_reply(fc, "501 Bad PORT argument\r\n");
-        }
-        {
-            unsigned char b[4] = { (unsigned char) h[0], (unsigned char) h[1],
-                                   (unsigned char) h[2], (unsigned char) h[3] };
-            ngx_memcpy(&addr, b, 4);
-        }
-        port = (p[0] << 8) | p[1];
-    } else {
-        char        d = arg[0];
-        const char *fam, *ip, *pt, *end;
-        char        ipbuf[64];
-        size_t      iplen;
-
-        if (d == '\0') { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
-        fam = arg + 1;
-        ip  = strchr(fam, d);
-        if (ip == NULL) { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
-        ip++;
-        pt = strchr(ip, d);
-        if (pt == NULL) { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
-        end = strchr(pt + 1, d);
-        if (end == NULL) { return brix_ftp_ev_reply(fc, "501 Bad EPRT argument\r\n"); }
-        if (fam[0] != '1') {
-            return brix_ftp_ev_reply(fc, "522 Only IPv4 (|1|) supported\r\n");
-        }
-        iplen = (size_t) (pt - ip);
-        if (iplen == 0 || iplen >= sizeof(ipbuf)) {
-            return brix_ftp_ev_reply(fc, "501 Bad EPRT address\r\n");
-        }
-        ngx_memcpy(ipbuf, ip, iplen);
-        ipbuf[iplen] = '\0';
-        if (inet_pton(AF_INET, ipbuf, &addr) != 1) {
-            return brix_ftp_ev_reply(fc, "501 Bad EPRT address\r\n");
-        }
-        port = (unsigned) strtoul(pt + 1, NULL, 10);
-    }
-
-    if (port == 0 || port > 65535) {
-        return brix_ftp_ev_reply(fc, "501 Bad data port\r\n");
-    }
-    tgt.sin_addr.s_addr = addr;
-    tgt.sin_port        = htons((unsigned short) port);
-
-    /* Anti-bounce pin: a plain active transfer must target the control peer; an
-     * off-peer target is only allowed as a GSI-authenticated (DCAU A) TPC leg. */
     if (getpeername(fc->c->fd, (struct sockaddr *) &peer, &plen) != 0
         || peer.sin_family != AF_INET)
     {
         return brix_ftp_ev_reply(fc, "500 Cannot determine control peer\r\n");
     }
-    fc->active_offpeer = (peer.sin_addr.s_addr != tgt.sin_addr.s_addr);
+    fc->active_offpeer = (peer.sin_addr.s_addr != tgt->sin_addr.s_addr);
     if (fc->active_offpeer && !(fc->sec_active && fc->dcau_a)) {
         ngx_log_error(NGX_LOG_WARN, fc->c->log, 0,
                       "brix: gsiftp(ev) rejected active-mode target != control "
@@ -227,12 +229,45 @@ ev_do_port(ftp_ev_t *fc, const char *arg, int extended)
     ngx_memzero(&pol, sizeof(pol));
     pol.allow_local   = 1;
     pol.allow_private = 1;
-    if (brix_net_target_check_addr((struct sockaddr *) &tgt, &pol,
+    if (brix_net_target_check_addr((struct sockaddr *) tgt, &pol,
                                    err, sizeof(err)) != NGX_OK)
     {
         ngx_log_error(NGX_LOG_WARN, fc->c->log, 0,
                       "brix: gsiftp(ev) active-mode target blocked: %s", err);
         return brix_ftp_ev_reply(fc, "500 Data address not permitted\r\n");
+    }
+    return NGX_DECLINED;
+}
+
+/* PORT/EPRT: arm an active-mode target.  The nominated address is pinned to the
+ * control peer (anti FTP-bounce; relaxed only for a DCAU-A TPC leg) and screened
+ * through the SSRF policy — identical to the sync ftp_do_port. */
+static ngx_int_t
+ev_do_port(ftp_ev_t *fc, const char *arg, int extended)
+{
+    struct sockaddr_in tgt;
+    in_addr_t          addr;
+    unsigned           port;
+    ngx_int_t          rc;
+
+    ngx_memzero(&tgt, sizeof(tgt));
+    tgt.sin_family = AF_INET;
+
+    rc = extended ? ev_port_parse_extended(fc, arg, &addr, &port)
+                  : ev_port_parse_classic(fc, arg, &addr, &port);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    if (port == 0 || port > 65535) {
+        return brix_ftp_ev_reply(fc, "501 Bad data port\r\n");
+    }
+    tgt.sin_addr.s_addr = addr;
+    tgt.sin_port        = htons((unsigned short) port);
+
+    rc = ev_port_screen_target(fc, &tgt);
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     if (fc->pasv_fd >= 0) { (void) close(fc->pasv_fd); fc->pasv_fd = -1; }

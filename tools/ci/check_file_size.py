@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 #
-# WHAT: Fail CI when any file under src/ exceeds the size cap (600 lines — the
-#       enforced backstop; coding-standards.md §1 still *prefers* ~500, one concept
-#       per file), UNLESS the file is an accepted, frozen exception recorded in
-#       file_size_backlog.txt.
+# WHAT: Fail CI when any file under src/ or client/ exceeds the size cap (600
+#       lines — the enforced backstop; coding-standards.md §1 still *prefers* ~500,
+#       one concept per file), UNLESS the file is an accepted, frozen exception
+#       recorded in file_size_backlog.txt. client/tests/ is carved out (unit
+#       harness + fixtures are not shipped code), matching the test exemption the
+#       coding standard grants elsewhere.
 #
 # WHY:  The ~500-line rule was documented but human-enforced — reviewers had to
 #       notice size drift by eye. This guard ratchets it, mirroring the vfs-seam
@@ -37,15 +39,26 @@ def _wc_l(path: Path) -> int:
 
 
 def list_oversized(root: Path = ROOT) -> list[tuple[str, int]]:
-    """(repo-relative path, loc) for every src *.c/*.h file above the cap, sorted
-    by codepoint (LC_ALL=C) so both the ratchet compare and --regen output are
-    deterministic."""
-    src = root / "src"
-    rows = [
-        (f.relative_to(root).as_posix(), _wc_l(f))
-        for f in src.rglob("*")
-        if f.suffix in (".c", ".h") and f.is_file()
-    ]
+    """(repo-relative path, loc) for every src/ and client/ *.c/*.h file above the
+    cap, sorted by codepoint (LC_ALL=C) so both the ratchet compare and --regen
+    output are deterministic. client/tests/ is excluded — its unit harness and
+    fixtures are not shipped code and carry the same test exemption src's own
+    tests live under elsewhere."""
+    rows: list[tuple[str, int]] = []
+    # src/: the nginx module tree — every .c/.h counts.
+    for f in (root / "src").rglob("*"):
+        if f.suffix in (".c", ".h") and f.is_file():
+            rows.append((f.relative_to(root).as_posix(), _wc_l(f)))
+    # client/: the ngx-free CLI tools + libbrix, minus the test tree.
+    client = root / "client"
+    client_tests = client / "tests"
+    for f in client.rglob("*"):
+        if (
+            f.suffix in (".c", ".h")
+            and f.is_file()
+            and client_tests not in f.parents
+        ):
+            rows.append((f.relative_to(root).as_posix(), _wc_l(f)))
     rows = [(path, loc) for path, loc in rows if loc > CAP]
     return sorted(rows, key=lambda r: f"{r[0]}\t{r[1]}")
 

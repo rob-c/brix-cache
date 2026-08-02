@@ -219,33 +219,53 @@ read_try_warm(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *rconf,
  * WHY: the blocking pread must run off the event loop; the done-callback owns
  * databuf and finishes the response, so a successful post is the end of this
  * request's event-loop work.
- * HOW: one reusable task per session (ctx->rd.read_aio_task): allocate it the
- * first time, otherwise reset the two fields ngx reuse requires — unlink from
- * any prior queue (next) and clear the completion flag so the event loop will
- * fire the done-callback again.  Returns NGX_ERROR on allocation failure
+ * HOW (phase-32 WS3, concurrent read-AIO): the task is bound to io->databuf's
+ * OWN rd_pool slot — not the single shared ctx->rd.read_aio_task — so several
+ * single-shot reads can be in flight at once without a later post clobbering an
+ * earlier task a worker thread still owns.  Allocate the slot's task the first
+ * time it is used, otherwise reset the two fields ngx reuse requires — unlink
+ * from any prior queue (next) and clear the completion flag so the event loop
+ * will fire the done-callback again.  Returns NGX_ERROR on allocation failure
  * (databuf already released); otherwise NGX_OK with *posted saying whether the
  * pool accepted the task (not posted => caller must read synchronously so the
- * read never silently drops).
+ * read never silently drops).  On a successful post the task is marked counted
+ * and rd.aio_inflight is bumped so teardown defers while it runs.
  */
 static ngx_int_t
 read_post_aio(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *rconf, const brix_read_io_t *io,
     ngx_flag_t *posted)
 {
-    ngx_thread_task_t *task;
+    ngx_thread_task_t *task = NULL;
     brix_read_aio_t *t;
+    ngx_uint_t         i;
 
-    task = ctx->rd.read_aio_task;
-    if (task == NULL) {
-        task = ngx_thread_task_alloc(c->pool, sizeof(brix_read_aio_t));
-        if (task == NULL) {
-            brix_release_read_buffer(ctx, c, io->databuf);
-            return NGX_ERROR;
+    /* Locate the rd_pool slot backing this read's buffer and use its per-slot
+     * task; each concurrent read thus carries an independent task struct. */
+    for (i = 0; i < ctx->out.pipeline_depth; i++) {
+        if (ctx->rd.pool[i].buf == io->databuf) {
+            task = ctx->rd.pool[i].task;
+            if (task == NULL) {
+                task = ngx_thread_task_alloc(c->pool, sizeof(brix_read_aio_t));
+                if (task == NULL) {
+                    brix_release_read_buffer(ctx, c, io->databuf);
+                    return NGX_ERROR;
+                }
+                ctx->rd.pool[i].task = task;
+            } else {
+                task->next = NULL;
+                task->event.complete = 0;
+            }
+            break;
         }
-        ctx->rd.read_aio_task = task;
-    } else {
-        task->next = NULL;
-        task->event.complete = 0;
+    }
+
+    /* Defensive: a databuf that is not a pool slot cannot pipeline safely.
+     * This never happens on the read_serve_buffered path (which always acquires
+     * from rd_pool), but guard rather than post a task with a NULL handle. */
+    if (task == NULL) {
+        brix_release_read_buffer(ctx, c, io->databuf);
+        return NGX_ERROR;
     }
 
     t = task->ctx;
@@ -262,12 +282,23 @@ read_post_aio(brix_ctx_t *ctx, ngx_connection_t *c,
     t->io_errno = 0;
     t->csi = ctx->files[io->idx].csi;   /* phase-59 W2: verify on read */
     t->obj = ctx->files[io->idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
+    t->start_ns = brix_phase_now_ns();  /* phase-56 D-2 */
+    t->counted = 1;                     /* phase-32 WS3: single-shot read */
 
     brix_task_bind(task, brix_read_aio_thread, brix_read_aio_done);
 
     (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
                                 "brix: thread_task_post failed, sync read fallback",
                                 posted);
+
+    /* phase-32 WS3: only a posted task actually runs on a worker thread, so
+     * only then does a completion decrement rd.aio_inflight — count it here so
+     * a disconnect-mid-read defers teardown until the worker releases the
+     * buffer.  A rejected post falls back to a synchronous read (no worker,
+     * nothing to count). */
+    if (*posted) {
+        ctx->rd.aio_inflight++;
+    }
     return NGX_OK;
 }
 

@@ -70,6 +70,56 @@ ucred_principal_fs_safe(const char *principal)
     return 1;
 }
 
+/* ---- Derive the VO group credential key from an identity (P80.12) ----
+ * WHAT: Writes "vo-<primary_vo>" into key and returns 1, or returns 0 when no
+ *       usable VO is present / the derived key is not fs-safe verbatim.
+ * WHY:  A single credential provisioned per VO (vo-atlas.s3) serves every
+ *       member with zero per-user files.  The admin names the file literally,
+ *       so the key MUST be verbatim-safe — a hash form is never substituted;
+ *       the tier is simply skipped when the VO name is not filename-clean.
+ * HOW:  primary VO = first comma field of the parsed VO-name view
+ *       (id->acc_vorg_csv), falling back to the raw VO/group CSV (id->vo_csv)
+ *       when the acc view was not derived.  The fields are read directly (not
+ *       via identity.c accessors) so this TU stays free of an identity.o link
+ *       dependency — the ucred unit test links ucred.o alone. */
+static int
+ucred_vo_key(const brix_identity_t *id, char *key, size_t cap)
+{
+    const u_char *src;
+    size_t        len, i;
+    int           n;
+
+    if (id == NULL) {
+        return 0;
+    }
+    if (id->acc_vorg_csv.len > 0) {
+        src = id->acc_vorg_csv.data;
+        len = id->acc_vorg_csv.len;
+    } else if (id->vo_csv.len > 0) {
+        src = id->vo_csv.data;
+        len = id->vo_csv.len;
+    } else {
+        return 0;
+    }
+
+    /* primary VO = first comma-separated field */
+    for (i = 0; i < len && src[i] != ','; i++) { /* scan to delimiter */ }
+    if (i == 0) {
+        return 0;   /* leading empty field — no usable VO */
+    }
+
+    n = snprintf(key, cap, "vo-%.*s", (int) i, src);
+    if (n < 0 || (size_t) n >= cap) {
+        return 0;
+    }
+
+    /* Must be provisionable under this exact filename; else skip the VO tier. */
+    if (!ucred_principal_fs_safe(key)) {
+        return 0;
+    }
+    return 1;
+}
+
 /*
  * brix_sd_ucred_principal — extract canonical principal string from identity.
  *
@@ -270,6 +320,7 @@ brix_sd_ucred_select(const char *dir, const brix_identity_t *id,
     char      principal[BRIX_UCRED_PRINC_MAX];
     char      lit_key[BRIX_UCRED_KEY_MAX];
     char      hash_key[BRIX_UCRED_KEY_MAX];
+    char      vo_key[BRIX_UCRED_KEY_MAX];
     int       has_lit;
     int       any_expired;
     ngx_int_t rc;
@@ -316,6 +367,21 @@ brix_sd_ucred_select(const char *dir, const brix_identity_t *id,
         return NGX_OK;
     }
     any_expired |= out->expired;
+
+    /* P80.12: VO group tier — <dir>/vo-<primary_vo>.{pem,token,s3,keyring}.
+     * Reached only when both per-user candidates missed (an expired per-user
+     * .pem hard-stops WITHIN its own key but does not suppress this tier), so a
+     * user with no personal credential falls back to the single group file the
+     * admin provisioned for the whole VO. */
+    if (ucred_vo_key(id, vo_key, sizeof(vo_key))) {
+        rc = brix_sd_ucred_resolve(dir, vo_key, out);
+        if (rc == NGX_OK) {
+            out->is_vo_tier = 1;   /* resolve() leaves this zeroed; mark the tier */
+            /* out->principal already set above; no re-copy needed. */
+            return NGX_OK;
+        }
+        any_expired |= out->expired;
+    }
 
     /* No valid credential found — return DECLINED with the hash key for
      * logging so the operator knows which file to provision. */

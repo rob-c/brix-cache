@@ -1,0 +1,87 @@
+# CI ASan + UBSan test lane (hyper-hardening B-2).
+#
+# Builds the brix module (objs/nginx) + client with
+# -fsanitize=address,undefined, boots the test fleet against that instrumented
+# binary, drives real root:// I/O through it, and FAILS the job if the
+# sanitizers report any finding (heap error, undefined behaviour, or an
+# unsuppressed leak — the third-party library leaks are curated out by
+# tests/lsan.supp). Until this lane existed the runtime wiring
+# (manage_test_servers._sanitize_env, lsan.supp, test_sanitizer_smoke.py) was
+# never exercised in CI, so an A-2-class heap corruption could reach main
+# unseen — see docs/07-security/hyper-hardening-plan.md § B-2 and phase-88
+# open-work audit § 4.
+#
+# Two jobs:
+#   - smoke (PR/push, BLOCKING): builds sanitized + drives the deterministic
+#     read round-trip (tools/ci/asan.py default = test_sanitizer_smoke.py). The
+#     orchestrator SKIPs cleanly (exit 0) if the compiler / nginx source / fleet
+#     boot are unavailable on the runner, so blocking is safe.
+#   - fast-tier (nightly cron): re-runs the broader "not slow and not serial"
+#     tier against the sanitized fleet (ASAN_TEST_CMD override) — that is where
+#     the fault-injection / resilience paths surface the A-2-class bugs — PLUS
+#     the SERIAL write-mirror disconnect suite (ASAN_TEST_CMD2), which the "not
+#     serial" filter drops. That suite drives the phase-24 / 57-W3 detached
+#     replay's disconnect-mid-write UAF / heap-ownership paths (phase-88 audit
+#     § 4 write-mirroring — the last machine-checkable-only-under-ASan half) so a
+#     replay that outlives its client, or a teardown that races a launch, is
+#     caught by the sanitizer rather than reaching production enable unseen.
+#
+# Sanitizer builds are 2-3x slower and memory-hungry; the PR lane is scoped to
+# the fast smoke deliberately (B-2 "Edge cases").
+name: asan
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'   # nightly, after fuzz (04:00) + coverage windows
+jobs:
+  asan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang \
+            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
+            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
+            libjansson-dev libxml2-dev librados-dev
+          pip install --user pytest pytest-xdist pytest-timeout
+      - name: Fetch nginx source
+        run: curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
+      - name: Build sanitized module + fleet, drive I/O, scan reports
+        env:
+          NGINX_SRC: /tmp/nginx-1.28.3
+          PYTHONPATH: tests
+          # Nightly cron widens the driver from the smoke to the fast tier
+          # (attach mode); PR/push keeps the deterministic smoke.  The fast tier
+          # carries the READ-side disconnect UAF coverage — test_aio.py::
+          # TestAioDestroyedGuard (clean-close, RST-mid-flight, and alloc/free
+          # churn), the read counterpart of the write-mirror drivers below — so
+          # a stale AIO completion firing after the client is gone runs under
+          # the sanitizer's destroyed-guard path.
+          ASAN_TEST_CMD: >-
+            ${{ github.event_name == 'schedule'
+                && 'python3 -m pytest -m "not slow and not serial" -p no:randomly -q'
+                || '' }}
+          # Nightly ALSO drives the serial write-mirror suite (dropped by the
+          # "not serial" filter above) so the disconnect-mid-write UAF /
+          # heap-ownership replay paths run under the sanitizer. `-k data_write`
+          # covers the clean-replay legs plus the three disconnect drivers
+          # (abandoned mid-write, close-then-immediate-drop, churn).
+          ASAN_TEST_CMD2: >-
+            ${{ github.event_name == 'schedule'
+                && 'python3 -m pytest test_phase24_mirror.py -k data_write -p no:randomly -q'
+                || '' }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          tools/ci/asan.py
+      - name: Upload sanitizer reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asan-reports
+          path: /tmp/xrd-test/sanitize/asan.*
+          if-no-files-found: ignore

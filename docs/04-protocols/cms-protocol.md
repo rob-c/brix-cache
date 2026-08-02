@@ -150,18 +150,38 @@ renumber.
 | Constant | `rrCode` | Direction | Purpose |
 |---|---|---|---|
 | `CMS_RR_LOGIN`  | 0  | both | announce identity + capacity (handshake) |
+| `CMS_RR_CHMOD`  | 1  | manager → node | forwarded mode change (Plane B) |
 | `CMS_RR_LOCATE` | 2  | (sub)manager → parent | "where is `<path>`?" — escalate a lookup |
+| `CMS_RR_MKDIR`  | 3  | manager → node | forwarded directory create (Plane B) |
+| `CMS_RR_MKPATH` | 4  | manager → node | forwarded recursive directory create (Plane B) |
+| `CMS_RR_MV`     | 5  | manager → node | forwarded rename (Plane B) |
+| `CMS_RR_PREPADD`| 6  | manager → node | forwarded stage-in request (phase-89 W2) |
+| `CMS_RR_PREPDEL`| 7  | manager → node | forwarded stage cancel (phase-89 W2) |
+| `CMS_RR_RM`     | 8  | manager → node | forwarded file unlink (Plane B / W8 fan-out) |
+| `CMS_RR_RMDIR`  | 9  | manager → node | forwarded directory remove (Plane B / W8 fan-out) |
 | `CMS_RR_SELECT` | 10 | manager → node | "send the client to this one host" |
+| `CMS_RR_STATS`  | 11 | either | cluster stats query |
 | `CMS_RR_AVAIL`  | 12 | node → manager | free space + utilisation reply |
+| `CMS_RR_DISC`   | 13 | either | graceful disconnect notification |
 | `CMS_RR_GONE`   | 14 | server → manager | data server dropped a specific path |
 | `CMS_RR_HAVE`   | 15 | server → manager | "yes, I hold `<path>`" (raw) |
-| `CMS_RR_LOAD`   | 16 | node → manager | periodic unsolicited load/space heartbeat |
+| `CMS_RR_LOAD`   | 16 | node → manager | periodic unsolicited load/space heartbeat (incl. phase-89 W4 `theLoad` machine-load bytes) |
 | `CMS_RR_PING`   | 17 | manager → node | liveness probe (header-only) |
 | `CMS_RR_PONG`   | 18 | node → manager | liveness reply (header-only) |
 | `CMS_RR_SPACE`  | 19 | manager → node | "report your free space now" |
 | `CMS_RR_STATE`  | 20 | manager → server | "do you hold `<path>`?" (raw, on-demand select) |
+| `CMS_RR_STATFS` | 21 | either | space query for a path |
 | `CMS_RR_STATUS` | 22 | both | suspend / resume / staging traffic control |
+| `CMS_RR_TRUNC`  | 23 | manager → node | forwarded truncate (Plane B) |
 | `CMS_RR_TRY`    | 24 | manager → node | redirect with an *ordered list* of alternatives |
+| `CMS_RR_UPDATE` | 25 | either | request peer resend its state |
+| `CMS_RR_USAGE`  | 26 | either | load/usage query |
+| `CMS_RR_XAUTH`  | 27 | both | SSS security handshake credential |
+
+Routing for every opcode is table-driven (`src/net/cms/router.c`, mirroring
+`XrdCmsRouting.cc`); the forwarded-namespace/staging rows above landed with
+phase-89 (decode in `rrdata.c`, node execution in `recv_forward.c` /
+`recv_prepare.c`, manager fan-out in `fanout.c`).
 
 ### `modifier` bit fields
 
@@ -346,15 +366,19 @@ connection gets a per-connection `brix_cms_srv_ctx_t`
 
 ### 6.1 Inbound frame handling
 
-`cms_srv_process_frame()` (`src/net/cms/server_recv.c`) drives the registry:
+The route table `cms_srv_frame_routes[]` (`src/net/cms/server_recv_frame.c`;
+handlers in `server_recv_frame_handlers.c`) drives the registry:
 
 | Frame in | Action |
 |---|---|
-| `kYR_login` | parse `CmsLoginData` → `brix_srv_register(host, port, paths, free_mb, util_pct)`; mark `logged_in`; arm the per-server ping timer |
-| `kYR_load` | extract `dskFree` → `brix_srv_update_load()` |
+| `kYR_login` | parse `CmsLoginData` → `brix_srv_register(host, port, paths, free_mb, util_pct)`; mark `logged_in`; arm the per-server ping timer; record `vnid`/stage bits (phase-89 W9) |
+| `kYR_load` | extract `dskFree` + the `theLoad` machine-load bytes → `brix_srv_update_load()` (incl. `load_pct`, phase-89 W4) |
 | `kYR_avail` / `kYR_space` | extract `free_mb` + `util_pct` → `brix_srv_update_load()` |
 | `kYR_pong` | (debug) liveness confirmed |
 | `kYR_gone` | `brix_srv_unregister_path(host, port, path)` — drop one path, keep the rest of the registration |
+| `kYR_have` | record "this node holds `<path>`" in the dynamic file-location cache (phase-89 W3) |
+| `kYR_statfs` / `kYR_usage` / `kYR_stats` / `kYR_status` | space/telemetry queries + suspend/resume (phase-89 PR-1/PR-2) |
+| `kYR_update` / `kYR_disc` | state-resend request / graceful disconnect |
 | disconnect | `brix_srv_close()` → **blacklist host:port for 30 s** then free, so in-flight redirects don't route to a server that just vanished |
 
 The login parser (`cms_srv_parse_login`) is the mirror image of §5.1: it walks

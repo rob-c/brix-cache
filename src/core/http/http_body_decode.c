@@ -1,9 +1,11 @@
 /*
- * http_body_decode.c - shared nginx request-body decompress-to-fd pipeline.
+ * http_body_decode.c - shared nginx request-body decompress pipeline.
  *
  * WHAT: Streams a Content-Encoding codec (gzip/deflate/zstd/xz/brotli/bzip2/lz4)
- *       over an nginx request body chain, writing the decoded plaintext to a
- *       destination fd under a decompression-bomb guard. Owns the codec stream
+ *       over an nginx request body chain, writing the decoded plaintext to either
+ *       a destination fd (brix_http_body_decode_to_fd) or a VFS writer session
+ *       (brix_http_body_decode_to_writer, for driver-backed S3/Ceph objects with
+ *       no kernel fd), under a decompression-bomb guard. Owns the codec stream
  *       setup, the per-buffer feed loop (memory + spooled buffers), and the
  *       failed-decode HTTP-status mapping.
  *
@@ -52,7 +54,8 @@
 typedef struct {
     brix_codec_stream_t  *s;
     ngx_log_t            *log;
-    ngx_fd_t              dst_fd;
+    ngx_fd_t              dst_fd;      /* raw-fd sink (writer == NULL)          */
+    brix_vfs_writer_t    *writer;      /* VFS-writer sink (dst_fd unused)       */
     const char           *log_path;
     u_char               *outbuf;
     u_char               *inbuf;
@@ -60,8 +63,38 @@ typedef struct {
     brix_codec_rc_t       worst_rc;
 } codec_ctx_t;
 
-/* Feed one input chunk through the codec stream, writing all produced output to
- * cx->dst_fd. finish!=0 marks the final input. *ended is set when the codec
+/*
+ * codec_sink — drain one produced output chunk to the decode target.
+ *
+ * WHAT: writes `len` decoded bytes at cx->dst_off, advancing it, to whichever
+ *       sink the run selected: a VFS writer (driver-backed object or POSIX
+ *       staged temp, with CRC accumulation) when cx->writer is set, otherwise the
+ *       raw kernel fd via brix_http_body_pwrite_full.
+ * WHY:  a single sink point lets both decode_to_fd and decode_to_writer share the
+ *       feed loop while targeting a fd or an object session; the writer path is
+ *       what makes Content-Encoding PUT work on S3/Ceph (no fd) and brings coded
+ *       bodies under verify-on-write.
+ * HOW:  writer set -> brix_vfs_writer_write (sequential extent at dst_off; the
+ *       staged/object writer refuses a non-sequential offset), else the pwrite
+ *       helper. Returns NGX_OK/NGX_ERROR (errno set on the write failure).
+ */
+static ngx_int_t
+codec_sink(codec_ctx_t *cx, const u_char *buf, size_t len)
+{
+    if (cx->writer != NULL) {
+        if (brix_vfs_writer_write(cx->writer, buf, len, cx->dst_off) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        cx->dst_off += (off_t) len;
+        return NGX_OK;
+    }
+    return brix_http_body_pwrite_full(cx->log, cx->dst_fd, buf, len,
+                                        &cx->dst_off, cx->log_path);
+}
+
+/* Feed one input chunk through the codec stream, draining all produced output to
+ * the armed sink (fd or VFS writer) via codec_sink. finish!=0 marks the final
+ * input. *ended is set when the codec
  * reports end-of-stream. cx->worst_rc captures the first negative codec rc (for
  * the caller's HTTP-status mapping: ERR_BOMB -> 413, ERR_DATA -> 400). Returns
  * NGX_OK/ERROR. */
@@ -86,10 +119,7 @@ codec_feed(codec_ctx_t *cx, const u_char *in, size_t in_len, int finish,
             return NGX_ERROR;
         }
         if (op > 0) {
-            if (brix_http_body_pwrite_full(cx->log, cx->dst_fd, cx->outbuf, op,
-                                             &cx->dst_off, cx->log_path)
-                != NGX_OK)
-            {
+            if (codec_sink(cx, cx->outbuf, op) != NGX_OK) {
                 return NGX_ERROR;
             }
         }
@@ -299,19 +329,20 @@ codec_decode_http_status(brix_codec_rc_t worst_rc)
 }
 
 /*
- * brix_http_body_decode_to_fd - decompress the request body to dst_fd.
+ * codec_run - shared decompress-the-body engine for both public sinks.
  *
  * WHAT: streams the Content-Encoding-selected codec over the request body chain,
- *       writing plaintext to dst_fd. Bounds output via the bomb guard (out_cap =
- *       max_output, ratio default) so a hostile highly-compressible upload cannot
+ *       writing plaintext to whichever sink is armed — the raw fd `dst_fd` (when
+ *       `w` is NULL) or the VFS writer `w`. Bounds output via the bomb guard
+ *       (out_cap = max_output) so a hostile highly-compressible upload cannot
  *       exhaust disk; on any failure sets *http_status_out (413 bomb / 400 bad
  *       data / 500 I-O) and returns NGX_ERROR. On success returns NGX_OK.
  * HOW:  summarise (validate) the body, set up one codec_ctx_t (stream + scratch
  *       buffers via codec_ctx_setup), hand the per-buffer feed loop to
  *       codec_decode_bufs, then free buffers + close the stream once on return.
  */
-ngx_int_t
-brix_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+static ngx_int_t
+codec_run(ngx_http_request_t *r, ngx_fd_t dst_fd, brix_vfs_writer_t *w,
     const char *log_path, brix_codec_id_t codec, uint64_t max_output,
     brix_http_body_summary_t *summary_out, ngx_int_t *http_status_out)
 {
@@ -335,6 +366,7 @@ brix_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
     ngx_memzero(&cx, sizeof(cx));
     cx.log      = r->connection->log;
     cx.dst_fd   = dst_fd;
+    cx.writer   = w;
     cx.log_path = log_path;
     cx.worst_rc = BRIX_CODEC_OK;
 
@@ -354,6 +386,34 @@ brix_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
         *http_status_out = codec_decode_http_status(cx.worst_rc);
     }
     return rc;
+}
+
+/*
+ * brix_http_body_decode_to_fd - decompress the request body to a raw fd.
+ * Thin wrapper over codec_run with the fd sink armed (writer NULL).
+ */
+ngx_int_t
+brix_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
+    const char *log_path, brix_codec_id_t codec, uint64_t max_output,
+    brix_http_body_summary_t *summary_out, ngx_int_t *http_status_out)
+{
+    return codec_run(r, dst_fd, NULL, log_path, codec, max_output,
+                     summary_out, http_status_out);
+}
+
+/*
+ * brix_http_body_decode_to_writer - decompress the request body into a VFS
+ * writer. Thin wrapper over codec_run with the writer sink armed (dst_fd unused);
+ * works for a driver-backed object session with no kernel fd and routes every
+ * decoded byte through the writer's CRC accumulator.
+ */
+ngx_int_t
+brix_http_body_decode_to_writer(ngx_http_request_t *r, brix_vfs_writer_t *w,
+    const char *log_path, brix_codec_id_t codec, uint64_t max_output,
+    brix_http_body_summary_t *summary_out, ngx_int_t *http_status_out)
+{
+    return codec_run(r, NGX_INVALID_FILE, w, log_path, codec, max_output,
+                     summary_out, http_status_out);
 }
 
 /*

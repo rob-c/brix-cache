@@ -47,6 +47,8 @@ PORT_BLOCKS = {
     "fuse_cache": 13300, "fuse_catalog": 13320, "fuse_manifest_parse": 13340,
     "fuse_posix": 13360, "fuse_read": 13380, "fuse_refresh_failover": 13400,
     "fuse_trust": 13420, "fuse_whitelist": 13440, "fuse_pin": 13460,
+    "srv_bundle": 13480, "srv_dict": 13500, "srv_scvmfs_x509": 13520,
+    "srv_scvmfs_voms": 13540,
 }
 # NOTE: the prefetch/prewarm suites (test_cvmfs_prefetch.py, test_cvmfs_prewarm.py)
 # deliberately use OS-assigned ephemeral ports (bind port 0) instead of a block
@@ -251,6 +253,7 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
                  repo="test.cern.ch", n_mocks=1, keepalive=False, origins=None,
                  location=None, proxy_mode=False, upstream_allow=None,
                  scvmfs=False, ssl_cert=None, ssl_key=None, worker_threads=2,
+                 ssl_verify_client=None, ssl_client_ca=None,
                  extra_directives="", nginx=None, **knobs):
     """Start `n_mocks` mock origins + a LiveRun nginx with a brix_cvmfs config.
 
@@ -291,6 +294,12 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
             listen += " ssl"
         ssl_lines = (f"ssl_certificate {ssl_cert}; ssl_certificate_key {ssl_key};"
                      if ssl_cert else "")
+        # ssl_verify_client / ssl_client_certificate are http|server context
+        # (never location) — inject into the server block alongside the cert.
+        if ssl_client_ca:
+            ssl_lines += f" ssl_client_certificate {ssl_client_ca};"
+        if ssl_verify_client:
+            ssl_lines += f" ssl_verify_client {ssl_verify_client};"
         error_log = run.root / "logs/e.log"
         # Under a root harness nginx drops workers to `nobody`, which cannot
         # traverse the 0700 mkdtemp root nor write the root-owned cache store —

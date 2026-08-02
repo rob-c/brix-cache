@@ -179,6 +179,14 @@ static int collect_cb(const cvmfs_walk_item_t *it, void *ud) {
     return (c->stop_after > 0 && c->n >= c->stop_after) ? 1 : 0;
 }
 
+/* paths-mode item: kind DENT, hash/suffix meaningless — match on path only */
+static int saw_path(const collect_t *c, const char *path) {
+    for (int i = 0; i < c->n && i < 32; i++)
+        if (c->item[i].kind == CVMFS_WALK_DENT && strcmp(c->item[i].path, path) == 0)
+            return 1;
+    return 0;
+}
+
 static int saw(const collect_t *c, cvmfs_walk_kind_e kind, const cvmfs_hash_t *h,
                char suffix, const char *path) {
     char hex[48];
@@ -325,6 +333,26 @@ int main(void) {
     rc = cvmfs_walk_subtree(&fx, &hR, tmp_dir, "/absent", 8, collect_cb, &c, 1000);
     CHECK(rc == 0 && c.n == 0, "subtree of an absent path is an empty walk");
 
+    /* ---- paths mode (phase-87 G1): every named entry, no CAS refs -------- */
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_paths(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 8, "paths walk emits exactly the 8 named entries");
+    CHECK(saw_path(&c, "/hello") && saw_path(&c, "/dir") && saw_path(&c, "/dir/inner")
+          && saw_path(&c, "/link") && saw_path(&c, "/nested"),
+          "paths walk covers files, plain dirs, and symlinks");
+    CHECK(saw_path(&c, "/nested/big") && saw_path(&c, "/nested/deep")
+          && saw_path(&c, "/nested/deep/leaf"),
+          "paths walk descends nested catalogs");
+    CHECK(!saw(&c, CVMFS_WALK_CATALOG, &hA, 'C', "/nested")
+          && !saw(&c, CVMFS_WALK_FILE, &h_hello, 0, "/hello"),
+          "paths walk emits no CAS references");
+
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_paths(&fx, &hR, tmp_dir, 0, collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 5 && saw_path(&c, "/nested")
+          && !saw_path(&c, "/nested/big"),
+          "depth-0 paths walk records the mountpoint without descending");
+
     /* ---- security-neg: tampered nested catalog aborts the walk ----------- */
     /* fresh cache so catalog A is refetched, not served from verified CAS */
     brix_cas_store_t cacheB;
@@ -334,6 +362,9 @@ int main(void) {
     memset(&c, 0, sizeof(c));
     rc = cvmfs_walk_catalog(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
     CHECK(rc == -1, "tampered nested catalog aborts the walk");   /* security-neg */
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_paths(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
+    CHECK(rc == -1, "tampered nested catalog aborts the paths walk too");
     zA[zAn / 2] ^= 0x40;
 
     /* ---- cvmfs_verify_blob ---------------------------------------------- */

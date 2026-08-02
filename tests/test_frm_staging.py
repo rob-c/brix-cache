@@ -203,6 +203,9 @@ def frm_recall(lifecycle, tmp_path):
     s.port = ep.port
     s.tape_content = TAPE_BYTES
     s.recall_log = str(recall_log)
+    # The unified transfer-ledger sink defaults to <prefix>/logs/xfer_audit.log
+    # (finding #12: the sync recall now books a kind=tape line here).
+    s.audit_log = os.path.join(ep.prefix, "logs", "xfer_audit.log")
     yield s
 
 
@@ -249,11 +252,60 @@ def test_failed_recall_returns_error_not_hang(frm_recall, tmp_path):
     assert r.returncode != 0, "open of an unstageable file should fail, not hang"
 
 
-@pytest.mark.skip(reason="unified transfer-ledger kind=tape line is emitted only by "
-                         "the stage_engine RECALL path; driving it from a read/prepare "
-                         "is the future engine-integration step noted in "
-                         "src/protocols/root/query/prepare.c (frm_stage_kick -> "
-                         "brix_stage_submit(RECALL)). The sd_frm read-fault recall is "
-                         "synchronous and writes no ledger line.")
+def _audit_lines_after(audit_log, since):
+    """New xfer-audit lines (index >= since) — [] if the sink is not yet open."""
+    if not os.path.exists(audit_log):
+        return []
+    with open(audit_log, "r", errors="replace") as fh:
+        return fh.readlines()[since:]
+
+
+def _wait_for_tape_line(audit_log, since, needle, timeout=8.0):
+    """First NEW kind=tape line naming `needle`, polled until timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for ln in _audit_lines_after(audit_log, since):
+            if "kind=tape" in ln and needle in ln:
+                return ln
+        time.sleep(0.1)
+    return None
+
+
+def _audit_len(audit_log):
+    if not os.path.exists(audit_log):
+        return 0
+    with open(audit_log, "r", errors="replace") as fh:
+        return len(fh.readlines())
+
+
 def test_recall_emits_unified_tape_audit_line(frm_recall, tmp_path):
-    pass
+    """Finding #12: a synchronous read-fault recall (cache miss-fill of a
+    nearline object) now books the ONE unified transfer-ledger line —
+    kind=tape dir=in result=ok bytes=<size> — the sync counterpart to the
+    stage_engine RECALL emit. Only genuine tape->cache recalls are recorded."""
+    since = _audit_len(frm_recall.audit_log)
+    out = str(tmp_path / "near.out")
+    r = _xrdcp(frm_recall.port, "/near.dat", out)
+    assert r.returncode == 0, f"xrdcp failed: {r.stderr.decode(errors='replace')}"
+    assert open(out, "rb").read() == frm_recall.tape_content
+
+    line = _wait_for_tape_line(frm_recall.audit_log, since, "near.dat")
+    assert line is not None, "no unified kind=tape audit line for the recall"
+    assert "dir=in" in line
+    assert "result=ok" in line
+    assert f"bytes={len(frm_recall.tape_content)}" in line
+    assert line.count("\n") == 1     # exactly one well-formed record
+
+
+def test_failed_recall_emits_tape_error_line(frm_recall, tmp_path):
+    """A recall whose MSS verb fails terminally is booked as a kind=tape line
+    with result != ok (the failure is surfaced in the ledger, never masked as a
+    successful recall) — the negative counterpart to the success case above."""
+    since = _audit_len(frm_recall.audit_log)
+    r = _xrdcp(frm_recall.port, "/failfile.dat", str(tmp_path / "f.out"), timeout=30)
+    assert r.returncode != 0, "an unstageable object must fail the open"
+
+    line = _wait_for_tape_line(frm_recall.audit_log, since, "failfile.dat")
+    assert line is not None, "no kind=tape audit line for the failed recall"
+    assert "result=ok" not in line, "a failed recall must not be booked result=ok"
+    assert "dir=in" in line

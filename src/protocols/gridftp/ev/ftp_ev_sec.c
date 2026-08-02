@@ -28,6 +28,45 @@
  */
 
 
+/* Lift the client proxy's VOMS FQANs into the session identity so an authorized
+ * VO can *satisfy* a brix_gridftp_require_vo rule (not merely be denied by it),
+ * exactly as webdav_extract_and_set_voms_identity() does on the HTTPS plane. No
+ * vomsdir/voms_cert_dir (or no VOMS build) ⇒ no carry, so a require_vo export
+ * stays fail-closed: a proxy's VOMS AC is ignored and the gate denies. An absent
+ * VOMS extension on the proxy is normal (plain GSI) and non-fatal. */
+static void
+ev_gss_carry_voms(ftp_ev_t *fc)
+{
+    X509            *leaf  = NULL;
+    STACK_OF(X509)  *chain = NULL;
+    char             primary_vo[256] = "";
+    char             vo_list[1024]   = "";
+
+    if (fc->identity == NULL
+        || fc->conf->vomsdir.len == 0 || fc->conf->voms_cert_dir.len == 0
+        || !brix_voms_available())
+    {
+        return;
+    }
+    if (brix_gssapi_srv_peer_x509(fc->gss, &leaf, &chain) != NGX_OK) {
+        return;
+    }
+    (void) brix_extract_voms_info(fc->c->log, leaf, chain,
+                                  &fc->conf->vomsdir, &fc->conf->voms_cert_dir,
+                                  primary_vo, sizeof(primary_vo),
+                                  vo_list, sizeof(vo_list));
+    if (vo_list[0] != '\0'
+        && brix_identity_set_vos_csv(fc->identity, fc->c->pool, vo_list)
+           == NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_INFO, fc->c->log, 0,
+                      "brix: GridFTP(ev) VOMS carry primary_vo=\"%s\"",
+                      primary_vo);
+    }
+    X509_free(leaf);
+}
+
+
 /* After AUTH GSSAPI completes, bind the verified proxy DN into a brix_identity_t
  * (so the VFS ctx and audit see a real GSI principal), capture any delegated
  * credential, and activate the wrapped control channel. */
@@ -59,6 +98,7 @@ ev_gss_finalize(ftp_ev_t *fc)
         /* the client's control leaf is the delegated proxy's direct issuer;
          * needed to present a complete chain on a PROT P data channel. */
         (void) brix_gssapi_srv_peer_cert_pem(fc->gss, &fc->ctrl_leaf_pem);
+        ev_gss_carry_voms(fc);           /* lift VOMS FQANs into fc->identity */
         fc->authed = 1;
         ngx_log_error(NGX_LOG_INFO, fc->c->log, 0,
                       "brix: GridFTP(ev) gsiftp authenticated dn=\"%V\" deleg=%uz",

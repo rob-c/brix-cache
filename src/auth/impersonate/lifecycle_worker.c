@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <limits.h>                       /* PATH_MAX (P80.21 gate map load) */
 #include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
@@ -322,6 +323,27 @@ ngx_int_t
 brix_imp_init_worker(ngx_cycle_t *cycle)
 {
     char sockbuf[256];
+
+    /*
+     * P80.21: load the grid-mapfile worker-side for the authz gate, BEFORE the
+     * map-mode early-return, so DN->local-username mapping works under
+     * brix_impersonation off|single|map alike (the broker owns a separate copy
+     * in its own process).  A load failure is fatal to the worker: silently
+     * running with an empty map would collapse a per-unix-group posture to
+     * default-deny for everyone.
+     */
+    if (imp_settings.gridmap.len > 0) {
+        char mapbuf[PATH_MAX];
+
+        ngx_snprintf((u_char *) mapbuf, sizeof(mapbuf), "%V%Z",
+                     &imp_settings.gridmap);
+        if (brix_idmap_gate_init(mapbuf, cycle->log) != NGX_OK) {
+            ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
+                          "impersonate: authz-gate grid-mapfile load failed "
+                          "(\"%s\")", mapbuf);
+            return NGX_ERROR;
+        }
+    }
 
     /* Cap-drop is now done earlier + unconditionally via brix_imp_worker_harden()
      * (called before the stream-config early-return in ngx_stream_brix_init_process

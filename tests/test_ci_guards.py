@@ -58,6 +58,8 @@ _FAST = [
     "check_ports_doc",
     "check_vfs_seam",
     "check_vfs_identity_branch",
+    "check_brix_namespace",
+    "check_gridftp_interop_image",
 ]
 
 
@@ -65,6 +67,72 @@ _FAST = [
 def test_ci_guard_green(guard: str) -> None:
     rc, out = _run(guard)
     assert rc == 0, f"tools/ci/{guard}.py failed (exit {rc}):\n{out}"
+
+
+# --- brix-namespace guard: negative (drift is actually caught) ----------------
+# The green assertion above proves the tree is clean today; this proves the guard
+# would redden if a pre-rebrand token crept back in (the exact P44 `xrdc_aconn`
+# comment drift found in the phase-88 §5 reconciliation, 2026-07-30). Injects a
+# residual into a scanned tree, asserts non-zero exit, and always cleans up.
+_REPO = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize(
+    "rel,content",
+    [
+        ("src/core/_brix_ns_probe.h", "int xrootd_probe_symbol;\n"),
+        ("client/lib/_brix_ns_probe.h", "struct xrdc_probe { int x; };\n"),
+    ],
+)
+def test_brix_namespace_guard_catches_drift(rel: str, content: str) -> None:
+    probe = _REPO / rel
+    probe.write_text(content)
+    try:
+        rc, out = _run("check_brix_namespace")
+    finally:
+        probe.unlink()
+    assert rc != 0, f"guard missed injected residual in {rel}:\n{out}"
+    assert "_brix_ns_probe" in out, out
+
+
+# --- file-size guard: client/ coverage + client/tests carve-out --------------
+# The green assertion above proves the live tree is clean; this proves the
+# Phase-38 extension that widened the scan from src/ to *also* cover client/
+# (the ngx-free CLI + libbrix) while excluding client/tests/. Driven off an
+# injected temp tree via list_oversized(root=...), so it is hermetic and
+# independent of whatever the real backlog currently freezes.
+def _load_check_file_size():
+    import importlib.util
+
+    path = CI / "check_file_size.py"
+    spec = importlib.util.spec_from_file_location("check_file_size", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_file_size_guard_scans_client_and_excludes_client_tests(tmp_path) -> None:
+    cfs = _load_check_file_size()
+    big = "x();\n" * (cfs.CAP + 5)   # 605 newlines > cap
+    small = "y();\n" * 10
+    files = {
+        "src/core/big_src.c": big,             # src offender  -> listed
+        "client/apps/big_client.c": big,       # client offender -> listed (NEW)
+        "client/lib/small_client.c": small,    # under cap -> absent
+        "client/tests/c/big_test.c": big,      # excluded tree -> absent
+        "client/tests/big_test.h": big,        # excluded tree -> absent
+    }
+    for rel, content in files.items():
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+
+    listed = {path for path, _ in cfs.list_oversized(root=tmp_path)}
+    assert "client/apps/big_client.c" in listed, "guard must now scan client/"
+    assert "src/core/big_src.c" in listed, "guard must still scan src/"
+    assert "client/lib/small_client.c" not in listed
+    assert "client/tests/c/big_test.c" not in listed, "client/tests/ must be carved out"
+    assert "client/tests/big_test.h" not in listed, "client/tests/ must be carved out"
 
 
 # --- lizard-backed ratchets ---------------------------------------------------

@@ -15,6 +15,7 @@
 #include <openssl/opensslv.h>
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/provider.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 #endif
 
 /* Load the OpenSSL-3 "legacy" provider once (Blowfish lives there). Warm SHA2-256
@@ -176,7 +177,7 @@ brix_sss_bf_crypt(int encrypt, const uint8_t *key, size_t key_len,
         ok = sss_bf_decrypt_run(evp, key, key_len, iv, src, src_len,
                                 dst, &len1, &len2);
     }
-    EVP_CIPHER_CTX_free(evp);
+    brix_evp_cipher_ctx_free(evp);
     if (!ok) {
         return -1;
     }

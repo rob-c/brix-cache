@@ -31,6 +31,8 @@
 extern const char *brix_unified_auth_names[BRIX_METRIC_AUTH_COUNT];
 extern const char *brix_unified_tpc_direction_names[
     BRIX_METRIC_TPC_DIRECTION_COUNT];
+extern const char *brix_unified_tpc_deleg_result_names[
+    BRIX_TPC_DELEG_RESULT_COUNT];
 
 /* Finite latency-bucket upper bounds in usec (defined in unified.c); shared by
  * the record hot path (bucket selection) and the exporter (le="…" rendering). */

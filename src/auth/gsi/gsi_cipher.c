@@ -4,6 +4,7 @@
  */
 #include "gsi_core_internal.h"
 #include "core/compat/openssl_auto.h"   /* XRD_AUTO scope cleanup for EVP_CIPHER_CTX */
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 
 EVP_PKEY *
@@ -112,12 +113,12 @@ brix_gsi_cipher_parse_peer(const uint8_t *buf, size_t len)
                 }
             }
         }
-        EVP_PKEY_CTX_free(ctx);
+        brix_evp_pkey_ctx_free(ctx);
         OSSL_PARAM_free(merged);
         OSSL_PARAM_free(pk);
         OSSL_PARAM_free(pp);
         OSSL_PARAM_BLD_free(bld);
-        EVP_PKEY_free(params);
+        brix_evp_pkey_free(params);
         BIO_free(bio);
     }
     BN_free(bnpub);
@@ -238,7 +239,7 @@ brix_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
         || EVP_PKEY_derive_set_peer(ctx, peer) != 1
         || EVP_PKEY_derive(ctx, NULL, &slen) != 1
         || slen < (size_t) key_len) {
-        EVP_PKEY_CTX_free(ctx);
+        brix_evp_pkey_ctx_free(ctx);
         return 0;
     }
     secret = (uint8_t *) malloc(slen);
@@ -250,7 +251,7 @@ brix_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
         OPENSSL_cleanse(secret, slen);
         free(secret);
     }
-    EVP_PKEY_CTX_free(ctx);
+    brix_evp_pkey_ctx_free(ctx);
     return ok;
 }
 

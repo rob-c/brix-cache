@@ -51,6 +51,7 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     brix_csi_conf_init(&conf->csi);
     conf->throttle.max_open_files  = NGX_CONF_UNSET_UINT;
     conf->throttle.max_active_conn = NGX_CONF_UNSET_UINT;
+    conf->throttle.bwm_budget      = NGX_CONF_UNSET_SIZE;
     conf->prepare_command.len  = 0;
     conf->prepare_command.data = NULL;
     brix_frm_conf_init(&conf->frm);   /* Phase 35: FRM tape staging */
@@ -257,6 +258,8 @@ brix_create_srv_proxy_net(ngx_stream_brix_srv_conf_t *conf)
     conf->send_timeout      = NGX_CONF_UNSET_MSEC;
     conf->tcp_user_timeout  = NGX_CONF_UNSET_MSEC;
     conf->tcp_keepalive     = NGX_CONF_UNSET;
+    conf->socket_sndbuf     = NGX_CONF_UNSET_SIZE;
+    conf->socket_rcvbuf     = NGX_CONF_UNSET_SIZE;
     conf->max_connections   = NGX_CONF_UNSET_UINT;
     conf->manager_stale_after = NGX_CONF_UNSET_MSEC;
 }

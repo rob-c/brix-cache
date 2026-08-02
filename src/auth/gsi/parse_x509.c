@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "parse_x509_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Crypto helper declarations — defined in parse_crypto_helpers.c */
 extern BIGNUM *brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
@@ -164,7 +165,7 @@ gsi_store_signing_key(brix_ctx_t *ctx, const unsigned char *secret,
         ok = 1;
     }
     if (mdctx) {
-        EVP_MD_CTX_free(mdctx);
+        brix_evp_md_ctx_free(mdctx);
     }
     return ok;
 }

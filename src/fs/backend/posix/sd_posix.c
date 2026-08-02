@@ -278,6 +278,7 @@ const brix_sd_driver_t brix_sd_posix_driver = {
     .ftruncate = sd_posix_ftruncate,
     .fsync = sd_posix_fsync,
     .fstat = sd_posix_fstat,
+    .read_advise = sd_posix_read_advise,
 #ifndef XRDPROTO_NO_NGX
     .stat = sd_posix_stat,
     .unlink = sd_posix_unlink,

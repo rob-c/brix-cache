@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "parse_x509_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Crypto helper declarations — defined in parse_crypto_helpers.c */
 extern BIGNUM *brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
@@ -35,8 +36,8 @@ gsi_unsigned_derive_secret(ngx_connection_t *c, EVP_PKEY *dh_key, EVP_PKEY *peer
         || EVP_PKEY_CTX_set_dh_pad(pkctx, 0) != 1
         || EVP_PKEY_derive_set_peer(pkctx, peer) != 1)
     {
-        EVP_PKEY_CTX_free(pkctx);
-        EVP_PKEY_free(peer);
+        brix_evp_pkey_ctx_free(pkctx);
+        brix_evp_pkey_free(peer);
         return NULL;
     }
 
@@ -47,23 +48,23 @@ gsi_unsigned_derive_secret(ngx_connection_t *c, EVP_PKEY *dh_key, EVP_PKEY *peer
      * run-to-run, so it MUST be probed rather than assumed == prime size.
      */
     if (EVP_PKEY_derive(pkctx, NULL, secret_len) != 1) {
-        EVP_PKEY_CTX_free(pkctx);
-        EVP_PKEY_free(peer);
+        brix_evp_pkey_ctx_free(pkctx);
+        brix_evp_pkey_free(peer);
         return NULL;
     }
     secret = ngx_palloc(c->pool, *secret_len);
     if (!secret) {
-        EVP_PKEY_CTX_free(pkctx);
-        EVP_PKEY_free(peer);
+        brix_evp_pkey_ctx_free(pkctx);
+        brix_evp_pkey_free(peer);
         return NULL;
     }
     if (EVP_PKEY_derive(pkctx, secret, secret_len) != 1) {
-        EVP_PKEY_CTX_free(pkctx);
-        EVP_PKEY_free(peer);
+        brix_evp_pkey_ctx_free(pkctx);
+        brix_evp_pkey_free(peer);
         return NULL;
     }
-    EVP_PKEY_CTX_free(pkctx);
-    EVP_PKEY_free(peer);
+    brix_evp_pkey_ctx_free(pkctx);
+    brix_evp_pkey_free(peer);
     return secret;
 }
 
@@ -106,7 +107,7 @@ gsi_unsigned_key_length(const EVP_CIPHER *evp_cipher, size_t secret_len)
         if (EVP_CIPHER_CTX_key_length(tctx) == (int) ltmp) {
             use_len = ltmp;
         }
-        EVP_CIPHER_CTX_free(tctx);
+        brix_evp_cipher_ctx_free(tctx);
     }
     return use_len;
 }
@@ -186,7 +187,7 @@ gsi_unsigned_decrypt_main(ngx_connection_t *c, EVP_CIPHER_CTX *dctx,
     *plain_len = 0;
     plain = ngx_palloc(c->pool, plain_size);
     if (!plain) {
-        EVP_CIPHER_CTX_free(dctx);
+        brix_evp_cipher_ctx_free(dctx);
         return NULL;
     }
 
@@ -194,7 +195,7 @@ gsi_unsigned_decrypt_main(ngx_connection_t *c, EVP_CIPHER_CTX *dctx,
                           main_data, (int) main_len) != 1) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI kXGC_cert: EVP_DecryptUpdate failed");
-        EVP_CIPHER_CTX_free(dctx);
+        brix_evp_cipher_ctx_free(dctx);
         return NULL;
     }
     if (EVP_DecryptFinal_ex(dctx, plain + olen, &flen) != 1) {
@@ -204,10 +205,10 @@ gsi_unsigned_decrypt_main(ngx_connection_t *c, EVP_CIPHER_CTX *dctx,
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI kXGC_cert: EVP_DecryptFinal failed: %s",
                       errstr);
-        EVP_CIPHER_CTX_free(dctx);
+        brix_evp_cipher_ctx_free(dctx);
         return NULL;
     }
-    EVP_CIPHER_CTX_free(dctx);
+    brix_evp_cipher_ctx_free(dctx);
 
     *plain_len = (size_t) olen + (size_t) flen;  /* widen BEFORE adding */
     return plain;

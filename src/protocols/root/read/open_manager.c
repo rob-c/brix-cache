@@ -47,6 +47,69 @@ brix_open_cms_locate(brix_ctx_t *ctx, ngx_connection_t *c,
 	return NGX_DECLINED;
 }
 
+/*
+ * Dynamic manager redirect: registry select → collapse-redir cache → CMS parent
+ * locate, with the tried-exhausted short-circuit.  Returns a terminal result
+ * (redirect / not-found / NGX_AGAIN parked on CMS) or NGX_DECLINED to fall
+ * through to the static map / local resolve.  Split out of the redirect entry so
+ * each stays within the CCN ceiling (coding-standards §4/§8).
+ */
+static ngx_int_t
+brix_open_manager_dynamic(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int is_write, const char *clean_path,
+    int op)
+{
+	char      redir_host[256];
+	uint16_t  redir_port;
+	ngx_int_t crc;
+
+	/* tried/triedrc: a read whose client has already visited every server
+	 * holding this path (all returned enoent) must get not-found, not yet
+	 * another redirect — otherwise it loops to the client redirect limit.
+	 * Writes are excluded: they create the file on the selected server. */
+	if (!is_write
+	    && brix_manager_tried_exhausted(ctx->recv.payload, ctx->recv.cur_dlen,
+	                                      clean_path)) {
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
+		                  "rd", kXR_NotFound,
+		                  "file not found on any data server");
+	}
+
+	/* Collapse-redir cache: serve reads from cache to skip CMS. */
+	if (!is_write && conf->caps.collapse_redir
+	    && brix_redir_cache_lookup(clean_path, redir_host,
+	                                 sizeof(redir_host), &redir_port)) {
+		BRIX_RETURN_REDIR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
+		                    clean_path, "redir-cache",
+		                    redir_host, redir_port);
+	}
+
+	/* Open may redirect to a server whose CMS heartbeat just dropped (a
+	 * transient blip under load blacklists it for 30 s though its data plane
+	 * is still serving) — better than a false NotFound for a file that
+	 * exists.  kXR_locate stays strict.  A truly dead target just makes the
+	 * client's connect fail and the tried/triedrc retry converges to
+	 * NotFound. */
+	if (brix_srv_select_or_blacklisted(clean_path, is_write, redir_host,
+	                      sizeof(redir_host), &redir_port)) {
+		if (!is_write && conf->caps.collapse_redir) {
+			brix_redir_cache_insert(clean_path, redir_host, redir_port,
+			                          conf->caps.collapse_redir_ttl);
+		}
+		BRIX_RETURN_REDIR(ctx, c, op,
+		                    "OPEN", clean_path, "registry",
+		                    redir_host, redir_port);
+	}
+
+	/* Registry miss — ask the CMS parent via kYR_locate. */
+	crc = brix_open_cms_locate(ctx, c, conf, clean_path);
+	if (crc != NGX_DECLINED) {
+		return crc;   /* parked on the CMS locate (NGX_AGAIN) */
+	}
+	/* NGX_DECLINED: fall through to static-map / local resolve. */
+	return NGX_DECLINED;
+}
+
 ngx_int_t
 brix_open_manager_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, int is_write, const char *clean_path)
@@ -55,54 +118,10 @@ brix_open_manager_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	/* Dynamic manager mode: redirect to best registered server. */
 	if (conf->manager_mode) {
-		char     redir_host[256];
-		uint16_t redir_port;
-
-		/* tried/triedrc: a read whose client has already visited every server
-		 * holding this path (all returned enoent) must get not-found, not yet
-		 * another redirect — otherwise it loops to the client redirect limit.
-		 * Writes are excluded: they create the file on the selected server. */
-		if (!is_write
-		    && brix_manager_tried_exhausted(ctx->recv.payload, ctx->recv.cur_dlen,
-		                                      clean_path)) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
-			                  "rd", kXR_NotFound,
-			                  "file not found on any data server");
-		}
-
-		/* Collapse-redir cache: serve reads from cache to skip CMS. */
-		if (!is_write && conf->caps.collapse_redir
-		    && brix_redir_cache_lookup(clean_path, redir_host,
-		                                 sizeof(redir_host), &redir_port)) {
-			BRIX_RETURN_REDIR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
-			                    clean_path, "redir-cache",
-			                    redir_host, redir_port);
-		}
-
-		/* Open may redirect to a server whose CMS heartbeat just dropped (a
-		 * transient blip under load blacklists it for 30 s though its data plane
-		 * is still serving) — better than a false NotFound for a file that
-		 * exists.  kXR_locate stays strict.  A truly dead target just makes the
-		 * client's connect fail and the tried/triedrc retry converges to
-		 * NotFound. */
-		if (brix_srv_select_or_blacklisted(clean_path, is_write, redir_host,
-		                      sizeof(redir_host), &redir_port)) {
-			if (!is_write && conf->caps.collapse_redir) {
-				brix_redir_cache_insert(clean_path, redir_host, redir_port,
-				                          conf->caps.collapse_redir_ttl);
-			}
-			BRIX_RETURN_REDIR(ctx, c, op,
-			                    "OPEN", clean_path, "registry",
-			                    redir_host, redir_port);
-		}
-
-		/* Registry miss — ask the CMS parent via kYR_locate. */
-		{
-			ngx_int_t crc = brix_open_cms_locate(ctx, c, conf, clean_path);
-			if (crc != NGX_DECLINED) {
-				return crc;   /* parked on the CMS locate (NGX_AGAIN) */
-			}
-			/* NGX_DECLINED: fall through to static-map / local resolve. */
+		ngx_int_t rc = brix_open_manager_dynamic(ctx, c, conf, is_write,
+		                                          clean_path, op);
+		if (rc != NGX_DECLINED) {
+			return rc;
 		}
 	}
 
@@ -116,6 +135,20 @@ brix_open_manager_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
 							  "OPEN", clean_path, "redirect",
 							  (const char *) m->host.data, m->port);
 		}
+	}
+
+	/* Manager mode exhausted every redirect avenue — no registered server, no
+	 * CMS parent answer, no static-map match — and this node has no local export
+	 * (rootfd < 0: a pure redirector skips brix_init_server_rootfd). Falling
+	 * through to the local resolve would openat(-1, ...) and surface a confusing
+	 * EBADF -> kXR_IOError. A manager forwards to data servers and never stores
+	 * locally, so the honest answer is kXR_noserver: the cluster currently has no
+	 * data server able to serve/create this path. A combined manager+data node
+	 * (rootfd >= 0) still falls through to serve the file itself. */
+	if (conf->manager_mode && conf->rootfd < 0) {
+		BRIX_RETURN_ERR(ctx, c, op, "OPEN", clean_path,
+		                  "no-server", kXR_noserver,
+		                  "no data server available");
 	}
 
 	return NGX_DECLINED;

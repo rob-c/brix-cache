@@ -108,6 +108,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * delegation_get_peer_pem - PEM-export the TLS peer certificate off this
@@ -363,7 +364,7 @@ webdav_delegation_request_handle(ngx_http_request_t *r)
     req_pem = delegation_req_der_to_pem(req_der, req_der_len, &req_pem_len);
     free(req_der);
     if (req_pem == NULL) {
-        EVP_PKEY_free(newkey);
+        brix_evp_pkey_free(newkey);
         return delegation_request_reject(r, NGX_HTTP_INTERNAL_SERVER_ERROR,
                           "cannot encode proxy request\n");
     }
@@ -372,7 +373,7 @@ webdav_delegation_request_handle(ngx_http_request_t *r)
             id, sizeof(id)) != NGX_OK)
     {
         /* newkey ownership did NOT transfer on a failed put — free it here. */
-        EVP_PKEY_free(newkey);
+        brix_evp_pkey_free(newkey);
         free(req_pem);
         return delegation_request_reject(r, NGX_HTTP_SERVICE_UNAVAILABLE,
                           "too many pending delegations, try again later\n");

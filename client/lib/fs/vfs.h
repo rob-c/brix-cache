@@ -57,6 +57,7 @@ typedef struct brix_cred_store brix_cred_store;   /* fwd decl (Part B); NULL for
 
 typedef struct {
     int              io_uring;      /* XRDC_IO_URING_{OFF,AUTO,ON} for posix/block      */
+    int              io_uring_direct; /* 1 = engage the O_DIRECT tier (page-cache bypass) */
     int64_t          expected_size; /* writer hint: <0 unknown; drives s3 single-PUT vs MPU */
     brix_cred_store *cred;          /* credential source for s3/web backends (NULL=local) */
 } brix_vfs_open_opts;

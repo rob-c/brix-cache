@@ -248,23 +248,55 @@ refresh_gsi_proxy(int verbose, FILE *out)
  * errors simply leaves the existing credential (the server stays authoritative,
  * and Phase 40 (c) pre-flight will still warn if it is genuinely unusable).
  */
+/*
+ * brix_cred_refresh_bearer — re-mint the local bearer token, best-effort.
+ *
+ * WHAT: public per-kind entry point (phase-92 C2a) wrapping refresh_bearer_token
+ *       with the shared $OIDC_ACCOUNT fallback so the cred-store bearer handler
+ *       can drive the same engine the pre-transfer sweep uses.
+ * WHY:  the (cfg, st) store handler needs a single-kind refresh, not the
+ *       both-kinds umbrella; splitting avoids re-running the GSI path whenever a
+ *       bearer nears expiry.
+ * HOW:  resolve account (arg → $OIDC_ACCOUNT), delegate; returns 1/0.
+ */
+int
+brix_cred_refresh_bearer(const char *oidc_account, int verbose, FILE *out)
+{
+    const char *account = oidc_account;
+
+    if (account == NULL || account[0] == '\0') {
+        account = getenv("OIDC_ACCOUNT");
+    }
+    return refresh_bearer_token(account, verbose, out);
+}
+
+/*
+ * brix_cred_refresh_gsi — regenerate the GSI proxy, best-effort.
+ *
+ * WHAT: public per-kind entry point (phase-92 C2a) wrapping refresh_gsi_proxy so
+ *       the cred-store X.509 handler can regenerate a near-expiry proxy.
+ * WHY:  see brix_cred_refresh_bearer — single-kind refresh for the store.
+ * HOW:  thin delegate; returns 1/0.
+ */
+int
+brix_cred_refresh_gsi(int verbose, FILE *out)
+{
+    return refresh_gsi_proxy(verbose, out);
+}
+
 int
 brix_cred_autorefresh(int want_write, const char *oidc_account, int verbose,
                       FILE *out)
 {
-    const char *account = oidc_account;
-    int         refreshed = 0;
+    int refreshed = 0;
 
     (void) want_write;
-    if (account == NULL || account[0] == '\0') {
-        account = getenv("OIDC_ACCOUNT");
-    }
 
     /* Bearer token via oidc-agent — only when an account is configured. */
-    refreshed += refresh_bearer_token(account, verbose, out);
+    refreshed += brix_cred_refresh_bearer(oidc_account, verbose, out);
 
     /* GSI proxy via brix_proxy_create — only when a user cert exists. */
-    refreshed += refresh_gsi_proxy(verbose, out);
+    refreshed += brix_cred_refresh_gsi(verbose, out);
 
     return refreshed;
 }

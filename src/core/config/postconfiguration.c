@@ -2,6 +2,7 @@
 #include "net/manager/redir_cache.h"
 #include "net/manager/loc_cache.h"
 #include "net/cms/reqid_map.h"
+#include "net/cms/cns.h"
 #include "fs/xfer/stage_waiter.h"
 #include "core/negcache/negcache.h"
 #include "auth/impersonate/lifecycle.h"
@@ -287,6 +288,15 @@ postconf_stage_waiter(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
             }
             break;
         }
+    }
+
+    /* §6 CNS: register the cross-worker inventory SHM zone once when any block is
+     * a collector (manager), so every worker shares one path→metadata table. The
+     * collect flag is set during srv-conf merge (before postconfiguration). */
+    if (brix_cns_collecting()
+        && brix_cns_configure(cf, BRIX_CNS_DEFAULT_SLOTS) != NGX_OK)
+    {
+        return NGX_ERROR;
     }
 
     return NGX_OK;

@@ -46,6 +46,7 @@ static time_t                  idmap_ttl      = BRIX_IDMAP_DEFAULT_TTL;
 uid_t                          idmap_min_uid  = BRIX_IDMAP_DEFAULT_MIN_UID;
 int                            idmap_primary_only;
 static char                    idmap_default_user[IDMAP_PRINC_MAX]; /* "" = deny */
+static int                     idmap_gate_loaded;   /* P80.21: gate map present */
 
 
 static ngx_uint_t
@@ -226,4 +227,47 @@ brix_idmap_resolve(const brix_idmap_conf_t *conf, const char *principal,
         *out = creds;
     }
     return rc;
+}
+
+/* ---- P80.21 worker-side authz-gate mapping ------------------------------- */
+
+ngx_int_t
+brix_idmap_gate_init(const char *path, ngx_log_t *log)
+{
+    ngx_int_t rc = idmap_gridmap_load(path, log);   /* drops any prior table */
+
+    /* A hit is now answerable only when a non-empty mapfile actually loaded;
+     * on a load error the table is already freed (empty), so mapping is off. */
+    idmap_gate_loaded = (rc == NGX_OK && path != NULL && path[0] != '\0')
+                        ? 1 : 0;
+    return rc;
+}
+
+int
+brix_idmap_gate_enabled(void)
+{
+    return idmap_gate_loaded;
+}
+
+int
+brix_idmap_gate_username(const char *principal, char *out, size_t outlen)
+{
+    const char *user;
+    size_t      n;
+
+    if (!idmap_gate_loaded || principal == NULL || principal[0] == '\0'
+        || out == NULL || outlen == 0)
+    {
+        return 0;
+    }
+    user = idmap_gridmap_lookup(principal);       /* grid-mapfile ONLY */
+    if (user == NULL) {
+        return 0;                                 /* unmapped -> keep the DN */
+    }
+    n = ngx_strlen(user);
+    if (n >= outlen) {
+        return 0;                                 /* cannot represent -> unmapped */
+    }
+    ngx_memcpy(out, user, n + 1);
+    return 1;
 }

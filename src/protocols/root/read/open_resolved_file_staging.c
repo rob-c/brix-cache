@@ -69,8 +69,15 @@ brix_open_probe(ngx_log_t *log, const char *root, const char *abs,
 {
     brix_vfs_ctx_t vctx;
 
+    /* Carry the caller's identity onto the probe ctx: an EXCHANGE deleg (S3 STS,
+     * §5.5) scopes the minted origin cred to it (RoleSessionName). A NULL identity
+     * here would probe the origin AS "anonymous" while the real open probes AS the
+     * caller — a policy-scoped AssumeRole could then answer the two differently and
+     * turn a legitimate read into a spurious kXR_NotFound (the very failure this
+     * probe's deleg exists to prevent). Only meaningful with a session ctx. */
     brix_vfs_ctx_init(&vctx, pool, log, BRIX_PROTO_ROOT, root, NULL,
-        1 /* allow_write */, 0 /* is_tls */, NULL, abs);
+        1 /* allow_write */, 0 /* is_tls */,
+        ctx != NULL ? ctx->identity : NULL, abs);
     if (ctx != NULL && conf != NULL && pool != NULL) {
         brix_root_vfs_bind_deleg(ctx, conf, &vctx);
     }

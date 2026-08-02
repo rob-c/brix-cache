@@ -60,6 +60,22 @@
  * WHAT: Single entry in the shared-memory session registry mapping sessid → {dn, vo_list, token_auth}. sessid[16] uniquely identifies an XRootD session; dn (distinguished name from GSI certificate) and vo_list (virtual organization authorization list) determine client identity and eligibility for operations. token_auth flag indicates whether JWT bearer token was used instead of GSI certificate. in_use marks slot occupancy — 0 means free, 1 means registered. Capacity: BRIX_SESSION_REGISTRY_SLOTS entries (default 1024).
  */
 
+/* Per-source identity key (Phase 27 W5 / P90-27.2): the ratelimit-vocabulary
+ * bucket id of the registering principal — "dn:<8-hex>" or "sub:<8-hex>"
+ * (brix_rl_key_dn_hash / brix_rl_key_sub_hash), "" when the login carried no
+ * DN (such sessions are un-keyed and only ever subject to the global F4 LRU).
+ * Longest form is "sub:" + 8 hex + NUL = 13 bytes. */
+#define BRIX_SESSION_SRC_KEY_LEN  16
+
+/* Phase 27 W5 / P90-27.2: soft per-source session quota.  Once one identity
+ * owns this many live slots, its NEXT registration recycles that identity's
+ * OWN least-recently-seen session instead of taking a free slot — so a
+ * single principal can neither fill the table nor push OTHER identities'
+ * sessions into the F4 global-LRU reaper.  1/16 of the 1024-slot table:
+ * far above any legitimate multi-stream client, low enough that at least 16
+ * distinct identities always coexist. */
+#define BRIX_SESSION_PER_SOURCE_SOFT_CAP  64
+
 typedef struct {
     u_char     sessid[BRIX_SESSION_ID_LEN]; /* unique session identifier (16 bytes) */
     char       dn[512];                       /* distinguished name from GSI certificate */
@@ -68,6 +84,7 @@ typedef struct {
     ngx_uint_t in_use;                        /* slot occupancy: 0=free, 1=registered */
     ngx_msec_t last_seen;                     /* Phase 27 F4: register/lookup time (ms);
                                                  LRU key for reap-on-full anti-exhaustion */
+    char       src_key[BRIX_SESSION_SRC_KEY_LEN]; /* W5: per-source quota key ("" = un-keyed) */
 } brix_session_entry_t;
 
 /* Phase 27 F4: a slot that is the global-LRU AND older than this minimum age is
@@ -132,7 +149,8 @@ ngx_int_t brix_handle_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data);
 ngx_int_t brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* ---- Function: brix_session_register() ----
- * WHAT: Stores client session metadata in shared memory registry slot during login completion. Scans all slots finding first free entry — copies sessid[16], dn, vo_list, and token_auth flag into new slot setting e->in_use=1. Protected by zone-specific mutex ensuring thread-safe cross-worker access during concurrent registration attempts. */
+ * WHAT: Stores client session metadata in shared memory registry slot during login completion. Scans all slots finding first free entry — copies sessid[16], dn, vo_list, and token_auth flag into new slot setting e->in_use=1. Protected by zone-specific mutex ensuring thread-safe cross-worker access during concurrent registration attempts.
+ * W5/P90-27.2: the registrant's per-source key is derived internally from (dn, token_auth); an identity already at BRIX_SESSION_PER_SOURCE_SOFT_CAP live slots recycles its OWN LRU slot (self-eviction, counted in brix_session_src_cap_evict_total) rather than consuming a free one. */
 void brix_session_register(const u_char sessid[BRIX_SESSION_ID_LEN],
     const char *dn, const char *vo_list, ngx_uint_t token_auth);
 

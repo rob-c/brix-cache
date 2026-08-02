@@ -211,6 +211,19 @@ stream {
 }
 ```
 
+### Optional manager tuning (phase-89 CMS parity)
+
+All flag-gated, defaulting to pre-phase behaviour — see
+[directives.md § CMS manager tuning](../03-configuration/directives.md) for
+full semantics: `brix_cms_load_weight` (blend heartbeat machine load into
+read selection), `brix_cms_locate_window` (collect multiple `kYR_have`
+answers before redirecting; msec — write `500ms`, a bare number parses as
+seconds), `brix_cms_locate_multi`, `brix_cms_affinity`,
+`brix_cms_state_fanout`, `brix_cms_fanout` + `brix_cms_fanout_window`
+(manager-side rm/rmdir fan-out to all path-holders),
+`brix_cms_blacklist_file` (file-driven server blacklist; file wins over
+admin undrain), and `brix_cms_vnid` (login virtual-network id).
+
 ---
 
 ## Source layout

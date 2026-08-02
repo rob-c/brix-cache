@@ -536,6 +536,71 @@ sd_s3_set_meta(const sd_s3_open_params *p, const sd_s3_meta_kv *kv, size_t nkv,
     return rc;
 }
 
+/* ---- server-side CopyObject (x-amz-copy-source) ------------------------ */
+
+/* Send the signed CopyObject PUT: the request target is f->key (the destination
+ * object), x-amz-copy-source names the source "/bucket/key". Default COPY
+ * directive — the source's user metadata rides along. Same signing + status
+ * discipline as the set-meta self-copy above. 0 / -1 (errno + errbuf). */
+static int
+sd_s3_copy_f(sd_s3_file *f, const char *copy_source, char *errbuf, size_t errcap)
+{
+    char             auth[SD_S3_AUTH_HDRS_CAP];
+    sd_s3_sign_hdr_t extra[1];
+    sd_s3_sign_req_t req;
+    brix_s3_resp_t   resp;
+
+    extra[0].name  = "x-amz-copy-source";
+    extra[0].value = copy_source;
+
+    req.method   = "PUT";
+    req.canon_qs = "";
+    req.extra    = extra;
+    req.n_extra  = 1;
+    if (sd_s3_sign_ext(f, &req, auth, sizeof(auth)) != 0) {
+        sd_s3_set_err(errbuf, errcap, "s3 copy: SigV4 sign failed on %s", f->key);
+        errno = EIO;
+        return -1;
+    }
+    if (f->transport->request(f->tctx, f->host, f->port, f->tls, "PUT",
+                              f->key, auth, NULL, 0, f->timeout_ms, &resp,
+                              errbuf, errcap) != 0)
+    {
+        errno = EIO;
+        return -1;
+    }
+    if (resp.status != 200) {
+        int rc = sd_s3_status_err(resp.status, "CopyObject", copy_source,
+                                  errbuf, errcap);
+        f->transport->resp_free(&resp);
+        return rc;   /* -1, errno mapped from the HTTP status */
+    }
+    f->transport->resp_free(&resp);
+    return 0;
+}
+
+int
+sd_s3_copy(const sd_s3_open_params *p, const char *copy_source,
+           char *errbuf, size_t errcap)
+{
+    sd_s3_file *f;
+    int         rc;
+
+    if (p == NULL || copy_source == NULL || copy_source[0] == '\0') {
+        sd_s3_set_err(errbuf, errcap, "s3 copy: bad parameters");
+        errno = EINVAL;
+        return -1;
+    }
+    f = sd_s3_open_read(p, errbuf, errcap);   /* binds endpoint+creds, no I/O */
+    if (f == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    rc = sd_s3_copy_f(f, copy_source, errbuf, errcap);
+    sd_s3_close(f);
+    return rc;
+}
+
 int
 sd_s3_set_unixattr(const sd_s3_open_params *p, const brix_meta_advisory_t *a,
                    char *errbuf, size_t errcap)

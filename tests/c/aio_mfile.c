@@ -155,7 +155,7 @@ main(int argc, char **argv)
         return 2;
     }
 
-    brix_mgr *mgr = brix_mgr_create(&url, NULL, 2, 20000, 3000, 8, &st);
+    brix_mgr *mgr = brix_mgr_create(&url, NULL, 2, 2, 20000, 3000, 8, &st);
     if (mgr == NULL) {
         fprintf(stderr, "mgr create: %s\n", st.msg);
         return 2;

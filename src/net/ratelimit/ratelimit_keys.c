@@ -25,8 +25,8 @@
  * (%08xD = zero-padded uppercase 32-bit), giving a stable, short, collision-
  * tolerable bucket id for the same principal.
  */
-static void
-rl_key_dn_hash(const u_char *dn, size_t dn_len, char *out, size_t out_sz)
+void
+brix_rl_key_dn_hash(const u_char *dn, size_t dn_len, char *out, size_t out_sz)
 {
     uint32_t h = brix_rl_hash((const char *) dn, dn_len);
     ngx_snprintf((u_char *) out, out_sz, "dn:%08xD%Z", h);
@@ -40,8 +40,8 @@ rl_key_dn_hash(const u_char *dn, size_t dn_len, char *out, size_t out_sz)
  * length and keeping the low-cardinality/no-PII invariant the DN key already
  * observes.
  */
-static void
-rl_key_sub_hash(const u_char *sub, size_t sub_len, char *out, size_t out_sz)
+void
+brix_rl_key_sub_hash(const u_char *sub, size_t sub_len, char *out, size_t out_sz)
 {
     uint32_t h = brix_rl_hash((const char *) sub, sub_len);
     ngx_snprintf((u_char *) out, out_sz, "sub:%08xD%Z", h);
@@ -87,7 +87,7 @@ brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
         if (ctx->login.dn[0] == '\0') {
             ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->login.peer_ip);
         } else {
-            rl_key_dn_hash((u_char *) ctx->login.dn, ngx_strlen(ctx->login.dn),
+            brix_rl_key_dn_hash((u_char *) ctx->login.dn, ngx_strlen(ctx->login.dn),
                            out, out_sz);
         }
         break;
@@ -96,7 +96,7 @@ brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
         if (ctx->identity == NULL || ctx->identity->subject.len == 0) {
             ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->login.peer_ip);
         } else {
-            rl_key_sub_hash(ctx->identity->subject.data,
+            brix_rl_key_sub_hash(ctx->identity->subject.data,
                             ctx->identity->subject.len, out, out_sz);
         }
         break;
@@ -148,9 +148,9 @@ rl_key_http_dn(const rl_key_req_t *req, char *out, size_t out_sz)
     ngx_http_brix_webdav_req_ctx_t *wctx = req->wctx;
 
     if (req->id != NULL && req->id->dn.len > 0) {
-        rl_key_dn_hash(req->id->dn.data, req->id->dn.len, out, out_sz);
+        brix_rl_key_dn_hash(req->id->dn.data, req->id->dn.len, out, out_sz);
     } else if (wctx != NULL && wctx->dn[0] != '\0') {
-        rl_key_dn_hash((u_char *) wctx->dn, ngx_strlen(wctx->dn),
+        brix_rl_key_dn_hash((u_char *) wctx->dn, ngx_strlen(wctx->dn),
                        out, out_sz);
     } else {
         ngx_snprintf((u_char *) out, out_sz, "ip:%V%Z", req->ip);
@@ -206,7 +206,7 @@ rl_key_http_derive(brix_rl_rule_t *rule, const rl_key_req_t *req,
         if (req->id == NULL || req->id->subject.len == 0) {
             ngx_snprintf((u_char *) out, out_sz, "ip:%V%Z", req->ip);
         } else {
-            rl_key_sub_hash(req->id->subject.data, req->id->subject.len,
+            brix_rl_key_sub_hash(req->id->subject.data, req->id->subject.len,
                             out, out_sz);
         }
         return NGX_OK;

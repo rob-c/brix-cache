@@ -33,6 +33,13 @@
  * 0 until brix_uring_init_worker() brings the ring up (SB-W2). */
 static brix_uring_t  brix_uring_worker_ring;
 
+/* P44-A quiesce support: the winning bring-up conf, saved so a runtime
+ * re-enable can re-create the ring after a kill-switch teardown, and a flag
+ * marking that this worker ever brought a ring up (a worker whose bring-up
+ * failed or was never wanted must stay ringless — quiesce ticks no-op). */
+static brix_uring_scan_t  brix_uring_saved_scan;
+static ngx_uint_t         brix_uring_rearm_ok;
+
 brix_uring_t *
 brix_uring_worker(void)
 {
@@ -72,7 +79,9 @@ brix_uring_teardown(brix_uring_t *u)
     }
 
     u->enabled = 0;
-    u->slots   = NULL;   /* pool-owned; freed with the worker cycle pool */
+    /* u->slots is deliberately KEPT: the table is cycle-pool-owned (freed with
+     * the worker, never manually) and is reused verbatim by a P44-A re-enable,
+     * so repeated kill-switch flips cannot grow the cycle pool. */
 }
 
 /*
@@ -100,15 +109,84 @@ brix_uring_init_fail(brix_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on,
 }
 
 /*
+ * brix_uring_bring_up — run the ordered bring-up steps and publish the ring.
+ *
+ * Shared by the after-fork init (brix_uring_init_worker) and the P44-A
+ * runtime re-enable (brix_uring_quiesce_tick): queue_init [R_DISABLED if
+ * restricting] -> register restrictions + enable -> NOP self-test -> burst
+ * self-test -> fake-connection epoll bridge -> slot table -> kill-switch
+ * attach.  Returns NULL with u->enabled = 1 on success, or the failing step's
+ * name with partial state left for the caller to tear down (the two callers
+ * differ in verdict: init_fail vs retry-next-tick).
+ */
+static const char *
+brix_uring_bring_up(brix_uring_t *u, ngx_cycle_t *cycle,
+    const brix_uring_scan_t *scan)
+{
+    const char  *what;
+
+    u->log         = cycle->log;
+    u->eventfd     = -1;
+    u->evc         = NULL;
+    u->inflight    = 0;
+    u->ring_active = 0;
+    u->enabled     = 0;
+    u->restrict_ops = 0;
+    u->queue_depth = (uint32_t) scan->depth;
+
+    /* 1-3. create + notify-wire + restrict + enable the ring. */
+    what = uring_setup_rings(u, scan->want_restrict);
+    if (what != NULL) {
+        return what;
+    }
+
+    /* 4. NOP self-test: prove submit -> complete works AND that the registered
+     * eventfd actually delivers the completion notification. */
+    what = uring_selftest_nop(u);
+    if (what != NULL) {
+        return what;
+    }
+
+    /* 4b. UNDER-LOAD delivery self-test: fill the ring with queue_depth ops and
+     * require EVERY completion to arrive via the eventfd within the deadline. */
+    what = uring_selftest_burst(u);
+    if (what != NULL) {
+        return what;
+    }
+
+    /* 5. wire the eventfd into the worker's epoll via a fake connection. */
+    what = uring_install_eventfd(u, cycle);
+    if (what != NULL) {
+        return what;
+    }
+
+    /* 6. completion-slot table (pool-owned, reused across quiesce cycles). */
+    what = uring_register_buffers(u, cycle);
+    if (what != NULL) {
+        return what;
+    }
+
+    /* SB-W5b: attach the cross-worker kill-switch flag (NULL if the zone was
+     * not registered — the selector then reads "enabled"). */
+    u->disabled_flag = brix_uring_killswitch_ptr();
+
+    u->enabled = 1;
+    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+        "brix: io_uring disk-I/O backend active (queue_depth=%ui%s)",
+        (ngx_uint_t) u->queue_depth,
+        u->restrict_ops ? ", restricted" : "");
+
+    return NULL;
+}
+
+/*
  * brix_uring_init_worker — create this worker's ring after fork.
  *
  * Scans every enabled server block: the ring is created if any block wants
  * io_uring (mode on/auto); queue depth is the max requested; restrictions are
- * applied unless any wanting block turned them off.  Bring-up sequence:
- * queue_init [R_DISABLED if restricting] -> register restrictions + enable ->
- * NOP self-test -> eventfd + register_eventfd -> fake-connection epoll bridge ->
- * slot table.  Any failure routes through brix_uring_init_fail (NGX_OK under
- * auto, NGX_ERROR under on).  When no block wants io_uring this is a no-op.
+ * applied unless any wanting block turned them off.  Any bring-up failure
+ * routes through brix_uring_init_fail (NGX_OK under auto, NGX_ERROR under on).
+ * When no block wants io_uring this is a no-op.
  */
 ngx_int_t
 brix_uring_init_worker(ngx_cycle_t *cycle)
@@ -121,61 +199,70 @@ brix_uring_init_worker(ngx_cycle_t *cycle)
         return NGX_OK;   /* nobody wants a ring / auto blocks on a bare host */
     }
 
-    u->log         = cycle->log;
-    u->eventfd     = -1;
-    u->evc         = NULL;
-    u->slots       = NULL;
-    u->inflight    = 0;
-    u->ring_active = 0;
-    u->enabled     = 0;
-    u->restrict_ops = 0;
-    u->queue_depth = (uint32_t) scan.depth;
-
-    /* 1-3. create + notify-wire + restrict + enable the ring. */
-    what = uring_setup_rings(u, scan.want_restrict);
+    what = brix_uring_bring_up(u, cycle, &scan);
     if (what != NULL) {
         return brix_uring_init_fail(u, cycle, scan.mode_on, what);
     }
 
-    /* 4. NOP self-test: prove submit -> complete works AND that the registered
-     * eventfd actually delivers the completion notification. */
-    what = uring_selftest_nop(u);
-    if (what != NULL) {
-        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
-    }
-
-    /* 4b. UNDER-LOAD delivery self-test: fill the ring with queue_depth ops and
-     * require EVERY completion to arrive via the eventfd within the deadline. */
-    what = uring_selftest_burst(u);
-    if (what != NULL) {
-        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
-    }
-
-    /* 5. wire the eventfd into the worker's epoll via a fake connection. */
-    what = uring_install_eventfd(u, cycle);
-    if (what != NULL) {
-        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
-    }
-
-    /* 6. completion-slot table (pool-owned; freed with the cycle). */
-    what = uring_register_buffers(u, cycle);
-    if (what != NULL) {
-        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
-    }
-
-    /* SB-W5b: attach the cross-worker kill-switch flag (NULL if the zone was
-     * not registered — the selector then reads "enabled") and arm the
-     * panic-file poll timer if a path was configured. */
-    u->disabled_flag = brix_uring_killswitch_ptr();
+    /* P44-A: save the winning conf so a runtime quiesce can re-create the
+     * ring, then start the per-worker maintenance timer (quiesce/re-enable
+     * driver) and the panic-file mirror if a path was configured. */
+    brix_uring_saved_scan = scan;
+    brix_uring_rearm_ok   = 1;
     (void) brix_uring_panicfile_arm(cycle, &scan.panic_file);
-
-    u->enabled = 1;
-    ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-        "brix: io_uring disk-I/O backend active (queue_depth=%ui%s)",
-        (ngx_uint_t) u->queue_depth,
-        u->restrict_ops ? ", restricted" : "");
+    (void) brix_uring_maint_arm(cycle);
 
     return NGX_OK;
+}
+
+/*
+ * brix_uring_quiesce_tick — P44-A ring quiesce-and-teardown (§36 tier).
+ *
+ * Driven by the per-worker maintenance timer (uring_admin.c, 2 s cadence).
+ * While the kill switch merely stops NEW submissions at the selector, the
+ * quiesce goes further: once every in-flight CQE has drained, the ring and
+ * its eventfd are torn down so the kernel attack surface (the ring fds)
+ * disappears from the process, not just from the hot path.  When the switch
+ * clears, the ring is re-created from the saved bring-up conf — including the
+ * full self-test ladder, so a re-enable can never resurrect a ring the worker
+ * would not have trusted at boot.  A failed re-enable is logged and retried
+ * on the next tick (never fatal at runtime, even under mode `on`: the kill
+ * switch is an incident tool and the pool tier keeps serving).
+ */
+void
+brix_uring_quiesce_tick(void)
+{
+    brix_uring_t  *u = &brix_uring_worker_ring;
+    ngx_cycle_t   *cycle = (ngx_cycle_t *) ngx_cycle;
+    const char    *what;
+
+    if (!brix_uring_rearm_ok) {
+        return;             /* this worker never had a ring: nothing to manage */
+    }
+
+    if (brix_uring_killswitch_get()) {
+        /* Disabled: the ring stays alive only while ops are still in flight
+         * (the reaper needs it); the moment the last CQE drains, drop it. */
+        if (u->enabled && u->inflight == 0) {
+            brix_uring_teardown(u);
+            ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+                "brix: io_uring ring quiesced (kill switch): "
+                "ring + eventfd released");
+        }
+        return;
+    }
+
+    if (u->enabled) {
+        return;                                     /* running normally */
+    }
+
+    what = brix_uring_bring_up(u, cycle, &brix_uring_saved_scan);
+    if (what != NULL) {
+        ngx_log_error(NGX_LOG_ERR, cycle->log, ngx_errno,
+            "brix: io_uring re-enable failed at %s; "
+            "retrying on the next maintenance tick", what);
+        brix_uring_teardown(u);
+    }
 }
 
 /*
@@ -210,6 +297,13 @@ void
 brix_uring_exit_worker(ngx_cycle_t *cycle)
 {
     (void) cycle;
+}
+
+void
+brix_uring_quiesce_tick(void)
+{
+    /* no ring in a stub build — the maintenance timer only mirrors the
+     * panic file into the (unconfigured) kill switch */
 }
 
 #endif /* BRIX_HAVE_LIBURING */

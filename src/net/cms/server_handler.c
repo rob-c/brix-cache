@@ -307,6 +307,12 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
                                                : CMS_AUTH_NONE;
 
     root_conf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
+    ctx->role_type = (root_conf != NULL && root_conf->caps.supervisor)
+                         ? "R" : "M";
+    /* Pure manager (no local export): stock cmsd stamps kYR_metaman on its
+     * downward state queries so nodes know the sender holds nothing itself. */
+    ctx->metaman = (root_conf != NULL && !root_conf->caps.supervisor
+                    && root_conf->rootfd < 0);
     if (root_conf != NULL) {
         ctx->sess = brix_sess_begin(root_conf->session_log,
                                     root_conf->access_log_fd,

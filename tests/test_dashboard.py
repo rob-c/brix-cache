@@ -365,7 +365,9 @@ class TestDashboardCvmfs:
         data = json.loads(body.decode())
         assert data["schema"] == "xrootd-dashboard.v1"
         assert isinstance(data["enabled"], bool)
-        assert set(data["requests"]) == {"cas", "manifest", "geo", "reject"}
+        # Closed request-class enum (api_cvmfs.c cvmfs_json_class_names /
+        # BRIX_CVMFS_CLASS_COUNT); bundle+dict are the phase-87 G2/G3 fetch classes.
+        assert set(data["requests"]) == {"cas", "manifest", "geo", "bundle", "dict", "reject"}
         for key in self.CVMFS_SCALARS:
             assert key in data, f"missing cvmfs counter {key}"
             assert isinstance(data[key], int)

@@ -49,6 +49,29 @@ ngx_brix_cms_send_error(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
 }
 
 /*
+ * cms_login_mode — the CmsLoginData Mode word for this node's cluster role
+ * (Phase-61 W7, Pander parity).  An explicit brix_cms_role picks the stock
+ * bits — server kYR_server, manager kYR_manager ALONE (a sub-manager
+ * subscribing to a meta-manager), supervisor kYR_manager|kYR_server; auto
+ * keeps the legacy derivation (server, plus manager when manager_mode).
+ */
+static uint32_t
+cms_login_mode(ngx_stream_brix_srv_conf_t *conf)
+{
+    switch (conf->cms.role) {
+    case BRIX_CMS_ROLE_SERVER:
+        return CMS_LOGIN_MODE;
+    case BRIX_CMS_ROLE_MANAGER:
+        return CMS_LOGIN_MODE_MANAGER;
+    case BRIX_CMS_ROLE_SUPERVISOR:
+        return CMS_LOGIN_MODE | CMS_LOGIN_MODE_MANAGER;
+    default:
+        return CMS_LOGIN_MODE
+               | (conf->manager_mode ? CMS_LOGIN_MODE_MANAGER : 0);
+    }
+}
+
+/*
  * ngx_brix_cms_send_login — initial CMS login frame with server capabilities.
  *
  * WHAT: Builds and sends the first CMS frame after establishing a TCP connection,
@@ -154,10 +177,8 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
     payload_cursor = payload;
     payload_cursor = ngx_brix_cms_put_short(payload_cursor,
                                               CMS_LOGIN_VERSION);
-    payload_cursor = ngx_brix_cms_put_int(
-        payload_cursor,
-        CMS_LOGIN_MODE
-        | (ctx->conf->manager_mode ? CMS_LOGIN_MODE_MANAGER : 0));
+    payload_cursor = ngx_brix_cms_put_int(payload_cursor,
+                                            cms_login_mode(ctx->conf));
     payload_cursor = ngx_brix_cms_put_int(payload_cursor,
                                             (uint32_t) getpid());
     /* tSpace/fSpace: total disk (GB) and free (MB) reported to the manager. */
@@ -415,4 +436,37 @@ ngx_brix_cms_send_have(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
     return ngx_brix_cms_send_frame(ctx, streamid, CMS_RR_HAVE,
                                      CMS_MOD_RAW | CMS_HAVE_ONLINE,
                                      payload, path_len + 1);
+}
+
+/*
+ * ngx_brix_cms_send_stats — reply to the manager's kYR_stats query (do_Stats
+ * parity, byte-exact with stock v5.9.6): kYR_data whose payload starts with
+ * the 4-byte big-endian statsz (CMS_STATS_BUFSZ).  The kYR_size modifier stops
+ * there; otherwise the Cluster.Stats document follows (snprintf length, no
+ * NUL) with this node's XrdCmsRole::Type in the role slot — "S" data server,
+ * "M" sub-manager, "R" supervisor.
+ */
+
+ngx_int_t
+ngx_brix_cms_send_stats(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
+    u_char mod)
+{
+    u_char       out[4 + CMS_STATS_BUFSZ];
+    const char  *role;
+    int          len;
+
+    ngx_brix_cms_put32(out, CMS_STATS_BUFSZ);
+    if (mod & CMS_STATS_SIZE) {
+        return ngx_brix_cms_send_frame(ctx, streamid, CMS_RSP_DATA, 0,
+                                         out, 4);
+    }
+
+    role = ctx->conf->manager_mode
+               ? (ctx->conf->caps.supervisor ? "R" : "M") : "S";
+    len = ngx_brix_cms_stats_doc(out + 4, sizeof(out) - 4, role);
+    if (len < 0) {
+        return NGX_ERROR;
+    }
+    return ngx_brix_cms_send_frame(ctx, streamid, CMS_RSP_DATA, 0,
+                                     out, 4 + (size_t) len);
 }

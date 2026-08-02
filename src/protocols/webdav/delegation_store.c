@@ -46,6 +46,7 @@
 
 #include <string.h>
 #include <time.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Bounded capacity: a pending handshake is a brief interactive round-trip
  * (client signs a CSR, usually within seconds); 256 concurrent in-flight
@@ -94,7 +95,7 @@ static void
 brix_deleg_entry_free(brix_deleg_entry_t *e)
 {
     if (e->fresh_key != NULL) {
-        EVP_PKEY_free(e->fresh_key);
+        brix_evp_pkey_free(e->fresh_key);
         e->fresh_key = NULL;
     }
     e->id[0] = '\0';

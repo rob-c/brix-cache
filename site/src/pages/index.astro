@@ -78,15 +78,17 @@ const flow = [
     <article class="panel gftp" data-accent="ftp">
       <div class="gftp-head">
         <span class="chip chip--ftp">gsiftp://</span>
-        <h3 class="gftp-name">A fourth interface for GridFTP.</h3>
+        <h3 class="gftp-name">A full peer protocol for GridFTP.</h3>
       </div>
       <p class="gftp-blurb muted">
         A full <span class="mono">gsiftp://</span> server terminates in the same binary — GSI / x509
         control-channel auth, parallel <span class="mono">MODE&nbsp;E</span> data streams, encrypted
-        (<span class="mono">PROT&nbsp;P</span>) data channels, and server-to-server third-party copy —
-        bridging <span class="mono">globus-url-copy</span>, gfal2, and FTS transfers onto the very
-        same POSIX tree, or delegating them onward to a <span class="mono">root://</span> origin as
-        the user.
+        (<span class="mono">PROT&nbsp;P</span>) data channels, and server-to-server third-party copy.
+        It is not a bolt-on door: like the other three, it terminates on the shared VFS, so it serves
+        <em>any</em> storage backend — POSIX, an S3 or Ceph object store, or a block store — and the
+        gsiftp namespace is the very same one <span class="mono">root://</span>, WebDAV, and S3 serve.
+        Write a file with <span class="mono">globus-url-copy</span>, gfal2, or FTS and read it back
+        byte-for-byte over any of the others — front-end ingress and back-end translation, both ways.
       </p>
       <dl class="proto-specs gftp-specs">
         <div class="spec"><dt>port</dt><dd>2811 · stream {'{}'}</dd></div>

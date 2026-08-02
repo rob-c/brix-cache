@@ -23,18 +23,21 @@
 #include "net/mirror/stream_mirror.h" /* Phase 24: traffic mirror directives */
 #include "net/ratelimit/ratelimit.h"  /* Phase 25: advanced rate-limit directives */
 #include "core/negcache/negcache.h"   /* E-4: brix_negcache_backoff setter */
+#include "core/config/config.h"       /* brix_conf_set_backend_sss_keytab */
 #include "auth/impersonate/lifecycle.h" /* Phase 40: impersonation directives */
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "core/config/credential_block.h" /* §14 brix_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */
 #include "core/seccomp/seccomp.h"   /* brix_conf_set_seccomp (brix_seccomp directive) */
 #include "fs/backend/sd.h"  /* BRIX_CRED_* (phase-70 §4) */
+#include "auth/s3/sts.h"    /* BRIX_STS_FLAVOR_* (phase-70 §5.5) */
 #include "core/config/tier_directives.h"   /* shared tier-grammar X-macro */
 
 #include <stdio.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/evp.h>   /* phase-3 T1: mint-CA config-time validation */
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* §7 SSI: brix_ssi_cta_executor — simulated (test) vs real tier/frm (prod). */
 static ngx_conf_enum_t  brix_ssi_executor_enum[] = {
@@ -57,6 +60,15 @@ static ngx_conf_enum_t  brix_stream_backend_delegation_enum[] = {
     { ngx_string("mint"),        BRIX_CRED_MINT },
     { ngx_string("auto"),        BRIX_CRED_AUTO },
     { ngx_null_string,           0 }
+};
+
+/* Phase-70 §5.5: brix_backend_s3_sts_flavor aws|minio on the stream (root://)
+ * plane — mirrors brix_sts_flavor_enum (http_common.c); a stream-local copy
+ * because the HTTP one is file-static. */
+static ngx_conf_enum_t  brix_stream_sts_flavor_enum[] = {
+    { ngx_string("aws"),   BRIX_STS_FLAVOR_AWS },
+    { ngx_string("minio"), BRIX_STS_FLAVOR_MINIO },
+    { ngx_null_string,     0 }
 };
 
 static ngx_conf_enum_t  brix_stream_credential_fallback_enum[] = {
@@ -114,7 +126,7 @@ brix_conf_set_stream_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             &value[2]);
         return NGX_CONF_ERROR;
     }
-    EVP_PKEY_free(key);
+    brix_evp_pkey_free(key);
 
     xcf->common.storage_credential_mint_ca_cert = value[1];
     xcf->common.storage_credential_mint_ca_key  = value[2];
@@ -220,6 +232,84 @@ ngx_command_t ngx_stream_brix_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, common.backend_delegation),
       &brix_stream_backend_delegation_enum },
+
+    /* Phase-70 §5.6 / P90-70.3: SSS identity-injection keytab — the delegation
+     * gate re-issues an SSS credential asserting the CALLER's principal to the
+     * origin, signed with this keytab (never the keytab's own principal).
+     * Load-validated at config time; twin of the HTTP-plane directive. */
+    { ngx_string("brix_backend_sss_keytab"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_backend_sss_keytab,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sss_keytab),
+      NULL },
+
+    /* Phase-70 §5.5: S3 STS credential EXCHANGE on the root:// plane — the
+     * root://→s3:// origin leg authenticated AS the caller by trading the
+     * node's S3 SERVICE credential (endpoint + ak + sk, optional role/region/
+     * ttl) for temporary creds scoped to the caller's identity. Twins of the
+     * HTTP-plane directives; the endpoint is load-validated at config time. */
+    { ngx_string("brix_backend_s3_sts_endpoint"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_backend_sts_endpoint,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_endpoint),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_role"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_role),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_access_key"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_access_key),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_secret_key"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_secret_key),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_region"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_region),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_ttl"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_ttl),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_flavor"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_flavor),
+      &brix_stream_sts_flavor_enum },
+
+    /* Phase-70 §5.7: enable krb5 GSSAPI credential forwarding to the origin on
+     * the root:// plane (where krb5 auth actually runs). Default off — the
+     * gateway keeps SELECT/service-credential behaviour until an operator opts
+     * in, at which point a forwardable inbound ticket is captured and replayed
+     * to the backend AS the user. The flag lives on the shared `common`
+     * preamble, mirroring the HTTP-plane directive in http_common.c. */
+    { ngx_string("brix_backend_krb5_forwardable"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_krb5_forwardable),
+      NULL },
 
     /* Phase-3 Task 1: opt-in credential minting on the root:// plane — mirrors
      * brix_storage_credential_mint_ca/_mint_ttl on the HTTP plane (Phase-2 T9)

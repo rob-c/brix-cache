@@ -178,6 +178,20 @@ ngx_int_t brix_configure_sss_auth(ngx_conf_t *cf,
 ngx_int_t brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path,
     ngx_array_t **out_keys);
 
+/* `brix_backend_sss_keytab <path>` setter (phase-70 §5.6 / P90-70.3): stores
+ * the path AND load-validates the keytab at config time (existence, private
+ * permissions, parseable keys) so a broken injection keytab fails `nginx -t`
+ * instead of denying every request at runtime.  Plane-agnostic (HTTP+stream). */
+char *brix_conf_set_backend_sss_keytab(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
+/* `brix_backend_s3_sts_endpoint <url>` setter (phase-70 §5.5 / §6): stores the
+ * STS endpoint AND validates its shape at config time (http/https scheme with a
+ * host, no whitespace/control bytes) so a malformed endpoint fails `nginx -t`
+ * instead of denying every S3 STS exchange at runtime. */
+char *brix_conf_set_backend_sts_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+
 /* Validate and prepare Kerberos 5 service principal/keytab state. */
 ngx_int_t brix_configure_krb5_auth(ngx_conf_t *cf,
     ngx_stream_brix_srv_conf_t *xcf);

@@ -159,9 +159,7 @@ web_ls(const web_ctx *w, const char *cwd, int argc, char **argv)
     web_build_path(w->base, cwd, arg, path, sizeof(path));
     brix_status_clear(&st);
     if (web_ls_print_dir(w, path, want_long, recursive, human, &st) != 0) {
-        fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
-        xrdfs_web_hints(&st, 0, w);   /* WS-7 doctor referral */
-        return brix_shellcode(&st);
+        return xrdfs_web_report_err("ls", path, &st, 0, w);
     }
     return 0;
 }
@@ -178,9 +176,7 @@ web_stat(const web_ctx *w, const char *cwd, int argc, char **argv)
     web_build_path(w->base, cwd, argv[1], path, sizeof(path));
     brix_status_clear(&st);
     if (brix_web_stat(w->u, path, w->bearer, w->verify, w->ca_dir, &si, &st) != 0) {
-        fprintf(stderr, "xrdfs: stat %s: %s\n", path, st.msg);
-        xrdfs_web_hints(&st, 0, w);   /* WS-7 doctor referral */
-        return brix_shellcode(&st);
+        return xrdfs_web_report_err("stat", path, &st, 0, w);
     }
     print_statinfo(path, &si);
     return 0;

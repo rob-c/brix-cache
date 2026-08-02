@@ -49,6 +49,10 @@ import pytest
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
+from cmdscripts.cvmfs_driver_units import (  # noqa: E402
+    BRIXCVMFS_CORE_DEPS,
+    BRIXCVMFS_DRIVER_SRCS,
+)
 from conformance_common import BRIXMOUNT, PortBlock, fuse_mount  # noqa: E402
 from repo_forge import File, RepoForge  # noqa: E402
 from settings import HOST
@@ -273,15 +277,12 @@ def _compile_brixcvmfs(dst: Path) -> None:
     libs = subprocess.run(["pkg-config", "--libs", "fuse3"], check=True,
                           stdout=subprocess.PIPE, text=True).stdout.split()
     root = Path(__file__).resolve().parents[1]
-    deps = ["client/apps/fs/brixcvmfs.c", "shared/cvmfs/client/client.c",
-            "shared/cvmfs/fetch/fetch.c", "shared/cvmfs/object/object.c",
-            "shared/cvmfs/failover/failover.c", "shared/cvmfs/catalog/catalog.c",
-            "shared/cvmfs/grammar/hash.c", "shared/cvmfs/grammar/classify.c",
-            "shared/cvmfs/signature/manifest.c", "shared/cvmfs/signature/whitelist.c",
-            "shared/cvmfs/signature/verify.c", "shared/cvmfs/config/repo.c",
-            "shared/cvmfs/config/cvmfs_conf.c", "shared/cache/cas_store.c",
-            "shared/cvmfs/walk/walk.c",   # brixcvmfs prewarm -> cvmfs_walk_*
-            "shared/net/proxy_env.c"]
+    # The shared-core source list is single-truth in cmdscripts (it tracks
+    # every phase-87 seam brixcvmfs pulls in); the client-lib half comes from
+    # the prebuilt archives below, so keep only the shared/ .c entries.
+    deps = [*BRIXCVMFS_DRIVER_SRCS,
+            *[d for d in BRIXCVMFS_CORE_DEPS
+              if d.startswith("shared/") and d.endswith(".c")]]
     # brixcvmfs.c now pulls in the client net stack (net/cpool.h -> brix.h -> src
     # wire structs, brix_cpool_* in libbrix.a), so the standalone compile needs
     # the client/lib + src includes, the XRDPROTO_NO_NGX shim, and the prebuilt
@@ -292,7 +293,8 @@ def _compile_brixcvmfs(dst: Path) -> None:
             pytest.skip(f"prebuilt {a} not present (build the client first)")
     subprocess.run(["gcc", "-Wall", "-I", "shared", "-I", "client/lib", "-I", "src",
                     "-DXRDPROTO_NO_NGX", *cflags, *deps, *archives, *libs,
-                    "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lssl", "-pthread",
+                    "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd", "-lssl",
+                    "-pthread",
                     "-o", str(dst)],
                    cwd=str(root), check=True)
 

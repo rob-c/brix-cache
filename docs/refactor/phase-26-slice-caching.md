@@ -1,6 +1,6 @@
 # Phase 26 — Sub-request Slicing & Slice-Granular Caching
 
-**Status:** Draft — 2026-06-11  
+**Status:** Draft (2026-06-11) — UNIMPLEMENTED; tracked open as the §4 slice-cache item in `phase-92-open-work-audit.md`  
 **Effort:** Large (≈ 1,800 LoC new, ≈ 350 LoC integration changes)  
 **Depends on:** existing cache layer (`src/fs/cache/`), Phase 3 (path resolution)  
 **Optional:** Phase 20 (SHM KV store) for in-progress slice-fill tracking across workers

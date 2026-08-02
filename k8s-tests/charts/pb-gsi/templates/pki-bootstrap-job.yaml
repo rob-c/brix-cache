@@ -1,0 +1,154 @@
+{{/*
+PKI bootstrap for the pb-gsi scenario (pre-install hook, authority image).
+
+Mints the CA/host material via the shared blitz_test_pki(), then FOUR user
+identities (pa, pb, ea, stray) with RFC-3820 proxies (utils/make_proxy.py).
+Everything DN-derived is computed here from the ACTUAL EEC (end-entity) DN —
+post-P80.11 the gate and the pblock owner both key on the EEC DN (proxy serial
+stripped), so the gridmap principal is the EEC DN, NOT the proxy leaf:
+
+  gridmap     '"<EEC DN>" <user>' for pa,pb,ea  (stray OMITTED -> unmapped-DN
+              deny probe: a valid proxy that maps to no local account)
+  authdb      g-rules over UNIX GROUPS (phys rw /phys; eng ro /phys, rw /eng)
+  passwd.frag deterministic NSS lines so the gate's getpwnam/getgrouplist
+  group.frag  resolves each mapped user's OS groups inside the server pod
+              (merged over /etc/passwd + /etc/group by the nss-init container)
+
+Identity model (fixed):
+  pa  uid 6011 -> phys(6001)      pb  uid 6012 -> phys(6001)
+  ea  uid 6013 -> eng(6002)       stray uid 6014 -> eng(6002), DN NOT mapped
+
+Published object names are fixed (release-independent):
+  Secret pbgsi-pki | ConfigMap pbgsi-ca-bundle | ConfigMap pbgsi-jwks |
+  Secret pbgsi-server-extra
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pki-bootstrap
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-pki-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: provision
+          image: {{ .Values.pki.image }}
+          imagePullPolicy: {{ .Values.pki.pullPolicy }}
+          env:
+            - { name: TEST_ROOT, value: /work }
+            - { name: NS, value: "{{ .Release.Namespace }}" }
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd /opt/brix
+              mkdir -p /work /work/tokens
+              # CA + host cert + the legacy single user (satisfies client-pki-init).
+              python3 -c 'import sys; sys.path.insert(0,"tests"); from pki_helpers import blitz_test_pki; blitz_test_pki()'
+              python3 utils/make_token.py init /work/tokens
+              PKI=/work/pki
+              # Materialize CA-dir symlinks (kubectl configmap skips symlinks).
+              find "$PKI/ca" -type l | while read -r l; do
+                cp --remove-destination "$(readlink -f "$l")" "$l"
+              done
+
+              EXTRA=/work/extra/server; mkdir -p "$EXTRA"
+              GRIDMAP="$EXTRA/gridmap";   : > "$GRIDMAP"
+              PASSWD="$EXTRA/passwd.frag"; : > "$PASSWD"
+              GROUP="$EXTRA/group.frag";   : > "$GROUP"
+              IDENT=/work/extra/identities.env; : > "$IDENT"
+              PROXY_FILES=()
+
+              mint_user() {  # $1=name
+                local u="$1" UD="/work/u/$1"
+                mkdir -p "$UD/user" "$UD/ca"
+                cp "$PKI/ca/ca.pem" "$UD/ca/ca.pem"
+                openssl genrsa -out "$UD/user/userkey.pem" 2048 2>/dev/null
+                chmod 400 "$UD/user/userkey.pem"
+                # DN kept inside the CA signing-policy namespace
+                # (/DC=test/DC=xrootd/*) so policy-checking verifiers accept it.
+                openssl req -new -key "$UD/user/userkey.pem" \
+                  -out "$UD/user/user.csr" -subj "/DC=test/DC=xrootd/CN=$u"
+                printf 'keyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\n' \
+                  > "$UD/user/user.ext"
+                openssl x509 -req -in "$UD/user/user.csr" \
+                  -CA "$PKI/ca/ca.pem" -CAkey "$PKI/ca/ca.key" -CAcreateserial \
+                  -out "$UD/user/usercert.pem" -days 3650 -sha256 \
+                  -extfile "$UD/user/user.ext"
+                python3 utils/make_proxy.py "$UD" >/dev/null
+              }
+
+              eec_dn() {  # EEC DN (X509_NAME_oneline form) — the P80.11 identity.
+                openssl x509 -in "/work/u/$1/user/usercert.pem" -noout -subject \
+                  -nameopt compat | sed 's/^subject=*//'
+              }
+
+              add_nss() {  # $1=user $2=uid $3=gid
+                printf '%s:x:%s:%s::/home/%s:/usr/sbin/nologin\n' \
+                  "$1" "$2" "$3" "$1" >> "$PASSWD"
+              }
+
+              # user  uid   gid   grp    mapped-in-gridmap?
+              declare -A UID_OF=( [pa]=6011 [pb]=6012 [ea]=6013 [stray]=6014 )
+              declare -A GID_OF=( [pa]=6001 [pb]=6001 [ea]=6002 [stray]=6002 )
+              for u in pa pb ea stray; do
+                mint_user "$u"
+                DN="$(eec_dn "$u")"
+                echo "${u^^}_DN=$DN" >> "$IDENT"
+                add_nss "$u" "${UID_OF[$u]}" "${GID_OF[$u]}"
+                # stray authenticates with the same CA but is deliberately NOT
+                # in the gridmap -> maps to no local account -> denied.
+                if [ "$u" != "stray" ]; then
+                  printf '"%s" %s\n' "$DN" "$u" >> "$GRIDMAP"
+                fi
+                PROXY_FILES+=("--from-file=${u}_proxy.pem=/work/u/$u/user/proxy_std.pem")
+              done
+
+              # Unix groups (getgrouplist resolves g-rule group names from these).
+              printf 'phys:x:6001:pa,pb\n' >> "$GROUP"
+              printf 'eng:x:6002:ea,stray\n' >> "$GROUP"
+
+              # Per-UNIX-GROUP r/w authz (default-deny elsewhere).  The gate
+              # decides; the pblock catalog attests true {uid,gid} ownership.
+              cat > "$EXTRA/authdb" <<'EOF'
+              g phys /phys a
+              g eng  /phys rl
+              g eng  /eng  a
+              EOF
+
+              kubectl create secret generic pbgsi-pki -n "$NS" \
+                --from-file=ca.pem="$PKI/ca/ca.pem" \
+                --from-file=hostcert.pem="$PKI/server/hostcert.pem" \
+                --from-file=hostkey.pem="$PKI/server/hostkey.pem" \
+                --from-file=usercert.pem="$PKI/user/usercert.pem" \
+                --from-file=userkey.pem="$PKI/user/userkey.pem" \
+                --from-file=signing_key.pem=/work/tokens/signing_key.pem \
+                --from-file=identities.env="$IDENT" \
+                "${PROXY_FILES[@]}" \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap pbgsi-ca-bundle -n "$NS" \
+                --from-file="$PKI/ca/" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap pbgsi-jwks -n "$NS" \
+                --from-file=jwks.json=/work/tokens/jwks.json \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create secret generic pbgsi-server-extra -n "$NS" \
+                --from-file=gridmap="$GRIDMAP" \
+                --from-file=authdb="$EXTRA/authdb" \
+                --from-file=passwd.frag="$PASSWD" \
+                --from-file=group.frag="$GROUP" \
+                --dry-run=client -o yaml | kubectl apply -f -
+              echo "pbgsi pki bootstrap complete"
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - { name: work, emptyDir: {} }

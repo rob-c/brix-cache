@@ -150,6 +150,9 @@ _MC_APPROVED = {
     "proto", "op", "status", "status_class", "method", "direction", "class", "le",
     "auth", "plane", "action", "source", "result", "state", "surface",
     "reason", "staging",
+    # ENUM: cred-deleg gate — 6 fixed modes × 3 fixed outcomes (unified.c name
+    # tables).  Kept in lock-step with tools/ci/check_metric_cardinality.py.
+    "mode", "outcome",
     # CONFIG-N (deployment-bounded named resources)
     "export", "backend", "origin", "upstream", "zone", "repo", "vo",
     "server", "port",

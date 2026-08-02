@@ -288,6 +288,84 @@ def pblock(base: Path) -> tuple[bool, str]:
     return drv if not drv[0] else result(True, "run_pblock_tests: ALL PASS")
 
 
+def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """POSIX staged_commit ownership contract: a failed publish leaves the handle
+    valid for the caller's abort (free-on-success only). Drives the real
+    sd_posix_ns.c wrapper over the real compat/staged_file.c publish, under ASan,
+    so the pre-fix double-free would abort. See test_staged_commit_contract.c."""
+    ns = _need_obj(ngx_src, "objs/addon/posix/sd_posix_ns.o")
+    staged = _need_obj(ngx_src, "objs/addon/compat/staged_file.o")
+    if isinstance(ns, str):
+        return result(True, ns)
+    if isinstance(staged, str):
+        return result(True, staged)
+    return _compile_and_run(
+        base / "test_staged_commit_contract",
+        [
+            "-O1",
+            "-g",
+            "-D_GNU_SOURCE",
+            "-fsanitize=address",
+            "-fno-omit-frame-pointer",
+            "-Wall",
+            *_nginx_includes(ngx_src),
+            str(TEST_C / "test_staged_commit_contract.c"),
+            str(ns),
+            str(staged),
+        ],
+    )
+
+
+def shared_thread_pool(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """brix_shared_thread_pool() lazy-resolve contract: a per-location common
+    loc-conf (thread_pool NULL after postconfig) still resolves + caches its
+    async pool by name, so WebDAV TPC/PUT offload instead of running sync. The
+    helper is a header-only static inline, so only the test TU compiles (nginx
+    ngx_thread_pool_get / ngx_cycle are stubbed). See test_shared_thread_pool.c."""
+    return _compile_and_run(
+        base / "test_shared_thread_pool",
+        [
+            "-O1",
+            "-g",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            *_nginx_includes(ngx_src, http=True),
+            str(TEST_C / "test_shared_thread_pool.c"),
+        ],
+    )
+
+
+def chunk_geometry(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """brix_chunk_geometry wire-frame split contract at the phase-33 P3-B1
+    BRIX_READ_CHUNK_MAX (32 MiB): ceil-divide, exact-boundary, zero-remainder
+    remap, and the request-max header-budget invariant.  Links the real
+    buffers.o so the shipped constant is exercised; the 6 sibling symbols
+    buffers.o pulls in are stubbed (geometry calls none). See
+    test_chunk_geometry.c."""
+    obj = _need_obj(ngx_src, "objs/addon/aio/buffers.o")
+    if isinstance(obj, str):
+        return result(True, obj)
+    stub = base / "chunk_geometry_stubs.c"
+    stub.write_text(
+        "#include <ngx_config.h>\n#include <ngx_core.h>\n"
+        "void ngx_log_error_core(ngx_uint_t l, ngx_log_t *lg, ngx_err_t e,\n"
+        "    const char *f, ...){(void)l;(void)lg;(void)e;(void)f;}\n"
+    )
+    return _compile_and_run(
+        base / "test_chunk_geometry",
+        [
+            "-O",
+            "-g",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            *_nginx_includes(ngx_src),
+            str(TEST_C / "test_chunk_geometry.c"),
+            str(obj),
+            str(stub),
+        ],
+    )
+
+
 def mu_unit(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     return _compile_and_run(
         base / "idmap_collapse_test",
@@ -453,12 +531,92 @@ def sreq_compat(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]
     )
 
 
+def _brix_have_defines(ngx_src: Path) -> list[str]:
+    """The -DBRIX_HAVE_*=n feature flags the module was actually built with.
+
+    ngx_brix_metrics_t has feature-gated fields BEFORE `frm` (e.g. the pblock
+    counter under BRIX_HAVE_SQLITE), so a unit that reads frm.* by name must see
+    the SAME struct layout as the linked object. Mirror the build's flags rather
+    than hard-coding, so the test tracks whichever features ./config detected."""
+    makefile = ngx_src / "objs" / "Makefile"
+    if not makefile.exists():
+        return []
+    import re
+    seen = dict.fromkeys(re.findall(r"-DBRIX_HAVE_[A-Z0-9_]+=[0-9]+", makefile.read_text()))
+    return list(seen)
+
+
+def frm_stage_metrics(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # O-1: the durable stage-request registry lifecycle drives the brix_frm_*
+    # tape-stage counters. Link the substrate + the instrumented mutate ops +
+    # crc32c (record CRC) + ngx_string (ngx_cpystrn/ngx_snprintf); the test
+    # supplies the POSIX SD driver stub, the fake SHM zone, and nginx doubles.
+    mutate = _need_obj(ngx_src, "objs/addon/xfer/stage_request_registry_mutate.o")
+    subst = _need_obj(ngx_src, "objs/addon/xfer/stage_request_registry.o")
+    crc = _need_obj(ngx_src, "objs/addon/compat/crc32c.o")
+    crchw = _need_obj(ngx_src, "objs/addon/compat/crc32c_hw.o")
+    ngxstr = _need_obj(ngx_src, "objs/src/core/ngx_string.o")
+    for dep in (mutate, subst, crc, crchw, ngxstr):
+        if isinstance(dep, str):
+            return result(True, dep)
+    return _compile_and_run(
+        base / "test_frm_stage_metrics",
+        [
+            "-O", "-Wall",
+            *_brix_have_defines(ngx_src),
+            *_nginx_includes(ngx_src),
+            str(TEST_C / "test_frm_stage_metrics.c"),
+            str(mutate), str(subst), str(crc), str(crchw), str(ngxstr),
+            "-pthread",
+        ],
+    )
+
+
+def tpc_progress_total(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # O-2: brix_tpc_progress_emit threads bytes_total through to the registry.
+    # Link the real registry.o; the test doubles the shm-slot + shmtx surface so
+    # the module's own shm_init runs over a heap-backed slot table.
+    reg = _need_obj(ngx_src, "objs/addon/common/registry.o")
+    prog = _need_obj(ngx_src, "objs/addon/common/progress.o")
+    for dep in (reg, prog):
+        if isinstance(dep, str):
+            return result(True, dep)
+    return _compile_and_run(
+        base / "test_tpc_progress_total",
+        [
+            "-O", "-Wall",
+            *_nginx_includes(ngx_src, stream=True),
+            str(TEST_C / "test_tpc_progress_total.c"),
+            str(reg), str(prog),
+        ],
+    )
+
+
+def tier_s3_creds(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # F2: brix_tier_s3_apply_creds() copies a tier credential's static S3 keys
+    # into the remote-origin conf. Link tier_build.o; the test doubles the whole
+    # SD-factory closure (none of it is reached by the credential-copy helper).
+    obj = _need_obj(ngx_src, "objs/addon/tier/tier_build.o")
+    if isinstance(obj, str):
+        return result(True, obj)
+    return _compile_and_run(
+        base / "test_tier_s3_creds",
+        [
+            "-O", "-Wall",
+            *_nginx_includes(ngx_src),
+            str(TEST_C / "test_tier_s3_creds.c"),
+            str(obj),
+        ],
+    )
+
+
 def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     # sd_remote's getxattr/listxattr path (S3 x-amz-meta passthrough) pulls in
     # sd_s3_meta.o, which in turn needs meta_advisory.o for the advisory
     # encode/decode helpers — both were added when S3 listxattr landed but were
-    # never reflected in this hand-maintained object closure.
-    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    # never reflected in this hand-maintained object closure. sd_s3_list.o closes
+    # sd_remote's dir slots (opendir/readdir -> sd_s3_list_page).
+    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -471,6 +629,159 @@ def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bo
     )
 
 
+def sd_remote_server_copy(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # driver->server_copy -> sd_remote_server_copy -> sd_s3_copy -> transport.
+    # Same object closure as sd_remote_wrongkind (the copy path lives in
+    # sd_remote_meta.o + sd_s3_meta.o and signs via sd_s3_sign.o); sd_s3_list.o
+    # is pulled in transitively by sd_remote.o's dir slots.
+    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    objs: list[Path] = []
+    for name in names:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return result(True, f"SKIP: build first; missing {name}")
+        objs.append(obj)
+    return _compile_and_run(
+        base / "test_sd_remote_server_copy",
+        ["-O", "-Wall", str(TEST_C / "test_sd_remote_server_copy.c"), *[str(obj) for obj in objs], *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
+    )
+
+
+def sd_remote_opendir(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # driver->opendir/readdir/closedir -> sd_remote_opendir -> sd_s3_list_page ->
+    # transport. Same object closure as sd_remote_server_copy PLUS sd_s3_list.o
+    # (the ListObjectsV2 pager + XML scanner) which the dir slots delegate to.
+    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    objs: list[Path] = []
+    for name in names:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return result(True, f"SKIP: build first; missing {name}")
+        objs.append(obj)
+    return _compile_and_run(
+        base / "test_sd_remote_opendir",
+        ["-O", "-Wall", str(TEST_C / "test_sd_remote_opendir.c"), *[str(obj) for obj in objs], *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
+    )
+
+
+def sd_remote_rename(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # driver->mkdir/rename/rename_cred/unlink + directory-aware stat -> the
+    # sd_remote namespace-mutation slots (sd_remote_meta.o + sd_remote_write.o)
+    # over sd_s3_copy/delete/open_write (sd_s3_meta.o + sd_s3_write.o) and the
+    # empty-vs-non-empty child probe (sd_s3_list.o). Same object closure as
+    # sd_remote_opendir.
+    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    objs: list[Path] = []
+    for name in names:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return result(True, f"SKIP: build first; missing {name}")
+        objs.append(obj)
+    return _compile_and_run(
+        base / "test_sd_remote_rename",
+        ["-O", "-Wall", str(TEST_C / "test_sd_remote_rename.c"), *[str(obj) for obj in objs], *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
+    )
+
+
+def sd_remote_setattr(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # driver->setxattr/removexattr/setattr (+ _cred) -> the sd_remote metadata-
+    # mutation slots (sd_remote_xattr.o) which read-merge-write the S3 user-meta
+    # set via sd_s3_list_meta/get_meta/set_meta (sd_s3_meta.o) and patch the
+    # advisory blob (meta_advisory.o). Same object closure as sd_remote_rename
+    # plus sd_remote_xattr.o.
+    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    objs: list[Path] = []
+    for name in names:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return result(True, f"SKIP: build first; missing {name}")
+        objs.append(obj)
+    return _compile_and_run(
+        base / "test_sd_remote_setattr",
+        ["-O", "-Wall", str(TEST_C / "test_sd_remote_setattr.c"), *[str(obj) for obj in objs], *_nginx_includes(ngx_src), "-lssl", "-lcrypto"],
+    )
+
+
+def sd_http_dir(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # driver->opendir/readdir/closedir (+ opendir_cred) -> sd_http_opendir
+    # (sd_http_dir.o) which issues a WebDAV PROPFIND Depth:1 via sd_http_request_fo
+    # (sd_http_select.o) and parses the 207 Multistatus. The driver table + create
+    # live in sd_http.o; the cred gate/resolver in sd_http_read.o; the staged-PUT
+    # slots the table references in sd_http_write.o (its Content-MD5 path pulls
+    # EVP_* -> libcrypto). The ngx logging seam is stubbed in the test (instances
+    # built log=NULL, so sd_http_live_log short-circuits and nothing logs).
+    names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o", "sd_http_dir.o"]
+    objs: list[Path] = []
+    for name in names:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return result(True, f"SKIP: build first; missing {name}")
+        objs.append(obj)
+    return _compile_and_run(
+        base / "test_sd_http_dir",
+        ["-O", "-Wall", str(TEST_C / "test_sd_http_dir.c"), *[str(obj) for obj in objs], *_nginx_includes(ngx_src, http=True), "-lssl", "-lcrypto"],
+    )
+
+
+def sd_http_mutate(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # driver->mkdir/rename -> sd_http_mkdir (WebDAV MKCOL) / sd_http_rename (MOVE)
+    # in sd_http_write.o, wired into the driver table (sd_http.o) in phase-92 so an
+    # http:// export advertises CAP_DIRS_WRITE + CAP_HARD_RENAME. Same link set as
+    # sd_http_dir (write.o pulls EVP_* -> libcrypto); the ngx logging seam is
+    # stubbed in the test (instances built log=NULL, sd_http_live_log short-circuits).
+    names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o", "sd_http_dir.o"]
+    objs: list[Path] = []
+    for name in names:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return result(True, f"SKIP: build first; missing {name}")
+        objs.append(obj)
+    return _compile_and_run(
+        base / "test_sd_http_mutate",
+        ["-O", "-Wall", str(TEST_C / "test_sd_http_mutate.c"), *[str(obj) for obj in objs], *_nginx_includes(ngx_src, http=True), "-lssl", "-lcrypto"],
+    )
+
+
+def reservation(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # XrdBwm bandwidth-reservation engine (reservation.o) wired in phase-92 to the
+    # root:// read-open path. Pure C over libc (snprintf/strcmp) — no ngx runtime —
+    # so it links with no stubs. Exercises grant/byte-precise-release, over-budget
+    # refusal, and the no-over-commit / no-inflation security properties.
+    obj = _find_obj(ngx_src, "reservation.o")
+    if obj is None:
+        return result(True, "SKIP: build first; missing reservation.o")
+    return _compile_and_run(
+        base / "test_reservation",
+        ["-O", "-Wall", str(TEST_C / "test_reservation.c"), str(obj), *_nginx_includes(ngx_src)],
+    )
+
+
+SRC_GSIFTP = REPO_ROOT / "src" / "fs" / "backend" / "gsiftp"
+
+
+def gftp_parse(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # Outbound gsiftp:// control-channel reply parser + MLSx fact-line parser
+    # (phase-91 Wave-A protocol kernels). Pure C over libc, no ngx runtime and no
+    # live server, so it links with no objects/stubs. Exercises single/multiline
+    # reply framing, the SSRF-relevant 227/229 address decoders (out-of-range
+    # octet + short delimiter-run reject), and MLSx traversal/control-byte name
+    # rejection + overflow-size drop.
+    return _compile_and_run(
+        base / "gftp_parse_test",
+        [
+            "-O",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-I",
+            str(SRC_GSIFTP),
+            str(TEST_C / "gftp_parse_test.c"),
+            str(SRC_GSIFTP / "gftp_reply.c"),
+            str(SRC_GSIFTP / "gftp_mlsx.c"),
+        ],
+    )
+
+
 RUNNERS = {
     "cache_lock_reclaim": cache_lock_reclaim,
     "flush_deadletter": flush_deadletter,
@@ -479,11 +790,25 @@ RUNNERS = {
     "delegation_store": delegation_store,
     "pblock": pblock,
     "mu_unit": mu_unit,
+    "chunk_geometry": chunk_geometry,
+    "staged_commit_contract": staged_commit_contract,
+    "shared_thread_pool": shared_thread_pool,
     "fd_kind": fd_kind,
     "stage_reconcile": stage_reconcile,
     "compression": compression,
     "sreq_compat": sreq_compat,
     "sd_remote_wrongkind": sd_remote_wrongkind,
+    "sd_remote_server_copy": sd_remote_server_copy,
+    "sd_remote_opendir": sd_remote_opendir,
+    "sd_remote_rename": sd_remote_rename,
+    "sd_remote_setattr": sd_remote_setattr,
+    "sd_http_dir": sd_http_dir,
+    "sd_http_mutate": sd_http_mutate,
+    "reservation": reservation,
+    "gftp_parse": gftp_parse,
+    "frm_stage_metrics": frm_stage_metrics,
+    "tpc_progress_total": tpc_progress_total,
+    "tier_s3_creds": tier_s3_creds,
 }
 
 

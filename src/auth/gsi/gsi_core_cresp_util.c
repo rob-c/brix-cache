@@ -24,6 +24,11 @@
  *       both files include.
  */
 #include "gsi_core_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
+
+#include <fcntl.h>       /* O_NOFOLLOW guarded proxy open (fullproxy bucket) */
+#include <sys/stat.h>
+#include <unistd.h>
 
 
 /* Public key of the first X.509 cert in a PEM bucket (the peer's EEC). */
@@ -117,9 +122,9 @@ gsi_cresp_fail(gsi_cresp_ctx *x, char *err, size_t errcap, const char *msg)
     free(x->pubpem);
     free(x->enc);
     free(x->cpub);
-    EVP_PKEY_free(x->mine);
-    EVP_PKEY_free(x->peer);
-    EVP_PKEY_free(x->servpub);
+    brix_evp_pkey_free(x->mine);
+    brix_evp_pkey_free(x->peer);
+    brix_evp_pkey_free(x->servpub);
     brix_gbuf_free(&x->inner);
     brix_gbuf_free(&x->outer);
     return -1;
@@ -128,43 +133,69 @@ gsi_cresp_fail(gsi_cresp_ctx *x, char *err, size_t errcap, const char *msg)
 
 /*
  * gsi_add_fullproxy_bucket — OPT-IN client full-proxy passthrough (phase-70
- * §5.1). When XRD_DELEGATEFULLPROXY is set, load the FULL proxy (cert chain +
- * private key PEM) from $X509_USER_PROXY and append it as a kXRS_x509_fullproxy
- * bucket in the encrypted inner buffer, so a delegation-enabled node can present
- * the user's own proxy upstream. STRICTLY off by default: no env ⇒ no-op, so
- * the shared kernel's server/TPC callers (which never set the var) are inert.
+ * §5.1, hardened P90-70.5). When XRD_DELEGATEFULLPROXY is set, load the FULL
+ * proxy (cert chain + private key PEM) from $X509_USER_PROXY — or, when that is
+ * unset, the standard /tmp/x509up_u<euid> location every GSI client resolves —
+ * and append it as a kXRS_x509_fullproxy bucket in the encrypted inner buffer,
+ * so a delegation-enabled node can present the user's own proxy upstream.
+ * STRICTLY off by default: no env ⇒ no-op, so the shared kernel's server/TPC
+ * callers (which never set the var) are inert.
  * Best-effort — a load failure silently omits the bucket (login still succeeds
  * with the normal chain-only kXRS_x509). The bytes carry a private key: the
  * caller encrypts the whole inner buffer, so they never cross the wire in clear,
- * and the server accepts them only under TLS.
+ * and the server accepts them only under TLS. The file open mirrors the client's
+ * brix_open_credfile contract (that helper lives in client/lib, out of reach of
+ * this ngx-free kernel): O_NOFOLLOW — the predictable /tmp path must not be
+ * hijackable via a planted symlink — and the file must be a regular file owned
+ * by the effective uid.
  */
 void
 gsi_add_fullproxy_bucket(brix_gbuf *inner)
 {
     const char *proxy;
-    FILE       *fp;
+    char        defpath[64];
+    int         fd;
+    struct stat sb;
+    ssize_t     n;
     uint8_t     buf[16384];
-    size_t      total;
+    size_t      total = 0;
 
     if (getenv("XRD_DELEGATEFULLPROXY") == NULL) {
         return;
     }
     proxy = getenv("X509_USER_PROXY");
     if (proxy == NULL || proxy[0] == '\0') {
-        return;
+        snprintf(defpath, sizeof(defpath), "/tmp/x509up_u%u",
+                 (unsigned) geteuid());
+        proxy = defpath;
     }
 
-    fp = fopen(proxy, "r");
-    if (fp == NULL) {
+    fd = open(proxy, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        return;
+    }
+    if (fstat(fd, &sb) != 0 || !S_ISREG(sb.st_mode)
+        || sb.st_uid != geteuid()) {
+        (void) close(fd);
         return;
     }
     /* A grid proxy file stores the proxy cert chain followed by its private key
      * in PEM — forward it verbatim as the full proxy (chain + key). Capped at
      * buf[]; a proxy larger than that omits the bucket rather than truncating. */
-    total = fread(buf, 1, sizeof(buf), fp);
+    while (total < sizeof(buf)) {
+        n = read(fd, buf + total, sizeof(buf) - total);
+        if (n < 0) {
+            total = 0;
+            break;
+        }
+        if (n == 0) {
+            break;
+        }
+        total += (size_t) n;
+    }
     if (total > 0 && total < sizeof(buf)) {
         brix_gbuf_bucket(inner, (uint32_t) kXRS_x509_fullproxy, buf, total);
     }
     OPENSSL_cleanse(buf, sizeof(buf));
-    (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
+    (void) close(fd);
 }

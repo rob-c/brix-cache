@@ -73,6 +73,16 @@ ngx_conf_enum_t brix_hc_types[] = {
     { ngx_null_string,    0                   }
 };
 
+/* Phase-61 W7 — `brix_cms_role`: explicit cluster role on the upward CMS leg
+ * (Pander-parity login Mode + inbound valid-ops table); auto = legacy. */
+ngx_conf_enum_t brix_cms_roles[] = {
+    { ngx_string("auto"),       BRIX_CMS_ROLE_AUTO       },
+    { ngx_string("server"),     BRIX_CMS_ROLE_SERVER     },
+    { ngx_string("manager"),    BRIX_CMS_ROLE_MANAGER    },
+    { ngx_string("supervisor"), BRIX_CMS_ROLE_SUPERVISOR },
+    { ngx_null_string,          0                          }
+};
+
 /* `brix_security_level` — kXR_sigver enforcement, none .. pedantic. */
 ngx_conf_enum_t brix_security_levels[] = {
     { ngx_string("none"),       0 },

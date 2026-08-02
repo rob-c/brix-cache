@@ -18,11 +18,15 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+struct brix_cas_pack;    /* packed backend (cas_pack.h) */
+
 typedef struct {
     char  root[512];     /* absolute root (dir mode); "" in dirfd mode */
     int   dirfd;         /* >=0 = openat-relative to this fd; -1 = absolute */
     long  quota_bytes;   /* high watermark; 0 = unbounded */
     long  cur_bytes;     /* running total (O(1) fill-guard) */
+    struct brix_cas_pack *pack;   /* non-NULL = packed backend (phase-87 G4);
+                                   * every op below dispatches to it */
 } brix_cas_store_t;
 
 /* Bind the store to an absolute `root` (created if absent) with an optional byte
@@ -32,6 +36,19 @@ int brix_cas_init(brix_cas_store_t *s, const char *root, long quota_bytes);
 /* Bind the store to an already-open directory fd (openat-relative mode); the
  * caller owns `dirfd`. Returns 0/-1. */
 int brix_cas_init_at(brix_cas_store_t *s, int dirfd, long quota_bytes);
+
+/* Packed-backend variants (phase-87 G4/G5): same contract as the two inits
+ * above, but objects land in log-structured segments under <root>/pack/.
+ * `seg_bytes<=0` = default segment size; `tiering` enables G5 zstd cold
+ * packing + hot promotion. Callers use the ordinary brix_cas_* ops. */
+int brix_cas_init_packed(brix_cas_store_t *s, const char *root, long quota_bytes,
+                         long seg_bytes, int tiering);
+int brix_cas_init_packed_at(brix_cas_store_t *s, int dirfd, long quota_bytes,
+                            long seg_bytes, int tiering);
+
+/* Release backend resources (flat mode holds none; packed mode flushes and
+ * frees). The struct may be re-init'ed afterwards. */
+void brix_cas_destroy(brix_cas_store_t *s);
 
 /* Object path for `key` ("<root>/<2>/<rest>" in dir mode, "<2>/<rest>" in dirfd
  * mode). Returns bytes written or -1. `key` must be >= 3 chars. */

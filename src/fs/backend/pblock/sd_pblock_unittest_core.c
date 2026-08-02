@@ -123,6 +123,37 @@ test_dirs(brix_sd_instance_t *inst)
           seen_b, n);
 }
 
+/* test_mkdir_trailing_slash — a GridFTP `-cd` MKD arrives as "/dir/" (trailing
+ * slash). The driver must canonicalise it so the catalog keys the directory
+ * without the slash: parent_of("/ts/") would otherwise split into the missing
+ * parent "/ts" + empty leaf → a spurious ENOENT. Covers success (the create
+ * takes and the child is reachable — no orphan), the security/idempotency edge
+ * (a second slash-variant create maps to the same key ⇒ EEXIST, not a dup), and
+ * the error edge (a genuinely-missing parent is still rejected ENOENT — the
+ * strip must not manufacture phantom ancestors). */
+void
+test_mkdir_trailing_slash(brix_sd_instance_t *inst)
+{
+    brix_sd_stat_t st;
+
+    /* success: "/ts/" creates, and the canonical key "/ts" is a directory. */
+    CHECK(D->mkdir(inst, "/ts/", 0755) == NGX_OK, "mkdir trailing slash");
+    CHECK(D->stat(inst, "/ts", &st) == NGX_OK && st.is_dir,
+          "canonical key /ts is a directory");
+    /* the child resolves through the canonical parent — the row is not orphaned. */
+    CHECK(write_file(inst, "/ts/child", "z", 1) == 0, "child under /ts");
+
+    /* idempotency/security: the slash variant maps to the same key ⇒ EEXIST. */
+    errno = 0;
+    CHECK(D->mkdir(inst, "/ts/", 0755) == NGX_ERROR && errno == EEXIST,
+          "second /ts/ is EEXIST (canonical dedup), errno=%d", errno);
+
+    /* error: a real missing parent still ENOENTs — the strip is slash-only. */
+    errno = 0;
+    CHECK(D->mkdir(inst, "/nope/deep/", 0755) == NGX_ERROR && errno == ENOENT,
+          "missing parent still ENOENT, errno=%d", errno);
+}
+
 void
 test_rename(brix_sd_instance_t *inst)
 {

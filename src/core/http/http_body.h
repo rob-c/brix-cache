@@ -203,4 +203,28 @@ ngx_int_t brix_http_body_decode_to_fd(ngx_http_request_t *r, ngx_fd_t dst_fd,
     const char *log_path, brix_codec_id_t codec, uint64_t max_output,
     brix_http_body_summary_t *summary_out, ngx_int_t *http_status_out);
 
+/*
+ * brix_http_body_decode_to_writer - decode a request body into a VFS writer.
+ *
+ * WHAT: The backend-neutral twin of brix_http_body_decode_to_fd: streams the
+ *       codec over the request body chain and pushes the decoded plaintext
+ *       through brix_vfs_writer_write (sequential, offset 0..N) instead of a raw
+ *       kernel fd, so it works for a driver-backed object session (S3, Ceph) that
+ *       exposes no fd — not just a POSIX temp.
+ * WHY:  a Content-Encoding PUT to an object backend previously returned 501
+ *       because the decode engine could only target a fd. Routing the output
+ *       through the writer also makes the CRC accumulator see every decoded byte,
+ *       so verify-on-write now covers coded bodies on every backend.
+ * HOW:  identical guard/codec/feed machinery as decode_to_fd; the only difference
+ *       is the output sink. The writer must be a fresh whole-object session at
+ *       offset 0 (a staged/object writer refuses non-sequential extents). On
+ *       failure sets *http_status_out (415/413/400/500) and returns NGX_ERROR;
+ *       the caller aborts the writer so no partial object is published.
+ * Returns NGX_OK or NGX_ERROR.
+ */
+ngx_int_t brix_http_body_decode_to_writer(ngx_http_request_t *r,
+    struct brix_vfs_writer_s *w, const char *log_path, brix_codec_id_t codec,
+    uint64_t max_output, brix_http_body_summary_t *summary_out,
+    ngx_int_t *http_status_out);
+
 #endif /* BRIX_COMPAT_HTTP_BODY_H */

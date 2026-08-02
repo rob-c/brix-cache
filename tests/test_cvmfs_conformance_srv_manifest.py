@@ -20,9 +20,11 @@ Theme
   T13 negative memo absorbs only CAS-class 404s, so each metadata miss probes
   the origin again and a late-appearing file is served promptly.
 
-Port block 13120-13139 (mocks 13120-13129, nginx 13130-13139): module-scoped
-fixtures take 13120-13122/13130-13132, ephemeral per-test instances rotate
-over 13124-13129/13134-13139.
+Port block 13120-13139 canonical (mocks +0..+9, nginx +10..+19), shifted into
+the session tile by PortBlock: module-scoped fixtures take +0..+2/+10..+12,
+ephemeral per-test instances rotate over +4..+9/+14..+19. The canonical range
+overlaps the fleet's upstream-stub ports (settings.py STUB_*_BACKEND_PORT
+13120-13126), so nothing here may name an absolute port.
 """
 
 import itertools
@@ -56,11 +58,14 @@ _BLOCK = PortBlock("srv_manifest")
 
 class _FixedBlock(PortBlock):
     """A PortBlock pinned to one mock/nginx pair — ephemeral instances rotate
-    pairs so a just-torn-down server can never answer for its successor."""
+    pairs so a just-torn-down server can never answer for its successor.
+    Slots are offsets INTO the session tile (never canonical port literals:
+    the canonical 1312x range doubles as the fleet's upstream-stub ports, and
+    only the tile shift keeps a live fleet and this suite disjoint)."""
 
-    def __init__(self, mock_port: int, nginx_port: int):
+    def __init__(self, slot: int):
         super().__init__("srv_manifest")
-        self._mp, self._np = mock_port, nginx_port
+        self._mp, self._np = self.base + 4 + slot, self.base + 14 + slot
 
     def mock(self) -> int:
         return self._mp
@@ -69,14 +74,13 @@ class _FixedBlock(PortBlock):
         return self._np
 
 
-_EPHEMERAL_PAIRS = itertools.cycle([(13124 + i, 13134 + i) for i in range(6)])
+_EPHEMERAL_SLOTS = itertools.cycle(range(6))
 
 
 @contextmanager
 def ephemeral(**kw):
     """A throwaway srv_instance for tests that mutate origin/cache state."""
-    mock_port, nginx_port = next(_EPHEMERAL_PAIRS)
-    with srv_instance(_FixedBlock(mock_port, nginx_port), **kw) as srv:
+    with srv_instance(_FixedBlock(next(_EPHEMERAL_SLOTS)), **kw) as srv:
         yield srv
 
 

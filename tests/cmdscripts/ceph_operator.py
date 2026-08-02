@@ -87,17 +87,25 @@ def build_in_container(base: Path) -> tuple[bool, str]:
         ".cache", "objs", "site",
     }
     skip_ext = (".o", ".pic.o", ".pyc")
-    tar_path = base / "xrd-src.tgz"
-    with tarfile.open(tar_path, "w:gz") as tar:
-        for root, dirs, filenames in os.walk(REPO_ROOT):
-            dirs[:] = [d for d in dirs if d not in prune_dirs]
-            for name in filenames:
-                if name.endswith(skip_ext):
-                    continue
-                path = Path(root) / name
-                tar.add(path, arcname=str(path.relative_to(REPO_ROOT)), recursive=False)
-    with tar_path.open("rb") as fh:
-        copied = _docker(["exec", "-i", work, "tar", "xzf", "-", "-C", "/work/repo"], input_bytes=fh.read())
+    # The tarball must NOT live under the caller's pytest basetemp (`base`):
+    # concurrent sessions rotate+rm_rf those roots, and the repo-wide gzip walk
+    # takes long enough to lose the race (the file vanished between write and
+    # reopen). A private mkdtemp is outside the rotation blast radius.
+    tar_dir = Path(tempfile.mkdtemp(prefix="xrd-ceph-src-"))
+    tar_path = tar_dir / "xrd-src.tgz"
+    try:
+        with tarfile.open(tar_path, "w:gz") as tar:
+            for root, dirs, filenames in os.walk(REPO_ROOT):
+                dirs[:] = [d for d in dirs if d not in prune_dirs]
+                for name in filenames:
+                    if name.endswith(skip_ext):
+                        continue
+                    path = Path(root) / name
+                    tar.add(path, arcname=str(path.relative_to(REPO_ROOT)), recursive=False)
+        with tar_path.open("rb") as fh:
+            copied = _docker(["exec", "-i", work, "tar", "xzf", "-", "-C", "/work/repo"], input_bytes=fh.read())
+    finally:
+        shutil.rmtree(tar_dir, ignore_errors=True)
     if copied.returncode != 0:
         return result(False, f"source tar copy failed: {_tail(copied)}")
     for src, dst in ((ceph_dir / "ceph.conf", "/etc/ceph/ceph.conf"), (ceph_dir / "ceph.client.admin.keyring", "/etc/ceph/ceph.client.admin.keyring")):

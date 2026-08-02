@@ -109,6 +109,13 @@ typedef struct {
     ngx_str_t           backend_tx_client_secret; /* [brix_backend_token_exchange_
                                              * client_secret <secret>] — paired
                                              * client secret; NEVER logged.     */
+    void               *backend_tx_cache;   /* per-worker RFC-8693 minted-token
+                                             * cache (brix_tx_cache_t*), lazily
+                                             * created by the cred gate via the
+                                             * slot handed to
+                                             * brix_vfs_deleg_set_exchange()
+                                             * (P90-70.9). Not a directive; not
+                                             * merged — each conf owns its own. */
     ngx_str_t           backend_sts_endpoint;  /* [brix_backend_s3_sts_endpoint
                                              * <url>] (phase-70 §5.5) — STS base
                                              * URL for S3 credential EXCHANGE;
@@ -116,6 +123,26 @@ typedef struct {
     ngx_str_t           backend_sts_role;   /* [brix_backend_s3_sts_role <arn>]
                                              * — role ARN to AssumeRole into; ""
                                              * selects GetSessionToken.         */
+    ngx_str_t           backend_sts_access_key; /* [brix_backend_s3_sts_access_key
+                                             * <id>] (phase-70 §5.5) — node S3
+                                             * SERVICE access-key id that SigV4-
+                                             * signs the STS AssumeRole request. */
+    ngx_str_t           backend_sts_secret_key; /* [brix_backend_s3_sts_secret_key
+                                             * <secret>] — paired service secret;
+                                             * NEVER logged. STS is armed only
+                                             * when endpoint+ak+sk are all set. */
+    ngx_str_t           backend_sts_region; /* [brix_backend_s3_sts_region
+                                             * <region>] — SigV4 region for the
+                                             * "sts" service; "" → us-east-1.    */
+    ngx_int_t           backend_sts_ttl;    /* [brix_backend_s3_sts_ttl <secs>]
+                                             * — requested temp-cred lifetime;
+                                             * clamped 900..43200 by the STS
+                                             * client. UNSET → 3600.             */
+    ngx_uint_t          backend_sts_flavor; /* [brix_backend_s3_sts_flavor
+                                             * aws|minio] (phase-70 §5.5) — STS
+                                             * wire dialect: aws=GET/presigned,
+                                             * minio=POST/form/header-auth.
+                                             * UNSET → aws (0).                  */
     ngx_flag_t          backend_krb5_forwardable; /* [brix_backend_krb5_
                                              * forwardable on|off] (phase-70
                                              * §5.7) — allow GSSAPI credential
@@ -126,6 +153,14 @@ typedef struct {
                                              * permit spilling a captured full
                                              * proxy into the async stage
                                              * journal owner dir. Default off.  */
+    ngx_str_t           backend_sss_keytab; /* [brix_backend_sss_keytab <path>]
+                                             * (phase-70 §5.6 / P90-70.3) — SSS
+                                             * keytab the delegation gate signs
+                                             * identity-injection credentials
+                                             * with (assert the CALLER to the
+                                             * origin, never the keytab's own
+                                             * principal). Load-validated. "" =
+                                             * injection off.                   */
     void               *storage_instance;   /* resolved brix_sd_instance_t* for a
                                              * non-POSIX backend, built per worker at
                                              * init_process. Runtime only — never
@@ -166,6 +201,19 @@ typedef struct {
                                              * composed cache tier (phase-68);
                                              * 0/UNSET = off. Registered today by
                                              * the cvmfs protocol only.           */
+    ngx_flag_t          cache_global_cas;   /* phase-87 G13: hardlink-dedup
+                                             * cvmfs-cas-verified CAS objects
+                                             * across repos in the local posix
+                                             * cache store (default off).        */
+    ngx_flag_t          cache_passthrough;  /* phase-92 brix_cache_passthrough:
+                                             * store-then-evict an admission-
+                                             * declined remote object so the
+                                             * coalesced HTTP waiters are served
+                                             * a transient hit, then it is
+                                             * evicted (default off).            */
+    off_t               cache_passthrough_max; /* brix_cache_passthrough_max: the
+                                             * spool cap for a passthrough fill;
+                                             * 0 = fall back to cache_max_object. */
     ngx_str_t           cache_quarantine_dir; /* verify-mismatch evidence dir;
                                              * "" = unlink the failed part.       */
     ngx_str_t           cache_cvmfs_master_key; /* phase-85 F1: path to the repo
@@ -246,9 +294,10 @@ typedef struct {
     ngx_flag_t          ktls;               /* [brix_ktls on|off] SSL_OP_ENABLE_KTLS
                                              * on this server's TLS context so HTTPS
                                              * GET sendfiles over kernel-TLS (and PUT
-                                             * decrypts in-kernel). Default ON:
-                                             * transparent no-op when the negotiated
-                                             * cipher/kernel cannot offload. See
+                                             * decrypts in-kernel). Default OFF
+                                             * (phase-33 P5: opt-in, HW-offload-only;
+                                             * software kTLS regresses). No-op when
+                                             * the cipher/kernel cannot offload. See
                                              * docs/.../ktls.md.                     */
     ngx_flag_t          cache_store_endpoint; /* [brix_cache_store_endpoint on|off]
                                              * default OFF. Marks this location as a

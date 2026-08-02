@@ -23,6 +23,53 @@ flags *candidates*; a human decides the seams.
 
 ---
 
+## Execution status (supersedes the "PLAN ONLY" banner)
+
+The plan below has been **executed** across many sessions. What actually shipped
+diverged from the §4.1 `lint_loc.sh` sketch in one respect: the *enforced*
+backstop is a **raw 600-line cap** (`wc -l`) guarded by
+[`tools/ci/check_file_size.py`](../../tools/ci/check_file_size.py) against a
+shrink-only backlog (`tools/ci/file_size_backlog.txt`), wired into
+`.github/workflows/guards.yml` and the fast pytest lane
+(`tests/test_ci_guards.py`). The ~500-*logical* preference (§2) remains the
+human guideline; 600 raw is the red/green line. See memory
+`file-size-burndown-under-600`.
+
+- **`src/` tree — DONE (2026-07-22):** every file over the 600 raw cap split;
+  backlog burned to its frozen `src/` set; 19/19 CI guards green.
+- **`client/` tree — DONE (2026-07-30):** the guard's scan was widened from
+  `src/` to *also* cover `client/` (the ngx-free CLI + libbrix), excluding
+  `client/tests/` (unit harness + fixtures carry the standard's test
+  exemption). Every `client/` `.c`/`.h` over 600 raw was split
+  behavior-identically; **zero `client/` offenders remain** and the backlog
+  gains **no** `client/` entries. Client splits landed this session, each
+  verified by rebuilding the consuming binary:
+
+  | Original (>600) | raw | → core | + new sibling(s) | consuming binary |
+  |---|---:|---:|---|---|
+  | `client/lib/protocols/root/frame.c` | 781 | 447 | `frame_roundtrip.c` (348) | `xrdcp` |
+  | `client/lib/net/conn.c` | 749 | 588 | `conn_explain.c` (176) | `xrdcp` |
+  | `client/lib/fs/overlay.c` | 754 | 464 | `overlay_copyup.c` (303) + `overlay_internal.h` | `xrdcp` |
+  | `client/apps/fs/xrootdfs_legacy.c` | 920 | 575 | `xrootdfs_legacy_ext.c` (373) + `_internal.h` | `brixMount` |
+  | `client/apps/cksum/xrdcktree.c` | 885 | 535 | `xrdckcheck.c` (369) + `cktree_internal.h` | `xrdcksum` |
+  | `client/apps/fs/brixcvmfs_rw.c` | 878 | 436 | `brixcvmfs_rw_ext.c` (457) + `_internal.h` | `brixMount` |
+  | `client/apps/fs/brixautofs.c` | 849 | 456 | `brixautofs_ext.c` (403) + `_ext_internal.h` | `brixMount` |
+  | `client/apps/copy/xrdcp_recursive.c` | 754 | 527 | `xrdcp_recursive_upload.c` (234) | `xrdcp` |
+  | `client/apps/fs/xrdfs_data_xfer.c` | 609 | 435 | `xrdfs_data_xfer_vec.c` (185) | `xrdfs` |
+  | `client/lib/brix_net.h` | 670 | 576 | `brix_net_frame.h` (117) | all libbrix consumers |
+
+  Split mechanics followed §5: a private `*_internal.h` carries any symbol that
+  now crosses a TU boundary (de-`static` + prototype); app-level helpers get a
+  unique prefix to avoid colliding with the de-`static`'d globals already in
+  `libbrix.a` (e.g. `ckt_path_join` vs `copy_recursive.c`'s `path_join`); the
+  dual-driver `xrootdfs_legacy.c` uses an `lg_`-prefixed symbol set so it never
+  collides with the async driver in the shared `brixMount` binary; header splits
+  (`brix_net.h`) re-`#include` the extracted partial at their tail so every
+  consumer is unaffected; and preprocessor-guarded regions (`#ifndef
+  BRIXAUTOFS_UNIT`) are mirrored whole into the sibling TU, never cut across.
+
+---
+
 ## Table of contents
 
 1. [Why](#1-why)

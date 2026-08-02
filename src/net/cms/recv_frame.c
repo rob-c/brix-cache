@@ -27,6 +27,10 @@
 #include "recv_internal.h"
 #include "node_ops.h"               /* Plane B forwarded-op planner */
 #include "router.h"                 /* node-role opcode routing */
+#include "rrdata.h"                 /* Pup decode for supervisor fan-down */
+#include "forward.h"                /* per-node forwarded-op re-emit */
+#include "server.h"                 /* child node list (supervisor role) */
+#include "state_relay.h"            /* multi-tier kYR_state recursion */
 #include "net/manager/pending.h"
 #include "net/manager/registry.h"
 #include "fs/path/beneath.h"
@@ -173,6 +177,15 @@ cms_frame_space(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     return ngx_brix_cms_send_avail(ctx, streamid);
 }
 
+/* cms_frame_stats — kYR_stats: answer the manager's statistics query with the
+ * Cluster.Stats document (size form only when the kYR_size modifier at offset
+ * 5 is set). Table adapter around ngx_brix_cms_send_stats. */
+static ngx_int_t
+cms_frame_stats(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
+{
+    return ngx_brix_cms_send_stats(ctx, streamid, ctx->inbuf[5]);
+}
+
 /* cms_frame_status — kYR_status: the manager flips our login gate. The modifier
  * byte (offset 5) selects suspend (pause new logins) or resume; any other
  * modifier is a no-op, matching stock cmsd. */
@@ -296,6 +309,36 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
                            "\"%*s\", replying kYR_have", pl, payload);
             return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
         }
+
+        /*
+         * Phase-61 W7: registry miss.  With brix_cms_state_relay on, recurse
+         * — park the parent's leg and re-ask our own nodes; the first child
+         * kYR_have (server-leg ingest) is echoed back up under the parent's
+         * streamid.  Off, or table full, or no child took the probe: stay
+         * silent, which the parent reads as "not here" (stock semantics).
+         */
+        if (ctx->conf->cms.state_relay) {
+            uint32_t              down_sid;
+            ngx_uint_t            i, sent = 0;
+            brix_cms_srv_ctx_t   *node;
+
+            down_sid = brix_cms_state_relay_add(ctx, streamid, pathz);
+            if (down_sid == 0) {
+                return NGX_OK;
+            }
+            for (i = 0; i < brix_cms_srv_node_count(); i++) {
+                node = brix_cms_srv_node_at(i);
+                if (node == NULL || !node->logged_in || node->c == NULL) {
+                    continue;
+                }
+                if (brix_cms_srv_send_state(node, down_sid, pathz) == NGX_OK) {
+                    sent++;
+                }
+            }
+            ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                           "brix: CMS state(mgr): relayed \"%s\" down to "
+                           "%ui node(s)", pathz, sent);
+        }
         return NGX_OK;
     }
 
@@ -328,14 +371,69 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     return NGX_OK;
 }
 
+/* cms_super_fan_down — Phase-61 W7: an explicit supervisor pushes a manager-
+ * forwarded namespace op DOWN to its own logged-in data nodes instead of
+ * executing it locally (supVOps marks these Forward in stock cmsd's
+ * initSUProuting).  The Pup payload is decoded once and re-encoded per child
+ * hop; rrdata spans are NUL-terminated in place on the wire, so they pass
+ * straight through as C strings.  Silent toward the manager either way —
+ * per-child failures are the child's to report on its own leg. */
+static ngx_int_t
+cms_super_fan_down(ngx_brix_cms_ctx_t *ctx, u_char code,
+    const u_char *payload, size_t plen)
+{
+    brix_cms_rrdata_t     rr;
+    brix_cms_srv_ctx_t   *node;
+    ngx_uint_t            i, sent;
+    uint32_t              sid;
+
+    if (brix_cms_rrdata_parse(code, payload, plen, &rr) != 0) {
+        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+                      "brix: CMS super: malformed forwarded op=%ui — dropped",
+                      (ngx_uint_t) code);
+        return NGX_OK;
+    }
+
+    sid = brix_cms_srv_next_streamid();
+    sent = 0;
+
+    for (i = 0; i < brix_cms_srv_node_count(); i++) {
+        node = brix_cms_srv_node_at(i);
+        if (node == NULL || !node->logged_in || node->c == NULL) {
+            continue;
+        }
+        if (brix_cms_forward_to_node(node->c, code, sid,
+                                     (const char *) rr.ident,
+                                     (const char *) rr.path,
+                                     (const char *) rr.path2,
+                                     (const char *) rr.mode,
+                                     (const char *) rr.opaque) == NGX_OK)
+        {
+            sent++;
+        }
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                   "brix: CMS super: forwarded op=%ui down to %ui node(s)",
+                   (ngx_uint_t) code, sent);
+    return NGX_OK;
+}
+
 /* cms_frame_forward — kYR_chmod/mkdir/mkpath/mv/rm/rmdir/trunc (Plane B): a
- * manager-forwarded namespace mutation.  Execute it under kernel confinement
- * and reply silent-on-success / kYR_error-on-failure. */
+ * manager-forwarded namespace mutation.  An explicit supervisor relays it down
+ * to its own data nodes (cms_super_fan_down); every other role executes it
+ * locally under kernel confinement and replies silent-on-success /
+ * kYR_error-on-failure. */
 static ngx_int_t
 cms_frame_forward(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 {
     const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
     size_t         plen    = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
+
+    if (ctx->conf->cms.role == BRIX_CMS_ROLE_SUPERVISOR) {
+        return cms_super_fan_down(ctx, code, payload, plen);
+    }
+
     return cms_node_exec_forward(ctx, code, streamid, payload, plen);
 }
 
@@ -389,6 +487,7 @@ static const struct {
 } cms_frame_table[] = {
     { CMS_RR_PING,   cms_frame_ping     },
     { CMS_RR_SPACE,  cms_frame_space    },
+    { CMS_RR_STATS,  cms_frame_stats    },
     { CMS_RR_STATUS, cms_frame_status   },
     { CMS_RR_SELECT, cms_frame_redirect },
     { CMS_RR_TRY,    cms_frame_redirect },
@@ -406,11 +505,52 @@ static const struct {
     { CMS_RR_DISC,   cms_frame_disc     },
 };
 
+/* cms_frame_role_ok — Phase-61 W7 valid-ops gate: under an explicit
+ * brix_cms_role, only the ops in that role's upward-leg table (manVOps for a
+ * sub-manager, supVOps for a supervisor) may arrive from the parent manager —
+ * stock cmsd "prohibit[s] a meta-manager from requesting potentially
+ * destructive actions".  kYR_select / kYR_try are exempt: they are the
+ * streamid-correlated replies to our own kYR_locate, not parent requests.
+ * Role auto keeps the legacy accept-everything behaviour. */
+static ngx_uint_t
+cms_frame_role_ok(ngx_brix_cms_ctx_t *ctx, u_char code)
+{
+    brix_cms_role_t  role;
+
+    switch (ctx->conf->cms.role) {
+    case BRIX_CMS_ROLE_MANAGER:
+        role = XRDCMS_ROLE_SUBMAN;
+        break;
+    case BRIX_CMS_ROLE_SUPERVISOR:
+        role = XRDCMS_ROLE_SUPER;
+        break;
+    default:
+        return 1;
+    }
+
+    if (code == CMS_RR_SELECT || code == CMS_RR_TRY) {
+        return 1;
+    }
+
+    if (brix_cms_route_lookup(role, code) != NULL) {
+        return 1;
+    }
+
+    ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+                  "brix: CMS %s: manager sent an invalid request "
+                  "(op=%ui) — dropped",
+                  role == XRDCMS_ROLE_SUBMAN ? "subman" : "super",
+                  (ngx_uint_t) code);
+    return 0;
+}
+
 /* ngx_brix_cms_process_frame — decode a complete CMS frame's streamid + rrCode
- * (first 4 bytes + offset 4) and dispatch by opcode through cms_frame_table:
- * PING→PONG, SPACE→AVAIL, STATUS→suspend/resume conf flags, SELECT/TRY→client
- * redirect, STATE→kYR_have probe, forwarded namespace ops, UPDATE, DISC.
- * Unknown opcodes are silently ignored (debug log). */
+ * (first 4 bytes + offset 4), apply the per-role valid-ops gate
+ * (cms_frame_role_ok), and dispatch by opcode through cms_frame_table:
+ * PING→PONG, SPACE→AVAIL, STATS→Cluster.Stats, STATUS→suspend/resume conf
+ * flags, SELECT/TRY→client redirect, STATE→kYR_have probe, forwarded
+ * namespace ops, UPDATE, DISC. Unknown opcodes are silently ignored (debug
+ * log). */
 
 ngx_int_t
 ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
@@ -426,6 +566,10 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
     ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                    "brix: CMS process frame code=%ui streamid=%uD",
                    (ngx_uint_t) code, streamid);
+
+    if (!cms_frame_role_ok(ctx, code)) {
+        return NGX_OK;                    /* logged + dropped, conn kept */
+    }
 
     for (i = 0; i < sizeof(cms_frame_table) / sizeof(cms_frame_table[0]); i++) {
         if (cms_frame_table[i].code == code) {

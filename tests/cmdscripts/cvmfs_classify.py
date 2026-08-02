@@ -40,7 +40,11 @@ int main(void) {
     assert(C("/cvmfs/bad repo/.cvmfspublished").cls == CVMFS_URL_REJECT);
     assert(C("/cvmfs//.cvmfspublished").cls == CVMFS_URL_REJECT);
     assert(C("/cvmfs/a.b/.cvmfspublished/extra").cls == CVMFS_URL_REJECT);
-    printf("run_cvmfs_classify: 15 checks OK\n");
+    i = C("/cvmfs/atlas.cern.ch/.cvmfs-bundle");             /* phase-87 G2 */
+    assert(i.cls == CVMFS_URL_BUNDLE && i.repo_len == 13);
+    assert(C("/cvmfs/a.b/.cvmfs-bundle/extra").cls == CVMFS_URL_REJECT);
+    assert(C("/cvmfs/a.b/.cvmfs-bundl").cls == CVMFS_URL_REJECT);
+    printf("run_cvmfs_classify: 18 checks OK\n");
     return 0;
 }
 '''

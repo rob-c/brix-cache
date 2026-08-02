@@ -342,6 +342,15 @@ brix_open_posix_dispatch(brix_open_args_t *a)
 		    brix_open_logical(open_path, conf->common.root_canon),
 		    effective_oflags, create_mode);
 	}
+	/* C-2 (phase-56): an in-place create-open (no staging temp) materialises
+	 * the final path right here, outside brix_vfs_open — drop any per-worker
+	 * cached negative so a stat racing the create never sees a stale ENOENT.
+	 * Staged opens create only the temp; the final path appears at POSC
+	 * commit, which forgets there. */
+	if (fd >= 0 && !stage && (effective_oflags & O_CREAT)) {
+		brix_vfs_neg_stat_forget(conf->common.root_canon, open_path);
+	}
+
 	a->fd = fd;
 	return (fd < 0);
 }

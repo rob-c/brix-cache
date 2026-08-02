@@ -209,6 +209,9 @@ brix_tier_fill_cache_policy(ngx_http_brix_shared_conf_t *common,
                : (brix_cache_verify_mode_e) common->cache_verify_mode;
     pol.cvmfs_manifest_ttl = common->cache_manifest_ttl;
     pol.cvmfs_offline_ttl  = common->cache_offline_ttl;
+    pol.global_cas         = (common->cache_global_cas == 1);
+    pol.passthrough        = (common->cache_passthrough == 1);
+    pol.passthrough_max    = common->cache_passthrough_max;
     if (common->cache_quarantine_dir.len > 0) {
         ngx_cpystrn((u_char *) pol.quarantine_dir,
                     common->cache_quarantine_dir.data,
@@ -245,6 +248,16 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cache_verify cvmfs-cas requires a local posix "
             "cache store (got \"%s\")", cfg.driver);
+        return NGX_ERROR;
+    }
+    /* phase-87 G13: cross-repo dedup collapses byte-identical CAS objects onto
+     * one inode via hardlinks — a local-posix-only concept. The publish leg
+     * additionally self-gates on a cvmfs-cas-verified fill at runtime, so the
+     * only hard config constraint is the store medium. */
+    if (pol.global_cas && ngx_strcmp(cfg.driver, "posix") != 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_global_cas requires a local posix cache store "
+            "(got \"%s\")", cfg.driver);
         return NGX_ERROR;
     }
     /* phase-85 F1: brix_cvmfs_verify_manifest — load the repo master public

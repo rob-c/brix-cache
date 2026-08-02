@@ -1,8 +1,9 @@
 /*
  * vfs_sync.c — VFS handle-level truncate and durability.
  *
- * WHAT: Implements brix_vfs_truncate() (resize an open handle to `length`) and
- *       brix_vfs_sync() (flush an open handle to stable storage).
+ * WHAT: Implements brix_vfs_truncate() (resize an open handle to `length`),
+ *       brix_vfs_sync() (flush an open handle to stable storage), and
+ *       brix_vfs_file_read_advise() (advisory read-ahead hint on the handle).
  *
  * WHY:  kXR_truncate and the sync/commit step of writes (kXR_sync, WebDAV PUT
  *       finalisation) operate on an already-open handle rather than a path, so
@@ -70,4 +71,23 @@ brix_vfs_sync(brix_vfs_file_t *fh)
     }
 
     return NGX_OK;
+}
+
+/* Advisory read-ahead hint on the open handle (phase-56 B-2). Dispatches to the
+ * driver's read_advise slot; a backend without the slot succeeds as a no-op, so
+ * callers hint unconditionally and never branch on backend type. */
+ngx_int_t
+brix_vfs_file_read_advise(brix_vfs_file_t *fh, off_t off, size_t len,
+    int advice)
+{
+    if (fh == NULL || fh->obj.driver == NULL || off < 0) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+
+    if (fh->obj.driver->read_advise == NULL) {
+        return NGX_OK;
+    }
+
+    return fh->obj.driver->read_advise(&fh->obj, off, len, advice);
 }

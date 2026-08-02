@@ -165,6 +165,13 @@ typedef struct brix_ctx_s {
      */
     brix_ctx_pwd_t  pwd;  /* XrdSecpwd handshake state — see brix_ctx_pwd_t. */
 
+    /* Phase 70 §5.7: XrdSeckrb5 forwarded-TGT delegation-capture state.  Only
+     * armed when brix_krb5_delegate is on; round 1 parks the session subkey +
+     * client principal here and replies kXR_authmore "fwdtgt", round 2 captures
+     * the forwarded KRB_CRED into a 0600 FILE ccache (krb5.ccache).  See
+     * brix_ctx_krb5_t. */
+    brix_ctx_krb5_t krb5;
+
     /*
      * Bearer-token auth state.
      *

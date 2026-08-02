@@ -17,6 +17,7 @@
 #include <ngx_stream.h>
 #include <stdio.h>
 #include <string.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* §F6 GSI proxy-delegation teardown (src/gsi/delegation.c). Declared here to
  * avoid pulling the GSI internal header into the connection layer. */
@@ -99,7 +100,7 @@ static void
 brix_release_disconnect_crypto_state(brix_ctx_t *ctx)
 {
     if (ctx->gsi.dh_key != NULL) {
-        EVP_PKEY_free(ctx->gsi.dh_key);
+        brix_evp_pkey_free(ctx->gsi.dh_key);
         ctx->gsi.dh_key = NULL;
     }
 
@@ -320,12 +321,18 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
  *
  * WHY: Pipelined writes break the old "exactly one AIO in flight, recv suspended"
  *   invariant that made teardown trivially safe.  This is the single chokepoint
- *   that restores the guarantee: no finalize while any pwrite references ctx/fds. */
+ *   that restores the guarantee: no finalize while any pwrite references ctx/fds.
+ *
+ * phase-32 WS3: pipelined READS break the same invariant — a cold kXR_read posts
+ *   its pread to a worker thread and recv keeps receiving instead of suspending,
+ *   so a worker may be preading into a rd_pool buffer this teardown would free.
+ *   Defer on rd.aio_inflight too; the last read completion (brix_read_aio_done)
+ *   runs the held teardown once both counters reach 0. */
 ngx_flag_t
 brix_defer_teardown_if_writing(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t status)
 {
-    if (ctx->out.wr_inflight == 0) {
+    if (ctx->out.wr_inflight == 0 && ctx->rd.aio_inflight == 0) {
         return 0;
     }
 

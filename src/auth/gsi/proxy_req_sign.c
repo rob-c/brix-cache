@@ -36,6 +36,7 @@
 #include <openssl/asn1.h>
 
 #include "proxy_req_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* pcPathLengthConstraint of an X509_REQ's proxyCertInfo, or -1 if none. */
 static int
@@ -99,7 +100,7 @@ sgn_fail(sgn_ctx *x, const char *msg)
     if (x->sbio)   BIO_free(x->sbio);
     if (x->signer) X509_free(x->signer);
     if (x->req)    X509_REQ_free(x->req);
-    if (x->reqpub) EVP_PKEY_free(x->reqpub);
+    if (x->reqpub) brix_evp_pkey_free(x->reqpub);
     if (x->proxy)  X509_free(x->proxy);
     if (x->pciext) X509_EXTENSION_free(x->pciext);
     if (x->obio)   BIO_free(x->obio);

@@ -17,12 +17,20 @@
 
 extern const brix_mss_adapter_t brix_mss_stub_adapter;
 extern const brix_mss_adapter_t brix_mss_exec_adapter;
+extern const brix_mss_adapter_t brix_mss_lib_adapter;
 
 /* Build an adapter context (the sd_frm_state mss_ctx).  Returns the opaque
  * context, or NULL with errno = ENOMEM.  `location` is the online-buffer / stub
  * tape root; `stagecmd` is the exec adapter's stage command. */
 void *brix_mss_stub_create(const char *location, ngx_log_t *log);
 void *brix_mss_exec_create(const char *location, const char *stagecmd,
+          ngx_log_t *log);
+
+/* Build the library-native (dlopen) adapter context: opens `libpath` and binds
+ * the HSM ABI (sd_frm_lib_abi.h).  Returns NULL when the library is absent or
+ * missing a required symbol (the caller then falls back to exec/stub) — unlike
+ * the create() calls above, a NULL here is a graceful fallback, not ENOMEM. */
+void *brix_mss_lib_create(const char *location, const char *libpath,
           ngx_log_t *log);
 
 /* Filesystem helpers shared by both adapters (defined in sd_frm_stub.c). */

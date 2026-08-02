@@ -13,7 +13,7 @@
  *       request ctx (convention #2).
  */
 #include "cvmfs.h"
-#include "fs/path/path.h"                  /* brix_sanitize_log_string */
+#include "cvmfs_module_internal.h"         /* cvmfs_finalize_observe */
 #include "core/compat/error_mapping.h"
 #include "core/http/etag.h"
 #include "core/http/http_file_response.h"      /* brix_http_add_etag_header */
@@ -61,10 +61,28 @@ cvmfs_reenter(ngx_http_request_t *r, void *data)
     return ngx_http_brix_cvmfs_handler(r);
 }
 
+/* Fill-failure interceptor (phase-87 G16): a definitive origin 404 while a
+ * virtual-repo request was parked on a fill advances to the next member and
+ * re-runs the whole handler (same trampoline contract as cvmfs_reenter).
+ * Every other failure — and a 404 on a direct or last-member request —
+ * keeps its status. */
+static ngx_int_t
+cvmfs_fill_fail(ngx_http_request_t *r, void *data, ngx_int_t status)
+{
+    (void) data;
+    if (status == NGX_HTTP_NOT_FOUND
+        && brix_cvmfs_virtual_advance(r) == NGX_OK)
+    {
+        return ngx_http_brix_cvmfs_handler(r);
+    }
+    return status;
+}
+
 /* Resolve which storage instance serves this request (convention #2):
  * the T14 proxy-mode per-upstream override wins, else the location's
- * statically registered backend. */
-static brix_sd_instance_t *
+ * statically registered backend. Non-static: the bundle endpoint
+ * (bundle.c) resolves through the same seam (cvmfs_module_internal.h). */
+brix_sd_instance_t *
 cvmfs_resolve_sd(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
     ngx_http_brix_cvmfs_ctx_t *ctx =
@@ -178,7 +196,8 @@ cvmfs_tier_serve_or_fill(ngx_http_request_t *r,
 
     /* miss → one coalesced off-loop fill, re-entering this handler on land */
     rc = brix_http_cache_fill_if_needed(r, sd, key, &lcf->common,
-                                          cvmfs_reenter, NULL);
+                                          cvmfs_reenter, NULL,
+                                          cvmfs_fill_fail);
     if (rc == NGX_DONE) {
         if (ctx != NULL) {
             ctx->cache_status = BRIX_CVMFS_CACHE_FILL;   /* $cvmfs_cache */
@@ -247,6 +266,22 @@ cvmfs_tier_open_respond(ngx_http_request_t *r,
         return rc;
     }
 
+    /* phase-87 G10: a CAS GET naming a resident delta base wins over the
+     * dict coding (a same-object base beats any trained dictionary);
+     * NGX_DECLINED leaves fh open and falls through. */
+    rc = brix_cvmfs_delta_try_serve(r, lcf, ctx, fh);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    /* phase-87 G3: a CAS GET opting in with a matching X-Brix-Dict header
+     * may be answered dict-coded; NGX_DECLINED leaves fh open and falls
+     * through to the identity ranged serve. */
+    rc = brix_cvmfs_dict_try_serve(r, lcf, ctx, fh);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
     r->allow_ranges = 1;
 
     {
@@ -297,6 +332,11 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     }
     key = brix_vfs_export_relative(&vctx, path);
 
+    /* phase-87 G11: passively learn this connection's CAS access sequence
+     * and prewarm the predicted successors (advisory — never touches this
+     * request's own serve path). */
+    brix_cvmfs_learn_note(r, lcf, ctx, vctx.sd, key);
+
     /* Dashboard live-transfer record from TIER ENTRY, not serve time: the
      * record then spans a cold fill's whole origin wait, so in-flight cvmfs
      * fills are visible in the transfer table (the serve pipeline's own
@@ -315,229 +355,32 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     return cvmfs_tier_open_respond(r, lcf, ctx, &vctx, path);
 }
 
-/* WHAT: close out the session-log record for this request — result line plus,
- *       for a GET whose transfer started, the byte tally + terminal disposition.
- * WHY:  a success (<400) logs no error; a failure maps the HTTP status to a
- *       sesslog error string. The xfer end classifies COMPLETE vs ABORTED off
- *       the same threshold. Only runs when an attempt was actually logged.
- * HOW:  side-effecting edge helper; guards on sess_attempt_logged and clears
- *       sess_xfer_started so re-entry can't double-count. */
-static void
-cvmfs_finalize_sesslog(ngx_http_request_t *r,
-    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx,
-    ngx_uint_t status)
+/* The request-finalization observer (sesslog close-out, client trace,
+ * T16 metric accounting, G15 attest observe) lives in
+ * handler_finalize.c; declared in cvmfs_module_internal.h. */
+
+/* First-entry setup: request ctx + finalize observer + sesslog attempt and
+ * xfer-start records. Re-entry after an off-loop fill runs the handler again
+ * on the same request — the existing ctx marks the observer as already
+ * registered and the attempt as already logged. NULL = allocation failure. */
+static ngx_http_brix_cvmfs_ctx_t *
+cvmfs_handler_ctx(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
-    brix_sess_t *sess;
-    char         path[BRIX_SESSLOG_PATH_MAX];
-    char         errscratch[BRIX_SESSLOG_ERR_MAX];
+    ngx_http_brix_cvmfs_ctx_t *ctx;
 
-    if (lcf == NULL || ctx == NULL || !ctx->sess_attempt_logged) {
-        return;
-    }
-
-    sess = brix_http_sess(r, &lcf->common, BRIX_SESS_PROTO_CVMFS,
-                          BRIX_SESS_AM_ANON);
-    brix_sess_result(sess, status < NGX_HTTP_BAD_REQUEST,
-                     brix_http_sess_uri(r, path, sizeof(path)),
-                     BRIX_SESS_MODE_READ,
-                     status < NGX_HTTP_BAD_REQUEST ? NULL
-                         : brix_sesslog_err_from_http((int) status,
-                                                       errscratch,
-                                                       sizeof(errscratch)));
-    if (ctx->sess_xfer_started) {
-        if (r->headers_out.content_length_n > 0) {
-            brix_sess_xfer_add(&ctx->sess_xfer,
-                (uint64_t) r->headers_out.content_length_n);
-        }
-        brix_sess_xfer_end(sess, &ctx->sess_xfer,
-            status < NGX_HTTP_BAD_REQUEST ? BRIX_SESS_XFER_COMPLETE
-                                           : BRIX_SESS_XFER_ABORTED);
-        ctx->sess_xfer_started = 0;
-    }
-}
-
-/* WHAT: emit the optional one-line client-op trace naming traffic class,
- *       repository, path and final cache disposition + status.
- * WHY:  DEBUG normally (visible under error_log … debug), promoted to INFO by
- *       brix_cvmfs_trace. Correlates with the upstream-request line by path.
- * HOW:  bounds the class/cache indices, sanitizes the non-NUL-terminated uri
- *       span into a stack buffer, and skips the whole build below the level. */
-static void
-cvmfs_finalize_trace(ngx_http_request_t *r,
-    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx,
-    ngx_uint_t status)
-{
-    static const char *cls_names[] = { "cas", "manifest", "geo", "reject" };
-    static const char *cache_names[] = { "-", "hit", "fill", "neg" };
-    ngx_uint_t         level;
-    char               safe[1024];
-    char               raw[1024];
-    size_t             n;
-
-    if (ctx == NULL || lcf == NULL) {
-        return;
-    }
-
-    level = lcf->cvmfs.trace ? NGX_LOG_INFO : NGX_LOG_DEBUG;
-    if (r->connection->log->log_level < level) {
-        return;
-    }
-
-    /* r->uri.data is NOT NUL-terminated (points into the request
-     * buffer); copy the exact uri span before sanitizing. */
-    n = ngx_min(r->uri.len, sizeof(raw) - 1);
-    ngx_memcpy(raw, r->uri.data, n);
-    raw[n] = '\0';
-    brix_sanitize_log_string(raw, safe, sizeof(safe));
-    ngx_log_error(level, r->connection->log, 0,
-        "cvmfs-trace: client id=%uA class=%s repo=%*s path=%s "
-        "cache=%s status=%ui",
-        r->connection->number,
-        cls_names[ctx->url.cls <= CVMFS_URL_REJECT ? ctx->url.cls : 3],
-        ctx->url.repo != NULL ? ctx->url.repo_len : (size_t) 0,
-        ctx->url.repo != NULL ? ctx->url.repo : "",
-        safe,
-        cache_names[ctx->cache_status <= BRIX_CVMFS_CACHE_NEG
-                    ? ctx->cache_status : 0],
-        status);
-}
-
-/* WHAT: record the fill-side T16 metrics for a request that missed the cache
- *       and drove an off-loop fill — success counts + bytes, or a fill failure.
- * WHY:  a 200/206 means the fill landed and served; a 502 is a definitive fill
- *       failure. A 504 hold-expiry is NOT counted as a failure — the detached
- *       fill may still publish for the client's retry.
- * HOW:  bumps global + per-repo counters; byte adds use content_length_n which
- *       the serve pipeline set before headers went out. */
-static void
-cvmfs_finalize_metrics_fill(ngx_http_request_t *r,
-    ngx_http_brix_cvmfs_ctx_t *ctx, ngx_uint_t status)
-{
-    if (status == NGX_HTTP_OK || status == NGX_HTTP_PARTIAL_CONTENT) {
-        BRIX_CVMFS_METRIC_INC(fills_total);
-        if (r->headers_out.content_length_n > 0) {
-            BRIX_CVMFS_METRIC_ADD(bytes_served_fill_total,
-                (ngx_atomic_uint_t) r->headers_out.content_length_n);
-        }
-        brix_metric_cache_result(BRIX_PROTO_CVMFS, 0, 0);
-        if (ctx->repo != NULL) {
-            BRIX_ATOMIC_INC(&ctx->repo->fills_total);
-            BRIX_ATOMIC_INC(&ctx->repo->cache_misses_total);
-            if (ctx->url.cls == CVMFS_URL_CAS) {
-                BRIX_ATOMIC_INC(&ctx->repo->files_accessed_total);
-            }
-            if (r->headers_out.content_length_n > 0) {
-                BRIX_ATOMIC_ADD(&ctx->repo->bytes_served_fill_total,
-                    (ngx_atomic_uint_t) r->headers_out.content_length_n);
-            }
-        }
-    } else if (status == NGX_HTTP_BAD_GATEWAY) {
-        BRIX_CVMFS_METRIC_INC(fill_failures_total);
-        if (ctx->repo != NULL) {
-            BRIX_ATOMIC_INC(&ctx->repo->fill_failures_total);
-        }
-    }
-    /* a 504 hold-expiry is NOT a definitive fill failure — the
-     * detached fill may still publish for the client's retry */
-}
-
-/* WHAT: record the hit-side T16 metrics for a request served from a warm cache
- *       (bytes + hit counters) on a 200/206.
- * WHY:  a cache HIT that actually delivered bytes is the success case; other
- *       statuses (e.g. a conditional 304) add nothing.
- * HOW:  bumps global + per-repo hit counters and byte tallies off
- *       content_length_n. */
-static void
-cvmfs_finalize_metrics_hit(ngx_http_request_t *r,
-    ngx_http_brix_cvmfs_ctx_t *ctx)
-{
-    if (r->headers_out.content_length_n > 0) {
-        BRIX_CVMFS_METRIC_ADD(bytes_served_hit_total,
-            (ngx_atomic_uint_t) r->headers_out.content_length_n);
-    }
-    brix_metric_cache_result(BRIX_PROTO_CVMFS, 1, 0);
-    if (ctx->repo != NULL) {
-        BRIX_ATOMIC_INC(&ctx->repo->cache_hits_total);
-        if (ctx->url.cls == CVMFS_URL_CAS) {
-            BRIX_ATOMIC_INC(&ctx->repo->files_accessed_total);
-        }
-        if (r->headers_out.content_length_n > 0) {
-            BRIX_ATOMIC_ADD(&ctx->repo->bytes_served_hit_total,
-                (ngx_atomic_uint_t) r->headers_out.content_length_n);
-        }
-    }
-}
-
-/* WHAT: dispatch the T16 fill/byte accounting off the FINAL cache disposition.
- * WHY:  the two dispositions (FILL, HIT) have distinct counter families; a
- *       single decision point keeps the accounting off the terminal status.
- * HOW:  routes to the fill- or hit-side helper; NONE/NEG account nothing. */
-static void
-cvmfs_finalize_metrics(ngx_http_request_t *r,
-    ngx_http_brix_cvmfs_ctx_t *ctx, ngx_uint_t status)
-{
-    if (ctx->cache_status == BRIX_CVMFS_CACHE_FILL) {
-        cvmfs_finalize_metrics_fill(r, ctx, status);
-    } else if (ctx->cache_status == BRIX_CVMFS_CACHE_HIT
-               && (status == NGX_HTTP_OK
-                   || status == NGX_HTTP_PARTIAL_CONTENT))
-    {
-        cvmfs_finalize_metrics_hit(r, ctx);
-    }
-}
-
-/* Request-finalization observer: fires once when the request pool is torn
- * down, with the FINAL response status — the one place every serve path
- * (inline open, off-loop fill, passthrough) converges, so the negative
- * memo (T13) sees every 404 regardless of which path produced it. */
-static void
-cvmfs_finalize_observe(void *data)
-{
-    ngx_http_request_t               *r = data;
-    ngx_http_brix_cvmfs_loc_conf_t *lcf =
-        ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
-    ngx_http_brix_cvmfs_ctx_t      *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
-    ngx_uint_t                        status =
-        brix_http_effective_status(r, NGX_OK);
-
-    cvmfs_finalize_sesslog(r, lcf, ctx, status);
-
-    if (lcf != NULL) {
-        brix_cvmfs_notify_status(r, lcf, status);
-    }
-
-    cvmfs_finalize_trace(r, lcf, ctx, status);
-
-    if (ctx == NULL) {
-        return;
-    }
-    cvmfs_finalize_metrics(r, ctx, status);
-}
-
-ngx_int_t
-ngx_http_brix_cvmfs_handler(ngx_http_request_t *r)
-{
-    ngx_http_brix_cvmfs_loc_conf_t *lcf =
-        ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
-    ngx_http_brix_cvmfs_ctx_t      *ctx;
-    ngx_int_t                         rc;
-
-    /* Re-entry after an off-loop fill runs the handler again on the same
-     * request — the existing ctx marks the observer as already registered. */
     ctx = ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
     if (ctx == NULL) {
         ngx_pool_cleanup_t *cln;
 
         ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
         if (ctx == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            return NULL;
         }
         ngx_http_set_ctx(r, ctx, ngx_http_brix_cvmfs_module);
 
         cln = ngx_pool_cleanup_add(r->pool, 0);
         if (cln == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            return NULL;
         }
         cln->handler = cvmfs_finalize_observe;
         cln->data    = r;
@@ -561,9 +404,29 @@ ngx_http_brix_cvmfs_handler(ngx_http_request_t *r)
         }
     }
 
-    rc = ngx_http_discard_request_body(r);          /* GET/HEAD only proto */
-    if (rc != NGX_OK) {
-        return rc;
+    return ctx;
+}
+
+ngx_int_t
+ngx_http_brix_cvmfs_handler(ngx_http_request_t *r)
+{
+    ngx_http_brix_cvmfs_loc_conf_t *lcf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
+    ngx_int_t                         rc;
+
+    if (cvmfs_handler_ctx(r, lcf) == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* GET/HEAD-only protocol — except the phase-87 G2 bundle POST, whose
+     * want-list body the gate's bundle handler reads itself. A POST that
+     * turns out not to be a valid bundle request is rejected by the gate
+     * with the body unread; nginx's special-response path discards it. */
+    if (!(r->method == NGX_HTTP_POST && lcf->cvmfs.bundle)) {
+        rc = ngx_http_discard_request_body(r);
+        if (rc != NGX_OK) {
+            return rc;
+        }
     }
 
     if (lcf->scvmfs) {
@@ -573,9 +436,20 @@ ngx_http_brix_cvmfs_handler(ngx_http_request_t *r)
         }
     }
 
-    rc = brix_cvmfs_gate(r, lcf);                 /* classify + police  */
-    if (rc != NGX_DECLINED) {
+    for ( ;; ) {
+        rc = brix_cvmfs_gate(r, lcf);             /* classify + police  */
+        if (rc == NGX_DECLINED) {
+            rc = cvmfs_tier_get(r, lcf);
+        }
+        /* phase-87 G16: a definitive 404 on a virtual-repo request tries
+         * the next member (declaration-order precedence, bounded by the
+         * member count); any other answer — including a member's 401/403,
+         * which must never be papered over by a sibling — is final. */
+        if (rc == NGX_HTTP_NOT_FOUND
+            && brix_cvmfs_virtual_advance(r) == NGX_OK)
+        {
+            continue;
+        }
         return rc;               /* reject status, passthrough NGX_DONE … */
     }
-    return cvmfs_tier_get(r, lcf);
 }

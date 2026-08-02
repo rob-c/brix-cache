@@ -158,6 +158,8 @@ brix_merge_srv_net_fault(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_msec_value(conf->tcp_user_timeout,  prev->tcp_user_timeout,  0);
     ngx_conf_merge_value(conf->tcp_keepalive,          prev->tcp_keepalive,     0);
     ngx_conf_merge_str_value(conf->tcp_congestion,     prev->tcp_congestion,    "");
+    ngx_conf_merge_size_value(conf->socket_sndbuf,     prev->socket_sndbuf,     0);
+    ngx_conf_merge_size_value(conf->socket_rcvbuf,     prev->socket_rcvbuf,     0);
     ngx_conf_merge_uint_value(conf->max_connections,   prev->max_connections,   0);
     ngx_conf_merge_msec_value(conf->manager_stale_after,
                               prev->manager_stale_after, 0);

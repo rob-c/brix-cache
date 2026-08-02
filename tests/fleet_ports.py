@@ -248,6 +248,7 @@ CMDSCRIPTS_PORTS = {
     "brixcvmfs_live": (29022, 3),
     "cache_backend_source": (29025, 2),
     "cache_http_source": (29027, 2),
+    "cache_passthrough": (29217, 2),
     "cache_pblock_pblock": (29029, 2),
     "cache_pblock_posix": (29031, 3),
     "cache_reaper": (29034, 1),

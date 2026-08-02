@@ -1,0 +1,22 @@
+apiVersion: v2
+name: pb-gsi
+description: >-
+  root://+GSI multi-user gateway backed by a LOCAL pblock:// store, with
+  per-UNIX-GROUP read/write isolation per path subtree (P80.21-P80.25).  The
+  authenticated GSI EEC DN is mapped to a local account via brix_gridmap; the
+  account's OS groups drive the brix_authdb g-rule gate; the pblock catalog
+  stamps true {uid,gid} ownership.  Sibling of s3-gsi, but the isolation axis
+  is authorization+ownership (local store) rather than backend-credential
+  attribution.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: brix-common
+    version: 0.1.0
+    repository: file://../brix-common
+  - name: topology-role
+    version: 0.1.0
+    repository: file://../topology-role
+    alias: pbgsi
+    condition: pbgsi.enabled

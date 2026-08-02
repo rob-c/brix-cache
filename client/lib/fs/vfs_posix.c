@@ -104,7 +104,8 @@ make_posix_temp_path(const char *dst)
  *       brix_disk_ring_create with a modest window (4 ops, 64 KiB each).
  */
 static int
-posix_ring_select(int fd, int mode, brix_disk_ring **ring, brix_status *st)
+posix_ring_select(int fd, int mode, int direct, brix_disk_ring **ring,
+                  brix_status *st)
 {
     *ring = NULL;
 
@@ -125,7 +126,7 @@ posix_ring_select(int fd, int mode, brix_disk_ring **ring, brix_status *st)
     {
         brix_status tmp_st;
         brix_status_clear(&tmp_st);
-        *ring = brix_disk_ring_create(fd, 4, 65536, 0, &tmp_st);
+        *ring = brix_disk_ring_create(fd, 4, 65536, direct, &tmp_st);
         if (*ring == NULL && mode == XRDC_IO_URING_ON) {
             if (st != NULL) {
                 *st = tmp_st;
@@ -409,12 +410,14 @@ posix_be_open(const brix_vfs_backend *be, const char *path, int flags,
     char           *final_copy = NULL;
     char           *tmp_path = NULL;
     int             uring_mode;
+    int             uring_direct;
 
     (void) be;
 
     *out = NULL;
 
-    uring_mode = (opts != NULL) ? opts->io_uring : XRDC_IO_URING_AUTO;
+    uring_mode   = (opts != NULL) ? opts->io_uring : XRDC_IO_URING_AUTO;
+    uring_direct = (opts != NULL) ? opts->io_uring_direct : 0;
 
     final_copy = strdup(path);
     if (final_copy == NULL) {
@@ -483,7 +486,7 @@ posix_be_open(const brix_vfs_backend *be, const char *path, int flags,
     pf->tmp_path   = tmp_path;   /* NULL for READ */
     pf->ring       = NULL;
 
-    if (posix_ring_select(fd, uring_mode, &pf->ring, st) != 0) {
+    if (posix_ring_select(fd, uring_mode, uring_direct, &pf->ring, st) != 0) {
         close(fd);
         free(final_copy);
         free(tmp_path);

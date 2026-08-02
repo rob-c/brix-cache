@@ -275,8 +275,22 @@ int
 brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
 {
     char         pbuf[PATH_MAX];
+    char         norm[PATH_MAX];
     const char  *base;
+    size_t       n;
     int          pfd, rc, e;
+
+    /* A trailing slash denotes the same directory: globus-url-copy -cd issues
+     * `MKD interop/`, and without this beneath_open_parent() would split it into
+     * parent="interop" (which does not exist yet) + an empty leaf, failing the
+     * create with ENOENT. Drop trailing '/' (keeping a lone root) so the split
+     * lands on the real leaf — matching the recursive path's brix_mkdir_
+     * normalise(), so both mkdir variants tolerate `MKD dir/`. */
+    n = strlen(reqpath);
+    if (n >= sizeof(norm)) { errno = ENAMETOOLONG; return -1; }
+    memcpy(norm, reqpath, n + 1);
+    while (n > 1 && norm[n - 1] == '/') { norm[--n] = '\0'; }
+    reqpath = norm;
 
     if (brix_imp_client_active()) {
         return brix_imp_mkdir(reqpath, mode);

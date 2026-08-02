@@ -78,21 +78,22 @@ brix_resv_schedule(brix_resv_zone_t *z, uint64_t bytes)
 }
 
 void
-brix_resv_done(brix_resv_zone_t *z, uint64_t handle)
+brix_resv_done(brix_resv_zone_t *z, uint64_t bytes)
 {
-    (void) handle;                      /* per-zone aggregate accounting */
-
-    if (z == NULL || z->granted == 0) {
-        return;                         /* idempotent / nothing to release */
+    if (z == NULL || z->budget == 0 || z->granted == 0) {
+        return;                         /* idempotent / unconfigured / nothing held */
     }
-    /* Release one grant's worth. The caller passes the same `bytes` semantics
-     * by construction; with aggregate accounting we cannot subtract the exact
-     * per-handle amount, so this first cut decrements the grant count and lets
-     * the next schedule() re-check the ceiling. A precise per-handle SHM slot
-     * table is the documented follow-on. */
+    /* Byte-precise release: subtract exactly the amount this grant reserved
+     * (the caller stores it on its open-file handle and passes it back), so a
+     * long transfer no longer pins the whole budget until the last grant drains.
+     * Clamp defensively against a caller passing back more than is outstanding. */
+    if (bytes > z->in_use) {
+        bytes = z->in_use;
+    }
+    z->in_use -= bytes;
     z->granted--;
     if (z->granted == 0) {
-        z->in_use = 0;
+        z->in_use = 0;                  /* flush any rounding; no grants outstanding */
         z->queued = 0;
     }
 }

@@ -1,4 +1,5 @@
 #include "cms_internal.h"
+#include "state_relay.h"   /* Phase-61 W7: flush parked kYR_state relays */
 #include "protocols/root/connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 #include "core/compat/log_diag.h"
 #include "core/compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
@@ -280,6 +281,10 @@ ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)
     ctx->logged_in = 0;
     ctx->in_pos = 0;
     ctx->in_need = NGX_BRIX_CMS_HDR_LEN;
+
+    /* Phase-61 W7: flush any kYR_state relays parked on this upward leg —
+     * a late child kYR_have must not be echoed into a dead/reused conn. */
+    brix_cms_state_relay_drop_ctx(ctx);
 }
 
 static void

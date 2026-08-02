@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <jansson.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* ---- Build an RSA public key from a JWK and store it in a key slot ----
  *
@@ -327,13 +328,13 @@ brix_jwks_free(brix_jwks_key_t *keys, int count)
 /* WHAT: Free all EVP_PKEY handles loaded by brix_jwks_load() to prevent memory leaks.
  * WHY: JWKS keys are allocated at startup; this cleanup function must be called before shutdown or when reloading
  * a new JWKS file to avoid leaking OpenSSL EVP_PKEY resources.
- * HOW: Iterate i=0..count-1, for each non-null keys[i].pkey call EVP_PKEY_free(), then nullify keys[i].pkey to prevent double-free. */
+ * HOW: Iterate i=0..count-1, for each non-null keys[i].pkey call brix_evp_pkey_free(), then nullify keys[i].pkey to prevent double-free. */
 {
     int i;
 
     for (i = 0; i < count; i++) {
         if (keys[i].pkey != NULL) {
-            EVP_PKEY_free(keys[i].pkey);
+            brix_evp_pkey_free(keys[i].pkey);
             keys[i].pkey = NULL;
         }
     }

@@ -115,7 +115,9 @@ brix_cms_srv_send_state(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const char *path)
 {
     size_t  len = ngx_strlen(path);
+    u_char  mod = CMS_MOD_RAW
+                  | (ctx->metaman ? CMS_STATE_METAMAN : 0);
 
-    return brix_cms_srv_send_frame(ctx, streamid, CMS_RR_STATE, CMS_MOD_RAW,
+    return brix_cms_srv_send_frame(ctx, streamid, CMS_RR_STATE, mod,
                                      (const u_char *) path, len + 1);
 }

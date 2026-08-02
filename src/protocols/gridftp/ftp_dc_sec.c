@@ -4,6 +4,7 @@
 
 #include <openssl/pem.h>
 #include <openssl/evp.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * ftp_dc_sec.c — GridFTP data-channel GSI security core (see ftp_dc_sec.h).
@@ -95,10 +96,10 @@ brix_ftp_dc_load_deleg(const brix_ftp_dc_sec_t *sec, SSL *ssl)
     key = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
     BIO_free(bio);
     if (key == NULL || SSL_use_PrivateKey(ssl, key) != 1) {
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
         return NGX_ERROR;
     }
-    EVP_PKEY_free(key);
+    brix_evp_pkey_free(key);
 
     if (SSL_check_private_key(ssl) != 1) {
         ngx_log_error(NGX_LOG_ERR, sec->log, 0,

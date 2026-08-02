@@ -22,8 +22,9 @@
  *       existence into the flag.  Everything degrades to a clean no-op when the
  *       zone was never registered (stub build / io_uring off everywhere). */
 
-/* Panic-file poll cadence (coarse: this is an incident switch, not a hot path). */
-#define BRIX_URING_PANIC_POLL_MS  2000
+/* Maintenance-timer cadence: panic-file poll + P44-A quiesce/re-enable tick
+ * (coarse: this is an incident switch, not a hot path). */
+#define BRIX_URING_MAINT_POLL_MS  2000
 
 /* SHM zone holding the single cross-worker disable flag. */
 static ngx_shm_zone_t  *brix_uring_ks_zone;
@@ -31,8 +32,10 @@ static ngx_shm_zone_t  *brix_uring_ks_zone;
 /* Set at config time iff some block had `brix_io_uring_admin on`. */
 static ngx_uint_t       brix_uring_admin_on;
 
-/* Per-worker panic-file poll timer + a NUL-terminated copy of the path. */
-static ngx_event_t      brix_uring_panic_timer;
+/* Per-worker maintenance timer + a NUL-terminated copy of the panic path
+ * (empty when no panic file was configured — the timer then only drives the
+ * quiesce tick). */
+static ngx_event_t      brix_uring_maint_timer;
 static u_char           brix_uring_panic_path[PATH_MAX];
 
 
@@ -131,30 +134,67 @@ brix_uring_admin_enabled(void)
 }
 
 /*
- * brix_uring_panic_handler — poll timer: mirror the panic-file's existence
- * into the SHM disable flag, then re-arm.  A NOTICE is logged only on a state
- * change so the flip is visible without log spam.
+ * brix_uring_panic_mirror — mirror the panic-file's existence into the SHM
+ * disable flag.  A NOTICE is logged only on a state change so the flip is
+ * visible without log spam.  No-op when no panic path was configured.
  */
 static void
-brix_uring_panic_handler(ngx_event_t *ev)
+brix_uring_panic_mirror(ngx_log_t *log)
 {
     struct stat  st;
     ngx_uint_t   exists;
     ngx_int_t    prev;
 
-    exists = (brix_uring_panic_path[0] != '\0'
-              && stat((char *) brix_uring_panic_path, &st) == 0) ? 1 : 0;
+    if (brix_uring_panic_path[0] == '\0') {
+        return;
+    }
+    exists = (stat((char *) brix_uring_panic_path, &st) == 0) ? 1 : 0;
 
     prev = brix_uring_killswitch_get();
     if (prev != (ngx_int_t) exists) {
         brix_uring_killswitch_set(exists);
-        ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
             "brix: io_uring %s via panic-file \"%s\"",
             exists ? "DISABLED" : "re-enabled",
             (char *) brix_uring_panic_path);
     }
+}
 
-    ngx_add_timer(ev, BRIX_URING_PANIC_POLL_MS);
+/*
+ * brix_uring_maint_handler — the per-worker maintenance timer: mirror the
+ * panic file (if configured) into the kill switch, then run the P44-A
+ * quiesce/re-enable tick (teardown once drained while disabled; re-create the
+ * ring when the switch clears), then re-arm.
+ */
+static void
+brix_uring_maint_handler(ngx_event_t *ev)
+{
+    brix_uring_panic_mirror(ev->log);
+    brix_uring_quiesce_tick();
+    ngx_add_timer(ev, BRIX_URING_MAINT_POLL_MS);
+}
+
+ngx_int_t
+brix_uring_maint_arm(ngx_cycle_t *cycle)
+{
+    /* Shared dummy connection (src/core/config/process.c): nginx's --with-debug
+     * timer-expiry log reads ngx_event_ident(ev->data)->fd, so a connection-less
+     * timer must not leave ev->data NULL or it SIGSEGVs the worker. */
+    extern ngx_connection_t brix_maint_timer_conn;
+
+    if (brix_uring_maint_timer.timer_set) {
+        return NGX_OK;                /* already armed (panicfile_arm ran) */
+    }
+
+    brix_uring_maint_timer.handler = brix_uring_maint_handler;
+    brix_uring_maint_timer.log     = cycle->log;
+    brix_uring_maint_timer.data    = &brix_maint_timer_conn;
+    brix_uring_maint_timer.cancelable = 1;   /* don't hold up worker shutdown */
+
+    /* Fire once promptly so a panic file already present at start disables on
+     * boot (and a kill switch inherited across reload quiesces immediately). */
+    ngx_add_timer(&brix_uring_maint_timer, 1);
+    return NGX_OK;
 }
 
 ngx_int_t
@@ -172,16 +212,5 @@ brix_uring_panicfile_arm(ngx_cycle_t *cycle, ngx_str_t *path)
     ngx_memcpy(brix_uring_panic_path, path->data, path->len);
     brix_uring_panic_path[path->len] = '\0';
 
-    /* Shared dummy connection (src/core/config/process.c): nginx's --with-debug
-     * timer-expiry log reads ngx_event_ident(ev->data)->fd, so a connection-less
-     * timer must not leave ev->data NULL or it SIGSEGVs the worker. */
-    extern ngx_connection_t brix_maint_timer_conn;
-    brix_uring_panic_timer.handler = brix_uring_panic_handler;
-    brix_uring_panic_timer.log     = cycle->log;
-    brix_uring_panic_timer.data    = &brix_maint_timer_conn;
-    brix_uring_panic_timer.cancelable = 1;   /* don't hold up worker shutdown */
-
-    /* Fire once promptly so a file already present at start disables on boot. */
-    ngx_add_timer(&brix_uring_panic_timer, 1);
-    return NGX_OK;
+    return brix_uring_maint_arm(cycle);
 }

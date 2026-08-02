@@ -19,9 +19,9 @@
  *       flat table of function pointers. The registry (sd_registry.c) builds an
  *       brix_sd_instance_t per export by name; the VFS opens objects on the
  *       instance and runs the worker-safe raw ops (pread/pwrite/...) on the
- *       returned object handle from any dispatch tier. Phase 55.A ships this
- *       header + the POSIX driver + the registry, registered in the build but
- *       not yet wired into any VFS callsite (that is 55.B+).
+ *       returned object handle from any dispatch tier. The VFS reaches ALL raw
+ *       storage I/O through this seam — raw data syscalls live only in
+ *       src/fs/backend/ (invariant 12, enforced by tools/ci/check_vfs_seam.py).
  */
 #ifndef BRIX_SD_H
 #define BRIX_SD_H
@@ -110,19 +110,9 @@ typedef enum {
     BRIX_SD_CAP_MEMFILE       = 1u << 16  /* serve bytes memory-backed w/o CAP_FD */
 } brix_sd_cap_t;
 
-/* Delegation credential kinds a backend can consume (phase-71). A backend ORs
- * the kinds it accepts into brix_sd_driver_s.cred_accept; the VFS denies (EACCES)
- * before touching the origin when the live credential kind is not accepted. */
-typedef enum {
-    BRIX_SD_CRED_NONE      = 0,
-    BRIX_SD_CRED_BEARER    = 1u << 0,  /* raw JWT bearer text        */
-    BRIX_SD_CRED_PROXY_PEM = 1u << 1,  /* full x509 proxy PEM        */
-    /* Local identity: the backend consumes only WHO the client is (principal +
-     * VO list) for its own ownership/enforcement model — no forwardable secret
-     * is required or minted, so no credential directory needs configuring.
-     * pblock's catalog-internal ownership registry is the consumer. */
-    BRIX_SD_CRED_IDENTITY  = 1u << 2
-} brix_sd_cred_kind_t;
+/* Per-open credential types — brix_sd_cred_kind_t, enum brix_cred_mode,
+ * brix_sd_cred_t (split out; sd.h < 600 LOC). */
+#include "sd_cred_types.h"
 
 /* ---- SD open flags --------------------------------------------------------
  * Backend-neutral open intent. The POSIX driver maps these to O_* internally;
@@ -136,90 +126,20 @@ typedef enum {
 #define BRIX_SD_O_DIR      0x40
 #define BRIX_SD_O_NOFOLLOW 0x80   /* refuse a symlink at the final component */
 
+/* ---- read-advise hints ----------------------------------------------------
+ * Backend-neutral access-pattern advice for the optional read_advise slot.
+ * SEQUENTIAL grows the whole-fd read-ahead window (a streaming GET); WILLNEED
+ * forces immediate range read-ahead (the windowed prefetch subsystem); RANDOM
+ * shrinks read-ahead. Different tools — do not collapse them. */
+#define BRIX_SD_ADV_SEQUENTIAL 0
+#define BRIX_SD_ADV_WILLNEED   1
+#define BRIX_SD_ADV_RANDOM     2
+
 typedef struct brix_sd_driver_s   brix_sd_driver_t;
 typedef struct brix_sd_instance_s brix_sd_instance_t;
 typedef struct brix_sd_obj_s      brix_sd_obj_t;
 typedef struct brix_sd_dir_s      brix_sd_dir_t;
 typedef struct brix_sd_staged_s   brix_sd_staged_t;
-
-/* Per-open user credential passed from the protocol handler to the storage
- * driver so a remote backend can authenticate AS the client user (Phase 1:
- * x509 proxy; Phase 2 T2: WLCG bearer token).  Extended with the fields needed
- * to re-resolve the credential for async/deferred flushes.
- *
- * WHAT: Borrowed pointers valid for the duration of the open() / staged_open()
- *       call. Drivers that defer the open (thread-pool) MUST copy the strings
- *       internally before returning — the caller's buffers may be freed once
- *       the vtable function returns.
- *
- * WHY:  A per-open cred lets the VFS pass identity down to the driver without
- *       threading it through every intermediate layer; the driver is the only
- *       entity that knows how to present it to a specific remote protocol.
- *       The extra fields (key, cred_dir, fallback_deny) let decorator layers
- *       (sd_stage, sd_cache) embed a re-resolvable identity into their durable
- *       state so an async flush — possibly after a crash and restart — can
- *       re-authenticate as the original user rather than the service account.
- *
- * HOW:  The gate fills exactly ONE credential kind: {x509_proxy}, {bearer},
- *       {s3_ak + s3_sk (+ s3_region)}, or {ceph_keyring + ceph_user}
- *       depending on the kind selected by ucred_select; the other kinds'
- *       fields are NULL.  Drivers check the kind they support (sd_xroot:
- *       x509_proxy then bearer; sd_remote/S3: s3_ak; sd_ceph: ceph_keyring) —
- *       only one kind is ever set for a given open.
- *       A NULL cred or a driver with no open_cred slot falls back to the plain
- *       open slot (service credential / anonymous).
- *       sd_xroot reads x509_proxy OR bearer + principal; sd_remote reads
- *       s3_ak/s3_sk/s3_region (phase-3 T3) to re-init its SigV4 signer per
- *       open instead of the export's static access_key/secret_key/region;
- *       sd_ceph reads ceph_keyring/ceph_user (ceph-peruser item) to open a
- *       per-user librados connection instead of the export's static
- *       user/keyring.
- *       The extra fields (key, cred_dir, fallback_deny) are consumed by
- *       sd_stage / sd_cache and are not required by sd_xroot, sd_remote, or
- *       sd_ceph. */
-
-/* How the per-open credential in brix_sd_cred_t was obtained — the strategy the
- * VFS gate resolved for the backend leg (phase-70 §4). SELECT (the default, 0)
- * is the pre-phase-70 directory-lookup behaviour, so every existing caller that
- * leaves the struct zeroed keeps the same meaning. The other modes are set by
- * the delegation gate (vfs_deleg.c) when the front door captured a forwardable
- * credential:
- *   PASSTHROUGH — replay the exact credential the user presented (bearer bytes;
- *                 a user-supplied full x509 proxy incl. private key);
- *   EXCHANGE    — trade the inbound credential for a backend-valid one (RFC 8693
- *                 token-exchange; S3 STS; GSSAPI krb5 forwarding);
- *   DELEGATE    — obtain a fresh short-lived proxy via a GridSite handshake;
- *   MINT        — mint a fresh short-lived proxy from a local CA;
- *   AUTO        — dispatch by id->auth_method (§2 matrix).
- * The field is advisory metadata for audit/metrics and for the async re-acquire
- * record; the cred's byte/path fields still say WHICH credential to present. */
-enum brix_cred_mode {
-    BRIX_CRED_SELECT      = 0,
-    BRIX_CRED_PASSTHROUGH,
-    BRIX_CRED_EXCHANGE,
-    BRIX_CRED_DELEGATE,
-    BRIX_CRED_MINT,
-    BRIX_CRED_AUTO
-};
-
-typedef struct {
-    const char *x509_proxy;      /* path to per-user proxy PEM (NULL unless x509 cred) */
-    const char *bearer;          /* WLCG bearer token text (NULL unless bearer cred)   */
-    const char *s3_ak;           /* S3 access key id (NULL unless s3 cred)             */
-    const char *s3_sk;           /* S3 secret key (NULL unless s3 cred; never log)     */
-    const char *s3_region;       /* S3 region (NULL unless s3 cred)                    */
-    const char *ceph_keyring;    /* CephX keyring PATH (NULL unless ceph cred; never   */
-                                  /* log its contents)                                  */
-    const char *ceph_user;       /* bare CephX user id, e.g. "bob" (NULL unless ceph   */
-                                  /* cred)                                              */
-    const char *key;             /* credential-dir lookup key (audit + flush re-resolve) */
-    const char *principal;       /* authenticated principal (audit/ledger; may be NULL) */
-    const char *vos;             /* comma-separated VO/group names of the principal      */
-                                  /* (NULL or "" when none; consumed by IDENTITY drivers) */
-    const char *cred_dir;        /* export credential directory (flush re-resolve)      */
-    enum brix_cred_mode mode;    /* how this cred was obtained (phase-70; 0 = SELECT)   */
-    unsigned    fallback_deny:1; /* 1 = service-credential fallback forbidden           */
-} brix_sd_cred_t;
 
 /* Residency of a nearline (tape/MSS) object — the online/offline model the VFS
  * residency seam (brix_vfs_residency) exposes to protocol handlers so they can
@@ -279,9 +199,14 @@ typedef struct {
 } brix_sd_stat_t;
 
 /* One directory entry name (NUL-terminated). POSIX = a dirent name; object =
- * the final path component synthesized from a key under the listing prefix. */
+ * the final path component synthesized from a key under the listing prefix.
+ * d_type is the entry's DT_* kind (dirent.h) when the backend can classify it
+ * cheaply, else DT_UNKNOWN (= 0, what a memzero'd entry reads) — consumers
+ * fall back to a stat; a backend must never guess. NEVER an authorization or
+ * confinement input (a spoofed d_type may only cost a fallback stat). */
 typedef struct {
-    char        name[256];
+    char           name[256];
+    unsigned char  d_type;
 } brix_sd_dirent_t;
 
 /* Metadata-mutation request for the driver's setattr slot — the storage-neutral
@@ -382,6 +307,14 @@ struct brix_sd_driver_s {
     ngx_int_t  (*ftruncate)(brix_sd_obj_t *obj, off_t len);
     ngx_int_t  (*fsync)    (brix_sd_obj_t *obj);
     ngx_int_t  (*fstat)    (brix_sd_obj_t *obj, brix_sd_stat_t *out);
+    /* Access-pattern advice for [off, off+len) (len == 0 ⇒ whole object);
+     * advice ∈ BRIX_SD_ADV_*. Advisory only: NGX_OK whether or not the kernel
+     * honoured it, NGX_ERROR (errno set) only on a hard failure the caller may
+     * log and ignore. Must not change position, size, or contents. Worker-safe
+     * (no pool/metrics/log). NULL ⇒ the backend has no advice primitive (the
+     * VFS treats the call as a no-op). */
+    ngx_int_t  (*read_advise)(brix_sd_obj_t *obj, off_t off, size_t len,
+                              int advice);
 
     /* namespace (logical paths) */
     ngx_int_t  (*stat)       (brix_sd_instance_t *inst, const char *path,

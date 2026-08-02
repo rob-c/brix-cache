@@ -498,6 +498,11 @@ typedef struct {
                             * the local-disk io_uring overlap ring in copy.c.
                             * auto = use it iff brix_uring_available(); on with no
                             * liburing = clean CLI error; off = classic read/write. */
+    int         io_uring_direct; /* --io-uring-direct: 1 ⇒ engage the O_DIRECT tier
+                            * on the local-disk ring (page-cache bypass, block-aligned
+                            * slab). Ignored unless the ring is active. A filesystem
+                            * that rejects O_DIRECT makes an AUTO ring fall back to the
+                            * buffered tier; an ON ring surfaces a clean error. */
     /* --- 2026-07-05 transfer-policy extensions (zero-init = legacy) --- */
     const char *const *excludes;   /* fnmatch(3) patterns; a match skips the file */
     size_t             n_excludes;

@@ -50,22 +50,28 @@ sd_xroot_fattr_unmap(const char *name)
  *       Every *_cred namespace wrapper (unlink_cred, rename_cred, opendir_cred,
  *       ...) reaches this via the shared sd_xroot_session choke point.
  * HOW:  True only when cred is non-NULL, has fallback_deny set, and carries
- *       neither a non-empty x509_proxy nor a non-empty bearer.  NULL cred and
- *       creds with a presentable kind return false (allowed). */
+ *       none of the driver's presentable kinds (x509_proxy, bearer, sss_keytab,
+ *       krb5 forwarded-TGT ccache).  NULL cred and creds with a presentable
+ *       kind return false (allowed). */
 static int
 sd_xroot_cred_must_deny(const brix_sd_cred_t *cred)
 {
     return cred != NULL && cred->fallback_deny
         && (cred->x509_proxy == NULL || cred->x509_proxy[0] == '\0')
-        && (cred->bearer == NULL || cred->bearer[0] == '\0');
+        && (cred->bearer == NULL || cred->bearer[0] == '\0')
+        && (cred->sss_keytab == NULL || cred->sss_keytab[0] == '\0')
+        && (cred->krb5_ccache == NULL || cred->krb5_ccache[0] == '\0');
 }
 
 /* WHAT: Copy a per-user credential into a fill task so the origin bootstrap
  *       presents it at authentication instead of the static service cred.
  * WHY:  Namespace ops that carry a user credential must NOT fall back to the
  *       static service credential; this mirrors sd_xroot_origin_open.
- * HOW:  Exactly one of {x509_proxy, bearer} is non-NULL for a credential-scoped
- *       session; copy whichever is set, plus principal.  Caller guarantees the
+ * HOW:  Exactly one of {x509_proxy, bearer, sss_keytab, krb5 ccache} is
+ *       non-NULL for a credential-scoped session; copy whichever is set, plus
+ *       principal (sss_keytab REQUIRES it — it is the asserted identity — and
+ *       the krb5 leg carries krb5_princ, the origin service principal).  Caller
+ *       guarantees the
  *       task's cred_* fields are already zeroed (calloc), so a NULL cred is a
  *       no-op and the service-cred path is left unchanged. */
 static void
@@ -85,6 +91,18 @@ sd_xroot_cred_copy(brix_cache_fill_t *t, const brix_sd_cred_t *cred)
     if (cred->principal != NULL) {
         ngx_cpystrn((u_char *) t->cred_principal,
                     (u_char *) cred->principal, sizeof(t->cred_principal));
+    }
+    if (cred->sss_keytab != NULL && cred->sss_keytab[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_sss_keytab,
+                    (u_char *) cred->sss_keytab, sizeof(t->cred_sss_keytab));
+    }
+    if (cred->krb5_ccache != NULL && cred->krb5_ccache[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_krb5_ccache,
+                    (u_char *) cred->krb5_ccache, sizeof(t->cred_krb5_ccache));
+    }
+    if (cred->krb5_princ != NULL && cred->krb5_princ[0] != '\0') {
+        ngx_cpystrn((u_char *) t->cred_krb5_princ,
+                    (u_char *) cred->krb5_princ, sizeof(t->cred_krb5_princ));
     }
 }
 

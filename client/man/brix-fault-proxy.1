@@ -223,6 +223,57 @@ Reset every lever, unblock, and unhang.
 .B status
 Report the current lever state and the traffic / fault counters (connections,
 active, bytes each way, severs, corruptions, duplications, refusals).
+.TP
+.B toxic add \fINAME\fR \fITYPE\fR \fIPARAMS\fR [\fIDIR\fR]
+Add a named toxic \(em a single fault (\fITYPE\fR one of
+latency/jitter/slow\-close/chunk/rate/drip/lossy/corrupt/dup/reorder/truncate)
+bound to a direction \(em layered on top of the flat levers. Named toxics stack
+(two of a kind compose) and are individually removable. Fails with
+.B err: exists
+on a duplicate name and
+.B err: too many toxics
+when the fixed table (16 entries) is full.
+.TP
+.B toxic remove \fINAME\fR
+Remove the named toxic;
+.B err: no such toxic
+if it is not present.
+.TP
+.B toxic list [\fBjson\fR]
+List the active toxics (name, type, direction) as text, or as a JSON object with
+the optional
+.B json
+argument.
+.TP
+.B route add \fINAME\fR \fILISTEN_PORT\fR \fIHOST:PORT\fR[,\fIHOST:PORT\fR...]
+Create a new named proxy route at runtime: bind \fILISTEN_PORT\fR (on the
+daemon's already-vetted bind address \(em a route can never widen the loopback
+gate) and relay it to its own upstream target pool. Each route owns an
+independent listen socket, target pool and traffic counters; the fault levers
+and toxic table remain shared by every route. The legacy
+.B --listen/--target
+pair is registered as route
+.BR default .
+.B err: exists
+on a duplicate name,
+.B err: port in use
+when the port is already bound,
+.B err: too many routes
+at capacity.
+.TP
+.B route del \fINAME\fR
+Tear down a route: stop its accept thread, close the listen socket and free the
+port.
+.B err: no such route
+if unknown;
+.B err: cannot delete default route
+\(em the primary listener may not be removed.
+.TP
+.B route list [\fBjson\fR]
+List the active routes with their per-route listen port and counters
+(connections, bytes each way) as text, or as a JSON object with the optional
+.B json
+argument.
 .SH SECURITY
 The control port is
 .B unauthenticated:

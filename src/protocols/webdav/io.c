@@ -82,23 +82,20 @@ webdav_copy_spooled_file(ngx_http_request_t *r, ngx_fd_t dst_fd, ngx_buf_t *buf,
 void
 webdav_fadvise_willneed(ngx_log_t *log, ngx_fd_t fd, off_t offset, size_t len)
 {
-#if defined(POSIX_FADV_WILLNEED)
-    int rc;
+    brix_sd_obj_t obj;
 
     if (fd == NGX_INVALID_FILE || len == 0) {
         return;
     }
 
-    rc = posix_fadvise(fd, offset, (off_t) len, POSIX_FADV_WILLNEED);
-    if (rc != 0) {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0,
-                       "brix_webdav: POSIX_FADV_WILLNEED ignored: %s",
-                       strerror(rc));
+    /* WILLNEED read-ahead through the Storage Driver seam (phase-56 B-2). */
+    brix_sd_posix_wrap(&obj, fd);
+    if (obj.driver->read_advise != NULL
+        && obj.driver->read_advise(&obj, offset, len, BRIX_SD_ADV_WILLNEED)
+           != NGX_OK)
+    {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, errno,
+                       "brix_webdav: WILLNEED read-ahead hint ignored: %s",
+                       strerror(errno));
     }
-#else
-    (void) log;
-    (void) fd;
-    (void) offset;
-    (void) len;
-#endif
 }

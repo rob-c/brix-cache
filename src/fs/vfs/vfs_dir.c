@@ -21,6 +21,7 @@
  */
 #include "vfs_internal.h"
 #include "core/compat/log_diag.h"
+#include "auth/impersonate/impersonate.h"
 
 /* vfs_opendir_fail — shared error tail for the opendir body.
  *
@@ -291,24 +292,55 @@ vfs_readdir_next_posix(brix_vfs_dir_t *dh, struct dirent **de_out)
  *       *stat_out on success.
  * WHY:  Per-entry stat must SKIP a bad entry rather than truncate the listing;
  *       returning NGX_ERROR here lets the scan loop drop the entry and go on.
- * HOW:  snprintf join (unrepresentable path → NGX_ERROR), then
- *       brix_lstat_confined_canon AS THE MAPPED USER (broker-routed) so
- *       enumerating a group-restricted dir does not EACCES per child as the
- *       worker. lstat (not stat) keeps outward symlinks unfollowed. */
+ * HOW:  Off impersonation, a dirfd-relative fstatat of the bare entry name —
+ *       O(1) per child, no join, no re-walk: dh->dir was opened through the
+ *       RESOLVE_IN_ROOT-confined opendir, and readdir names contain no '/',
+ *       so the child cannot escape the already-confined directory. Under
+ *       impersonation, the snprintf join + brix_lstat_confined_canon AS THE
+ *       MAPPED USER (broker-routed) is mandatory — mapped-user DAC — and is
+ *       kept unchanged. lstat/AT_SYMLINK_NOFOLLOW keeps outward symlinks
+ *       unfollowed on both paths. The caller skips a failed entry; only the
+ *       benign unlink race (ENOENT) is silent — EIO/EACCES etc. are logged so
+ *       a shrinking listing is diagnosable. */
 static ngx_int_t
 vfs_readdir_stat_child(brix_vfs_dir_t *dh, const char *name,
     brix_vfs_stat_t *stat_out)
 {
     char         child[PATH_MAX];
     struct stat  st;
-    int          n;
+    int          n, rc;
+
+    if (!brix_imp_client_active()) {
+        rc = fstatat(dirfd(dh->dir), name, &st, AT_SYMLINK_NOFOLLOW);
+        if (rc != 0) {
+            if (errno != ENOENT) {
+                ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+                              "xrootd[disk]: dirlist stat of entry \"%s\" "
+                              "under \"%s\" failed; entry omitted from the "
+                              "listing", name, dh->path);
+            }
+            return NGX_ERROR;
+        }
+        brix_vfs_fill_stat(&st, stat_out);
+        return NGX_OK;
+    }
 
     n = snprintf(child, sizeof(child), "%s/%s", dh->path, name);
     if (n < 0 || (size_t) n >= sizeof(child)) {
+        errno = ENAMETOOLONG;
+        ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+                      "xrootd[disk]: dirlist entry \"%s\" under \"%s\" joins "
+                      "to an unrepresentable path; entry omitted",
+                      name, dh->path);
         return NGX_ERROR;
     }
     if (brix_lstat_confined_canon(dh->log, dh->root_canon, child,
                                     &st, 1) != 0) {
+        if (errno != ENOENT) {
+            ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+                          "xrootd[disk]: dirlist stat of \"%s\" failed; "
+                          "entry omitted from the listing", child);
+        }
         return NGX_ERROR;
     }
     brix_vfs_fill_stat(&st, stat_out);
@@ -353,6 +385,9 @@ vfs_readdir_sd(brix_vfs_dir_t *dh, ngx_str_t *name_out,
     ngx_int_t         rc;
 
     for ( ;; ) {
+        /* Zeroed so a driver that fills only the name yields d_type ==
+         * DT_UNKNOWN (= 0), never stack garbage. */
+        ngx_memzero(&de_sd, sizeof(de_sd));
         rc = dh->drv->readdir(dh->sd_dir, &de_sd);
         if (rc != NGX_OK) {
             return rc;                                 /* NGX_DONE / NGX_ERROR */
@@ -364,7 +399,14 @@ vfs_readdir_sd(brix_vfs_dir_t *dh, ngx_str_t *name_out,
             brix_vfs_sd_stat_fill(&sd_st, stat_out);
             break;
         }
-        /* Child vanished mid-scan: skip it and keep enumerating. */
+        /* Child vanished mid-scan (ENOENT): skip it and keep enumerating.
+         * Any other driver stat failure is surfaced before the skip. */
+        if (errno != ENOENT) {
+            ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+                          "xrootd[disk]: dirlist driver stat of entry \"%s\" "
+                          "under \"%s\" failed; entry omitted from the "
+                          "listing", de_sd.name, dh->sd_logical);
+        }
     }
 
     return vfs_readdir_fill_entry(dh->pool, de_sd.name, name_out);
@@ -416,27 +458,6 @@ brix_vfs_readdir(brix_vfs_dir_t *dh, ngx_str_t *name_out,
  * per-entry stat — for callers that classify dir-vs-file on the fast path and
  * only stat (via brix_vfs_probe) on a DT_UNKNOWN filesystem. Skips "."/"..";
  * NGX_DONE at end-of-stream, NGX_ERROR (errno set) on failure. */
-/* vfs_sd_entry_kind — classify one driver-plane entry as dir/file.
- *
- * WHAT: Returns the entry's kind from a driver stat of the joined child.
- * WHY:  Driver dirents carry no d_type; kind comes from the driver's stat
- *       verb, and a driver without one (or a failed stat) yields UNKNOWN so
- *       the caller falls back to brix_vfs_probe.
- * HOW:  Guards dh->drv->stat, joins via vfs_sd_stat_child, and maps
- *       is_dir → DT_DIR / DT_REG. */
-static brix_vfs_dirent_kind_t
-vfs_sd_entry_kind(brix_vfs_dir_t *dh, const char *name)
-{
-    brix_sd_stat_t sd_st;
-
-    if (dh->drv->stat == NULL
-        || vfs_sd_stat_child(dh, name, &sd_st) != NGX_OK)
-    {
-        return BRIX_VFS_DT_UNKNOWN;
-    }
-    return sd_st.is_dir ? BRIX_VFS_DT_DIR : BRIX_VFS_DT_REG;
-}
-
 /* vfs_posix_dtype_kind — map a readdir d_type onto the VFS entry kind.
  *
  * WHAT: DT_DIR/DT_REG/DT_UNKNOWN map onto their VFS kinds; anything else
@@ -453,6 +474,34 @@ vfs_posix_dtype_kind(unsigned char d_type)
     case DT_UNKNOWN: return BRIX_VFS_DT_UNKNOWN;
     default:         return BRIX_VFS_DT_OTHER;
     }
+}
+
+/* vfs_sd_entry_kind — classify one driver-plane entry as dir/file.
+ *
+ * WHAT: Returns the entry's kind, preferring the dirent's own d_type and
+ *       falling back to a driver stat of the joined child.
+ * WHY:  A backend that classifies during enumeration (POSIX readdir) makes
+ *       the per-entry stat redundant; one that cannot leaves d_type ==
+ *       DT_UNKNOWN (never guessed) and the stat verb decides. Kind is
+ *       display/routing metadata only — NEVER an authorization input.
+ * HOW:  Non-UNKNOWN d_type maps through the same pure table as the POSIX
+ *       plane; on UNKNOWN, guard dh->drv->stat, join via vfs_sd_stat_child,
+ *       and map is_dir → DT_DIR / DT_REG. */
+static brix_vfs_dirent_kind_t
+vfs_sd_entry_kind(brix_vfs_dir_t *dh, const brix_sd_dirent_t *de)
+{
+    brix_sd_stat_t sd_st;
+
+    if (de->d_type != DT_UNKNOWN) {
+        return vfs_posix_dtype_kind(de->d_type);
+    }
+
+    if (dh->drv->stat == NULL
+        || vfs_sd_stat_child(dh, de->name, &sd_st) != NGX_OK)
+    {
+        return BRIX_VFS_DT_UNKNOWN;
+    }
+    return sd_st.is_dir ? BRIX_VFS_DT_DIR : BRIX_VFS_DT_REG;
 }
 
 ngx_int_t
@@ -472,12 +521,14 @@ brix_vfs_readdir_kind(brix_vfs_dir_t *dh, ngx_str_t *name_out,
     if (dh->sd_dir != NULL) {
         brix_sd_dirent_t de_sd;
 
+        /* Zeroed: a name-only driver yields d_type == DT_UNKNOWN, not junk. */
+        ngx_memzero(&de_sd, sizeof(de_sd));
         rc = dh->drv->readdir(dh->sd_dir, &de_sd);
         if (rc != NGX_OK) {
             return rc;
         }
         if (kind_out != NULL) {
-            *kind_out = vfs_sd_entry_kind(dh, de_sd.name);
+            *kind_out = vfs_sd_entry_kind(dh, &de_sd);
         }
         return vfs_readdir_fill_entry(dh->pool, de_sd.name, name_out);
     }

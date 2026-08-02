@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "parse_x509_internal.h"
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Crypto helper declarations — defined in parse_crypto_helpers.c */
 extern BIGNUM *brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
@@ -53,7 +54,7 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
     blob = malloc(bloblen);
     bloblen = blob ? brix_gsi_rsa_decrypt_public(proxy_pub, cipher, cipherlen,
                                                    blob, bloblen) : 0;
-    EVP_PKEY_free(proxy_pub);
+    brix_evp_pkey_free(proxy_pub);
     if (bloblen == 0) {
         free(blob);
         ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -91,14 +92,14 @@ gsi_signed_derive_secret(ngx_connection_t *c, EVP_PKEY *dh_key, EVP_PKEY *peer,
         || (secret = ngx_palloc(c->pool, *secret_len)) == NULL
         || EVP_PKEY_derive(pkctx, secret, secret_len) != 1)
     {
-        EVP_PKEY_CTX_free(pkctx);
-        EVP_PKEY_free(peer);
+        brix_evp_pkey_ctx_free(pkctx);
+        brix_evp_pkey_free(peer);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI signed-DH: DH derive failed");
         return NULL;
     }
-    EVP_PKEY_CTX_free(pkctx);
-    EVP_PKEY_free(peer);
+    brix_evp_pkey_ctx_free(pkctx);
+    brix_evp_pkey_free(peer);
     return secret;
 }
 

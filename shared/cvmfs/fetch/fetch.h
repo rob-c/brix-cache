@@ -55,4 +55,15 @@ typedef struct {
 int cvmfs_fetch_object(cvmfs_fetch_ctx_t *ctx, const cvmfs_hash_t *hash, char suffix,
                        unsigned char *out, size_t outcap, size_t *outlen, long now);
 
+/* Ingest a phase-87 G2 chunk-bundle response (fetch_bundle.c). Each member is
+ * verified against the hash its OWN path names (same verify/store steps as
+ * cvmfs_fetch_object) before entering the cache; a member that fails to parse
+ * or verify — and every miss marker — is counted in *fallback_out for the
+ * caller to fetch singly. Returns 0 on a well-formed stream, -1 on a
+ * malformed frame (counts zeroed; fall back to single GETs for everything —
+ * members verified before the framing error remain validly cached). */
+int cvmfs_bundle_ingest(cvmfs_fetch_ctx_t *ctx,
+                        const unsigned char *stream, size_t len,
+                        unsigned *stored_out, unsigned *fallback_out);
+
 #endif /* BRIX_CVMFS_FETCH_H */

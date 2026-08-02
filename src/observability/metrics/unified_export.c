@@ -82,6 +82,61 @@ unified_emit_cred_select(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 }
 
 /*
+ * unified_emit_cred_deleg — render the phase-70 delegation-gate families
+ * (P90-70.6): brix_cred_deleg_total{proto,mode,outcome} and
+ * brix_cred_deleg_fail_total{proto,reason}.
+ *
+ * WHAT: Emits the per-mode outcome cube and the closed failure-reason counters.
+ * WHY:  cred_select_* only sees the SELECT path; these make the live-bag
+ *       terminals (passthrough/exchange/…) observable per configured mode.
+ *       All three label vocabularies are fixed enums (INVARIANT #8).
+ * HOW:  Two nested loops over the SHM arrays, outcome names hardcoded to the
+ *       three-value vocabulary cred_select_* already splits into families.
+ */
+static void
+unified_emit_cred_deleg(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const char *outcome_names[BRIX_CRED_OUTCOME_COUNT] = {
+        "user", "fallback", "deny",
+    };
+    ngx_uint_t  proto, mode, outcome, reason;
+
+    mw_printf(mw,
+        "# HELP brix_cred_deleg_total Delegation-gate terminal outcomes, by "
+            "protocol, configured delegation mode, and outcome.\n"
+        "# TYPE brix_cred_deleg_total counter\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        for (mode = 0; mode < BRIX_CRED_MODE_METRIC_COUNT; mode++) {
+            for (outcome = 0; outcome < BRIX_CRED_OUTCOME_COUNT; outcome++) {
+                mw_printf(mw,
+                    "brix_cred_deleg_total"
+                    "{proto=\"%s\",mode=\"%s\",outcome=\"%s\"} %llu\n",
+                    brix_metric_proto_name((brix_proto_t) proto),
+                    brix_metric_cred_mode_name(mode),
+                    outcome_names[outcome],
+                    brix_metric_value(
+                        &shm->unified.cred_deleg_total[proto][mode][outcome]));
+            }
+        }
+    }
+
+    mw_printf(mw,
+        "# HELP brix_cred_deleg_fail_total Delegation-gate failures by "
+            "protocol and reason (closed vocabulary).\n"
+        "# TYPE brix_cred_deleg_fail_total counter\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        for (reason = 0; reason < BRIX_CRED_FAIL_COUNT; reason++) {
+            mw_printf(mw,
+                "brix_cred_deleg_fail_total{proto=\"%s\",reason=\"%s\"} %llu\n",
+                brix_metric_proto_name((brix_proto_t) proto),
+                brix_metric_cred_fail_name((brix_cred_fail_t) reason),
+                brix_metric_value(
+                    &shm->unified.cred_deleg_fail_total[proto][reason]));
+        }
+    }
+}
+
+/*
  * unified_emit_cache — render the per-protocol cache families
  * (hits / misses / bytes_evicted).
  *
@@ -264,10 +319,38 @@ unified_emit_tpc(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 }
 
 /*
+ * unified_emit_tpc_gsi_deleg — render brix_tpc_gsi_delegated_total, the outbound
+ * native-TPC GSI proxy-delegation credential-selection outcomes (phase-58 §5.8).
+ *
+ * WHAT: Emits one counter per delegation result (ok / expired / absent).
+ * WHY:  Operators need to see whether delegated pulls authenticate as the user
+ *       (ok), get refused on an expired proxy (expired), or silently fall back to
+ *       the gateway cert (absent) — a single low-cardinality {result} family.
+ * HOW:  One loop over brix_tpc_deleg_result_t indexing the shared names table.
+ */
+static void
+unified_emit_tpc_gsi_deleg(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t  result;
+
+    mw_printf(mw,
+        "# HELP brix_tpc_gsi_delegated_total Outbound TPC GSI proxy-delegation "
+        "credential-selection outcomes.\n"
+        "# TYPE brix_tpc_gsi_delegated_total counter\n");
+    for (result = 0; result < BRIX_TPC_DELEG_RESULT_COUNT; result++) {
+        mw_printf(mw,
+            "brix_tpc_gsi_delegated_total{result=\"%s\"} %llu\n",
+            brix_unified_tpc_deleg_result_names[result],
+            brix_metric_value(&shm->unified.tpc_gsi_deleg_total[result]));
+    }
+}
+
+/*
  * brix_export_unified_metrics — render all unified counter families to the
  * Prometheus text writer: io bytes read/written, io_ops_total, the io latency
  * histogram (cumulated from non-cumulative storage), cache hits/misses/evicted,
- * auth_total, and tpc transfers/bytes — each as HELP/TYPE plus per-label lines.
+ * auth_total, tpc transfers/bytes, and tpc GSI proxy-delegation outcomes — each
+ * as HELP/TYPE plus per-label lines.
  * Legacy per-server stream counters are folded into the stream-protocol values.
  * The body is a flat call sequence over one unified_emit_<family> helper per
  * metric family; emission order and exposition bytes are frozen. The io families
@@ -281,9 +364,11 @@ brix_export_unified_metrics(metrics_writer_t *mw,
     unified_emit_io_ops(mw, shm);
     unified_emit_io_latency(mw, shm);
     unified_emit_cred_select(mw, shm);
+    unified_emit_cred_deleg(mw, shm);
     unified_emit_cache(mw, shm);
     unified_emit_cache_watermark(mw, shm);
     unified_emit_wt_stage(mw, shm);
     unified_emit_auth(mw, shm);
     unified_emit_tpc(mw, shm);
+    unified_emit_tpc_gsi_deleg(mw, shm);
 }

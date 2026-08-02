@@ -264,6 +264,13 @@ typedef struct {
     ngx_atomic_t  io_uring_active;          /* gauge: 1 = listener used io_uring   */
     ngx_atomic_t  io_uring_ops_total;       /* mapped ops submitted via io_uring   */
     ngx_atomic_t  io_uring_fallback_total;  /* mapped ops that fell back to pool    */
+
+    /*
+     * Phase 59 W2b — background CSI scrub (brix_csi_scrub_interval). Corrupt
+     * blocks the paced at-rest sweep found; stays 0 unless a scrub timer is
+     * armed for a server fronting this listener and it hit real rot on disk.
+     */
+    ngx_atomic_t  csi_scrub_mismatch_total; /* at-rest blocks failing CRC re-verify*/
 } ngx_brix_srv_metrics_t;
 
 /* ---- Per-VO traffic tracking (bounded LRU, low-cardinality) ---- */
@@ -349,6 +356,17 @@ typedef struct {
     ngx_atomic_t  cred_select_fallback_total[BRIX_PROTO_COUNT];
     ngx_atomic_t  cred_select_deny_total[BRIX_PROTO_COUNT];
 
+    /* Phase-70 delegation-gate outcomes by configured mode (P90-70.6): the
+     * live-bag terminals in vfs_deleg.c (PASSTHROUGH/EXCHANGE, plus DELEGATE
+     * once P90-70.8 drives it) and mint success in vfs_cred.c. The fail family
+     * records WHY a gate terminal denied/fell back — closed reason enum, one
+     * bump per failure alongside the outcome bump (INVARIANT #8). */
+    ngx_atomic_t  cred_deleg_total[BRIX_PROTO_COUNT]
+                                  [BRIX_CRED_MODE_METRIC_COUNT]
+                                  [BRIX_CRED_OUTCOME_COUNT];
+    ngx_atomic_t  cred_deleg_fail_total[BRIX_PROTO_COUNT]
+                                       [BRIX_CRED_FAIL_COUNT];
+
     /* Watermark-driven LRU reaper (reap_watermark.c). Process-wide, connection-
      * less: the background timer has no per-proto/per-server context. usage_ratio
      * is a GAUGE in ppm (0-1e6), emitted as a 0-1 ratio; the rest are counters. */
@@ -372,6 +390,11 @@ typedef struct {
                                [BRIX_ERR_COUNT];
     ngx_atomic_t  tpc_bytes[BRIX_PROTO_COUNT]
                            [BRIX_METRIC_TPC_DIRECTION_COUNT];
+
+    /* Outbound native-TPC GSI proxy-delegation credential selection (§5.8):
+     * ok = captured proxy attached; expired = past NotAfter, pull refused;
+     * absent = delegation on but nothing captured (gateway-cert fallback). */
+    ngx_atomic_t  tpc_gsi_deleg_total[BRIX_TPC_DELEG_RESULT_COUNT];
 } ngx_brix_unified_metrics_t;
 
 /*
@@ -415,6 +438,7 @@ typedef struct {
     /* Phase 27 F4 — session-registry anti-exhaustion. */
     ngx_atomic_t  session_registry_full_total; /* logins rejected: table full + nothing reapable */
     ngx_atomic_t  session_evict_total;         /* idle sessions reaped to admit a new login */
+    ngx_atomic_t  session_src_cap_evict_total; /* W5: own-LRU self-evictions at the per-source soft cap */
 
     /* Phase 34 — SciTags packet marking (low cardinality, no labels). */
     ngx_atomic_t  pmark_flows_started_total;   /* flows that mapped + were marked      */

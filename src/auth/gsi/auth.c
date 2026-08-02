@@ -70,7 +70,14 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->login.auth_done = 1;
     brix_gsi_inflight_release(ctx);   /* E4: handshake done — free the slot */
     if (ctx->identity != NULL) {
-        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
+        /* P80.11: key the authorization identity on the STABLE EEC DN when a
+         * proxy was presented (eec_dn set), so authz verdicts and per-user
+         * credential selection do not drift with the proxy serial; fall back to
+         * the leaf DN for non-proxy / pre-P80.11 paths. */
+        const char *auth_dn = ctx->login.eec_dn[0] ? ctx->login.eec_dn
+                                                    : ctx->login.dn;
+
+        if (brix_identity_set_dn(ctx->identity, c->pool, auth_dn,
                                    BRIX_AUTHN_GSI) != NGX_OK
             || brix_identity_set_vos_csv(ctx->identity, c->pool,
                                            ctx->login.vo_list) != NGX_OK)

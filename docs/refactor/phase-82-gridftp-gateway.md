@@ -1093,6 +1093,133 @@ posix/pblock/s3 × {C,P} × {S,E} × {active,passive} matrix + FTS bulk lane) +
 `docs/05-operations/gridftp.md` cookbook (cookbook drafted; cluster matrix cell
 is the remaining container-tier work).
 
+> **UPDATE 2026-07-31 — live-cluster block narrowed to a single, precise cause:
+> a stale server image, and everything else is proven live on minikube.** Drove
+> the whole `xrd-lab test gridftp` path (`labtools/lab_suite._gridftp`) against a
+> running minikube (v1.38.1, helm v3.21.2): `helm dependency build` + `helm
+> template` render clean (Deployment + pki-bootstrap Job + Service + ConfigMap +
+> RBAC), the chart installs, and the self-contained **pki-bootstrap Job completes**
+> (CA/host + user_proxy/vuser_proxy VOMS-AC minted into `gridftp-pki`). The ONLY
+> failure is the gateway pod crash-looping on `nginx: [emerg] unknown directive
+> "brix_gridftp"` — the `brix-server:dev` image in the cluster predates the
+> phase-82 gateway. Confirmed at the byte level: the rel-6 module RPM
+> (`.rpmbuild/RPMS/x86_64/nginx-mod-brix-cache-0.1.0-6.el9.x86_64.rpm`) ships a
+> `ngx_stream_brix_module.so` with **zero** `brix_gridftp` symbols, i.e. the RPM
+> itself is stale, not just the image layer.
+>
+> Attempting the current-tree rebuild (`IMAGE_TAG=dev k8s-tests/scripts/build.sh
+> all`, docker 29.6.1) surfaced a SECOND, precise infra bug in the `rpm-builder`
+> image: its `dnf install` fails with `No match for argument:
+> libradosstriper-devel libcephfs-devel`. Root cause — those two headers live in
+> the **CentOS Storage SIG Ceph** repo, which `k8s-tests/lib/el-target.sh` adds
+> only under `BRIX_ENABLE_CEPH_SIG=1`, yet `Dockerfiles/rpm-builder/Dockerfile`
+> defaults `BRIX_ENABLE_CEPH_SIG=0` while listing those `-devel` packages
+> **unconditionally** (base/CRB/EPEL carry `librados-devel`/`libradospp-devel` but
+> not the striper/cephfs headers — el-target already enables CRB, so CRB is not
+> the gap). **Exact unblock recipe (verified tooling all present — docker,
+> `minikube image load`, cluster up):** build the rpm-builder with the SIG on —
+> `docker build --build-arg BRIX_ENABLE_CEPH_SIG=1 [--build-arg
+> BRIX_CEPH_SIG_RELEASE=squid] -t nginx-xrootd-rpm-builder -f
+> k8s-tests/Dockerfiles/rpm-builder/Dockerfile .` — then `build.sh images`,
+> `docker tag nginx-xrootd-server:dev brix-server:dev` (chart uses the `brix-*:dev`
+> names), `minikube image load brix-server:dev`, and re-run `xrd-lab test
+> gridftp`. This turns the residual from "needs a cluster" (false — a cluster is
+> up) into "the rpm-builder image needs the ceph-SIG build-arg to resolve two
+> storage-backend headers", a mechanical CI-image fix, not gateway work.
+
+> **UPDATE 2026-07-31 (later) — the live GridFTP gateway now BOOTS and MOVES
+> REAL DATA on minikube; the "two mechanical blocks" were the tip of an
+> ~8-defect stale-lab cascade, all root-caused and fixed.** Rebuilding the RPM +
+> `brix-server:dev` and driving the gateway to a running pod surfaced that the
+> k8s server path had been silently broken since before phase-82 (the lab was
+> never actually green — every earlier "unknown directive" report stopped at the
+> first defect). The full chain, each fixed:
+>
+> 1. **rpm-builder `source_name`** — the Dockerfile tarred `nginx-xrootd-${VER}`
+>    but the rebranded spec resolves `Source0`/`%autosetup` against `brix-${VER}`
+>    (`%global upstream_name brix`) → `Bad source: brix-0.1.0.tar.gz`. Fixed.
+> 2. **rpm-builder missing `-devel`** — `liburing-devel libzstd-devel lz4-devel
+>    selinux-policy-devel` absent from the builder's `dnf` list → `Failed build
+>    dependencies`. Added. (Plus the ceph-SIG build-arg above.)
+> 3. **`.dockerignore`** re-included only `deploy/cvmfs/docker`, but the spec's
+>    `%install` runs `make -C client install-automount` which needs the whole
+>    `deploy/cvmfs` tree → `%install` `cannot stat mount.cvmfs`. Broadened.
+> 4. **server image base** was `almalinux:9-minimal` (only `microdnf`, no
+>    config-manager) → `el-target.sh` exits 127. Switched to full `almalinux:9`,
+>    enabled the ceph SIG (`squid`), added `--allowerasing` (curl/curl-minimal),
+>    `voms` (not `voms-libs`), `nginx-mod-stream`, and the module's runtime libs
+>    (`jansson libbrotli liburing librados2 libradosstriper1`).
+> 5. **`entrypoint.sh` regression** (commit 6f59821b, 12 May 2026) — stripped to
+>    a bare `exec "$@"`, so the container ran `nginx` against the compiled
+>    conf-path `/etc/nginx/nginx.conf` (stock http) and **ignored** the chart's
+>    `/etc/brix/nginx.conf` mount entirely; it also `mkdir`'d the read-only
+>    `/etc/grid-security` secret mounts (crash on RO fs) and dropped `/var/log/brix`
+>    (the configs' `error_log`/`pid` dir). Restored to `nginx -c "$NGINX_CONF"`
+>    plus the data/log `mkdir`s, matching the proven older image.
+> 6. **configmap never loaded the dynamic modules** — the role configs are
+>    self-contained and loaded via `nginx -c`, bypassing the stock nginx.conf's
+>    `include /usr/share/nginx/modules/*.conf`; so `stream` (now
+>    `--with-stream=dynamic`) *and* every `brix_*` directive were unknown. Added
+>    the modules include to `topology-role/templates/configmap.yaml` — the single
+>    render point that fixes all roles uniformly.
+> 7. **`labtools/lab.py`** did not route the `gridftp` scenario to `lab_suite.run`
+>    (`unknown scenario 'gridftp'`) though the `_gridftp` driver existed. Added.
+> 8. **helm dep vendoring** — the `topology-role` subchart `.tgz` under
+>    `gridftp-interop/charts/` must be re-vendored (`helm dependency update`)
+>    after editing the template, or the stale archive is rendered.
+>
+> **LIVE PROOF (minikube v1.38.1, helm v3.21.2):** gateway pod `gf-gridftp`
+> `1/1 Running`, `nginx -t -c /etc/brix/nginx.conf` "test is successful",
+> listening on gsiftp 2811 + cleartext ftp 2810. A pure-`ftplib` STOR/RETR
+> round-trip through the cleartext control channel (2810) is **byte-exact in both
+> PASV and active mode** (72000-byte and 24000-byte payloads, md5-verified) and
+> the object physically lands in the posix export
+> (`/data/xrootd/live-proof.bin`). Regression guards:
+> `tests/test_k8s_gridftp_gateway_guard.py` (6 offline, green — pins the
+> entrypoint `-c $NGINX_CONF`, the RO-mount `mkdir` ban, the configmap module
+> include, the lab dispatch, and a `helm template` render check that the include
+> precedes `stream {`).
+>
+> **CLOSED (2026-07-31) — the reference-client interop *test-runner* now drives
+> the gateway live.** `xrd-lab test gridftp` builds/loads the `gridftp-client:dev`
+> image (`Dockerfiles/gridftp-client/Dockerfile` — globus-url-copy/gfal2/VOMS +
+> the `/opt/brix` runner layout: `remote-suite/tests/` → `/opt/brix/tests`,
+> `remote-suite/utils/`, and `client-pki-init.sh`), deploys the `gridftp-interop`
+> chart + `test-runner` chart, and runs `test_gridftp_interop.py` against the live
+> `gf-gridftp` Service. Latest full-lab-path result: **8 passed, 4 skipped, 0
+> failed** — all four GSI matrix cells (globus-url-copy `{PROT C,P} × {MODE S,E}`),
+> the cleartext-active data channel, the independent `gfal-copy` leg, the VOMS-AC
+> proxy leg, and the FTS transfer-list batch are byte-exact reference-client
+> round-trips through the brix gateway.
+>
+> Wiring pieces that made it live (all guarded by
+> `tests/test_k8s_gridftp_gateway_guard.py`): the runner image copies the test
+> tree + utils + pki-init helper into `/opt/brix` and sets `WORKDIR /opt/brix`
+> (`PYTHONPATH=/opt/brix/tests` via the runner env, since `settings.py` lives in
+> `tests/`); the `auth-pki` secret volume pins `defaultMode: 0600` (globus refuses
+> a proxy/key file looser than 600); the lab mounts the `gridftp-ca-bundle`
+> configMap and `client-pki-init.sh` dereferences it into **real** files under
+> `$TEST_ROOT/pki/ca` (a configMap mount presents symlinks; the bare `ca.pem+hash`
+> rebuild does not synthesize the issuer `signing_policy` the gsiftp handshake
+> needs); and the `pki-bootstrap` Job is now **idempotent** (its
+> `pre-install,pre-upgrade` hook reuses existing PKI instead of regenerating the
+> CA and desyncing the still-running gateway host cert) and **re-mints the host
+> cert with `CN=$HOSTCN` + full SAN** so globus authorizes the gsiftp server by
+> the in-cluster Service name it dialled (`blitz_test_pki()` issues `CN=localhost`,
+> which globus rejects with a CN mismatch).
+>
+> **Known limitation (documented, not a wiring gap).** Two cells — passive
+> `PASV/EPSV` STOR/RETR and a same-endpoint `gsiftp→gsiftp` third-party copy — are
+> **gated `skip`** in the container tier via `TEST_GRIDFTP_DATACHAN_PINNED=1` (set
+> by `_gridftp`). The gateway pins every data connection to the control peer (an
+> anti-hijack invariant — see the plain-data-channel docstring), so behind a
+> single k8s Service it exposes no passive data-port range (`Connection refused`)
+> and refuses a data address that differs from the control peer (`500 Data address
+> must match control peer`). Both cells still **run** against a host-network or
+> dual-endpoint deployment where the reference client can satisfy them — the gate
+> is topology-scoped, not a global skip. The `pblock`/`s3` backend rows remain
+> skipped (backends not yet wired into the gateway — the next gateway feature).
+
 **Exit:** evil-actor suite green; k8s matrix green; ops doc reviewed;
 metrics visible in the unified exporter with low-cardinality labels only.
 
@@ -1730,3 +1857,249 @@ engine_event 15 + pblock/verify_write 13 + verbs/evil/s3/mode_e/mode_e_event 35)
 VFS seam clean (the new OpenSSL cert work is pure crypto — no data syscalls).
 BACKENDS reachable through the gateway now: posix + pblock + s3 + **xroot (GSI
 identity-forwarding)**.
+
+## P82.10 — k8s interop lab wired: globus-url-copy / gfal2 / VOMS matrix + FTS bulk lane (2026-07-31)
+
+**Goal (phase-88 §4 open item).** The container-tier interop matrix
+(`globus-url-copy`/`gfal2`/VOMS) + an FTS bulk lane existed only as an
+*unwired* chart + test: `charts/gridftp-interop` and
+`remote-suite/tests/test_gridftp_interop.py` were present, but (a) no
+`lab_suite.py` scenario drove them (unlike the sibling `s3voms`/`pbgsi`
+stretch scenarios), (b) nothing provisioned a VOMS-attributed client proxy, so
+the "VOMS" axis was a name only, and (c) the "FTS bulk" cell was a naïve Python
+loop of single copies — not how FTS actually drives GridFTP. Closed here as an
+**unprivileged, cluster-authorable** deliverable (the only residual is a live
+k8s cluster + the grid-client images to *run* it, exactly as for `s3voms`/
+`pbgsi`).
+
+**Self-contained chart (like `pb-gsi`).** `charts/gridftp-interop` gained its
+own pre-install `pki-bootstrap` Job (+ RBAC) that mints the CA/host material via
+`blitz_test_pki()` and ONE user identity carrying TWO proxies, published as
+release-independent objects the gateway and the runner consume:
+
+- `Secret gridftp-pki` — CA, host cert/key (→ `/etc/grid-security` for the GSI
+  listener), user cert/key, `user_proxy.pem` (plain RFC-3820), `vuser_proxy.pem`
+  (a VOMS-AC proxy, `vo=atlas` FQAN, minted by `utils/voms_proxy_fake.py`).
+- `ConfigMap gridftp-ca-bundle` — hashed CA dir → `/etc/grid-security/certificates`.
+- `ConfigMap gridftp-jwks` — only to satisfy `client-pki-init`.
+
+`values.yaml` now carries a `pki:` image block, a `voms:` block (vo/fqan/uri),
+and a `role.auth` block (`caBundle` + `hostCertSecret`) so `topology-role`'s
+deployment mounts the host credential + trust anchors — the chart no longer
+relies on a lab-release `auth-authority` for grid-security. `helm lint` + `helm
+template` both clean; the templated bootstrap bash `bash -n`-parses.
+
+**Scenario wiring.** `labtools/lab_suite.py` gained `_gridftp(sel)` + a
+`gridftp` dispatch entry, modelled exactly on `_pbgsi`: deploy
+`charts/gridftp-interop` as release `gf` (Service `gf-gridftp`, gsiftp 2811 +
+cleartext ftp 2810), then the `test-runner` with `clientPki` pointed at
+`gridftp-pki`/`gridftp-jwks` and env `TEST_GRIDFTP_HOST=gf-gridftp`,
+`X509_USER_PROXY=/auth/pki/user_proxy.pem`,
+`TEST_GRIDFTP_VOMS_PROXY=/auth/pki/vuser_proxy.pem`. So `xrd-lab test gridftp`
+now works alongside `s3voms`/`pbgsi`.
+
+**VOMS interop cell (new).** `test_voms_attributed_proxy_roundtrip` drives the
+gsiftp round-trip with the VOMS-AC proxy. A VOMS AC is an extra cert spliced
+into the proxy chain **out of strict issuer order**; the point of the cell is
+that the GSI control channel's chain-walk must *tolerate* it and still
+round-trip byte-identical. This is **interop, not authorization** — the gsiftp
+gateway has no VO-ACL directive (`brix_gridftp_*` carries no `require_vo`), so
+the AC is opaque to it. VO-based ACL on the gsiftp plane stays future gateway
+work; the driver does not pretend to enforce it. Self-skips unless
+`TEST_GRIDFTP_VOMS_PROXY` is provisioned.
+
+**Real FTS bulk lane (new).** The naïve loop was replaced by the two mechanisms
+FTS actually uses:
+- `test_fts_transfer_list_batch` — a `globus-url-copy -f <transfer-list>` file
+  naming N `<src> <dst>` pairs, submitted in **one** invocation (the canonical
+  FTS/gfal bulk driver), all pulled back byte-identical.
+- `test_fts_third_party_copy` — a `gsiftp://…/src gsiftp://…/dst`
+  **third-party** copy (what an FTS *server* orchestrates — it never streams the
+  bytes itself), then a GET verifies the copy landed byte-identical.
+
+**Local guards (runnable here, no cluster).** `pytests/test_remote_suite.py`
+gained `test_gridftp_scenario_dry_run_wires_interop_matrix` +
+`test_gridftp_scenario_takes_an_explicit_selection` (dry-run wiring assertions,
+the same gate `s3voms`/`pbgsi` use) — **4 passed** locally. The interop module
+collects all 12 cells (incl. the 3 new ones) and self-skips at the container
+tier without a cluster. `helm lint`/`helm template` on the chart are the render
+gate.
+
+**Still infra-blocked (unchanged residual).** A live k8s cluster + the
+`brix-authority`/`brix-client` images (with `globus-url-copy`/`gfal2`/`voms-
+clients`, already declared in `Dockerfiles/gridftp-client`) to *execute* the
+matrix — identical to the residual on every other stretch scenario.
+
+---
+
+## P82.11 — the interop matrix runs locally, no cluster (2026-07-31)
+
+**Goal (phase-88 §4 residual).** Close the *cluster* half of P82.10's residual:
+let the identical globus-url-copy/gfal2/VOMS matrix run against a locally-booted
+gateway under **rootless podman**, so the only thing a live k8s cluster was
+still needed for — *executing* the reference-client matrix — no longer needs one.
+
+**Real bug found and fixed: the grid-client image never built.** The
+`Dockerfiles/gridftp-client` image (authored in P82.10, never built) is a
+single-stage image based on `almalinux:9-minimal`, which ships only `microdnf`
+— but its build runs `el-target.sh` + `dnf install`, so it failed at that step
+with `dnf: command not found`. (The multi-stage `rpm-builder` gets away with a
+`:9-minimal` *runtime* stage because its `el-target.sh`/`dnf` work happens in
+the full `almalinux:9` *builder* stage.) Fixed by basing the single-stage
+grid-client image on the full `almalinux:9`. The image now builds and ships
+`globus-url-copy` + `gfal-copy` + `voms-proxy-*` + pytest.
+
+**Local runner (new).** `tests/cmdscripts/gridftp_interop_local.py`:
+- `build-image` — one network-fed `podman build` of the grid-client image.
+- `run` — boots a combined gsiftp+ftp gateway locally
+  (`tests/configs/nginx_gridftp_interop.conf`, the same two-listeners-over-one-
+  export topology the chart renders), then drives the exact
+  `test_gridftp_interop.py` matrix from the image with `--network=host`, the
+  local test PKI proxy + CA dir mounted in, and `TEST_GRIDFTP_*` pointing back at
+  the host gateway. Tears the gateway down on exit.
+- `run --dry-run` — prints the `podman run` invocation without building/booting.
+- Every missing prerequisite (podman, image, nginx, PKI) self-skips with a
+  clear reason (exit 77), never a false failure.
+  The `build_interop_run_plan()` command-plan builder is a pure function so the
+  argv/env/mount wiring is unit-tested offline with no container.
+
+**New drift guard.** `tools/ci/check_gridftp_interop_image.py` (wired into
+`guards.yml` + `tests/test_ci_guards.py` fast lane) holds the client-image /
+runner / matrix contract together off a single source of truth (the runner's
+`INTEROP_CLIENT_PACKAGES` / `INTEROP_ENV_VARS`): a Dockerfile edit that drops
+one of the three reference client stacks, a combined-config edit that loses a
+listener, or a runner/matrix env-var-name divergence all redden the gate instead
+of silently degrading a matrix cell to a skip.
+
+**Real gateway bug the matrix caught: `MKD dir/` (trailing slash) failed.**
+Running the matrix for the *first time ever* (it was cluster-blocked, so it had
+never actually executed anywhere) surfaced a genuine cross-implementation defect
+— exactly what an interop matrix exists to find. Every `globus-url-copy`
+GSI/FTS cell writes into a nested export subdir (`interop/`, `bulk/`, `tpc/`)
+that a fresh export lacks, so the real-grid contract is a client-side directory
+create: `globus-url-copy -create-dest` (`-cd`) / `gfal-copy --parent` (`-p`).
+The gfal cells create the dir with `MKD interop` (no slash) and worked; but
+`globus-url-copy -cd` emits `MKD interop/` **with a trailing slash**, and the
+gateway rejected it with `550`. Root cause in `src/fs/path/beneath.c`
+`brix_mkdir_beneath()`: `beneath_open_parent()` split `interop/` into
+parent=`interop` (which does not exist yet) + an **empty leaf**, so opening that
+parent returned `ENOENT`. The **recursive** mkdir path already dropped a lone
+trailing slash (`brix_mkdir_normalise()` in `src/fs/path/mkdir.c`); the
+single-level path did not. Fix: `brix_mkdir_beneath()` now strips trailing
+slashes before the parent/leaf split (keeping a lone root `/`), so both mkdir
+variants honour the `MKD dir/` convention every standard FTP server accepts.
+raw `mkdir(2)` accepts a trailing slash, confirming the fault was brix's own
+parent/leaf split, not the syscall. With the fix the full matrix runs
+**9 passed, 3 skipped, 0 failed** locally (3 skips = VOMS needs a local
+VOMS-attributed proxy; pblock/s3 are not wired into a posix export). The matrix
+now also carries `-cd`/`-p` so it is self-sufficient on any bare gateway — local
+*and* the eventual cluster — and exercises the gateway's MKD path as coverage.
+
+**Tests.** `tests/test_gridftp_interop_local.py` (8, offline) — plan wiring
+(host/ports/network/mounts, VOMS present-vs-absent branch), the combined gateway
+config validating under `nginx -t`, and the guard green + reddening on injected
+Dockerfile/config drift. The gateway MKD fix has its own fast-lane regression:
+`tests/test_gridftp_verbs.py::test_mkd_trailing_slash_and_confinement` drives a
+cleartext gateway with `ftplib` — `MKD slashdir/` (trailing slash) then a STOR
+into the fresh dir (the exact `-cd` path), a bare `MKD dir` control, EEXIST still
+an error, and a traversal `MKD` staying confined (security-negative). The
+`gridftp-plain` lifecycle spec was unregistered (a latent subset-boot gap that
+kept the whole verbs file from booting standalone) — now fixed at
+`fleet_lifecycle_ports.py` port 30424; `test_gridftp_verbs.py` is 17/17.
+
+**Residual now (smaller).** Only a one-time `podman build` (network for the EL9
+grid RPMs) + rootless podman on the box — no k8s cluster. The remaining
+genuinely cluster-only surface is the multi-node/FTS-*server* topology, not the
+client-interop matrix.
+
+---
+
+## P82.12 — non-posix backend driven over the reference-client interop matrix (2026-08-01)
+
+**Goal (phase-88 §4 residual).** Close the last "backends not yet gateway-wired"
+claim in the interop matrix. The gateway routes every data-plane op through the
+VFS storage seam and registers `brix_gridftp_storage_backend` via the shared
+`brix_vfs_backend_config_str` (ceph/rados/tape/http/s3/root(s):///pblock/posix),
+so ALL backends are gateway-wired with no data-path change — and the native
+ftplib suites already prove it (`test_gridftp_pblock.py` 7/7 +
+`test_gridftp_verify_write.py` 6/6 = 13/13, plus `test_gridftp_s3.py`). What was
+missing was the *reference-client* interop proof: `test_gridftp_interop.py`'s
+`test_nonposix_backend_matrix` was a permanent `pytest.skip` still tagged
+"pblock/s3 backends are not yet wired into the gateway" — factually stale.
+
+**Landed.**
+1. **Real driven cells.** `test_nonposix_backend_matrix` (permanent skip) is
+   replaced by `test_pblock_backend_roundtrip` + `test_s3_backend_roundtrip`,
+   each running `globus-url-copy` STOR then GET (`-dcpriv`, `-cd`) through a
+   non-posix backend export over gsiftp and asserting a byte-exact round-trip —
+   the interop guarantee the native suites (brix's own FTP client) cannot give.
+   Both self-skip with a clear reason when their backend endpoint isn't exported.
+2. **Cluster-free pblock leg.** `nginx_gridftp_interop.conf` gains a third
+   gsiftp listener (`{PBLOCK_GSIFTP_PORT}`) over a pblock-backed export
+   (`{PBLOCK_ROOT}` + `brix_gridftp_storage_backend pblock`) — pblock is a local
+   SQLite catalog + block files, no external object store, so the local runner
+   `gridftp_interop_local.py` boots it and exports
+   `TEST_GRIDFTP_BACKEND_PBLOCK_PORT`. The reference client thus proves a
+   non-posix backend round-trip over gsiftp with **no k8s cluster and no MinIO**.
+3. **s3 leg honest-skip.** `test_s3_backend_roundtrip` reads
+   `TEST_GRIDFTP_BACKEND_S3_PORT` and self-skips until the lab exports a
+   MinIO/radosgw origin — the only residual there is a clustered object store,
+   not gateway wiring.
+
+**Tests / guards.** `tests/test_gridftp_interop_local.py` (11, offline) — the
+pblock port flows through `build_interop_run_plan` (present + absent branches),
+the extended 3-listener config validates under `nginx -t` and carries the pblock
+registration, and `check_gridftp_interop_image.py` stays green while reddening on
+a dropped `{PBLOCK_GSIFTP_PORT}` listener or a removed
+`brix_gridftp_storage_backend pblock` (injected-drift negatives). The guard's
+env-var cross-check now also pins `TEST_GRIDFTP_BACKEND_PBLOCK_PORT` present in
+both the runner contract and the matrix. Native backend suites 13/13 green; the
+full interop matrix collects 12 cells (both backend cells included).
+
+**Residual now.** The s3 interop cell's clustered origin + the datachan-pinned
+passive/TPC cells on a dual-endpoint deployment — both topology/infra, not code.
+
+## P82.13 — s3 interop cell closed cluster-free + a pblock trailing-slash mkdir fix (2026-08-01)
+
+The P82.12 s3 leg self-skipped pending an external MinIO/radosgw origin. That
+residual is now closed **without a cluster**: the local runner boots a *second*
+nginx instance, `tests/configs/nginx_gridftp_interop_s3.conf`
+(`worker_processes 2`), whose `http{}` plane is an **embedded `brix_s3` origin**
+over a posix root (bucket `testbucket`) and whose `stream{}` plane is an
+`s3://`-backed gsiftp listener (`TEST_GRIDFTP_BACKEND_S3_PORT`). `globus-url-copy`
+STOR/RETR therefore travels VFS → `sd_remote` → SigV4 PUT/GET against the
+co-hosted origin — the object-store backend proven over gsiftp with no MinIO. It
+is a *separate* instance from the main gateway because the s3 leg needs two
+workers (a lone worker parked in the synchronous gateway handler has nobody left
+to service the inbound SigV4 leg to the co-hosted origin — a self-deadlock),
+while the pblock leg in the main config must stay single-worker (per-worker block
+catalog). `test_s3_backend_roundtrip` now runs (no longer skips) and passes.
+
+**Real pblock bug found while driving the reference client.** `globus-url-copy
+-cd` issues `MKD interop/` **with a trailing slash** (§P82.11 documented the same
+for the POSIX path). The pblock catalog keys directories WITHOUT a trailing
+slash, so `parent_of("/interop/")` split into the non-existent parent `/interop`
+plus an empty leaf → **both** pblock mkdir slots failed with a spurious
+`ENOENT`/`not_found`: the plain slot (`sd_pblock_mkdir_as`, whose `cat_parent_gate`
++ `parent_of` ran on the raw path) and, under GSI, the per-user slot
+(`sd_pblock_mkdir_cred`, whose `pblock_ident_check_parent` W+X check runs *first*).
+POSIX was unaffected — `mkdirat` tolerates a trailing slash and `brix_mkdir_beneath`
+already strips it. Fixed with a shared `pblock_path_canon()` (in
+`sd_pblock_namespace.c`, declared in `sd_pblock_internal.h`) that strips the
+trailing slash — the pblock analogue of the POSIX normalisation — called at the
+top of **both** slots (the cred slot canonicalises *before* its parent check), so
+quota/audit/catalog rows all key the canonical dir and children resolve.
+
+**Tests / guards.** C units: `sd_pblock_unittest_core.c::test_mkdir_trailing_slash`
+(plain slot — success + child-reachable, EEXIST canonical dedup on the slash
+variant, and still-`ENOENT` on a genuinely-missing parent) and a cred-slot
+trailing-slash case in `sd_pblock_unittest_ident.c` (the GSI runtime path). Offline
+`tests/test_gridftp_interop_local.py` grows to 15 (s3-config `nginx -t`, s3 port
+wiring present/absent, and a drop-the-`s3://`-backend drift negative);
+`check_gridftp_interop_image.py` §2b pins the embedded `brix_s3 on;` origin and
+the `s3://` backend registration in the separate s3 config. **The full
+reference-client interop matrix is now green: 11 passed / 1 skipped** (the lone
+skip is the VOMS cell — no VOMS proxy present).
+
+**Residual now.** Only the datachan-pinned passive/TPC cells on a dual-endpoint
+deployment — topology/infra, not code.

@@ -3,11 +3,13 @@
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_ops.h"
 #include "core/compat/path.h"
+#include "fs/path/path.h"          /* brix_check_vo_acl_identity (VO gate) */
 
 #include <string.h>    /* strchr */
 
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /*
  * ftp_ev_path.c — command tokenising, path confinement, and VFS context setup.
@@ -76,6 +78,17 @@ brix_ftp_ev_resolve(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz)
     if (rc != 0) {
         return 550;                     /* 400/403/404/414/500 → FTP 550       */
     }
+
+    /* VO authorization (phase-92): once the path is confined + canonical, deny
+     * unless the client's VOMS VO membership satisfies the rule covering it.
+     * Same matcher/semantics as the HTTP/root planes (brix_auth_gate). No rules
+     * ⇒ allow-all (early return in the callee); a cleartext session carries no
+     * VO, so a VO-gated path is refused — the secure default, never a bypass. */
+    if (brix_check_vo_acl_identity(fc->c->log, abs, fc->conf->vo_rules,
+                                   fc->identity) != NGX_OK)
+    {
+        return 550;                     /* VO not authorized → FTP 550          */
+    }
     return 0;
 }
 
@@ -127,7 +140,7 @@ fwd_find_leaf(STACK_OF(X509) *certs, EVP_PKEY *key)
         X509     *c  = sk_X509_value(certs, i);
         EVP_PKEY *pk = X509_get_pubkey(c);
         int       hit = (pk != NULL && EVP_PKEY_eq(pk, key) == 1);
-        EVP_PKEY_free(pk);
+        brix_evp_pkey_free(pk);
         if (hit) {
             return c;
         }
@@ -274,7 +287,7 @@ brix_ftp_ev_forward_pem(ngx_pool_t *pool, ngx_str_t *deleg, ngx_str_t *issuer)
     }
 
     if (key != NULL) {
-        EVP_PKEY_free(key);
+        brix_evp_pkey_free(key);
     }
     sk_X509_pop_free(certs, X509_free);
     return out;

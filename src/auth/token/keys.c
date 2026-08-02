@@ -20,6 +20,7 @@
 #include <openssl/bn.h>
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* WHAT: Construct OpenSSL RSA public key from base64url-encoded modulus (n) and
  * exponent (e). Returns EVP_PKEY on success, NULL on decode failure or BIGNUM/OSSL
@@ -71,7 +72,7 @@ brix_token_rsa_pubkey_from_ne(const char *n_b64, size_t n_b64_len,
     if (pctx != NULL) {
         EVP_PKEY_fromdata_init(pctx);
         EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, params);
-        EVP_PKEY_CTX_free(pctx);
+        brix_evp_pkey_ctx_free(pctx);
     }
 
     OSSL_PARAM_free(params);
@@ -126,7 +127,7 @@ brix_token_ec_pubkey_from_xy(const char *x_b64, size_t x_b64_len,
     if (pctx != NULL) {
         EVP_PKEY_fromdata_init(pctx);
         EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, params);
-        EVP_PKEY_CTX_free(pctx);
+        brix_evp_pkey_ctx_free(pctx);
     }
 
     OSSL_PARAM_free(params);

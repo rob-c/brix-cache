@@ -122,10 +122,12 @@ const themes: Theme[] = [
         cite: 'src/protocols/webdav/tpc_cred.c',
       },
       {
-        t: 'A maintained GridFTP door',
-        d: `A gsiftp gateway with GSI control and data channels, MODE E parallel streams with restart
-            markers, active and passive modes, and gsiftp↔gsiftp third-party copy — for ARC-CE fronts
-            and legacy fabric that cannot migrate on someone else's schedule.`,
+        t: 'GridFTP as a full peer protocol',
+        d: `A gsiftp front-end with GSI control and data channels, MODE E parallel streams with restart
+            markers, active and passive modes, and gsiftp↔gsiftp third-party copy — terminating on the
+            same VFS as root/WebDAV/S3, so it fronts any storage backend (POSIX, S3, Ceph, block store)
+            and cross-translates byte-for-byte with the other protocols. For ARC-CE fronts and legacy
+            fabric that cannot migrate on someone else's schedule.`,
         stock: 'The Globus toolkit is EOL, so sites that still need GridFTP must provide their own transition path.',
         cite: 'src/protocols/gridftp/ · docs/05-operations/gridftp.md',
       },

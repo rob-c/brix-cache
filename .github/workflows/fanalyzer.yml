@@ -1,33 +1,50 @@
-# Weekly GCC -fanalyzer ratchet (use-after-free / leak / NULL-deref findings
-# vs tools/ci/fanalyzer_baseline.txt). NON-BLOCKING: the baseline was
-# generated with the local dev GCC; ubuntu-latest's GCC reports a different
-# set. First-run triage (2026-07-07): the ngx_log.h NULL-deref was a REAL
-# latent bug (stage_engine reconcile with a NULL cycle log — fixed, with a
-# regression test in tests/c/run_stage_reconcile_tests.sh); the other two
-# CI-only findings are false positives documented AT THE CODE SITES
-# (core/compat/subprocess.c: fd must survive exec; fs/vfs/vfs_internal.h:
-# staged-handle ctx invariant). Expect this job to keep reporting those two
-# until the gate learns per-finding suppression. Local runs against the dev
-# build remain the authoritative gate — see tools/ci/README.md. Never
-# --regen the baseline from CI output.
+# GCC -fanalyzer ratchet — BLOCKING, per-PR (hyper-hardening B-1).
+#
+# Findings (use-after-free / leak / NULL-deref) are gated against the frozen
+# tools/ci/fanalyzer_baseline.txt: only a NEW finding vs the baseline fails.
+# fanalyzer.yml's first run caught a REAL latent NULL-deref (ngx_log.h /
+# stage_engine reconcile with a NULL cycle log — fixed, regression-tested in
+# tests/c/run_stage_reconcile_tests.sh); the gate's whole point is that the next
+# one blocks the PR instead of merging.
+#
+# WHY THIS IS NOW BLOCKING (was advisory / weekly-cron-only).  -fanalyzer output
+# is GCC-version and build-flag sensitive, so a baseline generated on the dev box
+# (AlmaLinux 9, gcc 11.5.0) only reproduces on the SAME toolchain — that mismatch
+# with ubuntu-latest's GCC is exactly why this gate used to be continue-on-error.
+# This job now runs inside `container: almalinux:9` — the dev distro — so the
+# runner's gcc IS the gcc that produced the baseline, the findings set is
+# reproducible, and the ratchet is stable enough to block. That is the "pin the
+# toolchain" step the old advisory header was waiting on. The two documented
+# CI-only false positives (core/compat/subprocess.c fd-survives-exec;
+# fs/vfs/vfs_internal.h staged-handle ctx invariant) are in the baseline, so they
+# do not re-fire. If the el9 gcc package is bumped, regenerate the baseline on the
+# new toolchain (tools/ci/run_fanalyzer.py --regen, reviewed) — NEVER --regen from
+# CI output to silence a failure.
+#
+# Complements codechecker.yml (Clang SA + clang-tidy, same container discipline).
 name: fanalyzer
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * 1'
 jobs:
   fanalyzer:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    # Pin the toolchain to the dev distro so -fanalyzer findings reproduce the
+    # frozen baseline exactly — the prerequisite for making this gate blocking.
+    container: almalinux:9
     steps:
-      - uses: actions/checkout@v4
-      - name: Install build deps
+      - name: Install build deps + pinned gcc toolchain
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential \
-            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
-            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
-            libjansson-dev libxml2-dev librados-dev
+          dnf -y install git gcc make python3 tar \
+            openssl-devel zlib-devel pcre2-devel \
+            libcurl-devel sqlite-devel krb5-devel \
+            jansson-devel libxml2-devel librados2-devel
+          gcc --version
+      - uses: actions/checkout@v4
       - name: Fetch and configure nginx with the module
         run: |
           curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
@@ -35,7 +52,7 @@ jobs:
           ./configure --with-stream --with-stream_ssl_module \
             --with-http_ssl_module --with-http_dav_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
-      - name: Run analyzer ratchet
+      - name: Run analyzer ratchet (blocking on new findings vs baseline)
         run: |
           NGX_BUILD=/tmp/nginx-1.28.3 FANALYZER_RAW=/tmp/fanalyzer-raw.txt \
             tools/ci/run_fanalyzer.py 2>&1 | tee /tmp/fanalyzer-report.txt

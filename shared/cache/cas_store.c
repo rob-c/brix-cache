@@ -1,5 +1,8 @@
-/* cas_store.c — content-addressed local POSIX object store. See cas_store.h. */
+/* cas_store.c — content-addressed local POSIX object store. See cas_store.h.
+ * With `s->pack` set (brix_cas_init_packed*) every op dispatches to the
+ * log-structured packed backend (cas_pack.c) behind the same contract. */
 #include "cache/cas_store.h"
+#include "cache/cas_pack.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -56,25 +59,53 @@ int brix_cas_init_at(brix_cas_store_t *s, int dirfd, long quota_bytes) {
     return 0;
 }
 
+int brix_cas_init_packed(brix_cas_store_t *s, const char *root, long quota_bytes,
+                         long seg_bytes, int tiering) {
+    if (root == NULL || strlen(root) >= sizeof(s->root)) { errno = EINVAL; return -1; }
+    memset(s, 0, sizeof(*s));
+    s->dirfd = -1;
+    strcpy(s->root, root);
+    s->quota_bytes = quota_bytes;
+    return brix_cas_pack_open(&s->pack, root, -1, quota_bytes, seg_bytes, tiering);
+}
+
+int brix_cas_init_packed_at(brix_cas_store_t *s, int dirfd, long quota_bytes,
+                            long seg_bytes, int tiering) {
+    if (dirfd < 0) { errno = EINVAL; return -1; }
+    memset(s, 0, sizeof(*s));
+    s->dirfd = dirfd;
+    s->quota_bytes = quota_bytes;
+    return brix_cas_pack_open(&s->pack, NULL, dirfd, quota_bytes, seg_bytes, tiering);
+}
+
+void brix_cas_destroy(brix_cas_store_t *s) {
+    brix_cas_pack_close(s->pack);
+    s->pack = NULL;
+}
+
 int brix_cas_path(const brix_cas_store_t *s, const char *key, char *buf, size_t buflen) {
+    if (s->pack != NULL) { errno = EOPNOTSUPP; return -1; }   /* no per-object path */
     return cas_obj_rel(s, key, buf, buflen);
 }
 
 int brix_cas_has(const brix_cas_store_t *s, const char *key) {
     char rel[640];
     struct stat st;
+    if (s->pack != NULL) return brix_cas_pack_has(s->pack, key);
     if (cas_obj_rel(s, key, rel, sizeof(rel)) < 0) return 0;
     return fstatat(cas_base(s), rel, &st, 0) == 0 && S_ISREG(st.st_mode);
 }
 
 int brix_cas_open(const brix_cas_store_t *s, const char *key) {
     char rel[640];
+    if (s->pack != NULL) return brix_cas_pack_get_fd(s->pack, key);
     if (cas_obj_rel(s, key, rel, sizeof(rel)) < 0) { errno = EINVAL; return -1; }
     return openat(cas_base(s), rel, O_RDONLY);
 }
 
 int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t len) {
     char obj[640], dir[640];
+    if (s->pack != NULL) return brix_cas_pack_put(s->pack, key, data, len);
     if (cas_obj_rel(s, key, obj, sizeof(obj)) < 0
         || cas_dir_rel(s, key, dir, sizeof(dir)) < 0) { errno = EINVAL; return -1; }
     if (brix_cas_has(s, key)) return 0;                 /* immutable: present */
@@ -117,6 +148,7 @@ int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t 
 int brix_cas_del(brix_cas_store_t *s, const char *key) {
     char rel[640];
     struct stat st;
+    if (s->pack != NULL) return brix_cas_pack_del(s->pack, key);
     if (cas_obj_rel(s, key, rel, sizeof(rel)) < 0) { errno = EINVAL; return -1; }
     int base = cas_base(s);
     if (fstatat(base, rel, &st, 0) != 0 || !S_ISREG(st.st_mode)) return -1;
@@ -170,6 +202,7 @@ static void sum_cb(int sfd, const char *fn, const struct stat *st, void *ud) {
 
 long brix_cas_size(const brix_cas_store_t *s) {
     long total = 0;
+    if (s->pack != NULL) return brix_cas_pack_size(s->pack);
     if (cas_walk(s, sum_cb, &total) != 0) return -1;
     return total;
 }
@@ -185,6 +218,7 @@ static int by_atime(const void *a, const void *b) {
 }
 
 int brix_cas_reap(brix_cas_store_t *s, long target_bytes) {
+    if (s->pack != NULL) return brix_cas_pack_reap(s->pack, target_bytes);
     /* Snapshot every object (dup'ing each fan-out dir fd so it stays unlinkable
      * after the walk closes it), sort by atime, then evict oldest-first until at
      * or below target_bytes. */
@@ -240,6 +274,7 @@ int brix_cas_reap(brix_cas_store_t *s, long target_bytes) {
 }
 
 int brix_cas_enforce_quota(brix_cas_store_t *s) {
+    if (s->pack != NULL) return brix_cas_pack_enforce_quota(s->pack);
     if (s->quota_bytes <= 0 || s->cur_bytes <= s->quota_bytes) return 0;
     long low = (s->quota_bytes * 3) / 4;         /* reap to 75% */
     int r = brix_cas_reap(s, low);

@@ -23,6 +23,14 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
             str(out),
             str(REPO_ROOT / "shared" / "cache" / "cas_store_unittest.c"),
             str(REPO_ROOT / "shared" / "cache" / "cas_store.c"),
+            # cas_store.c dispatches every op through the packed-store backend
+            # (brix_cas_init_packed → brix_cas_pack_*), which lives in cas_pack.c
+            # and rests on the platform fsync/anon-fd shims; link both plus the
+            # zlib/zstd the pack codec needs.
+            str(REPO_ROOT / "shared" / "cache" / "cas_pack.c"),
+            str(REPO_ROOT / "shared" / "cvmfs" / "platform" / "platform.c"),
+            "-lz",
+            "-lzstd",
         ]
     )
     if compile_result.returncode != 0:

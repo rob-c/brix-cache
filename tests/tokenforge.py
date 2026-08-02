@@ -883,6 +883,25 @@ class TokenForge(TokenIssuer):
         )
         return self._sign_raw(self._raw_hdr(), payload)
 
+    def sub_absent(self):
+        """sub omitted entirely — accept (rules 4/6: sub is OPTIONAL).
+
+        WHY: RFC 7519 §4.1.2 — "sub" is an OPTIONAL claim. The sub-type
+             hardening rejects a present-but-non-string sub, but must NOT reject
+             a token that simply carries no sub at all.
+        """
+        now = int(time.time())
+        payload = (
+            '{"iss":' + json.dumps(self.issuer) +
+            ',"aud":' + json.dumps(self.audience) +
+            ',"exp":' + str(now + 3600) +
+            ',"nbf":' + str(now) +
+            ',"iat":' + str(now) +
+            ',"scope":"storage.read:/"' +
+            ',"wlcg.ver":"1.0"}'
+        )
+        return self._sign_raw(self._raw_hdr(), payload)
+
     def iat_after_exp(self):
         """iat > exp — issued after expiry (nonsensical; rule 155; characterize).
 

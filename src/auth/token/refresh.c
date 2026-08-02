@@ -21,13 +21,14 @@
  *      load new keys only when changed, swap the key array, update jwks_mtime, and
  *      reschedule itself. On parse failure the old keys are preserved and a WARN is
  *      emitted. Keys are freed via brix_jwks_free() (defined in jwks.c) which calls
- *      EVP_PKEY_free() on each non-NULL entry.
+ *      brix_evp_pkey_free() on each non-NULL entry.
  */
 
 #include "core/config/config.h"
 #include "token.h"
 
 #include <sys/stat.h>
+#include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
 /* Handler: called by the nginx event loop at each refresh interval */
 /*

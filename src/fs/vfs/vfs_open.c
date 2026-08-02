@@ -427,5 +427,11 @@ brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
         return NULL;
     }
 
+    /* C-2: a create-capable open that succeeded may have materialised the
+     * path, so drop any per-worker cached negative for it. */
+    if (flags & BRIX_VFS_O_CREATE) {
+        brix_vfs_neg_stat_forget(ctx->root_canon, path);
+    }
+
     return fh;
 }

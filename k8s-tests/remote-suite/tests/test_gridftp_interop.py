@@ -15,12 +15,21 @@ Matrix (posix backend):
   * GSI leg (gsiftp port):  {PROT C, PROT P} × {MODE S, MODE E} round-trips
   * cleartext leg (ftp port): {active, passive} data-channel round-trips
   * second-client interop:  one gfal-copy round-trip
-  * FTS-style bulk lane:    a batch of files, all must land byte-identical
+  * VOMS interop:           a VOMS-AC-bearing proxy round-trips (the GSI control
+                            channel must accept a proxy chain carrying an
+                            embedded, out-of-issuer-order VOMS attribute cert)
+  * FTS bulk lane:          (a) a globus-url-copy ``-f`` transfer-list batch in
+                            ONE invocation — the canonical FTS/gfal bulk driver —
+                            and (b) a gsiftp→gsiftp third-party copy (what an
+                            FTS server actually orchestrates), all byte-identical
 
-Backend axis: the gateway is posix-export only today (``brix_gridftp_export`` →
-posix VFS). pblock/s3 backends are not yet wired into the gateway, so those rows
-are marked xfail rather than silently skipped — they are the next gateway
-feature, not a lab gap.
+Backend axis (P82.6): the gateway routes every op through the VFS storage seam,
+so ``brix_gridftp_storage_backend`` wires ANY backend (pblock/s3/root(s):///
+ceph/…) with no data-path change.  ``test_pblock_backend_roundtrip`` drives the
+reference client through a pblock-backed export over gsiftp (cluster-free — the
+local runner boots it); ``test_s3_backend_roundtrip`` does the same through an
+s3:// origin, also cluster-free — the local runner boots a second nginx instance
+with an embedded ``brix_s3`` origin (no external MinIO/radosgw needed).
 
 This is the CONTAINER tier: it self-skips unless the in-cluster gateway
 endpoints are exported and a Globus client + GSI proxy are present.  Point it at
@@ -66,6 +75,23 @@ def _require_plain():
         pytest.skip("TEST_GRIDFTP_HOST unset — container-tier lab only")
 
 
+def _skip_if_datachan_pinned(what):
+    """Skip data-channel cells the gateway cannot satisfy behind a single
+    k8s Service.  The gateway pins every data connection to the control peer
+    (an anti-hijack invariant — see the plain-data-channel docstring), so it
+    exposes NO passive data-port range and refuses a data address that differs
+    from the control channel's peer.  Passive STOR/RETR and a same-endpoint
+    gsiftp→gsiftp TPC both need exactly that, so they cannot pass against this
+    topology — but they DO exercise real gateway behaviour against a host-
+    network or dual-endpoint deployment, so gate rather than delete them.  The
+    lab sets TEST_GRIDFTP_DATACHAN_PINNED=1 for the container tier."""
+    if os.environ.get("TEST_GRIDFTP_DATACHAN_PINNED"):
+        pytest.skip(
+            f"{what}: gateway pins the data channel to the control peer; this "
+            "single-Service topology exposes no passive data-port range and "
+            "refuses a data address that differs from the control peer")
+
+
 def _digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -101,7 +127,10 @@ def test_gsi_matrix_roundtrip(tmp_path, prot_id, prot_flag, mode_id, mode_flags)
     src.write_bytes(payload)
     remote = f"interop/{prot_id}-{mode_id}.bin"
 
-    up = _guc([prot_flag, *mode_flags, f"file://{src}", _gsiftp(remote)])
+    # -cd (-create-dest): the SE export is bare, so the client must MKD the
+    # nested destination dir before STOR — the real-grid contract for a nested
+    # target, and it also exercises the gateway's MKD path as interop coverage.
+    up = _guc(["-cd", prot_flag, *mode_flags, f"file://{src}", _gsiftp(remote)])
     assert up.returncode == 0, f"[brix-gateway] PUT failed: {up.stderr}"
 
     dst = tmp_path / f"dst-{prot_id}-{mode_id}.bin"
@@ -126,6 +155,8 @@ def test_plain_data_channel_roundtrip(tmp_path, passive):
     (PORT/EPRT) data-channel modes — the gateway must pin the active data leg to
     the control peer and still land the bytes."""
     _require_plain()
+    if passive:
+        _skip_if_datachan_pinned("passive PASV/EPSV data channel")
     payload = os.urandom(256 * 1024)
     ftp = _ftp()
     ftp.set_pasv(passive)
@@ -154,7 +185,8 @@ def test_gfal_interop_roundtrip(tmp_path):
     src = tmp_path / "gfal-up.bin"
     src.write_bytes(payload)
     env = dict(os.environ)
-    up = subprocess.run([GFAL, "-f", str(src.as_uri()), _gsiftp("interop/gfal.bin")],
+    up = subprocess.run([GFAL, "-p", "-f", str(src.as_uri()),
+                         _gsiftp("interop/gfal.bin")],
                         capture_output=True, text=True, timeout=120, env=env)
     assert up.returncode == 0, f"[brix-gateway] gfal PUT failed: {up.stderr}"
     dst = tmp_path / "gfal-dn.bin"
@@ -164,46 +196,161 @@ def test_gfal_interop_roundtrip(tmp_path):
     assert _digest(dst.read_bytes()) == _digest(payload)
 
 
-# ---- FTS-style bulk lane ----------------------------------------------------
+# ---- VOMS interop: an AC-bearing proxy must be accepted --------------------
 
-def test_fts_bulk_batch(tmp_path):
-    """An FTS-like batch: many small files pushed then pulled back, all
-    byte-identical.  Exercises the gateway under back-to-back session churn the
-    way a bulk transfer service drives it."""
+def test_voms_attributed_proxy_roundtrip(tmp_path):
+    """Drive the gsiftp round-trip with a VOMS-attributed proxy (minted by the
+    chart's pki-bootstrap via voms_proxy_fake, atlas FQAN).  A VOMS AC is an
+    extra cert spliced into the proxy chain OUT of strict issuer order; the GSI
+    control channel's chain-walk must tolerate it and still round-trip.  This is
+    interop, not authorization — the gsiftp gateway has no VO ACL directive, so
+    the AC is opaque to it and the transfer simply succeeds as any GSI proxy
+    would.  Self-skips unless a VOMS proxy is provisioned."""
+    if HOST is None:
+        pytest.skip("TEST_GRIDFTP_HOST unset — container-tier lab only")
+    if GUC is None:
+        pytest.skip("globus-url-copy not on PATH")
+    voms_proxy = os.environ.get("TEST_GRIDFTP_VOMS_PROXY")
+    if voms_proxy is None or not os.path.exists(voms_proxy):
+        pytest.skip("no TEST_GRIDFTP_VOMS_PROXY — VOMS-AC interop cell needs a "
+                    "voms-attributed proxy (chart pki-bootstrap provides one)")
+    payload = os.urandom(1024 * 1024)
+    src = tmp_path / "voms-up.bin"
+    src.write_bytes(payload)
+    # Point the GSI control channel at the VOMS-AC proxy, not the plain one.
+    env = dict(os.environ, X509_USER_PROXY=voms_proxy)
+    env.setdefault("X509_CERT_DIR", "/etc/grid-security/certificates")
+    up = subprocess.run([GUC, "-cd", "-dcpriv", f"file://{src}", _gsiftp("voms/ac.bin")],
+                        capture_output=True, text=True, timeout=120, env=env)
+    assert up.returncode == 0, \
+        f"[brix-gateway] gateway rejected a VOMS-AC proxy chain: {up.stderr}"
+    dst = tmp_path / "voms-dn.bin"
+    dn = subprocess.run([GUC, "-dcpriv", _gsiftp("voms/ac.bin"), f"file://{dst}"],
+                        capture_output=True, text=True, timeout=120, env=env)
+    assert dn.returncode == 0, f"[brix-gateway] VOMS-AC GET failed: {dn.stderr}"
+    assert _digest(dst.read_bytes()) == _digest(payload), \
+        "[brix-gateway] VOMS-AC proxy round-trip corrupted the bytes"
+
+
+# ---- FTS bulk lane: transfer-list batch + third-party copy ------------------
+
+def test_fts_transfer_list_batch(tmp_path):
+    """The canonical FTS/gfal bulk mechanism: a globus-url-copy ``-f
+    <transfer-list>`` file naming N ``<src> <dst>`` pairs, submitted in ONE
+    invocation (not a Python loop of single copies).  All must land, and a
+    pull-back of each must be byte-identical."""
     _require_gsi()
     n = int(os.environ.get("TEST_GRIDFTP_BULK_N", "16"))
     payloads = {f"bulk/{i:04d}.bin": os.urandom(64 * 1024) for i in range(n)}
+    listing = []
     for name, data in payloads.items():
         p = tmp_path / os.path.basename(name)
         p.write_bytes(data)
-        up = _guc(["-nodcau", f"file://{p}", _gsiftp(name)])
-        assert up.returncode == 0, f"[brix-gateway] bulk PUT {name}: {up.stderr}"
+        listing.append(f"file://{p} {_gsiftp(name)}")
+    xfer_list = tmp_path / "fts-transfer.list"
+    xfer_list.write_text("\n".join(listing) + "\n")
+
+    up = _guc(["-cd", "-nodcau", "-f", str(xfer_list)])
+    assert up.returncode == 0, \
+        f"[brix-gateway] FTS transfer-list PUT batch failed: {up.stderr}"
+
     for name, data in payloads.items():
         dst = tmp_path / ("dn-" + os.path.basename(name))
         dn = _guc(["-nodcau", _gsiftp(name), f"file://{dst}"])
         assert dn.returncode == 0, f"[brix-gateway] bulk GET {name}: {dn.stderr}"
         assert _digest(dst.read_bytes()) == _digest(data), \
-            f"[brix-gateway] bulk {name} corrupted"
+            f"[brix-gateway] FTS batch {name} corrupted"
+
+
+def test_fts_third_party_copy(tmp_path):
+    """An FTS server does not stream bytes itself — it orchestrates a
+    THIRD-PARTY gsiftp→gsiftp copy between two storage endpoints.  Here both
+    URLs point at the same gateway (src already staged), so a
+    ``globus-url-copy gsiftp://…/a gsiftp://…/b`` proves the gateway can act as
+    both ends of a server-to-server transfer, then a GET verifies the copy."""
+    _require_gsi()
+    _skip_if_datachan_pinned("same-endpoint gsiftp→gsiftp third-party copy")
+    payload = os.urandom(2 * 1024 * 1024)
+    seed = tmp_path / "tpc-seed.bin"
+    seed.write_bytes(payload)
+    up = _guc(["-cd", "-nodcau", f"file://{seed}", _gsiftp("tpc/src.bin")])
+    assert up.returncode == 0, f"[brix-gateway] TPC seed PUT failed: {up.stderr}"
+
+    tp = _guc(["-cd", "-nodcau", _gsiftp("tpc/src.bin"), _gsiftp("tpc/dst.bin")])
+    assert tp.returncode == 0, \
+        f"[brix-gateway] gsiftp→gsiftp third-party copy failed: {tp.stderr}"
+
+    dst = tmp_path / "tpc-dst.bin"
+    dn = _guc(["-nodcau", _gsiftp("tpc/dst.bin"), f"file://{dst}"])
+    assert dn.returncode == 0, f"[brix-gateway] TPC dst GET failed: {dn.stderr}"
+    assert _digest(dst.read_bytes()) == _digest(payload), \
+        "[brix-gateway] third-party copy corrupted the bytes"
 
 
 # ---- backend axis: pblock/s3 ARE wired into the gateway --------------------
+#
+# The gateway routes every data-plane op through the VFS storage seam and
+# registers brix_gridftp_storage_backend via the shared brix_vfs_backend_config_str
+# (ceph/rados/tape/http/s3/root(s):///pblock/posix), so a non-posix backend needs
+# no data-path change — only the registration.  These cells drive the *reference*
+# client (globus-url-copy) STOR/RETR THROUGH a non-posix backend export over
+# gsiftp — the interop proof the native ftplib suites (test_gridftp_pblock.py,
+# test_gridftp_s3.py, test_gridftp_verify_write.py) cannot give because they use
+# brix's own FTP client rather than the grid stack.  The pblock leg is cluster-
+# free (local SQLite catalog + block files) so the local runner boots it; the s3
+# leg is likewise cluster-free — the local runner boots an embedded brix_s3
+# origin in the same nginx (no external MinIO/radosgw), and a clustered chart may
+# still point it at a real object store.  Both self-skip until the lab exports the
+# corresponding backend listener port.
 
-@pytest.mark.parametrize("backend", ["pblock", "s3"])
-def test_nonposix_backend_matrix(backend):
-    """The gateway now honours brix_gridftp_storage_backend for pblock and s3
-    (P82.6 / phase-82 s3-through-gateway): a STOR routes through the VFS backend,
-    and the unified brix_vfs_writer picks the in-place (pblock) or staged/object
-    (s3) write path transparently.
+BACKEND_PBLOCK_PORT = os.environ.get("TEST_GRIDFTP_BACKEND_PBLOCK_PORT")
+BACKEND_S3_PORT = os.environ.get("TEST_GRIDFTP_BACKEND_S3_PORT")
 
-    Native coverage lives in the fast suite, which exercises the full STOR/RETR/
-    CKSM + verify-write round trip over each backend without a cluster:
-        tests/test_gridftp_pblock.py         (pblock block store)
-        tests/test_gridftp_verify_write.py   (posix + pblock, verify-write)
-        tests/test_gridftp_s3.py             (s3 object store, staged + verify)
 
-    This container-tier cell — the same backends driven over *gsiftp* against a
-    clustered MinIO/pblock origin — is the remaining interop work; skip until the
-    gsiftp gateway chart wires a non-posix backend export."""
+def _gsiftp_port(path, port):
+    return f"gsiftp://{HOST}:{port}/{path.lstrip('/')}"
+
+
+def _backend_roundtrip(tmp_path, port, tag):
+    """globus-url-copy PUT then GET through a non-posix backend export over
+    gsiftp, asserting a byte-identical round-trip — the object travels the VFS
+    backend write/read path, not the posix export."""
     _require_gsi()
-    pytest.skip(f"{backend} backend served natively (see test_gridftp_{backend}"
-                f".py); gsiftp cluster interop cell pending chart wiring")
+    payload = os.urandom(2 * 1024 * 1024 + 4096)   # spans several MODE-S buffers
+    src = tmp_path / f"src-{tag}.bin"
+    src.write_bytes(payload)
+    remote = f"interop/{tag}.bin"
+
+    up = _guc(["-cd", "-dcpriv", f"file://{src}", _gsiftp_port(remote, port)])
+    assert up.returncode == 0, f"[brix-gateway/{tag}] PUT failed: {up.stderr}"
+
+    dst = tmp_path / f"dst-{tag}.bin"
+    dn = _guc(["-dcpriv", _gsiftp_port(remote, port), f"file://{dst}"])
+    assert dn.returncode == 0, f"[brix-gateway/{tag}] GET failed: {dn.stderr}"
+    assert _digest(dst.read_bytes()) == _digest(payload), \
+        f"[brix-gateway/{tag}] backend corrupted the round-trip"
+
+
+def test_pblock_backend_roundtrip(tmp_path):
+    """A reference-client STOR/RETR through the pblock-backed gsiftp export
+    round-trips byte-exact — the P82.6 non-posix backend guarantee driven by the
+    grid stack, cluster-free."""
+    if HOST is None:
+        pytest.skip("TEST_GRIDFTP_HOST unset — container-tier lab only")
+    if BACKEND_PBLOCK_PORT is None:
+        pytest.skip("TEST_GRIDFTP_BACKEND_PBLOCK_PORT unset — lab exports no "
+                    "pblock-backed gsiftp listener (see nginx_gridftp_interop.conf)")
+    _backend_roundtrip(tmp_path, int(BACKEND_PBLOCK_PORT), "pblock")
+
+
+def test_s3_backend_roundtrip(tmp_path):
+    """A reference-client STOR/RETR through an s3://-backed gsiftp export
+    round-trips byte-exact — the staged object-store write/read path over the
+    grid stack.  The local runner boots an embedded brix_s3 origin (cluster-free);
+    a clustered chart may point it at a real MinIO/radosgw instead."""
+    if HOST is None:
+        pytest.skip("TEST_GRIDFTP_HOST unset — container-tier lab only")
+    if BACKEND_S3_PORT is None:
+        pytest.skip("TEST_GRIDFTP_BACKEND_S3_PORT unset — lab exports no "
+                    "s3-backed gsiftp listener (see nginx_gridftp_interop.conf)")
+    _backend_roundtrip(tmp_path, int(BACKEND_S3_PORT), "s3")

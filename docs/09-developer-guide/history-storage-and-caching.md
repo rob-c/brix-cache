@@ -469,6 +469,23 @@ recreation loses installed deps. Cleanup must be `pkill -9 nginx`, not
 process" so `-f` misses them, leaving phantom listeners that masquerade as
 "hangs."
 
+**Phase-89 §B close-out (2026-07-21 code, 2026-07-27 live verification):**
+the "deliberate follow-ons" phase-60 left open — directory listing, rename,
+xattr, staged commit — all landed. Directory listing is stripe-collapse over
+the flat key namespace (`sd_ceph_dir.c`): stripe suffixes `.%016x` collapse
+to one logical entry, and intermediate path components materialize as
+synthetic directories (ADR-1 — no dir objects are ever created, so stock
+XrdCeph reads the pool unchanged). Rename is copy+delete (`sd_ceph_object_rename.c`,
+ADR-5) with ENOENT/noreplace-EEXIST semantics — not atomic, documented as
+such. The live legs (`tests/ceph/sd_ceph_live_test.c` mkdir/opendir/readdir/
+rename + error paths, driven by `tests/test_ceph_live.py` against the demo-
+RADOS Docker lab) went 5/5 green once the infra blocker lifted. One harness
+fix fell out: the in-container build tar lived under the shared pytest
+basetemp and a concurrent session's rotation deleted it mid-copy
+(`pytest_shared_basetemp_rotation_race`) — `ceph_operator.py` now tars into
+a private `mkdtemp`. `run_rados_parity.sh` was retired in the bash
+dissolution; the pure-Python operator is the only harness.
+
 ### 3.3 S3 — write path, metadata parity, and the multi-user credential bug
 
 The S3 backend work spans metadata-parity decisions, credential-forwarding

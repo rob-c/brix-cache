@@ -22,9 +22,21 @@
  * from the verified leaf certificate (via X509_NAME_oneline).  It is
  * populated only when the function returns NGX_OK; left as an empty
  * string on failure.
+ *
+ * eec_buf (P80.11) holds the NUL-terminated subject DN of the End-Entity
+ * Certificate — the first non-proxy certificate walking the verified chain
+ * leaf..root, identified by the ABSENCE of the RFC 3820 proxy flag
+ * (EXFLAG_PROXY).  It is the STABLE authorization identity: a re-minted proxy
+ * (new /CN=<serial>) leaves the EEC DN unchanged, so authz verdicts and
+ * per-user credential selection no longer drift with the proxy serial.  When
+ * the leaf is itself an EEC (no proxy in the chain), eec_buf == dn_buf.  Set
+ * only on NGX_OK; empty string on failure.  Callers that key authorization or
+ * credential lookup on identity should prefer eec_buf; dn_buf remains the
+ * literal proxy-leaf DN for delegation "beneath-my-identity" binding checks.
  */
 typedef struct {
     char dn_buf[1024];
+    char eec_buf[1024];
 } brix_gsi_verify_result_t;
 
 /*

@@ -1,6 +1,29 @@
 # Phase 60 — Ceph/RADOS storage backend, routed through the VFS — hyper-detailed design record
 
-**Status:** plan / spec — **basic driver landed.** `src/fs/backend/sd_ceph.c`
+> **STATUS: COMPLETE (2026-07-27 — phase-89 §B close-out).** The namespace
+> plane — the last remainder below — is landed AND live-verified:
+> - **directory listing** — `src/fs/backend/rados/sd_ceph_dir.c`
+>   (stripe-collapse over `enumerate`, striper-shard suppression in
+>   `sd_ceph_compat.c`, bounded snapshot, `_cred` twin), driver advertises
+>   `BRIX_SD_CAP_DIRS`;
+> - **rename** — `sd_ceph_object_rename.c` (striper-aware copy+delete,
+>   xattrs carried, no `CAP_HARD_RENAME`, dir rename `EISDIR` — phase-89
+>   ADR-5);
+> - **dir markers** — phase-89 ADR-1 confirmed: synthetic dirs (S3 model),
+>   no marker objects.
+>
+> Live verification 2026-07-27: `tests/test_ceph_live.py` **5/5 green**
+> against the demo-RADOS Docker lab (in-container authoritative rebuild) —
+> `sd_ceph_live` exercises the full mkdir/list/rename plane incl. the
+> ENOENT/noreplace-EEXIST error+security legs; `sd_ceph_cred_live` covers
+> per-user CephX listing scoping; `ceph_export_smoke` the nginx export path.
+> Unit coverage: `sd_ceph_unittest.c` via `tests/test_sd_ceph.py` (green).
+> The old `tests/run_rados_parity.sh` was retired in the bash→Python fleet
+> dissolution; `test_ceph_live.py` + the in-container striper seed/migrate
+> tooling are the live gate of record. Implementation record:
+> `phase-89-design-backlog-burndown.md` §B.
+
+**Status (historical):** plan / spec — **basic driver landed.** `src/fs/backend/sd_ceph.c`
 (the `xrootd_sd_ceph_driver`) now ships: a flat LFN→RADOS-object-key map plus the
 data plane over raw `librados` (`rados_read`/`write`/`trunc`/`stat`/`remove`),
 compiled only when `./configure` finds librados (`XROOTD_HAVE_CEPH`) — otherwise
