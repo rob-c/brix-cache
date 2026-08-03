@@ -22,13 +22,13 @@ xrootd>=6.0.0,<7
 
 # --- test runner + plugins ---------------------------------------------------
 # pytest 7 introduced the config/collection API conftest.py uses.
-pytest>=7.0,<10
+pytest>=9.1.1,<10
 # pytest.ini sets timeout_method=signal, which needs 2.1+.
-pytest-timeout>=2.1.0,<3
+pytest-timeout>=2.4.0,<3
 # `-n` parallelism plus the xdist_group scheduling several suites rely on.
-pytest-xdist>=3.0,<4
+pytest-xdist>=3.8.0,<4
 # --reruns for the documented lane flakes.
-pytest-rerunfailures>=12,<17
+pytest-rerunfailures>=16.4,<17
 
 # --- HTTP / WebDAV / token plane ---------------------------------------------
 requests>=2.25,<3
