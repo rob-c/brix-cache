@@ -24,7 +24,7 @@
 
 /* Version, bare and with the "v" prefix XRootD clients expect from
  * Qconfig "version" (they parse it for digits — keep digits present). */
-#define BRIX_SERVER_VERSION_BARE  "1.1.1"
+#define BRIX_SERVER_VERSION_BARE  "1.3.0"
 #define BRIX_SERVER_VERSION       "v" BRIX_SERVER_VERSION_BARE
 
 #endif /* BRIX_CORE_IDENT_H */

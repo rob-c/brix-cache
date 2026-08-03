@@ -388,6 +388,13 @@ ngx_int_t brix_cache_open_fill_offload(brix_ctx_t *ctx,
 void ngx_brix_cms_start(ngx_cycle_t *cycle,
     ngx_stream_brix_srv_conf_t *conf);
 
+/* Per-worker CMS bring-up + role proof for one server block: derive and log
+ * this node's cmsd role (manager / sub-manager / client), and start the single
+ * outbound CMS client on worker 0 only (one connection per node identity, so a
+ * stock upstream cmsd admits it). Called for every stream server block. */
+void brix_cms_role_worker_init(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *xcf);
+
 /* voms/ — VOMS attribute-certificate extraction (runtime dlopen) */
 /* dlopen libvomsapi.so.1 and resolve its symbols once at startup.
  * NGX_OK (or already loaded), NGX_DECLINED if the lib is absent (graceful

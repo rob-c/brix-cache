@@ -4,7 +4,7 @@
 # build-rpm-container.sh and the builder Dockerfiles derive version_override
 # from it automatically; the literal fallback below is only for a bare
 # rpmbuild invocation and must be kept in sync with ident.h.
-%global upstream_version %{?version_override}%{!?version_override:1.1.1}
+%global upstream_version %{?version_override}%{!?version_override:1.3.0}
 
 # --- phase-42 optional compression codecs (gzip/deflate via zlib are always on) ---
 # Each non-zlib codec is compile-gated by ./configure's pkg-config probe and
@@ -38,7 +38,7 @@
 
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        25%{?dist}
+Release:        1%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -811,6 +811,11 @@ fi
 %endif
 
 %changelog
+* Thu Jul 23 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.3.0-1
+- Version 1.3.0: bumped BRIX_SERVER_VERSION_BARE in src/core/ident.h (the
+  single source of truth) and the spec fallback to match.  Packages the latest
+  main-branch code.
+
 * Sun Jul 19 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-25
 - New co-installable subpackages brix-cache-client-compat and brix-tools-compat:
   the SAME native client + Ceph-operator binaries as brix-cache-client /

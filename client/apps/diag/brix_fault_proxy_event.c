@@ -24,10 +24,30 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#include "brix_fault_proxy_internal.h"
+#include "brix_fault_proxy_mods.h"
 
 static int             g_event_fd = -1;
 static pthread_mutex_t g_event_mu = PTHREAD_MUTEX_INITIALIZER;
+
+/* Per-thread "route" tag.  A route accept thread names its route once; every
+ * other thread leaves it empty and events read "default". */
+static __thread char   t_event_route[64] = "";
+
+/* Set (or clear, with NULL/"") the route tag for events emitted on this thread. */
+void
+fp_event_set_route(const char *name)
+{
+    if (name == NULL || name[0] == '\0') {
+        t_event_route[0] = '\0';
+        return;
+    }
+    size_t i = 0;
+    while (name[i] != '\0' && i + 1 < sizeof t_event_route) {
+        t_event_route[i] = name[i];
+        i++;
+    }
+    t_event_route[i] = '\0';
+}
 
 /* Open (or replace) the event-log sink.  Returns 0 on success, -1 if the path
  * cannot be opened for append — the caller fails closed (startup exit / err:). */
@@ -69,9 +89,10 @@ brix_fp_event(unsigned long conn, const char *dir, const char *event,
     gettimeofday(&tv, NULL);
     double t = (double) tv.tv_sec + (double) tv.tv_usec / 1e6;
 
+    const char *route = t_event_route[0] != '\0' ? t_event_route : "default";
     char line[320];
     int  n = snprintf(line, sizeof line,
-                      "{\"t\":%.2f,\"route\":\"default\",\"conn\":%lu", t, conn);
+                      "{\"t\":%.2f,\"route\":\"%s\",\"conn\":%lu", t, route, conn);
     if (n < 0 || n >= (int) sizeof line) {
         return;
     }
