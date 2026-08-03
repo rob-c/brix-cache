@@ -18,7 +18,7 @@
 #     before installing this RPM:
 #       dnf install -y https://linuxsoft.cern.ch/wlcg/el8/x86_64/wlcg-repo-*.noarch.rpm
 
-FROM almalinux:8 AS builder
+FROM almalinux:10 AS builder
 
 # Ceph release to pull dev packages from.
 ARG BRIX_CEPH_RELEASE=reef
@@ -81,7 +81,7 @@ RUN mkdir -p /artifacts && \
     find ~/rpmbuild/RPMS ~/rpmbuild/SRPMS -name '*.rpm' -exec cp {} /artifacts/ \;
 
 
-FROM almalinux:8-minimal AS final
+FROM almalinux:10-minimal AS final
 
 COPY --from=builder /artifacts /artifacts
 
