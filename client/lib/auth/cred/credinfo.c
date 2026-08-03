@@ -234,31 +234,139 @@ brix_token_meta_get(const char *jwt, brix_token_meta *m)
 /* VOMS attribute-certificate extension OID. */
 #define VOMS_AC_OID "1.3.6.1.4.1.8005.100.100.5"
 
-/* Scan the DER bytes of the VOMS extension for FQAN-looking ASCII runs
- * ("/vo/...", "/vo/Role=..."), best-effort (full AC decode is out of scope). */
+/* DER value bytes of the VOMS FQAN attribute OID 1.3.6.1.4.1.8005.100.100.4.
+ * The FQANs are the OCTET STRING `values` of the IetfAttrSyntax carried under
+ * THIS attribute — as opposed to the AC's [0] policyAuthority server URI and the
+ * embedded signer certificate's CRL/AIA/OCSP distribution-point URIs, all of
+ * which a blind ASCII scan mislabels as FQANs (and over-reads into trailing
+ * tag bytes). We instead walk the DER structurally and print exact lengths. */
+static const unsigned char VOMS_FQAN_OID[] = {
+    0x2b, 0x06, 0x01, 0x04, 0x01, 0xbe, 0x45, 0x64, 0x64, 0x04
+};
+
+/* Read one DER TLV header at der[*pos]: store the tag and content length and
+ * advance *pos to the first content byte. Handles short- and long-form lengths.
+ * Returns 0 on success, -1 on truncation / overrun. */
+static int
+der_tlv(const unsigned char *der, int len, int *pos, int *tag, int *vlen)
+{
+    int p = *pos, l;
+
+    if (p < 0 || p + 2 > len) {
+        return -1;
+    }
+    *tag = der[p++];
+    l = der[p++];
+    if (l & 0x80) {
+        int nb = l & 0x7f;
+        if (nb < 1 || nb > 4 || p + nb > len) {
+            return -1;
+        }
+        for (l = 0; nb > 0; nb--) {
+            l = (l << 8) | der[p++];
+        }
+    }
+    if (l < 0 || p + l > len) {
+        return -1;
+    }
+    *vlen = l;
+    *pos = p;
+    return 0;
+}
+
+/* An FQAN is "/vo[/...][/Role=..][/Capability=..]": one leading '/', printable
+ * ASCII, no scheme punctuation. Guards against a mis-structured AC handing us a
+ * URI or binary in an OCTET STRING slot. */
+static int
+voms_is_fqan(const char *s, int n)
+{
+    int i;
+
+    if (n < 2 || s[0] != '/' || s[1] == '/') {
+        return 0;
+    }
+    for (i = 0; i < n; i++) {
+        unsigned char c = (unsigned char) s[i];
+        if (c < 0x20 || c >= 0x7f || c == ':' || c == '?' || c == '%') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* True when the (v,vlen) FQAN was already emitted this scan. */
+static int
+voms_dup(const char *seen[], int nseen, const char *v, int vlen)
+{
+    int k;
+
+    for (k = 0; k < nseen; k++) {
+        if ((int) strlen(seen[k]) == vlen && memcmp(seen[k], v, vlen) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Emit the OCTET STRING `values` (FQANs) inside der[pos, end). Skips the [0]
+ * policyAuthority (any non-0x04 TLV) and descends a `values` SEQUENCE-OF
+ * wrapper (0x30) if present. Returns the count printed. */
+static int
+voms_emit_values(const unsigned char *der, int pos, int end, FILE *out,
+                 const char *seen[], int *nseen, int maxseen)
+{
+    int printed = 0;
+
+    while (pos < end) {
+        int tag, vlen;
+        if (der_tlv(der, end, &pos, &tag, &vlen) != 0) {
+            break;
+        }
+        if (tag == 0x04) {                    /* OCTET STRING = one FQAN */
+            const char *v = (const char *) der + pos;
+            if (voms_is_fqan(v, vlen) && !voms_dup(seen, *nseen, v, vlen)) {
+                fprintf(out, "      VOMS:  %.*s\n", vlen, v);
+                if (*nseen < maxseen) {
+                    seen[(*nseen)++] = v;
+                }
+                printed++;
+            }
+        } else if (tag == 0x30) {             /* SEQUENCE OF values: descend */
+            printed += voms_emit_values(der, pos, pos + vlen, out,
+                                        seen, nseen, maxseen);
+        }
+        pos += vlen;                          /* skip [0] policyAuthority etc. */
+    }
+    return printed;
+}
+
+/* Decode the DER bytes of the VOMS extension: locate each VOMS FQAN attribute
+ * (one per VO) and print its OCTET STRING values, exact-length and deduped. */
 static void
 voms_scan(const unsigned char *der, int len, FILE *out)
 {
-    int  i = 0, printed = 0;
-    char run[256];
+    const char *seen[16];
+    int         nseen = 0, printed = 0, i;
+    const int   oidlen = (int) sizeof(VOMS_FQAN_OID);
 
-    while (i < len) {
-        if (der[i] == '/') {
-            int j = 0;
-            while (i < len && j < (int) sizeof(run) - 1
-                   && der[i] >= 0x20 && der[i] < 0x7f) {
-                run[j++] = (char) der[i++];
-            }
-            run[j] = '\0';
-            if (j >= 4 && (strstr(run, "Role=") != NULL || strchr(run + 1, '/') != NULL)) {
-                fprintf(out, "      VOMS:  %s\n", run);
-                printed = 1;
-            }
-        } else {
-            i++;
-        }
+    if (der == NULL || len <= 0) {
+        fprintf(out, "      VOMS:  present (no FQAN decoded)\n");
+        return;
     }
-    if (!printed) {
+    for (i = 0; i + 2 + oidlen <= len; i++) {
+        int pos, tag, vlen;
+        if (der[i] != 0x06 || der[i + 1] != oidlen
+            || memcmp(der + i + 2, VOMS_FQAN_OID, oidlen) != 0) {
+            continue;
+        }
+        pos = i + 2 + oidlen;                 /* SET OF IetfAttrSyntax follows */
+        if (der_tlv(der, len, &pos, &tag, &vlen) != 0 || tag != 0x31) {
+            continue;
+        }
+        printed += voms_emit_values(der, pos, pos + vlen, out,
+                                    seen, &nseen, 16);
+    }
+    if (printed == 0) {
         fprintf(out, "      VOMS:  present (no FQAN decoded)\n");
     }
 }

@@ -85,4 +85,22 @@ int  sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs
 int  sd_s3_status_err(int status, const char *op, const char *key,
          char *errbuf, size_t errcap);
 
+/* ---- extended SigV4 signer (sd_s3_sign_ext.c) ---------------------------
+ * Signs an arbitrary verb with caller-supplied extra x-amz-* headers, for
+ * the metadata/copy verbs that sd_s3_sign()'s fixed shape cannot cover. */
+/* One header for the extended SigV4 signer (name lowercase, value verbatim). */
+typedef struct { const char *name; const char *value; } sd_s3_sign_hdr_t;
+
+/* What to sign: the request identity a caller hands to sd_s3_sign_ext. */
+typedef struct {
+    const char             *method;    /* HTTP verb */
+    const char             *canon_qs;  /* canonical query string (NULL = "") */
+    const sd_s3_sign_hdr_t *extra;     /* additional x-amz-* headers */
+    size_t                  n_extra;   /* count of extra headers (max 32) */
+} sd_s3_sign_req_t;
+
+/* Emit an Authorization header for `req` into hdrs (0 = ok, -1 = failure). */
+int sd_s3_sign_ext(const sd_s3_file *f, const sd_s3_sign_req_t *req,
+        char *hdrs, size_t hdrsz);
+
 #endif /* BRIX_FS_BACKEND_S3_SD_S3_INTERNAL_H */

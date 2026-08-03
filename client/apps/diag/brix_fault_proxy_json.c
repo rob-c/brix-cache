@@ -46,11 +46,95 @@ hex_nibble(char c)
     return -1;
 }
 
+/* The two-character JSON escapes, as a table rather than a switch ladder
+ * (coding-standards §8.6). \u is handled separately — it is not two characters. */
+static const struct { char esc; char dec; } JSON_ESCAPES[] = {
+    { '"', '"' }, { '\\', '\\' }, { '/', '/' }, { 'b', '\b' },
+    { 'f', '\f' }, { 'n', '\n' }, { 'r', '\r' }, { 't', '\t' },
+};
+
+/* Decode a two-character escape; 1 = known (result in *dec), 0 = unknown. */
+static int
+json_escape_decode(char e, char *dec)
+{
+    for (size_t i = 0; i < sizeof(JSON_ESCAPES) / sizeof(JSON_ESCAPES[0]); i++) {
+        if (JSON_ESCAPES[i].esc == e) {
+            *dec = JSON_ESCAPES[i].dec;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Read exactly four hex digits as a code point, or -1 if any is not hex. A NUL
+ * is not a hex digit, so this cannot run off the end of the string. */
+static int
+json_parse_u4(const char *p)
+{
+    int cp = 0;
+    for (int i = 0; i < 4; i++) {
+        int h = hex_nibble(p[i]);
+        if (h < 0) {
+            return -1;
+        }
+        cp = (cp << 4) | h;
+    }
+    return cp;
+}
+
+/* Append `cp` to out[*o] as UTF-8. 0 = written, -1 = would overflow. */
+static int
+json_emit_utf8(unsigned cp, char *out, size_t *o, size_t outsz)
+{
+    if (cp < 0x80) {
+        if (*o + 1 >= outsz) return -1;
+        out[(*o)++] = (char) cp;
+    } else if (cp < 0x800) {
+        if (*o + 2 >= outsz) return -1;
+        out[(*o)++] = (char) (0xC0 | (cp >> 6));
+        out[(*o)++] = (char) (0x80 | (cp & 0x3F));
+    } else {
+        if (*o + 3 >= outsz) return -1;
+        out[(*o)++] = (char) (0xE0 | (cp >> 12));
+        out[(*o)++] = (char) (0x80 | ((cp >> 6) & 0x3F));
+        out[(*o)++] = (char) (0x80 | (cp & 0x3F));
+    }
+    return 0;
+}
+
+/* Decode the escape whose body starts at `*pp` (i.e. just past the backslash),
+ * appending to out[*o] and advancing `*pp` past it. 0 = ok, -1 = rejected.
+ * \uXXXX is emitted as UTF-8 (BMP only, which is all control-plane text needs). */
+static int
+json_parse_escape(const char **pp, char *out, size_t *o, size_t outsz)
+{
+    const char *p = *pp;
+    char        dec;
+
+    if (*p == 'u') {
+        int cp = json_parse_u4(p + 1);
+        if (cp < 0) {
+            return -1;
+        }
+        *pp = p + 5;                        /* 'u' + four hex digits */
+        return json_emit_utf8((unsigned) cp, out, o, outsz);
+    }
+    if (!json_escape_decode(*p, &dec)) {
+        return -1;                          /* invalid escape */
+    }
+    if (*o + 1 >= outsz) {
+        return -1;
+    }
+    out[(*o)++] = dec;
+    *pp = p + 1;
+    return 0;
+}
+
 /*
  * Parse a JSON string starting at `*pp` (which must point at the opening quote),
  * decoding escapes into `out` (NUL-terminated, bounded by `outsz`).  Advances
  * `*pp` past the closing quote.  Returns 0 on success, -1 on malformed input or
- * overflow.  \uXXXX is emitted as UTF-8 (BMP only, control-plane text).
+ * overflow.
  */
 static int
 json_parse_string(const char **pp, char *out, size_t outsz)
@@ -73,47 +157,9 @@ json_parse_string(const char **pp, char *out, size_t outsz)
         }
         if (c == '\\') {
             p++;
-            char e = *p;
-            char dec;
-            switch (e) {
-            case '"':  dec = '"';  break;
-            case '\\': dec = '\\'; break;
-            case '/':  dec = '/';  break;
-            case 'b':  dec = '\b'; break;
-            case 'f':  dec = '\f'; break;
-            case 'n':  dec = '\n'; break;
-            case 'r':  dec = '\r'; break;
-            case 't':  dec = '\t'; break;
-            case 'u': {
-                int h0 = hex_nibble(p[1]), h1 = hex_nibble(p[2]);
-                int h2 = hex_nibble(p[3]), h3 = hex_nibble(p[4]);
-                if (h0 < 0 || h1 < 0 || h2 < 0 || h3 < 0) {
-                    return -1;
-                }
-                unsigned cp = (unsigned) ((h0 << 12) | (h1 << 8) | (h2 << 4) | h3);
-                p += 4;
-                if (cp < 0x80) {
-                    if (o + 1 >= outsz) return -1;
-                    out[o++] = (char) cp;
-                } else if (cp < 0x800) {
-                    if (o + 2 >= outsz) return -1;
-                    out[o++] = (char) (0xC0 | (cp >> 6));
-                    out[o++] = (char) (0x80 | (cp & 0x3F));
-                } else {
-                    if (o + 3 >= outsz) return -1;
-                    out[o++] = (char) (0xE0 | (cp >> 12));
-                    out[o++] = (char) (0x80 | ((cp >> 6) & 0x3F));
-                    out[o++] = (char) (0x80 | (cp & 0x3F));
-                }
-                p++;
-                continue;
+            if (json_parse_escape(&p, out, &o, outsz) != 0) {
+                return -1;
             }
-            default:
-                return -1;                  /* invalid escape */
-            }
-            if (o + 1 >= outsz) return -1;
-            out[o++] = dec;
-            p++;
             continue;
         }
         if (o + 1 >= outsz) {
@@ -133,6 +179,36 @@ json_parse_string(const char **pp, char *out, size_t outsz)
  * Scans object members ("key" : value , ...) so a value string containing the
  * key text cannot be mistaken for the key itself.
  */
+/* Consume `"name" :` at `*pp`, leaving `*pp` on the value. 0 = ok, -1 = malformed. */
+static int
+json_member_key(const char **pp, char *kbuf, size_t ksz)
+{
+    const char *p = json_skip_ws(*pp);
+    if (json_parse_string(&p, kbuf, ksz) != 0) {
+        return -1;
+    }
+    p = json_skip_ws(p);
+    if (*p != ':') {
+        return -1;
+    }
+    *pp = json_skip_ws(p + 1);
+    return 0;
+}
+
+/* Consume the value at `*pp` — a string, or a bare token up to ',' or '}'. */
+static int
+json_skip_value(const char **pp)
+{
+    if (**pp != '"') {
+        while (**pp != '\0' && **pp != ',' && **pp != '}') {
+            (*pp)++;
+        }
+        return 0;
+    }
+    char skip[512];
+    return json_parse_string(pp, skip, sizeof skip);
+}
+
 static int
 json_object_get(const char *json, const char *key, char *out, size_t outsz)
 {
@@ -140,39 +216,23 @@ json_object_get(const char *json, const char *key, char *out, size_t outsz)
     if (*p != '{') {
         return -1;
     }
-    p++;
-    p = json_skip_ws(p);
+    p = json_skip_ws(p + 1);
     if (*p == '}') {
         return 0;                           /* empty object */
     }
     for (;;) {
         char kbuf[64];
-        p = json_skip_ws(p);
-        if (json_parse_string(&p, kbuf, sizeof kbuf) != 0) {
+        if (json_member_key(&p, kbuf, sizeof kbuf) != 0) {
             return -1;
         }
-        p = json_skip_ws(p);
-        if (*p != ':') {
-            return -1;
-        }
-        p++;
-        p = json_skip_ws(p);
         if (strcmp(kbuf, key) == 0) {
             if (*p != '"') {
                 return -1;                  /* we only accept string values */
             }
             return json_parse_string(&p, out, outsz) == 0 ? 1 : -1;
         }
-        /* Not our key: skip this value (string, or a bare token up to , or }). */
-        if (*p == '"') {
-            char skip[512];
-            if (json_parse_string(&p, skip, sizeof skip) != 0) {
-                return -1;
-            }
-        } else {
-            while (*p != '\0' && *p != ',' && *p != '}') {
-                p++;
-            }
+        if (json_skip_value(&p) != 0) {
+            return -1;
         }
         p = json_skip_ws(p);
         if (*p == ',') {

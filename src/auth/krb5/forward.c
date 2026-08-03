@@ -255,6 +255,49 @@ brix_krb5_deleg_to_origin(ngx_pool_t *pool, void *deleg_gss_cred,
     return rc;
 }
 
+/* Deliver ONE leg's output token to the origin and adopt the origin's reply as
+ * the next leg's input token (borrowed from the wire callback, valid until the
+ * next call / return). Always releases *out_buf, on every path.
+ *
+ * Fails closed when the origin has already signalled kXR_ok (*origin_closed):
+ * it will not read another token, so a further outbound token means the context
+ * did not settle in step. NGX_OK / NGX_ERROR. */
+static ngx_int_t
+brix_krb5_deleg_leg_exchange(ngx_pool_t *pool, brix_krb5_wire_fn wire,
+    void *wire_ctx, gss_buffer_desc *out_buf, gss_buffer_desc *in_buf,
+    int *origin_closed, ngx_uint_t leg, ngx_log_t *log)
+{
+    ngx_str_t out_token;
+    ngx_str_t in_token = ngx_null_string;
+    OM_uint32 dmin;
+    int       origin_done = 0;
+    ngx_int_t rc = NGX_OK;
+
+    if (*origin_closed) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+            "brix: krb5 initiator still owes the origin a token after "
+            "it closed the exchange (leg %ui) - failing closed", leg);
+        rc = NGX_ERROR;
+    } else if (brix_gss_token_to_pool(pool, out_buf, &out_token, log)
+               != NGX_OK)
+    {
+        rc = NGX_ERROR;
+    }
+    gss_release_buffer(&dmin, out_buf);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    if (wire(wire_ctx, &out_token, &in_token, &origin_done, log) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    *origin_closed = origin_done;
+    in_buf->value  = in_token.data;
+    in_buf->length = in_token.len;
+    return NGX_OK;
+}
+
+
 ngx_int_t
 brix_krb5_deleg_negotiate(ngx_pool_t *pool, void *deleg_gss_cred,
     const char *origin_service_princ, brix_krb5_wire_fn wire, void *wire_ctx,
@@ -288,7 +331,6 @@ brix_krb5_deleg_negotiate(ngx_pool_t *pool, void *deleg_gss_cred,
 
     for ( ;; ) {
         gss_buffer_desc out_buf = GSS_C_EMPTY_BUFFER;
-        int             origin_done = 0;
 
         ret_flags = 0;
         major = gss_init_sec_context(&minor, init_cred, &gss_ctx, target,
@@ -310,42 +352,12 @@ brix_krb5_deleg_negotiate(ngx_pool_t *pool, void *deleg_gss_cred,
          * final mutual-auth leg can still emit a token even at GSS_S_COMPLETE,
          * so this runs before the completion check — the origin must see it. */
         if (out_buf.length != 0) {
-            ngx_str_t out_token, in_token = ngx_null_string;
-
-            if (origin_closed) {
-                ngx_log_error(NGX_LOG_ERR, log, 0,
-                    "brix: krb5 initiator still owes the origin a token after "
-                    "it closed the exchange (leg %ui) - failing closed", leg);
-                OM_uint32 dmin;
-                gss_release_buffer(&dmin, &out_buf);
-                rc = NGX_ERROR;
-                break;
-            }
-            if (brix_gss_token_to_pool(pool, &out_buf, &out_token, log)
-                != NGX_OK)
-            {
-                OM_uint32 dmin;
-                gss_release_buffer(&dmin, &out_buf);
-                rc = NGX_ERROR;
-                break;
-            }
-            {
-                OM_uint32 dmin;
-                gss_release_buffer(&dmin, &out_buf);
-            }
-
-            if (wire(wire_ctx, &out_token, &in_token, &origin_done, log)
-                != NGX_OK)
+            if (brix_krb5_deleg_leg_exchange(pool, wire, wire_ctx, &out_buf,
+                    &in_buf, &origin_closed, leg, log) != NGX_OK)
             {
                 rc = NGX_ERROR;
                 break;
             }
-            origin_closed = origin_done;
-
-            /* The origin's reply becomes the next leg's input token (borrowed
-             * from the wire callback, valid until the next call / return). */
-            in_buf.value  = in_token.data;
-            in_buf.length = in_token.len;
         } else {
             in_buf = (gss_buffer_desc) GSS_C_EMPTY_BUFFER;
         }

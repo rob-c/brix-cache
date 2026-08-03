@@ -120,7 +120,7 @@ client random tag must be **inside a nested `kXRS_main`**:
 OUTER (step kXGC_certreq):
   kXRS_cryptomod  = "ssl"
   kXRS_version    = <int32 BE>          echo the server's advertised v: (or 10300)
-  kXRS_issuer_hash= "<hash>.0|<hash>.0" echo the server's ca: list
+  kXRS_issuer_hash= "<hash>.0|<hash>.0" hash of OUR proxy EEC's issuing CA (NOT the server's ca:)
   kXRS_clnt_opts  = 0x00000080          int32 BE
   kXRS_main       = NESTED buffer:
         "gsi\0" + kXGC_certreq
@@ -131,6 +131,25 @@ OUTER (step kXGC_certreq):
 `v:`, `c:`, `ca:` come from the gsi protocol `parms`
 (`v:10600,c:ssl,ca:5168735f.0|4339b4bc.0`) the auth driver passes —
 `brix_gsi_parse_parms` extracts them.
+
+**Gotcha #1b — `kXRS_issuer_hash` names OUR proxy's CA, never the server's `ca:`.**
+The intuitive-but-wrong move is to echo the server-advertised `ca:` hint straight
+into this bucket. It must instead name the CA that issued **our own** proxy's EEC.
+A stock `XrdSecgsi` server uses this hint as the anchor to prepend the issuing CA
+before verifying the *client's* round-2 `kXGC_cert` chain (§6). When the server's
+host-cert CA ≠ our proxy's CA — every foreign-CA site — the wrong anchor makes the
+server reject the round-2 chain as *"chain is inconsistent: kXGC_cert"*. This looked
+like it worked for a long time only because CERN's EOS host certs happen to share
+the CERN Grid CA with our test proxy, so the echoed `ca:` coincidentally equalled
+the correct hash. `gsi_client_issuer_hash()` (`client/lib/auth/sec/sec_gsi.c`) reads
+the terminal (EEC) cert from the proxy PEM and emits the stock two-hash form
+`<X509_NAME_hash{,_ex}>.0|<X509_NAME_hash_old>.0` of *its issuer*; `gsi_first` falls
+back to the echoed `ca:` only when no proxy is readable. **Note our own server is
+lenient** — `src/auth/gsi` never consumes this hint (it verifies against the full
+trust store), so only a *stock* server reproduces the bug; the regression guard
+`TestForeignCaHostCert` therefore drives a stock server whose host cert is signed by
+a CA distinct from the proxy's. Full incident: `docs/refactor/phase-93-remote-config-performance-advisor.md`
+("Live cross-site validation").
 
 ---
 
@@ -393,6 +412,14 @@ A stream `server{}` directive (`src/protocols/root/stream/module.c`,
     (`brix_webdav_proxy_certs`): PROPFIND/GET/PUT/HEAD/DELETE/MKCOL/COPY/MOVE/
     OPTIONS/range/Depth-1/4 MiB with a proxy, and the rejections (no cert /
     untrusted / expired — any non-2xx).
+  - **`TestForeignCaHostCert` — the `kXRS_issuer_hash` regression guard** (§4
+    Gotcha #1b). Drives a *stock* xrootd server whose host cert is signed by a CA
+    distinct from the proxy's, with a trust dir that trusts both — the only setup
+    that reproduces the "chain is inconsistent" bug (our own server is lenient and
+    cannot). Native-auth-success is the guard; a stock-client oracle proves the
+    fixture is genuine (not a lax server); untrusted-proxy and no-proxy negatives
+    cover security + the `ca:` fallback branch. Reverting the one-line
+    `issuer_hash`→`ca` fix flips the guard red while the oracle stays green.
 
 All 220 GSI tests across the seven files above pass with **zero skips**.
 

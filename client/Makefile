@@ -103,7 +103,7 @@ LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 # phase-69: client/lib reorganized into src-style concept buckets. Paths below are
 # the single source of truth for the build; every .c must be listed (no wildcards).
 LIB_SRCS   := \
-  lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c \
+  lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
   lib/net/conn.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
@@ -255,7 +255,7 @@ COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsipr
 xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_recursive_upload.o
 xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
 xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o
-xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_authsuite.o apps/diag/diag_misc.o \
+xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_json.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_doctor_audit.o apps/diag/diag_doctor_graph.o apps/diag/diag_doctor_latency.o apps/diag/diag_doctor_recon.o apps/diag/diag_doctor_eos.o apps/diag/diag_doctor_eos_fileinfo.o apps/diag/diag_tpc_egress.o apps/diag/diag_authsuite.o apps/diag/diag_misc.o \
                      apps/diag/xrdqstats.o apps/diag/wait41.o apps/diag/mpxstats.o
 xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o apps/scan/storascan_bench.o apps/scan/storascan_scan.o apps/scan/storascan_verify.o
 xrdstorascan_LDLIBS := -lm
@@ -374,9 +374,12 @@ BRIX_CVMFS_OBJS := \
 $(BRIX_CVMFS_OBJS): %.o: %.c
 	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -I$(SHARED_DIR) -I$(SRC) -MMD -MP -c $< -o $@
 
-apps/fs/brixcvmfs.o: apps/fs/brixcvmfs.c | proto
-	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
-apps/fs/brixcvmfs_rw.o: apps/fs/brixcvmfs_rw.c | proto
+# The brixcvmfs driver and its phase-38 split siblings: all compiled with
+# BRIXCVMFS_NO_MAIN because the brixMount umbrella owns main().
+BRIXCVMFS_OBJS := apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o apps/fs/brixcvmfs_rw_ext.o \
+                  apps/fs/brixcvmfs_mount.o apps/fs/brixcvmfs_ops.o \
+                  apps/fs/brixcvmfs_prefetch.o apps/fs/brixcvmfs_transport.o
+$(BRIXCVMFS_OBJS): apps/fs/%.o: apps/fs/%.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
 # Phase-90..92 split of the brixcvmfs driver: same FUSE3 + shared-cvmfs + NO_MAIN
 # flags as the two parents above.
@@ -387,7 +390,8 @@ $(BRIXCVMFS_SPLIT): apps/fs/%.o: apps/fs/%.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
 apps/fs/brixmount.o: apps/fs/brixmount.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
-apps/fs/brixautofs.o: apps/fs/brixautofs.c apps/fs/brixautofs.h | proto
+BRIXAUTOFS_OBJS := apps/fs/brixautofs.o apps/fs/brixautofs_ext.o
+$(BRIXAUTOFS_OBJS): apps/fs/%.o: apps/fs/%.c apps/fs/brixautofs.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 apps/fs/brixautofs_ext.o: apps/fs/brixautofs_ext.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
@@ -536,17 +540,22 @@ aio-mfile: ../tests/c/aio_mfile.c $(CLIENT_LIB) | $(BINDIR)
 # flags; pulls only lib/core/version.h for --version. Bare name `make
 # brix-fault-proxy` builds the artifact via the phony alias above.
 FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
+	apps/diag/brix_fault_priv_exec.c apps/diag/brix_fault_priv_netem.c \
 	apps/diag/brix_fault_ext.c apps/diag/brix_fault_tls.c \
 	apps/diag/brix_fault_http.c apps/diag/brix_fault_replay.c \
 	apps/diag/brix_fault_oracle.c apps/diag/brix_fault_proxy_ctl.c \
 	apps/diag/brix_fault_proxy_event.c apps/diag/brix_fault_proxy_json.c \
-	apps/diag/brix_fault_toxic.c apps/diag/brix_fault_route.c
-FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_ext.h \
+	apps/diag/brix_fault_toxic.c apps/diag/brix_fault_route.c \
+	apps/diag/brix_fault_relay.c apps/diag/brix_fault_pump.c \
+	apps/diag/brix_fault_cmd_lever.c apps/diag/brix_fault_cmd_attack.c \
+	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c
+FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_priv_internal.h \
+	apps/diag/brix_fault_ext.h \
 	apps/diag/brix_fault_buf.h apps/diag/brix_fault_tls.h \
 	apps/diag/brix_fault_http.h apps/diag/brix_fault_replay.h \
 	apps/diag/brix_fault_oracle.h apps/diag/brix_fault_proxy_mods.h \
 	apps/diag/brix_fault_lever.h apps/diag/brix_fault_toxic.h \
-	apps/diag/brix_fault_route.h
+	apps/diag/brix_fault_route.h apps/diag/brix_fault_proxy_state.h
 brix-fault-proxy: $(BINDIR)/brix-fault-proxy
 $(BINDIR)/brix-fault-proxy: $(FAULT_PROXY_SRCS) $(FAULT_PROXY_HDRS) lib/core/version.h | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) -Iapps/diag $(FAULT_PROXY_SRCS) -o $@

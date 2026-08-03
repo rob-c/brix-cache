@@ -273,6 +273,99 @@ cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
     return NGX_CONF_OK;
 }
 
+/* scvmfs (T22, EXPERIMENTAL) is a LAYER on cvmfs — structural checks run at
+ * config time so a misconfiguration fails the reload loudly instead of 401ing
+ * every request. Bearer mode needs the issuer registry to exist; VOMS mode
+ * needs both trust directories and a present libvomsapi. The EMERG lines are
+ * byte-frozen. NGX_CONF_OK / NGX_CONF_ERROR. */
+static char *
+cvmfs_merge_scvmfs_checks(ngx_conf_t *cf,
+    ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    if (!conf->scvmfs) {
+        return NGX_CONF_OK;
+    }
+    if (!conf->cvmfs.enable) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_scvmfs requires brix_cvmfs on");
+        return NGX_CONF_ERROR;
+    }
+    if (conf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_BEARER) {
+        if (conf->scvmfs_token_issuers.len == 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_scvmfs_authz bearer requires "
+                "brix_scvmfs_token_issuers <scitokens.cfg>");
+            return NGX_CONF_ERROR;
+        }
+        if (conf->scvmfs_registry == NULL) {
+            brix_token_registry_t *reg = NULL;
+
+            if (brix_token_registry_build(cf,
+                    (const char *) conf->scvmfs_token_issuers.data,
+                    BRIX_AUTHZ_CAPABILITY, &reg) != NGX_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+            conf->scvmfs_registry = reg;
+        }
+    }
+    if (conf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_VOMS) {
+        if (conf->scvmfs_vomsdir.len == 0
+            || conf->scvmfs_voms_cert_dir.len == 0)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_scvmfs_authz voms requires brix_scvmfs_vomsdir "
+                "<dir> and brix_scvmfs_voms_cert_dir <dir>");
+            return NGX_CONF_ERROR;
+        }
+        /* VOMS is dlopen'd at postconfiguration (after this merge), so init
+         * it here to fail loudly at config time if libvomsapi is absent —
+         * mirrors webdav's config_merge. Idempotent (returns early if
+         * already loaded). */
+        (void) brix_voms_init(cf->log);
+        if (!brix_voms_available()) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_scvmfs_authz voms requires libvomsapi.so.1 "
+                "(VOMS runtime not found)");
+            return NGX_CONF_ERROR;
+        }
+    }
+    return NGX_CONF_OK;
+}
+
+
+/* Token-gated repos (phase-85 F3): build each inherited entry's issuer registry
+ * once (registry == NULL) on cvmfs-enabled locations only — a non-cvmfs location
+ * inheriting the list never serves the protocol, so it must not pay (or fail on)
+ * the registry load. Building at merge fails misconfigurations loudly at config
+ * time instead of 401ing every request. NGX_CONF_OK / NGX_CONF_ERROR. */
+static char *
+cvmfs_build_repo_authz(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    brix_cvmfs_repo_authz_t *e;
+    ngx_uint_t               i;
+
+    if (conf->cvmfs.enable != 1 || conf->repo_authz == NULL) {
+        return NGX_CONF_OK;
+    }
+    e = conf->repo_authz->elts;
+    for (i = 0; i < conf->repo_authz->nelts; i++) {
+        brix_token_registry_t *reg = NULL;
+
+        if (e[i].registry != NULL) {
+            continue;
+        }
+        if (brix_token_registry_build(cf, (const char *) e[i].issuers.data,
+                BRIX_AUTHZ_CAPABILITY, &reg) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
+        e[i].registry = reg;
+    }
+    return NGX_CONF_OK;
+}
+
+
 /*
  * cvmfs_merge_secure() — merge the server-side geo-answer group and the scvmfs
  * (T22, experimental) authz layer, validating the bearer registry.
@@ -316,54 +409,8 @@ cvmfs_merge_secure(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
                              prev->scvmfs_voms_cert_dir, "");
     ngx_conf_merge_ptr_value(conf->scvmfs_voms, prev->scvmfs_voms, NULL);
 
-    /* scvmfs (T22, EXPERIMENTAL) is a LAYER on cvmfs — structural, checked
-     * at config time. Bearer mode needs the issuer registry to exist. */
-    if (conf->scvmfs) {
-        if (!conf->cvmfs.enable) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_scvmfs requires brix_cvmfs on");
-            return NGX_CONF_ERROR;
-        }
-        if (conf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_BEARER) {
-            if (conf->scvmfs_token_issuers.len == 0) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_scvmfs_authz bearer requires "
-                    "brix_scvmfs_token_issuers <scitokens.cfg>");
-                return NGX_CONF_ERROR;
-            }
-            if (conf->scvmfs_registry == NULL) {
-                brix_token_registry_t *reg = NULL;
-
-                if (brix_token_registry_build(cf,
-                        (const char *) conf->scvmfs_token_issuers.data,
-                        BRIX_AUTHZ_CAPABILITY, &reg) != NGX_OK)
-                {
-                    return NGX_CONF_ERROR;
-                }
-                conf->scvmfs_registry = reg;
-            }
-        }
-        if (conf->scvmfs_authz == BRIX_SCVMFS_AUTHZ_VOMS) {
-            if (conf->scvmfs_vomsdir.len == 0
-                || conf->scvmfs_voms_cert_dir.len == 0)
-            {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_scvmfs_authz voms requires brix_scvmfs_vomsdir "
-                    "<dir> and brix_scvmfs_voms_cert_dir <dir>");
-                return NGX_CONF_ERROR;
-            }
-            /* VOMS is dlopen'd at postconfiguration (after this merge), so init
-             * it here to fail loudly at config time if libvomsapi is absent —
-             * mirrors webdav's config_merge. Idempotent (returns early if
-             * already loaded). */
-            (void) brix_voms_init(cf->log);
-            if (!brix_voms_available()) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_scvmfs_authz voms requires libvomsapi.so.1 "
-                    "(VOMS runtime not found)");
-                return NGX_CONF_ERROR;
-            }
-        }
+    if (cvmfs_merge_scvmfs_checks(cf, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
     }
 
     /* Token-gated repos (phase-85 F3). Inherit the entry list by pointer,
@@ -386,24 +433,8 @@ cvmfs_merge_secure(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
     ngx_conf_merge_ptr_value(conf->attest_pkey, prev->attest_pkey, NULL);
 
     ngx_conf_merge_ptr_value(conf->repo_authz, prev->repo_authz, NULL);
-    if (conf->cvmfs.enable == 1 && conf->repo_authz != NULL) {
-        brix_cvmfs_repo_authz_t *e = conf->repo_authz->elts;
-        ngx_uint_t               i;
-
-        for (i = 0; i < conf->repo_authz->nelts; i++) {
-            brix_token_registry_t *reg = NULL;
-
-            if (e[i].registry != NULL) {
-                continue;
-            }
-            if (brix_token_registry_build(cf,
-                    (const char *) e[i].issuers.data,
-                    BRIX_AUTHZ_CAPABILITY, &reg) != NGX_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-            e[i].registry = reg;
-        }
+    if (cvmfs_build_repo_authz(cf, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
     }
     return NGX_CONF_OK;
 }

@@ -79,6 +79,116 @@ http_plane_md5(const char *host, int port, int tls, const char *path,
 
 
 /*
+ * root:// leg of the oracle: connect, read the object, hand back its MD5.
+ * Returns 0 on success; on failure records the probe (or prints the connect
+ * diagnostic), stores the process exit code in *exit_rc and returns -1.
+ */
+static int
+compare_root_md5(const diag_args *a, brix_url *ua, char *hex, size_t hexsz,
+                 int *exit_rc)
+{
+    brix_conn   ca;
+    brix_status st;
+
+    brix_status_clear(&st);
+    if (brix_connect(&ca, ua, &a->conn, &st) != 0) {
+        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", ua->host, ua->port, st.msg);
+        *exit_rc = brix_shellcode(&st);
+        return -1;
+    }
+    if (remote_md5(&ca, ua->path, hex, hexsz, &st) != 0) {
+        probe("root-read", 0, "%s", st.msg);
+        brix_close(&ca);
+        *exit_rc = 1;
+        return -1;
+    }
+    brix_close(&ca);
+    return 0;
+}
+
+
+/*
+ * Cleartext-WebDAV leg: GET the same logical path (binary-safe, so the body is
+ * buffered and checksummed through a temp fd rather than treated as a string).
+ * Same 0 / -1 + *exit_rc contract as compare_root_md5().
+ */
+static int
+compare_davs_md5(const char *dhost, int dport, const char *path,
+                 char *hex, size_t hexsz, int *exit_rc)
+{
+    brix_status st;
+    char        tmpl[] = "/tmp/xrddiag-davs.XXXXXX";
+    char       *body;
+    size_t      blen = 0;
+    int         http = 0, fd;
+
+    *exit_rc = 1;
+    body = (char *) malloc(1u << 20);
+    if (body == NULL) {
+        fprintf(stderr, "xrddiag: out of memory\n");
+        *exit_rc = 51;
+        return -1;
+    }
+    brix_status_clear(&st);
+    if (brix_http_get(dhost, dport, path, 5000, &http, body, 1u << 20, &blen,
+                      &st) != 0) {
+        probe("davs-http", 0, "GET %s:%d%s: %s", dhost, dport, path, st.msg);
+        free(body);
+        return -1;
+    }
+    probe("davs-http", http == 200, "HTTP %d for %s", http, path);
+    if (http != 200) {
+        free(body);
+        printf("Result: %d difference(s)\n", g_fails);
+        return -1;
+    }
+    fd = mkstemp(tmpl);
+    if (fd < 0 || (size_t) write(fd, body, blen) != blen
+        || brix_cksum_fd(fd, XRDC_CK_MD5, hex, hexsz, &st) != 0) {
+        probe("davs-md5", 0, "local md5 failed");
+        if (fd >= 0) { close(fd); unlink(tmpl); }
+        free(body);
+        return -1;
+    }
+    close(fd);
+    unlink(tmpl);
+    free(body);
+    return 0;
+}
+
+
+/*
+ * HTTPS WebDAV plane (TLS + chunked): the same logical path over davs://,
+ * compared against the root:// MD5. Verify follows --no-verify-tls; the system
+ * trust store is used (ca_dir NULL). Advisory — a failure here records a probe
+ * but never changes the exit path.
+ */
+static void
+compare_davs_tls(const diag_args *a, const char *path, const char *root_md5)
+{
+    brix_status st;
+    char        thost[256], tls_md5[64];
+    int         tport, thttp = 0;
+
+    brix_status_clear(&st);
+    parse_http_hostport(a->davs_tls, thost, sizeof(thost), &tport);
+    if (http_plane_md5(thost, tport, 1, path, NULL, a->verify_tls, NULL,
+                       tls_md5, sizeof(tls_md5), &thttp, &st) != 0) {
+        probe("davs-tls", 0, "GET https://%s:%d%s: %s",
+              thost, tport, path, st.msg);
+        return;
+    }
+    if (thttp != 200) {
+        probe("davs-tls", 0, "HTTPS %d for %s", thttp, path);
+        return;
+    }
+    probe("davs-tls", 1, "HTTPS 200 for %s", path);
+    probe("davs-tls-md5", strcmp(root_md5, tls_md5) == 0,
+          "root=%s davs-tls=%s", root_md5, tls_md5);
+}
+
+
+/*
  * §15.6 cross-protocol consistency oracle: read the SAME object via root:// and
  * WebDAV and assert size + MD5 agree. The capability no upstream client has —
  * this project unifies the planes over one VFS, so a divergence here is a real
@@ -90,15 +200,10 @@ int
 do_compare_davs(const diag_args *a)
 {
     brix_url      ua;
-    brix_conn     ca;
     brix_status   st;
     char          dhost[256];
-    int           dport;
+    int           dport, rc = 0;
     char          root_md5[64], davs_md5[64];
-    char         *body;
-    size_t        blen = 0;
-    int           http = 0, fd;
-    char          tmpl[] = "/tmp/xrddiag-davs.XXXXXX";
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(a->url, &ua, &st) != 0) {
@@ -113,71 +218,19 @@ do_compare_davs(const diag_args *a)
     printf("Cross-protocol compare %s\n  root:// %s:%d   davs(http) %s:%d   path %s\n",
            a->url, ua.host, ua.port, dhost, dport, ua.path);
 
-    if (brix_connect(&ca, &ua, &a->conn, &st) != 0) {
-        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", ua.host, ua.port, st.msg);
-        return brix_shellcode(&st);
+    if (compare_root_md5(a, &ua, root_md5, sizeof(root_md5), &rc) != 0) {
+        return rc;
     }
-    if (remote_md5(&ca, ua.path, root_md5, sizeof(root_md5), &st) != 0) {
-        probe("root-read", 0, "%s", st.msg);
-        brix_close(&ca);
-        return 1;
-    }
-    brix_close(&ca);
-
     /* WebDAV plane: cleartext HTTP GET of the same logical path (binary-safe). */
-    body = (char *) malloc(1u << 20);
-    if (body == NULL) {
-        fprintf(stderr, "xrddiag: out of memory\n");
-        return 51;
+    if (compare_davs_md5(dhost, dport, ua.path, davs_md5, sizeof(davs_md5),
+                         &rc) != 0) {
+        return rc;
     }
-    brix_status_clear(&st);
-    if (brix_http_get(dhost, dport, ua.path, 5000, &http, body, 1u << 20, &blen,
-                      &st) != 0) {
-        probe("davs-http", 0, "GET %s:%d%s: %s", dhost, dport, ua.path, st.msg);
-        free(body);
-        return 1;
-    }
-    probe("davs-http", http == 200, "HTTP %d for %s", http, ua.path);
-    if (http != 200) {
-        free(body);
-        printf("Result: %d difference(s)\n", g_fails);
-        return 1;
-    }
-    fd = mkstemp(tmpl);
-    if (fd < 0 || (size_t) write(fd, body, blen) != blen
-        || brix_cksum_fd(fd, XRDC_CK_MD5, davs_md5, sizeof(davs_md5), &st) != 0) {
-        probe("davs-md5", 0, "local md5 failed");
-        if (fd >= 0) { close(fd); unlink(tmpl); }
-        free(body);
-        return 1;
-    }
-    close(fd);
-    unlink(tmpl);
-    free(body);
-
     probe("davs-md5", strcmp(root_md5, davs_md5) == 0,
           "root=%s davs=%s", root_md5, davs_md5);
 
-    /* HTTPS WebDAV plane (TLS + chunked): the same logical path over davs://,
-     * compared against the root:// MD5. Verify follows --no-verify-tls; the
-     * system trust store is used (ca_dir NULL). Only run when --davs-tls given. */
     if (a->davs_tls != NULL && a->davs_tls[0] != '\0') {
-        char thost[256], tls_md5[64];
-        int  tport, thttp = 0;
-
-        brix_status_clear(&st);
-        parse_http_hostport(a->davs_tls, thost, sizeof(thost), &tport);
-        if (http_plane_md5(thost, tport, 1, ua.path, NULL, a->verify_tls, NULL,
-                           tls_md5, sizeof(tls_md5), &thttp, &st) != 0) {
-            probe("davs-tls", 0, "GET https://%s:%d%s: %s",
-                  thost, tport, ua.path, st.msg);
-        } else if (thttp != 200) {
-            probe("davs-tls", 0, "HTTPS %d for %s", thttp, ua.path);
-        } else {
-            probe("davs-tls", 1, "HTTPS 200 for %s", ua.path);
-            probe("davs-tls-md5", strcmp(root_md5, tls_md5) == 0,
-                  "root=%s davs-tls=%s", root_md5, tls_md5);
-        }
+        compare_davs_tls(a, ua.path, root_md5);
     }
 
     note("s3", "deferred (needs SigV4 endpoint + credentials)");

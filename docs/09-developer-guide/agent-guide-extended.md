@@ -38,7 +38,8 @@ CLAUDE.md is a **lookup reference**, not memorization material. If your context 
 
 ## BUILD GOVERNANCE (full text)
 
-**The build is governed by two things — and only two:**
+**The module build is governed by two things — and only two** (the client CLIs are
+a third, separate build; see the note below):
 
 1. **the repo-root `./config`** — the module's source lists (`ngx_module_srcs`), header dep
    lists, and feature gates. Every new `.c` file must be added to the appropriate
@@ -58,6 +59,19 @@ CLAUDE.md is a **lookup reference**, not memorization material. If your context 
    do it through the module's hooks and callbacks — not by modifying nginx's internals.
 - **Do NOT run `./configure` unless** you added a new source file (not in `./config`), a new top-level config block,
    or changed `--with-*` options. Incremental builds use `make -j$(nproc)` alone.
+
+**The client CLIs build from `client/Makefile`, not `./config`.** A new `.c` under
+`client/` (or under the client-only `shared/cvmfs`, `shared/cache`) must be named
+there — in `LIB_SRCS`, a per-CLI `<name>_OBJS` list, or one of the grouped object
+lists (`XROOTDFS_SPLIT`, `BRIX_CVMFS_OBJS`, `BRIXCVMFS_OBJS`, `BRIXAUTOFS_OBJS`,
+`FAULT_PROXY_SRCS`). Putting a client TU in `./config` compiles it into the nginx
+module, which is almost never what you want, and leaves the CLI's half unbuilt.
+This rots silently: an orphaned split sibling surfaces only as a link-time
+`undefined reference` in whichever binary calls into it, which is exactly how 41
+sources ended up unbuilt on main. **Guard `tools/ci/check_client_build_coverage.py`**
+(client-side twin of `check_config_coverage.py`; drivers named `*_unit.c` /
+`*_unittest.c` and the `client/tests|examples|bin/` trees are excused; its
+allowlist is empty and should stay that way).
 
 ---
 

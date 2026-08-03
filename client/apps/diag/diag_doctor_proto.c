@@ -13,6 +13,7 @@
  *       PII-free (statuses / header names / sizes only — never keys or bodies).
  */
 #include "diag_internal.h"
+#include "core/compat/host_split.h"   /* brix_split_host_port(): DS authority parse */
 
 
 /*
@@ -361,6 +362,61 @@ doctor_s3(const diag_args *a, const dx_url_t *u, doctor_ep *e)
 
 
 /*
+ * §5.4 cns-stat-drift: compare the manager's (CNS) view of a path against the
+ * data server that holds it. A size/mtime disagreement ⇒ stale/unconverged
+ * inventory; a DS that will not connect/stat at all ⇒ a ghost registration.
+ * PII-free: records classified cause/remedy only, never the path. */
+static void
+cms_stat_drift_check(const diag_args *a, const char *ds_auth, const char *path,
+                     const brix_statinfo *si_mgr, doctor_ep *e)
+{
+    brix_url      du;
+    brix_conn     dc;
+    brix_status   dst;
+    brix_statinfo si_ds;
+    char          host[256], dsurl[320];
+    int           port, v6;
+
+    if (brix_split_host_port(ds_auth, host, sizeof(host), &port, 1094) != 0) {
+        return;
+    }
+    v6 = (strchr(host, ':') != NULL && host[0] != '[');
+    snprintf(dsurl, sizeof(dsurl), "root://%s%s%s:%d/",
+             v6 ? "[" : "", host, v6 ? "]" : "", port);
+    brix_status_clear(&dst);
+    if (brix_endpoint_parse(dsurl, &du, &dst) != 0) {
+        return;
+    }
+    snprintf(du.path, sizeof(du.path), "%s", path[0] ? path : "/");
+    if (brix_connect(&dc, &du, &a->conn, &dst) != 0) {
+        dx_record(e, &(dx_note){ "cms-ghost", DX_FAIL, dst.kxr,
+            "located holder does not serve the path (ghost registration)",
+            "remove the stale CMS registry entry / restart the data server" });
+        return;
+    }
+    dc.io.timeout_ms = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
+    brix_status_clear(&dst);
+    if (brix_stat(&dc, du.path, &si_ds, &dst) == 0) {
+        long dm = si_ds.mtime - si_mgr->mtime;
+        if (dm < 0) { dm = -dm; }
+        if (si_ds.size != si_mgr->size || dm > 2) {
+            dx_record(e, &(dx_note){ "cns-stat-drift", DX_WARN, 0,
+                "manager (CNS) metadata disagrees with the data server",
+                "check the DS emit path / manager inventory convergence" });
+        } else {
+            dx_record(e, &(dx_note){ "cns-stat-drift", DX_OK, 0,
+                "manager (CNS) metadata agrees with the data server", "" });
+        }
+    } else {
+        dx_record(e, &(dx_note){ "cms-ghost", DX_FAIL, dst.kxr,
+            "located holder present but does not stat the path (ghost/stale entry)",
+            "remove the stale CMS registry entry / restart the data server" });
+    }
+    brix_close(&dc);
+}
+
+
+/*
  * cms deep-dive: a cluster manager (cmsd/redirector) is a root:// endpoint that
  * answers kXR_locate with the data server(s) holding a path and issues kXR_redirect.
  * Connect to the manager, locate the path, and confirm the redirect resolution to a
@@ -374,7 +430,9 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
     brix_url    u;
     brix_conn   c;
     brix_status st;
+    char        ds_auth[288];
 
+    ds_auth[0] = '\0';
     memset(e, 0, sizeof(*e));
     e->proto = DXP_CMS;
     e->status = DOC_GREEN;
@@ -410,7 +468,12 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
             char *t, *save;
             for (t = strtok_r(loc, " \t\r\n", &save); t != NULL;
                  t = strtok_r(NULL, " \t\r\n", &save)) {
-                if (t[0] == 'S') { e->holders++; }
+                if (t[0] == 'S') {
+                    e->holders++;
+                    if (ds_auth[0] == '\0' && t[1] != '\0') {
+                        snprintf(ds_auth, sizeof(ds_auth), "%s", t + 2);
+                    }
+                }
             }
             if (e->holders == 0) {
                 dx_record(e, &(dx_note){ "cms-locate", DX_FAIL, 0,
@@ -432,6 +495,14 @@ doctor_cms(const diag_args *a, const char *host, int port, const char *path,
         if (brix_stat(&c, u.path, &si, &rst) == 0) {
             dx_record(e, &(dx_note){ "cms-redirect", DX_OK, 0,
                       "manager→data-server redirect resolved to a live server", "" });
+            /* §5.4: with --config-audit, cross-check the manager's (CNS) stat
+             * against the data server that holds the path (drift / ghost). */
+            e->mgr_stat_size  = si.size;
+            e->mgr_stat_mtime = si.mtime;
+            e->mgr_stat_have  = 1;
+            if ((a->config_audit || a->all_servers) && ds_auth[0] != '\0') {
+                cms_stat_drift_check(a, ds_auth, u.path, &si, e);
+            }
         } else if (rst.kxr == kXR_NotFound) {
             dx_record(e, &(dx_note){ "cms-redirect", DX_WARN, rst.kxr,
                       "path not found via the manager (redirect resolved, file absent)",

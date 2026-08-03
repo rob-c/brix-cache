@@ -1,10 +1,22 @@
 # fanalyzer baseline — known/false-positive findings, line:col stripped.
 # Regenerate with: tools/ci/run_fanalyzer.py --regen   (review the diff!)
+# acc_resolve_unix() hands the strdup'd vector to the caller through
+# **namesp; acc_cache_refresh() stores it in e->names, and acc_cache_free()
+# frees every element plus the array. The analyzer loses the ownership
+# transfer across the double pointer. Reviewed 2026-08-03 — no leak.
+src/auth/authz/acc/groups.c │ leak of ‘strdup(*gr.gr_name)’ [CWE-401]  │ -Wanalyzer-malloc-leak
 src/core/negcache/negcache.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
 src/core/shm/kv.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
+# Same three kv.c sites as the line above: newer GCC names the pointer
+# (‘kv’) where the baselined message said ‘0’. Message text, not a new path.
+src/core/shm/kv.c │ dereference of NULL ‘kv’ [CWE-476]  │ -Wanalyzer-null-dereference
 src/event/ngx_event_timer.h │ use after ‘free’ of ‘q’ [CWE-416]  │ -Wanalyzer-use-after-free
 src/fs/backend/pblock/sd_pblock_catalog_ns.c │ leak of ‘dup’ [CWE-401]  │ -Wanalyzer-malloc-leak
 src/fs/cache/evict_candidates.c │ leak of ‘copy’ [CWE-401]  │ -Wanalyzer-malloc-leak
+# brix_neg_stat_fnv() walks a string its three callers (lookup / insert /
+# brix_vfs_neg_stat_forget) each NULL-check before calling; the analyzer
+# inlines the helper without the guard. Reviewed 2026-08-03 — unreachable.
+src/fs/vfs/vfs_stat.c │ dereference of NULL ‘p’ [CWE-476]  │ -Wanalyzer-null-dereference
 src/fs/xfer/stage_waiter.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
 src/net/manager/redir_cache.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
 src/net/manager/registry.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference

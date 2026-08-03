@@ -44,8 +44,17 @@ typedef struct {
     int         nurls;
     int         interval_s;    
     int         count;         
-    int         watch_prom;    
-    const char *prom_path;     
+    int         watch_prom;
+    const char *prom_path;
+    int         config_audit;      /* --config-audit: scrape + classify remote config/perf */
+    int         all_servers;       /* --all-servers: manager fan-out to every located DS    */
+    int         cap_threshold_pct; /* capacity-low WARN threshold, free%% (0 = default 5)    */
+    int         map;               /* --map: draw the discovered CMS mesh as a diagram       */
+    const char *map_format;        /* --map-format: ascii (default) | dot | mermaid          */
+    int         latency;           /* --latency: round-trip probe every mesh node (xr + cms) */
+    int         latency_count;     /* --latency-count: samples per plane (0 = default 5)     */
+    int         deep_recon;        /* --deep-recon: read-only deep server reconnaissance     */
+    const char *tpc_target;        /* --tpc-target host[:port]: TPC egress self-test source  */
 } diag_args;
 
 extern int g_fails;
@@ -91,31 +100,9 @@ typedef struct {
     char     path[XRDC_PATH_MAX]; /* absolute request path ("/" if absent)  */
 } dx_url_t;
 
-typedef struct {
-    dx_proto      proto;             /* which protocol battery produced this endpoint */
-    char          host[256];
-    int           port;
-    int           connected;
-    int           status;            /* DOC_GREEN/YELLOW/RED */
-    brix_netfacts nf;                /* phases / family / TCP_INFO / flowlabel */
-    int           tls_active;
-    char          tls_ver[24], tls_cipher[48];
-    char          auth[24];          /* chosen auth proto, or "anon" */
-    int           gototls;           /* server advertised kXR_gotoTLS */
-    unsigned      caps;              /* server_flags */
-    int           have_xfer;
-    int64_t       xfer_bytes;
-    double        ttfb_ms, mbps;
-    int           holders;           /* locate token count */
-    int           ghost;             /* a located holder that would not serve */
-    int           metrics_http;      /* /metrics HTTP status (0 = not pulled) */
-    int           shedding;          /* /metrics shows kXR_wait / budget shedding */
-    int           offline_seen;      /* read probe saw a kXR_offline (tape) file */
-    int           nissues;
-    char          issues[DOC_MAXISS][160];
-    int           ndx;               /* active-diagnosis findings */
-    dx_finding    dx[DOC_MAXDX];
-} doctor_ep;
+/* The doctor endpoint model (doctor_ep + its sub-records) — split out for
+ * the 600-line cap; see coding-standards §1. */
+#include "diag_doctor_types.h"
 
 #define DX_ANY (-9999)
 typedef struct {
@@ -320,6 +307,103 @@ int do_tape(const diag_args *a);
 /* diag_doctor.c */
 void doctor_dispatch(const diag_args *a, const char *url, doctor_ep *e);
 int do_remote_doctor(const diag_args *a);
+
+/* diag_tpc_egress.c — TPC egress (SSRF-control) self-test against your OWN gw */
+typedef enum {
+    TPCE_ERR_CONNECT = 0,  /* could not reach/log in to the gateway itself      */
+    TPCE_REFUSED_POLICY,   /* gateway declined to originate (SSRF guard fired)   */
+    TPCE_CONN_REFUSED,     /* egress permitted; source port closed (RST)         */
+    TPCE_FILTERED,         /* egress permitted; source silent (probe timed out)  */
+    TPCE_REACHED_NOENT,    /* egress permitted; source up, self-test lfn absent  */
+    TPCE_REACHED_ERROR,    /* egress permitted; source answered with an error    */
+    TPCE_ACCEPTED,         /* egress permitted; pull completed (worst case)      */
+    TPCE_ARM_ERROR,        /* gateway refused the arm for a non-policy reason    */
+} tpce_verdict;
+
+typedef struct {
+    tpce_verdict verdict;
+    int          egress_permitted;  /* 1 if the gateway agreed to originate      */
+    int          arm_kxr;           /* kXR_* (or local <0) from the destination arm */
+    int          trig_kxr;          /* kXR_* (or local <0) from the trigger sync    */
+    double       arm_ms;            /* wall time of the arm (open) step             */
+    double       trig_ms;           /* wall time of the trigger (sync) step, if run */
+    char         gw_host[256];      /* gateway host we asked to originate (no port)  */
+    char         target[288];       /* the source host[:port] we named              */
+    char         detail[256];       /* short PII-free classification note            */
+} tpce_result;
+
+int  tpce_run(const diag_args *a, const char *gw_url, const char *target,
+              tpce_result *out);
+tpce_verdict tpce_classify_trigger(const brix_status *st, double elapsed_ms,
+                                   double budget_ms, char *detail, size_t dsz);
+void tpce_report(const tpce_result *r);
+void tpce_emit_json(const tpce_result *r, FILE *out);
+int  do_tpc_egress(const diag_args *a);
+
+/* diag_doctor_audit.c (phase-93 config/performance advisor) */
+void doctor_cfg_parse_chksum(const char *csv, int *have_adler32, int *have_crc32c);
+int  doctor_cfg_capacity_pct(int64_t total, int64_t freeb);
+int  doctor_cfg_version_skew(const doctor_ep *eps, int n);
+int  doctor_cfg_manager_count(const doctor_ep *eps, int n);
+int  doctor_cfg_cap_threshold(const diag_args *a);
+void doctor_scrape_config(brix_conn *c, doctor_ep *e);
+void doctor_audit_rules(const diag_args *a, doctor_ep *e);
+void doctor_audit_perf(doctor_ep *e);
+void doctor_cross_cluster(doctor_ep *eps, int n, FILE *out);
+void doctor_emit_config_json(const doctor_ep *e, FILE *out);
+void doctor_report_config(const doctor_ep *e);
+int  doctor_fanout(const diag_args *a, doctor_ep **eps_out, int *n_out, int *truncated);
+
+/* diag_doctor_graph.c (phase-93 mesh topology diagram) */
+void doctor_render_map(const doctor_ep *eps, int n, const char *format, FILE *out);
+int  doctor_map_graph_only(const char *format);
+
+/* diag_doctor_eos.c (EOS /proc dialect: detect MGM + enumerate FST farm)
+ * doctor_eos_map connects to the manager and, when it is an EOS MGM, records the
+ * banner on arr[0].eos and (admin) replaces the CMS self-node with the real FST
+ * inventory. The rest are the pure text parsers, unit-tested off the wire. */
+int  doctor_eos_map(const diag_args *a, doctor_ep *arr, int cap, int *n);
+int  doctor_eos_proc(brix_conn *c, const char *dir, const char *cmd,
+                     char **out, brix_status *st);   /* one /proc round-trip */
+int  doctor_eos_stdout(const char *body, const char **start, int *len);
+int  doctor_eos_kv(const char *rec, const char *key, char *out, size_t osz);
+int  doctor_eos_retc(const char *body);
+int  doctor_eos_parse_version(const char *body, doctor_eos *eos);
+int  doctor_eos_parse_fs(const char *sout, int len, doctor_ep *arr, int cap, int start);
+int  doctor_eos_report_fst(const doctor_ep *e);   /* 1 if it rendered an FST block */
+void doctor_eos_report_mgm(const doctor_ep *e);   /* "  eos: ..." line, or nothing */
+void doctor_eos_emit_json(const doctor_ep *e, FILE *out);  /* ,"eos":{...} or nothing */
+
+/* diag_doctor_eos_fileinfo.c (EOS unprivileged FST discovery via `fileinfo`)
+ * When admin `fs ls` is NotAuthorized, discover_fileinfo walks a bounded sample of
+ * files under a root, reads each file's `fileinfo` replica table (a user-plane
+ * command), and appends the distinct FSTs it names to arr[start..]. The parser and
+ * URL-path helper are pure over caller buffers and unit-tested off recorded EOS
+ * output. Returns the number of distinct FSTs appended (0 if none reachable). */
+int  doctor_eos_url_path(const char *url, char *out, size_t osz);
+int  doctor_eos_parse_fileinfo(const char *sout, int len,
+                               doctor_eos_rep *out, int cap);
+int  doctor_eos_discover_fileinfo(brix_conn *c, const char *root, doctor_ep *arr,
+                                  int cap, int start, int *n, brix_status *st);
+
+/* diag_doctor_latency.c (phase-93 mesh round-trip latency) */
+int  doctor_have_ipv6(void);                       /* 1 = host can route IPv6 */
+int  doctor_host_ipv6_only(const char *host);      /* 1 = host resolves to AAAA only */
+void doctor_latency_probe(const diag_args *a, doctor_ep *e);
+void doctor_render_latency(const doctor_ep *eps, int n, FILE *out);
+void doctor_emit_latency_json(const doctor_ep *e, FILE *out);   /* ,"latency":{...} or nothing */
+
+/* diag_doctor_recon.c (phase-93 deep read-only reconnaissance)
+ * doctor_recon_probe scrapes `query stats a`, sweeps the full Qconfig key set,
+ * decodes the capability bits and lists the authorized top-level roots over one
+ * already-open connection. The XML/flag parsers are pure over caller buffers and
+ * unit-tested off recorded server output. PII-free; no goto. */
+void doctor_recon_probe(const diag_args *a, brix_conn *c, doctor_ep *e);
+int64_t doctor_recon_xml_i64(const char *xml, const char *id, const char *tag);
+void doctor_recon_parse_stats(const char *xml, doctor_recon *r);
+int  doctor_recon_caps_str(unsigned f, char *out, size_t osz);   /* count of bits named */
+void doctor_report_recon(const doctor_ep *e);
+void doctor_emit_recon_json(const doctor_ep *e, FILE *out);       /* ,"recon":{...} or nothing */
 
 /* diag_watch.c */
 void watch_on_signal(int sig);

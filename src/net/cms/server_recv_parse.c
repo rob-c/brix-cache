@@ -219,6 +219,45 @@ cms_srv_login_append_path(brix_cms_srv_ctx_t *ctx, u_char **dst,
     *dst += cp;
 }
 
+/*
+ * Phase-89 W9: extract the virtual network id from envCGI ("&"-separated CGI
+ * tokens; stock cmsd emits "vnid=<id>").  ifList is read first only to reach
+ * envCGI in wire order — its value is ignored.  Absent, empty, or a truncated
+ * frame leaves ctx->vnid "".  Advances *pp past both strings.
+ */
+static void
+cms_srv_login_vnid(brix_cms_srv_ctx_t *ctx, const u_char **pp,
+    const u_char *end)
+{
+    const u_char *iflist, *env, *tok;
+    size_t        iflist_len, env_len, i, vl;
+
+    ctx->vnid[0] = '\0';
+    if (!cms_srv_read_string(pp, end, &iflist, &iflist_len)
+        || !cms_srv_read_string(pp, end, &env, &env_len))
+    {
+        return;
+    }
+    for (i = 0; i + 5 <= env_len; i++) {
+        if ((i != 0 && env[i - 1] != '&')
+            || ngx_strncmp(env + i, "vnid=", 5) != 0)
+        {
+            continue;
+        }
+        tok = env + i + 5;
+        vl  = 0;
+        while (i + 5 + vl < env_len && tok[vl] != '&'
+               && tok[vl] != '\0' && vl < sizeof(ctx->vnid) - 1)
+        {
+            ctx->vnid[vl] = (char) tok[vl];
+            vl++;
+        }
+        ctx->vnid[vl] = '\0';
+        return;
+    }
+}
+
+
 int
 cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
     const u_char *payload, size_t payload_len)
@@ -265,32 +304,7 @@ cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
      * CGI tokens; stock cmsd emits "vnid=<id>").  ifList is skipped to reach
      * it in wire order.  Absent/empty → ctx->vnid stays "".
      */
-    ctx->vnid[0] = '\0';
-    {
-        const u_char  *iflist, *env, *tok;
-        size_t         iflist_len, env_len, i, vl;
-
-        if (cms_srv_read_string(&p, end, &iflist, &iflist_len)
-            && cms_srv_read_string(&p, end, &env, &env_len))
-        {
-            for (i = 0; i + 5 <= env_len; i++) {
-                if ((i == 0 || env[i - 1] == '&')
-                    && ngx_strncmp(env + i, "vnid=", 5) == 0)
-                {
-                    tok = env + i + 5;
-                    vl  = 0;
-                    while (i + 5 + vl < env_len && tok[vl] != '&'
-                           && tok[vl] != '\0' && vl < sizeof(ctx->vnid) - 1)
-                    {
-                        ctx->vnid[vl] = (char) tok[vl];
-                        vl++;
-                    }
-                    ctx->vnid[vl] = '\0';
-                    break;
-                }
-            }
-        }
-    }
+    cms_srv_login_vnid(ctx, &p, end);
 
     /* Default XRootD port if the data server didn't advertise one. */
     if (ctx->port == 0) {

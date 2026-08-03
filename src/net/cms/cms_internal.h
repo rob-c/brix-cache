@@ -339,4 +339,8 @@ void  ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx);
  * when disconnected or when conf->cms.read_timeout is 0 (disabled). */
 void  ngx_brix_cms_arm_read_deadline(ngx_brix_cms_ctx_t *ctx);
 
+/* connect.c — heartbeat/reconnect timer handler.  Non-static because cms_start.c
+ * installs it on the context timer at worker init. */
+void  ngx_brix_cms_timer(ngx_event_t *ev);
+
 #endif /* NGX_BRIX_CMS_INTERNAL_H */

@@ -51,6 +51,16 @@
                                        (10/8, 172.16/12, 192.168/16).
                                        Default on: storage federation nodes commonly
                                        live on private networks. */
+    ngx_flag_t  tpc_source_guard;   /* [brix_tpc_source_guard on|off] — when on,
+                                       a TPC pull is refused unless its source host
+                                       is on tpc_source_allow. Default off (opt-in):
+                                       a naming allowlist on top of the address-range
+                                       gate — an operator says "only these known
+                                       storage endpoints", fail-closed. */
+    ngx_array_t *tpc_source_allow;  /* [brix_tpc_source_allow <host>...] ngx_str_t[]
+                                       — exact hostnames or leading-'.' domain
+                                       suffixes a TPC pull may originate from when
+                                       tpc_source_guard is on (empty = deny all). */
     ngx_flag_t  ssi_enable;         /* [brix_ssi on|off] — §7 XrdSsi
                                        request/response over /.ssi/<service>. */
     ngx_flag_t  ssi_cta_enable;     /* [brix_ssi_service cta] — gate the flagship

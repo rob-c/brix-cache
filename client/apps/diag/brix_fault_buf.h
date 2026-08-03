@@ -9,7 +9,9 @@
 #ifndef BRIX_FAULT_BUF_H
 #define BRIX_FAULT_BUF_H
 
+#include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 /* Append up to `n` bytes of `src`; returns the number actually written. */
@@ -48,6 +50,24 @@ fp_buf_eol(unsigned char *out, size_t cap, size_t *o, int lf)
     } else {
         fp_bufcat(out, cap, o, "\r\n", 2);
     }
+}
+
+/*
+ * Write a control-plane response, tolerating the NULL / zero-length reply buffer
+ * passed by callers that discard the answer (the --script driver, teardown).
+ * Every command handler goes through this instead of open-coding the
+ * `if (reply && rsz) snprintf(...)` guard at each site.
+ */
+static inline void __attribute__((format(printf, 3, 4)))
+fp_reply(char *reply, size_t rsz, const char *fmt, ...)
+{
+    if (!reply || rsz == 0) {
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(reply, rsz, fmt, ap);
+    va_end(ap);
 }
 
 #endif /* BRIX_FAULT_BUF_H */

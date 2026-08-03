@@ -56,21 +56,89 @@ emit_record(unsigned char *out, size_t cap, size_t *o,
     }
 }
 
+/* The 5-byte header a rewritten record carries: each field is overridden when
+ * its lever is armed, and passed through otherwise. */
+typedef struct { unsigned char type, v0, v1; } tls_hdr;
+
+static tls_hdr
+tls_out_header(const fp_tls_cfg *c, const tls_hdr *in, fp_tls_stats *st)
+{
+    tls_hdr h;
+    h.type = (c->set_type >= 0)      ? (unsigned char) c->set_type      : in->type;
+    h.v0   = (c->set_ver_major >= 0) ? (unsigned char) c->set_ver_major : in->v0;
+    h.v1   = (c->set_ver_minor >= 0) ? (unsigned char) c->set_ver_minor : in->v1;
+    if (h.type != in->type) {
+        st->retyped++;
+    }
+    return h;
+}
+
+/* One-shot forged alert record, injected ahead of the stream. */
+static void
+tls_forge_alert(unsigned char *out, size_t outcap, size_t *o,
+                fp_tls_cfg *c, fp_tls_stats *st)
+{
+    unsigned char v0 = (c->set_ver_major >= 0) ? (unsigned char) c->set_ver_major : 3;
+    unsigned char v1 = (c->set_ver_minor >= 0) ? (unsigned char) c->set_ver_minor : 3;
+    unsigned char body[2] = { (unsigned char) c->alert_level,
+                              (unsigned char) c->alert_desc };
+
+    emit_record(out, outcap, o, 21, v0, v1, 2, body, 2, 0);
+    st->alerts++;
+    c->alert_level = -1;
+}
+
+/* Re-emit one record's payload as a run of frag_max-sized records — the peer
+ * must reassemble across record boundaries. */
+static void
+tls_emit_fragments(unsigned char *out, size_t outcap, size_t *o, const tls_hdr *h,
+                   const unsigned char *body, size_t avail,
+                   const fp_tls_cfg *c, fp_tls_stats *st)
+{
+    size_t off = 0;
+    int    first = 1;
+
+    while (off < avail) {
+        size_t piece = avail - off;
+        if (piece > (size_t) c->frag_max) {
+            piece = (size_t) c->frag_max;
+        }
+        int flip = first && c->flip_payload;
+        emit_record(out, outcap, o, h->type, h->v0, h->v1,
+                    (int) piece, body + off, piece, flip);
+        if (flip) {
+            st->flipped++;
+        }
+        off += piece;
+        first = 0;
+        st->fragmented++;
+    }
+}
+
+/* Re-emit one record whole, honouring the declared-length inflation lever. */
+static void
+tls_emit_whole(unsigned char *out, size_t outcap, size_t *o, const tls_hdr *h,
+               const unsigned char *body, size_t avail,
+               const fp_tls_cfg *c, fp_tls_stats *st)
+{
+    int flip = c->flip_payload && avail > 0;
+
+    emit_record(out, outcap, o, h->type, h->v0, h->v1,
+                (int) avail + c->inflate_len, body, avail, flip);
+    if (flip) {
+        st->flipped++;
+    }
+}
+
 size_t
 fp_tls_rewrite(const unsigned char *in, size_t n,
                unsigned char *out, size_t outcap,
                fp_tls_cfg *c, fp_tls_stats *st)
 {
     size_t o = 0, pos = 0;
-    unsigned char dv0 = (c->set_ver_major >= 0) ? (unsigned char) c->set_ver_major : 3;
-    unsigned char dv1 = (c->set_ver_minor >= 0) ? (unsigned char) c->set_ver_minor : 3;
 
-    if (c->alert_level >= 0) {                    /* one-shot forged alert record */
-        unsigned char body[2] = { (unsigned char) c->alert_level,
-                                  (unsigned char) c->alert_desc };
-        emit_record(out, outcap, &o, 21, dv0, dv1, 2, body, 2, 0);
-        st->alerts++;
-        c->alert_level = -1;
+    if (c->alert_level >= 0) {
+        tls_forge_alert(out, outcap, &o, c, st);
     }
 
     while (pos < n) {
@@ -78,50 +146,23 @@ fp_tls_rewrite(const unsigned char *in, size_t n,
             fp_bufcat(out, outcap, &o, in + pos, n - pos);
             break;
         }
-        unsigned char type = in[pos], v0 = in[pos + 1], v1 = in[pos + 2];
-        size_t len   = ((size_t) in[pos + 3] << 8) | in[pos + 4];
-        size_t avail = (len < n - pos - 5) ? len : (n - pos - 5);
+        tls_hdr hin = { in[pos], in[pos + 1], in[pos + 2] };
+        size_t  len   = ((size_t) in[pos + 3] << 8) | in[pos + 4];
+        size_t  avail = (len < n - pos - 5) ? len : (n - pos - 5);
         st->records++;
 
-        if (c->drop_type >= 0 && type == (unsigned char) c->drop_type) {
+        if (c->drop_type >= 0 && hin.type == (unsigned char) c->drop_type) {
             st->dropped++;
             pos += 5 + avail;
             continue;
         }
-
-        unsigned char otype = (c->set_type >= 0) ? (unsigned char) c->set_type : type;
-        unsigned char ov0   = (c->set_ver_major >= 0) ? (unsigned char) c->set_ver_major : v0;
-        unsigned char ov1   = (c->set_ver_minor >= 0) ? (unsigned char) c->set_ver_minor : v1;
-        if (c->set_type >= 0 && otype != type) {
-            st->retyped++;
-        }
+        tls_hdr              hout = tls_out_header(c, &hin, st);
         const unsigned char *body = in + pos + 5;
 
         if (c->frag_max > 0 && avail > (size_t) c->frag_max) {
-            size_t off = 0;
-            int    first = 1;
-            while (off < avail) {
-                size_t piece = avail - off;
-                if (piece > (size_t) c->frag_max) {
-                    piece = (size_t) c->frag_max;
-                }
-                int flip = first && c->flip_payload;
-                emit_record(out, outcap, &o, otype, ov0, ov1,
-                            (int) piece, body + off, piece, flip);
-                if (flip) {
-                    st->flipped++;
-                }
-                off += piece;
-                first = 0;
-                st->fragmented++;
-            }
+            tls_emit_fragments(out, outcap, &o, &hout, body, avail, c, st);
         } else {
-            int declared = (int) avail + c->inflate_len;
-            int flip = c->flip_payload && avail > 0;
-            emit_record(out, outcap, &o, otype, ov0, ov1, declared, body, avail, flip);
-            if (flip) {
-                st->flipped++;
-            }
+            tls_emit_whole(out, outcap, &o, &hout, body, avail, c, st);
         }
         pos += 5 + avail;
     }

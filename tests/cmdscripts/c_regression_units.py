@@ -782,6 +782,47 @@ def gftp_parse(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     )
 
 
+CLIENT = REPO_ROOT / "client"
+
+
+def cvmfs_url_rewrite(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # The CVMFS mirror URL builders (client/apps/fs/brixcvmfs_transport.c), unit-
+    # tested by including the TU and stubbing its ten project externals — no
+    # network, no curl handle is ever initialised. Locks in the -Wformat-truncation
+    # fix two ways: -Werror under -O2 -D_FORTIFY_SOURCE=2 (the exact shape that
+    # warned) makes the warning itself a build failure, and the assertions pin the
+    # semantics — a rewrite that would not fit reports "not rewritten" instead of
+    # emitting a shortened URL, which would name a different object.
+    return _compile_and_run(
+        base / "cvmfs_url_rewrite_test",
+        [
+            "-std=c11",
+            "-O2",
+            "-D_FORTIFY_SOURCE=2",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-D_GNU_SOURCE",
+            "-DXRDPROTO_NO_NGX",
+            "-DBRIX_HAVE_KRB5",
+            "-DBRIX_HAVE_LIBURING",
+            "-I",
+            str(CLIENT),
+            "-I",
+            str(CLIENT / "lib"),
+            "-I",
+            str(REPO_ROOT / "src"),
+            "-I",
+            str(REPO_ROOT / "shared"),
+            "-I",
+            "/usr/include/fuse3",
+            str(TEST_C / "cvmfs_url_rewrite_test.c"),
+            "-lcurl",
+            "-lpthread",
+        ],
+    )
+
+
 RUNNERS = {
     "cache_lock_reclaim": cache_lock_reclaim,
     "flush_deadletter": flush_deadletter,
@@ -806,6 +847,7 @@ RUNNERS = {
     "sd_http_mutate": sd_http_mutate,
     "reservation": reservation,
     "gftp_parse": gftp_parse,
+    "cvmfs_url_rewrite": cvmfs_url_rewrite,
     "frm_stage_metrics": frm_stage_metrics,
     "tpc_progress_total": tpc_progress_total,
     "tier_s3_creds": tier_s3_creds,

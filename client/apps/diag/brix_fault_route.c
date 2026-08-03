@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "brix_fault_route.h"
+#include "brix_fault_buf.h"
 
 #define FP_ROUTE_MAX          16
 #define FP_ROUTE_NAME         32
@@ -180,18 +181,14 @@ start_listener(fp_route *route, char *reply, size_t rsz)
     if (lfd < 0) {
         /* The bind address is the one vetted loopback template — only the port
          * varies — so a bind failure is a port collision in all realistic cases. */
-        if (reply && rsz) {
-            snprintf(reply, rsz, "err: port in use: cannot bind %d\n",
-                     route->listen_port);
-        }
+        fp_reply(reply, rsz, "err: port in use: cannot bind %d\n",
+                 route->listen_port);
         return -1;
     }
     struct accept_arg *a = malloc(sizeof *a);
     if (a == NULL) {
         close(lfd);
-        if (reply && rsz) {
-            snprintf(reply, rsz, "err: out of memory\n");
-        }
+        fp_reply(reply, rsz, "err: out of memory\n");
         return -1;
     }
     route->alive     = 1;
@@ -202,9 +199,7 @@ start_listener(fp_route *route, char *reply, size_t rsz)
         close(lfd);
         free(a);
         route->listen_fd = -1;
-        if (reply && rsz) {
-            snprintf(reply, rsz, "err: cannot start accept thread\n");
-        }
+        fp_reply(reply, rsz, "err: cannot start accept thread\n");
         return -1;
     }
     __atomic_store_n(&route->listening, 1, __ATOMIC_RELEASE);
@@ -218,17 +213,15 @@ route_add(char *rest, char *reply, size_t rsz)
     char name[FP_ROUTE_NAME] = "", targets[400] = "";
     int  port = 0;
     if (sscanf(rest, "%31s %d %399s", name, &port, targets) != 3) {
-        if (reply && rsz) {
-            snprintf(reply, rsz, "err: usage: route add <name> <port> <host:port,...>\n");
-        }
+        fp_reply(reply, rsz, "err: usage: route add <name> <port> <host:port,...>\n");
         return 1;
     }
     if (port <= 0 || port > 65535) {
-        if (reply && rsz) snprintf(reply, rsz, "err: bad port\n");
+        fp_reply(reply, rsz, "err: bad port\n");
         return 1;
     }
     if (strcmp(name, "default") == 0) {
-        if (reply && rsz) snprintf(reply, rsz, "err: 'default' is reserved\n");
+        fp_reply(reply, rsz, "err: 'default' is reserved\n");
         return 1;
     }
 
@@ -239,12 +232,12 @@ route_add(char *rest, char *reply, size_t rsz)
         r = alloc_slot();
         if (r == NULL) {
             pthread_mutex_unlock(&g_route_lock);
-            if (reply && rsz) snprintf(reply, rsz, "err: route table full\n");
+            fp_reply(reply, rsz, "err: route table full\n");
             return 1;
         }
     } else if (__atomic_load_n(&r->listening, __ATOMIC_ACQUIRE)) {
         pthread_mutex_unlock(&g_route_lock);
-        if (reply && rsz) snprintf(reply, rsz, "err: route '%s' already exists\n", name);
+        fp_reply(reply, rsz, "err: route '%s' already exists\n", name);
         return 1;
     }
 
@@ -262,7 +255,7 @@ route_add(char *rest, char *reply, size_t rsz)
             memset(r, 0, sizeof *r);    /* release a freshly-taken slot */
         }
         pthread_mutex_unlock(&g_route_lock);
-        if (reply && rsz) snprintf(reply, rsz, "err: bad target list\n");
+        fp_reply(reply, rsz, "err: bad target list\n");
         return 1;
     }
     r->in_use = 1;
@@ -275,9 +268,7 @@ route_add(char *rest, char *reply, size_t rsz)
         return 1;                       /* start_listener wrote the reply */
     }
     pthread_mutex_unlock(&g_route_lock);
-    if (reply && rsz) {
-        snprintf(reply, rsz, "ok: route %s listening on port %d\n", name, port);
-    }
+    fp_reply(reply, rsz, "ok: route %s listening on port %d\n", name, port);
     return 1;
 }
 
@@ -287,11 +278,11 @@ route_del(char *rest, char *reply, size_t rsz)
 {
     char name[FP_ROUTE_NAME] = "";
     if (sscanf(rest, "%31s", name) != 1) {
-        if (reply && rsz) snprintf(reply, rsz, "err: usage: route del <name>\n");
+        fp_reply(reply, rsz, "err: usage: route del <name>\n");
         return 1;
     }
     if (strcmp(name, "default") == 0) {
-        if (reply && rsz) snprintf(reply, rsz, "err: cannot delete default route\n");
+        fp_reply(reply, rsz, "err: cannot delete default route\n");
         return 1;
     }
 
@@ -299,7 +290,7 @@ route_del(char *rest, char *reply, size_t rsz)
     fp_route *r = find_by_name(name);
     if (r == NULL || !__atomic_load_n(&r->listening, __ATOMIC_ACQUIRE)) {
         pthread_mutex_unlock(&g_route_lock);
-        if (reply && rsz) snprintf(reply, rsz, "err: no such route\n");
+        fp_reply(reply, rsz, "err: no such route\n");
         return 1;
     }
     pthread_t tid = r->accept_tid;
@@ -307,8 +298,58 @@ route_del(char *rest, char *reply, size_t rsz)
     pthread_mutex_unlock(&g_route_lock);
 
     pthread_join(tid, NULL);            /* wait for the accept loop + fd close */
-    if (reply && rsz) snprintf(reply, rsz, "ok: route %s removed\n", name);
+    fp_reply(reply, rsz, "ok: route %s removed\n", name);
     return 1;
+}
+
+/* A slot is worth reporting once it has an identity and is either the default
+ * route or currently listening; a `del`ed slot keeps its counters but is idle. */
+static int
+route_reportable(const fp_route *r)
+{
+    return r->in_use && (r->is_default || r->listening);
+}
+
+/* Caller holds g_route_lock for both emitters. */
+static void
+route_emit_json(char *reply, size_t rsz)
+{
+    size_t o = (size_t) snprintf(reply, rsz, "{\"routes\":[");
+    int    first = 1;
+
+    for (int i = 0; i < FP_ROUTE_MAX && o < rsz; i++) {
+        fp_route *r = &g_routes[i];
+        if (!route_reportable(r)) {
+            continue;
+        }
+        o += (size_t) snprintf(reply + o, rsz - o,
+            "%s{\"name\":\"%s\",\"port\":%d,\"targets\":%d,"
+            "\"conns\":%lu,\"up_bytes\":%lu,\"down_bytes\":%lu}",
+            first ? "" : ",", r->name, r->listen_port, r->ntargets,
+            r->conns, r->up_bytes, r->down_bytes);
+        first = 0;
+    }
+    if (o < rsz) {
+        snprintf(reply + o, rsz - o, "]}\n");
+    }
+}
+
+static void
+route_emit_text(char *reply, size_t rsz)
+{
+    size_t o = 0;
+
+    reply[0] = '\0';
+    for (int i = 0; i < FP_ROUTE_MAX && o < rsz; i++) {
+        fp_route *r = &g_routes[i];
+        if (!route_reportable(r)) {
+            continue;
+        }
+        o += (size_t) snprintf(reply + o, rsz - o,
+            "route %s port=%d targets=%d conns=%lu up=%lu down=%lu\n",
+            r->name, r->listen_port, r->ntargets,
+            r->conns, r->up_bytes, r->down_bytes);
+    }
 }
 
 static int
@@ -317,37 +358,11 @@ route_list(const char *rest, char *reply, size_t rsz)
     if (!reply || !rsz) {
         return 1;
     }
-    int json = strncmp(rest, "json", 4) == 0;
-    size_t o = 0;
-
     pthread_mutex_lock(&g_route_lock);
-    if (json) {
-        o += (size_t) snprintf(reply + o, rsz - o, "{\"routes\":[");
-        int first = 1;
-        for (int i = 0; i < FP_ROUTE_MAX && o < rsz; i++) {
-            fp_route *r = &g_routes[i];
-            if (!r->in_use || (!r->is_default && !r->listening)) {
-                continue;
-            }
-            o += (size_t) snprintf(reply + o, rsz - o,
-                "%s{\"name\":\"%s\",\"port\":%d,\"targets\":%d,"
-                "\"conns\":%lu,\"up_bytes\":%lu,\"down_bytes\":%lu}",
-                first ? "" : ",", r->name, r->listen_port, r->ntargets,
-                r->conns, r->up_bytes, r->down_bytes);
-            first = 0;
-        }
-        if (o < rsz) o += (size_t) snprintf(reply + o, rsz - o, "]}\n");
+    if (strncmp(rest, "json", 4) == 0) {
+        route_emit_json(reply, rsz);
     } else {
-        for (int i = 0; i < FP_ROUTE_MAX && o < rsz; i++) {
-            fp_route *r = &g_routes[i];
-            if (!r->in_use || (!r->is_default && !r->listening)) {
-                continue;
-            }
-            o += (size_t) snprintf(reply + o, rsz - o,
-                "route %s port=%d targets=%d conns=%lu up=%lu down=%lu\n",
-                r->name, r->listen_port, r->ntargets,
-                r->conns, r->up_bytes, r->down_bytes);
-        }
+        route_emit_text(reply, rsz);
     }
     pthread_mutex_unlock(&g_route_lock);
     return 1;
@@ -365,9 +380,7 @@ fp_route_cmd(char *args, char *reply, size_t rsz)
     if (strcmp(sub, "del") == 0)  return route_del(rest, reply, rsz);
     if (strcmp(sub, "list") == 0) return route_list(rest, reply, rsz);
 
-    if (reply && rsz) {
-        snprintf(reply, rsz, "err: usage: route add|del|list ...\n");
-    }
+    fp_reply(reply, rsz, "err: usage: route add|del|list ...\n");
     return 1;
 }
 

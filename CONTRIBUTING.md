@@ -44,6 +44,33 @@ builds on the previous.
 
 ---
 
+## Reporting a vulnerability
+
+Never in a public issue. `SECURITY.md` has the private reporting routes, what
+to include, response targets, and what is in scope. Everything in the request
+path — parsers, auth, path resolution, the cache — is security-relevant, which
+is why every behaviour change here ships with a **security negative** test
+proving the rejection actually happens, not just the success path.
+
+## Dependencies
+
+Python dependencies are split by lane and bounded on **both** sides:
+
+| File | Contents |
+|---|---|
+| `requirements.txt` | required — imported at module scope; without them collection fails |
+| `requirements-optional.txt` | feature-gated — tests `pytest.importorskip` them and skip cleanly |
+| `requirements-dev.txt` | guard/analysis tooling (lizard, CodeChecker) |
+| `k8s-tests/pytests/requirements.txt` | cluster lab only |
+
+`tools/ci/check_python_deps.py` enforces three rules: every third-party import
+is declared somewhere, every requirement has a lower **and** an upper bound, and
+nothing declared optional is imported at module scope. Adding an import means
+adding a bounded entry; a new major version arrives as a reviewed Dependabot PR
+that raises the ceiling deliberately. Do not widen a bound to make a build pass.
+
+---
+
 ## Quick orientation
 
 ```

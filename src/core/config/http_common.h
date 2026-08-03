@@ -47,4 +47,17 @@ void brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
 void brix_http_common_adopt(ngx_conf_t *cf,
                             ngx_http_brix_shared_conf_t *dst);
 
+/*
+ * Hand-written directive setters for the shared preamble (http_common_setters.c).
+ * Non-static so the command table in http_common.c can name them; not for use
+ * outside that table.
+ *   _mint_ca            — "brix_storage_credential_mint_ca <cert> <key>"
+ *   _peers              — "brix_cache_peers <url>..."
+ *   _backend_tx_endpoint — "brix_backend_token_exchange_endpoint <url>"
+ */
+char *brix_conf_set_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_conf_set_peers(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_conf_set_backend_tx_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
+                                        void *conf);
+
 #endif /* BRIX_HTTP_COMMON_H */

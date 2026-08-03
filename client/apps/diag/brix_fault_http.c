@@ -99,29 +99,27 @@ emit_added_headers(unsigned char *out, size_t cap, size_t *o,
     }
 }
 
-size_t
-fp_http_rewrite(const unsigned char *in, size_t n,
-                unsigned char *out, size_t outcap,
-                const fp_http_cfg *c, fp_http_stats *st, int *applied)
+/* Offset of the CRLFCRLF that ends the header block, or `n` when the buffer
+ * holds no complete header block (the caller then leaves the bytes alone). */
+static size_t
+http_header_end(const unsigned char *in, size_t n)
 {
-    *applied = 0;
-    const unsigned char *end = NULL;
     for (size_t i = 0; i + 3 < n; i++) {
         if (in[i] == '\r' && in[i + 1] == '\n' &&
             in[i + 2] == '\r' && in[i + 3] == '\n') {
-            end = in + i;
-            break;
+            return i;
         }
     }
-    if (!end) {
-        return 0;                                  /* no header block here */
-    }
-    *applied = 1;
-    st->msgs++;
-    int    lf = c->naked_lf;
-    size_t o = 0;
-    size_t hlen = (size_t) (end - in);             /* header bytes, no terminator */
+    return n;
+}
 
+/* Copy every header line through, rewriting Transfer-Encoding on the way when
+ * obfuscation is armed. `hlen` counts header bytes, excluding the terminator. */
+static void
+http_emit_headers(const unsigned char *in, size_t hlen,
+                  unsigned char *out, size_t outcap, size_t *o,
+                  const fp_http_cfg *c, fp_http_stats *st, int lf)
+{
     size_t ls = 0;
     while (ls <= hlen) {
         size_t le = ls;
@@ -135,10 +133,10 @@ fp_http_rewrite(const unsigned char *in, size_t n,
         size_t               llen = le - ls;
         if (llen > 0) {
             if (c->obfuscate_te && hdr_is(line, llen, "transfer-encoding")) {
-                emit_te_obfuscated(out, outcap, &o, line, llen, c->obfuscate_te, lf);
+                emit_te_obfuscated(out, outcap, o, line, llen, c->obfuscate_te, lf);
                 st->te_obf++;
             } else {
-                emit_line(out, outcap, &o, line, llen, lf);
+                emit_line(out, outcap, o, line, llen, lf);
             }
         }
         if (le >= hlen) {
@@ -146,6 +144,24 @@ fp_http_rewrite(const unsigned char *in, size_t n,
         }
         ls = le + 2;
     }
+}
+
+size_t
+fp_http_rewrite(const unsigned char *in, size_t n,
+                unsigned char *out, size_t outcap,
+                const fp_http_cfg *c, fp_http_stats *st, int *applied)
+{
+    *applied = 0;
+    size_t hlen = http_header_end(in, n);          /* header bytes, no terminator */
+    if (hlen == n) {
+        return 0;                                  /* no header block here */
+    }
+    *applied = 1;
+    st->msgs++;
+    int    lf = c->naked_lf;
+    size_t o = 0;
+
+    http_emit_headers(in, hlen, out, outcap, &o, c, st, lf);
 
     emit_added_headers(out, outcap, &o, c, st, lf);
     fp_buf_eol(out, outcap, &o, lf);               /* blank line: end of headers */
@@ -153,7 +169,7 @@ fp_http_rewrite(const unsigned char *in, size_t n,
         st->lf_converted++;
     }
 
-    const unsigned char *body = end + 4;           /* body follows CRLFCRLF */
+    const unsigned char *body = in + hlen + 4;     /* body follows CRLFCRLF */
     fp_bufcat(out, outcap, &o, body, (size_t) (in + n - body));
 
     if (c->append_len > 0) {

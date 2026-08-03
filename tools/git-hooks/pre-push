@@ -27,13 +27,29 @@ fi
 
 # Static invariant guards first — they take seconds and catch what the test
 # tier can't (seam bypasses, size ratchets, doc drift). See tools/ci/README.md.
+#
+# The guard list comes from tools/ci/guard_set.py, not from a glob here: this
+# hook used to glob for *shell* guards, which matched nothing once the fleet was
+# ported to Python, so it enforced zero guards while still failing every push
+# on the unmatched pattern. One resolver, shared with CI and its tests.
 echo "[pre-push] running tools/ci guards"
-for g in "$REPO"/tools/ci/check_*.sh; do
+guards="$(python3 "$REPO/tools/ci/guard_set.py")" || {
+    echo "[pre-push] ✗ cannot resolve the guard set — push blocked (bypass: --no-verify)"
+    exit 1
+}
+if [ -z "$guards" ]; then
+    echo "[pre-push] ✗ guard set resolved to nothing — push blocked (bypass: --no-verify)"
+    exit 1
+fi
+
+while IFS= read -r g; do
     if ! "$g"; then
         echo "[pre-push] ✗ guard failed: ${g##*/} — push blocked (bypass: --no-verify)"
         exit 1
     fi
-done
+done <<EOF
+$guards
+EOF
 
 echo "[pre-push] running fast test tier — ~4min; bypass with 'git push --no-verify'"
 echo "[pre-push] (tests run against the CURRENT build — rebuild first if you changed src/)"

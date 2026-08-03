@@ -1,0 +1,63 @@
+# Dependabot — automated dependency and CI-action update PRs.
+#
+# Every requirement in this repo is bounded on BOTH sides
+# (tools/ci/check_python_deps.py enforces it), so a new major does not enter CI
+# on its own. That makes an update PR a *review*, not a surprise: Dependabot
+# raises the ceiling explicitly and the guards + fast suite run against it. If a
+# PR here only bumps a `<` bound, that is exactly what it is supposed to do —
+# read the upstream changelog before approving, and never widen a bound merely
+# to make a red build go green.
+#
+# Security updates are delivered regardless of the schedule below.
+version: 2
+updates:
+  # --- Python: the test suite's own dependency surface ------------------------
+  - package-ecosystem: pip
+    directories:
+      - "/"                       # requirements{,-optional,-dev}.txt
+      - "/k8s-tests/pytests"      # cluster-lab only
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "python"]
+    groups:
+      # One PR for the runner + plugins: they move together and a split bump
+      # produces plugin/runner incompatibilities that read as suite failures.
+      pytest:
+        patterns: ["pytest", "pytest-*"]
+      # Everything else, minor+patch only, batched — majors still arrive alone
+      # so they get their own review.
+      python-minor:
+        patterns: ["*"]
+        exclude-patterns: ["pytest", "pytest-*"]
+        update-types: ["minor", "patch"]
+
+  # --- GitHub Actions: the guard/analysis lanes run as root-equivalent --------
+  # A compromised third-party action reads every secret in the job. Pinning and
+  # updating them is supply-chain hygiene, not housekeeping.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "ci"]
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # --- Container base images --------------------------------------------------
+  # The RPM build containers are the reference build environment; the k8s and
+  # CVMFS images are what the labs actually run. Base-image CVEs land here.
+  - package-ecosystem: docker
+    directories:
+      - "/packaging/rpm"
+      - "/k8s-tests/Dockerfiles/server"
+      - "/k8s-tests/Dockerfiles/client"
+      - "/k8s-tests/images/server"
+      - "/deploy/cvmfs/docker"
+      - "/tests/ceph"
+    schedule:
+      interval: monthly
+    labels: ["dependencies", "container"]
+    open-pull-requests-limit: 3

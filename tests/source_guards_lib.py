@@ -50,6 +50,8 @@ def _is_comment_line(code: str) -> bool:
 # ---------------------------------------------------------------------------
 _CONFIG_ALLOWLIST = (
     "src/core/compat/kxr_names.c",
+    "src/fs/backend/gsiftp/gftp_mlsx.c",
+    "src/fs/backend/gsiftp/gftp_reply.c",
     "src/fs/cache/noop.c",
     "src/fs/scan/scan_drift.c",
     "src/net/guard/guard_test.c",
@@ -84,6 +86,55 @@ def config_coverage(root: Path = ROOT) -> tuple[bool, list[str]]:
     for f in sorted(config):  # reverse: ./config lists a vanished file
         if not (root / f).is_file():
             msgs.append(f"STALE CONFIG: ./config lists {f} but the file does not exist")
+
+    return (not msgs, msgs)
+
+
+# ---------------------------------------------------------------------------
+# check_client_build_coverage.py — every client/ and shared/{cvmfs,cache} .c is
+# named by client/Makefile, or is a standalone-built driver, or is allowlisted.
+# ---------------------------------------------------------------------------
+_CLIENT_SCAN = ("client", "shared/cvmfs", "shared/cache")
+_CLIENT_ALLOWLIST: tuple[str, ...] = ()
+_CLIENT_EXCUSED_DIRS = ("client/tests/", "client/examples/", "client/bin/")
+
+
+def _client_tree(root: Path) -> list[str]:
+    out = []
+    for top in _CLIENT_SCAN:
+        for p in (root / top).rglob("*.c"):
+            rel = str(p.relative_to(root))
+            if (
+                p.name.endswith("_unittest.c")
+                or "_unittest_" in p.name
+                or p.name.endswith("_unit.c")
+                or rel.startswith(_CLIENT_EXCUSED_DIRS)
+            ):
+                continue
+            out.append(rel)
+    return sorted(out)
+
+
+def client_build_coverage(root: Path = ROOT) -> tuple[bool, list[str]]:
+    makefile = (root / "client/Makefile").read_text()
+    allow = set(_CLIENT_ALLOWLIST)
+    msgs: list[str] = []
+
+    for rel in _client_tree(root):
+        stem = rel[: -len(".c")]
+        for prefix in ("client/", "shared/"):
+            if stem.startswith(prefix):
+                stem = stem[len(prefix) :]
+                break
+        named = any(f"{stem}{ext}" in makefile for ext in (".c", ".o", ".pic.o"))
+        if rel not in allow and not named:
+            msgs.append(
+                f"NOT BUILT: {rel} — add it to client/Makefile, or allowlist it "
+                f"here with a reason"
+            )
+    for a in _CLIENT_ALLOWLIST:
+        if not (root / a).is_file():
+            msgs.append(f"STALE ALLOWLIST: {a} no longer exists — remove it")
 
     return (not msgs, msgs)
 

@@ -35,8 +35,27 @@ from pathlib import Path
 # tools/readability.py owns lizard invocation + robust CSV parsing (lizard's
 # signature column contains commas/quotes) and the CCN cap — reuse it verbatim
 # so this guard and `readability.py --gate-csv` can never drift.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import readability  # noqa: E402
+#
+# That engine is a SEPARATE file from this guard, which makes a specific CI
+# failure possible: this guard is committed, readability.py is not, and CI —
+# which builds from a fresh clone, not from a developer's working tree — dies on
+# `ModuleNotFoundError: No module named 'readability'`. The bare traceback reads
+# as "the guard is broken" and sends the reader hunting for a complexity
+# regression that does not exist, so name the real cause and the real remedy
+# here. tests/test_guard_dependencies.py stops it recurring.
+_TOOLS = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_TOOLS))
+try:
+    import readability  # noqa: E402
+except ModuleNotFoundError as exc:            # pragma: no cover - CI-only path
+    if exc.name != "readability":
+        raise
+    print(f"check_complexity: FAIL — its lizard engine {_TOOLS / 'readability.py'} "
+          "is missing. This guard cannot measure anything without it. On CI that "
+          "means the file exists in a working tree but was never committed: run "
+          "`git status --porcelain tools/readability.py` and add it.",
+          file=sys.stderr)
+    sys.exit(1)
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKLOG = ROOT / "tools/ci/complexity_backlog.txt"

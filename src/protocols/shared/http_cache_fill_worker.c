@@ -139,6 +139,56 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
     ngx_http_run_posted_requests(c);
 }
 
+/* ONE outcome line per fill — the anchor every other event (retry /
+ * hold-expired / client-gone) correlates with via the key. Level and verdict
+ * follow the outcome: a detached success is NOTICE (nobody was left to serve),
+ * a definitive 404 is INFO, deadline exhaustion is WARN, anything else ERR. */
+static void
+brix_http_fill_log_outcome(const brix_http_cache_fill_ctx_t *t,
+    const ngx_event_t *ev)
+{
+    int         waiters = atomic_load_explicit(&t->waiters_n,
+                                               memory_order_relaxed);
+    char        kbuf[256];
+    const char *k = brix_http_fill_log_key(t->key, kbuf, sizeof(kbuf));
+    ngx_msec_t  elapsed = ngx_current_msec - t->started_ms;
+
+    if (t->result == NGX_OK) {
+        ngx_uint_t lvl = (waiters > 0) ? NGX_LOG_INFO : NGX_LOG_NOTICE;
+
+        ngx_log_error(lvl, ev->log, 0,
+            "xrootd-fill: event=%s key=\"%s\" attempts=%ud "
+            "elapsed_ms=%M waiters=%d",
+            (waiters > 0) ? "done" : "done-detached", k,
+            t->attempts, elapsed, waiters);
+        return;
+    }
+    if (t->err == ENOENT || t->err == ENOTDIR) {
+        ngx_log_error(NGX_LOG_INFO, ev->log, 0,
+            "xrootd-fill: event=not-found key=\"%s\" attempts=%ud "
+            "elapsed_ms=%M waiters=%d — the origin's definitive 404",
+            k, t->attempts, elapsed, waiters);
+        return;
+    }
+    if (t->err == ETIMEDOUT) {
+        ngx_log_error(NGX_LOG_WARN, ev->log, 0,
+            "xrootd-fill: event=exhausted key=\"%s\" attempts=%ud "
+            "elapsed_ms=%M waiters=%d verdict=\"504 retry-later to every "
+            "waiter; no origin answered within the deadline\"",
+            k, t->attempts, elapsed, waiters);
+        return;
+    }
+    ngx_log_error(NGX_LOG_ERR, ev->log, t->err,
+        "xrootd-fill: event=failed key=\"%s\" attempts=%ud "
+        "elapsed_ms=%M waiters=%d verdict=%s",
+        k, t->attempts, elapsed, waiters,
+        (t->err == EBADMSG)
+            ? "\"502; every endpoint served corrupt data "
+              "(verify quarantined the evidence)\""
+            : "\"502 to every waiter\"");
+}
+
+
 /* Event loop: resolve EVERY still-attached waiter with the one fill outcome
  * (the stampede coalescing contract), then release the fill. Waiter memory
  * stays with its request's pool cleanup. */
@@ -162,45 +212,7 @@ brix_http_cache_fill_done(ngx_event_t *ev)
         }
     }
 
-    /* ONE outcome line per fill — the anchor every other event (retry /
-     * hold-expired / client-gone) correlates with via the key. */
-    {
-        int   waiters = atomic_load_explicit(&t->waiters_n,
-                                             memory_order_relaxed);
-        char  kbuf[256];
-        const char *k = brix_http_fill_log_key(t->key, kbuf, sizeof(kbuf));
-        ngx_msec_t elapsed = ngx_current_msec - t->started_ms;
-
-        if (t->result == NGX_OK) {
-            ngx_uint_t lvl = (waiters > 0) ? NGX_LOG_INFO : NGX_LOG_NOTICE;
-
-            ngx_log_error(lvl, ev->log, 0,
-                "xrootd-fill: event=%s key=\"%s\" attempts=%ud "
-                "elapsed_ms=%M waiters=%d",
-                (waiters > 0) ? "done" : "done-detached", k,
-                t->attempts, elapsed, waiters);
-        } else if (t->err == ENOENT || t->err == ENOTDIR) {
-            ngx_log_error(NGX_LOG_INFO, ev->log, 0,
-                "xrootd-fill: event=not-found key=\"%s\" attempts=%ud "
-                "elapsed_ms=%M waiters=%d — the origin's definitive 404",
-                k, t->attempts, elapsed, waiters);
-        } else if (t->err == ETIMEDOUT) {
-            ngx_log_error(NGX_LOG_WARN, ev->log, 0,
-                "xrootd-fill: event=exhausted key=\"%s\" attempts=%ud "
-                "elapsed_ms=%M waiters=%d verdict=\"504 retry-later to every "
-                "waiter; no origin answered within the deadline\"",
-                k, t->attempts, elapsed, waiters);
-        } else {
-            ngx_log_error(NGX_LOG_ERR, ev->log, t->err,
-                "xrootd-fill: event=failed key=\"%s\" attempts=%ud "
-                "elapsed_ms=%M waiters=%d verdict=%s",
-                k, t->attempts, elapsed, waiters,
-                (t->err == EBADMSG)
-                    ? "\"502; every endpoint served corrupt data "
-                      "(verify quarantined the evidence)\""
-                    : "\"502 to every waiter\"");
-        }
-    }
+    brix_http_fill_log_outcome(t, ev);
 
     ok = (t->result == NGX_OK);
     err = ok ? NULL : brix_sesslog_err_from_errno(t->err, errscratch,

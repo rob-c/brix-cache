@@ -10,6 +10,12 @@ the real `tools/ci/*.py` scripts end-to-end. Guards covered here:
 - config_coverage — every non-unittest ``.c`` under ``src/`` is compiled via the
   repo-root ``./config`` or on a reasoned allowlist; stale ``./config`` entries
   and stale allowlist rows also fail.
+- client_build_coverage — every ``.c`` under ``client/`` and the client-only
+  ``shared/{cvmfs,cache}`` trees is named by ``client/Makefile`` (which promises
+  "every .c must be listed (no wildcards)"), is a standalone-built ``*_unit.c`` /
+  ``*_unittest.c`` driver, or is on a reasoned allowlist. The client-side twin of
+  config_coverage: an orphaned split sibling used to surface only as a link-time
+  ``undefined reference``.
 - http_helper_reimpl — protocol/observability handlers must not regrow private
   copies of the shared HTTP helpers in ``src/core/http/`` (raw header-scan loops,
   local precondition logic, hand-rolled ETags).
@@ -35,6 +41,7 @@ import source_guards_lib as g
 # Zero-arg guards asserted against the real tree.
 _REAL_TREE_GUARDS = {
     "config_coverage": g.config_coverage,
+    "client_build_coverage": g.client_build_coverage,
     "http_helper_reimpl": g.http_helper_reimpl,
     "metric_cardinality": g.metric_cardinality,
     "auth_verdict_sentinel": g.auth_verdict_sentinel,

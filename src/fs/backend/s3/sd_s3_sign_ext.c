@@ -1,0 +1,264 @@
+/* sd_s3_sign_ext.c — extended SigV4 signer (arbitrary verb + extra headers).
+ *
+ * WHAT: SigV4 signing for the metadata/copy verbs: unlike sd_s3_sign() in
+ *       sd_s3_sign.c (which signs a fixed GET/PUT shape), this signer takes a
+ *       caller-supplied method, canonical query string and a sorted set of
+ *       extra x-amz-* headers, so PUT-with-metadata and CopyObject can sign the
+ *       headers they actually send.
+ *
+ * WHY:  Split out of sd_s3_meta.c, which crossed the 600-line cap
+ *       (coding-standards §1). Signing is a self-contained crypto stage with no
+ *       knowledge of the metadata verbs that call it.
+ *
+ * HOW:  prepare → canonical request → string-to-sign → derive key + sign →
+ *       emit Authorization header, each a separate early-return step. The
+ *       request-description types and the entry point are declared in
+ *       sd_s3_internal.h; the working context stays private to this TU. */
+
+
+#include "sd_s3_internal.h"
+#include "core/compat/crypto.h"        /* brix_sha256 / brix_hmac_sha256 */
+#include "core/compat/hex.h"           /* brix_hex_encode */
+#include "core/compat/sigv4.h"         /* brix_sigv4_signing_key */
+#include "core/compat/uri.h"           /* brix_http_urlencode */
+#include "core/compat/host_format.h"   /* brix_format_host_port */
+
+#include <errno.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+
+
+static int
+sd_s3_sign_hdr_cmp(const void *a, const void *b)
+{
+    return strcmp(((const sd_s3_sign_hdr_t *) a)->name,
+                  ((const sd_s3_sign_hdr_t *) b)->name);
+}
+
+/*
+ * sd_s3_sign_ctx_t — file-local working state for the extended SigV4 signer.
+ * Carries the request identity (method / query string / extra headers), the
+ * fixed signed-header values (host, x-amz-date, payload hash) and every
+ * intermediate the pipeline stages hand to each other (sorted header set,
+ * canonical-request hash, credential scope, signed-header list, signature).
+ * One struct instead of 7+ loose parameters per helper.
+ */
+typedef struct {
+    const char             *method;        /* HTTP verb being signed */
+    const char             *canon_qs;      /* canonical query string ("" ok) */
+    const char             *payload_hex;   /* payload hash (UNSIGNED-PAYLOAD) */
+    const sd_s3_sign_hdr_t *extra;         /* caller's additional headers */
+    size_t                  n_extra;
+    sd_s3_sign_hdr_t        all[3 + 32];   /* fixed + extra, sorted for canon */
+    size_t                  n_all;
+    char                    host[300];     /* Host header value */
+    char                    amzdate[20];   /* x-amz-date (ISO8601 basic) */
+    char                    datestamp[12]; /* YYYYMMDD for the scope */
+    char                    enc_uri[2048]; /* URI-encoded object key */
+    char                    signed_list[2048]; /* "a;b;c" SignedHeaders */
+    char                    canon_hex[65]; /* SHA-256(canonical request) hex */
+    char                    scope[160];    /* date/region/s3/aws4_request */
+    char                    sighex[65];    /* final signature, hex */
+} sd_s3_sign_ctx_t;
+
+/*
+ * sd_s3_sign_prepare — stage 1: bind the request identity into the signing
+ * context.  Formats host:port, stamps the current UTC time, URI-encodes the
+ * object key, then assembles the full signed-header set (fixed host /
+ * x-amz-content-sha256 / x-amz-date plus the caller's extras) sorted by name
+ * as SigV4 canonicalization requires.  0 / -1 (key too long to encode).
+ */
+static int
+sd_s3_sign_prepare(const sd_s3_file *f, sd_s3_sign_ctx_t *sx)
+{
+    size_t  i;
+
+    brix_format_host_port(f->host, (uint16_t) f->port, sx->host,
+                          sizeof(sx->host));
+    sd_s3_utc_now(sx->amzdate, sx->datestamp);
+    if (brix_http_urlencode((const unsigned char *) f->key, strlen(f->key),
+                              sx->enc_uri, sizeof(sx->enc_uri), "/") < 0)
+    {
+        return -1;
+    }
+
+    sx->n_all = 0;
+    sx->all[sx->n_all].name = "host";
+    sx->all[sx->n_all++].value = sx->host;
+    sx->all[sx->n_all].name = "x-amz-content-sha256";
+    sx->all[sx->n_all++].value = sx->payload_hex;
+    sx->all[sx->n_all].name = "x-amz-date";
+    sx->all[sx->n_all++].value = sx->amzdate;
+    for (i = 0; i < sx->n_extra; i++) {
+        sx->all[sx->n_all++] = sx->extra[i];
+    }
+    qsort(sx->all, sx->n_all, sizeof(sx->all[0]), sd_s3_sign_hdr_cmp);
+    return 0;
+}
+
+/*
+ * sd_s3_canonical_request — stage 2: build the SigV4 canonical request
+ * (method \n uri \n qs \n sorted "name:value\n" headers \n signed-list \n
+ * payload-hash) and hash it into sx->canon_hex; also accumulates the
+ * ";"-joined SignedHeaders list the Authorization line reuses.  The canonical
+ * buffer itself never leaves this frame — only its SHA-256 matters.  0 / -1
+ * on truncation.
+ */
+static int
+sd_s3_canonical_request(sd_s3_sign_ctx_t *sx)
+{
+    char    canon[16384];
+    size_t  i, sl = 0;
+    int     off, cn;
+
+    off = snprintf(canon, sizeof(canon), "%s\n%s\n%s\n", sx->method,
+                   sx->enc_uri, sx->canon_qs);
+    if (off < 0 || (size_t) off >= sizeof(canon)) {
+        return -1;
+    }
+    for (i = 0; i < sx->n_all; i++) {
+        cn = snprintf(canon + off, sizeof(canon) - (size_t) off, "%s:%s\n",
+                      sx->all[i].name, sx->all[i].value);
+        if (cn < 0 || (size_t) off + (size_t) cn >= sizeof(canon)) {
+            return -1;
+        }
+        off += cn;
+        cn = snprintf(sx->signed_list + sl, sizeof(sx->signed_list) - sl,
+                      "%s%s", (i ? ";" : ""), sx->all[i].name);
+        if (cn < 0 || sl + (size_t) cn >= sizeof(sx->signed_list)) {
+            return -1;
+        }
+        sl += (size_t) cn;
+    }
+    cn = snprintf(canon + off, sizeof(canon) - (size_t) off, "\n%s\n%s",
+                  sx->signed_list, sx->payload_hex);
+    if (cn < 0 || (size_t) off + (size_t) cn >= sizeof(canon)) {
+        return -1;
+    }
+    sd_s3_sha256_hex(canon, strlen(canon), sx->canon_hex);
+    return 0;
+}
+
+/*
+ * sd_s3_string_to_sign — stage 3a: derive the credential scope
+ * (date/region/s3/aws4_request → sx->scope) and format the SigV4
+ * string-to-sign ("AWS4-HMAC-SHA256\n date \n scope \n canon-hash") into the
+ * caller's buffer.  0 / -1 on truncation.
+ */
+static int
+sd_s3_string_to_sign(const sd_s3_file *f, sd_s3_sign_ctx_t *sx,
+                     char *sts, size_t stscap)
+{
+    int  cn;
+
+    cn = snprintf(sx->scope, sizeof(sx->scope), "%s/%s/s3/aws4_request",
+                  sx->datestamp, f->region);
+    if (cn < 0 || (size_t) cn >= sizeof(sx->scope)) {
+        return -1;
+    }
+    cn = snprintf(sts, stscap, "AWS4-HMAC-SHA256\n%s\n%s\n%s", sx->amzdate,
+                  sx->scope, sx->canon_hex);
+    if (cn < 0 || (size_t) cn >= stscap) {
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * sd_s3_derive_key_and_sign — stage 3b: run the SigV4 key-derivation chain
+ * (secret → date → region → service → aws4_request) and HMAC the
+ * string-to-sign with the derived key, hex-encoding the signature into
+ * sx->sighex.  0 / -1 if any crypto primitive fails.
+ */
+static int
+sd_s3_derive_key_and_sign(const sd_s3_file *f, sd_s3_sign_ctx_t *sx,
+                          const char *sts)
+{
+    uint8_t  k4[32], sig[32];
+
+    if (!brix_sigv4_signing_key((const uint8_t *) f->sk, strlen(f->sk),
+                                  sx->datestamp, f->region, "s3", k4)
+        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig))
+    {
+        return -1;
+    }
+    brix_hex_encode(sig, 32, sx->sighex);
+    return 0;
+}
+
+/*
+ * sd_s3_emit_auth_header — stage 4: write the complete request header block
+ * the transport sends: x-amz-date, x-amz-content-sha256, every extra header
+ * verbatim (in caller order — the sorted set was for canonicalization only),
+ * then the Authorization line carrying credential scope, SignedHeaders and
+ * the signature.  0 / -1 on truncation.
+ */
+static int
+sd_s3_emit_auth_header(const sd_s3_file *f, const sd_s3_sign_ctx_t *sx,
+                       char *hdrs, size_t hdrsz)
+{
+    size_t  i;
+    int     off, cn;
+
+    off = snprintf(hdrs, hdrsz,
+                   "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n",
+                   sx->amzdate, sx->payload_hex);
+    if (off < 0 || (size_t) off >= hdrsz) {
+        return -1;
+    }
+    for (i = 0; i < sx->n_extra; i++) {
+        cn = snprintf(hdrs + off, hdrsz - (size_t) off, "%s: %s\r\n",
+                      sx->extra[i].name, sx->extra[i].value);
+        if (cn < 0 || (size_t) off + (size_t) cn >= hdrsz) {
+            return -1;
+        }
+        off += cn;
+    }
+    cn = snprintf(hdrs + off, hdrsz - (size_t) off,
+                  "Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, "
+                  "SignedHeaders=%s, Signature=%s\r\n",
+                  f->ak, sx->scope, sx->signed_list, sx->sighex);
+    if (cn < 0 || (size_t) off + (size_t) cn >= hdrsz) {
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * sd_s3_sign_ext — SigV4 over an arbitrary set of additional x-amz-* headers (on
+ * top of the fixed host / x-amz-content-sha256 / x-amz-date). Used by set-meta,
+ * whose copy-onto-self carries x-amz-copy-source, x-amz-metadata-directive and
+ * the x-amz-meta-* pairs — all of which AWS requires in the signed header set.
+ * Emits the complete request header block to send (the extra headers + the
+ * Authorization line). 0 / -1. Reuses every kernel sd_s3_sign uses.  Pure
+ * pipeline: prepare → canonical request → string-to-sign → sign → emit.
+ */
+int
+sd_s3_sign_ext(const sd_s3_file *f, const sd_s3_sign_req_t *req,
+               char *hdrs, size_t hdrsz)
+{
+    sd_s3_sign_ctx_t  sx;
+    char              sts[640];
+
+    if (req->n_extra > 32) {
+        return -1;
+    }
+    sx.method      = req->method;
+    sx.canon_qs    = (req->canon_qs != NULL) ? req->canon_qs : "";
+    sx.payload_hex = "UNSIGNED-PAYLOAD";
+    sx.extra       = req->extra;
+    sx.n_extra     = req->n_extra;
+
+    if (sd_s3_sign_prepare(f, &sx) != 0
+        || sd_s3_canonical_request(&sx) != 0
+        || sd_s3_string_to_sign(f, &sx, sts, sizeof(sts)) != 0
+        || sd_s3_derive_key_and_sign(f, &sx, sts) != 0)
+    {
+        return -1;
+    }
+    return sd_s3_emit_auth_header(f, &sx, hdrs, hdrsz);
+}

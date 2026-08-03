@@ -39,6 +39,8 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
 {
     ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
     ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
+    ngx_conf_merge_value(conf->tpc_source_guard,  prev->tpc_source_guard,  0);
+    ngx_conf_merge_ptr_value(conf->tpc_source_allow, prev->tpc_source_allow, NULL);
     ngx_conf_merge_value(conf->ssi_enable,        prev->ssi_enable,        0);
     ngx_conf_merge_value(conf->ssi_cta_enable,    prev->ssi_cta_enable,    0);
     /* defaults mirror BRIX_SSI_MAX_INFLIGHT (8) and the 1 MiB req/resp caps. */

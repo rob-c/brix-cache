@@ -271,6 +271,14 @@ typedef struct {
      * armed for a server fronting this listener and it hit real rot on disk.
      */
     ngx_atomic_t  csi_scrub_mismatch_total; /* at-rest blocks failing CRC re-verify*/
+
+    /*
+     * TPC source-egress guard (brix_tpc_source_guard). Counts pulls refused
+     * because the requested source host was not on brix_tpc_source_allow.
+     * Low-cardinality (INVARIANT 8): no host label — the banned host rides the
+     * fail2ban audit line, not the metric. Stays 0 unless the guard is enabled.
+     */
+    ngx_atomic_t  tpc_egress_refused_total;
 } ngx_brix_srv_metrics_t;
 
 /* ---- Per-VO traffic tracking (bounded LRU, low-cardinality) ---- */
