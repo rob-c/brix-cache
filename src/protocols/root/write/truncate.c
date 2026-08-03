@@ -53,8 +53,6 @@ brix_handle_truncate(brix_ctx_t *ctx, ngx_connection_t *c,
 		}
 		{
 			brix_vfs_ctx_t   vctx;
-			brix_vfs_file_t *fh;
-			int                vfs_err = 0;
 
 			brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
 				conf->common.root_canon, NULL, conf->common.allow_write,
@@ -63,31 +61,24 @@ brix_handle_truncate(brix_ctx_t *ctx, ngx_connection_t *c,
 				&conf->common.storage_credential_dir,
 				conf->common.storage_credential_fallback);
 			/* Phase-3 T1: opt-in credential minting, mirroring the davs/S3
-			 * PUT mint bind — a write-open touches the origin object. */
+			 * PUT mint bind — a write touches the origin object. */
 			brix_vfs_ctx_bind_backend_mint(&vctx,
 				&conf->common.storage_credential_mint_ca_cert,
 				&conf->common.storage_credential_mint_ca_key,
 				conf->common.storage_credential_mint_ttl);
 			brix_root_vfs_bind_deleg(ctx, conf, &vctx);
-			fh = brix_vfs_open(&vctx, BRIX_VFS_O_WRITE, &vfs_err);
-			if (fh == NULL) {
-				/* Map the real errno (ENOENT→kXR_NotFound, EACCES→…) instead of a
-				 * blanket kXR_IOError: stock truncate of a missing path returns
-				 * 3011 (NotFound), and XrdCl/gfal branch on the code. */
-				BRIX_RETURN_ERR(ctx, c, BRIX_OP_TRUNCATE, "TRUNCATE",
-								  resolved, detail,
-								  brix_kxr_from_errno(vfs_err),
-								  strerror(vfs_err));
-			}
-			if (brix_vfs_truncate(fh, (off_t) length) != NGX_OK) {
+			/* Path-native truncate: over a remote (root://) backend this resizes
+			 * the origin BY NAME — no write-open, so no staged RECALL + colliding
+			 * commit (the pre-fix kXR_Unsupported). POSIX falls back to
+			 * open+ftruncate+close inside the seam. Map the real errno
+			 * (ENOENT→kXR_NotFound, EACCES→…) — XrdCl/gfal branch on the code. */
+			if (brix_vfs_truncate_path(&vctx, (off_t) length) != NGX_OK) {
 				int err = errno;
 
-				brix_vfs_close(fh, c->log);
 				BRIX_RETURN_ERR(ctx, c, BRIX_OP_TRUNCATE, "TRUNCATE",
 								  resolved, detail,
 								  brix_kxr_from_errno(err), strerror(err));
 			}
-			brix_vfs_close(fh, c->log);
 		}
 		brix_log_access(ctx, c, "TRUNCATE", resolved, detail,
 						  1, 0, NULL, 0);

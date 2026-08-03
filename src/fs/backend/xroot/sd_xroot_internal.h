@@ -150,6 +150,8 @@ ngx_int_t sd_xroot_rename(brix_sd_instance_t *inst, const char *src,
               const char *dst, int noreplace);
 ngx_int_t sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
 ngx_int_t sd_xroot_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode);
+ngx_int_t sd_xroot_truncate_path(brix_sd_instance_t *inst, const char *path,
+              off_t len);
 ngx_int_t sd_xroot_server_copy(brix_sd_instance_t *inst, const char *src,
               const char *dst, off_t *bytes_out);
 
@@ -162,6 +164,8 @@ ngx_int_t sd_xroot_unlink_cred(brix_sd_instance_t *inst, const char *path,
               int is_dir, const brix_sd_cred_t *cred);
 ngx_int_t sd_xroot_rename_cred(brix_sd_instance_t *inst, const char *src,
               const char *dst, int noreplace, const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
+              off_t len, const brix_sd_cred_t *cred);
 ngx_int_t sd_xroot_server_copy_cred(brix_sd_instance_t *inst,
               const char *src, const char *dst, off_t *bytes_out,
               const brix_sd_cred_t *cred);

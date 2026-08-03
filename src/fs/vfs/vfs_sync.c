@@ -51,6 +51,90 @@ brix_vfs_truncate(brix_vfs_file_t *fh, off_t length)
     return NGX_OK;
 }
 
+/* Path-based truncate: resize the resolved ctx path to `length` WITHOUT opening a
+ * write handle when the backend offers a path-native truncate. Write-gated.
+ *
+ * WHY:  Over a remote (root://) backend BriX auto-composes a write-stage tier; the
+ *       old handler opened a WRITE handle to truncate, which staged the file (whole-
+ *       file RECALL) and took an origin write-open that self-collides on commit —
+ *       surfacing as kXR_Unsupported. A path-native truncate resizes the origin by
+ *       name in one round-trip, no staging.
+ *
+ * HOW:  When the bound driver advertises truncate_path (remote xroot, directly or
+ *       via the stage decorator's forwarder), dispatch on the LEAF instance through
+ *       brix_sd_truncate_path_maybe_cred so per-user credentials reach the leaf's
+ *       truncate_path_cred slot (decorators carry only plain relays). Otherwise
+ *       (POSIX and any backend without the slot) fall back to the original
+ *       open(O_WRITE)+ftruncate+close, preserving prior behavior exactly.
+ *       Unmetered like brix_vfs_truncate — the kXR_truncate handler logs access. */
+ngx_int_t
+brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length)
+{
+    const brix_sd_driver_t *drv;
+    const char               *path;
+
+    if (length < 0) {
+        errno = EINVAL;
+        return NGX_ERROR;
+    }
+    if (brix_vfs_require_write(ctx) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    path = brix_vfs_ctx_path(ctx);
+    drv  = brix_vfs_ctx_driver(ctx);
+
+    if (drv != NULL && drv->truncate_path != NULL) {
+        brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
+        brix_sd_ucred_t     store;
+        brix_sd_cred_t      cred;
+        ngx_int_t           rc;
+        int                 use_cred = 0, cred_err = 0, saved_errno;
+        const char           *key;
+
+        /* Zero before the gate: it fills only the active credential kind; an
+         * unzeroed cred hands a garbage inactive pointer to the driver's slot. */
+        ngx_memzero(&cred, sizeof(cred));
+
+        if (brix_vfs_cred_gate_active(ctx)) {
+            if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
+                != NGX_OK)
+            {
+                errno = cred_err ? cred_err : EACCES;
+                return NGX_ERROR;
+            }
+        }
+
+        key = brix_vfs_export_relative(ctx, path);
+        rc = brix_sd_truncate_path_maybe_cred(leaf, key, length,
+                 use_cred ? &cred : NULL);
+        saved_errno = errno;
+        brix_sd_ucred_wipe(&store);   /* secret consumed; erase (A-4/T4) */
+        errno = saved_errno;
+        return rc;
+    }
+
+    /* Fallback: no path-native truncate — open a write handle, resize, close. */
+    {
+        brix_vfs_file_t *fh;
+        int                vfs_err = 0;
+
+        fh = brix_vfs_open(ctx, BRIX_VFS_O_WRITE, &vfs_err);
+        if (fh == NULL) {
+            errno = vfs_err;
+            return NGX_ERROR;
+        }
+        if (brix_vfs_truncate(fh, length) != NGX_OK) {
+            int e = errno;
+            brix_vfs_close(fh, ctx->log);
+            errno = e;
+            return NGX_ERROR;
+        }
+        brix_vfs_close(fh, ctx->log);
+        return NGX_OK;
+    }
+}
+
 /* Flush the open handle to stable storage (fsync). NGX_ERROR with errno set on
  * a bad handle or fsync failure. */
 ngx_int_t

@@ -535,6 +535,12 @@ ngx_int_t brix_vfs_mkdir(brix_vfs_ctx_t *ctx, mode_t mode,
  * reads see the new length. Unmetered. NGX_ERROR with errno set on a bad handle,
  * negative length, or ftruncate failure. */
 ngx_int_t brix_vfs_truncate(brix_vfs_file_t *fh, off_t length);
+/* Path-based truncate of the resolved ctx path to `length` — write-gated. Uses a
+ * backend path-native truncate (remote xroot / stage decorator) when available so
+ * a remote resize needs no write-open (no staging self-collision); otherwise falls
+ * back to open(O_WRITE)+ftruncate+close. Unmetered (the kXR_truncate handler logs
+ * access). NGX_ERROR with errno set on failure (ENOENT for a missing path). */
+ngx_int_t brix_vfs_truncate_path(brix_vfs_ctx_t *ctx, off_t length);
 /* fsync the open handle to stable storage. Unmetered (the enclosing write op
  * records the metric). NGX_ERROR with errno set on a bad handle or fsync error. */
 ngx_int_t brix_vfs_sync(brix_vfs_file_t *fh);

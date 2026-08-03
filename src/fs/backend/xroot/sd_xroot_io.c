@@ -246,31 +246,50 @@ sd_xroot_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* Fill *out from a parsed origin kXR_stat reply: a directory becomes
+ * S_IFDIR|0755 / is_dir, a file S_IFREG|0444 / is_reg. Shared by the service and
+ * credential-scoped stat slots so both describe directories identically. */
+static void
+sd_xroot_stat_fill(brix_sd_stat_t *out, const brix_cache_stat_out_t *so)
+{
+    ngx_memzero(out, sizeof(*out));
+    out->size  = so->size;
+    out->mtime = so->mtime;
+    if (so->is_dir) {
+        out->mode   = S_IFDIR | 0755;
+        out->is_dir = 1;
+    } else {
+        out->mode   = S_IFREG | 0444;
+        out->is_reg = 1;
+    }
+}
+
 ngx_int_t
 sd_xroot_stat(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out)
 {
-    sd_xroot_inst_state *is = inst->state;
-    sd_xroot_obj_state  *st;
-    off_t                size = 0;
-    int                  e = 0;
-    sd_xroot_origin_open_req_t req = {
-        .conf = is->conf, .cred = NULL /* service cred */, .path = path,
-        .want_write = 0 /* read */, .mode = 0,
-        .size_out = &size, .err_out = &e,
-    };
+    sd_xroot_inst_state       *is = inst->state;
+    brix_cache_origin_conn_t   oc;
+    brix_cache_fill_t         *t;
+    brix_cache_stat_out_t      so;
+    int                        rc, e = 0;
 
-    st = sd_xroot_origin_open(&req);
-    if (st == NULL) {
+    /* Real kXR_stat (by name), not stat-by-open: an open of a directory returns
+     * kXR_isDirectory→EISDIR, so the old probe could never describe a dir and
+     * broke isdir/mv/statx/locate. kXR_stat carries the kXR_isDir flag. */
+    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) {
         errno = e;
         return NGX_ERROR;
     }
-    sd_xroot_obj_teardown(st);
-
-    ngx_memzero(out, sizeof(*out));
-    out->size   = size;
-    out->mode   = S_IFREG | 0444;
-    out->is_reg = 1;
+    rc = brix_cache_origin_stat(t, &oc, path, &so);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) {
+        errno = e;
+        return NGX_ERROR;
+    }
+    sd_xroot_stat_fill(out, &so);
     return NGX_OK;
 }
 
@@ -282,34 +301,32 @@ sd_xroot_stat(brix_sd_instance_t *inst, const char *path,
  *       as the user — never opening a session on the service credential.
  * WHY:  brix_vfs_probe dispatches through this slot when the credential gate
  *       fires, closing the gap where a denied stat still reached the origin.
- * HOW:  Delegates to sd_xroot_origin_open with the supplied cred (same as
- *       sd_xroot_open_cred) then tears down the file handle; only the size is
- *       captured from the open-time stat, identical to sd_xroot_stat. */
+ * HOW:  Opens a per-user session (sd_xroot_session with cred), issues a real
+ *       kXR_stat, then tears the session down — describing directories the same
+ *       as sd_xroot_stat, but authenticated as the mapped user. */
 ngx_int_t
 sd_xroot_stat_cred(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out, const brix_sd_cred_t *cred)
 {
-    sd_xroot_inst_state *is = inst->state;
-    sd_xroot_obj_state  *st;
-    off_t                size = 0;
-    int                  e = 0;
-    sd_xroot_origin_open_req_t req = {
-        .conf = is->conf, .cred = cred, .path = path,
-        .want_write = 0 /* read */, .mode = 0,
-        .size_out = &size, .err_out = &e,
-    };
+    sd_xroot_inst_state       *is = inst->state;
+    brix_cache_origin_conn_t   oc;
+    brix_cache_fill_t         *t;
+    brix_cache_stat_out_t      so;
+    int                        rc, e = 0;
 
-    st = sd_xroot_origin_open(&req);
-    if (st == NULL) {
+    if (sd_xroot_session(is->conf, cred, &oc, &t, &e) != 0) {
         errno = e;
         return NGX_ERROR;
     }
-    sd_xroot_obj_teardown(st);
-
-    ngx_memzero(out, sizeof(*out));
-    out->size   = size;
-    out->mode   = S_IFREG | 0444;
-    out->is_reg = 1;
+    rc = brix_cache_origin_stat(t, &oc, path, &so);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) {
+        errno = e;
+        return NGX_ERROR;
+    }
+    sd_xroot_stat_fill(out, &so);
     return NGX_OK;
 }
 

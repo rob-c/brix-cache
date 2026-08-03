@@ -252,6 +252,80 @@ brix_cache_origin_truncate(brix_cache_fill_t *t,
     return 0;
 }
 
+/* brix_cache_origin_truncate_path — kXR_truncate the origin file BY PATH (dlen>0
+ * carries the path payload; the fhandle stays zero). Resizes a named object with
+ * no open handle, so a truncate over a staged remote backend never recalls the
+ * file nor takes a staged write-open that would self-collide on commit. The reply
+ * must be kXR_ok. On failure the origin's error is recorded on `t` (map with
+ * sd_xroot_errno). Returns 0 on success, -1 on error. */
+int
+brix_cache_origin_truncate_path(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, uint64_t length)
+{
+    size_t                  pathlen, total;
+    u_char                 *buf;
+    ClientTruncateRequest  *req;
+    uint16_t                status;
+    uint32_t                dlen;
+    u_char                 *body;
+
+    if (path == NULL || path[0] == '\0') {
+        brix_cache_set_error(t, kXR_ArgInvalid, 0,
+                               "origin path truncate path missing");
+        return -1;
+    }
+
+    pathlen = strlen(path);
+    total = sizeof(ClientTruncateRequest) + pathlen;
+
+    buf = malloc(total);
+    if (buf == NULL) {
+        brix_cache_set_error(t, kXR_NoMemory, 0,
+                               "origin path truncate allocation failed");
+        return -1;
+    }
+
+    ngx_memzero(buf, total);
+    req = (ClientTruncateRequest *) buf;
+    req->streamid[1] = 4;
+    req->requestid = htons(kXR_truncate);
+    /* Path-based form: fhandle left zero, dlen = path length, path as payload —
+     * the origin resolves the target by name (XProtocol ClientTruncateRequest). */
+    req->offset = (kXR_int64) htobe64(length);
+    req->dlen = htonl((kXR_int32) pathlen);
+    ngx_memcpy(buf + sizeof(*req), path, pathlen);
+
+    if (brix_cache_io_send(oc, buf, total) != 0) {
+        free(buf);
+        brix_cache_set_error(t, kXR_ServerError, errno,
+                               "origin path truncate send failed");
+        return -1;
+    }
+    free(buf);
+
+    body = NULL;
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen,
+                                   4096) != 0) {
+        return -1;
+    }
+
+    if (status == kXR_error) {
+        brix_cache_set_origin_error(t, body, dlen,
+                                      "origin path truncate failed");
+        free(body);
+        return -1;
+    }
+
+    free(body);
+    if (status != kXR_ok) {
+        brix_cache_set_error(t, kXR_ServerError, 0,
+                               "origin path truncate invalid response");
+        return -1;
+    }
+
+    return 0;
+}
+
 /* brix_cache_origin_sync — kXR_sync the origin file (fsync equivalent) after
  * streaming all chunks, so the mirrored content survives an origin crash before
  * close; the reply must be kXR_ok. Returns 0 on success, -1 on error. */

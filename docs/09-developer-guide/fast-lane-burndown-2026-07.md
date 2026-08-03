@@ -718,3 +718,221 @@ actually needed the recipe update (`fuse_trust` was already patched; every other
 `fuse_*`/`pin_root`/`prefetch`/`prewarm` suite runs the prebuilt `brixMount` and
 needs no inline compile). Full cvmfs conformance-fuse surface is green
 (~540 tests).
+
+---
+
+## 7. Later-session addenda (Sessions 3b–5) — the fwd cluster, the unprivileged lane, always-on de-escalation, and the C bugs they exposed
+
+Chronologically these interleave with the rounds in §5, but they are grouped
+here so §2–§5 stay as first-written. Three additional themes: (7.1) the
+`test_cmd_*` **forward/TPC** cluster deep-dive; (7.2) the **unprivileged**
+(`brixtest`) lane burndown; (7.3) the switch to **always-on worker
+de-escalation**, which invalidated every `user root;` crutch from §2. Several
+real C bugs surfaced along the way — kept in §3's style below.
+
+### 7.1 The `tpc_fwd`/`fwd_matrix` cluster — four harness causes + a DNS-pin C bug
+
+The five forward cells (`tpc_fwd_live` ×3, `fwd_matrix_live` ×2) had **four**
+distinct root causes; §6's earlier one-line attribution understated them.
+(Debug aid: `BRIX_LIVE_KEEP_TREE=1` preserves the `LiveRun` tree instead of
+`rmtree` in `live_common.close`.)
+
+1. **`ForwardHarness._start_nginx` didn't inject `-g "user root;"`** (nor did the
+   raw `_call([run.nginx,…])` launches in `tpc_fwd_live.tpc_delegation_nginx` and
+   `fwd_matrix_live.transparent_relay`) → brix worker dropped to `nobody`, EACCES
+   opening the confined-ops export ("cannot open export root for kernel-confined
+   path operations"), TPC pull timed out (rc=51/-9). Same §2.4 class, three more
+   sites.
+2. **Stock xrootd backend run as superuser** (`fwd_matrix.spawn_xrootd_node`, both
+   the plain `_call` and `spawn_bwrap_xrootd` paths) → never bound → brix front's
+   backend connect refused (kXR 3012). Same §2.3 class; fix = `-R nobody` +
+   `chmod a+rx run.root` + `chmod -R a+rwX <node-dir>`.
+3. **SciTokens plugin missing** — `libXrdAccSciTokens-5.so` absent → "Failed to
+   load ztn authentication protocol" → token backend never bound. `dnf install -y
+   xrootd-scitokens` (EPEL, matches xrootd 5.9.6). **Add to TESTING.md
+   missing-packages list.**
+4. **HTTP-TPC (WebDAV) DNS-pin single-address — REAL C BUG**
+   (`src/core/compat/net_target_dns.c`, `brix_net_target_check_dns_pin`). The
+   SSRF-rebind defence pinned **only the FIRST** resolved address via
+   `CURLOPT_RESOLVE`. This box's `/etc/hosts` maps `localhost`→`::1` only, while
+   the source listens IPv4-only → curl pinned to `::1` → "Connection refused",
+   **no fallback** (plain curl *does* fall back → 403). The `root://` XRootD path
+   falls back to IPv4 on its own, so only HTTP-TPC broke. **Fix:** pin **ALL**
+   validated addresses comma-joined (`host:port:::1,127.0.0.1`) so curl
+   happy-eyeballs across them — still no re-resolution, each still
+   policy-checked (`net_pin_first_addr` → `net_pin_append_addr`).
+
+### 7.2 `frm_owner` reqid truncation — REAL C BUG (`TAPE_ID_LEN`)
+
+- **File:** `src/fs/xfer/tape_rest_internal.h` — `TAPE_ID_LEN`.
+- **Symptom:** `test_frm_owner` — a foreign principal's DELETE/cancel returned
+  `204` not `403` (distinct from the §2.2 `503` control-dir issue, which had to be
+  fixed first to un-mask this).
+- **Cause:** `TAPE_ID_LEN = 33` (sized for the retired 16-byte-hex id) truncated
+  the durable reqid `<seq>.<pid>@<host>` in the `POST /stage` response. On the
+  long-FQDN root box `1.<pid>@xrd1.edi.scotgrid.ac.uk` = 33 chars → the returned
+  id was truncated to 32, but the record is *stored* under the full reqid → a
+  DELETE by the truncated id misses in `brix_stage_request_get` →
+  `owner_check` returns `NGX_OK` (absent = idempotent) → the foreign principal
+  deletes another's request. **Hostname-length-dependent — only bites long
+  FQDNs.**
+- **Fix:** `TAPE_ID_LEN` 33 → 40 (== on-disk `SRQ_REQID_LEN`, so the returned id
+  round-trips as the lookup key).
+- **GOTCHA:** nginx addon builds do **not** track header deps — after a `.h`-only
+  change you MUST `find objs/addon -name 'tape_rest*.o' -delete` then rebuild, or
+  the stale `.o` keeps the old value.
+
+### 7.3 x509 CRL selection nondeterminism — REAL C BUG (`store_policy_store.c`)
+
+- **File:** `src/auth/crypto/store_policy_store.c` — `brix_failsafe_get_crl`,
+  installed via `X509_STORE_set_get_crl(store, …)` in `brix_store_configure` when
+  CRL checking is on.
+- **Symptom:** `x509_oracle` gave **host-dependent** verdicts with multi-CRL
+  fixtures — OpenSSL's default `get_crl` picks one CRL by `lastUpdate`-then-**load
+  order** (`readdir`), so the outcome depended on directory iteration order.
+- **Fix (fail-safe CRL selection):** any issuer CRL that lists the serial as
+  revoked (`get0_by_serial == 1`) wins = reject; `removeFromCRL` (== 2) entries
+  are never chosen by that pass (OpenSSL `cert_crl` treats them non-revoking →
+  CRL-065/066 accept); in NON-require mode a full-CRL revocation is superseded by
+  a delta CRL's `removeFromCRL` (return the delta → accept: CRL-074 vs CRL-075);
+  else newest full CRL by `lastUpdate`, skipping deltas (a lone delta would trip
+  its critical `DeltaCRLIndicator`). 554/554 oracle checks green.
+- **AUTHORITY note:** `tests/clauses/_decisions.py` **overrides** clause verdicts
+  (the reason gets `"| DECISION: …"` appended). Read it BEFORE "fixing" any
+  CRL/proxy/DN verdict — the runtime expected value ≠ the literal in
+  `clauses/*.py` (e.g. `crl.py` says `try_x="accept"` for CRL-080 but the decision
+  forces reject).
+- **Fast oracle iteration** (vs the 5.5-min pytest leg): forge once with
+  `x509forge.build_all(FIX, clauses.ALL_CLAUSES)`; compile
+  `gcc -Wall -Wextra -Werror -I src tests/c/x509_oracle.c
+  src/auth/crypto/{signing_policy,store_policy,store_policy_store,store_policy_conformance}.c
+  -lssl -lcrypto` (**no `-O`** — `-O1` trips `-Werror=format-truncation`); run
+  `BRIX_X509_FIXTURES=$FIX ./oracle CRL-` (argv[1] = id-prefix filter).
+
+### 7.4 windowed-read deferred-close streamid clobber — REAL SERVER BUG
+
+> Distinct from §5.8/§5.9 (the windowed-read *handle-binding* / stale-`obj` bug).
+> This is a **streamid** clobber on the deferred-close path, found during the
+> `test_windowed_read_handle_binding` churn test.
+
+- **Files:** `src/protocols/root/recv/recv_process.c` (park sites) +
+  `recv_frame.c` (`brix_recv_run_deferred`).
+- **Chain:** XrdCl multiplexes 3 threads on one TCP conn. A `kXR_close` arriving
+  while pipelined pwrites are in flight is PARKED by the phase-29 drain barrier
+  (header already decoded into `recv.cur_*`); a pipelined pwrite ack then runs
+  `brix_aio_restore_stream()` which permanently overwrites `recv.cur_streamid`;
+  the deferred close later dispatches and replies `kXR_ok dlen=0` with the
+  **write's stale sid** — which XrdCl had already recycled for its next request
+  (the read-open) → the client parses close-ok as an open response (dlen<4 →
+  "invalid open response"), the close starves → 60 s stream timeout →
+  reconnect/recovery → stale-handle `kXR_stat` 3004 → fatal → pyxrootd segfault.
+- **Fix:** save the sid at both park sites (`recv_process.c` defer blocks →
+  new `out.deferred_streamid[2]` field in `brix_ctx_out_t`) and reinstall it in
+  `brix_recv_run_deferred()` before dispatch (`recv_frame.c`).
+- **Diagnosis route:** `brix_access_anon.log` showed two reads aborted at
+  ~60-64 s + client `XRD_LOGLEVEL=Dump` showed the 8-byte `kXR_ok` landing on the
+  open's sid; `XrdClXRootDMsgHandler.cc:1539` "invalid open response" fires only
+  when dlen<4.
+
+### 7.5 pblock store master-creation vs de-escalated worker — REAL C BUG
+
+- **File:** `src/fs/tier/tier_build.c` — `brix_tier_pblock_hand_to_worker`
+  (decl in `tier.h`); called from `tier_build_pblock` and
+  `brix_vbr_build_pblock` (`vfs_backend_registry_source.c`).
+- **Cause:** the config-time validation build (initial **root** process) creates
+  `catalog.db`/`-wal`/`-shm` + `data/` root-owned (`sd_pblock_init` runs with
+  `enforce_unprivileged` off in master); the de-escalated `nobody` worker then
+  EACCESes → client sees `kXR_NotAuthorized`.
+- **Fix:** `chown` the store layout to `brix_imp_worker_runtime_ids` after the
+  master build — same contract as credential-store / stage-spool provisioning.
+
+### 7.6 default write-staging spool leaf collision — REAL PRODUCT BUG
+
+- **File:** `src/protocols/root/.../runtime_server_backend.c`.
+- **Cause:** the default write-staging spool leaf was keyed only by backend URL,
+  so different-identity instances hitting the same backend fought over one
+  `0700` leaf and the loser hit a hard `[emerg]` (violating the never-fatal
+  provisioning contract). Surfaced by a cross-lane root↔brixtest `/tmp`
+  collision.
+- **Fix:** leaf is now `<base>/<sanitised-url>.<worker-uid>`, and an
+  unprivileged master **refuses a foreign-owned / unwritable leaf** with
+  warn + staging-off (also anti-squatting). Test mirror: `_san()` in
+  `test_stage_default_gateway.py` appends the uid.
+
+### 7.7 Unprivileged (`brixtest`) lane — harness/topology items
+
+Governing ask: zero F/E in `tests/run_suite_unprivileged.py --fast`.
+**`NGINX_BIN=/tmp/nginx-1.28.3/objs/nginx` must be exported** — `_pick_nginx`
+otherwise prefers the STALE RPM wrapper `/usr/local/bin/brix-test-nginx`.
+
+- **TPC stock-GSI-source rc=54 was a FIXTURE topology bug, not brix.**
+  `test_tpc_gsi_outbound` used `src_url=getfqdn()` + `dst_url=127.0.0.1`; on this
+  multi-name host `getfqdn()` resolves to the public NIC and the source
+  reverse-names both legs `xrd1.edi.scotgrid.ac.uk` while brix names the loopback
+  client `localhost`/`[::ffff:127.0.0.1]` → `XrdOfsTPCInfo::Match` raw-strcmp
+  never pairs → `kXR_waitresp` hang → 15 s cap → rc=54. **Fix:** both URLs use
+  numeric `127.0.0.1` so every leg is IPv4-loopback and both sides derive the
+  identical org host. KEY FACTS: xrootd `Name()` uses `getnameinfo` flags=0
+  (numeric fallback `[::ffff:x]`), `Info.Set()` canonicalizes `tpc.dst` via
+  `Set+Name` (the dst field self-heals), and a `localhost` URL splits families —
+  numeric v4 is the only host-independent choice.
+- **ceph lifecycle:** rootless podman as `brixtest` can `docker ps` but not RUN
+  containers (no `/etc/subuid` mapping) → skip guard in `test_ceph_harness.py`
+  using `detect_container_cidr()` itself.
+- **`test_slice_cache`:** `slice.o` has no source in-repo → `TestSliceLibrary`
+  skip is by design everywhere.
+- **`manage_test_servers restart/stop` MUST get
+  `TEST_ROOT=/tmp/xrd-test-brixtest`** or it operates on the root fleet's
+  `/tmp/xrd-test`, leaving brixtest instances holding ports → later `start-all`
+  bind EADDRINUSE. Recovery: stop-all with the right `TEST_ROOT` +
+  `pkill -u brixtest nginx`, then start-all.
+- **`test_conf_xrdcp::test_recursive_download_whole_tree`** hardened for
+  `--dist load`: `xrdcp -r` of the shared export also copies other tests'
+  transient files → per-job 3010/3011/3007 → rc=54 though every seeded leaf
+  lands. Rewrote to verdict on seeded-leaf presence + md5 subset (the documented
+  contract) with one full retry; `rc` no longer asserted.
+- **`pblock-meta-gsi` remove-phase p99 flake = dead retry guard:**
+  `pblock_live.py`'s remove retry required `'failures": 0'` (with a space) but
+  the bench prints compact `"failures":0` → the retry never fired. Fixed with a
+  whitespace-insensitive match.
+
+### 7.8 Always-on worker de-escalation — the `user root;` crutch is dead
+
+`brix_imp_worker_deescalate` now **forces** a root worker down to
+`brix_worker_user`/`nobody`; `user root;` / `-g` can **no longer** keep it root.
+This invalidated EVERY prior `-g "user root;"` harness injection (§2.4 and the
+Session 2–3b fixes). Symptom fingerprints: xrdcp/xrdfs rc=51 read-timeout or
+rc=54 NotAuthorized; worker `[emerg] "cannot open export root … (13: Permission
+denied)"`; silent hang on untimed `subprocess.run`.
+
+- **Central replacement — `cmdscripts.open_tree_for_worker(tree, conf=None)`**
+  (`tests/cmdscripts/__init__.py`): `chmod -R a+rwX tree`, `a+rx` ancestors
+  (pytest tmp/mkdtemp are `0700`), re-tighten in-tree `*key*.pem` to worker-owned
+  `0600` (GSI refuses lax keys), open the shared `TEST_ROOT` PKI (proxy_std.pem →
+  nobody `0600`, hostkey → nobody `0400`, certs/CA `a+r`), and chown any
+  `brix_storage_credential_dir` in the conf to worker `0700`. `run()`'s
+  nginx-launch hook (`_maybe_open_tree_for_deescalated_worker`) +
+  `LiveRun.start_nginx` + `user_backend_cred._start_prefixed` +
+  `tpc_fwd_live`/`fwd_matrix_live`/`cvmfs_live_ext` direct launches ALL route
+  through it. **The old `_maybe_force_nginx_root_worker` name is GONE** (grep for
+  stragglers still importing it — supersedes §2.4's helper).
+- **`test_cvmfs_cold_tier`:** module-fixture mkdtemps (webroot/cold) live OUTSIDE
+  the `LiveRun` tree → `chmod 0777` in the fixture + `plant_cold` opens
+  parents/file (worker must read the cold copy to promote, write the parent to
+  remove a corrupt one).
+- **`test_tpc_gsi_outbound` gsi_tpc fixture:** the dest nginx worker needs an
+  `a+rx` ancestor chain of the pytest base AND `destproxy.pem` chowned nobody
+  `0600` (rc=54 otherwise).
+- **Cross-lane rerun-vs-fleet gotcha:** a bare pytest rerun that does NOT detect
+  an attached fleet WIPES `/tmp/xrd-test`, boots its own fleet, and `rmtree`s
+  `TEST_ROOT` at teardown — leaked per-test nginx/xrootd then hold deleted
+  dirs/ports. `pkill -f /tmp/xrd-test` before the next run.
+- **Cross-lane (root↔brixtest) `/tmp` collisions:** the resilience suite prefix
+  is now per-user by default (`/tmp/xrd-resilience-<user>`,
+  `tests/resilience/servers.py`); the write-staging spool-leaf product bug is
+  §7.6; `test_cli_aliases df -h` vs `--human` retries the pair ×3 (live-fleet
+  free-space drift between the two calls).
+- **Root-lane FINAL:** full lane 1 failed / 7671 passed; sole red
+  `test_cmd_cache_stage_throttle` was a load flake (wait deadline 6 s → 30 s,
+  0.5 s polls, plus a final metrics scrape after the client exits). Root lane
+  then fully green.
