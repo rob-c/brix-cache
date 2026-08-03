@@ -6,4 +6,4 @@
 # is a live break waiting for the next cluster upgrade.
 # Enforced by tools/ci/check_python_deps.py.
 kubernetes>=28,<37
-pytest>=7.0,<10
+pytest>=9.1.1,<10
