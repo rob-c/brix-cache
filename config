@@ -438,6 +438,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/tpc/common/auth.h \
                         $ngx_addon_dir/src/tpc/common/credential.h \
                         $ngx_addon_dir/src/tpc/common/metrics.h \
+                        $ngx_addon_dir/src/tpc/common/egress_guard.h \
                         $ngx_addon_dir/src/tpc/common/registry.h \
                         $ngx_addon_dir/src/tpc/common/transfer.h \
                         $ngx_addon_dir/src/fs/path/path_internal.h \
@@ -660,6 +661,7 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                         $ngx_addon_dir/src/tpc/common/auth.h \
                         $ngx_addon_dir/src/tpc/common/credential.h \
                         $ngx_addon_dir/src/tpc/common/metrics.h \
+                        $ngx_addon_dir/src/tpc/common/egress_guard.h \
                         $ngx_addon_dir/src/tpc/common/registry.h \
                         $ngx_addon_dir/src/tpc/common/transfer.h \
                         $ngx_addon_dir/src/observability/metrics/unified.h \
@@ -810,6 +812,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs/vfs_staged.c \
     $ngx_addon_dir/src/fs/vfs/vfs_cred.c \
     $ngx_addon_dir/src/fs/vfs/vfs_deleg.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_deleg_x509.c \
     $ngx_addon_dir/src/fs/vfs/vfs_deleg_bind.c \
     $ngx_addon_dir/src/fs/vfs/vfs_deleg_hooks.c \
     $ngx_addon_dir/src/fs/xfer/xfer_mover_pump.c \
@@ -875,8 +878,10 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_sign.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_write.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_meta.c \
+    $ngx_addon_dir/src/fs/backend/s3/sd_s3_sign_ext.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_list.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote.c \
+    $ngx_addon_dir/src/fs/backend/remote/sd_remote_dir.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_meta.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_xattr.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote_write.c \
@@ -907,6 +912,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_forward.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_adapter.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_stub.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_exec.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm_lib.c \
@@ -1000,6 +1006,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/tpc/common/registry.c \
     $ngx_addon_dir/src/tpc/common/progress.c \
     $ngx_addon_dir/src/tpc/common/metrics.c \
+    $ngx_addon_dir/src/tpc/common/egress_guard.c \
     $ngx_addon_dir/src/tpc/engine/parse.c \
     $ngx_addon_dir/src/tpc/outbound/io.c \
     $ngx_addon_dir/src/tpc/outbound/tls.c \
@@ -1177,7 +1184,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/cms/cns.c \
     $ngx_addon_dir/src/net/cms/cns_inventory.c \
     $ngx_addon_dir/src/net/cms/cns_emit.c \
+    $ngx_addon_dir/src/net/cms/recv_frame_state.c \
     $ngx_addon_dir/src/net/cms/connect.c \
+    $ngx_addon_dir/src/net/cms/cms_start.c \
     $ngx_addon_dir/src/auth/token/b64url.c \
     $ngx_addon_dir/src/auth/token/file.c \
     $ngx_addon_dir/src/auth/token/json.c \
@@ -1510,7 +1519,8 @@ xrd_emit_module
 # names here and this module's merge_loc_conf runs first for every location.
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_brix_common_module
-ngx_module_srcs="$ngx_addon_dir/src/core/config/http_common.c"
+ngx_module_srcs="$ngx_addon_dir/src/core/config/http_common.c \
+                 $ngx_addon_dir/src/core/config/http_common_setters.c"
 ngx_module_deps="$ngx_addon_dir/src/core/config/http_common.h \
                  $ngx_addon_dir/src/core/config/shared_conf.h \
                  $ngx_addon_dir/src/core/config/tier_directives.h"
@@ -1546,6 +1556,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_basic.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_cert.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_token.c \
+                 $ngx_addon_dir/src/protocols/webdav/auth_token_verify.c \
                  $ngx_addon_dir/src/protocols/webdav/delegation.c \
                  $ngx_addon_dir/src/protocols/webdav/delegation_store.c \
                  $ngx_addon_dir/src/protocols/webdav/delegation_gridsite_req.c \
@@ -1738,6 +1749,7 @@ $ngx_addon_dir/src/protocols/cvmfs/cvmfs_module_build.c \
                  $ngx_addon_dir/src/protocols/cvmfs/origin_geo.c \
                  $ngx_addon_dir/src/protocols/cvmfs/origin_probe.c \
                  $ngx_addon_dir/src/protocols/cvmfs/secure.c \
+                 $ngx_addon_dir/src/protocols/cvmfs/secure_x509.c \
                  $ngx_addon_dir/src/protocols/cvmfs/bundle.c \
                  $ngx_addon_dir/src/protocols/cvmfs/dict.c \
                  $ngx_addon_dir/src/protocols/cvmfs/scrub.c \
@@ -1809,6 +1821,7 @@ ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_http_labels.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_webdav.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_s3.h \
+                 $ngx_addon_dir/src/tpc/common/egress_guard.h \
                  $ngx_addon_dir/src/tpc/common/registry.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"
 # Dashboard module .so links: OpenSSL + libcrypt (session-cookie HMAC/crypt) +
@@ -1838,6 +1851,7 @@ xrd_emit_module
 ngx_module_type=STREAM
 ngx_module_name=ngx_stream_brix_ftp_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/gridftp/ftp_module.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ftp_module_merge.c \
                  $ngx_addon_dir/src/protocols/gridftp/ftp_module_gsi.c \
                  $ngx_addon_dir/src/protocols/gridftp/ftp_dc_sec.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_io.c \

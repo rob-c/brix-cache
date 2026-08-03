@@ -15,6 +15,8 @@ ngx_http_brix_webdav_tpc_create_loc_conf(
     conf->tpc_low_speed_secs  = NGX_CONF_UNSET_UINT;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
+    conf->tpc_source_guard  = NGX_CONF_UNSET;
+    conf->tpc_source_allow  = NGX_CONF_UNSET_PTR;
     conf->tpc_marker_interval = NGX_CONF_UNSET_UINT;
     conf->tpc_max_streams     = NGX_CONF_UNSET_UINT;
     conf->tpc_credential_forward = NGX_CONF_UNSET;
@@ -30,6 +32,12 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
      * commonly reside on private networks, but loopback must stay blocked). */
     ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
     ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
+    /* Source-host NAMING allowlist: opt-in (default off) and fail-closed when
+     * on — an unset/empty list denies every source.  Complements the range
+     * policy above; enforced in tpc_marker_start.c before curl dials out. */
+    ngx_conf_merge_value(conf->tpc_source_guard,  prev->tpc_source_guard,  0);
+    ngx_conf_merge_ptr_value(conf->tpc_source_allow, prev->tpc_source_allow,
+                             NULL);
     ngx_conf_merge_str_value(conf->tpc_curl, prev->tpc_curl,
                              "/usr/bin/curl");
     ngx_conf_merge_str_value(conf->tpc_cert, prev->tpc_cert, "");

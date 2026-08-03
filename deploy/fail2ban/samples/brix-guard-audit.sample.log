@@ -5,3 +5,4 @@
 2026-07-01T12:00:04+00:00 ip=203.0.113.44 proto=root signal=notroot op=handshake path="tls-clienthello" status=0
 2026-07-01T12:00:05+00:00 ip=198.51.100.23 proto=cvmfs signal=proxyabuse op=read path="evil.example.com:8000" status=403
 2026-07-01T12:00:06+00:00 ip=203.0.113.77 proto=cvmfs signal=cvmfs_tamper op=read path="/cvmfs/repo.example.io/data/ab/cdef0123456789abcdef0123456789abcdef01" status=502
+2026-07-01T12:00:07+00:00 ip=198.51.100.44 proto=root signal=tpc_egress op=write path="internal.db.local" status=3010

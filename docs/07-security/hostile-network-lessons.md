@@ -149,6 +149,33 @@ correct fix *look* broken:
   and a copy-level `brix_copy_opts` each carrying `max_stall_ms`/`no_retry` means setting
   the knob on one leaves the other at its default; the setting reads as applied but does
   nothing until the two are explicitly bridged (`finalize_resilience_posture`) (#5, #9).
+- **`ngx_conf_set_str_array_slot` silently drops all but the first argument.** For a
+  space-separated *security allowlist* (`brix_tpc_source_allow a.example b.example`) the
+  stock setter keeps only `a.example`; `b.example` vanishes with no error, quietly widening
+  the deny. Every multi-value allowlist directive must use a custom setter that loops
+  `for (i = 1; i < cf->args->nelts; i++) ngx_array_push(...)`. This bit
+  `brix_cvmfs_upstream_allow` in the field before it bit the TPC source guard.
+
+## Egress is a gate too — the destination dials the source
+
+A TPC pull inverts the usual trust arrow: the *destination* server opens an outbound
+connection to whatever authority the request names. That is a textbook SSRF primitive, and
+native `root://` pull and WebDAV `COPY` pull are the *same* primitive — so they must enforce
+the *same* control, from the *same* verdict core, or they will drift. Two lessons:
+
+- **Layer the egress defence.** An address-range gate (reject loopback/link-local, gate
+  RFC-1918) answers "is this address dangerous?"; a source-host *naming allowlist* answers
+  "did the operator sanction this destination at all?". The naming guard fires *first* and is
+  strictly stricter — it refuses a range-allowed RFC-1918 host that is not on the allowlist.
+  Enforce it *before* any socket is opened (`tpc_prepare_check_preconditions` /
+  `webdav_tpc_source_guard`), never after connect.
+- **One core, two planes.** The pure `brix_tpc_source_guard_check()` (no nginx, no DNS) is
+  shared by both planes precisely so a fix or a rule change can never land on one and miss the
+  other. Test the asymmetry directly: an allowlisted RFC-1918 host must fall *through* the
+  naming guard (proving it is not the range gate doing the work), and a non-allowlisted
+  RFC-1918 host must be refused by *naming*, not range. On the WebDAV plane the HTTP status
+  cannot tell those apart (a fell-through host can still 403 later at the DNS/range stage), so
+  assert on the `signal=tpc_egress` audit line — which is also the exact fail2ban trigger.
 
 ## Never truncate coverage silently
 

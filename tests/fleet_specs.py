@@ -535,6 +535,8 @@ def dedicated_specs() -> list[NginxInstanceSpec]:
         _ded("tpc-ssrf-default", "nginx_tpc_ssrf_default.conf", S.TPC_SSRF_DEFAULT_PORT),
         _ded("tpc-ssrf-allow-local", "nginx_tpc_ssrf_allow_local.conf", S.TPC_SSRF_ALLOW_LOCAL_PORT),
         _ded("tpc-ssrf-deny-private", "nginx_tpc_ssrf_deny_private.conf", S.TPC_SSRF_DENY_PRIVATE_PORT),
+        _ded("tpc-source-guard", "nginx_tpc_source_guard.conf", S.TPC_SRC_GUARD_PORT),
+        _ded("webdav-tpc-source-guard", "nginx_webdav_tpc_source_guard.conf", S.WEBDAV_TPC_SRC_GUARD_PORT),
         _ded("s3-presigned", "nginx_s3_presigned.conf", S.S3_PRESIGNED_PORT),
         _ded("s3-presigned-sts", "nginx_s3_presigned_sts.conf", S.S3_PRESIGNED_STS_PORT),
         _ded("s3-token", "nginx_s3_token.conf", S.NGINX_S3_TOKEN_PORT),

@@ -308,6 +308,12 @@ metrics_emit_fault_timeouts(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
                 "Connections refused at accept because the listener was at brix_max_connections."),
             "brix_stream_connections_rejected_total",
             connections_rejected_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_tpc_egress_refused_total",
+                "TPC pulls refused because the requested source host was not on "
+                "brix_tpc_source_allow (server-side request-forgery control). "
+                "0 unless brix_tpc_source_guard is on."),
+            "brix_stream_tpc_egress_refused_total",
+            tpc_egress_refused_total),
     };
 
     metrics_emit_srv_families(mw, shm, tab,

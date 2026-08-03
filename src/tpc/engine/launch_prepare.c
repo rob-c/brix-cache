@@ -41,6 +41,10 @@
 #include <arpa/inet.h>    /* inet_ntop — XrdNetAddr-matching numeric literal */
 #include "core/compat/alloc_guard.h"
 #include "core/compat/cstr.h"
+#include "fs/path/path.h"                 /* brix_sanitize_log_string */
+#include "net/guard/guard.h"              /* guard_audit_format — fail2ban line */
+#include "tpc/common/egress_guard.h"      /* brix_tpc_source_guard_check */
+#include "observability/metrics/metrics_macros.h" /* BRIX_SRV_METRIC_INC */
 
 /* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → brix_build_resp_hdr → brix_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: brix_tpc_prepare_pull (end of pull prep pipeline). */
 static ngx_int_t
@@ -230,12 +234,56 @@ tpc_destination_open_flags(uint16_t options)
  * brix_tpc_check_src_policy != 0 → kXR_NotAuthorized with its filled err text.
  * Each failure routes through the same BRIX_RETURN_ERR / brix_send_error edges
  * the inline code used. */
+/* WHAT: Emit one fail2ban-parseable audit line for a TPC egress the source
+ * allowlist refused, at WARN on the connection log (the stream side has no
+ * per-location audit file). The attacker-chosen source host rides the sanitized
+ * path field; the labelless metric carries the count (INVARIANT 8).
+ * WHY: an un-guarded gateway is a request-forgery primitive; a client probing
+ * which internal hosts a gateway will dial should be banned like any scanner,
+ * so the refusal shares the guard/fail2ban contract (signal=tpc_egress).
+ * HOW: copy the cached ISO-8601 clock + client IP into NUL-terminated stacks,
+ * sanitize the host into the path field, format via the shared guard formatter. */
+static void
+tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
+{
+    guard_request_t req;
+    char            line[512];
+    char            ip[64];
+    char            ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
+    char            hostbuf[256];
+    size_t          ip_len;
+    size_t          ts_len;
+
+    ip_len = ngx_min(c->addr_text.len, sizeof(ip) - 1);
+    ngx_memcpy(ip, c->addr_text.data, ip_len);
+    ip[ip_len] = '\0';
+
+    ts_len = ngx_min(ngx_cached_http_log_iso8601.len, sizeof(ts) - 1);
+    ngx_memcpy(ts, ngx_cached_http_log_iso8601.data, ts_len);
+    ts[ts_len] = '\0';
+
+    ngx_memzero(&req, sizeof(req));
+    req.ip           = ip;
+    req.proto        = "root";
+    req.op           = GUARD_OP_WRITE;   /* a TPC pull opens a write destination */
+    req.path         = hostbuf;
+    req.path_len     = brix_sanitize_log_string(host, hostbuf, sizeof(hostbuf));
+    req.cred_present = ctx->login.dn[0] != '\0' ? 1 : 0;
+    req.outcome      = OUTCOME_AUTHFAIL;
+    req.status_code  = kXR_NotAuthorized;
+
+    if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts, line, sizeof(line)) > 0) {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0, "%s", line);
+    }
+}
+
 static ngx_int_t
 tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
     const char *dst_path)
 {
     char     policy_err[512];
+    char     egress_err[512];
     uint16_t sport;
 
     if (conf->common.thread_pool == NULL) {
@@ -252,6 +300,26 @@ tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
                           "tpc-pull", kXR_ArgInvalid,
                           "invalid or incomplete TPC source");
+    }
+
+    /*
+     * Source-egress allowlist gate (naming policy): when the operator enabled
+     * brix_tpc_source_guard, the requested source host must appear on
+     * brix_tpc_source_allow or we refuse to originate — before the address-range
+     * check below, so a non-permitted host is rejected without a DNS lookup.
+     * This is the server-side request-forgery control the client egress
+     * self-test verifies; a refusal is banworthy, so it emits the guard signal
+     * and bumps the labelless refusal counter.
+     */
+    if (brix_tpc_source_guard_check(conf->tpc_source_guard,
+            conf->tpc_source_allow, tpc->src_host,
+            egress_err, sizeof(egress_err))
+        != 0)
+    {
+        BRIX_SRV_METRIC_INC(ctx, tpc_egress_refused_total);
+        tpc_egress_emit_signal(ctx, c, tpc->src_host);
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_NotAuthorized, egress_err);
     }
 
     /*
