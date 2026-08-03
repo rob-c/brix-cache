@@ -135,28 +135,49 @@ ssize_t
 sd_xroot_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_xroot_obj_state       *st = obj->state;
-    brix_cache_sink_t         sink;
-    brix_cache_read_range_t   rng;
+    size_t                    done = 0;
 
     if (len == 0) {
         return 0;
     }
-    ngx_memzero(&sink, sizeof(sink));
-    sink.fd      = -1;
-    sink.mem     = buf;
-    sink.mem_cap = len;
 
-    ngx_memzero(&rng, sizeof(rng));
-    rng.read_off = (uint64_t) off;
-    rng.want     = len;
+    /* brix_cache_origin_read_chunk reads each origin reply frame into a buffer
+     * bounded by BRIX_CACHE_FETCH_CHUNK (1 MiB): a single kXR_read whose reply
+     * frame exceeds that cap is rejected ("response body too large").  A read
+     * window can be larger than 1 MiB (BRIX_READ_WINDOW is 2 MiB), so issue the
+     * origin read in <=1 MiB sub-requests — mirroring the whole-file fetch, which
+     * always loops in FETCH_CHUNK strides — and stop early on a short read (EOF).
+     * Each sub-read writes into buf at the running offset (sink base 0 + got). */
+    while (done < len) {
+        brix_cache_sink_t        sink;
+        brix_cache_read_range_t  rng;
+        size_t                   want = len - done;
 
-    if (brix_cache_origin_read_chunk(st->t, &st->oc, st->fhandle, &sink,
-                                       &rng) != 0)
-    {
-        errno = EIO;
-        return -1;
+        if (want > BRIX_CACHE_FETCH_CHUNK) {
+            want = BRIX_CACHE_FETCH_CHUNK;
+        }
+
+        ngx_memzero(&sink, sizeof(sink));
+        sink.fd      = -1;
+        sink.mem     = (u_char *) buf + done;
+        sink.mem_cap = want;
+
+        ngx_memzero(&rng, sizeof(rng));
+        rng.read_off = (uint64_t) off + done;
+        rng.want     = want;
+
+        if (brix_cache_origin_read_chunk(st->t, &st->oc, st->fhandle, &sink,
+                                           &rng) != 0)
+        {
+            errno = EIO;
+            return -1;
+        }
+        done += rng.got;
+        if (rng.got < want) {
+            break;                          /* short read: EOF reached */
+        }
     }
-    return (ssize_t) rng.got;
+    return (ssize_t) done;
 }
 
 /* Write `len` bytes at `off` to the origin file via kXR_write. The origin file

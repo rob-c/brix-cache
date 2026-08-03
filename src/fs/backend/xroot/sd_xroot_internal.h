@@ -149,6 +149,7 @@ ngx_int_t sd_xroot_removexattr(brix_sd_instance_t *inst, const char *path,
 ngx_int_t sd_xroot_rename(brix_sd_instance_t *inst, const char *src,
               const char *dst, int noreplace);
 ngx_int_t sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
+ngx_int_t sd_xroot_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode);
 ngx_int_t sd_xroot_server_copy(brix_sd_instance_t *inst, const char *src,
               const char *dst, off_t *bytes_out);
 

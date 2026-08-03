@@ -455,7 +455,13 @@ read_serve_buffered(brix_ctx_t *ctx, ngx_connection_t *c,
     read_prefetch_buffered(ctx, c, io);
 
     if (!read_try_warm(ctx, rconf, io, &nread)) {
-        if (rconf->common.thread_pool != NULL) {
+        /* Driver-backed (memory-served, fd<0) handles — e.g. a remote root://
+         * storage backend — must be served inline, never posted to the pread
+         * thread pool: the backend driver drives an event-loop-bound origin
+         * connection that returns EIO off-thread.  Fall through to
+         * read_sync_fill below (the working inline driver-pread path). */
+        if (rconf->common.thread_pool != NULL
+            && ctx->files[io->idx].sd_obj.driver == NULL) {
             ngx_flag_t posted;
 
             if (read_post_aio(ctx, c, rconf, io, &posted) != NGX_OK) {

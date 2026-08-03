@@ -226,6 +226,7 @@ static const brix_sd_driver_t brix_sd_xroot_driver = {
     .stat          = sd_xroot_stat,
     .rename        = sd_xroot_rename,
     .unlink        = sd_xroot_unlink,
+    .mkdir         = sd_xroot_mkdir,
     .server_copy   = sd_xroot_server_copy,
     .getxattr      = sd_xroot_getxattr,
     .listxattr     = sd_xroot_listxattr,

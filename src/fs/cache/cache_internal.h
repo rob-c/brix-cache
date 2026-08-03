@@ -350,6 +350,8 @@ int     brix_cache_origin_rm(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path);
 int     brix_cache_origin_rmdir(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path);
+int     brix_cache_origin_mkdir(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path, mode_t mode);
 ssize_t brix_cache_origin_getfattr(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, const char *name,
             void *buf, size_t cap);

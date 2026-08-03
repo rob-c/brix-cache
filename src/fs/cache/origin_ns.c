@@ -198,6 +198,46 @@ brix_cache_origin_rmdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     return 0;
 }
 
+/* brix_cache_origin_mkdir — kXR_mkdir <path> on the origin (create a directory).
+ * Body layout (kXR_mkdir): options(1) reserved(13) mode(2, big-endian). We set
+ * kXR_mkdirpath so the origin also creates any missing parents — harmless for the
+ * single-level callers (brix_vfs_backend_mkpath walks prefix-by-prefix) and lets a
+ * direct deep mkdir succeed too. EEXIST is surfaced to the caller, which treats it
+ * as idempotent success for the mkpath walk. Returns 0, or -1 with errno set. */
+int
+brix_cache_origin_mkdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const char *path, mode_t mode)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    size_t    pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t  status;
+    uint32_t  dlen;
+    u_char   *rbody = NULL;
+    int       rc;
+
+    if (pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    ngx_memzero(body, sizeof(body));
+    body[0] = kXR_mkdirpath;                     /* options: create parents too */
+    body[XRDW_BODY_LEN - 2] = (uint8_t) ((mode >> 8) & 0xff);   /* mode BE hi */
+    body[XRDW_BODY_LEN - 1] = (uint8_t) (mode & 0xff);          /* mode BE lo */
+    rc = origin_request(t, oc, kXR_mkdir, body, path, pl, &status, &rbody,
+                        &dlen, 256);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    free(rbody);
+    return 0;
+}
+
 /* Build "<path>\0[int16 rc=0]<name>\0" (+ "[int32 BE vlen]<value>") for a single-
  * attribute fattr request. Returns a malloc'd buffer + *plen, or NULL (OOM). */
 static u_char *
