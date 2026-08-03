@@ -33,6 +33,7 @@
 #include "core/ngx_brix_module.h"
 #include "net/upstream/upstream.h"
 #include "protocols/root/path/op_path.h"
+#include "fs/vfs/vfs.h"                 /* existence probe via the backend seam */
 #include "core/negcache/negcache.h"    /* E-4: locate-harvest backoff */
 #include "net/manager/registry.h"
 #include "net/manager/redir_cache.h"
@@ -398,8 +399,9 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
     brix_ctx_t                  *ctx = lc->ctx;
     ngx_connection_t            *c = lc->c;
     ngx_stream_brix_srv_conf_t  *conf = lc->conf;
-    struct stat                  _st;
     char                         full_path[PATH_MAX];
+    brix_vfs_ctx_t               vctx;
+    brix_vfs_stat_t              vst;
 
     if (lc->is_wildcard) {
         return 0;
@@ -417,7 +419,15 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
         return 1;
     }
 
-    if (brix_stat_beneath(conf->rootfd, lc->reqpath, &_st) != 0) {
+    /* Probe existence through the VFS seam, not a bare rootfd stat: a root://
+     * (driver-backed) export holds its files on the origin, so brix_stat_beneath
+     * on the empty local export always missed and locate answered NotFound for
+     * files that exist. brix_vfs_statf reaches the backend (and, via the keystone
+     * kXR_stat, resolves directories too). */
+    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        conf->common.root_canon, NULL, conf->common.allow_write,
+        0 /* is_tls */, NULL, full_path);
+    if (brix_vfs_statf(&vctx, &vst) != NGX_OK) {
         if (conf->upstream_host.len > 0) {
             brix_log_access(ctx, c, "LOCATE", lc->reqpath, "upstream",
                               1, 0, NULL, 0);

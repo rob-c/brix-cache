@@ -195,6 +195,30 @@ brix_statx_compute_flag(ngx_stream_brix_srv_conf_t *conf,
  *        success the flag byte is written via rsp->ptr and NGX_DONE is returned
  *        to signal the caller to continue the batch.
  */
+/* Stat one path through the VFS seam rather than a bare
+ * brix_stat_beneath(conf->rootfd, …) on the local export. For a root:// (or any
+ * driver-backed) export the files live on the origin, so a local rootfd stat
+ * always misses (ENOENT) — statx must route through brix_vfs_statf like stat.c,
+ * which reaches the backend AND (via the keystone kXR_stat) describes
+ * directories. The result is projected into struct stat for the flag byte.
+ * Returns 0 with *st filled, or -1 with errno set. */
+static int
+brix_statx_vfs_stat(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
+    const char *full_path, struct stat *st)
+{
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t vst;
+
+    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        conf->common.root_canon, NULL, conf->common.allow_write,
+        0 /* is_tls */, NULL, full_path);
+    if (brix_vfs_statf(&vctx, &vst) != NGX_OK) {
+        return -1;
+    }
+    brix_vfs_to_struct_stat(&vst, st);
+    return 0;
+}
+
 static ngx_int_t
 brix_statx_process_path(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
     ngx_connection_t *c, const char *reqpath_buf, brix_statx_rsp_t *rsp)
@@ -224,7 +248,7 @@ brix_statx_process_path(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
                           kXR_NotAuthorized, "permission denied");
     }
 
-    if (brix_stat_beneath(conf->rootfd, reqpath_buf, &st) != 0
+    if (brix_statx_vfs_stat(conf, c, full_path, &st) != 0
         && !brix_statx_symlink_fallback_stat(ctx, conf, c, full_path, &st))
     {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_STATX, "STATX", reqpath_buf, "-",
