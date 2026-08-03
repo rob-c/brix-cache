@@ -117,6 +117,19 @@ sd_stage_setattr(brix_sd_instance_t *inst, const char *path,
     return s->driver->setattr ? s->driver->setattr(s, path, attr) : NGX_OK;
 }
 
+/* Path-based truncate forwards straight to the source (no staging): resizing the
+ * origin object by name is what lets kXR_truncate over a staged remote backend
+ * avoid a RECALL + colliding write-open. Mirrors sd_stage_setattr. The VFS
+ * dispatches the actual op on the leaf (which carries the *_cred slot); this slot
+ * exists so the decorator advertises the capability to the VFS gate. */
+static ngx_int_t
+sd_stage_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
+{
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
+    if (s->driver->truncate_path == NULL) { errno = ENOTSUP; return NGX_ERROR; }
+    return s->driver->truncate_path(s, path, len);
+}
+
 static brix_sd_dir_t *
 sd_stage_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
 {
@@ -208,6 +221,7 @@ const brix_sd_driver_t brix_sd_stage_driver = {
     .rename      = sd_stage_rename,
     .server_copy = sd_stage_server_copy,
     .setattr     = sd_stage_setattr,
+    .truncate_path = sd_stage_truncate_path,
     .opendir     = sd_stage_opendir,
     .readdir     = sd_stage_readdir,
     .closedir    = sd_stage_closedir,

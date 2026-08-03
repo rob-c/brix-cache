@@ -84,6 +84,28 @@ sd_xroot_rename_cred(brix_sd_instance_t *inst, const char *src,
     return rc == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/* truncate_path_cred: resize an origin object by path under the user's
+ * credential (path-based kXR_truncate, no write-open). */
+ngx_int_t
+sd_xroot_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
+    off_t len, const brix_sd_cred_t *cred)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    brix_cache_origin_conn_t  oc;
+    brix_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    if (sd_xroot_session(is->conf, cred, &oc, &t, &e) != 0) {
+        errno = e; return NGX_ERROR;
+    }
+    rc = brix_cache_origin_truncate_path(t, &oc, path, (uint64_t) len);
+    e  = (rc == 0) ? 0 : sd_xroot_errno(t);
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) { errno = e; return NGX_ERROR; }
+    return NGX_OK;
+}
+
 /* server_copy_cred: server-side byte copy under the user's credential. */
 ngx_int_t
 sd_xroot_server_copy_cred(brix_sd_instance_t *inst, const char *src,

@@ -350,6 +350,24 @@ int     brix_cache_origin_rm(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path);
 int     brix_cache_origin_rmdir(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path);
+int     brix_cache_origin_mkdir(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path, mode_t mode);
+/* Parsed origin kXR_stat reply (path-based). flags is the raw XRootD ASCII-stat
+ * bitmask (kXR_isDir/kXR_readable/…); is_dir is the decoded (flags & kXR_isDir)
+ * convenience so the caller need not include the protocol flags header. */
+typedef struct {
+    off_t   size;
+    time_t  mtime;
+    int     flags;
+    int     is_dir;
+} brix_cache_stat_out_t;
+/* kXR_stat <path> on the origin (path-based, options=0 so a real directory is
+ * described rather than opened). Fills *out from the "id size flags mtime" ASCII
+ * reply. Returns 0, or -1 with errno set (ENOENT/EACCES/… via the kXR_error
+ * body). Unlike the open-to-size probe it can represent directories. */
+int     brix_cache_origin_stat(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path,
+            brix_cache_stat_out_t *out);
 ssize_t brix_cache_origin_getfattr(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, const char *name,
             void *buf, size_t cap);
@@ -461,6 +479,11 @@ int brix_cache_origin_write_chunk(brix_cache_fill_t *t,
 int brix_cache_origin_truncate(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
     uint64_t length);
+/* kXR_truncate the origin file BY PATH (no open handle) to `length` bytes — the
+ * path-based form used by the VFS truncate_path seam. Returns 0 on success, -1 on
+ * error (t error set; map with sd_xroot_errno). */
+int brix_cache_origin_truncate_path(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, uint64_t length);
 /* kXR_sync to flush origin buffers to stable storage (write-through, before
  * close). Returns 0 on success, -1 on error (t error set). */
 int brix_cache_origin_sync(brix_cache_fill_t *t,

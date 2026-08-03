@@ -283,6 +283,28 @@ sd_xroot_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     return rc == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/* Path-based truncate (kXR_truncate with a path payload): resize the origin
+ * object to `len` by NAME — no write-open, so a truncate over a staged remote
+ * backend never RECALLs the whole file nor takes a staged write-open that would
+ * self-collide on commit. Same fresh-session pattern as sd_xroot_unlink; the
+ * origin's kXR error is mapped to errno via sd_xroot_errno (ENOENT for a miss). */
+ngx_int_t
+sd_xroot_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    brix_cache_origin_conn_t  oc;
+    brix_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+    rc = brix_cache_origin_truncate_path(t, &oc, path, (uint64_t) len);
+    e  = (rc == 0) ? 0 : sd_xroot_errno(t);
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) { errno = e; return NGX_ERROR; }
+    return NGX_OK;
+}
+
 /* Delete a file or empty directory on the remote node. Required so a remote
  * xroot node can serve as a cache_store (cstore eviction) or a stage_store
  * (post-flush reclaim). Files use kXR_rm; directories use kXR_rmdir (the two
@@ -300,6 +322,28 @@ sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
     rc = is_dir ? brix_cache_origin_rmdir(t, &oc, path)
                 : brix_cache_origin_rm(t, &oc, path);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc == 0 ? NGX_OK : NGX_ERROR;
+}
+
+/* Create a directory on the remote node (kXR_mkdir). Required so an explicit
+ * client MKDIR — or the mkpath prefix-walk (brix_vfs_backend_mkpath) — resolves
+ * against a root:// backend instead of failing the NULL-slot path. Same session
+ * pattern as sd_xroot_unlink/rename. Returns NGX_OK / NGX_ERROR (errno set —
+ * EEXIST when the directory already exists, tolerated by the mkpath walk). */
+ngx_int_t
+sd_xroot_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    brix_cache_origin_conn_t  oc;
+    brix_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+    rc = brix_cache_origin_mkdir(t, &oc, path, mode);
     e = errno;
     brix_cache_origin_close(&oc);
     free(t);

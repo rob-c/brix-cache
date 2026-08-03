@@ -286,6 +286,7 @@ CMDSCRIPTS_PORTS = {
     "tier_stage_live": (29192, 8),
     "tpc_fwd_live": (29200, 8),
     "user_backend_cred": (29208, 9),
+    "xroot_gateway_regress": (29219, 2),
 }
 
 
