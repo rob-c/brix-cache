@@ -1,0 +1,19 @@
+# Issue-template chooser. Blank issues are off: the two templates below ask for
+# the fields that decide whether a report is actionable (version, backend, auth
+# mechanism, config), and every blank issue we would otherwise get costs a
+# round-trip to collect them.
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/rob-c/brix-cache/security/advisories/new
+    about: >-
+      Report privately — never in a public issue. See SECURITY.md for scope,
+      what to include, and response targets.
+  - name: Documentation
+    url: https://github.com/rob-c/brix-cache/tree/main/docs
+    about: >-
+      Deployment, configuration, protocol and hardening guides. Check
+      docs/05-operations/ and docs/07-security/ before filing a config question.
+  - name: Contributing guide
+    url: https://github.com/rob-c/brix-cache/blob/main/CONTRIBUTING.md
+    about: Read this before opening a pull request — it sets the test and review bar.

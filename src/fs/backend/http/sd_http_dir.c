@@ -188,57 +188,74 @@ sd_http_raw_push(sd_http_raw_ent **rv, size_t *rn, size_t *rc,
     return 0;
 }
 
-/* Parse a 207 Multistatus body into ds->ents (the immediate children only). The
- * self entry is the response with the minimum '/'-segment depth; children are
- * min+1. Returns 0 (ds populated, possibly empty), -1/ENOMEM on allocation
- * failure. A body with no <response> is a well-formed empty listing. */
+/* Extract one <response> block's decoded child name, '/'-segment depth and
+ * d_type. Returns 1 when the block yielded a usable name, 0 otherwise (no
+ * href, an unterminated tag, or the collection's own trailing-slash href). */
 static int
-sd_http_parse_multistatus(const char *xml, size_t xlen, sd_http_dir_state *ds)
+sd_http_response_ent(const char *blk, const char *stop, char *name, size_t nsz,
+    int *depth, unsigned char *dt)
 {
-    const char      *end = xml + xlen;
-    const char      *blk = sd_http_xml_open(xml, end, "response");
-    sd_http_raw_ent *rv = NULL;
-    size_t           rn = 0, rc = 0, i;
-    int              min_depth = -1;
+    const char *h = sd_http_xml_open(blk, stop, "href");
+    const char *gt;
+    const char *he;
+    char        dec[SD_HTTP_DIR_HREF_MAX];
+
+    if (h == NULL) {
+        return 0;
+    }
+    gt = memchr(h, '>', (size_t) (stop - h));
+    if (gt == NULL) {
+        return 0;
+    }
+    he = memchr(gt + 1, '<', (size_t) (stop - (gt + 1)));
+    if (he == NULL) {
+        he = stop;
+    }
+    sd_http_url_decode(gt + 1, (size_t) (he - (gt + 1)), dec, sizeof(dec));
+    sd_http_href_split(dec, name, nsz, depth);
+    *dt = (sd_http_xml_open(blk, stop, "collection") != NULL) ? DT_DIR : DT_REG;
+    return name[0] != '\0';
+}
+
+
+/* Collect every <response> in the body into the raw vector, tracking the
+ * minimum depth seen (the self entry). 0 / -1 with errno set. */
+static int
+sd_http_collect_responses(const char *xml, const char *end,
+    sd_http_raw_ent **rv, size_t *rn, size_t *rc, int *min_depth)
+{
+    const char *blk = sd_http_xml_open(xml, end, "response");
 
     while (blk != NULL) {
-        const char *nxt = sd_http_xml_open(blk + 1, end, "response");
-        const char *stop = (nxt != NULL) ? nxt : end;
-        const char *h = sd_http_xml_open(blk, stop, "href");
+        const char   *nxt  = sd_http_xml_open(blk + 1, end, "response");
+        const char   *stop = (nxt != NULL) ? nxt : end;
+        char          name[256];
+        int           depth;
+        unsigned char dt;
 
-        if (h != NULL) {
-            const char *gt = memchr(h, '>', (size_t) (stop - h));
-
-            if (gt != NULL) {
-                const char *he = memchr(gt + 1, '<',
-                                        (size_t) (stop - (gt + 1)));
-                char        dec[SD_HTTP_DIR_HREF_MAX];
-                char        name[256];
-                int         depth;
-                unsigned char dt;
-
-                if (he == NULL) { he = stop; }
-                sd_http_url_decode(gt + 1, (size_t) (he - (gt + 1)),
-                                   dec, sizeof(dec));
-                sd_http_href_split(dec, name, sizeof(name), &depth);
-                dt = (sd_http_xml_open(blk, stop, "collection") != NULL)
-                     ? DT_DIR : DT_REG;
-                if (name[0] != '\0') {
-                    if (sd_http_raw_push(&rv, &rn, &rc, name, dt, depth) != 0) {
-                        free(rv);
-                        errno = ENOMEM;
-                        return -1;
-                    }
-                    if (min_depth < 0 || depth < min_depth) {
-                        min_depth = depth;
-                    }
-                }
+        if (sd_http_response_ent(blk, stop, name, sizeof(name), &depth, &dt)) {
+            if (sd_http_raw_push(rv, rn, rc, name, dt, depth) != 0) {
+                errno = ENOMEM;
+                return -1;
+            }
+            if (*min_depth < 0 || depth < *min_depth) {
+                *min_depth = depth;
             }
         }
         blk = nxt;
     }
+    return 0;
+}
 
-    /* Emit only the immediate children (depth == self_depth + 1). */
+
+/* Emit only the immediate children (depth == self_depth + 1) into ds, growing
+ * its entry vector as needed. 0 / -1 with errno set. */
+static int
+sd_http_emit_children(const sd_http_raw_ent *rv, size_t rn, int min_depth,
+    sd_http_dir_state *ds)
+{
+    size_t i;
+
     for (i = 0; i < rn; i++) {
         if (rv[i].depth != min_depth + 1) {
             continue;
@@ -248,7 +265,6 @@ sd_http_parse_multistatus(const char *xml, size_t xlen, sd_http_dir_state *ds)
             void  *nb = realloc(ds->ents, nc * sizeof(*ds->ents));
 
             if (nb == NULL) {
-                free(rv);
                 errno = ENOMEM;
                 return -1;
             }
@@ -260,8 +276,31 @@ sd_http_parse_multistatus(const char *xml, size_t xlen, sd_http_dir_state *ds)
         ds->ents[ds->n].d_type = rv[i].d_type;
         ds->n++;
     }
-    free(rv);
     return 0;
+}
+
+
+/* Parse a 207 Multistatus body into ds->ents (the immediate children only). The
+ * self entry is the response with the minimum '/'-segment depth; children are
+ * min+1. Returns 0 (ds populated, possibly empty), -1/ENOMEM on allocation
+ * failure. A body with no <response> is a well-formed empty listing. */
+static int
+sd_http_parse_multistatus(const char *xml, size_t xlen, sd_http_dir_state *ds)
+{
+    sd_http_raw_ent *rv = NULL;
+    size_t           rn = 0, rc = 0;
+    int              min_depth = -1;
+    int              rv_rc;
+
+    if (sd_http_collect_responses(xml, xml + xlen, &rv, &rn, &rc,
+                                  &min_depth) != 0)
+    {
+        free(rv);
+        return -1;
+    }
+    rv_rc = sd_http_emit_children(rv, rn, min_depth, ds);
+    free(rv);
+    return rv_rc;
 }
 
 /* ---- PROPFIND request + slot wiring -------------------------------------- */

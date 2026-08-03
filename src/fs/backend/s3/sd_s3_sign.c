@@ -97,6 +97,84 @@ sd_s3_sha256_hex(const void *data, size_t len, char *out /* >=65 */)
     brix_hex_encode(d, 32, out);
 }
 
+/* snprintf into a fixed buffer, treating BOTH an encoding error and truncation
+ * as failure (-1). Every SigV4 rendering is length-critical — a silently clipped
+ * canonical line would produce a signature the origin cannot reproduce — so this
+ * one guard replaces the `cn < 0 || (size_t) cn >= sizeof(x)` idiom everywhere. */
+static int
+s3s_fmt(char *buf, size_t cap, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
+static int
+s3s_fmt(char *buf, size_t cap, const char *fmt, ...)
+{
+    va_list ap;
+    int     n;
+
+    va_start(ap, fmt);
+    n = vsnprintf(buf, cap, fmt, ap);
+    va_end(ap);
+    return (n < 0 || (size_t) n >= cap) ? -1 : 0;
+}
+
+/* The three renderings one optional signed header needs: its canonical
+ * "name:value\n" line, its SignedHeaders token, and its wire header line. */
+typedef struct {
+    char canon[2112];
+    char tok[64];
+    char emit[2112];
+} s3s_hdr3;
+
+/* Render one optional signed header into all three forms. `trailing` selects the
+ * SignedHeaders token shape: ";name" for a header that sorts AFTER x-amz-date,
+ * "name;" for one that sorts before x-amz-content-sha256. A NULL name (or empty
+ * value) clears all three, leaving the plain three-header signature byte-for-byte
+ * unchanged. */
+static int
+s3s_fold_hdr(const char *name, const char *val, int trailing, s3s_hdr3 *h)
+{
+    int rc;
+
+    if (name == NULL || val == NULL || val[0] == '\0') {
+        h->canon[0] = h->tok[0] = h->emit[0] = '\0';
+        return 0;
+    }
+    rc = trailing ? s3s_fmt(h->tok, sizeof(h->tok), ";%s", name)
+                  : s3s_fmt(h->tok, sizeof(h->tok), "%s;", name);
+    if (rc != 0
+        || s3s_fmt(h->canon, sizeof(h->canon), "%s:%s\n", name, val) != 0
+        || s3s_fmt(h->emit, sizeof(h->emit), "%s: %s\r\n", name, val) != 0)
+    {
+        return -1;
+    }
+    return 0;
+}
+
+/* Canonical request → string-to-sign → derived signing key → hex signature.
+ * `sighex` must hold at least 65 bytes. 0 / -1. */
+static int
+s3s_signature(const sd_s3_file *f, const char *canon, const char *amzdate,
+              const char *datestamp, const char *scope, char *sighex)
+{
+    char    canon_hex[65];
+    char    sts[640];
+    uint8_t k4[32], sig[32];
+
+    sd_s3_sha256_hex(canon, strlen(canon), canon_hex);
+    if (s3s_fmt(sts, sizeof(sts), "AWS4-HMAC-SHA256\n%s\n%s\n%s",
+                amzdate, scope, canon_hex) != 0) {
+        return -1;
+    }
+    if (!brix_sigv4_signing_key((const uint8_t *) f->sk, strlen(f->sk),
+                                datestamp, f->region, "s3", k4)
+        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig))
+    {
+        return -1;
+    }
+    brix_hex_encode(sig, 32, sighex);
+    return 0;
+}
+
 /* sd_s3_sign_ex — build the SigV4 x-amz-date / content-sha256 / Authorization
  * header block for `method` on this object (payload = UNSIGNED-PAYLOAD), OPTIONALLY
  * folding one extra signed header `ck_name: ck_val` into the canonical request,
@@ -115,13 +193,10 @@ sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs,
     const char *payload_hex = "UNSIGNED-PAYLOAD";
     char        host[300];
     char        amzdate[20], datestamp[12];
-    char        canon_hex[65], sighex[65];
-    char        canon[8192], scope[160], sts[640], enc_uri[2048];
-    char        ck_canon[256], ck_signed[64], ck_emit[256];
-    char        st_canon[2112], st_signed[32], st_emit[2112];
-    uint8_t     k4[32], sig[32];
-    int         cn;
-    int         have_st = (f->session_token[0] != '\0');
+    char        sighex[65];
+    char        canon[8192], scope[160], enc_uri[2048];
+    s3s_hdr3    ck, st;
+    const char *st_name = NULL;
 
     if (canon_qs == NULL) { canon_qs = ""; }
     if (ck_name != NULL && (ck_val == NULL || ck_val[0] == '\0')) {
@@ -131,34 +206,16 @@ sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs,
     /* STS temporary credentials carry a session token that AWS/MinIO require in
      * x-amz-security-token AND in the signature (phase-70 §5.5). The header sorts
      * lexicographically AFTER x-amz-date, so it is folded in as the LAST canonical
-     * header, the last SignedHeaders token, and a trailing wire header. Absent
-     * (static keypair) → all three empty, leaving the plain signature unchanged. */
-    if (have_st) {
-        cn = snprintf(st_canon, sizeof(st_canon),
-                      "x-amz-security-token:%s\n", f->session_token);
-        if (cn < 0 || (size_t) cn >= sizeof(st_canon)) { return -1; }
-        cn = snprintf(st_signed, sizeof(st_signed), ";x-amz-security-token");
-        if (cn < 0 || (size_t) cn >= sizeof(st_signed)) { return -1; }
-        cn = snprintf(st_emit, sizeof(st_emit),
-                      "x-amz-security-token: %s\r\n", f->session_token);
-        if (cn < 0 || (size_t) cn >= sizeof(st_emit)) { return -1; }
-    } else {
-        st_canon[0] = st_signed[0] = st_emit[0] = '\0';
+     * header, the last SignedHeaders token, and a trailing wire header. The
+     * optional body-checksum header sorts between host and x-amz-content-sha256,
+     * so it is folded leading. Absent → all renderings empty. */
+    if (f->session_token[0] != '\0') {
+        st_name = "x-amz-security-token";
     }
-
-    /* The one optional header is emitted into three renderings: the canonical
-     * "name:value\n" line (folded in sorted order between host and
-     * x-amz-content-sha256), its SignedHeaders token, and the wire header line.
-     * Absent → all three empty, leaving the plain signature unchanged. */
-    if (ck_name != NULL) {
-        cn = snprintf(ck_canon, sizeof(ck_canon), "%s:%s\n", ck_name, ck_val);
-        if (cn < 0 || (size_t) cn >= sizeof(ck_canon)) { return -1; }
-        cn = snprintf(ck_signed, sizeof(ck_signed), "%s;", ck_name);
-        if (cn < 0 || (size_t) cn >= sizeof(ck_signed)) { return -1; }
-        cn = snprintf(ck_emit, sizeof(ck_emit), "%s: %s\r\n", ck_name, ck_val);
-        if (cn < 0 || (size_t) cn >= sizeof(ck_emit)) { return -1; }
-    } else {
-        ck_canon[0] = ck_signed[0] = ck_emit[0] = '\0';
+    if (s3s_fold_hdr(st_name, f->session_token, 1, &st) != 0
+        || s3s_fold_hdr(ck_name, ck_val, 0, &ck) != 0)
+    {
+        return -1;
     }
 
     brix_format_host_port(f->host, (uint16_t) f->port, host, sizeof(host));
@@ -168,41 +225,27 @@ sd_s3_sign_ex(const sd_s3_file *f, const char *method, const char *canon_qs,
                               enc_uri, sizeof(enc_uri), "/") < 0) {
         return -1;
     }
-    cn = snprintf(canon, sizeof(canon),
+    if (s3s_fmt(canon, sizeof(canon),
              "%s\n%s\n%s\nhost:%s\n%sx-amz-content-sha256:%s\nx-amz-date:%s\n%s\n"
              "host;%sx-amz-content-sha256;x-amz-date%s\n%s",
-             method, enc_uri, canon_qs, host, ck_canon, payload_hex, amzdate,
-             st_canon, ck_signed, st_signed, payload_hex);
-    if (cn < 0 || (size_t) cn >= sizeof(canon)) {
+             method, enc_uri, canon_qs, host, ck.canon, payload_hex, amzdate,
+             st.canon, ck.tok, st.tok, payload_hex) != 0
+        || s3s_fmt(scope, sizeof(scope), "%s/%s/s3/aws4_request",
+                   datestamp, f->region) != 0)
+    {
         return -1;
     }
-    sd_s3_sha256_hex(canon, strlen(canon), canon_hex);
-
-    cn = snprintf(scope, sizeof(scope), "%s/%s/s3/aws4_request",
-                  datestamp, f->region);
-    if (cn < 0 || (size_t) cn >= sizeof(scope)) {
-        return -1;
-    }
-    cn = snprintf(sts, sizeof(sts), "AWS4-HMAC-SHA256\n%s\n%s\n%s",
-                  amzdate, scope, canon_hex);
-    if (cn < 0 || (size_t) cn >= sizeof(sts)) {
+    if (s3s_signature(f, canon, amzdate, datestamp, scope, sighex) != 0) {
         return -1;
     }
 
-    if (!brix_sigv4_signing_key((const uint8_t *) f->sk, strlen(f->sk),
-                                  datestamp, f->region, "s3", k4)
-        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig)) {
-        return -1;
-    }
-    brix_hex_encode(sig, 32, sighex);
-
-    cn = snprintf(hdrs, hdrsz,
+    if (s3s_fmt(hdrs, hdrsz,
              "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n%s%s"
              "Authorization: AWS4-HMAC-SHA256 Credential=%s/%s, "
              "SignedHeaders=host;%sx-amz-content-sha256;x-amz-date%s, Signature=%s\r\n",
-             amzdate, payload_hex, ck_emit, st_emit, f->ak, scope, ck_signed,
-             st_signed, sighex);
-    if (cn < 0 || (size_t) cn >= hdrsz) {
+             amzdate, payload_hex, ck.emit, st.emit, f->ak, scope, ck.tok,
+             st.tok, sighex) != 0)
+    {
         return -1;
     }
     return 0;

@@ -1,3 +1,9 @@
 # k8s-tests Python port — see docs/superpowers/specs/2026-07-05-k8s-tests-python-port-design.md
-kubernetes>=28
-pytest>=7
+#
+# Cluster-lab only; the native suite (repo-root requirements.txt) does not need
+# these. Same bounds policy as the root files: lower AND upper, both reviewed —
+# the kubernetes client tracks the API server's version, so an unbounded major
+# is a live break waiting for the next cluster upgrade.
+# Enforced by tools/ci/check_python_deps.py.
+kubernetes>=28,<37
+pytest>=7.0,<10

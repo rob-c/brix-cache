@@ -43,13 +43,7 @@
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
-
-/* Cleanup payload: the pool-allocated 0600 temp path materialised for a
- * PASSTHROUGH proxy. On pool destruction the file is removed and the path
- * string is zeroed so it cannot linger in freed-but-reused pool memory. */
-typedef struct {
-    char *path;   /* NUL-terminated temp path, owned by the request pool */
-} brix_deleg_temp_t;
+#include "vfs_deleg_internal.h"
 
 /* ---- brix_vfs_deleg_temp_cleanup -------------------------------------------
  *
@@ -62,7 +56,7 @@ typedef struct {
  *
  * HOW:  data is a brix_deleg_temp_t*. unlink() ignores ENOENT (a driver may
  *       already have consumed+removed it); the path bytes are then zeroed. */
-static void
+void
 brix_vfs_deleg_temp_cleanup(void *data)
 {
     brix_deleg_temp_t *t = data;
@@ -93,7 +87,7 @@ brix_vfs_deleg_temp_cleanup(void *data)
  *
  * HOW:  BIO over the bytes → PEM_read_bio_X509; a single successful parse is
  *       enough to prove the bytes are a PEM certificate. Frees the cert + BIO. */
-static int
+int
 brix_vfs_deleg_pem_is_valid(const u_char *pem, size_t len)
 {
     BIO  *bio;
@@ -256,216 +250,6 @@ brix_vfs_deleg_exchange(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     return NGX_OK;
 }
 
-/* ---- brix_vfs_deleg_chain_is_trusted ---------------------------------------
- *
- * WHAT: In-gate RFC-3820 chain-trust re-verify of the PASSTHROUGH proxy PEM
- *       against the CA store bound on the bag (phase-70 §5.1, P90-70.4).
- *
- * WHY:  The capture sites enforce transport + leaf-DN identity, but chain trust
- *       must also hold at the one seam where captured bytes become a backend
- *       credential — with a store bound this gate fails closed even if a future
- *       capture site forgets its own check.
- *
- * HOW:  No store bound → pass (the setter was never wired on this protocol; the
- *       capture-side gate applies alone). Otherwise parse the PEM into a
- *       STACK_OF(X509) via brix_vfs_deleg_chain_parse, take cert 0 as the leaf,
- *       and run brix_gsi_verify_chain with client_purpose=0 — the same call
- *       shape as webdav's delegation_chain_trusted (RFC-3820 proxies accepted;
- *       the helper logs the specific failure). Certs are freed either way. */
-
-/* Parse every CERTIFICATE block out of `pem` into a new non-empty
- * STACK_OF(X509) (caller sk_X509_pop_free's it), or NULL. A forwarded grid
- * proxy is "proxy cert, PRIVATE KEY, issuing chain" — a bare
- * PEM_read_bio_X509 loop (delegation_parse_chain's shape) would stop at the
- * key block and lose the chain, so generic PEM blocks are read and only the
- * certificates kept; the key bytes are never copied out of the bag. */
-static STACK_OF(X509) *
-brix_vfs_deleg_chain_parse(const u_char *pem, size_t len)
-{
-    BIO            *bio;
-    STACK_OF(X509) *chain;
-    char           *name = NULL;
-    char           *header = NULL;
-    unsigned char  *der = NULL;
-    long            der_len = 0;
-
-    bio = BIO_new_mem_buf(pem, (int) len);
-    if (bio == NULL) {
-        return NULL;
-    }
-
-    chain = sk_X509_new_null();
-    if (chain == NULL) {
-        BIO_free(bio);
-        return NULL;
-    }
-
-    while (PEM_read_bio(bio, &name, &header, &der, &der_len) == 1) {
-        if (ngx_strcmp(name, PEM_STRING_X509) == 0) {
-            const unsigned char *p = der;
-            X509 *cert = d2i_X509(NULL, &p, der_len);
-
-            if (cert != NULL && sk_X509_push(chain, cert) <= 0) {
-                X509_free(cert);   /* partial chain → verify fails closed */
-            }
-        }
-        OPENSSL_free(name);
-        OPENSSL_free(header);
-        OPENSSL_free(der);
-        name = header = NULL;
-        der = NULL;
-    }
-    ERR_clear_error();   /* the terminating PEM_read failure is expected */
-    BIO_free(bio);
-
-    if (sk_X509_num(chain) == 0) {
-        sk_X509_pop_free(chain, X509_free);
-        return NULL;
-    }
-
-    return chain;
-}
-
-static int
-brix_vfs_deleg_chain_is_trusted(brix_vfs_ctx_t *ctx)
-{
-    brix_deleg_live_t        *live = ctx->deleg_live;
-    X509                     *leaf;
-    STACK_OF(X509)           *chain;
-    brix_gsi_verify_result_t  res;
-    ngx_int_t                 rc;
-
-    if (live->ca_store == NULL) {
-        return 1;
-    }
-
-    chain = brix_vfs_deleg_chain_parse(live->proxy_pem.data,
-                                       live->proxy_pem.len);
-    if (chain == NULL) {
-        return 0;
-    }
-
-    leaf = sk_X509_value(chain, 0);
-
-    rc = brix_gsi_verify_chain(ctx->log, (X509_STORE *) live->ca_store, leaf,
-             chain, live->ca_verify_depth, &res,
-             0 /* GSI: accept RFC-3820 proxies */);
-    sk_X509_pop_free(chain, X509_free);
-
-    if (rc != NGX_OK) {
-        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-            "brix: PASSTHROUGH proxy chain failed CA re-verify at the "
-            "delegation gate - denying");
-        return 0;
-    }
-
-    return 1;
-}
-
-/* ---- brix_vfs_deleg_proxy --------------------------------------------------
- *
- * WHAT: Materialise a PASSTHROUGH full x509 proxy: validate the PEM, write it to
- *       a 0600 temp, register the unlink+zero cleanup, and point cred->x509_proxy
- *       at the temp path.
- *
- * WHY:  brix_cache_origin_auth_gsi() authenticates from a proxy FILE path, so
- *       any strategy that materialises a proxy PEM at a 0600 path reuses the
- *       origin leg unchanged (§5.1). The private key must never be logged and
- *       must be unlinked on pool teardown.
- *
- * HOW:  brix_vfs_deleg_pem_is_valid() rejects non-PEM bytes → deny;
- *       brix_vfs_deleg_chain_is_trusted() re-runs the RFC-3820 chain-trust gate
- *       when the capture site bound a CA store → deny on failure. Then
- *       brix_proxy_gsi_write_pem_temp() creates the owner-only temp; the path is
- *       copied onto the pool and a cleanup registered to unlink+zero it.
- *
- * RFC-3820 chain-trust (phase-70 §5.1): the full gate is (1) chain parses AND is
- *       unexpired; (2) leaf DN EQUALS the front-door authenticated DN (no
- *       privilege swap); (3) chain is RFC-3820-valid AND trusted by the export's
- *       CA store via brix_gsi_verify_chain(..., client_purpose=0); (4) TLS-only
- *       transport. (2) and (4) are enforced at CAPTURE (deleg_capture.c matches
- *       the leaf DN against the authenticated identity over TLS;
- *       gsi_promote_fullproxy DN-matches the root:// push); (1)+(3) are enforced
- *       HERE whenever the capture site stamped the export's CA store via
- *       brix_vfs_deleg_set_ca_store (P90-70.4 — webdav binds conf->ca_store,
- *       root:// binds conf->gsi_store). With no store bound the seam enforces
- *       PEM well-formedness and relies on the capture-side gate. */
-static ngx_int_t
-brix_vfs_deleg_proxy(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
-    int *use_cred, int *err_out)
-{
-    brix_deleg_live_t   *live = ctx->deleg_live;
-    char                  tmp[NGX_MAX_PATH];
-    char                 *path;
-    size_t                path_len;
-    brix_deleg_temp_t   *payload;
-    ngx_pool_cleanup_t   *cln;
-    ngx_str_t             princ = ngx_string("");
-
-    if (!brix_vfs_deleg_pem_is_valid(live->proxy_pem.data,
-                                     live->proxy_pem.len)) {
-        return brix_vfs_deleg_deny(ctx, use_cred, err_out,
-                                   BRIX_CRED_FAIL_PEM);
-    }
-
-    if (!brix_vfs_deleg_chain_is_trusted(ctx)) {
-        return brix_vfs_deleg_deny(ctx, use_cred, err_out,
-                                   BRIX_CRED_FAIL_CHAIN);
-    }
-
-    if (brix_proxy_gsi_write_pem_temp(live->proxy_pem.data,
-            live->proxy_pem.len, tmp, sizeof(tmp)) != 0) {
-        if (ctx->identity != NULL) {
-            princ = ctx->identity->subject;
-        }
-        ngx_log_error(NGX_LOG_ERR, ctx->log, ngx_errno,
-            "brix: failed to materialise PASSTHROUGH proxy temp for "
-            "principal=\"%V\"", &princ);
-        return brix_vfs_deleg_deny(ctx, use_cred, err_out,
-                                   BRIX_CRED_FAIL_MATERIALISE);
-    }
-
-    path_len = ngx_strlen(tmp);
-    path = ngx_pnalloc(ctx->pool, path_len + 1);
-    if (path == NULL) {
-        (void) unlink(tmp);   /* vfs-seam-allow: config-domain PASSTHROUGH proxy credential temp (not export storage) */
-        brix_metric_cred_fail(brix_vfs_metrics_proto(ctx),
-                              BRIX_CRED_FAIL_MATERIALISE);
-        errno = ENOMEM;
-        if (err_out != NULL) {
-            *err_out = ENOMEM;
-        }
-        *use_cred = 0;
-        return NGX_ERROR;
-    }
-    ngx_memcpy(path, tmp, path_len);
-    path[path_len] = '\0';
-
-    cln = ngx_pool_cleanup_add(ctx->pool, sizeof(*payload));
-    if (cln == NULL) {
-        (void) unlink(path);  /* vfs-seam-allow: config-domain PASSTHROUGH proxy credential temp (not export storage) */
-        ngx_memzero(path, path_len);
-        brix_metric_cred_fail(brix_vfs_metrics_proto(ctx),
-                              BRIX_CRED_FAIL_MATERIALISE);
-        errno = ENOMEM;
-        if (err_out != NULL) {
-            *err_out = ENOMEM;
-        }
-        *use_cred = 0;
-        return NGX_ERROR;
-    }
-    payload = cln->data;
-    payload->path = path;
-    cln->handler = brix_vfs_deleg_temp_cleanup;
-
-    cred->x509_proxy = path;
-    cred->mode       = BRIX_CRED_PASSTHROUGH;
-    *use_cred        = 1;
-
-    brix_metric_cred_deleg(brix_vfs_metrics_proto(ctx),
-        (ngx_uint_t) brix_vfs_backend_mode(ctx), BRIX_CRED_OUTCOME_USER);
-    return NGX_OK;
-}
 
 /* ---- brix_vfs_deleg_sss ----------------------------------------------------
  *
@@ -562,6 +346,111 @@ brix_vfs_deleg_krb5(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred, int *use_cred)
     return NGX_OK;
 }
 
+/* Which forwardable bytes did the front door actually bind? Each predicate
+ * requires BOTH a non-NULL buffer and a non-zero length — a bag may carry a
+ * zero-length placeholder for a kind that was offered but never materialised. */
+static int
+brix_deleg_has_proxy(const brix_deleg_live_t *live)
+{
+    return live->have_proxy_pem && live->proxy_pem.len > 0
+           && live->proxy_pem.data != NULL;
+}
+
+static int
+brix_deleg_has_krb5(const brix_deleg_live_t *live)
+{
+    return live->krb5_ccache.len > 0 && live->krb5_ccache.data != NULL;
+}
+
+static int
+brix_deleg_has_bearer(const brix_deleg_live_t *live)
+{
+    return live->bearer.len > 0 && live->bearer.data != NULL;
+}
+
+static int
+brix_deleg_has_sss(const brix_deleg_live_t *live)
+{
+    return live->sss_keytab.len > 0 && live->sss_keytab.data != NULL;
+}
+
+
+/* Proven forwardable USER credentials — a full x509 proxy, or a forwarded krb5
+ * TGT (GSSAPI EXCHANGE, §5.7). Both outrank the STS/bearer/SSS fallbacks below:
+ * they are the caller's own delegable credential, not an identity assertion.
+ * Each is denied (EACCES, before any origin contact) when the leaf backend does
+ * not consume that kind — phase-71's credential-kind accept gate.
+ * Returns 1 when this tier handled the request (verdict in *rc), 0 to fall on. */
+static int
+brix_deleg_user_cred(brix_vfs_ctx_t *ctx, const brix_deleg_live_t *live,
+    uint32_t accept, brix_sd_cred_t *cred, int *use_cred, int *err_out,
+    ngx_int_t *rc)
+{
+    if (brix_deleg_has_proxy(live)) {
+        *rc = (accept & BRIX_SD_CRED_PROXY_PEM)
+            ? brix_vfs_deleg_proxy(ctx, cred, use_cred, err_out)
+            : brix_vfs_deleg_deny(ctx, use_cred, err_out, BRIX_CRED_FAIL_KIND);
+        return 1;
+    }
+    if (brix_deleg_has_krb5(live)) {
+        *rc = (accept & BRIX_SD_CRED_GSS_KRB5)
+            ? brix_vfs_deleg_krb5(ctx, cred, use_cred)
+            : brix_vfs_deleg_deny(ctx, use_cred, err_out, BRIX_CRED_FAIL_KIND);
+        return 1;
+    }
+    return 0;
+}
+
+
+/* Origin-scoped SERVICE credentials, in precedence order.
+ *
+ * S3-origin STS EXCHANGE (§5.5) is decided BEFORE the bearer branch when the
+ * operator armed STS and the leaf accepts an S3 credential. Rationale: a WLCG
+ * bearer is the caller's IDENTITY, never an S3-consumable secret — an S3 SigV4
+ * origin leg cannot be authenticated by forwarding the JWT verbatim (the origin
+ * rejects it, or the driver falls back to the static service key, defeating
+ * per-caller scoping). So when STS is armed a bound bearer supplies only
+ * identity (RoleSessionName, already on ctx->identity) and STS mints the
+ * temporary (ak/sk/session) origin cred. With STS unarmed (live->sts == NULL)
+ * this is skipped and a bearer for a genuinely bearer-consuming origin
+ * (xroot/https) is forwarded below.
+ *
+ * Bearer: EXCHANGE with a configured endpoint trades the subject token for a
+ * backend-audienced one; EXCHANGE with no endpoint (documented §5.4 fallback)
+ * and plain PASSTHROUGH forward the bearer verbatim.
+ *
+ * SSS: no forwardable bytes at all, but an armed keytab (§5.6) — assert the
+ * caller's principal via a keytab-signed SSS cred. Proven bytes always win.
+ * Returns 1 when this tier handled the request (verdict in *rc), 0 to fall on. */
+static int
+brix_deleg_service_cred(brix_vfs_ctx_t *ctx, const brix_deleg_live_t *live,
+    uint32_t accept, brix_sd_cred_t *cred, int *use_cred, int *err_out,
+    ngx_int_t *rc)
+{
+    if (live->sts != NULL && (accept & BRIX_SD_CRED_S3)) {
+        *rc = brix_vfs_deleg_sts_cred(ctx,
+            (const brix_s3_sts_conf_t *) live->sts, cred, use_cred, err_out);
+        return 1;
+    }
+    if (brix_deleg_has_bearer(live)) {
+        if (!(accept & BRIX_SD_CRED_BEARER)) {
+            *rc = brix_vfs_deleg_deny(ctx, use_cred, err_out,
+                                      BRIX_CRED_FAIL_KIND);
+            return 1;
+        }
+        *rc = (live->mode == BRIX_CRED_EXCHANGE && live->tx.endpoint.len > 0)
+            ? brix_vfs_deleg_exchange(ctx, cred, use_cred, err_out)
+            : brix_vfs_deleg_bearer(ctx, cred, use_cred);
+        return 1;
+    }
+    if (brix_deleg_has_sss(live)) {
+        *rc = brix_vfs_deleg_sss(ctx, cred, use_cred, err_out);
+        return 1;
+    }
+    return 0;
+}
+
+
 /* ---- brix_vfs_deleg_live_cred ----------------------------------------------
  *
  * WHAT: Validate + materialise the ctx's bound PASSTHROUGH live cred into *cred.
@@ -581,7 +470,9 @@ ngx_int_t
 brix_vfs_deleg_live_cred(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     int *use_cred, int *err_out)
 {
-    brix_deleg_live_t *live;
+    const brix_deleg_live_t *live;
+    uint32_t                 accept;
+    ngx_int_t                rc = NGX_OK;
 
     *use_cred = 0;
 
@@ -591,74 +482,20 @@ brix_vfs_deleg_live_cred(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     }
     live = ctx->deleg_live;
 
-    {
-        /* phase-71: credential-kind accept gate. Deny (EACCES, before any origin
-         * contact) when the live credential kind is not one the leaf backend can
-         * consume — e.g. a bearer-only backend handed a full x509 proxy, or vice
-         * versa. cred_accept==0 (no delegation support) rejects both kinds. */
-        uint32_t accept = brix_sd_cred_accept(brix_vfs_ns_leaf(ctx->sd));
+    /* phase-71: credential-kind accept gate. Deny (EACCES, before any origin
+     * contact) when the live credential kind is not one the leaf backend can
+     * consume — e.g. a bearer-only backend handed a full x509 proxy, or vice
+     * versa. cred_accept==0 (no delegation support) rejects both kinds. */
+    accept = brix_sd_cred_accept(brix_vfs_ns_leaf(ctx->sd));
 
-        if (live->have_proxy_pem && live->proxy_pem.len > 0
-            && live->proxy_pem.data != NULL) {
-            if (!(accept & BRIX_SD_CRED_PROXY_PEM)) {
-                return brix_vfs_deleg_deny(ctx, use_cred, err_out,
-                                           BRIX_CRED_FAIL_KIND);
-            }
-            return brix_vfs_deleg_proxy(ctx, cred, use_cred, err_out);
-        }
-
-        /* krb5 GSSAPI EXCHANGE (§5.7) is decided right after the x509 proxy — a
-         * forwarded TGT is a real forwardable USER credential, so like a proxy it
-         * outranks the STS/bearer/SSS fallbacks below. Selected when the front
-         * door bound a serialised ccache PATH; denied (EACCES, before any origin
-         * contact) if the leaf backend does not consume a krb5 GSSAPI cred. */
-        if (live->krb5_ccache.len > 0 && live->krb5_ccache.data != NULL) {
-            if (!(accept & BRIX_SD_CRED_GSS_KRB5)) {
-                return brix_vfs_deleg_deny(ctx, use_cred, err_out,
-                                           BRIX_CRED_FAIL_KIND);
-            }
-            return brix_vfs_deleg_krb5(ctx, cred, use_cred);
-        }
-
-        /* S3-origin STS EXCHANGE (§5.5) is decided BEFORE the bearer branch when
-         * the operator armed STS and the leaf accepts an S3 credential. Rationale:
-         * a WLCG bearer is the caller's IDENTITY, never an S3-consumable secret —
-         * an S3 SigV4 origin leg cannot be authenticated by forwarding the JWT
-         * verbatim (the origin rejects it, or the driver falls back to the static
-         * service key, defeating per-caller scoping). So when STS is armed a bound
-         * bearer supplies only identity (RoleSessionName, already on ctx->identity)
-         * and STS mints the temporary (ak/sk/session) origin cred. With STS unarmed
-         * (live->sts == NULL) this is skipped and a bearer for a genuinely
-         * bearer-consuming origin (xroot/https) is forwarded below. A full x509
-         * proxy — a real forwardable user credential — is handled above and wins. */
-        if (live->sts != NULL && (accept & BRIX_SD_CRED_S3)) {
-            return brix_vfs_deleg_sts_cred(ctx,
-                (const brix_s3_sts_conf_t *) live->sts, cred, use_cred, err_out);
-        }
-
-        if (live->bearer.len > 0 && live->bearer.data != NULL) {
-            if (!(accept & BRIX_SD_CRED_BEARER)) {
-                return brix_vfs_deleg_deny(ctx, use_cred, err_out,
-                                           BRIX_CRED_FAIL_KIND);
-            }
-            /* EXCHANGE with a configured endpoint trades the subject token for a
-             * backend-audienced one; EXCHANGE with no endpoint (documented §5.4
-             * fallback) and plain PASSTHROUGH forward the bearer verbatim. */
-            if (live->mode == BRIX_CRED_EXCHANGE
-                && live->tx.endpoint.len > 0) {
-                return brix_vfs_deleg_exchange(ctx, cred, use_cred, err_out);
-            }
-            return brix_vfs_deleg_bearer(ctx, cred, use_cred);
-        }
-
-        /* No forwardable bytes: SSS identity injection (phase-70 §5.6), when
-         * armed — assert the caller's principal via a keytab-signed SSS cred.
-         * Proven bytes above always win over injection. */
-        if (live->sss_keytab.len > 0 && live->sss_keytab.data != NULL) {
-            return brix_vfs_deleg_sss(ctx, cred, use_cred, err_out);
-        }
+    if (brix_deleg_user_cred(ctx, live, accept, cred, use_cred, err_out, &rc)) {
+        return rc;
     }
-
+    if (brix_deleg_service_cred(ctx, live, accept, cred, use_cred, err_out,
+                                &rc))
+    {
+        return rc;
+    }
     return brix_vfs_deleg_deny(ctx, use_cred, err_out,
                                BRIX_CRED_FAIL_MISSING);
 }

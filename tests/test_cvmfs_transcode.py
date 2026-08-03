@@ -35,7 +35,12 @@ import os
 import sys
 
 import pytest
-import zstandard
+
+# zstandard is an optional dependency (requirements-optional.txt): every other
+# suite that needs it skips rather than failing collection. This module used to
+# import it outright, which made an optional package mandatory for anyone merely
+# collecting tests/ — caught by tools/ci/check_python_deps.py.
+zstandard = pytest.importorskip("zstandard")
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))

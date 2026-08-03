@@ -86,4 +86,12 @@ ngx_int_t sd_remote_unlink(brix_sd_instance_t *inst, const char *path,
 ngx_int_t sd_remote_unlink_cred(brix_sd_instance_t *inst, const char *path,
     int is_dir, const brix_sd_cred_t *cred);
 
+/* Directory listing over the S3 catalog (sd_remote_dir.c) — ListObjectsV2 with
+ * a delimiter, paged lazily. Non-static because the driver vtable in
+ * sd_remote.c registers these slots. */
+brix_sd_dir_t *sd_remote_opendir(brix_sd_instance_t *inst, const char *path,
+    int *err_out);
+ngx_int_t sd_remote_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out);
+ngx_int_t sd_remote_closedir(brix_sd_dir_t *d);
+
 #endif /* BRIX_SD_REMOTE_INTERNAL_H */

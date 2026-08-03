@@ -72,6 +72,10 @@ const dx_rule DX_RULES[] = {
     { "write", kXR_IOError, DX_FAIL,
       "server-side write I/O error",
       "check server storage health and that the export is writable" },
+
+    /* capacity — code-keyed fallback (computed §6.2 checks cover the value cases) */    { "capacity", kXR_NoSpace, DX_FAIL,
+      "export filesystem is full",
+      "free disk space on the server export or add capacity" },
 };
 
 volatile sig_atomic_t g_watch_stop;
@@ -206,10 +210,26 @@ usage_fp(FILE *out, const char *prog)
         "    wait41   [--timeout S] [--full] host[:port]  wait for server readiness\n"
         "    mpxstats [host | -] [--metrics-port N]  multiplexed mpxstats feed\n"
         "    remote-doctor <url> [url2 ...] [--json] [--allow-write] [--auth-suite]\n"
+        "                       [--config-audit] [--all-servers] [--cap-threshold PCT]\n"
+        "                       [--map] [--map-format ascii|dot|mermaid]\n"
+        "                       [--latency] [--latency-count N] [--deep-recon]\n"
         "                       actively diagnose server problems (auth/namespace/read/\n"
         "                       checksum/locate/load; --allow-write adds write+stage probes;\n"
+        "                       --config-audit scrapes+classifies remote config/capacity/perf\n"
+        "                       (Qconfig/Qspace/netfacts); --all-servers fans a manager URL out\n"
+        "                       to every located data server + fleet-uniformity diff;\n"
+        "                       --map draws the discovered CMS mesh (--map-format dot|mermaid\n"
+        "                       emits a pipeable graph for `dot -Tpng`/a Mermaid renderer);\n"
+        "                       --latency times a bi-directional round-trip (xrootd stat +\n"
+        "                       cms locate plane) against every mesh node (--latency-count N);\n"
+        "                       --deep-recon dumps read-only server reconnaissance (query stats\n"
+        "                       a + full Qconfig sweep + capability flags + authorized roots);\n"
         "                       --auth-suite adds the auth/permissions test-suite:\n"
         "                       anon-bypass, forged/expired-token rejection, scope enforcement)\n"
+        "    tpc-egress <your-gateway-url> --tpc-target host[:port] [--json]\n"
+        "                       SSRF-control self-test: ask your OWN gateway to originate a\n"
+        "                       TPC pull from the named source and report whether egress is\n"
+        "                       refused (safe) or permitted (conn-refused vs filtered vs reached)\n"
         "                       MULTI-PROTOCOL: each URL's scheme picks the battery —\n"
         "                       root[s]://, http://, https://, davs://|dav://, s3://|s3s://, cms://\n"
         "                       (every stage: connect/TLS/auth/request/ranges/checksum/listing/\n"
@@ -273,6 +293,15 @@ static const dx_opt_t DX_OPTS[] = {
     { "--interval",        DXO_INT,   offsetof(diag_args, interval_s) },
     { "--count",           DXO_INT,   offsetof(diag_args, count) },
     { "--prometheus",      DXO_FLAG,  offsetof(diag_args, watch_prom) },
+    { "--config-audit",    DXO_FLAG,  offsetof(diag_args, config_audit) },
+    { "--all-servers",     DXO_FLAG,  offsetof(diag_args, all_servers) },
+    { "--cap-threshold",   DXO_INT,   offsetof(diag_args, cap_threshold_pct) },
+    { "--map",             DXO_FLAG,  offsetof(diag_args, map) },
+    { "--map-format",      DXO_STR,   offsetof(diag_args, map_format) },
+    { "--latency",         DXO_FLAG,  offsetof(diag_args, latency) },
+    { "--latency-count",   DXO_INT,   offsetof(diag_args, latency_count) },
+    { "--deep-recon",      DXO_FLAG,  offsetof(diag_args, deep_recon) },
+    { "--tpc-target",      DXO_STR,   offsetof(diag_args, tpc_target) },
 };
 
 
@@ -441,6 +470,7 @@ typedef struct {
 
 static const dx_cmd_t DX_CMDS[] = {
     { "remote-doctor",    do_remote_doctor },
+    { "tpc-egress",       do_tpc_egress },
     { "watch",            do_watch },
     { "check",            do_check },
     { "bench",            do_bench },
@@ -466,7 +496,7 @@ static int
 dx_unknown_sub(const char *sub, const char *prog)
 {
     static const char *const XRDDIAG_CMDS[] = {
-        "remote-doctor", "watch", "check", "bench", "metabench",
+        "remote-doctor", "tpc-egress", "watch", "check", "bench", "metabench",
         "topology", "status", "compare", "probe-robustness", "replay",
         "srr", "tape", "qstats", "wait41", "mpxstats", NULL
     };

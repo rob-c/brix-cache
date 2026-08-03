@@ -42,6 +42,12 @@ ALLOWLIST = (
     # Build-time-disabled stub: compiled INSTEAD OF the real cache subsystem
     # when caching is configured out; satisfies the linker (see file header).
     "src/fs/cache/noop.c",
+    # Phase-91 Wave-A gsiftp protocol kernels: pure parsers with no nginx or
+    # socket dependency, built + run standalone by the `gftp_parse` fast-tier
+    # unit runner. They stay out of ./config until the wave that adds the
+    # sd_gsiftp driver vtable wires them (src/fs/backend/gsiftp/README.md).
+    "src/fs/backend/gsiftp/gftp_mlsx.c",
+    "src/fs/backend/gsiftp/gftp_reply.c",
     # Standalone scan-drift reconciler (Ceph follow-on); built only by
     # scan_unittest / tests, not yet wired into the module (src/fs/scan/README.md).
     "src/fs/scan/scan_drift.c",

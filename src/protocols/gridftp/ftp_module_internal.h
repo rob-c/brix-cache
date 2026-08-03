@@ -13,7 +13,11 @@
 
 /* brix_ftp_build_gsi — construct the host TLS context (cert/key) and the client
  * proxy trust store once the GSI directives are known.  Defined in
- * ftp_module_gsi.c; called from brix_ftp_merge_conf() in ftp_module.c. */
+ * ftp_module_gsi.c; called from brix_ftp_merge_conf() in ftp_module_merge.c. */
 char *brix_ftp_build_gsi(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf);
+
+/* brix_ftp_merge_conf — parent→child srv_conf merge (ftp_module_merge.c);
+ * referenced by the module ctx in ftp_module.c. */
+char *brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child);
 
 #endif /* BRIX_GRIDFTP_MODULE_INTERNAL_H */

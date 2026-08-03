@@ -69,18 +69,16 @@
  *       served — caller reports success without filling), NGX_DECLINED
  *       (admission declined), or NGX_ERROR with errno set; every failure path
  *       releases whatever it had already acquired. */
+/* Open the fill source and snapshot its stat into fs. Returns NGX_OK,
+ * NGX_DONE (a stale copy may be served instead — caller reports success without
+ * filling), or NGX_ERROR with errno set. */
 static ngx_int_t
-cache_fill_acquire(sd_cache_inst_state *st, const char *key,
+cache_fill_open_src(sd_cache_inst_state *st, const char *key,
     const brix_sd_cred_t *cred, sd_cache_fill_state_t *fs)
 {
     brix_sd_instance_t *src = fs->src;
-    mode_t              fmode;
     int                 err = 0;
 
-    if (src->driver->open == NULL) {
-        errno = ENOSYS;
-        return NGX_ERROR;
-    }
     fs->so = brix_sd_open_maybe_cred(src, key, BRIX_SD_O_READ, 0, cred, &err);
     if (fs->so == NULL) {
         /* A cold-tier or mesh-sibling miss is NOT an origin outage — never
@@ -110,6 +108,56 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
     if (fs->so->driver->fstat != NULL) {
         (void) fs->so->driver->fstat(fs->so, &fs->snap);
     }
+    return NGX_OK;
+}
+
+
+/* Admission for the just-opened source. NGX_OK to proceed (possibly as a
+ * passthrough fill), NGX_DECLINED when the object must not be cached at all.
+ *
+ * phase-92 store-then-evict passthrough: a caller that opted in (fs->allow_pt —
+ * the HTTP shared cache-fill plane) can still be served a remote object the
+ * admission policy declined, by filling it under a separate spool cap, serving
+ * the coalesced waiters through the normal cache-hit reenter, then evicting the
+ * key. The gate is deliberately narrow: only a size-known source within the
+ * passthrough cap qualifies, so a path-filtered object, an oversized object, or
+ * a size-unknown (no Content-Length) origin still declines to the 502 slow-path.
+ * Other planes (root://, cvmfs) never opt in, so their decline is unchanged. */
+static ngx_int_t
+cache_fill_admit_src(sd_cache_inst_state *st, const char *key,
+    sd_cache_fill_state_t *fs)
+{
+    off_t pt_cap;
+
+    if (sd_cache_admit(&st->policy, key, fs->snap.size)) {
+        return NGX_OK;
+    }
+    pt_cap = sd_cache_passthrough_cap(&st->policy);
+    if (fs->allow_pt && st->policy.passthrough && fs->snap.size >= 0
+        && (pt_cap == 0 || fs->snap.size <= pt_cap))
+    {
+        fs->passthrough = 1;
+        return NGX_OK;
+    }
+    return NGX_DECLINED;                /* too big / filtered - do not cache */
+}
+
+
+static ngx_int_t
+cache_fill_acquire(sd_cache_inst_state *st, const char *key,
+    const brix_sd_cred_t *cred, sd_cache_fill_state_t *fs)
+{
+    mode_t    fmode;
+    ngx_int_t rc;
+
+    if (fs->src->driver->open == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    rc = cache_fill_open_src(st, key, cred, fs);
+    if (rc != NGX_OK) {
+        return rc;
+    }
     /* SECURITY + correctness: the physical cache-store object is a svc-owned
      * artifact that aggregates MANY users' bytes under one tree. Per-user
      * authorization is enforced at the protocol gate (open_cache.c), and the
@@ -124,26 +172,9 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
      *     cinfo record (ci.mode below, served by sd_cache_stat). */
     fmode = S_IRUSR | S_IWUSR;          /* 0600 — svc-owned cache artifact */
 
-    if (!sd_cache_admit(&st->policy, key, fs->snap.size)) {
-        /* phase-92 store-then-evict passthrough: a caller that opted in
-         * (fs->allow_pt — the HTTP shared cache-fill plane) can still be served
-         * a remote object the admission policy declined, by filling it under a
-         * separate spool cap, serving the coalesced waiters through the normal
-         * cache-hit reenter, then evicting the key. The gate is deliberately
-         * narrow: only a size-known source within the passthrough cap qualifies,
-         * so a path-filtered object, an oversized object, or a size-unknown
-         * (no Content-Length) origin still declines to the 502 slow-path. Other
-         * planes (root://, cvmfs) never opt in, so their decline is unchanged. */
-        off_t  pt_cap = sd_cache_passthrough_cap(&st->policy);
-
-        if (fs->allow_pt && st->policy.passthrough && fs->snap.size >= 0
-            && (pt_cap == 0 || fs->snap.size <= pt_cap))
-        {
-            fs->passthrough = 1;
-        } else {
-            brix_sd_obj_release(fs->so);
-            return NGX_DECLINED;        /* too big / filtered - do not cache */
-        }
+    if (cache_fill_admit_src(st, key, fs) == NGX_DECLINED) {
+        brix_sd_obj_release(fs->so);
+        return NGX_DECLINED;
     }
 
     fs->staged = brix_cstore_fill_open(&st->cstore, key, fmode);

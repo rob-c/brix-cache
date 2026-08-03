@@ -162,14 +162,51 @@ gftp_reply_parse_pasv(const char *text, size_t len, unsigned char ip[4],
 }
 
 
+/* Consume the three empty net-prt / net-addr fields — "<d><d><d>" — that RFC
+ * 2428 requires between the opening '(' and the port. 0 / -1. */
+static int
+gftp_epsv_skip_fields(const char **pp, const char *end, char d)
+{
+    const char *p = *pp;
+
+    if (p + 3 > end || p[0] != d || p[1] != d || p[2] != d) {
+        return -1;
+    }
+    *pp = p + 3;
+    return 0;
+}
+
+
+/* Scan the unsigned decimal run at *pp (bounded by end), advancing *pp past it.
+ * Returns the value, or -1 for no digits at all or a value past 65535 — the
+ * bound is checked per digit, so a long run cannot overflow the accumulator. */
+static long
+gftp_epsv_scan_port(const char **pp, const char *end)
+{
+    const char *p = *pp;
+    long        v = 0;
+    int         n = 0;
+
+    while (p < end && *p >= '0' && *p <= '9') {
+        v = v * 10 + (*p - '0');
+        if (v > 65535) {
+            return -1;
+        }
+        p++;
+        n++;
+    }
+    *pp = p;
+    return n == 0 ? -1 : v;
+}
+
+
 int
 gftp_reply_parse_epsv(const char *text, size_t len, unsigned *port)
 {
     const char *p   = text;
     const char *end = text + len;
     char        d;
-    long        v = 0;
-    int         n = 0;
+    long        v;
 
     while (p < end && *p != '(') {
         p++;
@@ -183,20 +220,11 @@ gftp_reply_parse_epsv(const char *text, size_t len, unsigned *port)
     }
     d = *p;                             /* delimiter (RFC 2428: usually '|') */
 
-    /* Three delimiters (empty net-prt and net-addr fields), then the port. */
-    if (p + 3 > end || p[0] != d || p[1] != d || p[2] != d) {
+    if (gftp_epsv_skip_fields(&p, end, d) != 0) {
         return -1;
     }
-    p += 3;
-    while (p < end && *p >= '0' && *p <= '9') {
-        v = v * 10 + (*p - '0');
-        if (v > 65535) {
-            return -1;
-        }
-        p++;
-        n++;
-    }
-    if (n == 0 || v == 0 || p >= end || *p != d) {
+    v = gftp_epsv_scan_port(&p, end);
+    if (v <= 0 || p >= end || *p != d) {
         return -1;
     }
     *port = (unsigned) v;

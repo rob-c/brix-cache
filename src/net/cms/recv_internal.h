@@ -75,4 +75,13 @@ ngx_int_t cms_node_exec_forward(ngx_brix_cms_ctx_t *ctx, u_char code,
 ngx_int_t cms_node_exec_prepare(ngx_brix_cms_ctx_t *ctx, u_char code,
     uint32_t streamid, const u_char *payload, size_t plen);
 
+
+/* recv_frame_state.c — the two namespace-walking manager-frame handlers.
+ * Non-static because recv_frame.c's dispatch table and cms_frame_forward
+ * reference them. */
+ngx_int_t cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid,
+    u_char code);
+ngx_int_t cms_super_fan_down(ngx_brix_cms_ctx_t *ctx, u_char code,
+    const u_char *payload, size_t plen);
+
 #endif /* BRIX_CMS_RECV_INTERNAL_H */

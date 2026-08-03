@@ -282,7 +282,10 @@ brix_ring_direct_tail_write(brix_disk_ring *r, int64_t off, const uint8_t *buf,
         return -1;
     }
     while (done < n) {
-        ssize_t w = pwrite(r->fd, buf + done, n - done,
+        /* This IS the local disk-ring layer beneath the client VFS seam, not a
+         * caller bypassing it: r->fd is the same descriptor the ring's io_uring
+         * writes target, and this is only its unaligned-tail fallback. */
+        ssize_t w = pwrite(r->fd, buf + done, n - done, /* vfs-seam-allow: disk-ring O_DIRECT tail fallback on the ring's own fd */
                            (off_t) off + (off_t) done);
         if (w < 0) {
             if (errno == EINTR) {
@@ -546,60 +549,6 @@ brix_disk_ring_destroy(brix_disk_ring *r)
     free(r->slab);
     free(r->slots);
     free(r);
-}
-
-#else  /* !BRIX_HAVE_LIBURING — inert stubs */
-
-int
-brix_uring_available(void)
-{
-    return 0;
-}
-
-brix_disk_ring *
-brix_disk_ring_create(int fd, unsigned depth, size_t bufsz, int direct,
-                      brix_status *st)
-{
-    (void) fd; (void) depth; (void) bufsz; (void) direct;
-    brix_status_set(st, XRDC_EUNSUPPORTED, 0,
-                    "io_uring not compiled in (rebuild with liburing)");
-    return NULL;
-}
-
-void
-brix_disk_ring_destroy(brix_disk_ring *r)
-{
-    (void) r;
-}
-
-int
-brix_disk_ring_pwrite(brix_disk_ring *r, int64_t off, const uint8_t *buf,
-                      size_t n, brix_status *st)
-{
-    (void) r; (void) off; (void) buf; (void) n; (void) st;
-    return -1;
-}
-
-int
-brix_disk_ring_flush(brix_disk_ring *r, brix_status *st)
-{
-    (void) r; (void) st;
-    return -1;
-}
-
-ssize_t
-brix_disk_ring_pread(brix_disk_ring *r, int64_t off, uint8_t *out, size_t cap,
-                     brix_status *st)
-{
-    (void) r; (void) off; (void) out; (void) cap; (void) st;
-    return -1;
-}
-
-size_t
-brix_disk_ring_bufsz(const brix_disk_ring *r)
-{
-    (void) r;
-    return 0;
 }
 
 #endif /* BRIX_HAVE_LIBURING */

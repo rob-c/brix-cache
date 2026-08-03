@@ -30,7 +30,6 @@ src/fs/backend/pblock/sd_pblock_open.c::sd_pblock_close	21
 src/fs/backend/pblock/sd_pblock_staged.c::sd_pblock_staged_commit	20
 src/fs/backend/pblock/sd_pblock_staged.c::sd_pblock_staged_open_as	16
 src/fs/backend/s3/sd_s3.c::sd_s3_pread	21
-src/fs/backend/s3/sd_s3_sign.c::sd_s3_sign_ex	23
 src/fs/backend/s3/sd_s3_write.c::sd_s3_pwrite	18
 src/fs/backend/stage/sd_stage_write.c::sd_stage_open_writeback	16
 src/fs/cache/origin_protocol.c::brix_cache_origin_query_checksum	17
@@ -40,7 +39,6 @@ src/fs/xfer/backend_async_queue.c::brix_baq_reconcile	16
 src/net/guard/guard_classify.c::guard_classify_handshake	17
 src/net/ratelimit/ratelimit_keys.c::brix_rl_key_stream	16
 src/net/ratelimit/ratelimit_keys.c::rl_key_http_derive	16
-src/protocols/cvmfs/gate.c::brix_cvmfs_gate	17
 src/protocols/gridftp/ev/ftp_ev_data.c::ev_do_pasv	18
 src/protocols/gridftp/ev/ftp_ev_io.c::brix_ftp_ev_process	17
 src/protocols/gridftp/ev/ftp_ev_mode_e_recv.c::brix_ftp_ev_eb_accept	17

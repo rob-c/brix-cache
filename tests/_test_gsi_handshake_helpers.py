@@ -76,6 +76,7 @@ _WK = os.environ.get("PYTEST_XDIST_WORKER", "")   # "gw0".."gwN" under xdist, ""
 _WOFF = (int(_WK[2:]) + 1) * 20 if _WK.startswith("gw") else 0
 
 P_STOCK_ROOT = 21130 + _WOFF
+P_STOCK_ROOT_FCA = 21131 + _WOFF   # foreign-CA stock server; +1 within the stride
 
 
 # --------------------------------------------------------------------------- #
@@ -426,6 +427,29 @@ def pki(tmp_path_factory):
 
     expired_proxy = _make_expired_eec(ca_key, ca_pem, "Test User", base)
 
+    # Foreign-CA server: a host cert signed by a SECOND, distinct CA (the "server
+    # CA"), while the user proxy still chains to the trusted CA above. Models a
+    # real grid site (e.g. UK e-Science CA 2B) whose host cert hangs off a CA
+    # different from the client's proxy CA. The server trusts BOTH CAs via a
+    # CApath directory (it must verify its own host cert to advertise the ca:
+    # hint AND verify the client's proxy), and the client trusts both too (the
+    # server CA is hash-linked into certs/ so the roots:// TLS upgrade verifies
+    # the host cert). The advertised ca: is then the server CA — a client that
+    # echoes it as its issuer hash makes the server anchor our proxy on the wrong
+    # CA and reject the chain as "inconsistent"; a correct client sends its OWN
+    # proxy CA. See gsi_client_issuer_hash in client/lib/auth/sec/sec_gsi.c.
+    scb = os.path.join(base, "scb")
+    os.makedirs(scb, exist_ok=True)
+    scb_key, scb_pem = _make_ca(scb, "/O=XrdTest/CN=XrdTest Server CA")
+    _signed(scb_key, scb_pem, fqdn, os.path.join(scb, "hostkey.pem"),
+            os.path.join(scb, "hostcert.pem"), base)
+    _ca_hash_link(scb_pem, certs)               # client also trusts the server CA
+    both_ca = os.path.join(base, "both_ca")     # CApath the foreign server trusts
+    os.makedirs(both_ca, exist_ok=True)
+    _ca_hash_link(ca_pem, both_ca)              # to verify the client proxy
+    _ca_hash_link(scb_pem, both_ca)             # to verify its own host cert
+    os.chmod(both_ca, 0o755)
+
     # Required for the negative tests — these must exist, not be skipped over.
     assert untrusted_proxy, "could not mint the untrusted-CA proxy"
     assert expired_proxy, "could not build the expired credential (openssl ca)"
@@ -455,6 +479,9 @@ def pki(tmp_path_factory):
         "userkey": os.path.join(usr, "userkey.pem"),
         "valid_proxy": os.path.join(usr, "proxy.pem"),
         "untrusted_proxy": untrusted_proxy, "expired_proxy": expired_proxy,
+        "foreign_hostcert": os.path.join(scb, "hostcert.pem"),
+        "foreign_hostkey": os.path.join(scb, "hostkey.pem"),
+        "both_ca": both_ca,
         "env": env,
     }
 
@@ -762,19 +789,20 @@ def nginx_rsa4096(pki, rsa4096):
         harness.close()
 
 
-@pytest.fixture(scope="module")
-def stock_root(pki):
-    """A throwaway stock xrootd GSI server (for native-client interop)."""
+def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname):
+    """Launch a throwaway stock xrootd GSI server; return the Popen. Shared by
+    the same-CA (stock_root) and foreign-CA (stock_root_foreign_ca) fixtures —
+    they differ only by the host cert/key, the server's certdir and the port."""
     assert _have("xrootd", STOCK_XRDFS), \
         "stock xrootd / xrdfs are required for the GSI interop tests"
     base = pki["base"]
     gsidata = os.path.join(base, "gsidata")
     if not os.path.isdir(gsidata):
         shutil.copytree(pki["data"], gsidata)
-    cfg = os.path.join(base, "stock.cfg")
+    cfg = os.path.join(base, cfgname)
     with open(cfg, "w") as f:
         f.write(
-            f"xrd.port {P_STOCK_ROOT}\n"
+            f"xrd.port {port}\n"
             "all.export /gsidata\n"
             f"oss.localroot {base}\n"
             # Keep the admin/pid state INSIDE the per-run tree: the default is
@@ -784,16 +812,16 @@ def stock_root(pki):
             f"all.adminpath {base}\n"
             f"all.pidpath {base}\n"
             "xrootd.seclib libXrdSec.so\n"
-            f"sec.protocol /usr/lib64 gsi -certdir:{pki['certs']} "
-            f"-cert:{pki['hostcert']} -key:{pki['hostkey']} "
+            f"sec.protocol /usr/lib64 gsi -certdir:{certdir} "
+            f"-cert:{hostcert} -key:{hostkey} "
             "-crl:0 -gmapopt:10 -dlgpxy:0\n"
             "sec.protbind * only gsi\n")
-    _free_port(P_STOCK_ROOT)
+    _free_port(port)
     # xrootd refuses to run as the superuser; under a root test runner drop it to
     # `nobody` (-R) and open the tree + private key it must read/write as that
     # user (mirrors the fleet's refxrootd.sh _ref_launch shim).
     xrd_cmd = ["xrootd", "-c", cfg, "-l",
-               os.path.join(base, "stock.log"), "-n", "gsihs"]
+               os.path.join(base, f"stock-{port}.log"), "-n", "gsihs"]
     if os.geteuid() == 0:
         subprocess.run(["chmod", "-R", "a+rwX", base], check=False)
         # pytest's tmp_path_factory creates pytest-of-root/pytest-N as 0700, so
@@ -803,8 +831,11 @@ def stock_root(pki):
         while parent not in ("/", ""):
             subprocess.run(["chmod", "a+rx", parent], check=False)
             parent = os.path.dirname(parent)
-        subprocess.run(["chown", "nobody", pki["hostkey"]], check=False)
-        subprocess.run(["chmod", "0400", pki["hostkey"]], check=False)
+        # Both host keys may be served across the two stock fixtures; open each to
+        # `nobody`. (chown-ing an absent key is a harmless no-op via check=False.)
+        for key in (pki["hostkey"], pki["foreign_hostkey"]):
+            subprocess.run(["chown", "nobody", key], check=False)
+            subprocess.run(["chmod", "0400", key], check=False)
         # The broad `chmod -R a+rwX base` (so xrootd-as-`nobody` can read the
         # export tree) also loosens the user's PRIVATE proxy + key under base/user/
         # to world-accessible. The native client's credential loader
@@ -814,21 +845,44 @@ def stock_root(pki):
         # server never needs them.
         for cred in (pki["valid_proxy"], pki["userkey"]):
             subprocess.run(["chmod", "0600", cred], check=False)
-        # The broad `a+rwX` also left the shared CA dir (certs/) world-WRITABLE
-        # (0777). XrdCl's TLS client init (XrdClTls.cc InitTLS -> XrdOucUtils::
-        # ValPath, mask 0755) REFUSES a CA directory with group/other-write bits
-        # ("has excessive access rights") and throws "Failed to initialize TLS".
-        # Every later roots:// test in this module points X509_CERT_DIR at certs/,
-        # so if a stock-server test seeds this fixture first the TLS cases fail
-        # (order-dependent under -n<N> --dist load -> flaky). Restore certs/ to
-        # 0755: still traversable/readable by the stock server-as-`nobody`, but
-        # no longer "excessive" so TLS client init accepts it.
+        # The broad `a+rwX` also left the shared CA dirs world-WRITABLE (0777).
+        # XrdCl's TLS client init (XrdClTls.cc InitTLS -> XrdOucUtils::ValPath,
+        # mask 0755) REFUSES a CA directory with group/other-write bits ("has
+        # excessive access rights") and throws "Failed to initialize TLS". Every
+        # later roots:// test in this module points X509_CERT_DIR at certs/, so if
+        # a stock-server test seeds this fixture first the TLS cases fail (order-
+        # dependent under -n<N> --dist load -> flaky). Restore both CA dirs to
+        # 0755: still traversable/readable by the stock server-as-`nobody`, but no
+        # longer "excessive" so TLS client init accepts them.
         subprocess.run(["chmod", "0755", pki["certs"]], check=False)
+        subprocess.run(["chmod", "0755", pki["both_ca"]], check=False)
         xrd_cmd += ["-R", "nobody"]
     proc = subprocess.Popen(xrd_cmd, stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
-    _wait_listen(proc, P_STOCK_ROOT, "stock xrootd")
+    _wait_listen(proc, port, "stock xrootd")
+    return proc
+
+
+@pytest.fixture(scope="module")
+def stock_root(pki):
+    """A throwaway stock xrootd GSI server (for native-client interop)."""
+    proc = _start_stock_gsi(pki, P_STOCK_ROOT, pki["hostcert"], pki["hostkey"],
+                            pki["certs"], "stock.cfg")
     yield {"url": f"root://{pki['fqdn']}:{P_STOCK_ROOT}"}
+    _terminate(proc)
+
+
+@pytest.fixture(scope="module")
+def stock_root_foreign_ca(pki):
+    """A stock xrootd GSI server whose HOST cert is signed by a CA distinct from
+    the client's proxy CA (it trusts BOTH via the both_ca CApath). It advertises
+    its own (foreign) CA in the gsi ca: hint, so a client that echoes that hint
+    as its issuer hash is rejected with 'chain is inconsistent' — the exact
+    condition our native client hit at UK e-Science CA 2B grid sites."""
+    proc = _start_stock_gsi(pki, P_STOCK_ROOT_FCA, pki["foreign_hostcert"],
+                            pki["foreign_hostkey"], pki["both_ca"],
+                            "stock_fca.cfg")
+    yield {"url": f"root://{pki['fqdn']}:{P_STOCK_ROOT_FCA}"}
     _terminate(proc)
 
 

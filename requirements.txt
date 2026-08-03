@@ -1,3 +1,42 @@
-xrootd>=6.0.0
-pytest-timeout>=2.1.0
-cryptography>=3.0
+# Python packages the local test suite REQUIRES. Without these, collection
+# fails — everything here is imported at module scope somewhere under tests/.
+#
+# Every entry carries a lower AND an upper bound. Lower bounds record the
+# oldest release whose API this tree actually uses; upper bounds stop a new
+# major from silently entering CI. Bumping a ceiling is a reviewed edit — that
+# is the point. `tools/ci/check_python_deps.py` enforces both bounds, and that
+# every third-party import is declared in one of these files.
+#
+#   requirements.txt           this file — required
+#   requirements-optional.txt  feature-gated; tests importorskip them
+#   requirements-dev.txt       guard/analysis tooling (lizard, CodeChecker)
+#   k8s-tests/pytests/requirements.txt   cluster lab only
+#
+# System packages (ceph's python3-rados / python3-cephfs) are deliberately
+# absent: they are not installable from PyPI and are pinned by the distro.
+# See `SYSTEM_MODULES` in tools/ci/check_python_deps.py.
+
+# --- XRootD client bindings (XrdCl) — the reference client under test --------
+# 6.x is the first series with the pyxrootd packaging this suite drives.
+xrootd>=6.0.0,<7
+
+# --- test runner + plugins ---------------------------------------------------
+# pytest 7 introduced the config/collection API conftest.py uses.
+pytest>=7.0,<10
+# pytest.ini sets timeout_method=signal, which needs 2.1+.
+pytest-timeout>=2.1.0,<3
+# `-n` parallelism plus the xdist_group scheduling several suites rely on.
+pytest-xdist>=3.0,<4
+# --reruns for the documented lane flakes.
+pytest-rerunfailures>=12,<17
+
+# --- HTTP / WebDAV / token plane ---------------------------------------------
+requests>=2.25,<3
+# Imported directly for InsecureRequestWarning suppression and Retry tuning.
+urllib3>=1.26,<3
+
+# --- crypto: test PKI, proxy certs, token signing ----------------------------
+cryptography>=3.0,<49
+
+# --- YAML: CI-workflow assertions, clientconf surface, lab catalogues --------
+PyYAML>=5.4,<7

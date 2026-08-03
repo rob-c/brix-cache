@@ -6,13 +6,13 @@
 /*
  * reads.c — thread-pool offload for the stream kXR_read / kXR_pgread opcodes.
  *
- * WHAT: Three read paths share this file. (1) Windowed memory read
+ * WHAT: Two read paths share this file. (1) Windowed memory read
  *       (brix_read_window_pump / _emit) streams a large memory-backed
  *       (TLS / non-regular) read as fill->drain->fill chunks. (2) Plain
  *       kXR_read AIO (brix_read_aio_thread / _done) offloads a single
  *       file reads to a worker thread and returns one chained response.
- *       (3) pgread AIO (brix_pgread_aio_thread / _done) does the same but
- *       interleaves a per-page CRC32C into the wire output.
+ *       The third member of the family — pgread AIO, which interleaves a
+ *       per-page CRC32C into the wire output — lives in pgreads.c.
  *
  * WHY:  File I/O (and the pgread CRC32C loop) can block; running them on the
  *       nginx event-loop thread would stall every other connection on this
@@ -313,86 +313,76 @@ brix_read_aio_thread(void *data, ngx_log_t *log)
  * NOTE: if the chain send blocks (XRD_ST_SENDING), databuf is kept alive as
  * wchain_base and freed by brix_release_pending_buffer after full drain.
  */
-void
-brix_read_aio_done(ngx_event_t *ev)
+/*
+ * The stream vanished while this read ran. On the last outstanding op (no
+ * pwrite and no read still in flight) run the held teardown that
+ * brix_defer_teardown_if_writing parked; otherwise touch nothing — another
+ * completion still references ctx.
+ */
+static void
+brix_read_aio_orphaned(brix_read_aio_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c)
 {
-    ngx_thread_task_t  *task = ev->data;
-    brix_read_aio_t  *t = task->ctx;
-    brix_ctx_t       *ctx = t->ctx;
-    ngx_connection_t   *c = t->c;
-    ngx_chain_t        *rsp_chain;
-
-    /*
-     * phase-32 WS3 (concurrent read-AIO): a counted single-shot read is no
-     * longer in flight.  Decrement BEFORE the liveness guard so a deferred
-     * teardown (the client vanished while pipelined reads were running) fires on
-     * the LAST completion — once no worker thread references any rd_pool buffer.
-     * Mirrors the wr_inflight discipline in brix_write_aio_done.
-     */
-    if (t->counted && ctx->rd.aio_inflight > 0) {
-        ctx->rd.aio_inflight--;
+    if (t->counted && ctx->out.finalize_pending
+        && ctx->out.wr_inflight == 0 && ctx->rd.aio_inflight == 0)
+    {
+        brix_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
     }
+}
 
-    if (!brix_aio_restore_stream(ctx, t->streamid)) {
-        /* Connection torn down while this read ran: on the last outstanding op
-         * (no pwrite and no read still in flight) run the held teardown that
-         * brix_defer_teardown_if_writing parked, else touch nothing. */
-        if (t->counted && ctx->out.finalize_pending
-            && ctx->out.wr_inflight == 0 && ctx->rd.aio_inflight == 0)
-        {
-            brix_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
-        }
-        return;
-    }
 
-    /* phase-56 D-2: file this completed read (per window for a windowed read —
-     * each window is one physical I/O op) into the op-latency histogram. */
-    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
-
-    if (ctx->rd.win_active) {
-        /*
-         * Phase 31 W2.1: this completion belongs to one window of a windowed
-         * read.  Emit its chunk, then continue (next window) or finish.
-         */
-        if (brix_read_window_emit(ctx, c, t->nread, t->io_errno)
-            == NGX_ERROR)
-        {
-            brix_aio_resume(c);
-            return;
-        }
-        /*
-         * After emit, exactly one of three things is true and each takes a
-         * different path (no fall-through — every branch returns):
-         *   a) chunk is still draining (XRD_ST_SENDING): hand off; send.c will
-         *      re-enter the pump once the socket has flushed this window.
-         *   b) chunk sent synchronously and more windows remain
-         *      (rd_win_active still set): drive the next window now.
-         *   c) windowed read complete (rd_win_active cleared by emit): the read
-         *      is done, so resume the normal request event loop.
-         */
-        if (ctx->state == XRD_ST_SENDING) {
-            return;            /* (a) send.c resumes the pump when the chunk drains */
-        }
-        if (ctx->rd.win_active) {
-            brix_read_window_pump(ctx, c, t->conf);   /* (b) sync-sent: next window */
-            return;
-        }
-        brix_aio_resume(c);  /* (c) finished */
-        return;
-    }
-
-    if (t->nread < 0) {
-        brix_read_io_failure_log(c->log, "read-aio", t->fd, t->offset,
-                                   t->rlen, t->io_errno);
-        ctx->state = XRD_ST_REQ_HEADER;
-        ctx->recv.hdr_pos = 0;
-        brix_release_read_buffer(ctx, c, t->databuf);
-        BRIX_OP_ERR(ctx, BRIX_OP_READ);
-        brix_send_error(ctx, c, kXR_IOError,
-                          t->io_errno ? strerror(t->io_errno) : "async read error");
+/*
+ * Phase 31 W2.1: this completion belongs to one window of a windowed read.
+ * Emit its chunk, then take exactly one of three paths (no fall-through):
+ *   a) chunk still draining (XRD_ST_SENDING): hand off; send.c re-enters the
+ *      pump once the socket has flushed this window.
+ *   b) chunk sent synchronously and more windows remain (win_active still set):
+ *      drive the next window now.
+ *   c) windowed read complete (win_active cleared by emit): resume the normal
+ *      request event loop.
+ */
+static void
+brix_read_aio_window_done(brix_read_aio_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c)
+{
+    if (brix_read_window_emit(ctx, c, t->nread, t->io_errno) == NGX_ERROR) {
         brix_aio_resume(c);
         return;
     }
+    if (ctx->state == XRD_ST_SENDING) {
+        return;                /* (a) send.c resumes the pump when it drains */
+    }
+    if (ctx->rd.win_active) {
+        brix_read_window_pump(ctx, c, t->conf);   /* (b) sync-sent: next window */
+        return;
+    }
+    brix_aio_resume(c);        /* (c) finished */
+}
+
+
+/* The read syscall itself failed: log it, release the buffer, and answer the
+ * client with kXR_IOError before resuming the request loop. */
+static void
+brix_read_aio_failed(brix_read_aio_t *t, brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    brix_read_io_failure_log(c->log, "read-aio", t->fd, t->offset,
+                               t->rlen, t->io_errno);
+    ctx->state = XRD_ST_REQ_HEADER;
+    ctx->recv.hdr_pos = 0;
+    brix_release_read_buffer(ctx, c, t->databuf);
+    BRIX_OP_ERR(ctx, BRIX_OP_READ);
+    brix_send_error(ctx, c, kXR_IOError,
+                      t->io_errno ? strerror(t->io_errno) : "async read error");
+    brix_aio_resume(c);
+}
+
+
+/* Successful single-chunk read: account the bytes, frame the response and queue
+ * it, then release or park the pool buffer depending on whether it drained. */
+static void
+brix_read_aio_deliver(brix_read_aio_t *t, brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    ngx_chain_t *rsp_chain;
 
     ctx->files[t->handle_idx].bytes_read += (size_t) t->nread;
     ctx->totals.bytes += (size_t) t->nread;
@@ -429,148 +419,41 @@ brix_read_aio_done(ngx_event_t *ev)
 }
 
 
-/*
- * This section implements the thread-pool offload for pgread, where each
- * 4096-byte page is read and a CRC32C checksum is computed on it.
- * The output format is: [CRC32C(4 bytes)][page data (4096 bytes)] × N_pages
- *
- * Two functions: the _thread function does the pread + CRC encoding on the
- * worker thread; the _done callback builds the response chain on the main
- * event loop.
- */
-
-
-/*
- * brix_pgread_aio_thread — thread-pool worker for kXR_pgread.
- *
- * Reads file data DIRECTLY into the final interleaved [CRC32C(4)][data] wire
- * buffer (t->scratch, starting at offset 0) and computes each page CRC32C in
- * place — no separate flat-data copy pass. This runs on the worker thread so
- * both the (batched preadv) I/O and the CRC stay off the nginx event loop.
- * t->out_size is the encoded byte count; t->nread the file bytes read (<0 = I/O
- * error, t->io_errno set). See brix_pgread_read_encode_inplace().
- */
 void
-brix_pgread_aio_thread(void *data, ngx_log_t *log)
+brix_read_aio_done(ngx_event_t *ev)
 {
-    brix_pgread_aio_t *t = data;
-    brix_vfs_job_t     job;
-
-    brix_vfs_job_read_init(&job, t->fd, t->offset, t->rlen,
-                             t->scratch, t->rlen, 0);
-    job.op = BRIX_VFS_IO_PGREAD;
-    brix_vfs_job_set_obj(&job, &t->obj); /* Layer 3: route via driver if bound */
-    brix_vfs_io_execute(&job);
-
-    t->out_size = job.out_size;
-    t->nread = job.nio;
-    t->io_errno = job.io_errno;
-}
-
-/*
- * brix_pgread_aio_crc_thread — encode-only pool worker for the P44-B hybrid
- * io_uring pgread.
- *
- * The ring already scattered the file bytes into t->scratch's gapped wire
- * layout and the reaper stored the delivered byte count in t->nread; all that
- * remains is the per-page CRC32c pass, which must run here on a pool thread —
- * never on the event thread (R-07).  The reaper rebinds the (per-request
- * re-bound) task to this fn and re-posts it; the pool's completion then fires
- * the unchanged brix_pgread_aio_done.  Error/EOF completions (nread <= 0)
- * skip this hop entirely — the reaper posts the done event directly.
- */
-void
-brix_pgread_aio_crc_thread(void *data, ngx_log_t *log)
-{
-    brix_pgread_aio_t *t = data;
-
-    (void) log;
-
-    t->out_size = brix_pgread_crc_encode_delivered(t->offset, t->rlen,
-                                                     t->scratch,
-                                                     (size_t) t->nread);
-}
-
-/*
- * brix_pgread_aio_done — response builder for pgread AIO completion.
- *
- * pgread wire format ([CRC32C(4)][page data] × N) cannot use
- * brix_build_chunked_chain and requires direct chain construction with a
- * ServerStatusResponse_pgRead header.
- */
-void
-brix_pgread_aio_done(ngx_event_t *ev)
-{
-    ngx_thread_task_t          *task = ev->data;
-    brix_pgread_aio_t        *t = task->ctx;
-    brix_ctx_t               *ctx = t->ctx;
-    ngx_connection_t           *c = t->c;
-    ServerStatusResponse_pgRead *hdr_buf;
-    ngx_chain_t                *rsp_chain;
-    ngx_stream_brix_srv_conf_t *rconf;
-
-    if (!brix_aio_restore_request(ctx, t->streamid)) {
-        return;
-    }
-
-    /* phase-56 D-2: pgread files as a READ op on the latency histogram. */
-    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
-
-    if (t->nread < 0) {
-        brix_release_read_buffer(ctx, c, t->scratch);
-        BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
-        brix_send_error(ctx, c, kXR_IOError,
-                          t->io_errno ? strerror(t->io_errno) : "async pgread error");
-        brix_aio_resume(c);
-        return;
-    }
+    ngx_thread_task_t  *task = ev->data;
+    brix_read_aio_t  *t = task->ctx;
+    brix_ctx_t       *ctx = t->ctx;
+    ngx_connection_t   *c = t->c;
 
     /*
-     * EOF / empty read: emit a pgRead status header with dlen 0 and no data
-     * buffer at all. The client reads the header, sees zero payload bytes, and
-     * treats it as end-of-data — there are no pages, hence no CRC32C words.
+     * phase-32 WS3 (concurrent read-AIO): a counted single-shot read is no
+     * longer in flight.  Decrement BEFORE the liveness guard so a deferred
+     * teardown (the client vanished while pipelined reads were running) fires on
+     * the LAST completion — once no worker thread references any rd_pool buffer.
+     * Mirrors the wr_inflight discipline in brix_write_aio_done.
      */
-    if (t->nread == 0 || t->out_size == 0) {
-        hdr_buf = ngx_palloc(c->pool, sizeof(*hdr_buf));
-        if (hdr_buf) {
-            brix_build_pgread_status(ctx, t->offset, 0, hdr_buf);
-            BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
-            brix_queue_response(ctx, c, (u_char *) hdr_buf, sizeof(*hdr_buf));
-        }
-        brix_release_read_buffer(ctx, c, t->scratch);
-        brix_aio_resume(c);
+    if (t->counted && ctx->rd.aio_inflight > 0) {
+        ctx->rd.aio_inflight--;
+    }
+
+    if (!brix_aio_restore_stream(ctx, t->streamid)) {
+        brix_read_aio_orphaned(t, ctx, c);
         return;
     }
 
-    /* PGREAD: the encoded page data (in t->scratch from offset 0) carries its
-     * own per-page CRC32c and must be sent verbatim behind the pgRead status
-     * header — never through brix_build_chunked_chain (wrong kXR_ok framing).
-     * Shared with the synchronous handler via brix_build_pgread_chain. */
-    rsp_chain = brix_build_pgread_chain(ctx, c, t->offset, t->scratch,
-                                          (uint32_t) t->out_size);
-    if (rsp_chain == NULL) {
-        brix_release_read_buffer(ctx, c, t->scratch);
-        brix_aio_resume(c);
+    /* phase-56 D-2: file this completed read (per window for a windowed read —
+     * each window is one physical I/O op) into the op-latency histogram. */
+    brix_aio_metric_done(t->start_ns, BRIX_METRIC_OP_READ);
+
+    if (ctx->rd.win_active) {
+        brix_read_aio_window_done(t, ctx, c);
         return;
     }
-
-    ctx->files[t->handle_idx].bytes_read += (size_t) t->nread;
-    ctx->totals.bytes += (size_t) t->nread;
-
-    rconf = ngx_stream_get_module_srv_conf(
-        (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-    if (rconf->access_log_fd != NGX_INVALID_FILE) {
-        char detail[64];
-        snprintf(detail, sizeof(detail), "%lld+%zu",
-                 (long long) t->offset, (size_t) t->nread);
-        brix_log_access(ctx, c, "PGREAD", ctx->files[t->handle_idx].path,
-                          detail, 1, 0, NULL, (size_t) t->nread);
+    if (t->nread < 0) {
+        brix_read_aio_failed(t, ctx, c);
+        return;
     }
-    BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
-
-    brix_queue_response_chain(ctx, c, rsp_chain, t->scratch);
-    if (ctx->state != XRD_ST_SENDING) {
-        brix_release_read_buffer(ctx, c, t->scratch);
-    }
-    brix_aio_resume(c);
+    brix_read_aio_deliver(t, ctx, c);
 }

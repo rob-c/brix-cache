@@ -1,0 +1,122 @@
+name: Bug report
+description: Something behaves differently from the documentation, the XRootD protocol, or plain sense.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **If this is a security vulnerability, stop.** Do not file it here —
+        follow [SECURITY.md](https://github.com/rob-c/brix-cache/blob/main/SECURITY.md).
+        Public issues are indexed the moment you press submit.
+
+        Otherwise: the fields below are the ones that decide whether a report
+        can be reproduced. A bug in a data-transfer server almost never
+        reproduces from a description alone.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >-
+        Server banner or package version (`nginx -V`, `rpm -q
+        nginx-mod-brix-cache`), or the commit SHA if built from source.
+      placeholder: "1.4.0-1.el9 / commit bd316c023"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      description: Where the failure shows up. Pick the closest.
+      options:
+        - "root:// (XRootD wire protocol)"
+        - "HTTP / WebDAV (davs://)"
+        - "Third-party copy (TPC)"
+        - "GridFTP gateway (gsiftp://)"
+        - "Cache / CVMFS"
+        - "Client tools (xrdcp, xrdfs, xrootdfs, xrddiag)"
+        - "Build, packaging, or CI"
+        - "Other / not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: backend
+    attributes:
+      label: Storage backend
+      description: POSIX, S3/MinIO, Ceph, CVMFS, remote/proxy, block — and its version if relevant.
+      placeholder: "POSIX on XFS / MinIO RELEASE.2026-05-01"
+    validations:
+      required: true
+
+  - type: input
+    id: auth
+    attributes:
+      label: Authentication in play
+      description: >-
+        unix, sss, GSI/X.509 proxy, WLCG bearer token, krb5, S3 SigV4, or none.
+        Say if the failure only happens for one identity or VO.
+      placeholder: "WLCG token, scope storage.read:/atlas"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        The exact commands. `xrdcp`/`curl`/`xrdfs` invocations are ideal — a
+        reproducer we can paste into a shell is worth ten paragraphs.
+      placeholder: |
+        1. Server config: brix_root /data; brix_allow_write on;
+        2. xrdcp -f /tmp/1g.bin root://host:1094//data/1g.bin
+        3. Transfer stalls at ~8 MiB, then fails after 60s
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: >-
+        Include the error the client saw. If the protocol says something
+        specific should happen (an errno, a kXR_ status, an HTTP code), say so —
+        those mappings are a documented invariant here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: >-
+        The `brix_*` directives involved plus surrounding `server`/`location`
+        blocks. Redact secrets — keytab paths are useful, keytab contents are not.
+      render: nginx
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        `error.log` around the failure (`debug` level if you can), and the
+        client's `-d 2` output. **Check for a crash loop first** —
+        `coredumpctl list --since=-1h` and repeated startup banners; that
+        changes the diagnosis entirely.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This is not a security vulnerability (those go to SECURITY.md).
+          required: true
+        - label: I checked the relevant guide under `docs/` and searched existing issues.
+          required: true
+        - label: I can reproduce this on a supported version (see SECURITY.md).
+          required: false

@@ -23,8 +23,14 @@
 #define BRIX_SERVER_NAME          "BriX-Cache"
 
 /* Version, bare and with the "v" prefix XRootD clients expect from
- * Qconfig "version" (they parse it for digits — keep digits present). */
-#define BRIX_SERVER_VERSION_BARE  "1.3.0"
+ * Qconfig "version" (they parse it for digits — keep digits present).
+ *
+ * THIS LINE IS THE RELEASE. Everything else derives from it: the RPM version
+ * (packaging/rpm/build-rpm{,-container}.sh sed this macro out), the spec's
+ * literal fallback, the CHANGELOG's top entry, and the git tag. Bumping it
+ * alone is not a release — follow docs/09-developer-guide/release-process.md;
+ * tools/ci/check_version_sync.py fails the build if the derived copies drift. */
+#define BRIX_SERVER_VERSION_BARE  "1.4.0"
 #define BRIX_SERVER_VERSION       "v" BRIX_SERVER_VERSION_BARE
 
 #endif /* BRIX_CORE_IDENT_H */

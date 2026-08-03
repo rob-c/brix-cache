@@ -1147,6 +1147,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/origin_auth.c \
     $ngx_addon_dir/src/fs/cache/origin_auth_gsi.c \
     $ngx_addon_dir/src/fs/cache/origin_ns.c \
+    $ngx_addon_dir/src/fs/cache/origin_ns_dirlist.c \
     $ngx_addon_dir/src/fs/cache/origin_write.c \
     $ngx_addon_dir/src/fs/cache/fetch.c \
     $ngx_addon_dir/src/fs/cache/evict_candidates.c \
@@ -1373,6 +1374,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/aio/resume.c \
     $ngx_addon_dir/src/core/aio/fd_kind.c \
     $ngx_addon_dir/src/core/aio/reads.c \
+    $ngx_addon_dir/src/core/aio/pgreads.c \
     $ngx_addon_dir/src/core/aio/write.c \
     $ngx_addon_dir/src/core/aio/readv.c \
     $ngx_addon_dir/src/core/aio/dirlist.c \

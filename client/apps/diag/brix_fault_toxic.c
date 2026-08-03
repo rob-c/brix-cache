@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include "brix_fault_toxic.h"
+#include "brix_fault_buf.h"
 
 #define FP_TOXIC_MAX  16
 #define FP_TOXIC_NAME 32
@@ -77,32 +78,58 @@ dir_name(int mask)
     return dn[mask & 3];
 }
 
+/* The settable lever fields, as a descriptor table rather than a strcmp ladder
+ * (coding-standards §8.6): a toxic type is a name, a slot, and how to read its
+ * operand.  Adding a lever field is one row here and nothing else. */
+enum { FLD_INT, FLD_PPM, FLD_LONG };
+
+static const struct {
+    const char *name;
+    size_t      off;
+    int         kind;
+} TOXIC_FIELDS[] = {
+    { "latency",    offsetof(lever_t, latency_ms),    FLD_INT  },
+    { "jitter",     offsetof(lever_t, jitter_ms),     FLD_INT  },
+    { "chunk",      offsetof(lever_t, chunk_bytes),   FLD_INT  },
+    { "rate",       offsetof(lever_t, rate_kbps),     FLD_INT  },
+    { "drip_bytes", offsetof(lever_t, drip_bytes),    FLD_INT  },
+    { "drip_ms",    offsetof(lever_t, drip_ms),       FLD_INT  },
+    { "reorder_ms", offsetof(lever_t, reorder_ms),    FLD_INT  },
+    { "delayfirst", offsetof(lever_t, delayfirst_ms), FLD_INT  },
+    { "truncate",   offsetof(lever_t, truncate_at),   FLD_LONG },
+    { "lossy",      offsetof(lever_t, lossy_ppm),     FLD_PPM  },
+    { "corrupt",    offsetof(lever_t, corrupt_ppm),   FLD_PPM  },
+    { "dup",        offsetof(lever_t, dup_ppm),       FLD_PPM  },
+    { "reorder",    offsetof(lever_t, reorder_ppm),   FLD_PPM  },
+    { "drop",       offsetof(lever_t, drop_ppm),      FLD_PPM  },
+    { "repeat",     offsetof(lever_t, repeat_ppm),    FLD_PPM  },
+};
+
 /* Set the single field named by `type` on `lv` to `value`.  Probability types
  * take a percent string (× 10000 → ppm), matching the core's lever grammar.
  * Returns 0 on success, -1 if the type name is unknown. */
 static int
 set_field(lever_t *lv, const char *type, const char *value)
 {
-    int   iv  = atoi(value);
-    int   ppm = (int) (strtod(value, NULL) * 10000.0 + 0.5);
-
-    if      (strcmp(type, "latency") == 0)    lv->latency_ms    = iv;
-    else if (strcmp(type, "jitter") == 0)     lv->jitter_ms     = iv;
-    else if (strcmp(type, "chunk") == 0)      lv->chunk_bytes   = iv;
-    else if (strcmp(type, "rate") == 0)       lv->rate_kbps     = iv;
-    else if (strcmp(type, "drip_bytes") == 0) lv->drip_bytes    = iv;
-    else if (strcmp(type, "drip_ms") == 0)    lv->drip_ms       = iv;
-    else if (strcmp(type, "reorder_ms") == 0) lv->reorder_ms    = iv;
-    else if (strcmp(type, "delayfirst") == 0) lv->delayfirst_ms = iv;
-    else if (strcmp(type, "truncate") == 0)   lv->truncate_at   = atol(value);
-    else if (strcmp(type, "lossy") == 0)      lv->lossy_ppm     = ppm;
-    else if (strcmp(type, "corrupt") == 0)    lv->corrupt_ppm   = ppm;
-    else if (strcmp(type, "dup") == 0)        lv->dup_ppm       = ppm;
-    else if (strcmp(type, "reorder") == 0)    lv->reorder_ppm   = ppm;
-    else if (strcmp(type, "drop") == 0)       lv->drop_ppm      = ppm;
-    else if (strcmp(type, "repeat") == 0)     lv->repeat_ppm    = ppm;
-    else return -1;
-    return 0;
+    for (size_t i = 0; i < sizeof(TOXIC_FIELDS) / sizeof(TOXIC_FIELDS[0]); i++) {
+        if (strcmp(type, TOXIC_FIELDS[i].name) != 0) {
+            continue;
+        }
+        void *slot = (char *) lv + TOXIC_FIELDS[i].off;
+        switch (TOXIC_FIELDS[i].kind) {
+        case FLD_LONG:
+            *(volatile long *) slot = atol(value);
+            break;
+        case FLD_PPM:   /* operator writes a percentage; the lever holds ppm */
+            *(volatile int *) slot = (int) (strtod(value, NULL) * 10000.0 + 0.5);
+            break;
+        default:
+            *(volatile int *) slot = atoi(value);
+            break;
+        }
+        return 0;
+    }
+    return -1;   /* unknown toxic type */
 }
 
 /* Find a live toxic by name, or -1.  Caller holds g_toxic_lock. */
@@ -120,9 +147,7 @@ find_toxic(const char *name)
 static void
 reply_set(char *reply, size_t rsz, const char *msg)
 {
-    if (reply && rsz) {
-        snprintf(reply, rsz, "%s", msg);
-    }
+    fp_reply(reply, rsz, "%s", msg);
 }
 
 /* toxic add <name> <type> <value> [dir] */
@@ -170,9 +195,7 @@ toxic_add(char *rest, char *reply, size_t rsz)
     recalc_mask();
     pthread_mutex_unlock(&g_toxic_lock);
 
-    if (reply && rsz) {
-        snprintf(reply, rsz, "added %s\n", name);
-    }
+    fp_reply(reply, rsz, "added %s\n", name);
     return 1;
 }
 
@@ -194,9 +217,7 @@ toxic_remove(char *rest, char *reply, size_t rsz)
     pthread_mutex_unlock(&g_toxic_lock);
     if (slot < 0) {
         reply_set(reply, rsz, "err: no such toxic\n");
-    } else if (reply && rsz) {
-        snprintf(reply, rsz, "removed %s\n", name);
-    }
+    } else fp_reply(reply, rsz, "removed %s\n", name);
     return 1;
 }
 

@@ -110,6 +110,61 @@ load_proxy_pem(const char *path, size_t *outlen)
     return buf;
 }
 
+/* Resolve the proxy path (credential store first, else env/default). Defined
+ * below (shared with the round-2 path); forward-declared for gsi_first. */
+static void gsi_resolve_proxy(brix_conn *c, char *proxy, size_t sz,
+                              brix_status *st);
+
+/* Compute the kXRS_issuer_hash the certreq must carry: the OpenSSL subject
+ * hash of the CA that issued OUR proxy's End-Entity Certificate, in BOTH the
+ * new- and old-style forms (e.g. "5168735f.0|4339b4bc.0"), exactly as a stock
+ * XrdSecgsi client advertises. The server uses this to locate the CA it will
+ * verify our chain against, so it MUST describe our proxy's CA — never the
+ * server's own host-cert CA (they coincide only when the server is hosted under
+ * the same CA as our proxy, e.g. CERN EOS; at a foreign-CA site such as UK
+ * e-Science CA 2B, echoing the server's ca: makes the server prepend the wrong
+ * anchor and reject our chain as "inconsistent"). The proxy file is leaf-first
+ * (proxy[, proxy...], EEC), so the EEC is the last certificate and its issuer
+ * is that anchoring CA. Returns 0 on success, -1 if the proxy can't be read. */
+static int
+gsi_client_issuer_hash(const char *path, char *out, size_t outsz)
+{
+    BIO          *in;
+    X509         *cert;
+    X509         *eec = NULL;
+    X509_NAME    *issuer;
+    unsigned long hnew;
+    unsigned long hold;
+
+    in = proxy_bio(path);
+    if (in == NULL) {
+        return -1;
+    }
+    while ((cert = PEM_read_bio_X509(in, NULL, NULL, NULL)) != NULL) {
+        if (eec != NULL) {
+            X509_free(eec);
+        }
+        eec = cert;
+    }
+    ERR_clear_error();   /* the loop's terminating NULL leaves a benign PEM EOF */
+    BIO_free(in);
+    if (eec == NULL) {
+        return -1;
+    }
+
+    issuer = X509_get_issuer_name(eec);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    hnew = X509_NAME_hash_ex(issuer, NULL, NULL, NULL);
+#else
+    hnew = X509_NAME_hash(issuer);
+#endif
+    hold = X509_NAME_hash_old(issuer);
+    X509_free(eec);
+
+    snprintf(out, outsz, "%08lx.0|%08lx.0", hnew, hold);
+    return 0;
+}
+
 /* module callbacks */
 static int
 gsi_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
@@ -118,6 +173,8 @@ gsi_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     uint32_t version = 0;
     char     crypto[16] = { 0 };
     char     ca[256]    = { 0 };
+    char     issuer_hash[256] = { 0 };
+    char     proxy[512];
     uint8_t *buf;
     size_t   buflen = 0;
     /* Round-1 random tag (the server signs it). Its lifetime is entirely within
@@ -127,13 +184,23 @@ gsi_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
      * tag clobber another's mid-handshake, corrupting the certreq. */
     uint8_t  client_rtag[8];
 
-    (void) c;
-
-    /* The server advertised v:/c:/ca: in the gsi protocol parms; echo crypto+ca
-     * so it picks the right module + CA chain (a stock client does the same). */
+    /* The server advertised v:/c:/ca: in the gsi protocol parms; echo crypto so
+     * it picks the right module. The advertised ca: is the SERVER's own host-cert
+     * CA and is kept only as a fallback for the issuer hash below. */
     brix_gsi_parse_parms(parms, &version, crypto, sizeof(crypto),
                            ca, sizeof(ca));
     if (crypto[0] == '\0') { memcpy(crypto, "ssl", 4); }
+
+    /* kXRS_issuer_hash must name the CA that issued OUR proxy (so the server
+     * verifies our chain against the right anchor), NOT the server's advertised
+     * ca:. Those coincide only at same-CA sites (e.g. CERN EOS); echoing the
+     * server ca: at a foreign-CA site made the server reject our chain as
+     * "inconsistent". Fall back to the echoed ca: if the proxy can't be read,
+     * preserving behaviour on any non-proxy path. */
+    gsi_resolve_proxy(c, proxy, sizeof(proxy), st);
+    if (gsi_client_issuer_hash(proxy, issuer_hash, sizeof(issuer_hash)) != 0) {
+        snprintf(issuer_hash, sizeof(issuer_hash), "%s", ca);
+    }
 
     /* phase-48: advertise a pre-DHsigned version (< XrdSecgsiVersDHsigned=10400)
      * so the (modern) server uses the simpler UNSIGNED DH path: it sends its DH
@@ -158,7 +225,7 @@ gsi_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
     }
 
     /* clnt_opts 0x80 matches a stock client's default (delegated-proxy off). */
-    buf = brix_gsi_build_certreq(crypto, version, ca, 0x80u,
+    buf = brix_gsi_build_certreq(crypto, version, issuer_hash, 0x80u,
                                    client_rtag, sizeof(client_rtag), &buflen);
     if (buf == NULL) {
         brix_status_set(st, XRDC_EAUTH, 0, "gsi: cannot build certreq");

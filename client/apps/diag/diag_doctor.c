@@ -196,6 +196,12 @@ doctor_one(const diag_args *a, const char *url, doctor_ep *e)
 
     doctor_one_session_facts(&c, e);
 
+    /* phase-93 config audit: scrape advertised config + capacity while the
+     * connection is live (best-effort, PII-free). --all-servers implies it. */
+    if (a->config_audit || a->all_servers || a->map || a->deep_recon) {
+        doctor_scrape_config(&c, e);
+    }
+
     /* throughput probe over a resolved file (skip cleanly if the export is empty) */
     have_target = doctor_one_xfer_probe(&c, &u, target, sizeof(target), e);
 
@@ -203,9 +209,22 @@ doctor_one(const diag_args *a, const char *url, doctor_ep *e)
     doctor_diagnose(a, &c, &u,
                     &(dx_target){ .path = target, .have = have_target }, e);
 
+    /* phase-93 deep-recon: read-only reconnaissance while the connection is
+     * live (stats scrape + full config sweep + authorized-root listing). */
+    if (a->deep_recon) {
+        doctor_recon_probe(a, &c, e);
+    }
+
     brix_close(&c);
 
     doctor_one_load_signals(a, e);
+
+    /* phase-93: classify the scraped config/capacity values and promote the
+     * perf/shedding signals into machine-readable diagnosis records. */
+    if (a->config_audit || a->all_servers || a->map || a->deep_recon) {
+        doctor_audit_rules(a, e);
+        doctor_audit_perf(e);
+    }
 }
 
 
@@ -275,52 +294,6 @@ doctor_cross(const doctor_ep *eps, int n, FILE *out)
 }
 
 
-void
-doctor_emit_json(const doctor_ep *eps, int n, FILE *out)
-{
-    int i, j;
-    fprintf(out, "{\"remote_doctor\":{\"endpoints\":[");
-    for (i = 0; i < n; i++) {
-        const doctor_ep *e = &eps[i];
-        fprintf(out, "%s{\"protocol\":\"%s\",\"host\":", i ? "," : "",
-                dx_proto_name(e->proto));
-        fjson_str(out, e->host);
-        fprintf(out, ",\"port\":%d,\"status\":\"%s\","
-                "\"connected\":%s,\"facts\":{\"family\":\"%s\","
-                "\"tcp_ms\":%.3f,\"tls_ms\":%.3f,\"auth_ms\":%.3f,\"total_ms\":%.3f,"
-                "\"rtt_us\":%u,\"retrans\":%u,\"tls\":\"%s\",\"auth\":\"%s\","
-                "\"caps\":\"0x%x\",\"ttfb_ms\":%.3f,\"mbps\":%.1f,\"holders\":%d,"
-                "\"metrics_http\":%d,\"shedding\":%s},\"issues\":[",
-                e->port, doc_color(e->status),
-                e->connected ? "true" : "false",
-                e->nf.family == 10 ? "IPv6" : e->nf.family == 2 ? "IPv4" : "none",
-                e->nf.tcp_ms, e->nf.tls_ms, e->nf.auth_ms, e->nf.total_ms,
-                e->nf.rtt_us, e->nf.retrans,
-                e->tls_active ? e->tls_ver : "none", e->auth, e->caps,
-                e->ttfb_ms, e->mbps, e->holders, e->metrics_http,
-                e->shedding ? "true" : "false");
-        for (j = 0; j < e->nissues; j++) {
-            if (j) { fputc(',', out); }
-            fjson_str(out, e->issues[j]);
-        }
-        fprintf(out, "],\"diagnosis\":[");
-        for (j = 0; j < e->ndx; j++) {
-            const dx_finding *d = &e->dx[j];
-            fprintf(out, "%s{\"probe\":", j ? "," : "");
-            fjson_str(out, d->probe);
-            fprintf(out, ",\"verdict\":\"%s\",\"kxr\":%d,\"cause\":",
-                    dx_verdict_name(d->verdict), d->kxr);
-            fjson_str(out, d->cause);
-            fprintf(out, ",\"remedy\":");
-            fjson_str(out, d->remedy);
-            fputc('}', out);
-        }
-        fprintf(out, "]}");
-    }
-    fprintf(out, "],\"cross_endpoint_analysis\":{\"hops\":%d}}}\n", n > 1 ? n - 1 : 0);
-}
-
-
 /* Human-readable diagnosis block for one endpoint: each probe's verdict, and for
  * problems the classified cause + remediation. */
 void
@@ -366,6 +339,53 @@ doctor_dispatch(const diag_args *a, const char *url, doctor_ep *e)
 }
 
 
+/* One-line CMS-plane descriptor from the locate answer: "data server,
+ * read-only" / "redirector" / "data server, read/write, pending". Empty when
+ * nothing was reported (e.g. a lone directly-probed endpoint). */
+static void
+doctor_cms_phrase(const doctor_cmsloc *m, char *buf, size_t bsz)
+{
+    if (!m->reported) {
+        buf[0] = '\0';
+        return;
+    }
+    snprintf(buf, bsz, "%s%s%s",
+             m->role == DOC_CMS_MANAGER ? "redirector" : "data server",
+             m->role == DOC_CMS_SERVER
+                 ? (m->write ? ", read/write" : ", read-only") : "",
+             m->pending ? ", pending" : "");
+}
+
+
+/* The root/cms fact lines: connect phases, auth/TLS, the CMS verdict, the EOS
+ * banner, and whatever optional transport/transfer facts were collected. Only
+ * the libbrix-connected batteries populate these; HTTP reports a TLS line. */
+static void
+report_root_facts(const doctor_ep *e, const char *cms)
+{
+    printf("  connect: tcp %.1f / tls %.1f / login+auth %.1f ms  (%s)\n",
+           e->nf.tcp_ms, e->nf.tls_ms, e->nf.auth_ms,
+           e->nf.family == 10 ? "IPv6" : e->nf.family == 2 ? "IPv4" : "?");
+    printf("  auth=%s  tls=%s%s%s  caps=0x%x\n", e->auth,
+           e->tls_active ? e->tls_ver : "none",
+           e->tls_active ? " " : "", e->tls_active ? e->tls_cipher : "",
+           e->caps);
+    if (cms[0]) {
+        printf("  cms: %s (locate plane)\n", cms);
+    }
+    doctor_eos_report_mgm(e);   /* EOS MGM banner + FST-enumeration outcome */
+    if (e->nf.have_tcpinfo) {
+        printf("  tcp: rtt=%u us retrans=%u\n", e->nf.rtt_us, e->nf.retrans);
+    }
+    if (e->have_xfer) {
+        printf("  xfer: ttfb %.1f ms, %.1f MB/s\n", e->ttfb_ms, e->mbps);
+    }
+    printf("  holders=%d  metrics=%s%s\n", e->holders,
+           e->metrics_http == 200 ? "reachable" : "n/a",
+           e->shedding ? " (SHEDDING)" : "");
+}
+
+
 /* Render one endpoint's text report block. WHAT: the [color] header, the
  * per-protocol fact lines, the issue list and the diagnosis block.
  * WHY: the per-endpoint renderer is the bulk of do_remote_doctor's text
@@ -375,8 +395,21 @@ doctor_dispatch(const diag_args *a, const char *url, doctor_ep *e)
 static void
 remote_doctor_report_ep(const doctor_ep *e)
 {
-    int j;
+    int  j;
+    char cms[48];
 
+    if (doctor_eos_report_fst(e)) {
+        return;   /* EOS FST enumerated from the MGM — never inbound-probed */
+    }
+    doctor_cms_phrase(&e->cms, cms, sizeof(cms));
+    if (e->skipped) {
+        /* Un-connectable holder: we cannot probe it, but the manager's locate
+         * answer already told us what it is — surface that CMS-plane verdict. */
+        printf("\n[SKIP] %s %s:%d — IPv6-only, no local IPv6 route%s%s "
+               "(not probed)\n", dx_proto_name(e->proto), e->host, e->port,
+               cms[0] ? "; CMS reports " : "", cms);
+        return;
+    }
     printf("\n[%s] %s %s:%d\n", doc_color(e->status), dx_proto_name(e->proto),
            e->host, e->port);
     if (!e->connected) {
@@ -387,25 +420,12 @@ remote_doctor_report_ep(const doctor_ep *e)
     /* root/cms use the libbrix connection → full connect-phase + transport facts;
      * the HTTP-family batteries report TLS facts inline + the diagnosis block. */
     if (e->proto == DXP_ROOT) {
-        printf("  connect: tcp %.1f / tls %.1f / login+auth %.1f ms  (%s)\n",
-               e->nf.tcp_ms, e->nf.tls_ms, e->nf.auth_ms,
-               e->nf.family == 10 ? "IPv6" : e->nf.family == 2 ? "IPv4" : "?");
-        printf("  auth=%s  tls=%s%s%s  caps=0x%x\n", e->auth,
-               e->tls_active ? e->tls_ver : "none",
-               e->tls_active ? " " : "", e->tls_active ? e->tls_cipher : "",
-               e->caps);
-        if (e->nf.have_tcpinfo) {
-            printf("  tcp: rtt=%u us retrans=%u\n", e->nf.rtt_us, e->nf.retrans);
-        }
-        if (e->have_xfer) {
-            printf("  xfer: ttfb %.1f ms, %.1f MB/s\n", e->ttfb_ms, e->mbps);
-        }
-        printf("  holders=%d  metrics=%s%s\n", e->holders,
-               e->metrics_http == 200 ? "reachable" : "n/a",
-               e->shedding ? " (SHEDDING)" : "");
+        report_root_facts(e, cms);
     } else if (e->tls_active) {
         printf("  tls=%s %s\n", e->tls_ver, e->tls_cipher);
     }
+    doctor_report_config(e);   /* phase-93 config/capacity block (no-op if unscraped) */
+    doctor_report_recon(e);    /* phase-93 deep-recon block (no-op if unprobed) */
     for (j = 0; j < e->nissues; j++) { printf("  - %s\n", e->issues[j]); }
     doctor_print_diagnosis(e);
 }
@@ -429,6 +449,95 @@ remote_doctor_report_creds(void)
     }
 }
 
+/*
+ * WHAT: the --all-servers manager fan-out path — probe the manager, then every
+ *       data server it locates, and diff the fleet for uniformity.
+ * WHY:  keeps do_remote_doctor's user-supplied-URL path unchanged (stack eps[8])
+ *       while the fleet path uses a heap array sized for a large cluster.
+ * HOW:  doctor_fanout builds eps[0]=manager + eps[1..)=DSs; doctor_cross_cluster
+ *       records the version/role/balance findings onto eps[0] (so they escalate
+ *       its status); then reuse the existing per-endpoint renderers.
+ */
+static int
+fanout_worst(const doctor_ep *eps, int n)
+{
+    int i, worst = DOC_GREEN;
+
+    for (i = 0; i < n; i++) {
+        if (eps[i].status > worst) {
+            worst = eps[i].status;
+        }
+    }
+    return worst;
+}
+
+
+/* --latency: time a round-trip probe (xrootd stat + cms locate plane) against
+ * every reachable node. Informational — it never changes the worst verdict.
+ * Skipped under a graph-only map (dot/mermaid), whose output must stay clean. */
+static void
+fanout_probe_latency(const diag_args *a, doctor_ep *eps, int n)
+{
+    int i;
+
+    if (!a->latency || (a->map && doctor_map_graph_only(a->map_format))) {
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        doctor_latency_probe(a, &eps[i]);
+    }
+}
+
+
+/* Release the fan-out array and project the fleet verdict onto an exit code. */
+static int
+fanout_done(doctor_ep *eps, int worst)
+{
+    free(eps);
+    return (worst == DOC_RED) ? 1 : 0;
+}
+
+
+static int
+do_remote_doctor_fanout(const diag_args *a)
+{
+    doctor_ep *eps = NULL;
+    int        i, n = 0, trunc = 0, worst;
+
+    if (doctor_fanout(a, &eps, &n, &trunc) != 0 || eps == NULL) {
+        fprintf(stderr, "xrddiag: remote-doctor fan-out allocation failed\n");
+        return 50;
+    }
+    /* record the cross-cluster findings onto eps[0]; print the human summary only
+     * on the plain-text path (not for --json, nor when --map owns the output). */
+    doctor_cross_cluster(eps, n, (a->json || a->map) ? NULL : stdout);
+    worst = fanout_worst(eps, n);
+    fanout_probe_latency(a, eps, n);
+    /* --map: draw the discovered mesh. A machine graph (dot/mermaid) is emitted
+     * ALONE so it pipes cleanly to `dot`/a Mermaid renderer; the ASCII tree is
+     * drawn as a header above the usual per-node report. */
+    if (a->map) {
+        doctor_render_map(eps, n, a->map_format, stdout);
+        if (doctor_map_graph_only(a->map_format)) {
+            return fanout_done(eps, worst);
+        }
+        printf("\n");
+    }
+    if (a->json) {
+        doctor_emit_json(eps, n, stdout);
+        return fanout_done(eps, worst);
+    }
+    printf("remote-doctor: manager + %d data server(s)%s\n", n - 1,
+           trunc ? " (data-server list truncated to cap)" : "");
+    for (i = 0; i < n; i++) {
+        remote_doctor_report_ep(&eps[i]);
+    }
+    if (a->latency) { doctor_render_latency(eps, n, stdout); }
+    remote_doctor_report_creds();
+    printf("\nResult: worst=%s\n", doc_color(worst));
+    return fanout_done(eps, worst);
+}
+
 int
 do_remote_doctor(const diag_args *a)
 {
@@ -438,6 +547,9 @@ do_remote_doctor(const diag_args *a)
     if (a->nurls < 1) {
         fprintf(stderr, "xrddiag: remote-doctor needs at least one URL\n");
         return 50;
+    }
+    if (a->all_servers || a->map || a->latency) {
+        return do_remote_doctor_fanout(a);
     }
     for (i = 0; i < a->nurls; i++) {
         doctor_dispatch(a, a->urls[i], &eps[i]);

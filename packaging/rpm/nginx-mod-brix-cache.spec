@@ -4,7 +4,7 @@
 # build-rpm-container.sh and the builder Dockerfiles derive version_override
 # from it automatically; the literal fallback below is only for a bare
 # rpmbuild invocation and must be kept in sync with ident.h.
-%global upstream_version %{?version_override}%{!?version_override:1.3.0}
+%global upstream_version %{?version_override}%{!?version_override:1.4.0}
 
 # --- phase-42 optional compression codecs (gzip/deflate via zlib are always on) ---
 # Each non-zlib codec is compile-gated by ./configure's pkg-config probe and
@@ -811,6 +811,27 @@ fi
 %endif
 
 %changelog
+* Mon Aug 03 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.4.0-1
+- Version 1.4.0.  Full release notes in CHANGELOG.md; packaging-relevant
+  highlights only below.
+- Storage/auth/cache feature wave (phases 90-92): client io_uring O_DIRECT
+  tier (--io-uring-direct); HTTP cache-fill remote passthrough
+  (brix_cache_passthrough); scvmfs X.509 and VOMS authorization
+  (brix_scvmfs_authz x509|voms); block:<device> fixed-extent server plane;
+  full S3 namespace mutation for the remote storage driver; MKCOL/MOVE on
+  WebDAV origins; gsiftp VO ACL gate (brix_gridftp_require_vo); bandwidth
+  reservation wired into root:// read-open.
+- xrddiag gains a remote config/performance advisor (--config-audit,
+  --all-servers, --cap-threshold), a mesh map (--map, --map-format
+  ascii|dot|mermaid) with CMS-plane node classification, and bi-directional
+  RTT measurement (--latency).
+- brix-fault-proxy unified onto the v1.3.0 upstream core and decomposed into
+  seven translation units; below-TCP and MITM fault levers retained.
+- Build/release hygiene: every .c under client/ and shared/{cvmfs,cache} is
+  now verified to be built (41 sources were orphaned and link-time-only), the
+  pre-push hook actually runs the guard fleet again, and the RPM version
+  fallback below is checked against src/core/ident.h by CI.
+
 * Thu Jul 23 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.3.0-1
 - Version 1.3.0: bumped BRIX_SERVER_VERSION_BARE in src/core/ident.h (the
   single source of truth) and the spec fallback to match.  Packages the latest

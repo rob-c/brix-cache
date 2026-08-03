@@ -682,6 +682,46 @@ Two durable lessons beyond the FINDING entries in Part 3
 
 ---
 
+### Phase 93 (2026-08-03): GSI client `kXRS_issuer_hash` — foreign host-cert CA interop fix
+
+Found while validating `xrddiag remote-doctor --map` against GOCDB-sourced
+production endpoints: our native GSI client authenticated to CERN EOS but its
+round-2 `kXGC_cert` was rejected as *"chain is inconsistent: kXGC_cert"* by both
+UK GridPP Tier-2 XRootD sites (Glasgow `cephc02.gla.scotgrid.ac.uk:1094`,
+Lancaster `xgate.hec.lancs.ac.uk:1094`), where the reference `XrdSecgsi` client
+succeeded with the same proxy. VO-independent (LHCb and gridpp proxies failed
+identically), so not a proxy/authz issue.
+
+**Root cause.** `gsi_first` (`client/lib/auth/sec/sec_gsi.c`) echoed the
+server-advertised `ca:` hint verbatim into the round-1 certreq's
+`kXRS_issuer_hash` bucket. That bucket must instead name the CA that issued
+**our own** proxy's EEC: a stock server uses it as the anchor to prepend the
+issuing CA before verifying the *client's* round-2 chain. When the server's
+host-cert CA ≠ our proxy's CA — every foreign-CA site — the wrong anchor makes
+the server reject the chain. CERN worked only by luck: its EOS host certs share
+the CERN Grid CA (`5168735f.0|4339b4bc.0`) with our test proxy, so the echoed
+`ca:` coincidentally equalled the correct hash; the UK sites advertise their own
+UK e-Science CA 2B (`530f7122.0|ffc3d59b.0`) and diverge.
+
+**Fix.** New helper `gsi_client_issuer_hash()` reads the terminal (EEC) cert
+from the proxy PEM and emits the stock two-hash form
+`<X509_NAME_hash{,_ex}>.0|<X509_NAME_hash_old>.0` of its issuer; `gsi_first`
+sends that, falling back to the echoed `ca:` only when no proxy is readable.
+Live-verified: Glasgow + Lancaster now authenticate (residual path
+`NotAuthorized` matches stock `xrdfs`'s `[3010]`); CERN unchanged.
+
+Durable lesson: **our own server is lenient — it never consumes the client's
+`kXRS_issuer_hash`** (`src/auth/gsi` verifies against its full trust store), so
+an e2e test against our nginx *cannot* reproduce this. Only a *stock* server
+uses the hint. The regression guard `TestForeignCaHostCert`
+(`tests/test_gsi_handshake.py`) therefore drives a stock xrootd server whose
+host cert is signed by a CA distinct from the proxy's; reverting the one-line
+`issuer_hash`→`ca` fix flips it red while a stock-client oracle stays green.
+Handshake-semantics reference: `xrdsecgsi-handshake.md` §4 Gotcha #1b. Full
+incident + live table: `docs/refactor/phase-93-remote-config-performance-advisor.md`.
+
+---
+
 ## Part 2 — Design-decision inventory
 
 A quick-reference table of the explicit, deliberate design choices behind

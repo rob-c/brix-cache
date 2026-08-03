@@ -1,0 +1,76 @@
+name: Feature request
+description: Propose a capability, directive, backend, or protocol surface.
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This server sits on a hot data path in production grid sites, so the bar
+        for new surface is deliberately high: every directive is forever, and
+        every new byte-parsing path is attack surface. Make the case for the
+        problem first — the implementation is the easy part.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: >-
+        The operational situation you are in, not the feature you have in mind.
+        What are you unable to do today, and what does it cost you?
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What are you doing instead today?
+      description: >-
+        A configuration workaround, a wrapper script, a second daemon, or
+        nothing. If there is a clean workaround, say why it is not enough.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: >-
+        Sketch the directive, option, or protocol response. If it changes what
+        goes on the wire, cite the XRootD spec or the relevant RFC — this
+        project re-implements the protocol rather than translating it, so
+        conformance claims need a source.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: compat
+    attributes:
+      label: Compatibility
+      options:
+        - "Additive — existing configs and clients unaffected"
+        - "New default — behaviour changes unless operators opt out"
+        - "Breaking — configs, metrics, or wire behaviour change"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and authorization impact
+      description: >-
+        Does it read attacker-controlled bytes, touch identity/credentials,
+        reach the storage plane, or cache anything per-user? "None, because …"
+        is a fine answer — an unexamined "none" is not.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and `docs/` (including `docs/refactor/`, where planned work lives).
+          required: true
+        - label: I am willing to help test this against a real deployment.
+          required: false

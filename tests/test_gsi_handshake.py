@@ -262,6 +262,66 @@ class TestRootNegative:
 
 
 # --------------------------------------------------------------------------- #
+# root:// — foreign-CA host cert: the client's kXRS_issuer_hash must name the
+# proxy's OWN issuing CA, never the server's advertised ca: (which is only the
+# SERVER host cert's CA). Regression guard for the "certificate chain
+# verification failed: chain is inconsistent" interop bug our native client hit
+# against UK e-Science CA 2B grid sites (Glasgow/Lancaster) where the stock
+# client authenticated with the very same proxy.
+# --------------------------------------------------------------------------- #
+class TestForeignCaHostCert:
+    def _skip(self):
+        assert os.path.exists(NATIVE_XRDFS), \
+            "native client/bin/xrdfs must be built (make -C client)"
+
+    def test_native_auth_foreign_ca_host(self, pki, stock_root_foreign_ca):
+        # Success + regression guard: our native client authenticates to a STOCK
+        # XrdSecgsi server whose host cert is signed by a CA distinct from our
+        # proxy's CA. A client that echoes the server's advertised ca: as its
+        # issuer hash makes the stock server anchor our chain on the wrong CA and
+        # reject it ("chain is inconsistent") — this fails on the pre-fix client.
+        self._skip()
+        r = _run([NATIVE_XRDFS, "--auth", "gsi",
+                  stock_root_foreign_ca["url"], "ls", "/gsidata"], env=pki["env"])
+        assert r.returncode == 0, f"native→foreign-CA stock host: {r.stderr}"
+        assert "/gsidata/hello.txt" in r.stdout
+
+    def test_stock_auth_foreign_ca_host(self, pki, stock_root_foreign_ca):
+        # Oracle: the stock client authenticates too, proving the foreign-CA
+        # server is correctly configured (it trusts our proxy CA). So a native
+        # failure here is our client's bug, not a lax/broken fixture.
+        r = _run([STOCK_XRDFS, stock_root_foreign_ca["url"], "ls", "/gsidata"],
+                 env=pki["env"])
+        assert r.returncode == 0, f"stock→foreign-CA stock host: {r.stderr}"
+        assert "/gsidata/hello.txt" in r.stdout
+
+    def test_native_untrusted_proxy_rejected_foreign_ca(
+            self, pki, stock_root_foreign_ca):
+        # Security-negative: naming our own proxy CA in the issuer hash must not
+        # weaken verification — a proxy from a CA the server does not trust is
+        # still refused (the server anchors on its real trust store, not the hint).
+        self._skip()
+        env = dict(os.environ, X509_CERT_DIR=pki["certs"],
+                   X509_USER_PROXY=pki["untrusted_proxy"])
+        r = _run([NATIVE_XRDFS, "--auth", "gsi",
+                  stock_root_foreign_ca["url"], "ls", "/gsidata"], env=env)
+        assert r.returncode != 0, "a proxy from an untrusted CA must be refused"
+
+    def test_native_no_proxy_fails_cleanly_foreign_ca(
+            self, pki, stock_root_foreign_ca):
+        # Error path: with no readable proxy, gsi_client_issuer_hash returns -1
+        # and gsi_first falls back to the echoed server ca:. Auth must fail
+        # cleanly (no crash), exercising the fallback branch.
+        self._skip()
+        env = dict(os.environ, X509_CERT_DIR=pki["certs"],
+                   X509_USER_PROXY="/nonexistent/proxy.pem")
+        env.pop("BEARER_TOKEN", None)
+        r = _run([NATIVE_XRDFS, "--auth", "gsi",
+                  stock_root_foreign_ca["url"], "ls", "/gsidata"], env=env)
+        assert r.returncode != 0, "auth without a proxy must fail cleanly"
+
+
+# --------------------------------------------------------------------------- #
 # Native client ↔ real stock xrootd server (the reverse keystone, with ops)
 # --------------------------------------------------------------------------- #
 class TestNativeAgainstStock:

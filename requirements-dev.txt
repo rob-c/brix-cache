@@ -1,0 +1,18 @@
+# Tooling for the tools/ci guard fleet and the analysis lanes. Not needed to
+# run the test suite; needed to reproduce CI's static gates locally.
+#
+#   pip install --user -r requirements-dev.txt
+#
+# The guards self-skip (with an explanatory message) when their tool is absent,
+# so a missing entry here degrades to "not checked", never to a false green —
+# which is precisely why they are pinned rather than left floating: a new major
+# changing a metric's definition would move a ratchet baseline under us.
+# Bounds policy matches requirements.txt: lower AND upper, both reviewed.
+
+# --- ratchet guards: check_complexity.py (CCN) + check_duplication.py --------
+# CCN and clone-detection numbers are baseline-frozen, so the analyser version
+# is part of the contract.
+lizard>=1.17,<2
+
+# --- static analysis lane: tools/ci/run_codechecker.py (needs clang-tidy) ----
+codechecker>=6.22,<7

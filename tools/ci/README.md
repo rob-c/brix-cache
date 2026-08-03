@@ -1,10 +1,21 @@
 # tools/ci — invariant guards
 
 Every script here encodes a project invariant as a red/green check. All of
-them run in CI on every PR/push (`.github/workflows/guards.yml`) and in the
-pre-push hook (`tools/git-hooks/pre-push`, install once with
-`git config core.hooksPath tools/git-hooks`). Run any of them locally with
-no arguments; exit 0 = clean.
+them run in CI on every PR/push (`.github/workflows/guards.yml`) and — bar the
+minutes-long ones — in the pre-push hook (`tools/git-hooks/pre-push`, install
+once with `git config core.hooksPath tools/git-hooks`). Run any of them locally
+with no arguments; exit 0 = clean.
+
+**Which guards run where is answered by one script, not by a filename glob:**
+`guard_set.py` prints the pre-push set (default), the CI-enforced set (`--ci`,
+= every guard `guards.yml` names), or the whole fleet (`--all`); `--explain`
+shows each guard's lane and why anything is excluded. The pre-push exclusions
+live in its `PREPUSH_SKIP` map, each with a written reason. Nothing else may
+pattern-match guard filenames: the hook used to glob `tools/ci/check_*.sh` and
+kept doing so after the 2026-07-21 port to Python, so it enforced zero guards
+while failing every push on the unmatched pattern (fixed 2026-08-03; regression
+tests in `tests/test_ci_guards.py`). Adding a guard means dropping the file in,
+naming it in `guards.yml`, and `chmod +x` — the hook and the tests pick it up.
 
 These guards are **pure Python** — the fleet was ported from bash `.sh` to
 `.py` on 2026-07-21 (locale-independent, testable, no shell parsing traps); no
@@ -25,15 +36,23 @@ local test loop, not just CI:
 Run just the guard gate with
 `PYTHONPATH=tests pytest tests/test_ci_guards.py tests/test_source_guards.py -v`.
 
+The tool-backed guards (`check_complexity`, `check_duplication`,
+`run_codechecker`) need their analysers: `pip install --user -r
+requirements-dev.txt` from the repo root. They self-skip when a tool is absent,
+so a missing install degrades to "not checked", never to a false green — which
+is also why those versions are bounded: a new major that redefines a metric
+would move a frozen baseline under us.
+
 | Script | Invariant enforced | Backlog / baseline | Regen |
 |---|---|---|---|
 | `check_config_coverage.py` | every `src/**/*.c` is built via `./config`, or allowlisted with a reason; no stale `./config` entries | inline allowlist | edit allowlist |
+| `check_client_build_coverage.py` | every `.c` under `client/` + the client-only `shared/{cvmfs,cache}` is named by `client/Makefile`, or is a `*_unit.c`/`*_unittest.c` driver, or is allowlisted with a reason | inline allowlist (empty) | edit allowlist |
 | `check_vfs_seam.py` | no new storage-plane bypasses of the VFS (tier-2 confined-helper calls, tier-1.5 direct SD vtable I/O) | `vfs_seam_backlog.txt`, `_ns`, `_client` | `--regen` |
 | `check_http_helper_reimpl.py` | protocols must not regrow private copies of the shared HTTP helpers (header scan, preconditions, ETag) | inline allowlist | edit allowlist |
 | `check_auth_verdict_sentinel.py` | the session verdict `login.auth_done = 1` may be raised only by a credential handler / session login-bind path — not from a proxy/TPC/dispatch/op file (C-3 `NGX_OK`-on-deny discipline) | inline `ALLOW` | edit allowlist |
 | `check_sd_driver_conformance.py` | every `fs_list.h` storage driver ships a conforming `brix_sd_driver_t` (+ prints the op-coverage matrix) | — | — |
 | `check_shm_mutex.py` | SHM tables are created via `brix_shm_table_*` — no bare `ngx_shmtx_create()` call outside `src/core/compat/shm_slots.c` (INVARIANT #10) | — | — |
-| `check_file_size.py` | no `src/` file crosses the ~500-line soft cap; frozen offenders may only shrink | `file_size_backlog.txt` | `--regen` |
+| `check_file_size.py` | no `src/`/`client/` file crosses the 600-line cap; the backlog is EMPTY — split, never grandfather | `file_size_backlog.txt` | `--regen` |
 | `check_complexity.py` | no function over `src/`+`client/` crosses CCN 15 (lizard/McCabe); frozen offenders may only get simpler | `complexity_backlog.txt` | `--regen` |
 | `check_todo_fixme.py` | no NEW `TODO`/`FIXME`/`XXX`/`HACK` marker in `src/`+`client/`+`shared/`; frozen per-file counts may only shrink | `todo_fixme_backlog.txt` | `--regen` |
 | `check_duplication.py` | no NEW copy-pasted code block (lizard `-Eduplicate`) across `src/`+`client/`+`shared/`; frozen blocks may only be fixed out | `duplication_backlog.txt` | `--regen` |
@@ -41,6 +60,8 @@ Run just the guard gate with
 | `check_doc_links.py` | every relative markdown link in docs/ + src READMEs resolves to a git-tracked target | `doc_links_backlog.txt` (currently empty — keep it that way) | `--regen` |
 | `check_readme_coverage.py` | any depth≤2 `src/` dir with ≥2 C sources carries a README.md | — | — |
 | `check_ports_doc.py` | every `*_PORT*` constant in `tests/settings.py` has a row in `docs/10-reference/test-fleet-ports.md` | — | — |
+| `check_python_deps.py` | every third-party Python import is declared in a requirements file; every requirement has a **lower AND upper** bound; nothing declared *optional* is imported at module scope | inline `IMPORT_TO_DIST` / `SYSTEM_MODULES` | edit the requirements file |
+| `check_version_sync.py` | the RPM spec's `%global upstream_version` fallback, the spec's newest `%changelog` entry and `CHANGELOG.md`'s newest entry all equal `BRIX_SERVER_VERSION_BARE` in `src/core/ident.h`; both changelogs are newest-first | — | `--show` prints all four |
 | `run_fanalyzer.py` | no NEW gcc `-fanalyzer` finding (UAF/leak/NULL-deref) vs baseline; needs a configured nginx build (`NGX_BUILD`) | `fanalyzer_baseline.txt` | `--regen` |
 | `run_codechecker.py` | no NEW Clang Static Analyzer + clang-tidy finding vs baseline; needs a configured nginx build (`NGX_BUILD`) + `CodeChecker` + clang/clang-tidy | `codechecker_baseline.txt` | `--regen` |
 | `asan.py` | ASan+UBSan build (`build_sanitizer`) boots the fleet + drives real root:// I/O; FAILS on any heap error / UB / unsuppressed leak (hyper-hardening B-2); needs a compiler + configured nginx build (`NGINX_SRC`) | `tests/lsan.supp` | — |

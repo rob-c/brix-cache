@@ -20,6 +20,7 @@
  */
 #include <fcntl.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -74,6 +75,26 @@ fp_event_enabled(void)
     return g_event_fd >= 0;
 }
 
+/* Append one formatted field to the event line, advancing `*n`.  Returns 0 on
+ * success and -1 once the line is full — an event that would not fit whole is
+ * dropped rather than written truncated (a half-object is not valid JSONL). */
+static int __attribute__((format(printf, 4, 5)))
+ev_append(char *line, size_t cap, int *n, const char *fmt, ...)
+{
+    if (*n < 0 || (size_t) *n >= cap) {
+        return -1;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int m = vsnprintf(line + *n, cap - (size_t) *n, fmt, ap);
+    va_end(ap);
+    if (m < 0 || (size_t) (*n + m) >= cap) {
+        return -1;
+    }
+    *n += m;
+    return 0;
+}
+
 /* Append one JSONL event.  `dir`/`reason`/`numkey` are optional (NULL omits the
  * field); `numval` is emitted only when `numkey` is non-NULL.  No payload bytes
  * are ever included — only structural metadata. */
@@ -91,34 +112,26 @@ brix_fp_event(unsigned long conn, const char *dir, const char *event,
 
     const char *route = t_event_route[0] != '\0' ? t_event_route : "default";
     char line[320];
-    int  n = snprintf(line, sizeof line,
-                      "{\"t\":%.2f,\"route\":\"%s\",\"conn\":%lu", t, route, conn);
-    if (n < 0 || n >= (int) sizeof line) {
+    int  n = 0;
+
+    if (ev_append(line, sizeof line, &n, "{\"t\":%.2f,\"route\":\"%s\",\"conn\":%lu",
+                  t, route, conn) != 0) {
         return;
     }
-    if (dir != NULL) {
-        n += snprintf(line + n, sizeof line - (size_t) n, ",\"dir\":\"%s\"", dir);
-        if (n < 0 || n >= (int) sizeof line) {
-            return;
-        }
-    }
-    n += snprintf(line + n, sizeof line - (size_t) n, ",\"event\":\"%s\"", event);
-    if (n < 0 || n >= (int) sizeof line) {
+    if (dir != NULL &&
+        ev_append(line, sizeof line, &n, ",\"dir\":\"%s\"", dir) != 0) {
         return;
     }
-    if (reason != NULL) {
-        n += snprintf(line + n, sizeof line - (size_t) n,
-                      ",\"reason\":\"%s\"", reason);
-        if (n < 0 || n >= (int) sizeof line) {
-            return;
-        }
+    if (ev_append(line, sizeof line, &n, ",\"event\":\"%s\"", event) != 0) {
+        return;
     }
-    if (numkey != NULL) {
-        n += snprintf(line + n, sizeof line - (size_t) n,
-                      ",\"%s\":%ld", numkey, numval);
-        if (n < 0 || n >= (int) sizeof line) {
-            return;
-        }
+    if (reason != NULL &&
+        ev_append(line, sizeof line, &n, ",\"reason\":\"%s\"", reason) != 0) {
+        return;
+    }
+    if (numkey != NULL &&
+        ev_append(line, sizeof line, &n, ",\"%s\":%ld", numkey, numval) != 0) {
+        return;
     }
     if (n >= (int) sizeof line - 2) {
         return;                     /* no room for the closing "}\n" */

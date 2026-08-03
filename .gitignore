@@ -74,6 +74,17 @@ tools/*
 # @pytest.mark.registry_server declarations the fleet-declaration gate enforces
 # (its output is committed across the test tree; the tool that regenerates it is not scratch).
 !tools/add_registry_markers.py
+# readability.py: the single lizard front-end. tools/ci/check_complexity.py
+# imports it, so a clone without it cannot run the complexity guard at all —
+# it dies on `ModuleNotFoundError: No module named 'readability'` before
+# measuring anything. Guarded by tests/test_guard_dependencies.py.
+!tools/readability.py
+# refactor/: mostly one-shot codemods (scratch), except brix_rebrand.py, which
+# check_brix_namespace.py loads by path as its rename engine. Re-ignore the
+# directory's contents so a future codemod dropped here stays local by default.
+!tools/refactor/
+tools/refactor/*
+!tools/refactor/brix_rebrand.py
 .aider*
 
 .rpmbuild/

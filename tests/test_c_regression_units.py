@@ -24,6 +24,7 @@ from cmdscripts.c_regression_units import run_checks
         "sreq_compat",
         "sd_remote_wrongkind",
         "gftp_parse",
+        "cvmfs_url_rewrite",
     ],
 )
 # Each case compiles a C harness before running it (~10s alone); under a full

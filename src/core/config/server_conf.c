@@ -200,6 +200,8 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     conf->ckscan_max_files = NGX_CONF_UNSET_UINT;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
+    conf->tpc_source_guard  = NGX_CONF_UNSET;
+    conf->tpc_source_allow  = NGX_CONF_UNSET_PTR;
     conf->ssi_enable        = NGX_CONF_UNSET;
     conf->ssi_cta_enable    = NGX_CONF_UNSET;
     conf->ssi_max_inflight  = NGX_CONF_UNSET_UINT;

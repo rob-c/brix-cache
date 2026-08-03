@@ -24,6 +24,7 @@ Run:
 
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -353,6 +354,84 @@ def test_diagnosis_pii_free(anon):
         for leak in ("big.bin", "/tmp/", "BEARER", "PRIVATE", "xrddiag-dx",
                      "subject="):
             assert leak not in joined, f"PII/secret in diagnosis: {leak} in {d}"
+
+
+# ==========================================================================
+# deep-recon (--deep-recon) — read-only reconnaissance panel
+# ==========================================================================
+#
+# --deep-recon interrogates a live endpoint's control plane: it parses `query
+# stats a` into a per-plane panel (link traffic, op counts, logins, tpc, oss
+# capacity/inodes, http), sweeps the Qconfig keyspace counting supported keys,
+# decodes the kXR_protocol capability bits, and lists the authorized roots. It is
+# strictly read-only and PII-free — counts / capacities / cap-names only, never a
+# path body or credential. Off unless --deep-recon is passed.
+
+
+def test_deep_recon_off_by_default(anon):
+    """No recon panel unless --deep-recon is passed."""
+    port = anon["port"]
+    p = _run("remote-doctor", f"root://{HOST}:{port}//big.bin",
+             "--json", "--metrics-port", "0", "--probe-timeout", "8000")
+    assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+    ep = json.loads(p.stdout)["remote_doctor"]["endpoints"][0]
+    assert "recon" not in ep, ep
+
+
+def test_deep_recon_text_panel(anon):
+    """--deep-recon emits the panel: qconfig key tally, caps, and at least one
+    populated plane (a live anon server always reports link + oss)."""
+    port = anon["port"]
+    p = _run("remote-doctor", f"root://{HOST}:{port}//big.bin",
+             "--deep-recon", "--metrics-port", "0", "--probe-timeout", "8000")
+    assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+    out = p.stdout
+    assert "recon: qconfig" in out and "keys answered" in out, out
+    # a live server answers a nonzero fraction of the swept keyspace
+    m = re.search(r"recon: qconfig (\d+)/(\d+) keys answered", out)
+    assert m and int(m.group(1)) >= 1 and int(m.group(2)) >= int(m.group(1)), out
+    # capability decode present (our server advertises at least server/data role)
+    assert "recon caps:" in out, out
+
+
+def test_deep_recon_json_shape(anon):
+    """--deep-recon --json attaches a well-formed recon object: sentinel-aware
+    numeric planes, a caps string, and the roots array."""
+    port = anon["port"]
+    p = _run("remote-doctor", f"root://{HOST}:{port}//big.bin",
+             "--deep-recon", "--json", "--metrics-port", "0",
+             "--probe-timeout", "8000")
+    assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+    ep = json.loads(p.stdout)["remote_doctor"]["endpoints"][0]
+    assert "recon" in ep, ep
+    rec = ep["recon"]
+    for k in ("caps", "cid", "cms", "cfg_probed", "cfg_supported",
+              "conns_total", "ops", "logins", "tpc", "oss", "http",
+              "roots", "roots_more"):
+        assert k in rec, rec
+    assert rec["cfg_probed"] >= 1 and rec["cfg_supported"] >= 1, rec
+    assert isinstance(rec["roots"], list) and isinstance(rec["roots_more"], bool), rec
+    # nested planes carry the -1 sentinel or a real >=0 count, never garbage
+    for plane in ("ops", "oss", "http"):
+        for v in rec[plane].values():
+            assert isinstance(v, int) and v >= -1, (plane, rec[plane])
+
+
+def test_deep_recon_pii_free(anon):
+    """The recon panel must carry no path body, token, or secret — only names,
+    counts and capacities. The one namespace surface (roots) is a bare basename
+    list, which must never expose the export's absolute path or the probe file."""
+    port = anon["port"]
+    p = _run("remote-doctor", f"root://{HOST}:{port}//big.bin",
+             "--deep-recon", "--json", "--metrics-port", "0",
+             "--probe-timeout", "8000")
+    rec = json.loads(p.stdout)["remote_doctor"]["endpoints"][0]["recon"]
+    blob = json.dumps(rec)
+    for leak in ("/tmp/", "BEARER", "PRIVATE", "subject=", "xrddiag-dx"):
+        assert leak not in blob, f"PII/secret in recon panel: {leak} in {rec}"
+    # roots are basenames only: no slash inside an entry, no absolute path
+    for root in rec["roots"]:
+        assert "/" not in root, f"root leaked a path component: {root!r}"
 
 
 # ==========================================================================

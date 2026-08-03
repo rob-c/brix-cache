@@ -1,0 +1,52 @@
+# CODEOWNERS — who GitHub requests review from, per path.
+#
+# Last match wins, so the catch-all comes first and the sensitive surfaces
+# below override it. Today there is one maintainer; the point of listing the
+# areas separately anyway is that adding a second reviewer is then a one-line
+# edit against the area they actually own, not a re-derivation of this file.
+#
+# An entry here only requests review. Make it *binding* in
+# Settings → Branches → main → "Require review from Code Owners"; without that
+# branch-protection rule this file is a routing hint, nothing more.
+
+# --- default ------------------------------------------------------------------
+*                                   @rob-c
+
+# --- security-critical: auth, authz, credentials, delegation ------------------
+# Every file here decides whether a request speaks for someone. Changes need a
+# security negative test (see SECURITY.md), not just a passing suite.
+/src/auth/                          @rob-c
+/src/fs/vfs/vfs_deleg.c             @rob-c
+/client/apps/auth/                  @rob-c
+/shared/                            @rob-c
+/SECURITY.md                        @rob-c
+/docs/07-security/                  @rob-c
+
+# --- the VFS seam (INVARIANT 12) and the storage backends ---------------------
+# Raw data syscalls live only below this line; a bypass here is a data-integrity
+# or cross-identity bug by construction.
+/src/fs/                            @rob-c
+
+# --- wire protocol: anything parsing attacker-controlled bytes ----------------
+/src/protocols/                     @rob-c
+/src/net/                           @rob-c
+
+# --- build + CI wiring --------------------------------------------------------
+# `config` and `client/Makefile` decide what actually gets compiled; the guard
+# fleet decides what is enforced. Both have silently stopped working before.
+/config                             @rob-c
+/client/Makefile                    @rob-c
+/CMakeLists.txt                     @rob-c
+/tools/ci/                          @rob-c
+/tools/git-hooks/                   @rob-c
+/.github/                           @rob-c
+
+# --- dependency surface -------------------------------------------------------
+# Widening a bound is a supply-chain decision. Review it as one.
+/requirements.txt                   @rob-c
+/requirements-optional.txt          @rob-c
+/requirements-dev.txt               @rob-c
+/k8s-tests/pytests/requirements.txt @rob-c
+
+# --- packaging ----------------------------------------------------------------
+/packaging/                         @rob-c

@@ -124,10 +124,55 @@ apply_fact(const char *key, size_t klen, const char *val, size_t vlen,
 }
 
 
+/* A listed name is rejected outright when it carries a separator or a control
+ * byte: '/' would let a hostile origin walk the caller out of the listed
+ * directory, and NUL/CR/LF would truncate or split the rendered entry. */
+static int
+gftp_mlsx_name_ok(const char *name, size_t len)
+{
+    size_t i;
+
+    for (i = 0; i < len; i++) {
+        char c = name[i];
+
+        if (c == '\0' || c == '\r' || c == '\n' || c == '/') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/* Walk the `;`-separated key=value facts in [0,sep) and fold each recognised
+ * one into *out. A stray token with no '=' is tolerated (skipped) — only a
+ * missing name is fatal, and that is the caller's check. */
+static void
+gftp_mlsx_apply_facts(const char *line, size_t sep, gftp_mlsx_ent_t *out)
+{
+    size_t i, fstart = 0;
+
+    for (i = 0; i <= sep; i++) {
+        size_t e;
+
+        if (i != sep && line[i] != ';') {
+            continue;
+        }
+        for (e = fstart; e < i; e++) {
+            if (line[e] == '=') { break; }
+        }
+        if (e < i && e > fstart) {
+            apply_fact(line + fstart, e - fstart,
+                       line + e + 1, i - (e + 1), out);
+        }
+        fstart = i + 1;
+    }
+}
+
+
 int
 gftp_mlsx_parse(const char *line, size_t len, gftp_mlsx_ent_t *out)
 {
-    size_t sep, i, fstart;
+    size_t sep, i;
 
     out->name = NULL; out->name_len = 0; out->is_dir = 0;
     out->has_size = 0; out->size = 0; out->has_mtime = 0; out->mtime = 0;
@@ -144,30 +189,10 @@ gftp_mlsx_parse(const char *line, size_t len, gftp_mlsx_ent_t *out)
 
     out->name     = line + sep + 1;
     out->name_len = len - (sep + 1);
-    for (i = 0; i < out->name_len; i++) {
-        char c = out->name[i];
-        if (c == '\0' || c == '\r' || c == '\n' || c == '/') {
-            return -1;                            /* hostile / traversal name */
-        }
+    if (!gftp_mlsx_name_ok(out->name, out->name_len)) {
+        return -1;                                /* hostile / traversal name */
     }
 
-    /* Walk the `;`-separated key=value facts in [0,sep). A stray token with no
-     * '=' is tolerated (skipped) — only a missing name is fatal. */
-    fstart = 0;
-    for (i = 0; i <= sep; i++) {
-        if (i == sep || line[i] == ';') {
-            size_t tlen = i - fstart;
-            size_t e;
-            for (e = fstart; e < i; e++) {
-                if (line[e] == '=') { break; }
-            }
-            if (e < i && e > fstart) {
-                apply_fact(line + fstart, e - fstart,
-                           line + e + 1, i - (e + 1), out);
-            }
-            (void) tlen;
-            fstart = i + 1;
-        }
-    }
+    gftp_mlsx_apply_facts(line, sep, out);
     return 0;
 }

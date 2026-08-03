@@ -31,6 +31,13 @@ brixcvmfs_transport_cfg_t g_tcfg;
 
 /* ---- libcurl transport (the injected fetch seam) ------------------------ */
 
+/* Capacity of a mirror URL we are willing to build. The https form is one byte
+ * larger because s/http:/https:/ adds exactly one character, so any http URL
+ * that fits can always be rewritten — which is what keeps to_https() from ever
+ * having to truncate (and what silences -Wformat-truncation there). */
+#define BRIXCVMFS_URL_MAX        1024
+#define BRIXCVMFS_URL_HTTPS_MAX  (BRIXCVMFS_URL_MAX + 1)
+
 typedef struct { unsigned char *buf; size_t cap, len; } curl_sink_t;
 
 static size_t curl_write_cb(char *ptr, size_t sz, size_t nm, void *ud) {
@@ -223,11 +230,17 @@ static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
     return rc;
 }
 
-/* Rewrite an http:// url to https:// into `buf`; returns 1 if rewritten. */
+/* Rewrite an http:// url to https:// into `buf`; returns 1 if rewritten.
+ *
+ * A rewrite that would not fit reports "not rewritten" rather than emitting a
+ * truncated URL — a shortened URL is a *different* URL, so the TLS probe would
+ * request an object nobody asked for and the 4xx would be misread as "this
+ * mirror has no TLS". Sizing the destination BRIXCVMFS_URL_HTTPS_MAX makes that
+ * unreachable for our own caller; the check keeps the helper safe for any other. */
 static int to_https(const char *url, char *buf, size_t n) {
     if (strncmp(url, "http://", 7) != 0) return 0;
-    snprintf(buf, n, "https://%s", url + 7);
-    return 1;
+    int len = snprintf(buf, n, "https://%s", url + 7);
+    return (len >= 0 && (size_t) len < n) ? 1 : 0;
 }
 
 /* Mount-lifetime dict state (see the G3 block comment above curl_hdr_cb). */
@@ -379,8 +392,14 @@ int brixcvmfs_transport(const char *proxy, const char *host, const char *rel,
     CURL **slot = brix_cpool_checkout(g_curl_pool, &st);  /* CURL** == the classic slot */
     if (slot == NULL) return -1;
 
-    char httpurl[1024];
-    snprintf(httpurl, sizeof(httpurl), "%s/%s", host, rel);
+    char httpurl[BRIXCVMFS_URL_MAX];
+    int  urllen = snprintf(httpurl, sizeof(httpurl), "%s/%s", host, rel);
+    if (urllen < 0 || (size_t) urllen >= sizeof(httpurl)) {
+        /* Truncated here would mean GETting a different object and hash-failing
+         * it against the one we asked for — fail the mirror instead. */
+        brix_cpool_checkin(g_curl_pool, slot, 1);
+        return -1;
+    }
 
     int    budget  = g_tcfg.max_retries > 0 ? g_tcfg.max_retries : 6;
     int    hard_cap = 64;                 /* absolute ceiling on resume attempts */
@@ -390,7 +409,7 @@ int brixcvmfs_transport(const char *proxy, const char *host, const char *rel,
     int    dict_on = brix_dict_offer(slot, proxy, host, rel);
 
     for (int i = 0; i < hard_cap; i++) {
-        char httpsbuf[1024];
+        char httpsbuf[BRIXCVMFS_URL_HTTPS_MAX];
         int  use_https = 0;
         const char *url = transport_url(i == 0, httpurl, httpsbuf,
                                         sizeof(httpsbuf), &use_https);
