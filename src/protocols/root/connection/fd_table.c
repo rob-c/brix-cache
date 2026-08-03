@@ -11,10 +11,26 @@
 #include <string.h>
 #include <unistd.h>
 
-/* brix_alloc_fhandle — return the first free slot (fd < 0) in ctx->files; the
- * index becomes the one-byte on-wire fhandle, so it is bounded by BRIX_MAX_FILES.
- * -1 when all slots are occupied. Single-owner per connection (event thread, no
- * locking); a slot is only reused once its fd is closed. */
+/* brix_fhandle_slot_live — 1 iff the slot is currently occupied by an open handle.
+ * A slot is live when it has ANY of: a kernel fd (fd >= 0), a driver-backed object
+ * (sd_obj.driver != NULL — remote/object backends are memory-served with fd < 0),
+ * or a whole-object staged writer (writer != NULL). This is the SAME liveness
+ * predicate brix_validate_file_handle uses; allocation and validation must agree,
+ * else a driver-backed handle (fd stays -1) reads as "free" and a second open on
+ * the same connection re-allocates its slot, collapsing distinct handles onto one
+ * index (breaks clients that hold multiple concurrent opens — e.g. uproot). */
+static ngx_inline int
+brix_fhandle_slot_live(const brix_ctx_t *ctx, int handle_index)
+{
+    return ctx->files[handle_index].fd >= 0
+        || ctx->files[handle_index].sd_obj.driver != NULL
+        || ctx->files[handle_index].writer != NULL;
+}
+
+/* brix_alloc_fhandle — return the first free slot in ctx->files; the index becomes
+ * the one-byte on-wire fhandle, so it is bounded by BRIX_MAX_FILES. -1 when all
+ * slots are occupied. Single-owner per connection (event thread, no locking); a
+ * slot is only reused once its handle is fully torn down (brix_free_fhandle). */
 int
 brix_alloc_fhandle(brix_ctx_t *ctx)
 {
@@ -25,7 +41,7 @@ brix_alloc_fhandle(brix_ctx_t *ctx)
      * allocation/validation paths using the same bounded table.
      */
     for (handle_index = 0; handle_index < BRIX_MAX_FILES; handle_index++) {
-        if (ctx->files[handle_index].fd < 0) {
+        if (!brix_fhandle_slot_live(ctx, handle_index)) {
             return handle_index;
         }
     }
@@ -44,7 +60,7 @@ brix_ctx_has_open_file(const brix_ctx_t *ctx)
     int handle_index;
 
     for (handle_index = 0; handle_index < BRIX_MAX_FILES; handle_index++) {
-        if (ctx->files[handle_index].fd >= 0) {
+        if (brix_fhandle_slot_live(ctx, handle_index)) {
             return 1;
         }
     }

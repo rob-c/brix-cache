@@ -135,28 +135,49 @@ ssize_t
 sd_xroot_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_xroot_obj_state       *st = obj->state;
-    brix_cache_sink_t         sink;
-    brix_cache_read_range_t   rng;
+    size_t                    done = 0;
 
     if (len == 0) {
         return 0;
     }
-    ngx_memzero(&sink, sizeof(sink));
-    sink.fd      = -1;
-    sink.mem     = buf;
-    sink.mem_cap = len;
 
-    ngx_memzero(&rng, sizeof(rng));
-    rng.read_off = (uint64_t) off;
-    rng.want     = len;
+    /* brix_cache_origin_read_chunk reads each origin reply frame into a buffer
+     * bounded by BRIX_CACHE_FETCH_CHUNK (1 MiB): a single kXR_read whose reply
+     * frame exceeds that cap is rejected ("response body too large").  A read
+     * window can be larger than 1 MiB (BRIX_READ_WINDOW is 2 MiB), so issue the
+     * origin read in <=1 MiB sub-requests — mirroring the whole-file fetch, which
+     * always loops in FETCH_CHUNK strides — and stop early on a short read (EOF).
+     * Each sub-read writes into buf at the running offset (sink base 0 + got). */
+    while (done < len) {
+        brix_cache_sink_t        sink;
+        brix_cache_read_range_t  rng;
+        size_t                   want = len - done;
 
-    if (brix_cache_origin_read_chunk(st->t, &st->oc, st->fhandle, &sink,
-                                       &rng) != 0)
-    {
-        errno = EIO;
-        return -1;
+        if (want > BRIX_CACHE_FETCH_CHUNK) {
+            want = BRIX_CACHE_FETCH_CHUNK;
+        }
+
+        ngx_memzero(&sink, sizeof(sink));
+        sink.fd      = -1;
+        sink.mem     = (u_char *) buf + done;
+        sink.mem_cap = want;
+
+        ngx_memzero(&rng, sizeof(rng));
+        rng.read_off = (uint64_t) off + done;
+        rng.want     = want;
+
+        if (brix_cache_origin_read_chunk(st->t, &st->oc, st->fhandle, &sink,
+                                           &rng) != 0)
+        {
+            errno = EIO;
+            return -1;
+        }
+        done += rng.got;
+        if (rng.got < want) {
+            break;                          /* short read: EOF reached */
+        }
     }
-    return (ssize_t) rng.got;
+    return (ssize_t) done;
 }
 
 /* Write `len` bytes at `off` to the origin file via kXR_write. The origin file
@@ -225,31 +246,50 @@ sd_xroot_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
     return NGX_OK;
 }
 
+/* Fill *out from a parsed origin kXR_stat reply: a directory becomes
+ * S_IFDIR|0755 / is_dir, a file S_IFREG|0444 / is_reg. Shared by the service and
+ * credential-scoped stat slots so both describe directories identically. */
+static void
+sd_xroot_stat_fill(brix_sd_stat_t *out, const brix_cache_stat_out_t *so)
+{
+    ngx_memzero(out, sizeof(*out));
+    out->size  = so->size;
+    out->mtime = so->mtime;
+    if (so->is_dir) {
+        out->mode   = S_IFDIR | 0755;
+        out->is_dir = 1;
+    } else {
+        out->mode   = S_IFREG | 0444;
+        out->is_reg = 1;
+    }
+}
+
 ngx_int_t
 sd_xroot_stat(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out)
 {
-    sd_xroot_inst_state *is = inst->state;
-    sd_xroot_obj_state  *st;
-    off_t                size = 0;
-    int                  e = 0;
-    sd_xroot_origin_open_req_t req = {
-        .conf = is->conf, .cred = NULL /* service cred */, .path = path,
-        .want_write = 0 /* read */, .mode = 0,
-        .size_out = &size, .err_out = &e,
-    };
+    sd_xroot_inst_state       *is = inst->state;
+    brix_cache_origin_conn_t   oc;
+    brix_cache_fill_t         *t;
+    brix_cache_stat_out_t      so;
+    int                        rc, e = 0;
 
-    st = sd_xroot_origin_open(&req);
-    if (st == NULL) {
+    /* Real kXR_stat (by name), not stat-by-open: an open of a directory returns
+     * kXR_isDirectory→EISDIR, so the old probe could never describe a dir and
+     * broke isdir/mv/statx/locate. kXR_stat carries the kXR_isDir flag. */
+    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) {
         errno = e;
         return NGX_ERROR;
     }
-    sd_xroot_obj_teardown(st);
-
-    ngx_memzero(out, sizeof(*out));
-    out->size   = size;
-    out->mode   = S_IFREG | 0444;
-    out->is_reg = 1;
+    rc = brix_cache_origin_stat(t, &oc, path, &so);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) {
+        errno = e;
+        return NGX_ERROR;
+    }
+    sd_xroot_stat_fill(out, &so);
     return NGX_OK;
 }
 
@@ -261,34 +301,32 @@ sd_xroot_stat(brix_sd_instance_t *inst, const char *path,
  *       as the user — never opening a session on the service credential.
  * WHY:  brix_vfs_probe dispatches through this slot when the credential gate
  *       fires, closing the gap where a denied stat still reached the origin.
- * HOW:  Delegates to sd_xroot_origin_open with the supplied cred (same as
- *       sd_xroot_open_cred) then tears down the file handle; only the size is
- *       captured from the open-time stat, identical to sd_xroot_stat. */
+ * HOW:  Opens a per-user session (sd_xroot_session with cred), issues a real
+ *       kXR_stat, then tears the session down — describing directories the same
+ *       as sd_xroot_stat, but authenticated as the mapped user. */
 ngx_int_t
 sd_xroot_stat_cred(brix_sd_instance_t *inst, const char *path,
     brix_sd_stat_t *out, const brix_sd_cred_t *cred)
 {
-    sd_xroot_inst_state *is = inst->state;
-    sd_xroot_obj_state  *st;
-    off_t                size = 0;
-    int                  e = 0;
-    sd_xroot_origin_open_req_t req = {
-        .conf = is->conf, .cred = cred, .path = path,
-        .want_write = 0 /* read */, .mode = 0,
-        .size_out = &size, .err_out = &e,
-    };
+    sd_xroot_inst_state       *is = inst->state;
+    brix_cache_origin_conn_t   oc;
+    brix_cache_fill_t         *t;
+    brix_cache_stat_out_t      so;
+    int                        rc, e = 0;
 
-    st = sd_xroot_origin_open(&req);
-    if (st == NULL) {
+    if (sd_xroot_session(is->conf, cred, &oc, &t, &e) != 0) {
         errno = e;
         return NGX_ERROR;
     }
-    sd_xroot_obj_teardown(st);
-
-    ngx_memzero(out, sizeof(*out));
-    out->size   = size;
-    out->mode   = S_IFREG | 0444;
-    out->is_reg = 1;
+    rc = brix_cache_origin_stat(t, &oc, path, &so);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) {
+        errno = e;
+        return NGX_ERROR;
+    }
+    sd_xroot_stat_fill(out, &so);
     return NGX_OK;
 }
 

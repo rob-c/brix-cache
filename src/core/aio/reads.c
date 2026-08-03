@@ -152,7 +152,14 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
         }
         brix_budget_sync(ctx);
 
-        if (rconf->common.thread_pool != NULL) {
+        /* Driver-backed (memory-served, fd<0) handles — e.g. a remote root://
+         * storage backend — must NOT be posted to the pread thread pool: the
+         * driver drives an event-loop-bound origin connection (brix_cache_*),
+         * which returns EIO when driven from a worker thread.  Serve such reads
+         * inline on the event loop (the branch below), matching how the ≤window
+         * buffered path and the sendfile gate already exclude driver handles. */
+        if (rconf->common.thread_pool != NULL
+            && ctx->files[ctx->rd.win_idx].sd_obj.driver == NULL) {
             ngx_thread_task_t *task = ctx->rd.read_aio_task;
             brix_read_aio_t *t;
             ngx_flag_t         posted = 0;

@@ -332,6 +332,14 @@ struct brix_sd_driver_s {
      * an absent path, 0 on success, -1/errno otherwise. */
     ngx_int_t  (*setattr)    (brix_sd_instance_t *inst, const char *path,
                               const brix_sd_setattr_t *attr);
+    /* Resize the object at `path` to `len` WITHOUT opening a write handle
+     * (kXR_truncate with a path payload). NULL ⇒ the VFS falls back to
+     * open()+ftruncate()+close(). A stage decorator forwards this straight to its
+     * source, so a truncate over a staged remote backend resizes the origin by
+     * name — no whole-file RECALL and no staged write-open that would self-collide
+     * on commit. ENOENT for an absent path; 0 on success, -1/errno otherwise. */
+    ngx_int_t  (*truncate_path)(brix_sd_instance_t *inst, const char *path,
+                                off_t len);
 
     /* directory iteration */
     brix_sd_dir_t *(*opendir)(brix_sd_instance_t *inst, const char *path,
@@ -455,6 +463,9 @@ struct brix_sd_driver_s {
                                    const brix_sd_cred_t *cred);
     ngx_int_t      (*setattr_cred)(brix_sd_instance_t *inst, const char *path,
                                     const brix_sd_setattr_t *attr,
+                                    const brix_sd_cred_t *cred);
+    ngx_int_t      (*truncate_path_cred)(brix_sd_instance_t *inst,
+                                    const char *path, off_t len,
                                     const brix_sd_cred_t *cred);
     ssize_t        (*getxattr_cred)(brix_sd_instance_t *inst, const char *path,
                                      const char *name, void *buf, size_t cap,

@@ -10,6 +10,7 @@
 
 #include "cache_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared request packers */
+#include "protocols/root/protocol/flags.h"  /* kXR_isDir (ASCII-stat flag bit) */
 #include "core/compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
 #include <endian.h>
@@ -195,6 +196,99 @@ brix_cache_origin_rmdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
         return -1;
     }
     free(rbody);
+    return 0;
+}
+
+/* brix_cache_origin_mkdir — kXR_mkdir <path> on the origin (create a directory).
+ * Body layout (kXR_mkdir): options(1) reserved(13) mode(2, big-endian). We set
+ * kXR_mkdirpath so the origin also creates any missing parents — harmless for the
+ * single-level callers (brix_vfs_backend_mkpath walks prefix-by-prefix) and lets a
+ * direct deep mkdir succeed too. EEXIST is surfaced to the caller, which treats it
+ * as idempotent success for the mkpath walk. Returns 0, or -1 with errno set. */
+int
+brix_cache_origin_mkdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const char *path, mode_t mode)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    size_t    pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t  status;
+    uint32_t  dlen;
+    u_char   *rbody = NULL;
+    int       rc;
+
+    if (pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    ngx_memzero(body, sizeof(body));
+    body[0] = kXR_mkdirpath;                     /* options: create parents too */
+    body[XRDW_BODY_LEN - 2] = (uint8_t) ((mode >> 8) & 0xff);   /* mode BE hi */
+    body[XRDW_BODY_LEN - 1] = (uint8_t) (mode & 0xff);          /* mode BE lo */
+    rc = origin_request(t, oc, kXR_mkdir, body, path, pl, &status, &rbody,
+                        &dlen, 256);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    free(rbody);
+    return 0;
+}
+
+/* brix_cache_origin_stat — kXR_stat <path> on the origin. Body is a zeroed
+ * 16-byte region (options=0, no fhandle) so the origin describes the path by
+ * NAME — a directory is reported with the kXR_isDir flag rather than failing an
+ * open the way the size-probe (sd_xroot_origin_open) does. The reply body is the
+ * classic 4-field ASCII stat line "id size flags mtime"; we parse size, the flag
+ * bitmask (for is_dir), and mtime. Returns 0, or -1 with errno set. */
+int
+brix_cache_origin_stat(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const char *path, brix_cache_stat_out_t *out)
+{
+    uint8_t            body[XRDW_BODY_LEN];
+    size_t             pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t           status;
+    uint32_t           dlen;
+    u_char            *rbody = NULL;
+    int                rc;
+    long long          id = 0, size = 0, mtime = 0;
+    int                flags = 0;
+
+    if (out == NULL || pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    ngx_memzero(out, sizeof(*out));
+    ngx_memzero(body, sizeof(body));            /* options=0, wants=0, fhandle=0 */
+    rc = origin_request(t, oc, kXR_stat, body, path, pl, &status, &rbody,
+                        &dlen, 512);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    /* rbody is NUL-terminated by brix_cache_read_response (alloc dlen+1). */
+    if (rbody == NULL
+        || sscanf((const char *) rbody, "%lld %lld %d %lld",
+                  &id, &size, &flags, &mtime) != 4)
+    {
+        free(rbody);
+        errno = EIO;                            /* malformed stat line */
+        return -1;
+    }
+    free(rbody);
+    out->size   = (off_t) size;
+    out->mtime  = (time_t) mtime;
+    out->flags  = flags;
+    out->is_dir = (flags & kXR_isDir) ? 1 : 0;
     return 0;
 }
 

@@ -180,6 +180,27 @@ brix_sd_rename_maybe_cred(brix_sd_instance_t *inst, const char *src,
 }
 
 static ngx_inline ngx_int_t
+brix_sd_truncate_path_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    off_t len, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->truncate_path_cred != NULL) {
+        return inst->driver->truncate_path_cred(inst, path, len, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->truncate_path_cred == NULL
+        && inst->driver->truncate_path != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->truncate_path == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->truncate_path(inst, path, len);
+}
+
+static ngx_inline ngx_int_t
 brix_sd_setattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred)
 {

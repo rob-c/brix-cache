@@ -397,6 +397,28 @@ sd_posix_staged_open(brix_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
 
+    /* Create the target's parent-directory chain inside the store root before the
+     * O_EXCL temp is opened.  A staged upload into a fresh subdirectory (e.g. a
+     * write-stage tier keyed on "/sub/file" whose store is a dedicated dir that
+     * has never seen "/sub") would otherwise ENOENT: brix_staged_open opens the
+     * temp adjacent to abspath and does NOT create parents.  This mirrors the
+     * O_MKDIRPATH mkpath a direct write runs, so the store side of a subdirectory
+     * commit succeeds (the source-side origin creates its own chain via mkpath). */
+    {
+        char  parent[PATH_MAX];
+        char *slash;
+        size_t alen = ngx_strlen(abspath);
+        if (alen < sizeof(parent)) {
+            ngx_memcpy(parent, abspath, alen + 1);
+            slash = strrchr(parent, '/');
+            if (slash != NULL && slash > parent) {
+                *slash = '\0';
+                (void) brix_mkdir_recursive_confined_canon(inst->log,
+                    st->root_canon, parent, 0755, NULL);
+            }
+        }
+    }
+
     {
         brix_staged_open_req_t  oreq = {
             .root_canon = st->root_canon,
