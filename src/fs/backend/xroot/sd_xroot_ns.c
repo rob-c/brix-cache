@@ -307,6 +307,28 @@ sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     return rc == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/* Create a directory on the remote node (kXR_mkdir). Required so an explicit
+ * client MKDIR — or the mkpath prefix-walk (brix_vfs_backend_mkpath) — resolves
+ * against a root:// backend instead of failing the NULL-slot path. Same session
+ * pattern as sd_xroot_unlink/rename. Returns NGX_OK / NGX_ERROR (errno set —
+ * EEXIST when the directory already exists, tolerated by the mkpath walk). */
+ngx_int_t
+sd_xroot_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    brix_cache_origin_conn_t  oc;
+    brix_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
+    rc = brix_cache_origin_mkdir(t, &oc, path, mode);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc == 0 ? NGX_OK : NGX_ERROR;
+}
+
 /* Copy src→dst byte stream on an open session (read each chunk from src_fh, write
  * to dst_fh), then truncate+sync dst. Returns NGX_OK + *bytes_out, or NGX_ERROR.
  * Prototype in sd_xroot_internal.h — shared with the credential-scoped
