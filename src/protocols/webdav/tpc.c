@@ -28,6 +28,9 @@
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_probe (confined stat via the VFS seam) */
 #include "core/http/http_headers.h"
+#include "core/compat/net_target.h"        /* brix_net_target_parse (host split) */
+#include "net/guard/guard.h"               /* guard_audit_format / GUARD_R_TPCEGRESS */
+#include "tpc/common/egress_guard.h"       /* brix_tpc_source_guard_check */
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
 #include "observability/sesslog/sesslog_ngx.h"
@@ -214,6 +217,96 @@ webdav_tpc_add_bearer_header(ngx_http_request_t *r, ngx_array_t *headers,
  * missing required headers via 400 Bad Request. Uses temporary file staging (<path>.nginx-xrootd-tpc.<pid>.<time>)
  * for pull mode to ensure atomic commit — rename/link on success, unlink on failure.
  */
+/*
+ * webdav_tpc_source_guard — enforce the brix_webdav_tpc_source_guard naming
+ * allowlist on a COPY pull's SOURCE authority.
+ *
+ * WHAT: when the guard is on, refuse the pull unless the source host is on
+ *   conf->tpc_source_allow (exact host or leading-'.' domain suffix); on a
+ *   refusal emit a signal=tpc_egress guard-audit line (banned by the
+ *   [xrootd-guard-tpc_egress] jail) and return NGX_HTTP_FORBIDDEN.
+ * WHY:  a native TPC pull and a WebDAV COPY pull are the same SSRF primitive —
+ *   the destination server dials the source — so both planes enforce the same
+ *   NAMING control ahead of any outbound connection. Shares the pure verdict
+ *   core (brix_tpc_source_guard_check) with the native path so the two can
+ *   never disagree, and mirrors gate.c's proxyabuse emit shape.
+ * HOW:  split the host out of source_url with brix_net_target_parse (no DNS),
+ *   copy it NUL-terminated, run the verdict; allow (NGX_OK) when the guard is
+ *   off or the host matches, else format + log the audit line and forbid.
+ */
+static ngx_int_t
+webdav_tpc_source_guard(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url)
+{
+    brix_net_target_t tgt;
+    ngx_str_t         url_str;
+    char              hostz[256];
+    char              parse_err[256];
+    char              egress_err[512];
+    size_t            hl;
+
+    if (!conf->tpc_source_guard) {
+        return NGX_OK;
+    }
+
+    url_str.data = (u_char *) source_url;
+    url_str.len  = ngx_strlen(source_url);
+
+    hostz[0] = '\0';
+    if (brix_net_target_parse(NULL, &url_str, &tgt,
+                              parse_err, sizeof(parse_err)) == NGX_OK)
+    {
+        hl = ngx_min(tgt.host.len, sizeof(hostz) - 1);
+        ngx_memcpy(hostz, tgt.host.data, hl);
+        hostz[hl] = '\0';
+    }
+
+    if (brix_tpc_source_guard_check(conf->tpc_source_guard,
+            conf->tpc_source_allow, hostz,
+            egress_err, sizeof(egress_err)) == 0)
+    {
+        return NGX_OK;
+    }
+
+    {
+        guard_request_t req;
+        char            ipbuf[64];
+        char            san[256];
+        char            line[512];
+        char            ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
+        size_t          n, ts_len;
+
+        n = ngx_min(r->connection->addr_text.len, sizeof(ipbuf) - 1);
+        ngx_memcpy(ipbuf, r->connection->addr_text.data, n);
+        ipbuf[n] = '\0';
+
+        ngx_memzero(&req, sizeof(req));
+        req.ip           = ipbuf;
+        req.proto        = "webdav";
+        req.op           = GUARD_OP_WRITE;
+        req.path         = san;
+        req.path_len     = brix_sanitize_log_string(hostz, san, sizeof(san));
+        req.cred_present = (r->headers_in.authorization != NULL);
+        req.outcome      = OUTCOME_AUTHFAIL;
+        req.status_code  = NGX_HTTP_FORBIDDEN;
+
+        ts_len = ngx_cached_http_log_iso8601.len;
+        if (ts_len >= sizeof(ts)) {
+            ts_len = sizeof(ts) - 1;
+        }
+        ngx_memcpy(ts, ngx_cached_http_log_iso8601.data, ts_len);
+        ts[ts_len] = '\0';
+
+        if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts,
+                               line, sizeof(line)) > 0)
+        {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "%s", line);
+        }
+    }
+
+    return NGX_HTTP_FORBIDDEN;
+}
+
 ngx_int_t
 ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
 {
@@ -251,6 +344,13 @@ ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
     }
 
     rc = webdav_tpc_source_url(r, source_hdr, &source_url);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    /* SSRF egress control: refuse a pull whose SOURCE host is not on the
+     * brix_webdav_tpc_source_allow allowlist, before any outbound leg. */
+    rc = webdav_tpc_source_guard(r, conf, source_url);
     if (rc != NGX_OK) {
         return rc;
     }

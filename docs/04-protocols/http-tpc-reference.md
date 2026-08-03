@@ -123,14 +123,48 @@ credential forwarding locked behind explicit policy checks.
 
 ### 4) SSRF / address policy
 
-- BriX-Cache: has an explicit SSRF guard rejecting loopback (127/8, ::1)
-  and IPv6 link-local addresses in `src/tpc/outbound/connect.c::tpc_addr_is_prohibited()`.
-  RFC1918 private ranges are intentionally allowed.
-- official xrootd: uses libcurl socket callbacks to reject local/private
-  addresses by configuration (`allow_private` / `allow_local`).
+TPC pull is an SSRF primitive: the destination server dials the source
+authority named in the request. BriX-Cache defends this with **two independent
+layers**, both enforced ahead of any outbound connection and both shared,
+byte-for-byte, between the native `root://` plane and the WebDAV COPY plane:
 
-Parity note: official xrootd provides more runtime configurability for these
-policies — adding similar config flags in BriX-Cache is advised.
+**Layer 1 — address RANGE gate (default-on).** An explicit SSRF guard rejects
+loopback (127/8, ::1) and IPv6 link-local addresses in
+`src/tpc/outbound/connect.c::tpc_addr_is_prohibited()`. Loopback/link-local are
+opened only with `…_tpc_allow_local on`; RFC-1918 private ranges are allowed by
+default and closed with `…_tpc_allow_private off`. Refusals read `… prohibited`.
+
+**Layer 2 — source-host NAMING allowlist (default-off, opt-in).** When enabled,
+a pull may only name an *allowlisted* source authority — an exact host or, with
+a leading `.`, a domain suffix (case-insensitive; the bare apex does not match a
+`.suffix` rule — the host must be strictly longer). This is strictly stricter
+than Layer 1: it fires *first*, so a non-allowlisted host is refused even when
+the range gate would have permitted it (e.g. an RFC-1918 address). The verdict
+core is the pure `brix_tpc_source_guard_check()` in
+`src/tpc/common/egress_guard.c`, shared so the two planes can never disagree:
+
+- native `root://`: enforced in
+  `src/tpc/engine/launch_prepare.c::tpc_prepare_check_preconditions()`; refuses
+  with `kXR_NotAuthorized` + `TPC source host not permitted: <host>`.
+- WebDAV COPY: enforced in
+  `src/protocols/webdav/tpc.c::webdav_tpc_source_guard()`; refuses with
+  `403 Forbidden`.
+
+Both refusals emit a `signal=tpc_egress` guard-audit line (banned by the
+`[xrootd-guard-tpc_egress]` fail2ban jail) and bump the label-less
+`brix_stream_tpc_egress_refused_total` metric. Directives:
+
+- native: `brix_tpc_source_guard on|off`, `brix_tpc_source_allow <host> […]`
+- WebDAV: `brix_webdav_tpc_source_guard on|off`,
+  `brix_webdav_tpc_source_allow <host> […]`
+
+The allow directive is repeatable and space-separated; a custom setter appends
+*every* argument (the stock `ngx_conf_set_str_array_slot` keeps only the first,
+silently dropping the rest — an allowlist footgun this codebase has hit before).
+
+official xrootd uses libcurl socket callbacks to reject local/private addresses
+by configuration (`allow_private` / `allow_local`); it has no equivalent of the
+Layer-2 naming allowlist.
 
 ### 5) Concurrency & I/O model
 
@@ -247,6 +281,8 @@ Add a small set of `brix_webdav_tpc_*` directives to make behavior tunable:
 - `brix_webdav_tpc_marker_interval <sec>` — perf marker interval.
 - `brix_webdav_tpc_allow_local on|off` — control loopback/link-local.
 - `brix_webdav_tpc_allow_private on|off` — allow RFC1918 private ranges.
+- `brix_webdav_tpc_source_guard on|off` + `brix_webdav_tpc_source_allow <host> […]`
+  — source-host naming allowlist (SSRF Layer 2; see §4). **Implemented.**
 - `brix_webdav_tpc_cacert <path>` / `brix_webdav_tpc_cert` / `tpc_key` — CA/cred options.
 
 These map directly to the knobs used in the official `XrdHttpTpc` module.

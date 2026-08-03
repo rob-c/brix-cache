@@ -71,6 +71,15 @@ typedef struct {
     /* --- HTTP-TPC SSRF policy --- */
     ngx_flag_t     tpc_allow_local;   /* 0: reject loopback+link-local targets */
     ngx_flag_t     tpc_allow_private; /* 0: reject RFC-1918 / ULA targets */
+    ngx_flag_t     tpc_source_guard;  /* [brix_webdav_tpc_source_guard] 0: off.
+                                       * When on, a COPY may only pull from a
+                                       * source authority on tpc_source_allow —
+                                       * a NAMING allowlist enforced before curl
+                                       * dials out (SSRF egress control), the
+                                       * WebDAV-plane twin of the native
+                                       * brix_tpc_source_guard. */
+    ngx_array_t   *tpc_source_allow;  /* ngx_str_t patterns: exact host or
+                                       * leading-'.' domain suffix. */
 
     /* --- HTTP-TPC (curl-based pull) settings --- */
     ngx_str_t      tpc_curl;        /* path to curl binary */

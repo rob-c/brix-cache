@@ -155,6 +155,40 @@ brix_ssi_service_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_ERROR;
 }
 
+/* brix_tpc_source_allow <host> [host ...] — append EVERY argument to the TPC
+ * source-host allowlist. The stock ngx_conf_set_str_array_slot keeps only the
+ * first argument per directive, which for a SECURITY allowlist silently drops
+ * every host after the first on a space-separated line (the same footgun that
+ * bit brix_cvmfs_upstream_allow in the field). Both forms now work: one
+ * directive per host, or one directive listing them all. */
+char *
+brix_tpc_conf_source_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value, *slot;
+    ngx_uint_t                    i;
+
+    (void) cmd;
+
+    if (xcf->tpc_source_allow == NGX_CONF_UNSET_PTR) {
+        xcf->tpc_source_allow = ngx_array_create(cf->pool, 4,
+                                                 sizeof(ngx_str_t));
+        if (xcf->tpc_source_allow == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    value = cf->args->elts;
+    for (i = 1; i < cf->args->nelts; i++) {
+        slot = ngx_array_push(xcf->tpc_source_allow);
+        if (slot == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        *slot = value[i];
+    }
+    return NGX_CONF_OK;
+}
+
 /*
  * Directive table.  Entries are grouped by feature (enable+root -> auth ->
  * security/TLS -> TPC -> write/observability -> cluster roles -> health ->

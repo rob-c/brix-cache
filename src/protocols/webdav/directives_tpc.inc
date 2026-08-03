@@ -18,6 +18,27 @@
       offsetof(ngx_http_brix_webdav_loc_conf_t, tpc_allow_private),
       NULL },
 
+    /* Source-host NAMING allowlist (SSRF egress control), the WebDAV-plane
+     * twin of the native brix_tpc_source_guard. Default off; when on, a COPY
+     * may only pull from an allowlisted authority, enforced before curl dials
+     * out (tpc_marker_start.c). */
+    { ngx_string("brix_webdav_tpc_source_guard"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, tpc_source_guard),
+      NULL },
+
+    /* Hostnames (exact or leading-'.' domain suffix) a COPY may pull from.
+     * Repeatable / space-separated — custom setter appends EVERY argument
+     * (stock str_array keeps only the first, silently dropping the rest). */
+    { ngx_string("brix_webdav_tpc_source_allow"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
+      webdav_conf_tpc_source_allow,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     { ngx_string("brix_webdav_tpc_curl"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

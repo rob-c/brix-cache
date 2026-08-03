@@ -35,9 +35,13 @@ typedef enum {
     GUARD_R_NOTFOUND, GUARD_R_AUTHFAIL, GUARD_R_NOTROOT,
     GUARD_R_PROXYABUSE,     /* forward-proxy abused to reach a non-allowlisted
                             * remote (open-proxy / SSRF probe) */
-    GUARD_R_TAMPER          /* content failed CVMFS integrity verification —
+    GUARD_R_TAMPER,         /* content failed CVMFS integrity verification —
                             * CAS hash or manifest/whitelist signature mismatch
                             * on a fill (tampered / MITM'd / corrupted origin) */
+    GUARD_R_TPCEGRESS       /* TPC pull refused because the requested source host
+                            * is not on the brix_tpc_source_allow allowlist —
+                            * a client steering the gateway's outbound socket at
+                            * a non-permitted host (server-side request forgery) */
 } guard_reason_t;
 
 /* First-bytes wire-protocol guess for a connection opened on a root:// port.

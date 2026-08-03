@@ -19,6 +19,25 @@
       offsetof(ngx_stream_brix_srv_conf_t, tpc_allow_private),
       NULL },
 
+    /* Enforce the TPC source-host allowlist (default: off / opt-in). */
+    { ngx_string("brix_tpc_source_guard"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tpc_source_guard),
+      NULL },
+
+    /* Hostnames (exact or leading-'.' domain suffix) a TPC pull may originate
+     * from when brix_tpc_source_guard is on. Repeatable / space-separated —
+     * custom setter appends EVERY argument (stock str_array keeps only the
+     * first, silently dropping the rest of a one-line allowlist). */
+    { ngx_string("brix_tpc_source_allow"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      brix_tpc_conf_source_allow,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
     /* §7 unary XrdSsi request/response over /.ssi/<service> (default: off). */
     { ngx_string("brix_ssi"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,

@@ -117,6 +117,44 @@ webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 /*
+ * brix_webdav_tpc_source_allow <host> [host ...] — append EVERY argument to the
+ * WebDAV-plane TPC source-host allowlist. Uses a custom setter (not the stock
+ * ngx_conf_set_str_array_slot) because that keeps only the first argument per
+ * directive, which for a SECURITY allowlist silently drops every host after the
+ * first on a space-separated line — the same footgun that bit
+ * brix_cvmfs_upstream_allow in the field. Both forms work: one directive per
+ * host, or one directive listing them all.
+ */
+char *
+webdav_conf_tpc_source_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
+    ngx_str_t                         *value, *slot;
+    ngx_uint_t                         i;
+
+    (void) cmd;
+
+    if (wlcf->tpc_source_allow == NGX_CONF_UNSET_PTR) {
+        wlcf->tpc_source_allow = ngx_array_create(cf->pool, 4,
+                                                  sizeof(ngx_str_t));
+        if (wlcf->tpc_source_allow == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    value = cf->args->elts;
+    for (i = 1; i < cf->args->nelts; i++) {
+        slot = ngx_array_push(wlcf->tpc_source_allow);
+        if (slot == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        *slot = value[i];
+    }
+    return NGX_CONF_OK;
+}
+
+
+/*
  * brix_webdav_dig_export <name> <dir> — register a named read-only diagnostic
  * export (§3). The dir is realpath'd at config time into the export's `canon` (the
  * RESOLVE_BENEATH anchor); a non-existent dir is a config error so misconfiguration

@@ -77,6 +77,8 @@ brings up the fleet).
 | 11180 | TPC_SSRF_DEFAULT_PORT | root | anon | SSRF default policy |
 | 11181 | TPC_SSRF_ALLOW_LOCAL_PORT | root | anon | SSRF allow-local policy |
 | 11182 | TPC_SSRF_DENY_PRIVATE_PORT | root | anon | SSRF deny-private policy |
+| 11218 | TPC_SRC_GUARD_PORT | root | anon | TPC source-host naming allowlist (SSRF Layer 2) |
+| 11219 | WEBDAV_TPC_SRC_GUARD_PORT | http | none | WebDAV COPY source-host naming allowlist (SSRF Layer 2) |
 | 18450 | WEBDAV_TPC_SOURCE_REQUIRED_PORT | davs | cert | HTTP-TPC source, client cert required |
 | 18451 | WEBDAV_TPC_SOURCE_OPEN_PORT | davs | none | HTTP-TPC source, open |
 | 18452 | WEBDAV_TPC_DEST_CAFILE_PORT | davs | — | HTTP-TPC dest, cafile validation |

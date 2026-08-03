@@ -135,6 +135,7 @@ int main(void)
         CHECK(strcmp(guard_reason_str(GUARD_R_NOTROOT), "notroot") == 0);
         CHECK(strcmp(guard_reason_str(GUARD_R_PROXYABUSE), "proxyabuse") == 0);
         CHECK(strcmp(guard_reason_str(GUARD_R_TAMPER), "cvmfs_tamper") == 0);
+        CHECK(strcmp(guard_reason_str(GUARD_R_TPCEGRESS), "tpc_egress") == 0);
     }
 
     /* --- audit format --- */

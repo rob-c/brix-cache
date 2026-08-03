@@ -301,6 +301,15 @@ TPC_SSRF_DEFAULT_PORT = int(os.environ.get("TEST_TPC_SSRF_DEFAULT_PORT", "11180"
 TPC_SSRF_ALLOW_LOCAL_PORT = int(os.environ.get("TEST_TPC_SSRF_ALLOW_LOCAL_PORT", "11181"))
 TPC_SSRF_DENY_PRIVATE_PORT = int(os.environ.get("TEST_TPC_SSRF_DENY_PRIVATE_PORT", "11182"))
 
+# TPC source-host egress allowlist guard (brix_tpc_source_guard) — port 11218
+TPC_SRC_GUARD_PORT = int(os.environ.get("TEST_TPC_SRC_GUARD_PORT", "11218"))
+
+# WebDAV-plane TPC source-host egress allowlist guard
+# (brix_webdav_tpc_source_guard) — port 11219
+WEBDAV_TPC_SRC_GUARD_PORT = int(
+    os.environ.get("TEST_WEBDAV_TPC_SRC_GUARD_PORT", "11219")
+)
+
 # S3 presigned URL dedicated servers (ports 11183-11184)
 S3_PRESIGNED_PORT = int(os.environ.get("TEST_S3_PRESIGNED_PORT", "11183"))
 S3_PRESIGNED_STS_PORT = int(os.environ.get("TEST_S3_PRESIGNED_STS_PORT", "11184"))
