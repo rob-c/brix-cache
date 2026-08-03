@@ -1,6 +1,6 @@
 # brix-fault-proxy — Feature-Expansion Plan (hyper-detailed)
 
-**Status:** partially implemented (Track U wave 1 landed) · **Date:** 2026-08-01 · **Owner:** client-tooling
+**Status:** unified onto remote v1.3.0 core (2026-08-03) — Phase 1 (`ctl` + event-log) **and** Phase 2 (`json`/`toxic`/`route`) landed; see "Unification with remote v1.3.0 core" below · **Date:** 2026-08-01 · **Owner:** client-tooling
 **Scope:** `client/apps/diag/brix_fault_proxy*.{c,h}`, `client/man/brix-fault-proxy.1`,
 the Python suite (`tests/test_brix_fault_proxy.py`, `tests/test_fault_proxy_corruption.py`
 + new files below), `tests/fleet_lifecycle_ports.py`, and the three build systems
@@ -96,6 +96,88 @@ the loopback bind rather than widening it.
 **Track R** (R1 netem …
 R5 EDT) remains root-only and unverifiable as an unprivileged user; R4
 evaluate-only.
+
+---
+
+## Unification with remote v1.3.0 core (2026-08-03)
+
+The wave plan above was built on a **local architectural fork** that split the
+tool into per-concern TUs (`relay.c`/`control.c` + `_json`/`_ctl`/`_event`/
+`_toxic`/`_route`). In parallel, `origin/main` grew `brix_fault_proxy.c` into a
+single 2709-line **monolith** (v1.3.0) that took the tool in a different
+direction: below-TCP / MITM / privileged / protocol-oracle / record-replay
+faults, a multi-target pool with round-robin+failover, and a modular
+`apply_command` verb dispatcher over a superset `lever_t`. The two histories
+could not both be the core.
+
+**Resolution — adopt the remote monolith as the canonical core, re-port the
+non-invasive local modules onto it.** Remote's `lever_t`/counters are a strict
+superset of the local flat levers and its feature surface is larger, so it wins
+the core. The two local modules that do **not** reach into private lever state
+are re-ported through a new decoupled seam, `brix_fault_proxy_mods.h`, whose
+boundary is plain scalars only — the modules link **no** core symbol and the
+core calls only their entry points:
+
+| Wave | Feature | Unified status | Note |
+|------|---------|----------------|------|
+| A3 | `ctl` client subcommand | **LANDED** (Phase 1) | `brix_fault_proxy_ctl.c` self-contained (own `ctl_write_all`); `main()` reserves `argv[1]=="ctl"`; exit 0/3/4/2 |
+| D2 | JSONL fault-event log | **LANDED** (Phase 1) | `brix_fault_proxy_event.c` (own fd+mutex); `fault_sever(reason)` + accept-loop refuse sites emit via `brix_fp_event`; `--event-log FILE` + live `event-log <path>` fail closed; a `__thread` conn-id attributes events with zero hot-path signature churn; **no payload bytes** ever written |
+| A2/A4 | JSON control I/O | **LANDED** (Phase 2) | `brix_fault_proxy_json.c` — `fp_json_to_verb` reprojects `{"cmd":<verb>,"args":<rest>}` onto the ONE verb grammar in `apply_command`, so JSON can never define a command the bare parser can't nor drift from it. `status json` stays remote's own `cmd_status_json` (A4 already superseded) |
+| C1 | Named stackable toxics | **LANDED** (Phase 2) | `brix_fault_toxic.c` (+ header-only `brix_fault_lever.h` extracting `lever_t` so core and module share the type). Composes onto `forward_faulted`'s `lever_t snap = *L` — never the live levers — behind a lock-free per-direction dir-mask gate (empty table = flat fast path). Grammar `toxic add <name> <type> <value> [dir]` / `toxic remove` / `toxic list [json]`; two of a kind STACK; `clear`/`clear_all` empties via `fp_toxic_reset` |
+| C2 | Dynamic multi-route | **LANDED** (Phase 2) | `brix_fault_route.c` — the table owns route identity/pool/per-route counters; the core owns the bind+accept MECHANISM, reached only through `fp_route_ops`, so a dynamic route reuses the one vetted `g_bind_ss` loopback template (I4 — only the port differs) and cannot widen the gate. Default route always present + undeletable; a `del` slot keeps its identity (listener stopped, struct retained) so in-flight relays holding the `fp_route *` never UAF |
+
+**Phase 2** (`_json`/`_toxic`/`_route`) landed onto the remote monolith via the
+plain-scalar `brix_fault_proxy_mods.h` seam plus the shared `brix_fault_lever.h`
+type header — the modules link **no** private lever symbol; the core reaches them
+only through their entry points (`fp_json_to_verb`, `fp_toxic_*`, `fp_route_*`).
+Two hot-path touches were needed and kept minimal: `forward_faulted` folds active
+toxics into its per-buffer snapshot behind the lock-free gate, and `relay_thread`
+hoists the per-direction byte totals to caller scope so per-route accounting
+survives all four relay exit paths (blocked / max-life / sever / EOF). No
+security-critical global was un-static'd: routing goes through the ops vtable and
+the shared bind template, not exposed globals. The full local fork remains in git
+history at `37a272e4b`. **Note the as-built TU names differ from the design-section
+names** (`brix_fault_toxic.c` / `brix_fault_route.c`, not `brix_fault_proxy_toxic.c`
+/ `_route.c`) — the design rows under Phase C describe the local fork; the unified
+tree is as described here.
+
+**CMS merge fallout (not fault-proxy).** Merging v1.3.0 surfaced a latent
+namespace collision the 3-way textual merge could not see because it spanned two
+files: HEAD added config-role macros `#define BRIX_CMS_ROLE_*` to
+`conf_structs.h`, while remote added a file-local `enum { BRIX_CMS_ROLE_* }` to
+`connect.c`. The preprocessor rewrote the enum's `BRIX_CMS_ROLE_MANAGER` to the
+macro's `2`, breaking the enum. Fixed by renaming the file-local **derived** node
+role to its own namespace (`brix_cms_noderole_t` / `BRIX_CMS_NODEROLE_*`),
+distinct from the config role (`BRIX_CMS_ROLE_*`) and the wire-routing role
+(`XRDCMS_ROLE_*` in `router.h`); emitted log strings are unchanged.
+
+**Tests (Phase 1):** `tests/test_fault_proxy_ctl_event.py` — 8 tests, the
+success/error/security-neg ritual per feature: `ctl` (status exit 0 · stdin
+batch mutation · unknown-verb exit 3 · missing-args exit 2 · unreachable-port
+exit 4) and event-log (records refuse+sever · bad path fails closed at startup ·
+**never records payload bytes** — a canary pushed through a severed transfer
+appears nowhere in the JSONL).
+
+**Tests (Phase 2):** the named-toxic and named-route modules are driven by the
+contract suites carried over from the local fork — `tests/test_fault_proxy_toxics.py`
+(`TestNamedToxics`, 5 tests: add/list/remove lifecycle in text+json · latency
+toxic composes into the relay · two latency toxics STACK · bad-input rejection ·
+capacity cap + `clear` restores the flat fast path) and
+`tests/test_fault_proxy_routes.py` (`TestDynamicRoutes`, 4 tests: a runtime route
+relays byte-exact on its OWN counters · `route del` frees the port · duplicate /
+port-in-use / ghost-del rejected · `route del default` refused and a dynamic route
+inherits the loopback bind). The JSON front-end — which those suites do not cover —
+gets its own `tests/test_fault_proxy_modules.py` (3 tests: a JSON verb mutates
+exactly the lever the bare verb would · malformed / `cmd`-less objects draw
+`err: bad json command` · an escaped-newline in `args` cannot smuggle a second
+command). The implementation was reconciled to satisfy these committed contracts
+verbatim (`toxic add <name> <type> <value> [dir]`, replies `added`/`removed <name>`,
+`route add` → `ok:`, `route list json` → `{"routes":[…]}`).
+
+Full standalone fault-proxy suite green: **30 passed** (18 base + 8 Phase-1
+ctl/event + 5 toxics + 4 routes + 3 json, less overlap). Full-tree nginx build
+clean; CMS `test_manager_mode.py` **28 passed** exercising the renamed
+derived-noderole path.
 
 ---
 

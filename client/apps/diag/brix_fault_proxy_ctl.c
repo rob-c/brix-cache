@@ -28,12 +28,31 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "brix_fault_proxy_internal.h"
+#include "brix_fault_proxy_mods.h"
 
 #define CTL_OK       0   /* reply was ok / status */
 #define CTL_USAGE    2   /* malformed ctl invocation */
 #define CTL_ERRREPLY 3   /* server replied err: / {"ok":false} */
 #define CTL_CONNFAIL 4   /* could not reach the control port */
+
+/* Self-contained write loop (the client links no core object, so it cannot use
+ * the relay's static write_all).  Returns 0 once all `n` bytes are written. */
+static int
+ctl_write_all(int fd, const char *buf, ssize_t n)
+{
+    ssize_t off = 0;
+    while (off < n) {
+        ssize_t w = write(fd, buf + off, (size_t) (n - off));
+        if (w < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        off += w;
+    }
+    return 0;
+}
 
 /* Connect `fd` to `sa` with an `ms`-millisecond ceiling so a dead port fails
  * fast instead of hanging.  Returns 0 on a completed connection, -1 otherwise. */
@@ -117,7 +136,7 @@ ctl_dial(const char *hostport)
 static int
 ctl_exchange(int fd, const char *req, size_t reqlen)
 {
-    if (write_all(fd, req, (ssize_t) reqlen) != 0) {
+    if (ctl_write_all(fd, req, (ssize_t) reqlen) != 0) {
         return CTL_CONNFAIL;
     }
     shutdown(fd, SHUT_WR);

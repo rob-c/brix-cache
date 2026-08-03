@@ -29,6 +29,7 @@
 #include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "fanout.h"                       /* W8: fold forwarded-op kYR_error */
 #include "state_relay.h"                  /* Phase-61 W7: kYR_state recursion */
+#include "action_log.h"                   /* cmsd-action NOTICE lines */
 
 /* Per-opcode frame handlers.  All share one signature so the dispatcher in
  * server_recv_frame.c can be a data-driven route table (mirrors recv.c's
@@ -51,6 +52,9 @@ cms_srv_frame_login(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
         ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
                       "brix: CMS server: malformed LOGIN from %s",
                       ctx->host);
+        brix_cms_log_action_hp(ctx->c->log, "login", ctx->host,
+                               (int) ctx->port, "in", NULL, 0,
+                               "malformed CmsLoginData");
         cms_srv_log_auth_fail(ctx, "invalid");
         cms_srv_fail_close(ctx, BRIX_SESS_END_ERROR);
         return;
@@ -117,6 +121,16 @@ cms_srv_frame_load(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     brix_srv_set_machine_load(ctx->host, ctx->port,
         cms_srv_parse_load_machine_pct(payload, payload_len));
     ctx->free_mb = free_mb;
+
+    {
+        u_char  detail[64];
+        u_char *dp = ngx_snprintf(detail, sizeof(detail) - 1,
+                                  "free_mb=%uD", free_mb);
+        *dp = '\0';
+        brix_cms_log_action_hp(ctx->c->log, "load", ctx->host,
+                               (int) ctx->port, "in", NULL, 1,
+                               (const char *) detail);
+    }
 }
 
 /*
@@ -137,6 +151,16 @@ cms_srv_frame_avail(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     brix_srv_update_load(ctx->host, ctx->port, free_mb, util_pct);
     ctx->free_mb  = free_mb;
     ctx->util_pct = util_pct;
+
+    {
+        u_char  detail[80];
+        u_char *dp = ngx_snprintf(detail, sizeof(detail) - 1,
+                                  "free_mb=%uD util_pct=%uD", free_mb, util_pct);
+        *dp = '\0';
+        brix_cms_log_action_hp(ctx->c->log, "space", ctx->host,
+                               (int) ctx->port, "in", NULL, 1,
+                               (const char *) detail);
+    }
 }
 
 /*
@@ -175,6 +199,9 @@ cms_srv_frame_disc(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
 {
     ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                   "brix: CMS server: %s requested disconnect", ctx->host);
+    brix_cms_log_action_hp(ctx->c->log, "disconnect", ctx->host,
+                           (int) ctx->port, "in", NULL, 1,
+                           "node left the cluster (unregistered)");
     (void) brix_cms_srv_send_disc(ctx);
     cms_srv_fail_close(ctx, BRIX_SESS_END_CLIENT);
 }
@@ -258,11 +285,17 @@ cms_srv_frame_status(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s:%d suspended",
                       ctx->host, (int) ctx->port);
+        brix_cms_log_action_hp(ctx->c->log, "status", ctx->host,
+                               (int) ctx->port, "in", NULL, 1,
+                               "suspend -> node drained (not selectable)");
     } else if (mod & CMS_ST_RESUME) {
         (void) brix_srv_undrain(ctx->host, ctx->port);
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s:%d resumed",
                       ctx->host, (int) ctx->port);
+        brix_cms_log_action_hp(ctx->c->log, "status", ctx->host,
+                               (int) ctx->port, "in", NULL, 1,
+                               "resume -> node selectable");
     }
 
     if (mod & CMS_ST_RESET) {
@@ -270,6 +303,9 @@ cms_srv_frame_status(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s:%d state reset",
                       ctx->host, (int) ctx->port);
+        brix_cms_log_action_hp(ctx->c->log, "status", ctx->host,
+                               (int) ctx->port, "in", NULL, 1,
+                               "reset -> metrics/fault state cleared");
     }
 
     if (mod & CMS_ST_STAGE) {
@@ -362,6 +398,9 @@ cms_srv_frame_gone(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                    "brix: CMS server: kYR_gone path=%s from %s:%d",
                    path, ctx->host, (int) ctx->port);
+    brix_cms_log_action_hp(ctx->c->log, "path-gone", ctx->host,
+                           (int) ctx->port, "in", path, 1,
+                           "path dropped from node registration");
 }
 
 /*
@@ -436,12 +475,18 @@ cms_srv_frame_have(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
                       "brix: CMS server: %s:%d asserted have for \"%s\" "
                       "outside its exported paths [%s] — dropped",
                       ctx->host, (int) ctx->port, path, ctx->paths);
+        brix_cms_log_action_hp(ctx->c->log, "have", ctx->host,
+                               (int) ctx->port, "in", path, 0,
+                               "asserted path outside exported prefixes");
         return;
     }
 
     brix_loc_cache_insert(path, ctx->host, ctx->port);
     (void) brix_cms_wake_pending_session(ctx->c->log, streamid,
                                            ctx->host, ctx->port);
+    brix_cms_log_action_hp(ctx->c->log, "have", ctx->host,
+                           (int) ctx->port, "in", path, 1,
+                           "node holds path -> location cached, client woken");
 }
 
 /*
