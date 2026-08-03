@@ -18,7 +18,7 @@ requests-aws4auth>=1.1,<2
 
 # --- content codecs: compression negotiation + CVMFS transcode suites --------
 Brotli>=1.0,<2
-zstandard>=0.18,<1
+zstandard>=0.25.0,<1
 
 # --- extended attributes: fattr / xattr conformance --------------------------
 xattr>=0.9,<2
