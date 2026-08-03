@@ -36,7 +36,7 @@ requests>=2.25,<3
 urllib3>=1.26,<3
 
 # --- crypto: test PKI, proxy certs, token signing ----------------------------
-cryptography>=3.0,<49
+cryptography>=50.0.0,<51
 
 # --- YAML: CI-workflow assertions, clientconf surface, lab catalogues --------
 PyYAML>=5.4,<7
