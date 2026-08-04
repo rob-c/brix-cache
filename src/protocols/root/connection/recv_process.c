@@ -8,6 +8,7 @@
 #include "net/manager/pending.h"
 #include "fs/xfer/stage_waiter.h"
 #include "protocols/root/handoff/handoff.h"
+#include "protocols/root/write/write.h"   /* brix_write_stream_* (streaming write) */
 
 /*
  * recv_process.c — the process side of the recv framing loop (split from
@@ -202,6 +203,96 @@ brix_recv_extend_body(brix_ctx_t *ctx, ngx_connection_t *c)
 }
 
 /*
+ * Phase 94 kXR_write header handling on THIS connection, before the payload-size
+ * path.  Returns 1 (with *step set) when it fully handled the frame, else 0 (fall
+ * through to the normal payload path).  Two cases:
+ *  - a bound secondary carrying a plain write reopens the primary's published
+ *    writable handle in this worker BEFORE the streaming/buffered paths inspect
+ *    file->fd (brix_write_stream_begin runs at the header phase); the payload
+ *    follows inline on this connection, so it falls through.
+ *  - a primary-connection non-zero-pathid write is header-only (its data rides a
+ *    bound secondary, which instead carries the WHOLE write itself), a
+ *    cross-connection data-path BriX does not service — refuse it cleanly WITHOUT
+ *    reading cur_dlen bytes (there are none; consuming them would desync framing).
+ */
+static int
+brix_recv_write_hdr_hook(ngx_connection_t *c, brix_ctx_t *ctx,
+    size_t *rx_pending, brix_recv_step_t *step)
+{
+    ngx_int_t serr;
+
+    if (ctx->recv.cur_reqid != kXR_write) {
+        return 0;
+    }
+    if (ctx->is_bound) {
+        (void) brix_ensure_write_handle(ctx, c,
+                   (int) (unsigned char) ctx->recv.cur_body[0]);
+        return 0;
+    }
+    if (ctx->recv.cur_body[12] == 0) {   /* cur_body: fhandle[4] offset[8] pathid[1] */
+        return 0;
+    }
+    ctx->recv.cur_dlen = 0;
+    ctx->recv.payload  = NULL;
+    BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
+    serr = brix_send_error(ctx, c, kXR_Unsupported,
+        "write data-path (pathid) unsupported; send data inline (pathid 0)");
+    if (serr == NGX_ERROR) {
+        *step = BRIX_RECV_STEP_BREAK;
+        return 1;
+    }
+    ctx->out.resp_pipelinable = 0;
+    BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
+    *rx_pending = 0;
+    if (ctx->state == XRD_ST_SENDING) {
+        *step = BRIX_RECV_STEP_RETURN;
+        return 1;
+    }
+    ctx->state = XRD_ST_REQ_HEADER;
+    ctx->recv.hdr_pos = 0;
+    *step = BRIX_RECV_STEP_CONTINUE;
+    return 1;
+}
+
+/*
+ * The post-dispatch tail of the dlen==0 header path: a freshly posted read-AIO
+ * either pipelines a cold read (keep receiving) or suspends; a cleartext sendfile
+ * read pipelines; a pending TLS handshake is handed off; otherwise return to the
+ * request-header state.  CONTINUE / RETURN / BREAK.
+ */
+static brix_recv_step_t
+brix_recv_after_dispatch_hdr(ngx_connection_t *c, brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf, ngx_event_t *rev)
+{
+    if (ctx->state == XRD_ST_AIO) {
+        if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
+            && !ctx->rd.win_active)
+        {
+            ctx->state = XRD_ST_REQ_HEADER;
+            ctx->recv.hdr_pos = 0;
+            return BRIX_RECV_STEP_CONTINUE;
+        }
+        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+            return BRIX_RECV_STEP_BREAK;
+        }
+        return BRIX_RECV_STEP_RETURN;
+    }
+    if (brix_recv_try_pipeline_read(ctx)) {
+        ctx->state = XRD_ST_REQ_HEADER;
+        ctx->recv.hdr_pos = 0;
+    }
+    if (ctx->state != XRD_ST_SENDING) {
+        if (ctx->tls_pending) {
+            brix_start_tls(ctx, c, conf);
+            return BRIX_RECV_STEP_RETURN;
+        }
+        ctx->state = XRD_ST_REQ_HEADER;
+        ctx->recv.hdr_pos = 0;
+    }
+    return BRIX_RECV_STEP_CONTINUE;
+}
+
+/*
  * A fully-received 24-byte ClientRequestHdr just landed: decode it, reject an
  * oversized dlen before any allocation, and either accept a payload-bearing
  * request (→ REQ_PAYLOAD) or dispatch a dlen==0 request.  CONTINUE/RETURN/BREAK.
@@ -240,6 +331,18 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
                   (int) ctx->recv.cur_reqid, (size_t) ctx->recv.cur_dlen,
                   c->read->available, (int) c->read->ready);
 
+    /*
+     * Phase 94 kXR_write header handling: bound-secondary write-handle reopen, and
+     * clean refusal of a header-only non-zero-pathid write on the primary.  Returns
+     * 1 when it fully handled the frame (step set); otherwise falls through.
+     */
+    {
+        brix_recv_step_t wstep;
+        if (brix_recv_write_hdr_hook(c, ctx, rx_pending, &wstep)) {
+            return wstep;
+        }
+    }
+
     /* dlen is untrusted client input — reject before any allocation. */
     max_pl = brix_max_payload_for_request(ctx->recv.cur_reqid);
     if (ctx->recv.cur_dlen > max_pl) {
@@ -248,6 +351,30 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
                       (size_t) ctx->recv.cur_dlen);
         BRIX_SRV_METRIC_INC(ctx, oversized_payloads_total);
         return BRIX_RECV_STEP_BREAK;
+    }
+
+    /*
+     * Streaming large plain kXR_write: a single write whose dlen exceeds the
+     * chunk size is delivered to the fd / staged writer in bounded chunks rather
+     * than buffered whole (memory stays at one chunk).  brix_write_stream_begin
+     * validates the handle, sets recv.sw_* state, and REWRITES cur_dlen to the
+     * first chunk length so the shared payload-buffer setup below allocates one
+     * chunk; brix_recv_after_payload then applies each chunk and re-arms the next.
+     * If the write is not streamable (SSI / codec / require_pgwrite handle) and
+     * is larger than the buffered write cap, reject it before allocating.
+     */
+    if (ctx->recv.cur_reqid == kXR_write
+        && ctx->recv.cur_dlen > BRIX_WRITE_STREAM_CHUNK)
+    {
+        if (!brix_write_stream_begin(ctx, c, conf)
+            && ctx->recv.cur_dlen > BRIX_MAX_WRITE_PAYLOAD)
+        {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                          "brix: unstreamable write payload too large (%uz),"
+                          " closing", (size_t) ctx->recv.cur_dlen);
+            BRIX_SRV_METRIC_INC(ctx, oversized_payloads_total);
+            return BRIX_RECV_STEP_BREAK;
+        }
     }
 
     if (ctx->recv.cur_dlen > 0) {
@@ -292,48 +419,46 @@ brix_recv_after_header(ngx_stream_session_t *s, ngx_connection_t *c,
         return BRIX_RECV_STEP_BREAK;
     }
 
-    if (ctx->state == XRD_ST_AIO) {
-        /*
-         * phase-32 WS3 (concurrent read-AIO): a cold kXR_read just posted its
-         * pread to the thread pool (rd.aio_inflight bumped in read_post_aio).
-         * Instead of suspending until it completes — which serializes the next
-         * read's network receive behind this read's disk I/O — keep receiving
-         * into a different pool buffer, exactly as the pipelined write path does.
-         * !win_active excludes a windowed read (which self-serializes across its
-         * windows); header_prep's backpressure gate caps the in-flight depth.
-         */
-        if (ctx->recv.cur_reqid == kXR_read && ctx->rd.aio_inflight > 0
-            && !ctx->rd.win_active)
-        {
-            ctx->state = XRD_ST_REQ_HEADER;
-            ctx->recv.hdr_pos = 0;
-            return BRIX_RECV_STEP_CONTINUE;
-        }
-        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-            return BRIX_RECV_STEP_BREAK;
-        }
+    return brix_recv_after_dispatch_hdr(c, ctx, conf, rev);
+}
+
+/*
+ * Streaming large plain kXR_write (caller ensures recv.sw_active): one bounded
+ * chunk (payload[0..cur_dlen)) just landed.  Apply it to the fd / staged writer at
+ * sw_base_off+sw_done and either re-arm cur_dlen for the next chunk (keep
+ * receiving) or, once the whole logical write has been applied, send the single
+ * ack and return to the request-header state.  A streaming write is never deferred
+ * / dispatched: it short-circuits the extend-body, drain-barrier, and dispatch.
+ */
+static brix_recv_step_t
+brix_recv_stream_write_chunk(ngx_connection_t *c, brix_ctx_t *ctx,
+    size_t *rx_pending)
+{
+    brix_write_stream_apply_chunk(ctx, c);
+    ctx->recv.sw_done += ctx->recv.cur_dlen;
+
+    if (ctx->recv.sw_done < ctx->recv.sw_total) {
+        uint32_t remain = ctx->recv.sw_total - ctx->recv.sw_done;
+
+        ctx->recv.cur_dlen = remain < BRIX_WRITE_STREAM_CHUNK
+                             ? remain : BRIX_WRITE_STREAM_CHUNK;
+        ctx->recv.payload_pos = 0;
+        ctx->state = XRD_ST_REQ_PAYLOAD;
+        ctx->recv.hdr_pos = 0;
+        return BRIX_RECV_STEP_CONTINUE;   /* receive the next chunk */
+    }
+
+    /* Last chunk applied — emit exactly one reply for the logical write. */
+    (void) brix_write_stream_finish(ctx, c);
+    ctx->out.resp_pipelinable = 0;
+    BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, *rx_pending);
+    *rx_pending = 0;
+
+    if (ctx->state == XRD_ST_SENDING) {
         return BRIX_RECV_STEP_RETURN;
     }
-
-    /*
-     * Phase 29 pipelining: a cleartext sendfile kXR_read parked its response
-     * (state SENDING) and we are below the in-flight cap.  Keep reading so the
-     * next read's sendfile span queues behind this one.
-     */
-    if (brix_recv_try_pipeline_read(ctx)) {
-        ctx->state = XRD_ST_REQ_HEADER;
-        ctx->recv.hdr_pos = 0;
-    }
-
-    if (ctx->state != XRD_ST_SENDING) {
-        if (ctx->tls_pending) {
-            brix_start_tls(ctx, c, conf);
-            return BRIX_RECV_STEP_RETURN;
-        }
-        ctx->state = XRD_ST_REQ_HEADER;
-        ctx->recv.hdr_pos = 0;
-    }
-
+    ctx->state = XRD_ST_REQ_HEADER;
+    ctx->recv.hdr_pos = 0;
     return BRIX_RECV_STEP_CONTINUE;
 }
 
@@ -350,6 +475,10 @@ brix_recv_after_payload(ngx_stream_session_t *s, ngx_connection_t *c,
 {
     brix_recv_step_t ext;
     ngx_int_t        rc;
+
+    if (ctx->recv.sw_active) {
+        return brix_recv_stream_write_chunk(c, ctx, rx_pending);
+    }
 
     ext = brix_recv_extend_body(ctx, c);
     if (ext != BRIX_RECV_STEP_NEXT) {

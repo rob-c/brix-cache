@@ -209,6 +209,17 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, common.enable),
       NULL },
 
+    /* Accept kXR_bind secondary data connections (parallel reads).  ON by
+     * default; set off to refuse bind so clients stream every request inline on
+     * the primary connection (pathid 0) — required when fronting a client that
+     * streams WRITE payloads on a substream, which BriX does not yet service. */
+    { ngx_string("brix_data_substreams"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.data_substreams),
+      NULL },
+
     /* Filesystem/export settings used by nearly every request handler. */
     { ngx_string("brix_export"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,

@@ -109,4 +109,13 @@ ngx_flag_t brix_validate_write_handle(brix_ctx_t *ctx,
     ngx_connection_t *c, int handle_index, const char *verb,
     ngx_uint_t op, ngx_int_t *rc);
 
+/*
+ * brix_ensure_write_handle — Phase 94: prepare a handle for write-side I/O. For a
+ * bound secondary, re-validate + reopen (O_WRONLY) the primary's published writable
+ * entry; for a primary session, confirm the local handle is open. Returns NGX_OK
+ * when writable I/O may proceed, NGX_DECLINED to revoke, NGX_ERROR on server error.
+ */
+ngx_int_t brix_ensure_write_handle(brix_ctx_t *ctx,
+    ngx_connection_t *c, int handle_index);
+
 #endif /* BRIX_CONN_FD_H */
