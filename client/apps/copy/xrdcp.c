@@ -74,6 +74,9 @@ usage_fp(FILE *out, const char *prog)
         "                      destination ZIP archive (overwrites the archive)\n"
         "  --zip-append        like --zip but append to an existing archive\n"
         "  -S, --streams N   open N-1 secondary kXR_bind data streams\n"
+        "  --parallel        TRUE concurrent striped download (one thread per\n"
+        "                    stream, disjoint ranges); opt-in, no single-link\n"
+        "                    resilient ride-out — the serial fan-out is the default\n"
         "  --tpc first|only|delegate   server-side third-party copy (remote->remote)\n"
         "  --tpc-token-mode <m>  bearer-token forwarding mode for --tpc (nginx-xrootd extension)\n"
         "  -T, --token <jwt>  WebDAV/HTTP bearer token (or $BEARER_TOKEN)\n"
@@ -502,6 +505,12 @@ main(int argc, char **argv)
     o.copt = &opts;
     o.conn = &conn;
     o.jobs = 1;   /* default: one file at a time (batch concurrency opt-in) */
+    /* Phase 94: data sub-streams ON by default (server default is also ON).  An
+     * upload spreads write chunks across these secondaries (parallel upload); a
+     * server that does not service bound writes falls back to the primary safely.
+     * `-S N` overrides (N<=1 disables).  Kept modest so tiny transfers pay only a
+     * few extra TCP setups. */
+    opts.streams = 4;
 
     brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
     brix_copy_install_signal_handlers();   /* Phase 40 (a): drop partial dest on
