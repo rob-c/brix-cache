@@ -47,6 +47,14 @@ typedef struct {
     int         max_stall_ms;
     size_t      cur_chunk;   /* adaptive read size (shrinks on loss) */
     int         posc;        /* resilient upload sink only: posc flag for reopen */
+    /* Phase 94 parallel upload: when non-NULL with n>0, the upload sink spreads
+     * write chunks round-robin across the primary + bound secondaries; a chunk
+     * that a secondary won't take falls back to the resilient primary path, so a
+     * server that does not service bound writes (old / gateway) never fails. */
+    brix_streamset *ss;
+    unsigned        rr_next;    /* round-robin cursor over primary+secondaries */
+    unsigned        sec_writes; /* chunks actually carried by a secondary stream */
+    unsigned        sec_reads;  /* download: chunks actually read on a secondary  */
 } pump_remote_t;
 
 typedef struct {

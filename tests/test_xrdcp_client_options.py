@@ -136,7 +136,18 @@ def _write_pattern(path: Path, size: int):
 
 
 def _access_log_path(test_env) -> Path:
-    return Path(test_env["log_dir"]) / "brix_access_anon.log"
+    # The registry/fleet launcher writes the anon access log as
+    # "<log_dir>/brix_access_anon.log".  A hand-configured single-server rig
+    # (the substreams suite: TEST_SERVER_REGISTRY=0 + a manual brix_access_log)
+    # instead writes "<TEST_ROOT>/logs/access.log".  Accept whichever exists so
+    # this bind-count assertion is meaningful under both rigs.
+    named = Path(test_env["log_dir"]) / "brix_access_anon.log"
+    if named.exists():
+        return named
+    manual = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")) / "logs" / "access.log"
+    if manual.exists():
+        return manual
+    return named
 
 
 def _count_access_log(test_env, needle: str) -> int:

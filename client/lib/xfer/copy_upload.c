@@ -207,7 +207,22 @@ upload_stream_body(const upload_body_ctx *j, pump_src_fn src, void *srcctx,
     sink.path = du->path;
     sink.posc = o->posc;
     sink.max_stall_ms = copy_stall_ms(o, 60000);
+    /* Phase 94: hand the bound-stream set to the sink so it spreads write chunks
+     * across the substreams (parallel upload).  Only for plain (non-pgwrite,
+     * non-compressed) writes — pgwrite carries per-page CRCs and compression frames
+     * are primary-only; both keep the single-stream path. */
+    sink.ss = (o->pgrw || f.write_codec != 0) ? NULL : &ss;
+    sink.rr_next = 0;
+    sink.sec_writes = 0;
     rc = transfer_pump(src, srcctx, pump_sink_remote, &sink, -1, o, total, st);
+
+    /* Phase 94 diagnostic: how many chunks the bound secondaries actually carried
+     * (0 = single-stream or full fallback to the primary).  Opt-in so normal output
+     * is unchanged. */
+    if (getenv("BRIX_STREAMS_DEBUG") != NULL) {
+        fprintf(stderr, "brix: upload substreams=%d chunks-on-secondaries=%u\n",
+                ss.n, sink.sec_writes);
+    }
 
     /* Only close the remote file cleanly on success: with POSC, abandoning the
      * handle (connection teardown without close) makes the server discard the

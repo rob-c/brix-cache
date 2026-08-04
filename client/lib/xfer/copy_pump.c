@@ -57,6 +57,43 @@ pump_remote_reopen(pump_remote_t *r, brix_status *st)
 }
 
 
+/* Phase 94 parallel download: issue this chunk's read on a bound secondary,
+ * round-robin over primary+secondaries.  kXR_read carries no pathid, so the
+ * server routes a read purely by WHICH connection it arrives on — a read on a
+ * bound secondary is served there against the primary-published handle (the same
+ * cross-worker SHM path the read tests exercise).  Best-effort: slot 0 (primary)
+ * and any secondary read that fails return -1 so the caller runs its normal
+ * (resilient) primary read, so an old/gateway server that won't serve bound reads
+ * never breaks the download.  Returns the byte count on a served secondary read,
+ * or -1 to mean "not carried by a secondary — do the primary read". */
+static ssize_t
+pump_src_secondary(pump_remote_t *r, uint8_t *buf, int64_t off, size_t want,
+                   brix_status *st)
+{
+    unsigned   slot;
+    brix_conn *sec;
+    ssize_t    n;
+
+    if (r->ss == NULL || r->ss->n == 0) {
+        return -1;
+    }
+    slot = r->rr_next % (unsigned) (r->ss->n + 1);
+    r->rr_next++;
+    if (slot == 0) {
+        return -1;                                  /* primary's turn */
+    }
+    sec = &r->ss->sec[slot - 1];
+    n = r->pgrw ? brix_file_pgread(sec, r->f, off, buf, want, st)
+                : brix_file_read(sec, r->f, off, buf, want, st);
+    if (n < 0) {
+        brix_status_clear(st);                      /* fall back to the primary */
+        return -1;
+    }
+    r->sec_reads++;
+    return n;
+}
+
+
 ssize_t
 pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, brix_status *st)
 {
@@ -71,8 +108,11 @@ pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, brix_status *s
     unsigned attempt = 0;
     for (;;) {
         size_t  want = (cap < r->cur_chunk) ? cap : r->cur_chunk;
-        ssize_t n = r->pgrw ? brix_file_pgread(r->c, r->f, off, buf, want, st)
-                            : brix_file_read(r->c, r->f, off, buf, want, st);
+        ssize_t n = pump_src_secondary(r, buf, off, want, st);
+        if (n < 0) {
+            n = r->pgrw ? brix_file_pgread(r->c, r->f, off, buf, want, st)
+                        : brix_file_read(r->c, r->f, off, buf, want, st);
+        }
         if (n >= 0) {
             return n;
         }
@@ -119,6 +159,28 @@ pump_sink_remote(void *ctx, const uint8_t *buf, int64_t off, size_t n,
     if (!r->resilient) {
         return r->pgrw ? brix_file_pgwrite(r->c, r->f, off, buf, n, st)
                        : brix_file_write(r->c, r->f, off, buf, n, st);
+    }
+
+    /* Phase 94 parallel upload: spread this chunk across the bound secondaries
+     * round-robin.  Each kXR_write self-addresses (offset + fhandle), so any
+     * connection can serve it; the server reopens the writable handle on that
+     * connection's worker and pwrites.  Best-effort: a chunk a secondary won't take
+     * (old server / gateway that refuses bound writes) falls through to the
+     * resilient primary loop below, which re-writes it authoritatively at the same
+     * offset (idempotent pwrite) — a secondary hiccup never fails the copy.  slot 0
+     * (the primary) also falls through to that loop, so the primary keeps its full
+     * resilient reopen/retry semantics. */
+    if (r->ss != NULL && r->ss->n > 0) {
+        unsigned slot = r->rr_next % (unsigned) (r->ss->n + 1);
+        r->rr_next++;
+        if (slot != 0) {
+            brix_conn *sec = &r->ss->sec[slot - 1];
+            if (brix_file_write(sec, r->f, off, buf, n, st) == 0) {
+                r->sec_writes++;
+                return 0;
+            }
+            brix_status_clear(st);   /* fall back to the resilient primary write */
+        }
     }
 
     /* Resilient upload (server has brix_upload_resume on): on a transport
