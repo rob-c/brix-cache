@@ -264,6 +264,21 @@ typedef struct {
                                              * Off by default (plain write is the stock
                                              * upload op); SSI accumulation and
                                              * zero-length no-ops are exempt.          */
+    ngx_flag_t          data_substreams;    /* brix_data_substreams on|off (root://):
+                                             * accept kXR_bind so a client may open
+                                             * secondary data connections (parallel
+                                             * reads).  ON by default.  When OFF, bind
+                                             * is refused with kXR_Unsupported, so a
+                                             * client falls back to sending every
+                                             * request (and its data) inline on the
+                                             * primary connection (pathid 0) — the
+                                             * correct, spec-endorsed fallback.  BriX
+                                             * does not yet service a cross-connection
+                                             * WRITE data-path, so a deployment fronting
+                                             * clients that stream write payloads on a
+                                             * substream (e.g. go-hep WithSubStreams)
+                                             * turns this off to force the streaming
+                                             * inline write path.                       */
     ngx_flag_t          read_only;          /* hard read-only switch: when on, the
                                              * finaliser forces allow_write off so
                                              * EVERY write op is rejected at the

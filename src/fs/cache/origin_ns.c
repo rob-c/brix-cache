@@ -231,7 +231,29 @@ brix_cache_origin_mkdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
         return -1;
     }
     if (status != kXR_ok) {
-        errno = brix_cache_origin_status_errno(status, rbody, dlen);
+        /* For a mkdir the origin's kXR_ItExists means the target directory is
+         * already present — an EEXIST condition, NOT the ENOTEMPTY that the
+         * shared status→errno mapping assigns for the rmdir/mv "non-empty
+         * directory" case.  The prefix-by-prefix mkpath walk
+         * (brix_vfs_backend_mkpath) and the -p flag both treat EEXIST as
+         * idempotent success but abort on ENOTEMPTY, so without this the
+         * gateway fails an otherwise-conformant `mkdir -p` on an existing dir
+         * where the stock origin idempotently succeeds.  Stock xrootd reports
+         * this as "...; file exists"; matching the errno lets clients that
+         * classify the error (go-hep MkdirAll) recognise already-present.
+         *
+         * The kXR error CODE rides in the reply body (the header status is the
+         * generic kXR_error); decode it the same way brix_cache_origin_status_
+         * errno does before the mkdir-specific reinterpretation. */
+        int errcode = (int) status;
+        if (status == kXR_error) {
+            const char *m = NULL;
+            size_t      ml = 0;
+            (void) xrd_error_body_decode(rbody, dlen, &errcode, &m, &ml);
+        }
+        errno = (errcode == kXR_ItExists)
+                ? EEXIST
+                : brix_cache_origin_status_errno(status, rbody, dlen);
         free(rbody);
         return -1;
     }

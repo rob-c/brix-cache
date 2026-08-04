@@ -160,11 +160,16 @@ brix_shared_handle_select_target(brix_shared_handle_table_t *tbl,
     brix_shared_handle_entry_t **entry)
 {
     /*
-     * Bound streams are read-only data channels.  Publishing a write-only
-     * primary handle would create an attractive misuse path, so treat these
-     * cases as removal of any stale shared entry for the same slot.
+     * Phase 94: bound secondaries carry both reads AND writes for a plain
+     * fd-backed export, so a handle that is readable OR writable is eligible.
+     * The publish caller (brix_session_handle_publish) already gates on
+     * file->fd >= 0, so staged whole-object writers (fd < 0, writer != NULL) and
+     * driver-backed object handles are still never published — the writable
+     * fan-out is limited to genuine kernel-fd exports, which support safe
+     * disjoint-offset pwrites from independent fds.  A path-less or over-length
+     * handle is still ineligible and evicts any stale entry for the same slot.
      */
-    if (!file->readable || file->path == NULL
+    if ((!file->readable && !file->writable) || file->path == NULL
         || ngx_strlen(file->path) > BRIX_MAX_PATH)
     {
         if (*entry != NULL) {

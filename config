@@ -1405,6 +1405,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/write/write.c \
     $ngx_addon_dir/src/protocols/root/write/write_compress.c \
     $ngx_addon_dir/src/protocols/root/write/write_staged.c \
+    $ngx_addon_dir/src/protocols/root/write/write_stream.c \
     $ngx_addon_dir/src/protocols/root/write/writev.c \
     $ngx_addon_dir/src/protocols/root/write/writev_aio.c \
     $ngx_addon_dir/src/protocols/root/dirlist/handler.c \
